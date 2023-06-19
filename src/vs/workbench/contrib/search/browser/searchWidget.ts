@@ -25,7 +25,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
+import { ContextScopedReplaceInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { appendKeyBindingLabel, isSearchViewFocused, getSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -64,6 +64,7 @@ export interface ISearchWidgetOptions {
 
 interface NotebookToggleState {
 	isInNotebookMarkdownInput: boolean;
+	isInNotebookMarkdownPreview: boolean;
 	isInNotebookCellInput: boolean;
 	isInNotebookCellOutput: boolean;
 }
@@ -187,11 +188,17 @@ export class SearchWidget extends Widget {
 		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
 
-		const notebookOptions = options.notebookOptions ?? { isInNotebookMarkdownInput: true, isInNotebookCellInput: true, isInNotebookCellOutput: true };
+		const notebookOptions = options.notebookOptions ??
+		{
+			isInNotebookMarkdownInput: true,
+			isInNotebookMarkdownPreview: true,
+			isInNotebookCellInput: true,
+			isInNotebookCellOutput: true
+		};
 		this._notebookFilters = this._register(
 			new NotebookFindFilters(
 				notebookOptions.isInNotebookMarkdownInput,
-				!notebookOptions.isInNotebookMarkdownInput,
+				notebookOptions.isInNotebookMarkdownPreview,
 				notebookOptions.isInNotebookCellInput,
 				notebookOptions.isInNotebookCellOutput
 			));
@@ -385,12 +392,8 @@ export class SearchWidget extends Widget {
 
 		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
 
-		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
-		if (experimentalNotebooksEnabled) {
-			this.searchInput = this._register(new SearchFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, this.contextMenuService, this.instantiationService, this._notebookFilters, this._hasNotebookOpen()));
-		} else {
-			this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService));
-		}
+		this.searchInput = this._register(new SearchFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, this.contextMenuService, this.instantiationService, this._notebookFilters, this._hasNotebookOpen()));
+
 		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
 		this.searchInput.setValue(options.value || '');
 		this.searchInput.setRegex(!!options.isRegex);

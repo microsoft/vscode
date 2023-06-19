@@ -13,7 +13,7 @@ import { DateTimeout, ISequence, ITimeout, InfiniteTimeout, SequenceDiff } from 
 import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/algorithms/dynamicProgrammingDiffing';
 import { optimizeSequenceDiffs, smoothenSequenceDiffs } from 'vs/editor/common/diff/algorithms/joinSequenceDiffs';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/algorithms/myersDiffAlgorithm';
-import { ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping, LinesDiff, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping, LinesDiff, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
 export class StandardLinesDiffComputer implements ILinesDiffComputer {
 	private readonly dynamicProgrammingDiffing = new DynamicProgrammingDiffing();
@@ -116,7 +116,41 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		scanForWhitespaceChanges(originalLines.length - seq1LastStart);
 
 		const changes = lineRangeMappingFromRangeMappings(alignments, originalLines, modifiedLines);
-		return new LinesDiff(changes, hitTimeout);
+
+		const moves: MovedText[] = [];
+		if (options.computeMoves) {
+			const deletions = changes
+				.filter(c => c.modifiedRange.isEmpty && c.originalRange.length >= 3)
+				.map(d => new LineRangeFragment(d.originalRange, originalLines));
+			const insertions = new Set(changes
+				.filter(c => c.originalRange.isEmpty && c.modifiedRange.length >= 3)
+				.map(d => new LineRangeFragment(d.modifiedRange, modifiedLines)));
+
+			for (const deletion of deletions) {
+				let highestSimilarity = -1;
+				let best: LineRangeFragment | undefined;
+				for (const insertion of insertions) {
+					const similarity = deletion.computeSimilarity(insertion);
+					if (similarity > highestSimilarity) {
+						highestSimilarity = similarity;
+						best = insertion;
+					}
+				}
+
+				if (highestSimilarity > 0.90 && best) {
+					const moveChanges = this.refineDiff(originalLines, modifiedLines, new SequenceDiff(
+						new OffsetRange(deletion.range.startLineNumber - 1, deletion.range.endLineNumberExclusive - 1),
+						new OffsetRange(best.range.startLineNumber - 1, best.range.endLineNumberExclusive - 1),
+					), timeout, considerWhitespaceChanges);
+					const mappings = lineRangeMappingFromRangeMappings(moveChanges.mappings, originalLines, modifiedLines);
+
+					insertions.delete(best);
+					moves.push(new MovedText(new SimpleLineRangeMapping(deletion.range, best.range), mappings));
+				}
+			}
+		}
+
+		return new LinesDiff(changes, moves, hitTimeout);
 	}
 
 	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout, considerWhitespaceChanges: boolean): { mappings: RangeMapping[]; hitTimeout: boolean } {
@@ -280,19 +314,23 @@ export function getLineRangeMapping(rangeMapping: RangeMapping, originalLines: s
 
 	// rangeMapping describes the edit that replaces `rangeMapping.originalRange` with `newText := getText(modifiedLines, rangeMapping.modifiedRange)`.
 
-	// original: xxx[ \n <- this line is not modified
-	// modified: xxx[ \n
-	if (rangeMapping.modifiedRange.startColumn - 1 >= modifiedLines[rangeMapping.modifiedRange.startLineNumber - 1].length
-		&& rangeMapping.originalRange.startColumn - 1 >= originalLines[rangeMapping.originalRange.startLineNumber - 1].length) {
-		lineStartDelta = 1; // +1 is always possible, as startLineNumber < endLineNumber + 1
-	}
-
 	// original: ]xxx \n <- this line is not modified
 	// modified: ]xx  \n
 	if (rangeMapping.modifiedRange.endColumn === 1 && rangeMapping.originalRange.endColumn === 1
 		&& rangeMapping.originalRange.startLineNumber + lineStartDelta <= rangeMapping.originalRange.endLineNumber
 		&& rangeMapping.modifiedRange.startLineNumber + lineStartDelta <= rangeMapping.modifiedRange.endLineNumber) {
-		lineEndDelta = -1; // We can only do this if the range is not empty yet
+		// We can only do this if the range is not empty yet
+		lineEndDelta = -1;
+	}
+
+	// original: xxx[ \n <- this line is not modified
+	// modified: xxx[ \n
+	if (rangeMapping.modifiedRange.startColumn - 1 >= modifiedLines[rangeMapping.modifiedRange.startLineNumber - 1].length
+		&& rangeMapping.originalRange.startColumn - 1 >= originalLines[rangeMapping.originalRange.startLineNumber - 1].length
+		&& rangeMapping.originalRange.startLineNumber <= rangeMapping.originalRange.endLineNumber + lineEndDelta
+		&& rangeMapping.modifiedRange.startLineNumber <= rangeMapping.modifiedRange.endLineNumber + lineEndDelta) {
+		// We can only do this if the range is not empty yet
+		lineStartDelta = 1;
 	}
 
 	const originalLineRange = new LineRange(
@@ -463,8 +501,8 @@ class Slice implements ISequence {
 			}
 		}
 
-		const offsetOfPrevLineBreak = i === 0 ? 0 : this.firstCharOffsetByLineMinusOne[i - 1];
-		return new Position(this.lineRange.start + i + 1, offset - offsetOfPrevLineBreak + 1 + this.offsetByLine[i]);
+		const offsetOfFirstCharInLine = i === 0 ? 0 : this.firstCharOffsetByLineMinusOne[i - 1];
+		return new Position(this.lineRange.start + i + 1, offset - offsetOfFirstCharInLine + 1 + this.offsetByLine[i]);
 	}
 
 	public translateRange(range: OffsetRange): Range {
@@ -553,4 +591,48 @@ function getCategory(charCode: number): CharBoundaryCategory {
 
 function isSpace(charCode: number): boolean {
 	return charCode === CharCode.Space || charCode === CharCode.Tab;
+}
+
+const chrKeys = new Map<string, number>();
+function getKey(chr: string): number {
+	let key = chrKeys.get(chr);
+	if (key === undefined) {
+		key = chrKeys.size;
+		chrKeys.set(chr, key);
+	}
+	return key;
+}
+
+class LineRangeFragment {
+	private readonly totalCount: number;
+	private readonly histogram: number[] = [];
+	constructor(
+		public readonly range: LineRange,
+		public readonly lines: string[],
+	) {
+		let counter = 0;
+		for (let i = range.startLineNumber - 1; i < range.endLineNumberExclusive - 1; i++) {
+			const line = lines[i];
+			for (let j = 0; j < line.length; j++) {
+				counter++;
+				const chr = line[j];
+				const key = getKey(chr);
+				this.histogram[key] = (this.histogram[key] || 0) + 1;
+			}
+			counter++;
+			const key = getKey('\n');
+			this.histogram[key] = (this.histogram[key] || 0) + 1;
+		}
+
+		this.totalCount = counter;
+	}
+
+	public computeSimilarity(other: LineRangeFragment): number {
+		let sumDifferences = 0;
+		const maxLength = Math.max(this.histogram.length, other.histogram.length);
+		for (let i = 0; i < maxLength; i++) {
+			sumDifferences += Math.abs((this.histogram[i] ?? 0) - (other.histogram[i] ?? 0));
+		}
+		return 1 - (sumDifferences / (this.totalCount + other.totalCount));
+	}
 }

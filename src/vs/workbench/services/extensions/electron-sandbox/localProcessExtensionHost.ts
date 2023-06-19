@@ -419,6 +419,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
+			quality: this._productService.quality,
 			parentPid: 0,
 			environment: {
 				isExtensionDevelopmentDebug: this._isExtensionDevDebug,

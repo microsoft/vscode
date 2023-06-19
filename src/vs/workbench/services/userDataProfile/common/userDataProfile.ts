@@ -89,6 +89,7 @@ export interface IUserDataProfileImportExportService {
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
 	createFromCurrentProfile(name: string): Promise<void>;
+	createTemporaryProfile(from: IUserDataProfile, name: string, extensionsDisabled: boolean): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 

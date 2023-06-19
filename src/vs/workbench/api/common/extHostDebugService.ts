@@ -16,7 +16,7 @@ import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IThre
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { Breakpoint, DataBreakpoint, DebugAdapterExecutable, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, DebugAdapterServer, DebugConsoleMode, Disposable, FunctionBreakpoint, Location, Position, setBreakpointId, SourceBreakpoint } from 'vs/workbench/api/common/extHostTypes';
+import { Breakpoint, DataBreakpoint, DebugAdapterExecutable, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, DebugAdapterServer, DebugConsoleMode, Disposable, FunctionBreakpoint, Location, Position, setBreakpointId, SourceBreakpoint, ThreadFocus, StackFrameFocus } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IAdapterDescriptor, IConfig, IDebugAdapter, IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebuggerContribution } from 'vs/workbench/contrib/debug/common/debug';
@@ -601,29 +601,20 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	}
 
 	public async $acceptStackFrameFocus(focusDto: IThreadFocusDto | IStackFrameFocusDto): Promise<void> {
-		let focus: vscode.ThreadFocus | vscode.StackFrameFocus;
+		let focus: ThreadFocus | StackFrameFocus;
 		const session = focusDto.sessionId ? await this.getSession(focusDto.sessionId) : undefined;
 		if (!session) {
 			throw new Error('no DebugSession found for debug focus context');
 		}
 
 		if (focusDto.kind === 'thread') {
-			focus = {
-				kind: focusDto.kind,
-				threadId: focusDto.threadId,
-				session,
-			};
+			focus = new ThreadFocus(session, focusDto.threadId);
 		} else {
-			focus = {
-				kind: focusDto.kind,
-				threadId: focusDto.threadId,
-				frameId: focusDto.frameId,
-				session,
-			};
+			focus = new StackFrameFocus(session, focusDto.threadId, focusDto.frameId);
 		}
 
-		this._stackFrameFocus = focus;
-		this._onDidChangeStackFrameFocus.fire(focus);
+		this._stackFrameFocus = <vscode.ThreadFocus | vscode.StackFrameFocus>focus;
+		this._onDidChangeStackFrameFocus.fire(this._stackFrameFocus);
 	}
 
 	public $provideDebugConfigurations(configProviderHandle: number, folderUri: UriComponents | undefined, token: CancellationToken): Promise<vscode.DebugConfiguration[]> {

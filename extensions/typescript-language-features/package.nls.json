@@ -8,6 +8,7 @@
 	"configuration.suggest.completeFunctionCalls": "Complete functions with their parameter signature.",
 	"configuration.suggest.includeAutomaticOptionalChainCompletions": "Enable/disable showing completions on potentially undefined values that insert an optional chain call. Requires strict null checks to be enabled.",
 	"configuration.suggest.includeCompletionsForImportStatements": "Enable/disable auto-import-style completions on partially-typed import statements.",
+	"typescript.experimental.aiQuickFix": "Enable/disable AI-assisted quick fixes. Requires an extension providing AI chat functionality.",
 	"typescript.tsdk.desc": "Specifies the folder path to the tsserver and `lib*.d.ts` files under a TypeScript install to use for IntelliSense, for example: `./node_modules/typescript/lib`.\n\n- When specified as a user setting, the TypeScript version from `typescript.tsdk` automatically replaces the built-in TypeScript version.\n- When specified as a workspace setting, `typescript.tsdk` allows you to switch to use that workspace version of TypeScript for IntelliSense with the `TypeScript: Select TypeScript version` command.\n\nSee the [TypeScript documentation](https://code.visualstudio.com/docs/typescript/typescript-compiling#_using-newer-typescript-versions) for more detail about managing TypeScript versions.",
 	"typescript.disableAutomaticTypeAcquisition": "Disables [automatic type acquisition](https://code.visualstudio.com/docs/nodejs/working-with-javascript#_typings-and-automatic-type-acquisition). Automatic type acquisition fetches `@types` packages from npm to improve IntelliSense for external libraries.",
 	"typescript.enablePromptUseWorkspaceTsdk": "Enables prompting of users to use the TypeScript version configured in the workspace for Intellisense.",
@@ -41,7 +42,8 @@
 	"format.semicolons.remove": "Remove unnecessary semicolons.",
 	"format.indentSwitchCase": "Indent case clauses in switch statements. Requires using TypeScript 5.1+ in the workspace.",
 	"javascript.validate.enable": "Enable/disable JavaScript validation.",
-	"goToProjectConfig.title": "Go to Project Configuration",
+	"javascript.goToProjectConfig.title": "Go to Project Configuration (jsconfig / tsconfig)",
+	"typescript.goToProjectConfig.title": "Go to Project Configuration (tsconfig)",
 	"javascript.referencesCodeLens.enabled": "Enable/disable references CodeLens in JavaScript files.",
 	"javascript.referencesCodeLens.showOnAllFunctions": "Enable/disable references CodeLens on all functions in JavaScript files.",
 	"typescript.referencesCodeLens.enabled": "Enable/disable references CodeLens in TypeScript files.",
@@ -87,29 +89,41 @@
 	"inlayHints.parameterNames.all": "Enable parameter name hints for literal and non-literal arguments.",
 	"configuration.inlayHints.parameterNames.enabled": {
 		"message": "Enable/disable inlay hints for parameter names:\n```typescript\n\nparseInt(/* str: */ '123', /* radix: */ 8)\n \n```",
-		"comment": ["The text inside the ``` block is code and should not be localized."]
+		"comment": [
+			"The text inside the ``` block is code and should not be localized."
+		]
 	},
 	"configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName": "Suppress parameter name hints on arguments whose text is identical to the parameter name.",
 	"configuration.inlayHints.parameterTypes.enabled": {
 		"message": "Enable/disable inlay hints for implicit parameter types:\n```typescript\n\nel.addEventListener('click', e /* :MouseEvent */ => ...)\n \n```",
-		"comment": ["The text inside the ``` block is code and should not be localized."]
+		"comment": [
+			"The text inside the ``` block is code and should not be localized."
+		]
 	},
 	"configuration.inlayHints.variableTypes.enabled": {
 		"message": "Enable/disable inlay hints for implicit variable types:\n```typescript\n\nconst foo /* :number */ = Date.now();\n \n```",
-		"comment": ["The text inside the ``` block is code and should not be localized."]
+		"comment": [
+			"The text inside the ``` block is code and should not be localized."
+		]
 	},
 	"configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName": "Suppress type hints on variables whose name is identical to the type name. Requires using TypeScript 4.8+ in the workspace.",
 	"configuration.inlayHints.propertyDeclarationTypes.enabled": {
 		"message": "Enable/disable inlay hints for implicit types on property declarations:\n```typescript\n\nclass Foo {\n\tprop /* :number */ = Date.now();\n}\n \n```",
-		"comment": ["The text inside the ``` block is code and should not be localized."]
+		"comment": [
+			"The text inside the ``` block is code and should not be localized."
+		]
 	},
 	"configuration.inlayHints.functionLikeReturnTypes.enabled": {
 		"message": "Enable/disable inlay hints for implicit return types on function signatures:\n```typescript\n\nfunction foo() /* :number */ {\n\treturn Date.now();\n} \n \n```",
-		"comment": ["The text inside the ``` block is code and should not be localized."]
+		"comment": [
+			"The text inside the ``` block is code and should not be localized."
+		]
 	},
 	"configuration.inlayHints.enumMemberValues.enabled": {
 		"message": "Enable/disable inlay hints for member values in enum declarations:\n```typescript\n\nenum MyValue {\n\tA /* = 0 */;\n\tB /* = 1 */;\n}\n \n```",
-		"comment": ["The text inside the ``` block is code and should not be localized."]
+		"comment": [
+			"The text inside the ``` block is code and should not be localized."
+		]
 	},
 	"taskDefinition.tsconfig.description": "The tsconfig file that defines the TS build.",
 	"javascript.suggestionActions.enabled": "Enable/disable suggestion diagnostics for JavaScript files in the editor.",
@@ -197,26 +211,6 @@
 	"typescript.goToSourceDefinition": "Go to Source Definition",
 	"configuration.suggest.classMemberSnippets.enabled": "Enable/disable snippet completions for class members.",
 	"configuration.suggest.objectLiteralMethodSnippets.enabled": "Enable/disable snippet completions for methods in object literals. Requires using TypeScript 4.7+ in the workspace.",
-
-	"typescript.experimental.tsserver.web.enableProjectWideIntellisense": "Enable/disable project-wide IntelliSense on web. Requires that VS Code is running in a trusted context.",
-
-	"walkthroughs.nodejsWelcome.title": "Get started with JavaScript and Node.js",
-	"walkthroughs.nodejsWelcome.description": "Make the most of Visual Studio Code's first-class JavaScript experience.",
-
-	"walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows.title": "Install Node.js",
-	"walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows.description": "Node.js is an easy way to run JavaScript code. You can use it to quickly build command-line apps and servers. It also comes with npm, a package manager which makes reusing and sharing JavaScript code easy.\n[Install Node.js](https://nodejs.org/en/download/)",
-
-	"walkthroughs.nodejsWelcome.downloadNode.forLinux.title": "Install Node.js",
-	"walkthroughs.nodejsWelcome.downloadNode.forLinux.description": "Node.js is an easy way to run JavaScript code. You can use it to quickly build command-line apps and servers. It also comes with npm, a package manager which makes reusing and sharing JavaScript code easy.\n[Install Node.js](https://nodejs.org/en/download/package-manager/)",
-
-	"walkthroughs.nodejsWelcome.makeJsFile.title": "Create a JavaScript File",
-	"walkthroughs.nodejsWelcome.makeJsFile.description": "Let's write our first JavaScript file. We'll have to create a new file and save it with the ``.js`` extension at the end of the file name.\n[Create a JavaScript File](command:javascript-walkthrough.commands.createJsFile)",
-
-	"walkthroughs.nodejsWelcome.debugJsFile.title": "Run and Debug your JavaScript",
-	"walkthroughs.nodejsWelcome.debugJsFile.description": "Once you've installed Node.js, you can run JavaScript programs at a terminal by entering ``node your-file-name.js``\nAnother easy way to run Node.js programs is by using VS Code's debugger which lets you run your code, pause at different points, and help you understand what's going on step-by-step.\n[Start Debugging](command:javascript-walkthrough.commands.debugJsFile)",
-	"walkthroughs.nodejsWelcome.debugJsFile.altText": "Debug and run your JavaScript code in Node.js with Visual Studio Code.",
-
-	"walkthroughs.nodejsWelcome.learnMoreAboutJs.title": "Explore More",
-	"walkthroughs.nodejsWelcome.learnMoreAboutJs.description": "Want to get more comfortable with JavaScript, Node.js, and VS Code? Be sure to check out our docs!\nWe've got lots of resources for learning [JavaScript](https://code.visualstudio.com/docs/nodejs/working-with-javascript) and [Node.js](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial).\n\n[Learn More](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial)",
-	"walkthroughs.nodejsWelcome.learnMoreAboutJs.altText": "Learn more about JavaScript and Node.js in Visual Studio Code."
+	"configuration.tsserver.web.projectWideIntellisense.enabled": "Enable/disable project-wide IntelliSense on web. Requires that VS Code is running in a trusted context.",
+	"configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors": "Suppresses semantic errors. This is needed when using external packages as these can't be included analyzed on web."
 }

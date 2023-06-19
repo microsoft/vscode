@@ -20,7 +20,7 @@ fn main() {
 
 fn apply_build_environment_variables() {
 	// only do this for local, debug builds
-	if env::var("PROFILE").unwrap() != "debug" {
+	if env::var("PROFILE").unwrap() != "debug" || env::var("VSCODE_CLI_ALREADY_PREPARED").is_ok() {
 		return;
 	}
 

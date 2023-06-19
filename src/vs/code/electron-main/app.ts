@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, BrowserWindow, dialog, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
-import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -37,7 +37,7 @@ import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics'
 import { DiagnosticsMainService, IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { DialogMainService, IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
-import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
+import { EncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
@@ -320,7 +320,11 @@ export class CodeApplication extends Disposable {
 		//#region UNC Host Allowlist (Windows)
 
 		if (isWindows) {
-			addUNCHostToAllowlist(this.configurationService.getValue('security.allowedUNCHosts'));
+			if (this.configurationService.getValue('security.restrictUNCAccess') === false) {
+				disableUNCAccessRestrictions();
+			} else {
+				addUNCHostToAllowlist(this.configurationService.getValue('security.allowedUNCHosts'));
+			}
 		}
 
 		//#endregion
@@ -931,14 +935,13 @@ export class CodeApplication extends Disposable {
 			graceTime: LocalReconnectConstants.GraceTime,
 			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
 			scrollback: this.configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
-		}, this.environmentMainService);
+		}, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
 		const ptyHostService = new PtyHostService(
 			ptyHostStarter,
 			this.configurationService,
 			this.logService,
 			this.loggerService
 		);
-		ptyHostService.initialize();
 		services.set(ILocalPtyService, ptyHostService);
 
 		// External terminal

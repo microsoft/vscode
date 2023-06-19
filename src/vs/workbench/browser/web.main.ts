@@ -88,8 +88,10 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { UserDataProfileInitializer } from 'vs/workbench/services/userDataProfile/browser/userDataProfileInit';
 import { UserDataSyncInitializer } from 'vs/workbench/services/userDataSync/browser/userDataSyncInit';
+import { BrowserRemoteResourceLoader } from 'vs/workbench/services/remote/browser/browserRemoteResourceHandler';
 import { BufferLogger } from 'vs/platform/log/common/bufferLog';
 import { FileLoggerService } from 'vs/platform/log/common/fileLog';
+import { IEmbedderTerminalService } from 'vs/workbench/services/terminal/common/embedderTerminalService';
 
 export class BrowserMain extends Disposable {
 
@@ -150,6 +152,7 @@ export class BrowserMain extends Disposable {
 			const instantiationService = accessor.get(IInstantiationService);
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const labelService = accessor.get(ILabelService);
+			const embedderTerminalService = accessor.get(IEmbedderTerminalService);
 
 			let logger: DelayedLogChannel | undefined = undefined;
 
@@ -180,7 +183,8 @@ export class BrowserMain extends Disposable {
 					}
 				},
 				window: {
-					withProgress: (options, task) => progressService.withProgress(options, task)
+					withProgress: (options, task) => progressService.withProgress(options, task),
+					createTerminal: (options) => embedderTerminalService.createTerminal(options),
 				},
 				workspace: {
 					openTunnel: async tunnelOptions => {
@@ -275,11 +279,13 @@ export class BrowserMain extends Disposable {
 
 		// Remote
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(!environmentService.expectsResolverExtension, connectionToken, this.configuration.resourceUriProvider, productService, logService);
+		const remoteResourceLoader = this.configuration.remoteResourceProvider ? new BrowserRemoteResourceLoader(fileService, this.configuration.remoteResourceProvider) : undefined;
+		const resourceUriProvider = this.configuration.resourceUriProvider ?? remoteResourceLoader?.getResourceUriProvider();
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(!environmentService.expectsResolverExtension, connectionToken, resourceUriProvider, productService, logService);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
-		const signService = new SignService(connectionToken);
+		const signService = new SignService(productService);
 		serviceCollection.set(ISignService, signService);
 
 

@@ -37,6 +37,8 @@ fsevents/test/**
 @vscode/windows-process-tree/binding.gyp
 @vscode/windows-process-tree/build/**
 @vscode/windows-process-tree/src/**
+@vscode/windows-process-tree/tsconfig.json
+@vscode/windows-process-tree/tslint.json
 !@vscode/windows-process-tree/**/*.node
 
 @vscode/windows-registry/binding.gyp
@@ -102,6 +104,7 @@ vsda/src/**
 vsda/.gitignore
 vsda/binding.gyp
 vsda/README.md
+vsda/SECURITY.md
 vsda/targets
 !vsda/build/Release/vsda.node
 

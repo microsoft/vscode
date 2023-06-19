@@ -311,9 +311,15 @@ export interface IDeprecationInfo {
 	readonly additionalInfo?: string;
 }
 
+export interface ISearchPrefferedResults {
+	readonly query?: string;
+	readonly preferredResults?: string[];
+}
+
 export interface IExtensionsControlManifest {
 	readonly malicious: IExtensionIdentifier[];
 	readonly deprecated: IStringDictionary<IDeprecationInfo>;
+	readonly search: ISearchPrefferedResults[];
 }
 
 export const enum InstallOperation {
@@ -341,6 +347,11 @@ export interface IExtensionQueryOptions {
 }
 
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
+
+/**
+ * Service to interact with the Visual Studio Code Marketplace to get extensions.
+ * @throws Error if the Marketplace is not enabled or not reachable.
+ */
 export interface IExtensionGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
@@ -372,6 +383,7 @@ export interface InstallExtensionResult {
 	readonly operation: InstallOperation;
 	readonly source?: URI | IGalleryExtension;
 	readonly local?: ILocalExtension;
+	readonly error?: Error;
 	readonly context?: IStringDictionary<any>;
 	readonly profileLocation?: URI;
 	readonly applicationScoped?: boolean;
@@ -445,6 +457,8 @@ export interface IExtensionManagementParticipant {
 	postUninstall(local: ILocalExtension, options: UninstallOptions, token: CancellationToken): Promise<void>;
 }
 
+export type InstallExtensionInfo = { readonly extension: IGalleryExtension; readonly options: InstallOptions };
+
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export interface IExtensionManagementService {
 	readonly _serviceBrand: undefined;
@@ -461,6 +475,7 @@ export interface IExtensionManagementService {
 	install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension>;
 	canInstall(extension: IGalleryExtension): Promise<boolean>;
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
+	installGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<InstallExtensionResult[]>;
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
 	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;

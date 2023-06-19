@@ -1,0 +1,361 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.interactive-session {
+	max-width: 850px;
+	margin: auto;
+}
+
+.interactive-list .monaco-list-row .monaco-tl-twistie {
+	/* Hide twisties from tree rows */
+	display: none !important;
+}
+
+.interactive-item-container {
+	padding: 16px 20px 0px 20px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	color: var(--vscode-interactive-session-foreground);
+
+	cursor: default;
+	user-select: text;
+	-webkit-user-select: text;
+}
+
+.interactive-item-container .header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.interactive-item-container .header .user {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.interactive-item-container .header .username {
+	margin: 0;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.interactive-item-container .header .avatar {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background: var(--vscode-badge-background);
+	pointer-events: none;
+	user-select: none;
+}
+
+.interactive-item-container .header .avatar .icon {
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+}
+
+.interactive-item-container .header .avatar .codicon {
+	color: var(--vscode-badge-foreground) !important;
+}
+
+.monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar,
+.monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar .action-label {
+	/* Also apply this rule to the .action-label directly to work around a strange issue- when the
+	toolbar is hidden without that second rule, tabbing from the list container into a list item doesn't work
+	and the tab key doesn't do anything. */
+	display: none;
+}
+
+.interactive-item-container .header .monaco-toolbar .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
+.interactive-item-container .header .monaco-toolbar .action-label {
+	border: 1px solid transparent;
+	padding: 2px;
+}
+
+.interactive-item-container .header .monaco-toolbar .checked.action-label,
+.interactive-item-container .header .monaco-toolbar .checked.action-label:hover {
+	color: var(--vscode-inputOption-activeForeground) !important;
+	border-color: var(--vscode-inputOption-activeBorder);
+	background-color: var(--vscode-inputOption-activeBackground);
+}
+
+.interactive-item-container .value {
+	width: 100%;
+}
+
+.interactive-item-container .value table {
+	width: 100%;
+	text-align: left;
+	margin-bottom: 16px;
+}
+
+.interactive-item-container .value table,
+.interactive-item-container .value table td,
+.interactive-item-container .value table th {
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-collapse: collapse;
+	padding: 4px 6px;
+}
+
+.interactive-item-container .value a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-item-container .value a:hover,
+.interactive-item-container .value a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.interactive-list {
+	overflow: hidden;
+}
+
+.interactive-request {
+	background-color: var(--vscode-chat-requestBackground);
+	border-bottom: 1px solid var(--vscode-chat-requestBorder);
+	border-top: 1px solid var(--vscode-chat-requestBorder);
+}
+
+.interactive-item-container .value {
+	white-space: normal;
+	min-height: 36px;
+	word-wrap: break-word;
+}
+
+.interactive-item-container .value > :last-child:not(.rendered-markdown) {
+	/* The container has padding on all sides except the bottom. The last element needs to provide this margin. rendered-markdown has its own margin.
+		TODO Another approach could be removing the margin on the very last element inside the markdown container? */
+	margin-bottom: 16px;
+}
+
+.interactive-item-container .value > .interactive-response-error-details:not(:last-child) {
+	margin-bottom: 8px;
+}
+
+.interactive-item-container .value h1 {
+	font-size: 20px;
+	font-weight: 600;
+	margin: 16px 0;
+
+}
+
+.interactive-item-container .value h2 {
+	font-size: 16px;
+	font-weight: 600;
+	margin: 16px 0;
+}
+
+.interactive-item-container .value h3 {
+	font-size: 14px;
+	font-weight: 600;
+	margin: 16px 0;
+}
+
+.interactive-item-container .value p {
+	margin: 0 0 16px 0;
+	line-height: 1.6em;
+}
+
+.interactive-item-container .value li {
+	line-height: 1.5rem;
+}
+
+.interactive-item-container .monaco-tokenized-source,
+.interactive-item-container code {
+	font-family: var(--monaco-monospace-font);
+	color: var(--vscode-textPreformat-foreground);
+}
+
+.interactive-session .interactive-input-and-toolbar {
+	display: flex;
+	box-sizing: border-box;
+	cursor: text;
+	margin: 0px 12px;
+
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 4px;
+	position: relative;
+	padding-left: 8px;
+}
+
+.interactive-session .interactive-input-and-toolbar.focused {
+	border-color: var(--vscode-focusBorder);
+}
+
+.interactive-session .interactive-input-and-toolbar .monaco-editor,
+.interactive-session .interactive-input-and-toolbar .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-input-background) !important;
+}
+
+.interactive-session .interactive-input-and-toolbar .monaco-editor .cursors-layer {
+	padding-left: 4px;
+}
+
+.interactive-session .interactive-input-part .interactive-execute-toolbar {
+	position: absolute;
+	height: 22px;
+	right: 6px;
+	bottom: 6px;
+}
+
+.interactive-session .interactive-input-part .interactive-execute-toolbar .codicon-debug-stop {
+	color: var(--vscode-icon-foreground) !important;
+}
+
+.interactive-item-container .interactive-result-editor-wrapper {
+	position: relative;
+}
+
+.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar {
+	display: none;
+	position: absolute;
+	top: -13px;
+	right: 10px;
+	height: 26px;
+	background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
+	border: 1px solid var(--vscode-chat-requestBorder);
+	z-index: 100;
+}
+
+.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar .action-item {
+	height: 24px;
+	width: 24px;
+	margin: 1px 2px;
+}
+
+.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar .action-item .codicon {
+	margin: 1px;
+}
+
+.interactive-item-container .interactive-result-editor-wrapper:hover .monaco-toolbar,
+.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar:focus-within,
+.interactive-item-container .interactive-result-editor-wrapper.focused .monaco-toolbar {
+	display: initial;
+	border-radius: 2px;
+}
+
+.interactive-item-container .interactive-result-editor-wrapper {
+	margin: 16px 0;
+}
+
+.interactive-response .monaco-editor .margin,
+.interactive-response .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-interactive-result-editor-background-color);
+}
+
+.interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor {
+	border: 1px solid var(--vscode-input-border, transparent);
+}
+
+.interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor.focused {
+	border-color: var(--vscode-focusBorder, transparent);
+}
+
+.interactive-item-container .interactive-result-editor-wrapper,
+.interactive-item-container .interactive-result-editor-wrapper .monaco-editor,
+.interactive-item-container .interactive-result-editor-wrapper .monaco-editor .overflow-guard {
+	border-radius: 4px;
+}
+
+.interactive-response .interactive-response-error-details {
+	display: flex;
+	align-items: start;
+	gap: 6px;
+}
+
+.interactive-response .interactive-response-error-details .codicon {
+	margin-top: 1px;
+}
+
+.interactive-response .interactive-response-error-details .codicon-error {
+	color: var(--vscode-errorForeground) !important; /* Have to override default styles which apply to all lists */
+}
+
+.interactive-response .interactive-response-error-details .codicon-info {
+	color: var(--vscode-notificationsInfoIcon-foreground) !important; /* Have to override default styles which apply to all lists */
+}
+
+.interactive-item-container .value .interactive-slash-command {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .interactive-input-part {
+	padding: 12px 0px;
+	display: flex;
+	flex-direction: column;
+	border-top: solid 1px var(--vscode-chat-requestBorder);
+}
+
+.interactive-session-followups {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	align-items: start;
+}
+
+.interactive-session-followups .monaco-button {
+	text-align: left;
+	width: initial;
+}
+
+.interactive-session-followups .monaco-button .codicon {
+	margin-left: 0;
+	margin-top: 1px;
+}
+
+.interactive-item-container .interactive-response-followups .monaco-button {
+	padding: 4px 8px;
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups {
+	margin: 0px 20px;
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
+	margin-bottom: 8px;
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button {
+	display: block;
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups code {
+	font-family: var(--monaco-monospace-font);
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button .codicon-sparkle {
+	float: left;
+}
+
+.interactive-session-followups .monaco-button.interactive-followup-reply {
+	padding: 0px;
+	font-size: 12px;
+	font-weight: 600;
+	border: none;
+}
+
+.interactive-welcome .value .interactive-session-followups {
+	margin-bottom: 16px;
+}
+
+.interactive-item-container .monaco-toolbar .codicon {
+	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
+	color: var(--vscode-icon-foreground) !important;
+}
+
+.interactive-item-container.filtered-response .value .rendered-markdown {
+	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
+	mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
+}
