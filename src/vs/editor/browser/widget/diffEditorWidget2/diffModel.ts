@@ -251,7 +251,7 @@ export class UnchangedRegion {
 			let modStart = mapping.modifiedRange.startLineNumber;
 			let length = mapping.originalRange.length;
 
-			if (origStart === 1 && length > minContext + minHiddenLineCount) {
+			if (origStart === 1 && modStart === 1 && length > minContext + minHiddenLineCount) {
 				length -= minContext;
 				result.push(new UnchangedRegion(origStart, modStart, length, 0, 0));
 			} else if (origStart + length === originalLineCount + 1 && length > minContext + minHiddenLineCount) {
