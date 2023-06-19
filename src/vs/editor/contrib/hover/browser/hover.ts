@@ -122,8 +122,9 @@ export class ModesHoverController implements IEditorContribution {
 		if (target.type !== MouseTargetType.OVERLAY_WIDGET) {
 			this._hoverClicked = false;
 		}
-
-		this._hideWidgets();
+		if (!this._contentWidget?.widget.isResizing) {
+			this._hideWidgets();
+		}
 	}
 
 	private _onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
@@ -132,7 +133,8 @@ export class ModesHoverController implements IEditorContribution {
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
 		const targetEm = (mouseEvent.event.browserEvent.relatedTarget) as HTMLElement;
-		if (this._contentWidget?.containsNode(targetEm)) {
+		if (this._contentWidget?.widget.isResizing || this._contentWidget?.containsNode(targetEm)) {
+			// When the content widget is resizing
 			// when the mouse is inside hover widget
 			return;
 		}
@@ -195,8 +197,9 @@ export class ModesHoverController implements IEditorContribution {
 			this._glyphWidget.startShowingAt(target.position.lineNumber);
 			return;
 		}
-
-		this._hideWidgets();
+		if (!this._contentWidget?.widget.isResizing) {
+			this._hideWidgets();
+		}
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
@@ -222,9 +225,7 @@ export class ModesHoverController implements IEditorContribution {
 
 		this._hoverClicked = false;
 		this._glyphWidget?.hide();
-		if (!this._contentWidget?.widget.isResizing) {
-			this._contentWidget?.hide();
-		}
+		this._contentWidget?.hide();
 	}
 
 	private _getOrCreateContentWidget(): ContentHoverController {
