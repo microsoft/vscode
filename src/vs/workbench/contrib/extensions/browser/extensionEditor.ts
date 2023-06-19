@@ -945,22 +945,25 @@ export class ExtensionEditor extends EditorPane {
 		append(moreInfoContainer, $('.additional-details-title', undefined, localize('Marketplace Info', "More Info")));
 		const moreInfo = append(moreInfoContainer, $('.more-info'));
 		if (gallery) {
+			const pub = new Date(gallery.releaseDate);
+			const last_rel = new Date(gallery.lastUpdated);
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('published', "Published")),
-					$('div', undefined, new Date(gallery.releaseDate).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, [pub.getFullYear(), pub.getMonth() + 1, pub.getDate()].join('-').concat(', ' + pub.toLocaleTimeString(language, { hourCycle: 'h23' })))
 				),
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last released', "Last released")),
-					$('div', undefined, new Date(gallery.lastUpdated).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, [last_rel.getFullYear(), last_rel.getMonth() + 1, last_rel.getDate()].join('-').concat(', ' + last_rel.toLocaleTimeString(language, { hourCycle: 'h23' })))
 				)
 			);
 		}
 		if (extension.local && extension.local.installedTimestamp) {
+			const last_up = new Date(extension.local.installedTimestamp);
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last updated', "Last updated")),
-					$('div', undefined, new Date(extension.local.installedTimestamp).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, [last_up.getFullYear(), last_up.getMonth() + 1, last_up.getDate()].join('-').concat(', ' + last_up.toLocaleTimeString(language, { hourCycle: 'h23' })))
 				)
 			);
 		}
