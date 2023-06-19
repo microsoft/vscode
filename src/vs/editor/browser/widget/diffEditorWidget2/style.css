@@ -40,6 +40,15 @@
 	background: var(--vscode-diffEditor-unchangedCodeBackground);
 }
 
+.noModificationsOverlay {
+	z-index: 1;
+	background: var(--vscode-editor-background);
+
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
 
 .diff-hidden-lines .center {
 	background: var(--vscode-diffEditor-unchangedRegionBackground);

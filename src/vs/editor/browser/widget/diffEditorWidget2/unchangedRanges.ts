@@ -15,6 +15,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffModel, UnchangedRegion } from 'vs/editor/browser/widget/diffEditorWidget2/diffModel';
 import { PlaceholderViewZone, ViewZoneOverlayWidget, applyObservableDecorations, applyStyle, applyViewZones } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export class UnchangedRangesFeature extends Disposable {
@@ -30,32 +31,38 @@ export class UnchangedRangesFeature extends Disposable {
 		super();
 
 		this._register(this._originalEditor.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
-			transaction(tx => {
-				for (const s of this._originalEditor.getSelections() || []) {
-					m?.ensureOriginalLineIsVisible(s.getStartPosition().lineNumber, tx);
-					m?.ensureOriginalLineIsVisible(s.getEndPosition().lineNumber, tx);
-				}
-			});
+			if (e.reason === CursorChangeReason.Explicit) {
+				const m = this._diffModel.get();
+				transaction(tx => {
+					for (const s of this._originalEditor.getSelections() || []) {
+						m?.ensureOriginalLineIsVisible(s.getStartPosition().lineNumber, tx);
+						m?.ensureOriginalLineIsVisible(s.getEndPosition().lineNumber, tx);
+					}
+				});
+			}
 		}));
 
 		this._register(this._modifiedEditor.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
-			transaction(tx => {
-				for (const s of this._modifiedEditor.getSelections() || []) {
-					m?.ensureModifiedLineIsVisible(s.getStartPosition().lineNumber, tx);
-					m?.ensureModifiedLineIsVisible(s.getEndPosition().lineNumber, tx);
-				}
-			});
+			if (e.reason === CursorChangeReason.Explicit) {
+				const m = this._diffModel.get();
+				transaction(tx => {
+					for (const s of this._modifiedEditor.getSelections() || []) {
+						m?.ensureModifiedLineIsVisible(s.getStartPosition().lineNumber, tx);
+						m?.ensureModifiedLineIsVisible(s.getEndPosition().lineNumber, tx);
+					}
+				});
+			}
 		}));
+
+		const unchangedRegions = this._diffModel.map((m, reader) => m?.diff.read(reader)?.mappings.length === 0 ? [] : m?.unchangedRegions.read(reader) ?? []);
 
 		const viewZones = derivedWithStore('view zones', (reader, store) => {
 			const origViewZones: IViewZone[] = [];
 			const modViewZones: IViewZone[] = [];
 			const sideBySide = this._sideBySide.read(reader);
 
-			const unchangedRegions = this._diffModel.read(reader)?.unchangedRegions.read(reader) ?? [];
-			for (const r of unchangedRegions) {
+			const curUnchangedRegions = unchangedRegions.read(reader);
+			for (const r of curUnchangedRegions) {
 				if (r.shouldHideControls(reader)) {
 					continue;
 				}
@@ -85,16 +92,16 @@ export class UnchangedRangesFeature extends Disposable {
 		};
 
 		this._register(applyObservableDecorations(this._originalEditor, derived('decorations', (reader) => {
-			const unchangedRegions = this._diffModel.read(reader)?.unchangedRegions.read(reader) ?? [];
-			return unchangedRegions.map<IModelDeltaDecoration>(r => ({
+			const curUnchangedRegions = unchangedRegions.read(reader);
+			return curUnchangedRegions.map<IModelDeltaDecoration>(r => ({
 				range: r.originalRange.toInclusiveRange()!,
 				options: unchangedLinesDecoration,
 			}));
 		})));
 
 		this._register(applyObservableDecorations(this._modifiedEditor, derived('decorations', (reader) => {
-			const unchangedRegions = this._diffModel.read(reader)?.unchangedRegions.read(reader) ?? [];
-			return unchangedRegions.map<IModelDeltaDecoration>(r => ({
+			const curUnchangedRegions = unchangedRegions.read(reader);
+			return curUnchangedRegions.map<IModelDeltaDecoration>(r => ({
 				range: r.modifiedRange.toInclusiveRange()!,
 				options: unchangedLinesDecoration,
 			}));
@@ -104,10 +111,9 @@ export class UnchangedRangesFeature extends Disposable {
 		this._register(applyViewZones(this._modifiedEditor, viewZones.map(v => v.modViewZones), v => this._isUpdatingViewZones = v));
 
 		this._register(autorunWithStore2('update folded unchanged regions', (reader, store) => {
-			const unchangedRegions = this._diffModel.read(reader)?.unchangedRegions.read(reader) ?? [];
-
-			this._originalEditor.setHiddenAreas(unchangedRegions.map(r => r.getHiddenOriginalRange(reader).toInclusiveRange()).filter(isDefined));
-			this._modifiedEditor.setHiddenAreas(unchangedRegions.map(r => r.getHiddenModifiedRange(reader).toInclusiveRange()).filter(isDefined));
+			const curUnchangedRegions = unchangedRegions.read(reader);
+			this._originalEditor.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenOriginalRange(reader).toInclusiveRange()).filter(isDefined));
+			this._modifiedEditor.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenModifiedRange(reader).toInclusiveRange()).filter(isDefined));
 		}));
 	}
 }
