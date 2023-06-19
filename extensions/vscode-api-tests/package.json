@@ -26,7 +26,7 @@
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
-	"readonlyMessage",
+    "readonlyMessage",
     "resolvers",
     "saveEditor",
     "scmActionButton",

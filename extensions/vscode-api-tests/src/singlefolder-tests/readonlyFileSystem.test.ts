@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { TestFS } from '../memfs';
 import { assertNoRpc, closeAllEditors } from '../utils';
 
-suite('vscode API - workspace', () => {
+suite('vscode API - file system', () => {
 
 	teardown(async function () {
 		assertNoRpc();
@@ -18,14 +18,13 @@ suite('vscode API - workspace', () => {
 	test('readonly file system - boolean', async function () {
 		const fs = new TestFS('this-fs', false);
 		const reg = vscode.workspace.registerFileSystemProvider(fs.scheme, fs, { isReadonly: true });
-		// We cannot use the `isWritableFileSystem` API here because it will just return undefined, indicating that we don't know if the file system is writable or not.
-		// assert.strictEqual(vscode.workspace.fs.isWritableFileSystem('this-fs'), false);
 		let error: any | undefined;
 		try {
 			await vscode.workspace.fs.writeFile(vscode.Uri.parse('this-fs:/foo.txt'), Buffer.from('Hello World'));
 		} catch (e) {
 			error = e;
 		}
+		assert.strictEqual(vscode.workspace.fs.isWritableFileSystem('this-fs'), false);
 		assert.strictEqual(error instanceof vscode.FileSystemError, true);
 		const fileError: vscode.FileSystemError = error;
 		assert.strictEqual(fileError.code, 'NoPermissions');
@@ -41,6 +40,7 @@ suite('vscode API - workspace', () => {
 		} catch (e) {
 			error = e;
 		}
+		assert.strictEqual(vscode.workspace.fs.isWritableFileSystem('this-fs'), false);
 		assert.strictEqual(error instanceof vscode.FileSystemError, true);
 		const fileError: vscode.FileSystemError = error;
 		assert.strictEqual(fileError.code, 'NoPermissions');
@@ -56,6 +56,7 @@ suite('vscode API - workspace', () => {
 		} catch (e) {
 			error = e;
 		}
+		assert.strictEqual(vscode.workspace.fs.isWritableFileSystem('this-fs'), true);
 		assert.strictEqual(error, undefined);
 		reg.dispose();
 	});

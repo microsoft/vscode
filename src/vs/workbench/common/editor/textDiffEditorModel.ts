@@ -62,7 +62,7 @@ export class TextDiffEditorModel extends DiffEditorModel {
 	}
 
 	isReadonly(): boolean | IMarkdownString {
-		return !!this.modifiedModel ? this.modifiedModel.isReadonly() : false;
+		return !!this.modifiedModel && this.modifiedModel.isReadonly();
 	}
 
 	override dispose(): void {
