@@ -12,7 +12,7 @@ import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/b
 import { localize } from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityHelpAction, AccessibilityViewAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import * as strings from 'vs/base/common/strings';
@@ -152,10 +152,7 @@ class HoverAccessibileViewContribution extends Disposable {
 					provider.dispose();
 					controller.focus();
 				},
-				onKeyDown(e: IKeyboardEvent) {
-
-				},
-				options: { ariaLabel: localize('hoverAccessibleView', "Hover Accessible View") }
+				options: { ariaLabel: localize('hoverAccessibleView', "Hover Accessible View"), language: 'typescript' }
 			});
 			accessibleViewService.show('hover');
 			return true;

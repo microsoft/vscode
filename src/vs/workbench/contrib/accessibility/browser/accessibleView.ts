@@ -48,6 +48,7 @@ export interface IAccessibleViewOptions {
 	ariaLabel: string;
 	isHelpMenu?: boolean;
 	readMoreUrl?: string;
+	language?: string;
 }
 
 
@@ -115,6 +116,9 @@ class AccessibleView extends Disposable {
 			const domNode = this._editorWidget.getDomNode();
 			if (!domNode) {
 				return;
+			}
+			if (provider.options.language) {
+				model.setLanguage(provider.options.language);
 			}
 			container.appendChild(this._editorContainer);
 			this._layout();
