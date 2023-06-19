@@ -471,9 +471,8 @@ impl DevTunnels {
 						continue;
 					}
 
-					let error_details = e.get_details();
-					if error_details.is_some() {
-						let detail = error_details.unwrap().detail.unwrap_or("unknown".to_string());
+					if let Some(d) = e.get_details() {
+						let detail = d.detail.unwrap_or("unknown".to_string());
 						return Err(AnyError::from(TunnelCreationFailed(
 							name.to_string(),
 							detail,
