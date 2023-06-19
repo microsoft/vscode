@@ -23,9 +23,6 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { URI } from 'vs/base/common/uri';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
@@ -39,23 +36,16 @@ class AccessibilityHelpProvider extends Disposable implements IAccessibleContent
 	}
 	options: IAccessibleViewOptions = { isHelpMenu: true, ariaLabel: localize('terminal-help-label', "terminal accessibility help") };
 	id: string = 'editor';
-	onKeyDown(e: IKeyboardEvent): void {
-		if (e.keyCode === KeyCode.KeyH) {
-			alert(AccessibilityHelpNLS.openingDocs);
-
-			let url = (this._editor.getRawOptions() as any).accessibilityHelpUrl;
-			if (typeof url === 'undefined') {
-				url = 'https://go.microsoft.com/fwlink/?linkid=852450';
-			}
-			this._openerService.open(URI.parse(url));
-		}
-	}
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
+		let url = (this._editor.getRawOptions() as any).accessibilityHelpUrl;
+		if (typeof url === 'undefined') {
+			url = 'https://go.microsoft.com/fwlink/?linkid=852450';
+		}
+		this.options.readMoreUrl = url;
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
@@ -107,7 +97,6 @@ class AccessibilityHelpProvider extends Disposable implements IAccessibleContent
 		} else {
 			content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb));
 		}
-		content.push(AccessibilityHelpNLS.openDoc);
 		return content.join('\n');
 	}
 }
