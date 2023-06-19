@@ -23,10 +23,9 @@ function main() {
 	const editorMainBundle = new CachedBundle('vs/editor/editor.main', moduleIdMapper);
 	fileServer.overrideFileContent(editorMainBundle.entryModulePath, () => editorMainBundle.bundle());
 
-	const hotReloadJsCode = getHotReloadCode(new URL('/file-changes', server.url));
 	const loaderPath = path.join(rootDir, 'out/vs/loader.js');
 	fileServer.overrideFileContent(loaderPath, async () =>
-		Buffer.from(new TextEncoder().encode(`${await fsPromise.readFile(loaderPath, 'utf8')}\n${hotReloadJsCode}`))
+		Buffer.from(new TextEncoder().encode(makeLoaderJsHotReloadable(await fsPromise.readFile(loaderPath, 'utf8'), new URL('/file-changes', server.url))))
 	);
 
 	const watcher = DirWatcher.watchRecursively(moduleIdMapper.rootDir);
@@ -35,7 +34,7 @@ function main() {
 		editorMainBundle.bundle();
 		console.log(`${new Date().toLocaleTimeString()}, file change: ${path}`);
 	});
-	server.use('/file-changes', handleGetFileChangesRequest(watcher, fileServer));
+	server.use('/file-changes', handleGetFileChangesRequest(watcher, fileServer, moduleIdMapper));
 
 	console.log(`Server listening on ${server.url}`);
 }
@@ -169,6 +168,12 @@ function getContentType(filePath: string): string {
 			return 'image/png';
 		case '.jpg':
 			return 'image/jpg';
+		case '.svg':
+			return 'image/svg+xml';
+		case '.html':
+			return 'text/html';
+		case '.wasm':
+			return 'application/wasm';
 		default:
 			return 'text/plain';
 	}
@@ -215,56 +220,107 @@ class DirWatcher {
 	}
 }
 
-function handleGetFileChangesRequest(watcher: DirWatcher, fileServer: FileServer): ChainableRequestHandler {
+function handleGetFileChangesRequest(watcher: DirWatcher, fileServer: FileServer, moduleIdMapper: SimpleModuleIdPathMapper): ChainableRequestHandler {
 	return async (req, res) => {
 		res.writeHead(200, { 'Content-Type': 'text/plain' });
 		const d = watcher.onDidChange(fsPath => {
 			const path = fileServer.filePathToUrlPath(fsPath);
 			if (path) {
-				res.write(JSON.stringify({ changedPath: path }) + '\n');
+				res.write(JSON.stringify({ changedPath: path, moduleId: moduleIdMapper.getModuleId(fsPath) }) + '\n');
 			}
 		});
 		res.on('close', () => d.dispose());
 	};
 }
+function makeLoaderJsHotReloadable(loaderJsCode: string, fileChangesUrl: URL): string {
+	loaderJsCode = loaderJsCode.replace(
+		/constructor\(env, scriptLoader, defineFunc, requireFunc, loaderAvailableTimestamp = 0\) {/,
+		'$&globalThis.$$globalModuleManager = this;'
+	);
 
-function getHotReloadCode(fileChangesUrl: URL): string {
-	const additionalJsCode = `
-function $watchChanges() {
-	console.log("Connecting to server to watch for changes...");
-	fetch(${JSON.stringify(fileChangesUrl)})
-		.then(async request => {
-			const reader = request.body.getReader();
-			let buffer = '';
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) { break; }
-				buffer += new TextDecoder().decode(value);
-				const lines = buffer.split('\\n');
-				buffer = lines.pop();
-				for (const line of lines) {
-					const data = JSON.parse(line);
-					if (data.changedPath.endsWith('.css')) {
-						console.log('css changed', data.changedPath);
-						const styleSheet = [...document.querySelectorAll("link[rel='stylesheet']")].find(l => new URL(l.href, document.location.href).pathname.endsWith(data.changedPath));
-						if (styleSheet) {
-							styleSheet.href = styleSheet.href.replace(/\\?.*/, '') + '?' + Date.now();
+	const $$globalModuleManager: any = undefined;
+
+	// This code will be appended to loader.js
+	function $watchChanges(fileChangesUrl: string) {
+		let reloadFn;
+		if (globalThis.$sendMessageToParent) {
+			reloadFn = () => globalThis.$sendMessageToParent({ kind: 'reload' });
+		} else if (typeof window !== 'undefined') {
+			reloadFn = () => window.location.reload();
+		} else {
+			reloadFn = () => { };
+		}
+
+		console.log('Connecting to server to watch for changes...');
+		(fetch as any)(fileChangesUrl)
+			.then(async request => {
+				const reader = request.body.getReader();
+				let buffer = '';
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) { break; }
+					buffer += new TextDecoder().decode(value);
+					const lines = buffer.split('\n');
+					buffer = lines.pop()!;
+					for (const line of lines) {
+						const data = JSON.parse(line);
+						let handled = false;
+						if (data.changedPath.endsWith('.css')) {
+							console.log('css changed', data.changedPath);
+							const styleSheet = [...document.querySelectorAll(`link[rel='stylesheet']`)].find((l: any) => new URL(l.href, document.location.href).pathname.endsWith(data.changedPath)) as any;
+							if (styleSheet) {
+								styleSheet.href = styleSheet.href.replace(/\?.*/, '') + '?' + Date.now();
+							}
+							handled = true;
+						} else if (data.changedPath.endsWith('.js') && data.moduleId) {
+							console.log('js changed', data.changedPath);
+							const moduleId = $$globalModuleManager._moduleIdProvider.getModuleId(data.moduleId);
+							if ($$globalModuleManager._modules2[moduleId]) {
+								const srcUrl = $$globalModuleManager._config.moduleIdToPaths(data.moduleId);
+								const newSrc = await (await fetch(srcUrl)).text();
+								(new Function('define', newSrc))(function (deps, callback) {
+									const oldModule = $$globalModuleManager._modules2[moduleId];
+									delete $$globalModuleManager._modules2[moduleId];
+
+									$$globalModuleManager.defineModule(data.moduleId, deps, callback);
+									const newModule = $$globalModuleManager._modules2[moduleId];
+									const oldExports = { ...oldModule.exports };
+
+									Object.assign(oldModule.exports, newModule.exports);
+									newModule.exports = oldModule.exports;
+
+									handled = true;
+
+									for (const cb of [...globalThis.$hotReload_deprecateExports]) {
+										cb(oldExports, newModule.exports);
+									}
+
+									if (handled) {
+										console.log('hot reloaded', data.moduleId);
+									}
+								});
+							}
 						}
-					} else {
-						$sendMessageToParent({ kind: "reload" });
+
+						if (!handled) { reloadFn(); }
 					}
 				}
-			}
-		})
-		.catch(err => {
-			console.error(err);
-			setTimeout($watchChanges, 1000);
-		});
+			}).catch(err => {
+				console.error(err);
+				setTimeout(() => $watchChanges(fileChangesUrl), 1000);
+			});
 
-}
-$watchChanges();
+	}
+
+	const additionalJsCode = `
+(${(function () {
+			globalThis.$hotReload_deprecateExports = new Set<(oldExports: any, newExports: any) => void>();
+		}).toString()})();
+${$watchChanges.toString()}
+$watchChanges(${JSON.stringify(fileChangesUrl)});
 `;
-	return additionalJsCode;
+
+	return `${loaderJsCode}\n${additionalJsCode}`;
 }
 
 // #endregion
