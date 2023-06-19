@@ -45,11 +45,13 @@ type ChatProviderInvokedClassification = {
 
 type ChatVoteEvent = {
 	providerId: string;
+	responseId: string;
 	direction: 'up' | 'down';
 };
 
 type ChatVoteClassification = {
 	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this response came from.' };
+	responseId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The response identifier that the user voted on.' };
 	direction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user voted up or down.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat providers.';
@@ -163,6 +165,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (action.action.kind === 'vote') {
 			this.telemetryService.publicLog2<ChatVoteEvent, ChatVoteClassification>('interactiveSessionVote', {
 				providerId: action.providerId,
+				responseId: action.action.responseId,
 				direction: action.action.direction === InteractiveSessionVoteDirection.Up ? 'up' : 'down'
 			});
 		} else if (action.action.kind === 'copy') {
