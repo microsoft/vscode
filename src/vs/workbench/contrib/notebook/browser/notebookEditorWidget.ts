@@ -65,12 +65,12 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorToolbar';
+import { NotebookEditorToolbar, NotebookEditorWorkbenchToolbar, RenderLabel, RenderLabelWithFallback, convertConfiguration } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorToolbar';
 import { NotebookEditorContextKeys } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorWidgetContextKeys';
 import { NotebookOverviewRuler } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookOverviewRuler';
 import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellKind, INotebookSearchOptions, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, INotebookSearchOptions, NotebookSetting, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUPTUT_INPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -170,7 +170,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	//#endregion
 	private _overlayContainer!: HTMLElement;
 	private _notebookTopToolbarContainer!: HTMLElement;
-	private _notebookTopToolbar!: NotebookEditorToolbar;
+	private _notebookTopToolbar!: NotebookEditorToolbar | NotebookEditorWorkbenchToolbar;
 	private _notebookOverviewRulerContainer!: HTMLElement;
 	private _notebookOverviewRuler!: NotebookOverviewRuler;
 	private _body!: HTMLElement;
@@ -1013,12 +1013,42 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private _registerNotebookActionsToolbar() {
-		this._notebookTopToolbar = this._register(this.instantiationService.createInstance(NotebookEditorToolbar, this, this.scopedContextKeyService, this._notebookOptions, this._notebookTopToolbarContainer));
-		this._register(this._notebookTopToolbar.onDidChangeVisibility(() => {
-			if (this._dimension && this._isVisible) {
-				this.layout(this._dimension);
+		const store = new DisposableStore();
+		let currentLabel = convertConfiguration(this.configurationService.getValue<RenderLabelWithFallback>(NotebookSetting.globalToolbarShowLabel));
+
+		const render = () => {
+			if (currentLabel === RenderLabel.Dynamic) {
+				this._notebookTopToolbar = this._register(this.instantiationService.createInstance(NotebookEditorToolbar, this, this.scopedContextKeyService, this._notebookOptions, this._notebookTopToolbarContainer));
+			} else {
+				this._notebookTopToolbar = this._register(this.instantiationService.createInstance(NotebookEditorWorkbenchToolbar, this, this.scopedContextKeyService, this._notebookOptions, this._notebookTopToolbarContainer));
+			}
+
+			store.add(this._notebookTopToolbar.onDidChangeVisibility(() => {
+				if (this._dimension && this._isVisible) {
+					this.layout(this._dimension);
+				}
+			}));
+		};
+
+		render();
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration(NotebookSetting.globalToolbarShowLabel)) {
+				return;
+			}
+			const newRenderLabel = convertConfiguration(this.configurationService.getValue<RenderLabelWithFallback>(NotebookSetting.globalToolbarShowLabel));
+
+			if (newRenderLabel !== currentLabel && (newRenderLabel === RenderLabel.Dynamic || currentLabel === RenderLabel.Dynamic)) {
+				// switch to the other implementation
+				store.clear();
+				this._notebookTopToolbar.dispose();
+				DOM.clearNode(this._notebookTopToolbarContainer);
+				currentLabel = newRenderLabel;
+				render();
 			}
 		}));
+
+		this._register(store);
 	}
 
 	private _updateOutputRenderers() {
@@ -1881,6 +1911,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			// The editor forces progress to hide when switching editors. So if progress should be visible, force it to show when the editor is focused.
 			this.showProgress();
 		}
+	}
+
+	onShow() {
+		this._isVisible = true;
 	}
 
 	private focusEditor(activeElement: CellViewModel): void {

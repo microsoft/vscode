@@ -10,7 +10,7 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InlineChatController, InlineChatRunOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_DISCARD, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_SHOWING_DIFF, CTX_INLINE_CHAT_EDIT_MODE, EditMode, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_DISCARD, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_SHOWING_DIFF, CTX_INLINE_CHAT_EDIT_MODE, EditMode, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { localize } from 'vs/nls';
 import { IAction2Options, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -159,6 +159,29 @@ export class MakeRequestAction extends AbstractInlineChatAction {
 	}
 }
 
+export class ReRunRequestAction extends AbstractInlineChatAction {
+
+	constructor() {
+		super({
+			id: ACTION_REGENERATE_RESPONSE,
+			title: localize('rerun', 'Regenerate Response'),
+			shortTitle: localize('rerunShort', 'Regenerate'),
+			icon: Codicon.refresh,
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_EMPTY.negate(), CTX_INLINE_CHAT_LAST_RESPONSE_TYPE),
+			menu: {
+				id: MENU_INLINE_CHAT_WIDGET_STATUS,
+				group: '2_feedback',
+				order: 3,
+			}
+		});
+	}
+
+	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController): void {
+		ctrl.regenerate();
+	}
+
+}
+
 export class StopRequestAction extends AbstractInlineChatAction {
 
 	constructor() {
@@ -251,7 +274,7 @@ export class PreviousFromHistory extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
-			id: 'inlineCat.previousFromHistory',
+			id: 'inlineChat.previousFromHistory',
 			title: localize('previousFromHistory', 'Previous From History'),
 			precondition: CTX_INLINE_CHAT_FOCUSED,
 			keybinding: {

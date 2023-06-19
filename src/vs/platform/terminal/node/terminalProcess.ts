@@ -236,7 +236,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 			return undefined;
 		} catch (err) {
-			this._logService.trace('IPty#spawn native exception', err);
+			this._logService.trace('node-pty.node-pty.IPty#spawn native exception', err);
 			return { message: `A native exception occurred during launch (${err.message})` };
 		}
 	}
@@ -294,7 +294,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	): Promise<void> {
 		const args = shellIntegrationInjection?.newArgs || shellLaunchConfig.args || [];
 		await this._throttleKillSpawn();
-		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
+		this._logService.trace('node-pty.IPty#spawn', shellLaunchConfig.executable, args, options);
 		const ptyProcess = spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
@@ -312,7 +312,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 
 			// Refire the data event
-			this._logService.trace('IPty#onData', data);
+			this._logService.trace('node-pty.IPty#onData', data);
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				this._queueProcessExit();
@@ -374,7 +374,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		try {
 			if (this._ptyProcess) {
 				await this._throttleKillSpawn();
-				this._logService.trace('IPty#kill');
+				this._logService.trace('node-pty.IPty#kill');
 				this._ptyProcess.kill();
 			}
 		} catch (ex) {
@@ -508,7 +508,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _doWrite(): void {
 		const object = this._writeQueue.shift()!;
-		this._logService.trace('IPty#write', object.data);
+		this._logService.trace('node-pty.IPty#write', object.data);
 		if (object.isBinary) {
 			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
 		} else {
@@ -537,12 +537,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				return;
 			}
 
-			this._logService.trace('IPty#resize', cols, rows);
+			this._logService.trace('node-pty.IPty#resize', cols, rows);
 			try {
 				this._ptyProcess.resize(cols, rows);
 			} catch (e) {
 				// Swallow error if the pty has already exited
-				this._logService.trace('IPty#resize exception ' + e.message);
+				this._logService.trace('node-pty.IPty#resize exception ' + e.message);
 				if (this._exitCode !== undefined &&
 					e.message !== 'ioctl(2) failed, EBADF' &&
 					e.message !== 'Cannot resize a pty that has already exited') {
@@ -594,7 +594,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					resolve(this._initialCwd);
 					return;
 				}
-				this._logService.trace('IPty#pid');
+				this._logService.trace('node-pty.IPty#pid');
 				exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', { env: { ...process.env, LANG: 'en_US.UTF-8' } }, (error, stdout, stderr) => {
 					if (!error && stdout !== '') {
 						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
@@ -610,7 +610,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (!this._ptyProcess) {
 				return this._initialCwd;
 			}
-			this._logService.trace('IPty#pid');
+			this._logService.trace('node-pty.IPty#pid');
 			try {
 				return await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
 			} catch (error) {
