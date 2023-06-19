@@ -28,6 +28,8 @@
 	display: block;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+
+	height: 20px;
 }
 
 .diff-hidden-lines .center > span,

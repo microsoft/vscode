@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { deepClone } from 'vs/base/common/objects';
-import { isObject, assertIsDefined, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
+import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { AbstractTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -133,7 +133,10 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			// Set Editor Model
 			const control = assertIsDefined(this.diffEditorControl);
 			const resolvedDiffEditorModel = resolvedModel as TextDiffEditorModel;
-			control.setModel(withUndefinedAsNull(resolvedDiffEditorModel.textDiffEditorModel));
+
+			const vm = resolvedDiffEditorModel.textDiffEditorModel ? control.createViewModel(resolvedDiffEditorModel.textDiffEditorModel) : null;
+			await vm?.waitForDiff();
+			control.setModel(vm);
 
 			// Restore view state (unless provided by options)
 			let hasPreviousViewState = false;

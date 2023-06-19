@@ -6,13 +6,13 @@
 import 'vs/css!./inlineChat';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
+import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, IInlineChatSlashCommand, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, IInlineChatSlashCommand, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_REGENERATE_RESPONSE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getActiveElement, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -26,16 +26,13 @@ import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/br
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { DropdownWithDefaultActionViewItem, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
-import { IAction } from 'vs/base/common/actions';
-import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
@@ -44,15 +41,14 @@ import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/inlineCh
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { assertType } from 'vs/base/common/types';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IdleValue } from 'vs/base/common/async';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import { IMenuWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -293,49 +289,27 @@ export class InlineChatWidget {
 		this._progressBar = new ProgressBar(this._elements.progress);
 		this._store.add(this._progressBar);
 
+		const workbenchMenubarOptions: IMenuWorkbenchButtonBarOptions = {
+			telemetrySource: 'interactiveEditorWidget-toolbar',
+			buttonConfigProvider: action => {
+				if (action.id === ACTION_REGENERATE_RESPONSE) {
+					return { showIcon: true, showLabel: false };
+				}
+				return undefined;
+			}
+		};
+		const statusButtonBar = this._instantiationService.createInstance(MenuWorkbenchButtonBar, this._elements.statusToolbar, MENU_INLINE_CHAT_WIDGET_STATUS, workbenchMenubarOptions);
+		this._store.add(statusButtonBar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
+		this._store.add(statusButtonBar);
+
+
 		const workbenchToolbarOptions = {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: {
 				primaryGroup: () => true,
 				useSeparatorsInPrimaryActions: true
-			},
-			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
-
-				if (action instanceof SubmenuItemAction) {
-					return this._instantiationService.createInstance(DropdownWithDefaultActionViewItem, action, { ...options, renderKeybindingWithDefaultActionLabel: true, persistLastActionId: false });
-				}
-
-				if (action.id === ACTION_ACCEPT_CHANGES) {
-					const ButtonLikeActionViewItem = class extends MenuEntryActionViewItem {
-
-						override render(container: HTMLElement): void {
-							this.options.icon = false;
-							super.render(container);
-							assertType(this.element);
-							this.element.classList.add('button-item');
-						}
-
-						protected override updateLabel(): void {
-							assertType(this.label);
-							assertType(this.action instanceof MenuItemAction);
-							const label = MenuItemAction.label(this.action.item, { renderShortTitle: true });
-							const labelElements = renderLabelWithIcons(`$(check)${label}`);
-							reset(this.label, ...labelElements);
-						}
-
-						protected override updateClass(): void {
-							// noop
-						}
-					};
-					return this._instantiationService.createInstance(ButtonLikeActionViewItem, <MenuItemAction>action, <IMenuEntryActionViewItemOptions>options);
-				}
-
-				return createActionViewItem(this._instantiationService, action, options);
 			}
 		};
-		const statusToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, MENU_INLINE_CHAT_WIDGET_STATUS, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
-		this._store.add(statusToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
-		this._store.add(statusToolbar);
 
 		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, MENU_INLINE_CHAT_WIDGET_FEEDBACK, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
 		this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
@@ -720,6 +694,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	private readonly _ctxVisible: IContextKey<boolean>;
 	private readonly _ctxCursorPosition: IContextKey<'above' | 'below' | ''>;
 	private _dimension?: Dimension;
+	private _indentationWidth: number | undefined;
 
 	constructor(
 		editor: ICodeEditor,
@@ -741,6 +716,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this._disposables.add(this.widget);
 		this.create();
 
+
+		this._disposables.add(addDisposableListener(this.domNode, 'click', e => this.widget.focus()));
 
 		// todo@jrieken listen ONLY when showing
 		const updateCursorIsAboveContextKey = () => {
@@ -766,17 +743,16 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	protected override _doLayout(heightInPixel: number): void {
 
-		const info = this.editor.getLayoutInfo();
-		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth;
-		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
-
 		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
-		const width = Math.min(maxWidth, info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth));
+		const width = Math.min(maxWidth, this._availableSpaceGivenIndentation(this._indentationWidth));
 		this._dimension = new Dimension(width, heightInPixel);
-		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
-		this.widget.domNode.style.marginRight = `${spaceRight}px`;
 		this.widget.domNode.style.width = `${width}px`;
 		this.widget.layout(this._dimension);
+	}
+
+	private _availableSpaceGivenIndentation(indentationWidth: number | undefined): number {
+		const info = this.editor.getLayoutInfo();
+		return info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth + (indentationWidth ?? 0));
 	}
 
 	private _computeHeightInLines(): number {
@@ -791,13 +767,68 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	override show(where: IPosition): void {
-		super.show(where, this._computeHeightInLines());
+	override show(position: Position): void {
+		super.show(position, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
 	}
 
+	protected override _getWidth(info: EditorLayoutInfo): number {
+		return info.width - info.minimap.minimapWidth;
+	}
+
+	updateBackgroundColor(position: Position, selection: IRange) {
+		if (!this.container) {
+			return;
+		}
+		const widgetLineNumber = position.lineNumber;
+		this.container.classList.toggle('inside-selection', widgetLineNumber >= selection.startLineNumber && widgetLineNumber < selection.endLineNumber);
+	}
+
+	private _calculateIndentationWidth(position: Position): number {
+		const viewModel = this.editor._getViewModel();
+		if (!viewModel) {
+			return 0;
+		}
+		const visibleRange = viewModel.getCompletelyVisibleViewRange();
+		const startLineVisibleRange = visibleRange.startLineNumber;
+		const positionLine = position.lineNumber;
+		let indentationLineNumber: number | undefined;
+		let indentationLevel: number | undefined;
+		for (let lineNumber = positionLine; lineNumber >= startLineVisibleRange; lineNumber--) {
+			const currentIndentationLevel = viewModel.getLineFirstNonWhitespaceColumn(lineNumber);
+			if (currentIndentationLevel !== 0) {
+				indentationLineNumber = lineNumber;
+				indentationLevel = currentIndentationLevel;
+				break;
+			}
+		}
+		return this.editor.getOffsetForColumn(indentationLineNumber ?? positionLine, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLine));
+	}
+
+	setContainerMargins(): void {
+		if (!this.container) {
+			return;
+		}
+		const info = this.editor.getLayoutInfo();
+		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
+		this.container.style.marginLeft = `${marginWithoutIndentation}px`;
+	}
+
+	setWidgetMargins(position: Position, indentationWidth?: number): void {
+		if (indentationWidth === undefined) {
+			indentationWidth = this._calculateIndentationWidth(position);
+		}
+		if (this._indentationWidth === indentationWidth) {
+			return;
+		}
+		this._indentationWidth = this._availableSpaceGivenIndentation(indentationWidth) > 400 ? indentationWidth : 0;
+		this.widget.domNode.style.marginLeft = `${this._indentationWidth}px`;
+		this.widget.domNode.style.marginRight = `${this.editor.getLayoutInfo().minimap.minimapWidth}px`;
+	}
+
 	override hide(): void {
+		this.container!.classList.remove('inside-selection');
 		this._ctxVisible.reset();
 		this._ctxCursorPosition.reset();
 		this.widget.reset();

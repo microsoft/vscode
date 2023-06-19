@@ -332,6 +332,7 @@ export class SuggestController implements IEditorContribution {
 		// keep item in memory
 		this._memoryService.memorize(model, this.editor.getPosition(), item);
 
+		const isResolved = item.isResolved;
 
 		if (Array.isArray(item.completion.additionalTextEdits)) {
 
@@ -346,9 +347,9 @@ export class SuggestController implements IEditorContribution {
 			);
 			scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 
-		} else if (!item.isResolved) {
+		} else if (!isResolved) {
 			// async additional edits
-			const sw = new StopWatch(true);
+			const sw = new StopWatch();
 			let position: IPosition | undefined;
 
 			const docListener = model.onDidChangeContent(e => {
@@ -378,7 +379,7 @@ export class SuggestController implements IEditorContribution {
 
 			tasks.push(item.resolve(cts.token).then(() => {
 				if (!item.completion.additionalTextEdits || cts.token.isCancellationRequested) {
-					return false;
+					return undefined;
 				}
 				if (position && item.completion.additionalTextEdits.some(edit => Position.isBefore(position!, Range.getStartPosition(edit.range)))) {
 					return false;
@@ -398,6 +399,20 @@ export class SuggestController implements IEditorContribution {
 				return true;
 			}).then(applied => {
 				this._logService.trace('[suggest] async resolving of edits DONE (ms, applied?)', sw.elapsed(), applied);
+				type AsyncSuggestEdits = { providerId: string; applied: boolean };
+				type AsyncSuggestEditsClassification = {
+					owner: 'jrieken';
+					comment: 'Information about async additional text edits';
+					providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Provider of the completions item' };
+					applied: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If async additional text edits could be applied' };
+				};
+				if (typeof applied === 'boolean') {
+					this._telemetryService.publicLog2<AsyncSuggestEdits, AsyncSuggestEditsClassification>('suggest.asyncAdditionalEdits', {
+						providerId: item.extensionId?.value ?? 'unknown',
+						applied
+					});
+				}
+			}).finally(() => {
 				docListener.dispose();
 				typeListener.dispose();
 			}));
@@ -467,20 +482,24 @@ export class SuggestController implements IEditorContribution {
 
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
-			this._reportSuggestionAcceptedTelemetry(item, model, event);
+			this._reportSuggestionAcceptedTelemetry(item, model, isResolved);
 
 			this.model.clear();
 			cts.dispose();
 		});
 	}
 
-	private _telemetryGate: number = 0;
-	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, acceptedSuggestion: ISelectedSuggestion) {
-		if (this._telemetryGate++ % 100 !== 0) {
+	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, itemResolved: boolean) {
+
+		if (Math.floor(Math.random() * 100) === 0) {
+			// throttle telemetry event because accepting completions happens a lot
 			return;
 		}
 
-		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string; kind: number };
+		type AcceptedSuggestion = {
+			providerId: string; fileExtension: string; languageId: string; basenameHash: string; kind: number;
+			resolveInfo: number; resolveDuration: number;
+		};
 		type AcceptedSuggestionClassification = {
 			owner: 'jrieken';
 			comment: 'Information accepting completion items';
@@ -488,17 +507,19 @@ export class SuggestController implements IEditorContribution {
 			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Hash of the basename of the file into which the completion was inserted' };
 			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension of the file into which the completion was inserted' };
 			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Language type of the file into which the completion was inserted' };
-			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The completion item kind' };
+			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The completion item kind' };
+			resolveInfo: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If the item was inserted before resolving was done' };
+			resolveDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long resolving took to finish' };
 		};
-		// _debugDisplayName looks like `vscode.css-language-features(/-:)`, where the last bit is the trigger chars
-		// normalize it to just the extension ID and lowercase
-		const providerId = item.extensionId ? item.extensionId.value : (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
+
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
-			providerId,
+			providerId: item.extensionId?.value ?? 'unknown',
 			kind: item.completion.kind,
 			basenameHash: hash(basename(model.uri)).toString(16),
 			languageId: model.getLanguageId(),
 			fileExtension: extname(model.uri),
+			resolveInfo: !item.provider.resolveCompletionItem ? -1 : itemResolved ? 1 : 0,
+			resolveDuration: item.resolveDuration
 		});
 	}
 

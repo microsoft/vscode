@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
-import { GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
+import { GettingStartedEditorOptions, GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -100,20 +100,22 @@ registerAction2(class extends Action2 {
 				return;
 			}
 
-			const gettingStartedInput = instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep });
 			// If it's the extension install page then lets replace it with the getting started page
 			if (activeEditor instanceof ExtensionsInput) {
 				const activeGroup = editorGroupsService.activeGroup;
 				activeGroup.replaceEditors([{
 					editor: activeEditor,
-					replacement: gettingStartedInput
+					replacement: instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep })
 				}]);
 			} else if (!openedWalkthroughExists) {
 				// else open respecting toSide
-				editorService.openEditor(gettingStartedInput, { preserveFocus: toSide ?? false }, toSide ? SIDE_GROUP : undefined);
+				editorService.openEditor({
+					resource: GettingStartedInput.RESOURCE,
+					options: <GettingStartedEditorOptions>{ selectedCategory: selectedCategory, selectedStep: selectedStep, preserveFocus: toSide ?? false }
+				}, toSide ? SIDE_GROUP : undefined);
 			}
 		} else {
-			editorService.openEditor(new GettingStartedInput({}), {});
+			editorService.openEditor({ resource: GettingStartedInput.RESOURCE });
 		}
 	}
 });
@@ -249,10 +251,12 @@ registerAction2(class extends Action2 {
 			quickPick.hide();
 		});
 		quickPick.onDidHide(() => quickPick.dispose());
-		quickPick.show();
 		await extensionService.whenInstalledExtensionsRegistered();
+		gettingStartedService.onDidAddWalkthrough(async () => {
+			quickPick.items = await this.getQuickPickItems(contextService, gettingStartedService);
+		});
+		quickPick.show();
 		quickPick.busy = false;
-		quickPick.items = await this.getQuickPickItems(contextService, gettingStartedService);
 	}
 });
 

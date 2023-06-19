@@ -96,7 +96,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onDidChangeProfile: Event.None,
 			onDidUpdateExtensionMetadata: Event.None,
 			async getInstalled() { return []; },
-			async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
+			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
 			async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
 				local.identifier.uuid = metadata.id;
 				local.publisherDisplayName = metadata.publisherDisplayName!;
@@ -1498,7 +1498,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return local;
 			},
 			getTargetPlatform: async () => getTargetPlatform(platform, arch),
-			async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {} }; },
+			async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {}, search: [] }; },
 		};
 	}
 });

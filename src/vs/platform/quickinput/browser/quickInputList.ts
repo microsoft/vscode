@@ -34,6 +34,8 @@ import { IQuickInputOptions } from 'vs/platform/quickinput/browser/quickInput';
 import { getIconClass } from 'vs/platform/quickinput/browser/quickInputUtils';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Lazy } from 'vs/base/common/lazy';
+import { URI } from 'vs/base/common/uri';
+import { ColorScheme, isDark } from 'vs/platform/theme/common/theme';
 
 const $ = dom.$;
 
@@ -62,7 +64,7 @@ interface IListElement extends IListElementLazyParts {
 	separator?: IQuickPickSeparator;
 }
 
-class ListElement implements IListElement, IDisposable {
+class ListElement implements IListElement {
 	private readonly _init: Lazy<IListElementLazyParts>;
 
 	readonly hasCheckbox: boolean;
@@ -74,6 +76,7 @@ class ListElement implements IListElement, IDisposable {
 	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 	readonly fireSeparatorButtonTriggered: (event: IQuickPickSeparatorButtonEvent) => void;
 
+	// state will get updated later
 	private _checked: boolean = false;
 	private _hidden: boolean = false;
 	private _element?: HTMLElement;
@@ -82,8 +85,8 @@ class ListElement implements IListElement, IDisposable {
 	private _detailHighlights?: IMatch[];
 	private _separator?: IQuickPickSeparator;
 
-	private readonly _onChecked = new Emitter<boolean>();
-	onChecked = this._onChecked.event;
+	private readonly _onChecked: Emitter<{ listElement: IListElement; checked: boolean }>;
+	onChecked: Event<boolean>;
 
 	constructor(
 		mainItem: QuickPickItem,
@@ -91,12 +94,17 @@ class ListElement implements IListElement, IDisposable {
 		index: number,
 		hasCheckbox: boolean,
 		fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void,
-		fireSeparatorButtonTriggered: (event: IQuickPickSeparatorButtonEvent) => void
+		fireSeparatorButtonTriggered: (event: IQuickPickSeparatorButtonEvent) => void,
+		onCheckedEmitter: Emitter<{ listElement: IListElement; checked: boolean }>
 	) {
 		this.hasCheckbox = hasCheckbox;
 		this.index = index;
 		this.fireButtonTriggered = fireButtonTriggered;
 		this.fireSeparatorButtonTriggered = fireSeparatorButtonTriggered;
+		this._onChecked = onCheckedEmitter;
+		this.onChecked = hasCheckbox
+			? Event.map(Event.filter<{ listElement: IListElement; checked: boolean }>(this._onChecked.event, e => e.listElement === this), e => e.checked)
+			: Event.None;
 
 		if (mainItem.type === 'separator') {
 			this._separator = mainItem;
@@ -170,7 +178,7 @@ class ListElement implements IListElement, IDisposable {
 	set checked(value: boolean) {
 		if (value !== this._checked) {
 			this._checked = value;
-			this._onChecked.fire(value);
+			this._onChecked.fire({ listElement: this, checked: value });
 		}
 	}
 
@@ -207,15 +215,12 @@ class ListElement implements IListElement, IDisposable {
 	}
 
 	// #endregion
-
-	dispose() {
-		this._onChecked.dispose();
-	}
 }
 
 interface IListElementTemplateData {
 	entry: HTMLDivElement;
 	checkbox: HTMLInputElement;
+	icon: HTMLDivElement;
 	label: IconLabel;
 	keybinding: KeybindingLabel;
 	detail: IconLabel;
@@ -229,6 +234,8 @@ interface IListElementTemplateData {
 class ListElementRenderer implements IListRenderer<IListElement, IListElementTemplateData> {
 
 	static readonly ID = 'listelement';
+
+	constructor(private readonly colorScheme: ColorScheme) { }
 
 	get templateId() {
 		return ListElementRenderer.ID;
@@ -261,6 +268,7 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 
 		// Label
 		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true });
+		data.icon = <HTMLInputElement>dom.prepend(data.label.element, $('.quick-input-list-icon'));
 
 		// Keybinding
 		const keybindingContainer = dom.append(row1, $('.quick-input-list-entry-keybinding'));
@@ -290,6 +298,16 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		data.toDisposeElement.push(element.onChecked(checked => data.checkbox.checked = checked));
 
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
+
+		if (element.item?.iconPath) {
+			const icon = isDark(this.colorScheme) ? element.item.iconPath.dark : (element.item.iconPath.light ?? element.item.iconPath.dark);
+			const iconUrl = URI.revive(icon);
+			data.icon.className = 'quick-input-list-icon';
+			data.icon.style.backgroundImage = dom.asCSSUrl(iconUrl);
+		} else {
+			data.icon.style.backgroundImage = '';
+			data.icon.className = element.item?.iconClass ? `quick-input-list-icon ${element.item.iconClass}` : '';
+		}
 
 		// Label
 		const options: IIconLabelValueOptions = {
@@ -431,6 +449,7 @@ export class QuickInputList {
 	onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
 	private readonly _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
+	private readonly _listElementChecked = new Emitter<{ listElement: IListElement; checked: boolean }>();
 	private _fireCheckedEvents = true;
 	private elementDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
@@ -446,8 +465,18 @@ export class QuickInputList {
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
-		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {
-			identityProvider: { getId: element => element.saneLabel },
+		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(this.options.styles.colorScheme)], {
+			identityProvider: {
+				getId: element => {
+					// always prefer item over separator because if item is defined, it must be the main item type
+					// always prefer a defined id if one was specified and use label as a fallback
+					return element.item?.id
+						?? element.item?.label
+						?? element.separator?.id
+						?? element.separator?.label
+						?? '';
+				}
+			},
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
 			horizontalScrolling: false,
@@ -551,6 +580,7 @@ export class QuickInputList {
 			}
 			delayer.cancel();
 		}));
+		this.disposables.push(this._listElementChecked.event(_ => this.fireCheckedEvents()));
 		this.disposables.push(
 			this._onChangedAllVisibleChecked,
 			this._onChangedCheckedCount,
@@ -666,14 +696,13 @@ export class QuickInputList {
 				index,
 				hasCheckbox,
 				fireButtonTriggered,
-				fireSeparatorButtonTriggered
+				fireSeparatorButtonTriggered,
+				this._listElementChecked
 			);
 
-			this.elementDisposables.push(element);
-			this.elementDisposables.push(element.onChecked(() => this.fireCheckedEvents()));
-
+			const resultIndex = result.length;
 			result.push(element);
-			elementsToIndexes.set(element.item ?? element.separator!, index);
+			elementsToIndexes.set(element.item ?? element.separator!, resultIndex);
 			return result;
 		}, [] as IListElement[]);
 		this.elementsToIndexes = elementsToIndexes;
