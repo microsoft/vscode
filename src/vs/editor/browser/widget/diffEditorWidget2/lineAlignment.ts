@@ -262,7 +262,7 @@ export class ViewZoneManager extends Disposable {
 						}
 
 						let marginDomNode: HTMLElement | undefined = undefined;
-						if (a.diff && a.diff.modifiedRange.isEmpty) {
+						if (a.diff && a.diff.modifiedRange.isEmpty && this._renderSideBySide.read(reader)) {
 							marginDomNode = createViewZoneMarginArrow();
 						}
 

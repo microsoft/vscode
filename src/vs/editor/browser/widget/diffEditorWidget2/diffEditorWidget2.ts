@@ -88,7 +88,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private _editorOptions: IEditorOptions;
 	private readonly _sash: IObservable<DiffEditorSash | undefined>;
 	private readonly _boundarySashes = observableValue<IBoundarySashes | undefined>('boundarySashes', undefined);
-	private readonly _renderOverviewRuler: IObservable<boolean>;
+	private readonly _renderOverviewRuler = derived('renderOverviewRuler', reader => this._options.read(reader).renderOverviewRuler);
+	private readonly _renderSideBySide = derived('renderSideBySide', reader => this._options.read(reader).renderSideBySide);
 
 	private unchangedRangesFeature!: UnchangedRangesFeature;
 
@@ -124,7 +125,6 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._register(applyObservableDecorations(this._originalEditor, this._decorations.map(d => d?.originalDecorations || [])));
 		this._register(applyObservableDecorations(this._modifiedEditor, this._decorations.map(d => d?.modifiedDecorations || [])));
 
-		this._renderOverviewRuler = this._options.map(o => o.renderOverviewRuler);
 		this._sash = derivedWithStore('sash', (reader, store) => {
 			const showSash = this._options.read(reader).renderSideBySide;
 			this.elements.root.classList.toggle('side-by-side', showSash);
@@ -152,7 +152,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(autorunWithStore2('unchangedRangesFeature', (reader, store) => {
 			this.unchangedRangesFeature = store.add(new (readHotReloadableExport(UnchangedRangesFeature, reader))(
-				this._originalEditor, this._modifiedEditor, this._diffModel, this._options.map(o => o.renderSideBySide)
+				this._originalEditor, this._modifiedEditor, this._diffModel, this._renderSideBySide,
 			));
 		}));
 
@@ -161,7 +161,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			this._originalEditor,
 			this._modifiedEditor,
 			this._diffModel,
-			this._options.map((o) => o.renderSideBySide),
+			this._renderSideBySide,
 			this,
 			() => this.unchangedRangesFeature.isUpdatingViewZones,
 		));
@@ -257,7 +257,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 				modifiedDecorations.push({ range: i.modifiedRange, options: diffAddDecoration });
 			}
 
-			if (!m.lineRangeMapping.modifiedRange.isEmpty) {
+			if (!m.lineRangeMapping.modifiedRange.isEmpty && this._renderSideBySide.read(reader) && !currentMove) {
 				modifiedDecorations.push({ range: Range.fromPositions(new Position(m.lineRangeMapping.modifiedRange.startLineNumber, 1)), options: arrowRevertChange });
 			}
 		}
