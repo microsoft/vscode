@@ -79,7 +79,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 			}
 			provider.dispose();
 		},
-		options: { isHelpMenu: true, ariaLabel: type === 'panelChat' ? localize('chat-help-label', "Chat accessibility help") : localize('inline-chat-label', "Inline chat accessibility help"), language: 'typescript' }
+		options: { isHelpMenu: true, ariaLabel: type === 'panelChat' ? localize('chat-help-label', "Chat accessibility help") : localize('inline-chat-label', "Inline chat accessibility help") }
 	});
 	accessibleViewService.show(type);
 }

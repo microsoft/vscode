@@ -153,11 +153,12 @@ class ChatAccessibileViewContribution extends Disposable {
 				// TODO: allow this for requests
 				return isResponseVM(currentResponse) ? currentResponse.response.value : 'No response data';
 			}
-			accessibleViewService.registerProvider({
+			const provider = accessibleViewService.registerProvider({
 				id: 'panelChat',
 				provideContent,
 				onClose() {
 					widget.reveal(focused, true);
+					provider.dispose();
 				},
 				options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript' }
 			});
