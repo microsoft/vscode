@@ -13,7 +13,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
-	Chat = 'accessibility.verbosity.chat',
+	Chat = 'accessibility.verbosity.panelChat',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
 	Notebook = 'accessibility.verbosity.notebook'
@@ -72,6 +72,20 @@ export const AccessibilityHelpAction = registerCommand(new MultiCommand({
 	precondition: undefined,
 	kbOpts: {
 		primary: KeyMod.Alt | KeyCode.F1,
+		weight: KeybindingWeight.WorkbenchContrib,
+		linux: {
+			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
+			secondary: [KeyMod.Alt | KeyCode.F1]
+		}
+	}
+}));
+
+
+export const AccessibilityViewAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibilityView',
+	precondition: undefined,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.F2,
 		weight: KeybindingWeight.WorkbenchContrib,
 		linux: {
 			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,

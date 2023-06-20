@@ -54,7 +54,7 @@ export interface IChatWidget {
 	readonly inputEditor: ICodeEditor;
 	readonly providerId: string;
 
-	reveal(item: ChatTreeItem): void;
+	reveal(item: ChatTreeItem, focus?: boolean): void;
 	getFocus(): ChatTreeItem | undefined;
 	acceptInput(query?: string): void;
 	focusLastMessage(): void;
