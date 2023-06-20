@@ -31,6 +31,7 @@ import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpene
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
@@ -181,7 +182,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@IDebugService debugService: IDebugService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ITunnelService tunnelService: ITunnelService,
@@ -193,7 +194,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 			return;
 		}
 
-		remoteAgentService.getEnvironment().then(environment => {
+		configurationService.whenRemoteConfigurationLoaded().then(() => remoteAgentService.getEnvironment()).then(environment => {
 			if (environment?.os !== OperatingSystem.Linux) {
 				Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT } }]);

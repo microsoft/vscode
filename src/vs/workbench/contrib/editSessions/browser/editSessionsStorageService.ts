@@ -33,7 +33,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 	declare _serviceBrand: undefined;
 
-	public readonly SIZE_LIMIT = 1024 * 1024 * 2; // 2 MB
+	public readonly SIZE_LIMIT = Math.floor(1024 * 1024 * 1.9); // 2 MB
 
 	private serverConfiguration = this.productService['editSessions.store'];
 	private machineClient: IUserDataSyncMachinesService | undefined;

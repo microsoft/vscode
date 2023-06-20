@@ -78,7 +78,7 @@ suite('NotebookCellList focus/selection', () => {
 			});
 	});
 
-	test('notebook cell list setFocus', async function () {
+	test('notebook cell list setFocus2', async function () {
 		await withTestNotebook(
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
@@ -97,6 +97,7 @@ suite('NotebookCellList focus/selection', () => {
 
 				cellList.setSelection([1]);
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 2 }]);
+				cellList.detachViewModel();
 			});
 	});
 

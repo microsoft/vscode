@@ -3,61 +3,71 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.diff-hidden-lines.showTop {
-	margin: -5px 0;
+.diff-hidden-lines-widget {
+	width: 100%;
 }
 
-.diff-hidden-lines.showTop .top {
-	height: 7px;
-	background-color: var(--vscode-diffEditor-unchangedRegionBackground);
-	mask: url("./patternTop.svg") repeat 0px 0px;
-	-webkit-mask: url("./patternTop.svg") repeat 0px 0px;
+.diff-hidden-lines {
+	height: 0px; /* The children each have a fixed height, the transform confuses the browser */
+	transform: translate(0px, -10px);
+	font-size: 13px;
+	line-height: 14px;
 }
 
-.diff-hidden-lines.showBottom .bottom {
-	height: 7px;
-	background-color: var(--vscode-diffEditor-unchangedRegionBackground);
-	mask: url("./patternBottom.svg") repeat 10px 0px;
-	-webkit-mask: url("./patternBottom.svg") repeat 10px 0px;
+.diff-hidden-lines:not(.dragging) .top:hover, .diff-hidden-lines:not(.dragging) .bottom:hover, .diff-hidden-lines .top.dragging, .diff-hidden-lines .bottom.dragging {
+	background-color: var(--vscode-focusBorder);
 }
+
+.diff-hidden-lines .top, .diff-hidden-lines .bottom {
+	transition: background-color 0.1s ease-out;
+	height: 4px;
+	background-color: transparent;
+	background-clip: padding-box;
+	border-bottom: 2px solid transparent;
+	border-top: 4px solid transparent;
+	cursor: pointer;
+}
+
+.diff-hidden-lines .top {
+	transform: translate(0px, 4px);
+}
+
+.diff-hidden-lines .bottom {
+	transform: translate(0px, -6px);
+}
+
+.diff-unchanged-lines {
+	background: var(--vscode-diffEditor-unchangedCodeBackground);
+}
+
+.noModificationsOverlay {
+	z-index: 1;
+	background: var(--vscode-editor-background);
+
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
 
 .diff-hidden-lines .center {
 	background: var(--vscode-diffEditor-unchangedRegionBackground);
-	padding: 0px 3px;
+	color: var(--vscode-diffEditor-unchangedRegionForeground);
 	overflow: hidden;
 	display: block;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+
+	height: 24px;
 }
 
-.diff-hidden-lines .center > span,
-.diff-hidden-lines .center > a {
-	user-select: none;
-	-webkit-user-select: none;
-	white-space: nowrap;
-}
-
-.diff-hidden-lines .center > a {
-	text-decoration: none;
-}
-
-.diff-hidden-lines .center > a:hover {
-	cursor: pointer;
-	color: var(--vscode-editorLink-activeForeground) !important;
-}
-
-.diff-hidden-lines .center > a:hover .codicon {
-	color: var(--vscode-editorLink-activeForeground) !important;
-}
-
-.diff-hidden-lines .center .codicon {
+.diff-hidden-lines .center span.codicon {
 	vertical-align: middle;
-	color: currentColor !important;
-	color: var(--vscode-editorCodeLens-foreground);
 }
 
-.merge-editor-conflict-actions > a:hover .codicon::before {
+.diff-hidden-lines .center a:hover .codicon {
 	cursor: pointer;
+	color: var(--vscode-editorLink-activeForeground) !important;
 }
 
 .movedOriginal {

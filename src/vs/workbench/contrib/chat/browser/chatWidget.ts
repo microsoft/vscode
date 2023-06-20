@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import { status } from 'vs/base/browser/ui/aria/aria';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
@@ -16,6 +16,7 @@ import 'vs/css!./media/chat';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { AudioCue, AudioCueGroupId, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,7 +24,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/common/views';
 import { clearChatSession } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
-import { ChatTreeItem, IChatCodeBlockInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatAccessibilityProvider, ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
@@ -115,6 +116,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService
 	) {
 		super();
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
@@ -388,18 +390,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.instantiationService.invokeFunction(clearChatSession, this);
 				return;
 			}
-
+			this._chatAccessibilityService.acceptRequest();
 			const input = query ?? editorValue;
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
+
 			if (result) {
 				this.inputPart.acceptInput(query);
-				result.responseCompletePromise.then(() => {
+				result.responseCompletePromise.then(async () => {
+
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
-					if (lastResponse) {
-						const errorDetails = lastResponse.errorDetails ? ` ${lastResponse.errorDetails.message}` : '';
-						alert(lastResponse.response.value + errorDetails);
-					}
+					this._chatAccessibilityService.acceptResponse(lastResponse);
 				});
 			}
 		}
@@ -429,7 +430,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	layout(height: number, width: number): void {
-		width = Math.min(width, 600);
+		width = Math.min(width, 850);
 		this.bodyDimension = new dom.Dimension(width, height);
 
 		const inputPartHeight = this.inputPart.layout(height, width);
@@ -505,3 +506,30 @@ export class ChatWidgetService implements IChatWidgetService {
 		);
 	}
 }
+
+
+const CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS = 7000;
+export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private _responsePendingAudioCue: IDisposable | undefined;
+
+	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService) {
+		super();
+	}
+	acceptRequest(): void {
+		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
+		this._responsePendingAudioCue = this._audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
+	}
+	acceptResponse(response?: IChatResponseViewModel): void {
+		this._responsePendingAudioCue?.dispose();
+		this._audioCueService.playRandomAudioCue(AudioCueGroupId.chatResponseReceived, true);
+		if (!response) {
+			return;
+		}
+		const errorDetails = response.errorDetails ? ` ${response.errorDetails.message}` : '';
+		status(response.response.value + errorDetails);
+	}
+}
+

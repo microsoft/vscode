@@ -222,7 +222,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			onDidChangeProfile: Event.None,
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
-			async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
+			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
 			async getTargetPlatform() { return getTargetPlatform(platform, arch); }
 		});
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{

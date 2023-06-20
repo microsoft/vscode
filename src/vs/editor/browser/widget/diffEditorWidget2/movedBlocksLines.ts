@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, observableFromEvent } from 'vs/base/common/observable';
+import { IObservable, autorun, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffModel';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
@@ -18,8 +19,8 @@ export class MovedBlocksLinesPart extends Disposable {
 		private readonly _diffModel: IObservable<DiffModel | undefined>,
 		private readonly _originalEditorLayoutInfo: IObservable<EditorLayoutInfo | null>,
 		private readonly _modifiedEditorLayoutInfo: IObservable<EditorLayoutInfo | null>,
-		private readonly _originalEditor: ICodeEditor,
-		private readonly _modifiedEditor: ICodeEditor,
+		private readonly _originalEditor: CodeEditorWidget,
+		private readonly _modifiedEditor: CodeEditorWidget,
 	) {
 		super();
 
@@ -41,9 +42,12 @@ export class MovedBlocksLinesPart extends Disposable {
 
 		const originalScrollTop = observableFromEvent(this._originalEditor.onDidScrollChange, () => this._originalEditor.getScrollTop());
 		const modifiedScrollTop = observableFromEvent(this._modifiedEditor.onDidScrollChange, () => this._modifiedEditor.getScrollTop());
-
+		const viewZonesChanged = observableSignalFromEvent('onDidChangeViewZones', this._modifiedEditor.onDidChangeViewZones);
 
 		this._register(autorun('update', (reader) => {
+			element.replaceChildren();
+			viewZonesChanged.read(reader);
+
 			const info = this._originalEditorLayoutInfo.read(reader);
 			const info2 = this._modifiedEditorLayoutInfo.read(reader);
 			if (!info || !info2) {
@@ -55,8 +59,6 @@ export class MovedBlocksLinesPart extends Disposable {
 			if (!moves) {
 				return;
 			}
-
-			element.replaceChildren();
 
 			let idx = 0;
 			for (const m of moves) {

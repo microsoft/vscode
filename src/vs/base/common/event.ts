@@ -755,7 +755,7 @@ export class EventProfiling {
 	}
 
 	start(listenerCount: number): void {
-		this._stopWatch = new StopWatch(true);
+		this._stopWatch = new StopWatch();
 		this.listenerCount = listenerCount;
 	}
 

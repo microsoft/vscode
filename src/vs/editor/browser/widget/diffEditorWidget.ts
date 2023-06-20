@@ -829,7 +829,20 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		};
 	}
 
-	public setModel(model: editorCommon.IDiffEditorModel | null): void {
+	public createViewModel(model: editorCommon.IDiffEditorModel): editorCommon.IDiffEditorViewModel {
+		return {
+			model,
+			async waitForDiff() {
+				// noop
+			},
+		};
+	}
+
+	public setModel(model: editorCommon.IDiffEditorModel | editorCommon.IDiffEditorViewModel | null): void {
+		if (model && 'model' in model) {
+			model = model.model;
+		}
+
 		// Guard us against partial null model
 		if (model && (!model.original || !model.modified)) {
 			throw new Error(!model.original ? 'DiffEditorWidget.setModel: Original model is null' : 'DiffEditorWidget.setModel: Modified model is null');
