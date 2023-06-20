@@ -19,7 +19,6 @@ import { IChatProgress, IChatProvider, IChatRequest, IChatResponse, IChat, ISlas
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IHostService } from 'vs/workbench/services/host/common/host';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 class SimpleTestProvider extends Disposable implements IChatProvider {
