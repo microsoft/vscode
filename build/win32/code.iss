@@ -1362,7 +1362,7 @@ begin
     end;
   end;
 
-  if IsNotBackgroundUpdate() and CheckForMutexes('{#TunnelMutex}') then
+  if IsNotBackgroundUpdate() and not StopTunnelProcesses() then
   begin
      MsgBox('{#NameShort} is still running a tunnel. Please stop the tunnel before installing.', mbInformation, MB_OK);
 		 Result := false
@@ -1379,6 +1379,30 @@ end;
 
 var
 	ShouldRestartTunnelService: Boolean;
+
+function StopTunnelProcesses();
+var
+	WaitCounter: Integer;
+	TaskKilled: Integer;
+begin
+	Log('Stopping all tunnel services with taskkill');
+	Exec('taskkill.exe', '/f /im "' + ExpandConstant('"{app}\bin\{#TunnelApplicationName}.exe"') + '"', '', SW_HIDE, ewWaitUntilTerminated, TaskKilled);
+
+	WaitCounter := 10;
+	while (WaitCounter > 0) and CheckForMutexes('{#TunnelMutex}') do
+	begin
+		Log('Tunnel process is is still running, waiting');
+		Sleep(500);
+		WaitCounter := WaitCounter - 1
+	end;
+
+	if CheckForMutexes('{#TunnelMutex}') then
+		Log('Unable to stop tunnel processes')
+		exit(False)
+	else
+		exit(True)
+	end
+end;
 
 procedure StopTunnelServiceIfNeeded();
 var
