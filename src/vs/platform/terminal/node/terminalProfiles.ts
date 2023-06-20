@@ -173,7 +173,8 @@ async function transformToTerminalProfiles(
 		let originalPaths: (string | ITerminalUnsafePath)[];
 		let args: string[] | string | undefined;
 		let icon: ThemeIcon | URI | { light: URI; dark: URI } | undefined = undefined;
-		if ('source' in profile) {
+		// use calculated values if path is not specified
+		if ('source' in profile && !('path' in profile)) {
 			const source = profileSources?.get(profile.source);
 			if (!source) {
 				continue;
@@ -390,7 +391,14 @@ async function detectAvailableUnixProfiles(
 	// Add non-quick launch profiles
 	if (includeDetectedProfiles) {
 		const contents = (await fsProvider.readFile('/etc/shells')).toString();
-		const profiles = testPaths || contents.split('\n').filter(e => e.trim().includes('#') && e.trim().length > 0);
+		const profiles = (
+			(testPaths || contents.split('\n'))
+				.map(e => {
+					const index = e.indexOf('#');
+					return index === -1 ? e : e.substring(0, index);
+				})
+				.filter(e => e.trim().length > 0)
+		);
 		const counts: Map<string, number> = new Map();
 		for (const profile of profiles) {
 			let profileName = basename(profile);

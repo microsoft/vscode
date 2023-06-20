@@ -16,8 +16,12 @@ declare module 'vscode' {
 	}
 
 	export interface InlineCompletionItemProvider {
+		/**
+		 * @param completionItem The completion item that was shown.
+		 * @param updatedInsertText The actual insert text (after brackets were fixed).
+		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		handleDidShowCompletionItem?(completionItem: InlineCompletionItem): void;
+		handleDidShowCompletionItem?(completionItem: InlineCompletionItem, updatedInsertText: string): void;
 
 		/**
 		 * Is called when an inline completion item was accepted partially.

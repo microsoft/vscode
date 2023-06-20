@@ -59,7 +59,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		new TypeScriptVersion(
 			TypeScriptVersionSource.Bundled,
 			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
-			API.fromSimpleString('5.0.1')));
+			API.fromSimpleString('5.1.3')));
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
@@ -109,18 +109,16 @@ async function preload(logger: Logger): Promise<void> {
 
 	const workspaceUri = vscode.workspace.workspaceFolders?.[0].uri;
 	if (!workspaceUri || workspaceUri.scheme !== 'vscode-vfs' || workspaceUri.authority !== 'github') {
-		return undefined;
+		logger.info(`Skipped loading workspace contents for repository ${workspaceUri?.toString()}`);
+		return;
 	}
 
 	try {
 		const remoteHubApi = await RemoteRepositories.getApi();
-		if (remoteHubApi.loadWorkspaceContents !== undefined) {
-			if (await remoteHubApi.loadWorkspaceContents(workspaceUri)) {
-				logger.info(`Successfully loaded workspace content for repository ${workspaceUri.toString()}`);
-			} else {
-				logger.info(`Failed to load workspace content for repository ${workspaceUri.toString()}`);
-			}
-
+		if (await remoteHubApi.loadWorkspaceContents?.(workspaceUri)) {
+			logger.info(`Successfully loaded workspace content for repository ${workspaceUri.toString()}`);
+		} else {
+			logger.info(`Failed to load workspace content for repository ${workspaceUri.toString()}`);
 		}
 	} catch (error) {
 		logger.info(`Loading workspace content for repository ${workspaceUri.toString()} failed: ${error instanceof Error ? error.toString() : 'Unknown reason'}`);

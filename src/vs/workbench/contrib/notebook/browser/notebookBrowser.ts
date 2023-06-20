@@ -29,6 +29,7 @@ import { cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/
 import { IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
@@ -149,6 +150,7 @@ export interface ICommonCellInfo {
 export interface IFocusNotebookCellOptions {
 	readonly skipReveal?: boolean;
 	readonly focusEditorLine?: number;
+	readonly minimalScrolling?: boolean;
 }
 
 //#endregion
@@ -463,7 +465,8 @@ export interface INotebookEditor {
 	readonly activeKernel: INotebookKernel | undefined;
 	readonly scrollTop: number;
 	readonly scopedContextKeyService: IContextKeyService;
-	readonly activeCodeEditor: editorCommon.IEditor | undefined;
+	readonly activeCodeEditor: ICodeEditor | undefined;
+	readonly codeEditors: [ICellViewModel, ICodeEditor][];
 	//#endregion
 
 	getLength(): number;

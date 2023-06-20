@@ -24,12 +24,13 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
-	commandId: string;
-	commandAlias?: string;
+	readonly commandId: string;
+	readonly commandAlias?: string;
+	readonly args?: any[];
 }
 
 export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions<ICommandQuickPick> {
-	showAlias: boolean;
+	readonly showAlias: boolean;
 	suggestedCommandIds?: Set<string>;
 }
 
@@ -56,10 +57,10 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		this.options = options;
 	}
 
-	protected _getPicks(filter: string, _disposables: DisposableStore, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): Picks<ICommandQuickPick> | FastAndSlowPicks<ICommandQuickPick> {
+	protected async _getPicks(filter: string, _disposables: DisposableStore, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): Promise<Picks<ICommandQuickPick> | FastAndSlowPicks<ICommandQuickPick>> {
 
 		// Ask subclass for all command picks
-		const allCommandPicks = this.getCommandPicks(token);
+		const allCommandPicks = await this.getCommandPicks(token);
 
 		if (token.isCancellationRequested) {
 			return [];
@@ -166,10 +167,20 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			commandPicks.push(this.toCommandPick(commandPick, runOptions));
 		}
 
+		if (!this.hasAdditionalCommandPicks(filter, token)) {
+			return commandPicks;
+		}
+
 		return {
 			picks: commandPicks,
-			additionalPicks: this.getAdditionalCommandPicks(allCommandPicks, filteredCommandPicks, filter, token)
-				.then(additionalCommandPicks => additionalCommandPicks.map(commandPick => this.toCommandPick(commandPick, runOptions)))
+			additionalPicks: (async (): Promise<Picks<ICommandQuickPick>> => {
+				const additionalCommandPicks = await this.getAdditionalCommandPicks(allCommandPicks, filteredCommandPicks, filter, token);
+				if (token.isCancellationRequested) {
+					return [];
+				}
+
+				return additionalCommandPicks.map(commandPick => this.toCommandPick(commandPick, runOptions));
+			})()
 		};
 	}
 
@@ -177,6 +188,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		if (commandPick.type === 'separator') {
 			return commandPick;
 		}
+
 		const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
 		const ariaLabel = keybinding ?
 			localize('commandPickAriaLabelWithKeybinding', "{0}, {1}", commandPick.label, keybinding.getAriaLabel()) :
@@ -200,7 +212,9 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 				// Run
 				try {
-					await this.commandService.executeCommand(commandPick.commandId);
+					commandPick.args?.length
+						? await this.commandService.executeCommand(commandPick.commandId, ...commandPick.args)
+						: await this.commandService.executeCommand(commandPick.commandId);
 				} catch (error) {
 					if (!isCancellationError(error)) {
 						this.dialogService.error(localize('canNotRun', "Command '{0}' resulted in an error", commandPick.label), toErrorMessage(error));
@@ -210,27 +224,22 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		};
 	}
 
-	/**
-	 * Subclasses to provide the actual command entries.
-	 */
-	protected abstract getCommandPicks(token: CancellationToken): Array<ICommandQuickPick>;
+	protected abstract getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>>;
 
-	/**
-	 * Subclasses to provide the actual command entries.
-	 */
+	protected abstract hasAdditionalCommandPicks(filter: string, token: CancellationToken): boolean;
 	protected abstract getAdditionalCommandPicks(allPicks: ICommandQuickPick[], picksSoFar: ICommandQuickPick[], filter: string, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>>;
 }
 
 interface ISerializedCommandHistory {
-	usesLRU?: boolean;
-	entries: { key: string; value: number }[];
+	readonly usesLRU?: boolean;
+	readonly entries: { key: string; value: number }[];
 }
 
 interface ICommandsQuickAccessConfiguration {
-	workbench: {
-		commandPalette: {
-			history: number;
-			preserveInput: boolean;
+	readonly workbench: {
+		readonly commandPalette: {
+			readonly history: number;
+			readonly preserveInput: boolean;
 		};
 	};
 }

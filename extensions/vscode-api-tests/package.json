@@ -7,9 +7,11 @@
   "enabledApiProposals": [
     "authSession",
     "contribViewsRemote",
+    "contribStatusBarItems",
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
+    "documentPaste",
     "editorInsets",
     "extensionRuntime",
     "extensionsAny",
@@ -42,8 +44,13 @@
     "tokenInformation",
     "treeItemCheckbox",
     "treeViewReveal",
+    "testInvalidateResults",
     "workspaceTrust",
-    "telemetry"
+    "telemetry",
+    "windowActivity",
+    "interactiveUserActions",
+    "envCollectionWorkspace",
+    "envCollectionOptions"
   ],
   "private": true,
   "activationEvents": [],
@@ -186,7 +193,19 @@
           }
         ]
       }
-    ]
+    ],
+    "statusBarItems": {
+      "id": "myStaticItem",
+      "alignment": "right",
+      "priority": 17,
+      "name": "My Static Item",
+      "text": "Hello $(globe)",
+      "tooltip": "Hover World",
+      "accessibilityInformation": {
+        "label": "Hello World",
+        "role": "button"
+      }
+    }
   },
   "scripts": {
     "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, TestEditorPart, createEditorPart, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -614,6 +614,37 @@ suite('EditorsObserver', function () {
 		const input4 = new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID);
 
 		await rootGroup.openEditor(input1, { pinned: true, sticky: true });
+		await rootGroup.openEditor(input2, { pinned: true });
+		await rootGroup.openEditor(input3, { pinned: true });
+		await rootGroup.openEditor(input4, { pinned: true });
+
+		assert.strictEqual(rootGroup.count, 3);
+		assert.strictEqual(rootGroup.contains(input1), true);
+		assert.strictEqual(rootGroup.contains(input2), false);
+		assert.strictEqual(rootGroup.contains(input3), true);
+		assert.strictEqual(rootGroup.contains(input4), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
+	});
+
+	test('observer does not close scratchpads', async () => {
+		const [part] = await createPart();
+		part.enforcePartOptions({ limit: { enabled: true, value: 3 } });
+
+		const storage = new TestStorageService();
+		const observer = disposables.add(new EditorsObserver(part, storage));
+
+		const rootGroup = part.activeGroup;
+
+		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
+		input1.capabilities = EditorInputCapabilities.Untitled | EditorInputCapabilities.Scratchpad;
+		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
+		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID);
+		const input4 = new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID);
+
+		await rootGroup.openEditor(input1, { pinned: true });
 		await rootGroup.openEditor(input2, { pinned: true });
 		await rootGroup.openEditor(input3, { pinned: true });
 		await rootGroup.openEditor(input4, { pinned: true });

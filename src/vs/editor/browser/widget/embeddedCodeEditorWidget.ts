@@ -20,7 +20,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 
@@ -86,9 +85,8 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IClipboardService clipboardService: IClipboardService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
-		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(domElement, parentEditor.getRawOptions(), codeEditorWidgetOptions, clipboardService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService, configurationService);
+		super(domElement, parentEditor.getRawOptions(), codeEditorWidgetOptions, clipboardService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

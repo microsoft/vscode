@@ -32,7 +32,9 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 	}
 
 	async whenInitializationFinished(): Promise<void> {
-		await Promise.all(this.initializers.map(initializer => initializer.whenInitializationFinished()));
+		if (await this.requiresInitialization()) {
+			await Promise.all(this.initializers.map(initializer => initializer.whenInitializationFinished()));
+		}
 	}
 
 	async requiresInitialization(): Promise<boolean> {

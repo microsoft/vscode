@@ -4,21 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsStorageService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsStorageService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService, SyncResource, EDIT_SESSIONS_PENDING_KEY } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
@@ -27,6 +24,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { Emitter } from 'vs/base/common/event';
 import { CancellationError } from 'vs/base/common/errors';
+import { EditSessionsStoreClient } from 'vs/workbench/contrib/editSessions/common/editSessionsStorageClient';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
@@ -35,10 +33,9 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 	declare _serviceBrand: undefined;
 
-	public readonly SIZE_LIMIT = 1024 * 1024 * 2; // 2 MB
+	public readonly SIZE_LIMIT = Math.floor(1024 * 1024 * 1.9); // 2 MB
 
 	private serverConfiguration = this.productService['editSessions.store'];
-	private storeClient: EditSessionsStoreClient | undefined;
 	private machineClient: IUserDataSyncMachinesService | undefined;
 
 	#authenticationInfo: { sessionId: string; token: string; providerId: string } | undefined;
@@ -61,6 +58,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return this._didSignOut.event;
 	}
 
+	storeClient: EditSessionsStoreClient | undefined; // TODO@joyceerhl lifecycle hack
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -71,7 +70,6 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@IEditSessionsLogService private readonly logService: IEditSessionsLogService,
 		@IProductService private readonly productService: IProductService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IRequestService private readonly requestService: IRequestService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService
 	) {
@@ -95,17 +93,17 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 * @param editSession An object representing edit session state to be restored.
 	 * @returns The ref of the stored edit session state.
 	 */
-	async write(editSession: EditSession): Promise<string> {
+	async write(resource: SyncResource, content: string | EditSession): Promise<string> {
 		await this.initialize(false);
 		if (!this.initialized) {
 			throw new Error('Please sign in to store your edit session.');
 		}
 
-		if (editSession.machine === undefined) {
-			editSession.machine = await this.getOrCreateCurrentMachineId();
+		if (typeof content !== 'string' && content.machine === undefined) {
+			content.machine = await this.getOrCreateCurrentMachineId();
 		}
 
-		return this.storeClient!.writeResource('editSessions', JSON.stringify(editSession), null, undefined, createSyncHeaders(generateUuid()));
+		return this.storeClient!.writeResource(resource, typeof content === 'string' ? content : JSON.stringify(content), null, undefined, createSyncHeaders(generateUuid()));
 	}
 
 	/**
@@ -114,7 +112,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 *
 	 * @returns An object representing the requested or latest edit session state, if any.
 	 */
-	async read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined> {
+	async read(resource: SyncResource, ref: string | undefined): Promise<{ ref: string; content: string } | undefined> {
 		await this.initialize(false);
 		if (!this.initialized) {
 			throw new Error('Please sign in to apply your latest edit session.');
@@ -124,9 +122,9 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		const headers = createSyncHeaders(generateUuid());
 		try {
 			if (ref !== undefined) {
-				content = await this.storeClient?.resolveResourceContent('editSessions', ref, undefined, headers);
+				content = await this.storeClient?.resolveResourceContent(resource, ref, undefined, headers);
 			} else {
-				const result = await this.storeClient?.readResource('editSessions', null, undefined, headers);
+				const result = await this.storeClient?.readResource(resource, null, undefined, headers);
 				content = result?.content;
 				ref = result?.ref;
 			}
@@ -135,30 +133,30 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		// TODO@joyceerhl Validate session data, check schema version
-		return (content !== undefined && content !== null && ref !== undefined) ? { ref: ref, editSession: JSON.parse(content) } : undefined;
+		return (content !== undefined && content !== null && ref !== undefined) ? { ref, content } : undefined;
 	}
 
-	async delete(ref: string | null) {
+	async delete(resource: SyncResource, ref: string | null) {
 		await this.initialize(false);
 		if (!this.initialized) {
 			throw new Error(`Unable to delete edit session with ref ${ref}.`);
 		}
 
 		try {
-			await this.storeClient?.deleteResource('editSessions', ref);
+			await this.storeClient?.deleteResource(resource, ref);
 		} catch (ex) {
 			this.logService.error(ex);
 		}
 	}
 
-	async list(): Promise<IResourceRefHandle[]> {
+	async list(resource: SyncResource): Promise<IResourceRefHandle[]> {
 		await this.initialize(false);
 		if (!this.initialized) {
 			throw new Error(`Unable to list edit sessions.`);
 		}
 
 		try {
-			return this.storeClient?.getAllResourceRefs('editSessions') ?? [];
+			return this.storeClient?.getAllResourceRefs(resource) ?? [];
 		} catch (ex) {
 			this.logService.error(ex);
 		}
@@ -193,13 +191,14 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			throw new Error('Unable to initialize sessions sync as session sync preference is not configured in product.json.');
 		}
 
-		if (!this.storeClient) {
-			this.storeClient = new EditSessionsStoreClient(URI.parse(this.serverConfiguration.url), this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService);
-			this._register(this.storeClient.onTokenFailed(() => {
-				this.logService.info('Clearing edit sessions authentication preference because of successive token failures.');
-				this.clearAuthenticationPreference();
-			}));
+		if (this.storeClient === undefined) {
+			return false;
 		}
+
+		this._register(this.storeClient.onTokenFailed(() => {
+			this.logService.info('Clearing edit sessions authentication preference because of successive token failures.');
+			this.clearAuthenticationPreference();
+		}));
 
 		if (this.machineClient === undefined) {
 			this.machineClient = new UserDataSyncMachinesService(this.environmentService, this.fileService, this.storageService, this.storeClient!, this.logService, this.productService);
@@ -440,20 +439,22 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 	private registerSignInAction() {
 		const that = this;
+		const id = 'workbench.editSessions.actions.signIn';
+		const when = ContextKeyExpr.and(ContextKeyExpr.equals(EDIT_SESSIONS_PENDING_KEY, false), ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false));
 		this._register(registerAction2(class ResetEditSessionAuthenticationAction extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.editSessions.actions.signIn',
+					id,
 					title: localize('sign in', 'Turn on Cloud Changes...'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
-					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false),
+					precondition: when,
 					menu: [{
 						id: MenuId.CommandPalette,
 					},
 					{
 						id: MenuId.AccountsContext,
 						group: '2_editSessions',
-						when: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false),
+						when,
 					}]
 				});
 			}
@@ -461,6 +462,15 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			async run() {
 				return await that.initialize(false);
 			}
+		}));
+
+		this._register(MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
+			group: '2_editSessions',
+			command: {
+				id,
+				title: localize('sign in badge', 'Turn on Cloud Changes... (1)'),
+			},
+			when: ContextKeyExpr.and(ContextKeyExpr.equals(EDIT_SESSIONS_PENDING_KEY, true), ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false))
 		}));
 	}
 
@@ -498,8 +508,4 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			}
 		}));
 	}
-}
-
-class EditSessionsStoreClient extends UserDataSyncStoreClient {
-	_serviceBrand: any;
 }

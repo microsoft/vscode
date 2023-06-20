@@ -10,11 +10,10 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ISerializedCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ISerializedTerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -28,6 +27,7 @@ import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 export class RemoteTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
@@ -50,7 +50,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
-	private readonly _onRestoreCommands = this._register(new Emitter<{ id: number; commands: ISerializedCommand[] }>());
+	private readonly _onRestoreCommands = this._register(new Emitter<{ id: number; commands: ISerializedTerminalCommand[] }>());
 	readonly onRestoreCommands = this._onRestoreCommands.event;
 
 	constructor(
@@ -60,14 +60,14 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		@ILogService logService: ILogService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IStatusbarService statusBarService: IStatusbarService,
 	) {
-		super(_remoteTerminalChannel, logService, notificationService, _historyService, configurationResolverService, workspaceContextService);
+		super(_remoteTerminalChannel, logService, _historyService, configurationResolverService, statusBarService, workspaceContextService);
 
 		this._remoteTerminalChannel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
 		this._remoteTerminalChannel.onProcessReplay(e => {
@@ -185,15 +185,6 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 		const terminalConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 		const configuration: ICompleteTerminalConfiguration = {
-			'terminal.integrated.automationShell.windows': this._configurationService.getValue(TerminalSettingId.AutomationShellWindows) as string,
-			'terminal.integrated.automationShell.osx': this._configurationService.getValue(TerminalSettingId.AutomationShellMacOs) as string,
-			'terminal.integrated.automationShell.linux': this._configurationService.getValue(TerminalSettingId.AutomationShellLinux) as string,
-			'terminal.integrated.shell.windows': this._configurationService.getValue(TerminalSettingId.ShellWindows) as string,
-			'terminal.integrated.shell.osx': this._configurationService.getValue(TerminalSettingId.ShellMacOs) as string,
-			'terminal.integrated.shell.linux': this._configurationService.getValue(TerminalSettingId.ShellLinux) as string,
-			'terminal.integrated.shellArgs.windows': this._configurationService.getValue(TerminalSettingId.ShellArgsWindows) as string | string[],
-			'terminal.integrated.shellArgs.osx': this._configurationService.getValue(TerminalSettingId.ShellArgsMacOs) as string | string[],
-			'terminal.integrated.shellArgs.linux': this._configurationService.getValue(TerminalSettingId.ShellArgsLinux) as string | string[],
 			'terminal.integrated.env.windows': this._configurationService.getValue(TerminalSettingId.EnvWindows) as ITerminalEnvironment,
 			'terminal.integrated.env.osx': this._configurationService.getValue(TerminalSettingId.EnvMacOs) as ITerminalEnvironment,
 			'terminal.integrated.env.linux': this._configurationService.getValue(TerminalSettingId.EnvLinux) as ITerminalEnvironment,
@@ -260,46 +251,31 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 	}
 
 	async listProcesses(): Promise<IProcessDetails[]> {
-		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses() : [];
-		return terms.map(termDto => {
-			return <IProcessDetails>{
-				id: termDto.id,
-				pid: termDto.pid,
-				title: termDto.title,
-				titleSource: termDto.titleSource,
-				cwd: termDto.cwd,
-				workspaceId: termDto.workspaceId,
-				workspaceName: termDto.workspaceName,
-				icon: termDto.icon,
-				color: termDto.color,
-				isOrphan: termDto.isOrphan,
-				fixedDimensions: termDto.fixedDimensions
-			};
-		});
+		return this._remoteTerminalChannel.listProcesses();
 	}
 
 	async updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: any): Promise<void> {
-		await this._remoteTerminalChannel?.updateProperty(id, property, value);
+		await this._remoteTerminalChannel.updateProperty(id, property, value);
 	}
 
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
-		await this._remoteTerminalChannel?.updateTitle(id, title, titleSource);
+		await this._remoteTerminalChannel.updateTitle(id, title, titleSource);
 	}
 
 	async updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void> {
-		await this._remoteTerminalChannel?.updateIcon(id, userInitiated, icon, color);
+		await this._remoteTerminalChannel.updateIcon(id, userInitiated, icon, color);
 	}
 
 	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
-		return this._remoteTerminalChannel?.getDefaultSystemShell(osOverride) || '';
+		return this._remoteTerminalChannel.getDefaultSystemShell(osOverride) || '';
 	}
 
 	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		return this._remoteTerminalChannel?.getProfiles(profiles, defaultProfile, includeDetectedProfiles) || [];
+		return this._remoteTerminalChannel.getProfiles(profiles, defaultProfile, includeDetectedProfiles) || [];
 	}
 
 	async getEnvironment(): Promise<IProcessEnvironment> {
-		return this._remoteTerminalChannel?.getEnvironment() || {};
+		return this._remoteTerminalChannel.getEnvironment() || {};
 	}
 
 	async getShellEnvironment(): Promise<IProcessEnvironment | undefined> {
@@ -316,7 +292,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		if (env?.os !== OperatingSystem.Windows) {
 			return original;
 		}
-		return this._remoteTerminalChannel?.getWslPath(original, direction) || original;
+		return this._remoteTerminalChannel.getWslPath(original, direction) || original;
 	}
 
 	async setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById): Promise<void> {

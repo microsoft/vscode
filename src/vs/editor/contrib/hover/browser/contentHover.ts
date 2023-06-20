@@ -30,7 +30,17 @@ const $ = dom.$;
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
+
 	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
+
+	getWidgetContent(): string | undefined {
+		const node = this._widget.getDomNode();
+		if (!node.textContent) {
+			return undefined;
+		}
+		return node.textContent;
+	}
+
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
@@ -610,6 +620,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		if (this._visibleData) {
 			const stoleFocus = this._visibleData.stoleFocus;
 			this._setVisibleData(null);
+			this._hoverFocusedKey.set(false);
 			this._editor.layoutContentWidget(this);
 			if (stoleFocus) {
 				this._editor.focus();

@@ -18,7 +18,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
 import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { BuiltinGettingStartedCategory, BuiltinGettingStartedStep, walkthroughs } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
+import { walkthroughs } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -34,8 +34,6 @@ import { checkGlobFileExists } from 'vs/workbench/services/extensions/common/wor
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DefaultIconPath } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { disposableTimeout } from 'vs/base/common/async';
 
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
@@ -97,9 +95,6 @@ export interface IWalkthroughsService {
 	readonly onDidRemoveWalkthrough: Event<string>;
 	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough>;
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep>;
-	readonly onDidAddBuiltInWalkthrough: Event<void>;
-
-	readonly installedExtensionsRegistered: Promise<void>;
 
 	getWalkthroughs(): IResolvedWalkthrough[];
 	getWalkthrough(id: string): IResolvedWalkthrough;
@@ -117,12 +112,6 @@ export interface IWalkthroughsService {
 const DAYS = 24 * 60 * 60 * 1000;
 const NEW_WALKTHROUGH_TIME = 7 * DAYS;
 
-type WalkthroughTreatment = {
-	walkthroughId: string;
-	walkthroughStepIds?: string[];
-	stepOrder: number[];
-};
-
 export class WalkthroughsService extends Disposable implements IWalkthroughsService {
 	declare readonly _serviceBrand: undefined;
 
@@ -135,9 +124,6 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private readonly _onDidProgressStep = new Emitter<IResolvedWalkthroughStep>();
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep> = this._onDidProgressStep.event;
 
-	private readonly _onDidAddBuiltInWalkthrough = new Emitter<void>();
-	readonly onDidAddBuiltInWalkthrough: Event<void> = this._onDidAddBuiltInWalkthrough.event;
-
 	private memento: Memento;
 	private stepProgress: Record<string, StepProgress | undefined>;
 
@@ -147,15 +133,11 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private gettingStartedContributions = new Map<string, IWalkthrough>();
 	private steps = new Map<string, IWalkthroughStep>();
 
-	private tasExperimentService?: IWorkbenchAssignmentService;
 	private sessionInstalledExtensions: Set<string> = new Set<string>();
 
 	private categoryVisibilityContextKeys = new Set<string>();
 	private stepCompletionContextKeyExpressions = new Set<ContextKeyExpression>();
 	private stepCompletionContextKeys = new Set<string>();
-
-	private triggerInstalledExtensionsRegistered!: () => void;
-	installedExtensionsRegistered: Promise<void>;
 
 	private metadata: WalkthroughMetaDataType;
 
@@ -171,12 +153,9 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		@IHostService private readonly hostService: IHostService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkbenchAssignmentService tasExperimentService: IWorkbenchAssignmentService,
-		@IProductService private readonly productService: IProductService,
+		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService
 	) {
 		super();
-
-		this.tasExperimentService = tasExperimentService;
 
 		this.metadata = new Map(
 			JSON.parse(
@@ -185,42 +164,16 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		this.memento = new Memento('gettingStartedService', this.storageService);
 		this.stepProgress = this.memento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 
-		walkthroughsExtensionPoint.setHandler(async (_, { added, removed }) => {
-			await Promise.all(
-				[...added.map(e => this.registerExtensionWalkthroughContributions(e.description)),
-				...removed.map(e => this.unregisterExtensionWalkthroughContributions(e.description))]);
-			this.triggerInstalledExtensionsRegistered();
-		});
-
 		this.initCompletionEventListeners();
 
 		HasMultipleNewFileEntries.bindTo(this.contextService).set(false);
+		this.registerWalkthroughs();
 
-		this.installedExtensionsRegistered = new Promise(r => this.triggerInstalledExtensionsRegistered = r);
-
-		this._register(disposableTimeout(() => this.registerBuiltInWalkthroughs().finally(/*do nothing*/), 0));
 	}
 
-	private async registerBuiltInWalkthroughs() {
-
-		const treatmentString = await Promise.race([
-			this.tasExperimentService?.getTreatment<string>('welcome.walkthrough.content'),
-			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 2000))
-		]);
-
-		const treatment: WalkthroughTreatment = treatmentString ? JSON.parse(treatmentString) : { walkthroughId: '' };
+	private registerWalkthroughs() {
 
 		walkthroughs.forEach(async (category, index) => {
-			let shouldReorder = false;
-			if (category.id === treatment?.walkthroughId) {
-				category = this.updateWalkthroughContent(category, treatment);
-
-				shouldReorder = (treatment?.stepOrder !== undefined && category.content.steps.length === treatment.stepOrder.length);
-				if (shouldReorder) {
-					category.content.steps = category.content.steps.filter((_step, index) => treatment.stepOrder[index] >= 0);
-					treatment.stepOrder = treatment.stepOrder.filter(value => value >= 0);
-				}
-			}
 
 			this._registerWalkthrough({
 				...category,
@@ -235,7 +188,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 							completionEvents: step.completionEvents ?? [],
 							description: parseDescription(step.description),
 							category: category.id,
-							order: shouldReorder ? (treatment?.stepOrder ? treatment.stepOrder[index] : index) : index,
+							order: index,
 							when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
 							media: step.media.type === 'image'
 								? {
@@ -260,31 +213,10 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			});
 		});
 
-		this._onDidAddBuiltInWalkthrough.fire();
-	}
-
-	private updateWalkthroughContent(walkthrough: BuiltinGettingStartedCategory, experimentTreatment: WalkthroughTreatment): BuiltinGettingStartedCategory {
-
-		if (!experimentTreatment?.walkthroughStepIds) {
-			return walkthrough;
-		}
-
-		const walkthroughMetadata = this.productService.walkthroughMetadata?.find(value => value.id === walkthrough.id);
-		for (const step of experimentTreatment.walkthroughStepIds) {
-			const stepMetadata = walkthroughMetadata?.steps.find(value => value.id === step);
-			if (stepMetadata) {
-
-				const newStep: BuiltinGettingStartedStep = {
-					id: step,
-					title: stepMetadata.title,
-					description: stepMetadata.description,
-					when: stepMetadata.when,
-					media: stepMetadata.media
-				};
-				walkthrough.content.steps.push(newStep);
-			}
-		}
-		return walkthrough;
+		walkthroughsExtensionPoint.setHandler((_, { added, removed }) => {
+			added.map(e => this.registerExtensionWalkthroughContributions(e.description));
+			removed.map(e => this.unregisterExtensionWalkthroughContributions(e.description));
+		});
 	}
 
 	private initCompletionEventListeners() {
@@ -377,8 +309,13 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps?.map(s => s.id) ?? [], manaullyOpened: false });
 			}
 
+			const override = await Promise.race([
+				this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${extension.identifier.value + '.' + walkthrough.id}.when`),
+				new Promise<string | undefined>(resolve => setTimeout(() => resolve(walkthrough.when), 5000))
+			]);
+
 			if (this.sessionInstalledExtensions.has(extension.identifier.value.toLowerCase())
-				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true())
+				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true())
 			) {
 				this.sessionInstalledExtensions.delete(extension.identifier.value.toLowerCase());
 				if (index < sectionToOpenIndex && isNewlyInstalled) {
@@ -460,7 +397,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 						? FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
 						: DefaultIconPath
 				},
-				when: ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true(),
+				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
 			} as const;
 
 			this._registerWalkthrough(walkthoughDescriptor);
@@ -505,12 +442,14 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	}
 
 	getWalkthrough(id: string): IResolvedWalkthrough {
+
 		const walkthrough = this.gettingStartedContributions.get(id);
 		if (!walkthrough) { throw Error('Trying to get unknown walkthrough: ' + id); }
 		return this.resolveWalkthrough(walkthrough);
 	}
 
 	getWalkthroughs(): IResolvedWalkthrough[] {
+
 		const registeredCategories = [...this.gettingStartedContributions.values()];
 		const categoriesWithCompletion = registeredCategories
 			.map(category => {
@@ -688,9 +627,6 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			}
 
 			this.registerCompletionListener(event, step);
-			if (this.sessionEvents.has(event)) {
-				this.progressStep(step.id);
-			}
 		}
 	}
 

@@ -31,9 +31,10 @@ import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } fro
 import { IActionableTestTreeElement, TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
+import { TestResultsView } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, testConfigurationGroupNames } from 'vs/workbench/contrib/testing/common/constants';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestProfileService, canUseProfileWithTest } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -838,9 +839,10 @@ export class ShowMostRecentOutputAction extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor) {
-		const result = accessor.get(ITestResultService).results[0];
-		accessor.get(ITestingOutputTerminalService).open(result);
+	public async run(accessor: ServicesAccessor) {
+		const viewService = accessor.get(IViewsService);
+		const testView = await viewService.openView<TestResultsView>(Testing.ResultsViewId, true);
+		testView?.showLatestRun();
 	}
 }
 
@@ -996,7 +998,10 @@ abstract class ExecuteTestAtCursor extends Action2 {
 				const irange = Range.lift(test.item.range);
 				if (irange.containsPosition(position)) {
 					if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
-						bestNodes.push(test);
+						// check that a parent isn't already included (#180760)
+						if (!bestNodes.some(b => TestId.isChild(b.item.extId, test.item.extId))) {
+							bestNodes.push(test);
+						}
 					} else {
 						bestRange = irange;
 						bestNodes = [test];
@@ -1005,7 +1010,7 @@ abstract class ExecuteTestAtCursor extends Action2 {
 					if (!bestRangeBefore || bestRangeBefore.getStartPosition().isBefore(irange.getStartPosition())) {
 						bestRangeBefore = irange;
 						bestNodesBefore = [test];
-					} else if (irange.equalsRange(bestRangeBefore)) {
+					} else if (irange.equalsRange(bestRangeBefore) && !bestNodesBefore.some(b => TestId.isChild(b.item.extId, test.item.extId))) {
 						bestNodesBefore.push(test);
 					}
 				}

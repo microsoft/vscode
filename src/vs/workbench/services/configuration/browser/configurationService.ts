@@ -45,6 +45,7 @@ import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userData
 import { updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	return userDataProfile.isDefault
@@ -105,7 +106,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	constructor(
 		{ remoteAuthority, configurationCache }: { remoteAuthority?: string; configurationCache: IConfigurationCache },
-		environmentService: IWorkbenchEnvironmentService,
+		environmentService: IBrowserWorkbenchEnvironmentService,
 		private readonly userDataProfileService: IUserDataProfileService,
 		private readonly userDataProfilesService: IUserDataProfilesService,
 		private readonly fileService: IFileService,
@@ -364,7 +365,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			const application = await this.reloadApplicationConfiguration(true);
 			const { local, remote } = await this.reloadUserConfiguration();
 			await this.reloadWorkspaceConfiguration();
-			await this.loadConfiguration(application, local, remote);
+			await this.loadConfiguration(application, local, remote, true);
 			return;
 		}
 
@@ -380,7 +381,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 			case ConfigurationTarget.USER: {
 				const { local, remote } = await this.reloadUserConfiguration();
-				await this.loadConfiguration(this._configuration.applicationConfiguration, local, remote);
+				await this.loadConfiguration(this._configuration.applicationConfiguration, local, remote, true);
 				return;
 			}
 			case ConfigurationTarget.USER_LOCAL:
@@ -435,8 +436,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	async initialize(arg: IAnyWorkspaceIdentifier): Promise<void> {
 		mark('code/willInitWorkspaceService');
 
+		const trigger = this.initialized;
+		this.initialized = false;
 		const workspace = await this.createWorkspace(arg);
-		await this.updateWorkspaceAndInitializeConfiguration(workspace);
+		await this.updateWorkspaceAndInitializeConfiguration(workspace, trigger);
 		this.checkAndMarkWorkspaceComplete(false);
 
 		mark('code/didInitWorkspaceService');
@@ -528,7 +531,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 	}
 
-	private async updateWorkspaceAndInitializeConfiguration(workspace: Workspace): Promise<void> {
+	private async updateWorkspaceAndInitializeConfiguration(workspace: Workspace, trigger: boolean): Promise<void> {
 		const hasWorkspaceBefore = !!this.workspace;
 		let previousState: WorkbenchState | undefined;
 		let previousWorkspacePath: string | undefined;
@@ -543,7 +546,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			this.workspace = workspace;
 		}
 
-		await this.initializeConfiguration();
+		await this.initializeConfiguration(trigger);
 
 		// Trigger changes after configuration initialization so that configuration is up to date.
 		if (hasWorkspaceBefore) {
@@ -588,7 +591,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return result;
 	}
 
-	private async initializeConfiguration(): Promise<void> {
+	private async initializeConfiguration(trigger: boolean): Promise<void> {
 		await this.defaultConfiguration.initialize();
 
 		const [, application, user] = await Promise.all([
@@ -603,7 +606,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		]);
 
 		mark('code/willInitWorkspaceConfiguration');
-		await this.loadConfiguration(application, user.local, user.remote);
+		await this.loadConfiguration(application, user.local, user.remote, trigger);
 		mark('code/didInitWorkspaceConfiguration');
 	}
 
@@ -669,7 +672,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return this.onWorkspaceFolderConfigurationChanged(folder);
 	}
 
-	private async loadConfiguration(applicationConfigurationModel: ConfigurationModel, userConfigurationModel: ConfigurationModel, remoteUserConfigurationModel: ConfigurationModel): Promise<void> {
+	private async loadConfiguration(applicationConfigurationModel: ConfigurationModel, userConfigurationModel: ConfigurationModel, remoteUserConfigurationModel: ConfigurationModel, trigger: boolean): Promise<void> {
 		// reset caches
 		this.cachedFolderConfigs = new ResourceMap<FolderConfiguration>();
 
@@ -683,11 +686,11 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const currentConfiguration = this._configuration;
 		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, applicationConfigurationModel, userConfigurationModel, remoteUserConfigurationModel, workspaceConfiguration, folderConfigurationModels, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
 
-		if (this.initialized) {
+		this.initialized = true;
+
+		if (trigger) {
 			const change = this._configuration.compare(currentConfiguration);
 			this.triggerConfigurationChange(change, { data: currentConfiguration.toData(), workspace: this.workspace }, ConfigurationTarget.WORKSPACE);
-		} else {
-			this.initialized = true;
 		}
 
 		this.updateRestrictedSettings();
@@ -721,7 +724,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 				}
 			}
 			const [localUser, application] = await Promise.all(promises);
-			await this.loadConfiguration(application ?? this._configuration.applicationConfiguration, localUser, this._configuration.remoteUserConfiguration);
+			await this.loadConfiguration(application ?? this._configuration.applicationConfiguration, localUser, this._configuration.remoteUserConfiguration, true);
 		})());
 	}
 

@@ -219,7 +219,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 					version: '3',
 					names: [],
 					mappings: '',
-					sources: [f.relative],
+					sources: [f.relative.replace(/\\/g, '/')],
 					sourcesContent: [contents]
 				};
 
@@ -384,16 +384,24 @@ export function streamToPromise(stream: NodeJS.ReadWriteStream): Promise<void> {
 	});
 }
 
-export function getElectronVersion(): string {
+export function getElectronVersion(): Record<string, string> {
 	const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
-	const target = /^target "(.*)"$/m.exec(yarnrc)![1];
-	return target;
+	const electronVersion = /^target "(.*)"$/m.exec(yarnrc)![1];
+	const msBuildId = /^ms_build_id "(.*)"$/m.exec(yarnrc)![1];
+	return { electronVersion, msBuildId };
 }
 
 export function acquireWebNodePaths() {
 	const root = path.join(__dirname, '..', '..');
 	const webPackageJSON = path.join(root, '/remote/web', 'package.json');
 	const webPackages = JSON.parse(fs.readFileSync(webPackageJSON, 'utf8')).dependencies;
+
+	const distroWebPackageJson = path.join(root, '.build/distro/npm/remote/web/package.json');
+	if (fs.existsSync(distroWebPackageJson)) {
+		const distroWebPackages = JSON.parse(fs.readFileSync(distroWebPackageJson, 'utf8')).dependencies;
+		Object.assign(webPackages, distroWebPackages);
+	}
+
 	const nodePaths: { [key: string]: string } = {};
 	for (const key of Object.keys(webPackages)) {
 		const packageJSON = path.join(root, 'node_modules', key, 'package.json');

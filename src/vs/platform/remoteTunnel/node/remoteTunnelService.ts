@@ -10,7 +10,7 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogger, ILoggerService, LogLevelToString } from 'vs/platform/log/common/log';
 import { dirname, join } from 'vs/base/common/path';
-import { ChildProcess, spawn } from 'child_process';
+import { ChildProcess, StdioOptions, spawn } from 'child_process';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
@@ -165,7 +165,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	}
 
 	async startTunnel(session: IRemoteTunnelSession): Promise<TunnelStatus> {
-		if (isSameSession(session, this._session)) {
+		if (isSameSession(session, this._session) && this._tunnelStatus.type !== 'disconnected') {
 			return this._tunnelStatus;
 		}
 		this.setSession(session);
@@ -195,7 +195,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			}
 		};
 		try {
-			await this.runCodeTunneCommand('stop', ['kill'], onOutput);
+			await this.runCodeTunnelCommand('stop', ['kill'], onOutput);
 		} catch (e) {
 			this._logger.error(e);
 		}
@@ -213,26 +213,35 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		}
 
 		let isAttached = false;
+		let output = '';
 
 		const onOutput = (a: string, isErr: boolean) => {
 			if (isErr) {
 				this._logger.error(a);
 			} else {
-				this._logger.info(a);
+				output += a;
 			}
 			if (!this.environmentService.isBuilt && a.startsWith('   Compiling')) {
 				this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.building', 'Building CLI from sources')));
 			}
 		};
 
-		const statusProcess = this.runCodeTunneCommand('status', ['status'], onOutput);
+		const statusProcess = this.runCodeTunnelCommand('status', ['status'], onOutput);
 		this._tunnelProcess = statusProcess;
 		try {
-			const status = await statusProcess;
+			await statusProcess;
 			if (this._tunnelProcess !== statusProcess) {
 				return;
 			}
-			isAttached = status === 0;
+
+			// split and find the line, since in dev builds additional noise is
+			// added by cargo to the output.
+			const status: {
+				service_installed: boolean;
+				tunnel: object | null;
+			} = JSON.parse(output.trim().split('\n').find(l => l.startsWith('{'))!);
+
+			isAttached = !!status.tunnel;
 			this._logger.info(isAttached ? 'Other tunnel running, attaching...' : 'No other tunnel running');
 			if (!isAttached && !this._session) {
 				this._tunnelProcess = undefined;
@@ -255,7 +264,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				a = a.replaceAll(token, '*'.repeat(4));
 				onOutput(a, isErr);
 			};
-			const loginProcess = this.runCodeTunneCommand('login', ['user', 'login', '--provider', session.providerId, '--access-token', token, '--log', LogLevelToString(this._logger.getLevel())], onLoginOutput);
+			const loginProcess = this.runCodeTunnelCommand('login', ['user', 'login', '--provider', session.providerId, '--access-token', token, '--log', LogLevelToString(this._logger.getLevel())], onLoginOutput);
 			this._tunnelProcess = loginProcess;
 			try {
 				await loginProcess;
@@ -286,7 +295,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		if (this._preventSleep()) {
 			args.push('--no-sleep');
 		}
-		const serveCommand = this.runCodeTunneCommand('tunnel', args, (message: string, isErr: boolean) => {
+		const serveCommand = this.runCodeTunnelCommand('tunnel', args, (message: string, isErr: boolean) => {
 			if (isErr) {
 				this._logger.error(message);
 			} else {
@@ -315,13 +324,15 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		});
 	}
 
-	private runCodeTunneCommand(logLabel: string, commandArgs: string[], onOutput: (message: string, isError: boolean) => void = () => { }): CancelablePromise<number> {
+	private runCodeTunnelCommand(logLabel: string, commandArgs: string[], onOutput: (message: string, isError: boolean) => void = () => { }): CancelablePromise<number> {
 		return createCancelablePromise<number>(token => {
 			return new Promise((resolve, reject) => {
 				if (token.isCancellationRequested) {
 					resolve(-1);
 				}
 				let tunnelProcess: ChildProcess | undefined;
+				const stdio: StdioOptions = ['ignore', 'pipe', 'pipe'];
+
 				token.onCancellationRequested(() => {
 					if (tunnelProcess) {
 						this._logger.info(`${logLabel} terminating(${tunnelProcess.pid})`);
@@ -331,12 +342,12 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				if (!this.environmentService.isBuilt) {
 					onOutput('Building tunnel CLI from sources and run', false);
 					onOutput(`${logLabel} Spawning: cargo run -- tunnel ${commandArgs.join(' ')}`, false);
-					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli') });
+					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli'), stdio });
 				} else {
 					onOutput('Running tunnel CLI', false);
 					const tunnelCommand = this.getTunnelCommandLocation();
 					onOutput(`${logLabel} Spawning: ${tunnelCommand} tunnel ${commandArgs.join(' ')}`, false);
-					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs], { cwd: homedir() });
+					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs], { cwd: homedir(), stdio });
 				}
 
 				tunnelProcess.stdout!.on('data', data => {

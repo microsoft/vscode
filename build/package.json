@@ -7,6 +7,7 @@
     "@azure/identity": "^3.1.3",
     "@azure/storage-blob": "^12.13.0",
     "@electron/get": "^1.12.4",
+    "@iarna/toml": "^2.2.5",
     "@types/ansi-colors": "^3.2.0",
     "@types/byline": "^4.2.32",
     "@types/cssnano": "^4.0.0",
@@ -23,6 +24,7 @@
     "@types/gulp-postcss": "^8.0.0",
     "@types/gulp-rename": "^0.0.33",
     "@types/gulp-sourcemaps": "^0.0.32",
+    "@types/iarna__toml": "^2.0.2",
     "@types/mime": "0.0.29",
     "@types/minimatch": "^3.0.3",
     "@types/minimist": "^1.2.1",
@@ -36,6 +38,7 @@
     "@types/through2": "^2.0.36",
     "@types/tmp": "^0.2.1",
     "@types/underscore": "^1.8.9",
+    "@types/workerpool": "^6.4.0",
     "@types/xml2js": "0.0.33",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/vsce": "^2.16.0",
@@ -46,7 +49,6 @@
     "electron-osx-sign": "^0.4.16",
     "esbuild": "0.17.14",
     "extract-zip": "^2.0.1",
-    "got": "11.8.5",
     "gulp-merge-json": "^2.1.1",
     "gulp-shell": "^0.8.0",
     "jsonc-parser": "^2.3.0",
@@ -69,5 +71,8 @@
     "tree-sitter": "https://github.com/joaomoreno/node-tree-sitter/releases/download/v0.20.0/tree-sitter-0.20.0.tgz",
     "tree-sitter-typescript": "^0.20.1",
     "vscode-gulp-watch": "^5.0.3"
+  },
+  "dependencies": {
+    "workerpool": "^6.4.0"
   }
 }

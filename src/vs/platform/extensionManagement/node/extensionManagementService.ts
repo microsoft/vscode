@@ -25,7 +25,7 @@ import { extract, ExtractError, IFile, zip } from 'vs/base/node/zip';
 import * as nls from 'vs/nls';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { AbstractExtensionManagementService, AbstractExtensionTask, ExtensionVerificationStatus, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, joinErrors, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
+import { AbstractExtensionManagementService, AbstractExtensionTask, ExtensionVerificationStatus, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, joinErrors, toExtensionManagementError, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import {
 	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOperation,
 	Metadata, InstallVSIXOptions
@@ -148,11 +148,19 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 		try {
 			const manifest = await getManifest(path.resolve(location.fsPath));
+			const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
 			if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode, this.productService.version, this.productService.date)) {
-				throw new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", getGalleryExtensionId(manifest.publisher, manifest.name), this.productService.version));
+				throw new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", extensionId, this.productService.version));
 			}
 
-			return await this.installExtension(manifest, location, options);
+			const result = await this.installExtensions([{ manifest, extension: location, options }]);
+			if (result[0]?.local) {
+				return result[0]?.local;
+			}
+			if (result[0]?.error) {
+				throw result[0].error;
+			}
+			throw toExtensionManagementError(new Error(`Unknown error while installing extension ${extensionId}`));
 		} finally {
 			await cleanup();
 		}
@@ -459,35 +467,42 @@ export class ExtensionsScanner extends Disposable {
 		return null;
 	}
 
-	async extractUserExtension(extensionKey: ExtensionKey, zipPath: string, metadata: Metadata, token: CancellationToken): Promise<ILocalExtension> {
+	async extractUserExtension(extensionKey: ExtensionKey, zipPath: string, metadata: Metadata, removeIfExists: boolean, token: CancellationToken): Promise<ILocalExtension> {
 		await this.cleanUpGeneratedFoldersPromise.catch(() => undefined);
 
 		const folderName = extensionKey.toString();
 		const tempPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, `.${generateUuid()}`);
 		const extensionPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, folderName);
 
-		try {
-			await pfs.Promises.rm(extensionPath);
-		} catch (error) {
-			throw new ExtensionManagementError(nls.localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, extensionKey.id), ExtensionManagementErrorCode.Delete);
+		let exists = await this.fileService.exists(URI.file(extensionPath));
+
+		if (exists && removeIfExists) {
+			try {
+				await pfs.Promises.rm(extensionPath);
+			} catch (error) {
+				throw new ExtensionManagementError(nls.localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, extensionKey.id), ExtensionManagementErrorCode.Delete);
+			}
+			exists = false;
 		}
 
-		await this.extractAtLocation(extensionKey, zipPath, tempPath, token);
-		await this.extensionsScannerService.updateMetadata(URI.file(tempPath), metadata);
+		if (!exists) {
+			await this.extractAtLocation(extensionKey, zipPath, tempPath, token);
+			await this.extensionsScannerService.updateMetadata(URI.file(tempPath), metadata);
 
-		try {
-			this._onExtract.fire(URI.file(extensionPath));
-			await this.rename(extensionKey, tempPath, extensionPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
-			this.logService.info('Renamed to', extensionPath);
-		} catch (error) {
 			try {
-				await pfs.Promises.rm(tempPath);
-			} catch (e) { /* ignore */ }
-			if (error.code === 'ENOTEMPTY') {
-				this.logService.info(`Rename failed because extension was installed by another source. So ignoring renaming.`, extensionKey.id);
-			} else {
-				this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted from extracted location`, tempPath);
-				throw error;
+				this._onExtract.fire(URI.file(extensionPath));
+				await this.rename(extensionKey, tempPath, extensionPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+				this.logService.info('Renamed to', extensionPath);
+			} catch (error) {
+				try {
+					await pfs.Promises.rm(tempPath);
+				} catch (e) { /* ignore */ }
+				if (error.code === 'ENOTEMPTY') {
+					this.logService.info(`Rename failed because extension was installed by another source. So ignoring renaming.`, extensionKey.id);
+				} else {
+					this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted from extracted location`, tempPath);
+					throw error;
+				}
 			}
 		}
 
@@ -531,7 +546,7 @@ export class ExtensionsScanner extends Disposable {
 
 	async removeExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
 		this.logService.trace(`Deleting ${type} extension from disk`, extension.identifier.id, extension.location.fsPath);
-		const renamedLocation = this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(extension.location), `.${generateUuid()}`);
+		const renamedLocation = this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(extension.location), `._${generateUuid()}`);
 		await this.rename(extension.identifier, extension.location.fsPath, renamedLocation.fsPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
 		await this.fileService.del(renamedLocation, { recursive: true });
 		this.logService.info('Deleted from disk', extension.identifier.id, extension.location.fsPath);
@@ -706,7 +721,7 @@ export class ExtensionsScanner extends Disposable {
 			}
 		}
 		for (const child of stat?.children ?? []) {
-			if (child.isDirectory && child.name.startsWith('.') && isUUID(child.name.substring(1))) {
+			if (child.isDirectory && child.name.startsWith('._') && isUUID(child.name.substring(2))) {
 				promises.push((async () => {
 					this.logService.trace('Deleting the generated extension folder', child.resource.toString());
 					try {
@@ -768,11 +783,11 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<ILocalExtensio
 		return local;
 	}
 
-	protected async extractExtension({ zipPath, key, metadata }: InstallableExtension, token: CancellationToken): Promise<ILocalExtension> {
+	protected async extractExtension({ zipPath, key, metadata }: InstallableExtension, removeIfExists: boolean, token: CancellationToken): Promise<ILocalExtension> {
 		let local = await this.unsetIfUninstalled(key);
 		if (!local) {
 			this.logService.trace('Extracting extension...', key.id);
-			local = await this.extensionsScanner.extractUserExtension(key, zipPath, metadata, token);
+			local = await this.extensionsScanner.extractUserExtension(key, zipPath, metadata, removeIfExists, token);
 			this.logService.info('Extracting extension completed.', key.id);
 		}
 		return local;
@@ -855,7 +870,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 		try {
 			this._verificationStatus = verificationStatus;
 			this.validateManifest(location.fsPath);
-			const local = await this.extractExtension({ zipPath: location.fsPath, key: ExtensionKey.create(this.gallery), metadata }, token);
+			const local = await this.extractExtension({ zipPath: location.fsPath, key: ExtensionKey.create(this.gallery), metadata }, false, token);
 			return [local, metadata];
 		} catch (error) {
 			try {
@@ -937,7 +952,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 			}
 		}
 
-		const local = await this.extractExtension({ zipPath: path.resolve(this.location.fsPath), key: extensionKey, metadata }, token);
+		const local = await this.extractExtension({ zipPath: path.resolve(this.location.fsPath), key: extensionKey, metadata }, true, token);
 		return [local, metadata];
 	}
 

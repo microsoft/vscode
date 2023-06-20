@@ -3,27 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventEmitter, LogOutputChannel, Memento, Uri, workspace } from 'vscode';
-import { getOctokit } from './auth';
+import { authentication, EventEmitter, LogOutputChannel, Memento, Uri, workspace } from 'vscode';
+import { Repository as GitHubRepository, RepositoryRuleset } from '@octokit/graphql-schema';
+import { AuthenticationError, getOctokitGraphql } from './auth';
 import { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git';
 import { DisposableStore, getRepositoryFromUrl } from './util';
 
-interface RepositoryRuleset {
-	readonly id: number;
-	readonly conditions: {
-		ref_name: {
-			exclude: string[];
-			include: string[];
-		};
-	};
-	readonly enforcement: 'active' | 'disabled' | 'evaluate';
-	readonly rules: RepositoryRule[];
-	readonly target: 'branch' | 'tag';
-}
+const REPOSITORY_QUERY = `
+	query repositoryPermissions($owner: String!, $repo: String!) {
+		repository(owner: $owner, name: $repo) {
+			defaultBranchRef {
+				name
+			},
+			viewerPermission
+		}
+	}
+`;
 
-interface RepositoryRule {
-	readonly type: string;
-}
+const REPOSITORY_RULESETS_QUERY = `
+	query repositoryRulesets($owner: String!, $repo: String!, $cursor: String, $limit: Int = 100) {
+		repository(owner: $owner, name: $repo) {
+			rulesets(includeParents: true, first: $limit, after: $cursor) {
+				nodes {
+					name
+					enforcement
+					rules(type: PULL_REQUEST) {
+						totalCount
+					}
+					conditions {
+						refName {
+							include
+							exclude
+						}
+					}
+					target
+				},
+				pageInfo {
+					endCursor,
+					hasNextPage
+				}
+			}
+		}
+	}
+`;
 
 export class GithubBranchProtectionProviderManager {
 
@@ -92,131 +114,54 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 		// Restore branch protection from global state
 		this.branchProtection = this.globalState.get<BranchProtection[]>(this.globalStateKey, []);
 
-		repository.status()
-			.then(() => this.initializeBranchProtection());
+		repository.status().then(() => {
+			authentication.onDidChangeSessions(e => {
+				if (e.provider.id === 'github') {
+					this.updateRepositoryBranchProtection();
+				}
+			});
+			this.updateRepositoryBranchProtection();
+		});
 	}
 
 	provideBranchProtection(): BranchProtection[] {
 		return this.branchProtection;
 	}
 
-	private async initializeBranchProtection(): Promise<void> {
-		// Branch protection (HEAD)
-		await this.updateHEADBranchProtection();
+	private async getRepositoryDetails(owner: string, repo: string): Promise<GitHubRepository> {
+		const graphql = await getOctokitGraphql();
+		const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_QUERY, { owner, repo });
 
-		// Branch protection (remotes)
-		await this.updateRepositoryBranchProtection();
+		return repository;
 	}
 
-	private async hasPushPermission(repository: { owner: string; repo: string }): Promise<boolean> {
-		try {
-			const octokit = await getOctokit();
-			const response = await octokit.repos.get({ ...repository });
+	private async getRepositoryRulesets(owner: string, repo: string): Promise<RepositoryRuleset[]> {
+		const rulesets: RepositoryRuleset[] = [];
 
-			return response.data.permissions?.push === true;
-		} catch (err) {
-			this.logger.warn(`Failed to get repository permissions for repository (${repository.owner}/${repository.repo}): ${err.message} (${err.status})`);
-			return false;
+		let cursor: string | undefined = undefined;
+		const graphql = await getOctokitGraphql();
+
+		while (true) {
+			const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_RULESETS_QUERY, { owner, repo, cursor });
+
+			rulesets.push(...(repository.rulesets?.nodes ?? [])
+				// Active branch ruleset that contains the pull request required rule
+				.filter(node => node && node.target === 'BRANCH' && node.enforcement === 'ACTIVE' && (node.rules?.totalCount ?? 0) > 0) as RepositoryRuleset[]);
+
+			if (repository.rulesets?.pageInfo.hasNextPage) {
+				cursor = repository.rulesets.pageInfo.endCursor as string | undefined;
+			} else {
+				break;
+			}
 		}
-	}
 
-	private async getBranchRules(repository: { owner: string; repo: string }, branch: string): Promise<RepositoryRule[]> {
-		try {
-			const octokit = await getOctokit();
-			const response = await octokit.request('GET /repos/{owner}/{repo}/rules/branches/{branch}', {
-				...repository,
-				branch,
-				headers: {
-					'X-GitHub-Api-Version': '2022-11-28'
-				}
-			});
-			return response.data as RepositoryRule[];
-		} catch (err) {
-			this.logger.warn(`Failed to get branch rules for repository (${repository.owner}/${repository.repo}), branch (${branch}): ${err.message} (${err.status})`);
-			return [];
-		}
-	}
-
-	private async getRepositoryRulesets(repository: { owner: string; repo: string }): Promise<RepositoryRuleset[]> {
-
-		try {
-			const rulesets: RepositoryRuleset[] = [];
-			const octokit = await getOctokit();
-			for await (const response of octokit.paginate.iterator('GET /repos/{owner}/{repo}/rulesets', { ...repository, includes_parents: true })) {
-				if (response.status !== 200) {
-					continue;
-				}
-
-				for (const ruleset of response.data as RepositoryRuleset[]) {
-					if (ruleset.target !== 'branch' || ruleset.enforcement !== 'active') {
-						continue;
-					}
-
-					const response = await octokit.request('GET /repos/{owner}/{repo}/rulesets/{id}', {
-						...repository,
-						id: ruleset.id,
-						headers: {
-							'X-GitHub-Api-Version': '2022-11-28'
-						}
-					});
-
-					const rulesetWithDetails = response.data as RepositoryRuleset;
-					if (rulesetWithDetails?.rules.find(r => r.type === 'pull_request')) {
-						rulesets.push(rulesetWithDetails);
-					}
-				}
-			}
-
-			return rulesets;
-		}
-		catch (err) {
-			this.logger.warn(`Failed to get repository rulesets for repository (${repository.owner}/${repository.repo}): ${err.message} (${err.status})`);
-			return [];
-		}
-	}
-
-	private async updateHEADBranchProtection(): Promise<void> {
-		try {
-			const HEAD = this.repository.state.HEAD;
-
-			if (!HEAD?.name || !HEAD?.upstream?.remote) {
-				return;
-			}
-
-			const remoteName = HEAD.upstream.remote;
-			const remote = this.repository.state.remotes.find(r => r.name === remoteName);
-
-			if (!remote) {
-				return;
-			}
-
-			const repository = getRepositoryFromUrl(remote.pushUrl ?? remote.fetchUrl ?? '');
-
-			if (!repository) {
-				return;
-			}
-
-			if (!(await this.hasPushPermission(repository))) {
-				return;
-			}
-
-			const rules = await this.getBranchRules(repository, HEAD.name);
-			if (!rules.find(r => r.type === 'pull_request')) {
-				return;
-			}
-
-			this.branchProtection = [{ remote: remote.name, rules: [{ include: [HEAD.name] }] }];
-			this._onDidChangeBranchProtection.fire(this.repository.rootUri);
-		} catch (err) {
-			// noop
-			this.logger.warn(`Failed to update HEAD branch protection: ${err.message} (${err.status})`);
-		}
+		return rulesets;
 	}
 
 	private async updateRepositoryBranchProtection(): Promise<void> {
-		try {
-			const branchProtection: BranchProtection[] = [];
+		const branchProtection: BranchProtection[] = [];
 
+		try {
 			for (const remote of this.repository.state.remotes) {
 				const repository = getRepositoryFromUrl(remote.pushUrl ?? remote.fetchUrl ?? '');
 
@@ -224,38 +169,28 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 					continue;
 				}
 
-				if (!(await this.hasPushPermission(repository))) {
+				// Repository details
+				this.logger.trace(`Fetching repository details for "${repository.owner}/${repository.repo}".`);
+				const repositoryDetails = await this.getRepositoryDetails(repository.owner, repository.repo);
+
+				// Check repository write permission
+				if (repositoryDetails.viewerPermission !== 'ADMIN' && repositoryDetails.viewerPermission !== 'MAINTAIN' && repositoryDetails.viewerPermission !== 'WRITE') {
+					this.logger.trace(`Skipping branch protection for "${repository.owner}/${repository.repo}" due to missing repository write permission.`);
 					continue;
 				}
 
-				// Repository details
-				const octokit = await getOctokit();
-				const response = await octokit.repos.get({ ...repository });
+				// Get repository rulesets
+				const branchProtectionRules: BranchProtectionRule[] = [];
+				const repositoryRulesets = await this.getRepositoryRulesets(repository.owner, repository.repo);
 
-				// Repository rulesets
-				const rulesets = await this.getRepositoryRulesets(repository);
-
-				const parseRef = (ref: string): string => {
-					if (ref.startsWith('refs/heads/')) {
-						return ref.substring(11);
-					} else if (ref === '~DEFAULT_BRANCH') {
-						return response.data.default_branch;
-					} else if (ref === '~ALL') {
-						return '**/*';
-					}
-
-					return ref;
-				};
-
-				const rules: BranchProtectionRule[] = [];
-				for (const ruleset of rulesets) {
-					rules.push({
-						include: ruleset.conditions.ref_name.include.map(r => parseRef(r)),
-						exclude: ruleset.conditions.ref_name.exclude.map(r => parseRef(r))
+				for (const ruleset of repositoryRulesets) {
+					branchProtectionRules.push({
+						include: (ruleset.conditions.refName?.include ?? []).map(r => this.parseRulesetRefName(repositoryDetails, r)),
+						exclude: (ruleset.conditions.refName?.exclude ?? []).map(r => this.parseRulesetRefName(repositoryDetails, r))
 					});
 				}
 
-				branchProtection.push({ remote: remote.name, rules });
+				branchProtection.push({ remote: remote.name, rules: branchProtectionRules });
 			}
 
 			this.branchProtection = branchProtection;
@@ -263,10 +198,34 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 			// Save branch protection to global state
 			await this.globalState.update(this.globalStateKey, branchProtection);
+			this.logger.trace(`Branch protection for "${this.repository.rootUri.toString()}": ${JSON.stringify(branchProtection)}.`);
 		} catch (err) {
-			// noop
-			this.logger.warn(`Failed to update repository branch protection: ${err.message} (${err.status})`);
+			this.logger.warn(`Failed to update repository branch protection: ${err.message}`);
+
+			if (err instanceof AuthenticationError) {
+				// A GitHub authentication session could be missing if the user has not yet
+				// signed in with their GitHub account or they have signed out. In this case
+				// we have to clear the branch protection information.
+				this.branchProtection = branchProtection;
+				this._onDidChangeBranchProtection.fire(this.repository.rootUri);
+
+				await this.globalState.update(this.globalStateKey, undefined);
+			}
 		}
 	}
 
+	private parseRulesetRefName(repository: GitHubRepository, refName: string): string {
+		if (refName.startsWith('refs/heads/')) {
+			return refName.substring(11);
+		}
+
+		switch (refName) {
+			case '~ALL':
+				return '**/*';
+			case '~DEFAULT_BRANCH':
+				return repository.defaultBranchRef!.name;
+			default:
+				return refName;
+		}
+	}
 }

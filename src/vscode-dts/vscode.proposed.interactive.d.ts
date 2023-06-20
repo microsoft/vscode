@@ -17,6 +17,7 @@ declare module 'vscode' {
 		placeholder?: string;
 		slashCommands?: InteractiveEditorSlashCommand[];
 		wholeRange?: Range;
+		message?: string;
 	}
 
 	// todo@API make classes
@@ -26,6 +27,7 @@ declare module 'vscode' {
 
 		selection: Selection;
 		wholeRange: Range;
+		attempt: number;
 	}
 
 	// todo@API make classes
@@ -151,60 +153,9 @@ declare module 'vscode' {
 		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<S>;
 		resolveRequest(session: S, context: InteractiveSessionRequestArgs | string, token: CancellationToken): ProviderResult<InteractiveRequest>;
 		provideResponseWithProgress(request: InteractiveRequest, progress: Progress<InteractiveProgress>, token: CancellationToken): ProviderResult<InteractiveResponseForProgress>;
-	}
 
-	export enum InteractiveSessionVoteDirection {
-		Up = 1,
-		Down = 2
-	}
-
-	export interface InteractiveSessionVoteAction {
-		kind: 'vote';
-		responseId: string;
-		direction: InteractiveSessionVoteDirection;
-	}
-
-	export enum InteractiveSessionCopyKind {
-		// Keyboard shortcut or context menu
-		Action = 1,
-		Toolbar = 2
-	}
-
-	export interface InteractiveSessionCopyAction {
-		kind: 'copy';
-		responseId: string;
-		codeBlockIndex: number;
-		copyType: InteractiveSessionCopyKind;
-		copiedCharacters: number;
-		totalCharacters: number;
-		copiedText: string;
-	}
-
-	export interface InteractiveSessionInsertAction {
-		kind: 'insert';
-		responseId: string;
-		codeBlockIndex: number;
-		totalCharacters: number;
-		newFile?: boolean;
-	}
-
-	export interface InteractiveSessionTerminalAction {
-		kind: 'runInTerminal';
-		responseId: string;
-		codeBlockIndex: number;
-		languageId?: string;
-	}
-
-	export interface InteractiveSessionCommandAction {
-		kind: 'command';
-		command: InteractiveResponseCommand;
-	}
-
-	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction;
-
-	export interface InteractiveSessionUserActionEvent {
-		action: InteractiveSessionUserAction;
-		providerId: string;
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		removeRequest(session: S, requestId: string): void;
 	}
 
 	export interface InteractiveSessionDynamicRequest {
@@ -230,7 +181,5 @@ declare module 'vscode' {
 		export function sendInteractiveRequestToProvider(providerId: string, message: InteractiveSessionDynamicRequest): void;
 
 		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider): Disposable;
-
-		export const onDidPerformUserAction: Event<InteractiveSessionUserActionEvent>;
 	}
 }

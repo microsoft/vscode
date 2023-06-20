@@ -20,7 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ParameterHintsWidget } from './parameterHintsWidget';
 
-class ParameterHintsController extends Disposable implements IEditorContribution {
+export class ParameterHintsController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.controller.parameterHints';
 

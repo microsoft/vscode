@@ -109,7 +109,7 @@ class SelectRefactorCommand implements Command {
 		await tsAction.resolve(nulToken);
 
 		if (tsAction.edit) {
-			if (!(await vscode.workspace.applyEdit(tsAction.edit))) {
+			if (!(await vscode.workspace.applyEdit(tsAction.edit, { isRefactoring: true }))) {
 				vscode.window.showErrorMessage(vscode.l10n.t("Could not apply refactoring"));
 				return;
 			}
@@ -145,23 +145,23 @@ class MoveToFileRefactorCommand implements Command {
 		}
 
 		const targetFile = await this.getTargetFile(args.document, file, args.range);
-		if (!targetFile) {
+		if (!targetFile || targetFile.toString() === file.toString()) {
 			return;
 		}
 
-		const fileSuggestionArgs: Proto.GetEditsForMoveToFileRefactorRequestArgs = {
+		const fileSuggestionArgs: Proto.GetEditsForRefactorRequestArgs = {
 			...typeConverters.Range.toFileRangeRequestArgs(file, args.range),
-			filepath: targetFile,
 			action: 'Move to file',
 			refactor: 'Move to file',
+			interactiveRefactorArguments: { targetFile },
 		};
 
-		const response = await this.client.execute('getEditsForMoveToFileRefactor', fileSuggestionArgs, nulToken);
+		const response = await this.client.execute('getEditsForRefactor', fileSuggestionArgs, nulToken);
 		if (response.type !== 'response' || !response.body) {
 			return;
 		}
 		const edit = toWorkspaceEdit(this.client, response.body.edits);
-		if (!(await vscode.workspace.applyEdit(edit))) {
+		if (!(await vscode.workspace.applyEdit(edit, { isRefactoring: true }))) {
 			vscode.window.showErrorMessage(vscode.l10n.t("Could not apply refactoring"));
 			return;
 		}
@@ -176,15 +176,16 @@ class MoveToFileRefactorCommand implements Command {
 			return;
 		}
 
-		const selectFileItem: vscode.QuickPickItem = {
-			label: vscode.l10n.t("Select file..."),
-			detail: vscode.l10n.t("Select file or enter new file path..."),
+		const selectExistingFileItem: vscode.QuickPickItem = {
+			label: vscode.l10n.t("Select existing file..."),
+		};
+		const selectNewFileItem: vscode.QuickPickItem = {
+			label: vscode.l10n.t("Enter new file path..."),
 		};
 
-		type DestinationItem = vscode.QuickPickItem & { file: string };
+		type DestinationItem = vscode.QuickPickItem & { readonly file: string };
 
 		const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-
 		const destinationItems = response.body.files.map((file): DestinationItem => {
 			const uri = this.client.toResource(file);
 			const parentDir = Utils.dirname(uri);
@@ -208,27 +209,35 @@ class MoveToFileRefactorCommand implements Command {
 		});
 
 		const picked = await vscode.window.showQuickPick([
-			selectFileItem,
+			selectExistingFileItem,
+			selectNewFileItem,
 			{ label: vscode.l10n.t("Destination Files"), kind: vscode.QuickPickItemKind.Separator },
 			...destinationItems
 		], {
 			title: vscode.l10n.t("Move to File"),
-			placeHolder: vscode.l10n.t("Enter file path"),
+			placeHolder: vscode.l10n.t("Select move destination"),
 		});
 		if (!picked) {
 			return;
 		}
 
-		if (picked === selectFileItem) {
+		if (picked === selectExistingFileItem) {
+			const picked = await vscode.window.showOpenDialog({
+				title: vscode.l10n.t("Select move destination"),
+				openLabel: vscode.l10n.t("Move to File"),
+				defaultUri: Utils.dirname(document.uri),
+			});
+			return picked?.length ? this.client.toTsFilePath(picked[0]) : undefined;
+		} else if (picked === selectNewFileItem) {
 			const picked = await vscode.window.showSaveDialog({
 				title: vscode.l10n.t("Select move destination"),
 				saveLabel: vscode.l10n.t("Move to File"),
-				defaultUri: vscode.Uri.joinPath(Utils.dirname(document.uri), response.body.newFilename)
+				defaultUri: this.client.toResource(response.body.newFileName),
 			});
 			return picked ? this.client.toTsFilePath(picked) : undefined;
+		} else {
+			return (picked as DestinationItem).file;
 		}
-
-		return (picked as DestinationItem).file;
 	}
 }
 
@@ -467,10 +476,11 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			}
 			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
-			const args: Proto.GetApplicableRefactorsRequestArgs & { kind?: string } = {
+			const args: Proto.GetApplicableRefactorsRequestArgs = {
 				...typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection),
 				triggerReason: this.toTsTriggerReason(context),
-				kind: context.only?.value
+				kind: context.only?.value,
+				includeInteractiveActions: this.client.apiVersion.gte(API.v520),
 			};
 			return this.client.execute('getApplicableRefactors', args, token);
 		});

@@ -105,7 +105,7 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 
 /**
  * Removes the optional link suffix which contains line and column information.
- * @param link The link to parse.
+ * @param link The link to use.
  */
 export function removeLinkSuffix(link: string): string {
 	const suffix = getLinkSuffix(link)?.suffix;
@@ -113,6 +113,20 @@ export function removeLinkSuffix(link: string): string {
 		return link;
 	}
 	return link.substring(0, suffix.index);
+}
+
+/**
+ * Removes any query string from the link.
+ * @param link The link to use.
+ */
+export function removeLinkQueryString(link: string): string {
+	// Skip ? in UNC paths
+	const start = link.startsWith('\\\\?\\') ? 4 : 0;
+	const index = link.indexOf('?', start);
+	if (index === -1) {
+		return link;
+	}
+	return link.substring(0, index);
 }
 
 /**
@@ -279,7 +293,7 @@ enum RegexPathConstants {
 	PathSeparatorClause = '\\/',
 	// '":; are allowed in paths but they are often separators so ignore them
 	// Also disallow \\ to prevent a catastropic backtracking case #24795
-	ExcludedPathCharactersClause = '[^\\0<>\\s!`&*()\'":;\\\\]',
+	ExcludedPathCharactersClause = '[^\\0<>\\?\\s!`&*()\'":;\\\\]',
 	ExcludedStartPathCharactersClause = '[^\\0<>\\s!`&*()\\[\\]\'":;\\\\]',
 
 	WinOtherPathPrefix = '\\.\\.?|\\~',

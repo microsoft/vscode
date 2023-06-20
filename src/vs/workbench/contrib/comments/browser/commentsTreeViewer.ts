@@ -21,7 +21,7 @@ import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { commentViewThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
+import { commentViewThreadStateColorVar, getCommentThreadStateIconColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { CommentThreadState } from 'vs/editor/common/languages';
 import { Color } from 'vs/base/common/color';
 import { IMatch } from 'vs/base/common/filters';
@@ -228,7 +228,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	}
 
 	private getCommentThreadWidgetStateColor(state: CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
-		return (state !== undefined) ? getCommentThreadStateColor(state, theme) : undefined;
+		return (state !== undefined) ? getCommentThreadStateIconColor(state, theme) : undefined;
 	}
 
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {

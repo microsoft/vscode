@@ -78,6 +78,7 @@ export const enum Status {
 	UNTRACKED,
 	IGNORED,
 	INTENT_TO_ADD,
+	INTENT_TO_RENAME,
 
 	ADDED_BY_US,
 	ADDED_BY_THEM,
@@ -154,6 +155,10 @@ export interface FetchOptions {
 	all?: boolean;
 	prune?: boolean;
 	depth?: number;
+}
+
+export interface InitOptions {
+	defaultBranch?: string;
 }
 
 export interface RefQuery {
@@ -307,7 +312,7 @@ export interface API {
 
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
-	init(root: Uri): Promise<Repository | null>;
+	init(root: Uri, options?: InitOptions): Promise<Repository | null>;
 	openRepository(root: Uri): Promise<Repository | null>
 
 	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;

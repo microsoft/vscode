@@ -195,12 +195,28 @@ const editorConfiguration: IConfigurationNode = {
 		'diffEditor.diffAlgorithm': {
 			type: 'string',
 			enum: ['legacy', 'advanced'],
-			default: 'advanced',
+			default: 'legacy',
 			markdownEnumDescriptions: [
 				nls.localize('diffAlgorithm.legacy', "Uses the legacy diffing algorithm."),
 				nls.localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
-			]
+			],
+			tags: ['experimental'],
 		},
+		'diffEditor.experimental.collapseUnchangedRegions': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('collapseUnchangedRegions', "Controls whether the diff editor shows unchanged regions. Only works when 'diffEditor.experimental.useVersion2' is set."),
+		},
+		'diffEditor.experimental.showMoves': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('showMoves', "Controls whether the diff editor should show detected code moves. Only works when 'diffEditor.experimental.useVersion2' is set."),
+		},
+		'diffEditor.experimental.useVersion2': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('useVersion2', "Controls whether the diff editor uses the new or the old implementation."),
+		}
 	}
 };
 

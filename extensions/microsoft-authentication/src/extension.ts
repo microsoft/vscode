@@ -4,36 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { Environment, EnvironmentParameters } from '@azure/ms-rest-azure-env';
 import { AzureActiveDirectoryService, IStoredSession } from './AADHelper';
 import { BetterTokenStorage } from './betterSecretStorage';
 import { UriEventHandler } from './UriEventHandler';
 import TelemetryReporter from '@vscode/extension-telemetry';
 
 async function initMicrosoftSovereignCloudAuthProvider(context: vscode.ExtensionContext, telemetryReporter: TelemetryReporter, uriHandler: UriEventHandler, tokenStorage: BetterTokenStorage<IStoredSession>): Promise<vscode.Disposable | undefined> {
-	let settingValue = vscode.workspace.getConfiguration('microsoft-sovereign-cloud').get<string | undefined>('endpoint');
+	const environment = vscode.workspace.getConfiguration('microsoft-sovereign-cloud').get<string | undefined>('environment');
 	let authProviderName: string | undefined;
-	if (!settingValue) {
+	if (!environment) {
 		return undefined;
-	} else if (settingValue === 'Azure China') {
-		authProviderName = settingValue;
-		settingValue = 'https://login.chinacloudapi.cn/';
-	} else if (settingValue === 'Azure US Government') {
-		authProviderName = settingValue;
-		settingValue = 'https://login.microsoftonline.us/';
 	}
 
-	// validate user value
-	let uri: vscode.Uri;
-	try {
-		uri = vscode.Uri.parse(settingValue, true);
-	} catch (e) {
-		vscode.window.showErrorMessage(vscode.l10n.t('Microsoft Sovereign Cloud login URI is not a valid URI: {0}', e.message ?? e));
-		return;
+	if (environment === 'custom') {
+		const customEnv = vscode.workspace.getConfiguration('microsoft-sovereign-cloud').get<EnvironmentParameters>('customEnvironment');
+		if (!customEnv) {
+			const res = await vscode.window.showErrorMessage(vscode.l10n.t('You must also specify a custom environment in order to use the custom environment auth provider.'), vscode.l10n.t('Open settings'));
+			if (res) {
+				await vscode.commands.executeCommand('workbench.action.openSettingsJson', 'microsoft-sovereign-cloud.customEnvironment');
+			}
+			return undefined;
+		}
+		try {
+			Environment.add(customEnv);
+		} catch (e) {
+			const res = await vscode.window.showErrorMessage(vscode.l10n.t('Error validating custom environment setting: {0}', e.message), vscode.l10n.t('Open settings'));
+			if (res) {
+				await vscode.commands.executeCommand('workbench.action.openSettings', 'microsoft-sovereign-cloud.customEnvironment');
+			}
+			return undefined;
+		}
+		authProviderName = customEnv.name;
+	} else {
+		authProviderName = environment;
 	}
 
-	// Add trailing slash if needed
-	if (!settingValue.endsWith('/')) {
-		settingValue += '/';
+	const env = Environment.get(authProviderName);
+	if (!env) {
+		const res = await vscode.window.showErrorMessage(vscode.l10n.t('The environment `{0}` is not a valid environment.', authProviderName), vscode.l10n.t('Open settings'));
+		return undefined;
 	}
 
 	const aadService = new AzureActiveDirectoryService(
@@ -41,10 +51,10 @@ async function initMicrosoftSovereignCloudAuthProvider(context: vscode.Extension
 		context,
 		uriHandler,
 		tokenStorage,
-		settingValue);
+		telemetryReporter,
+		env);
 	await aadService.initialize();
 
-	authProviderName ||= uri.authority;
 	const disposable = vscode.authentication.registerAuthenticationProvider('microsoft-sovereign-cloud', authProviderName, {
 		onDidChangeSessions: aadService.onDidChangeSessions,
 		getSessions: (scopes: string[]) => aadService.getSessions(scopes),
@@ -94,20 +104,21 @@ async function initMicrosoftSovereignCloudAuthProvider(context: vscode.Extension
 }
 
 export async function activate(context: vscode.ExtensionContext) {
-	const { name, version, aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
+	const aiKey: string = context.extension.packageJSON.aiKey;
 	const telemetryReporter = new TelemetryReporter(aiKey);
 
 	const uriHandler = new UriEventHandler();
 	context.subscriptions.push(uriHandler);
 	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
-
 	const betterSecretStorage = new BetterTokenStorage<IStoredSession>('microsoft.login.keylist', context);
 
 	const loginService = new AzureActiveDirectoryService(
 		vscode.window.createOutputChannel(vscode.l10n.t('Microsoft Authentication'), { log: true }),
 		context,
 		uriHandler,
-		betterSecretStorage);
+		betterSecretStorage,
+		telemetryReporter,
+		Environment.AzureCloud);
 	await loginService.initialize();
 
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('microsoft', 'Microsoft', {
@@ -157,7 +168,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	let microsoftSovereignCloudAuthProviderDisposable = await initMicrosoftSovereignCloudAuthProvider(context, telemetryReporter, uriHandler, betterSecretStorage);
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async e => {
-		if (e.affectsConfiguration('microsoft-sovereign-cloud.endpoint')) {
+		if (e.affectsConfiguration('microsoft-sovereign-cloud')) {
 			microsoftSovereignCloudAuthProviderDisposable?.dispose();
 			microsoftSovereignCloudAuthProviderDisposable = await initMicrosoftSovereignCloudAuthProvider(context, telemetryReporter, uriHandler, betterSecretStorage);
 		}

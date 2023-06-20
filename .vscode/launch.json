@@ -2,6 +2,11 @@
 	"version": "0.1.0",
 	"configurations": [
 		{
+			"request": "attach",
+			"type": "node",
+			""
+		},
+		{
 			"type": "node",
 			"request": "launch",
 			"name": "Gulp Build",
@@ -159,7 +164,7 @@
 				"--disable-extensions"
 			],
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+				"${workspaceFolder}/extensions/vscode-api-tests/out/**/*.js"
 			],
 			"presentation": {
 				"group": "5_tests",
@@ -177,7 +182,7 @@
 				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/workspace-tests"
 			],
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+				"${workspaceFolder}/extensions/vscode-api-tests/out/**/*.js"
 			],
 			"presentation": {
 				"group": "5_tests",
@@ -236,7 +241,6 @@
 				"VSCODE_SKIP_PRELAUNCH": "1"
 			},
 			"cleanUp": "wholeBrowser",
-			"urlFilter": "*workbench*.html*",
 			"runtimeArgs": [
 				"--inspect-brk=5875",
 				"--no-cached-data",

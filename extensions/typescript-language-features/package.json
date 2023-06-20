@@ -143,6 +143,12 @@
       "title": "%configuration.typescript%",
       "order": 20,
       "properties": {
+        "typescript.experimental.aiQuickFix": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.experimental.aiQuickFix%",
+          "scope": "resource"
+        },
         "typescript.tsdk": {
           "type": "string",
           "markdownDescription": "%typescript.tsdk.desc%",
@@ -920,9 +926,9 @@
             "js"
           ],
           "enumItemLabels": [
-            "%typescript.preferences.importModuleSpecifierEnding.label.auto%",
-            "%typescript.preferences.importModuleSpecifierEnding.label.minimal%",
-            "%typescript.preferences.importModuleSpecifierEnding.label.index%",
+            null,
+            null,
+            null,
             "%typescript.preferences.importModuleSpecifierEnding.label.js%"
           ],
           "markdownEnumDescriptions": [
@@ -1232,14 +1238,17 @@
           "description": "%configuration.suggest.objectLiteralMethodSnippets.enabled%",
           "scope": "resource"
         },
-        "typescript.experimental.tsserver.web.enableProjectWideIntellisense": {
+        "typescript.tsserver.web.projectWideIntellisense.enabled": {
           "type": "boolean",
-          "default": false,
-          "description": "%typescript.experimental.tsserver.web.enableProjectWideIntellisense%",
-          "scope": "window",
-          "tags": [
-            "experimental"
-          ]
+          "default": true,
+          "description": "%configuration.tsserver.web.projectWideIntellisense.enabled%",
+          "scope": "window"
+        },
+        "typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors%",
+          "scope": "window"
         },
         "typescript.preferGoToSourceDefinition": {
           "type": "boolean",
@@ -1273,12 +1282,12 @@
       },
       {
         "command": "typescript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
+        "title": "%typescript.goToProjectConfig.title%",
         "category": "TypeScript"
       },
       {
         "command": "javascript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
+        "title": "%javascript.goToProjectConfig.title%",
         "category": "JavaScript"
       },
       {

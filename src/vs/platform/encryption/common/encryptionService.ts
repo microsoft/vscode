@@ -5,9 +5,11 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const IEncryptionMainService = createDecorator<IEncryptionMainService>('encryptionMainService');
+export const IEncryptionService = createDecorator<IEncryptionService>('encryptionService');
+export interface IEncryptionService extends ICommonEncryptionService { }
 
-export interface IEncryptionMainService extends ICommonEncryptionService { }
+export const IEncryptionMainService = createDecorator<IEncryptionMainService>('encryptionMainService');
+export interface IEncryptionMainService extends IEncryptionService { }
 
 export interface ICommonEncryptionService {
 
@@ -16,4 +18,6 @@ export interface ICommonEncryptionService {
 	encrypt(value: string): Promise<string>;
 
 	decrypt(value: string): Promise<string>;
+
+	isEncryptionAvailable(): Promise<boolean>;
 }
