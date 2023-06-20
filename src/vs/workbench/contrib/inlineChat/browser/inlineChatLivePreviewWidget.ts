@@ -33,6 +33,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
+import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 
 export class InlineChatLivePreviewWidget extends ZoneWidget {
 
@@ -85,8 +86,17 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			originalEditor: { contributions: diffContributions },
 			modifiedEditor: { contributions: diffContributions }
 		}, editor);
+
 		this._disposables.add(this._diffEditor);
 		this._diffEditor.setModel({ original: this._session.textModel0, modified: editor.getModel() });
+		this._diffEditor.updateOptions({
+			lineDecorationsWidth: editor.getLayoutInfo().decorationsWidth
+		});
+
+		const highlighter = WordHighlighterContribution.get(editor);
+		if (highlighter) {
+			this._disposables.add(highlighter.linkWordHighlighters(this._diffEditor.getModifiedEditor()));
+		}
 
 		const doStyle = () => {
 			const theme = themeService.getColorTheme();

@@ -25,6 +25,7 @@ import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isWeb } from 'vs/base/common/platform';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export class PerfviewContrib {
 
@@ -87,7 +88,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ITimerService private readonly _timerService: ITimerService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) { }
 
 	provideTextContent(resource: URI): Promise<ITextModel> {
@@ -113,7 +115,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		Promise.all([
 			this._timerService.whenReady(),
 			this._lifecycleService.when(LifecyclePhase.Eventually),
-			this._extensionService.whenInstalledExtensionsRegistered()
+			this._extensionService.whenInstalledExtensionsRegistered(),
+			this._terminalService.whenConnected
 		]).then(() => {
 			if (this._model && !this._model.isDisposed()) {
 

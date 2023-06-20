@@ -88,6 +88,7 @@ export class MenuWorkbenchButtonBar extends ButtonBar {
 				}
 
 				btn.enabled = action.enabled;
+				btn.element.classList.add('default-colors');
 				if (conifgProvider(action)?.showLabel ?? true) {
 					btn.label = action.label;
 				} else {

@@ -125,8 +125,9 @@ const serverWithWebEntryPoints = [
 
 function getNodeVersion() {
 	const yarnrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8');
-	const target = /^target "(.*)"$/m.exec(yarnrc)[1];
-	return target;
+	const nodeVersion = /^target "(.*)"$/m.exec(yarnrc)[1];
+	const internalNodeVersion = /^ms_build_id "(.*)"$/m.exec(yarnrc)[1];
+	return { nodeVersion, internalNodeVersion };
 }
 
 function getNodeChecksum(nodeVersion, platform, arch) {
@@ -156,7 +157,7 @@ function getNodeChecksum(nodeVersion, platform, arch) {
 	return undefined;
 }
 
-const nodeVersion = getNodeVersion();
+const { nodeVersion, internalNodeVersion } = getNodeVersion();
 
 BUILD_TARGETS.forEach(({ platform, arch }) => {
 	gulp.task(task.define(`node-${platform}-${arch}`, () => {
@@ -193,7 +194,7 @@ function nodejs(platform, arch) {
 		arch = 'x64';
 	}
 
-	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejs.repository}...`);
+	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejsRepository}...`);
 
 	const checksumSha256 = getNodeChecksum(nodeVersion, platform, arch);
 
@@ -205,14 +206,14 @@ function nodejs(platform, arch) {
 
 	switch (platform) {
 		case 'win32':
-			return (product.nodejs.repository !== 'https://nodejs.org' ?
-				fetchGithub(product.nodejs.repository, { version: product.nodejs.version, name: `win-${arch}-node.exe`, checksumSha256 }) :
+			return (product.nodejsRepository !== 'https://nodejs.org' ?
+				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `win-${arch}-node.exe`, checksumSha256 }) :
 				fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', checksumSha256 }))
 				.pipe(rename('node.exe'));
 		case 'darwin':
 		case 'linux':
-			return (product.nodejs.repository !== 'https://nodejs.org' ?
-				fetchGithub(product.nodejs.repository, { version: product.nodejs.version, name: `node-v${nodeVersion}-${platform}-${arch}.tar.gz`, checksumSha256 }) :
+			return (product.nodejsRepository !== 'https://nodejs.org' ?
+				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `node-v${nodeVersion}-${platform}-${arch}.tar.gz`, checksumSha256 }) :
 				fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
 			).pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 				.pipe(filter('**/node'))

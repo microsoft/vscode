@@ -384,10 +384,11 @@ export function streamToPromise(stream: NodeJS.ReadWriteStream): Promise<void> {
 	});
 }
 
-export function getElectronVersion(): string {
+export function getElectronVersion(): Record<string, string> {
 	const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
-	const target = /^target "(.*)"$/m.exec(yarnrc)![1];
-	return target;
+	const electronVersion = /^target "(.*)"$/m.exec(yarnrc)![1];
+	const msBuildId = /^ms_build_id "(.*)"$/m.exec(yarnrc)![1];
+	return { electronVersion, msBuildId };
 }
 
 export function acquireWebNodePaths() {

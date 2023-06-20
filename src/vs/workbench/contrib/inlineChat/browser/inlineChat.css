@@ -7,12 +7,17 @@
 	z-index: 3;
 }
 
+.monaco-editor .zone-widget-container.inside-selection {
+	background-color: var(--vscode-inlineChat-regionHighlight);
+}
+
 .monaco-editor .inline-chat {
 	color: inherit;
 	padding: 6px;
 	border-radius: 6px;
 	border: 1px solid var(--vscode-inlineChat-border);
 	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
+	background: var(--vscode-inlineChat-background);
 }
 
 /* body */
