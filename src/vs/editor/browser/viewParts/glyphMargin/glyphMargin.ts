@@ -139,7 +139,7 @@ export class GlyphMarginWidgets extends ViewPart {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		this.domNode = createFastDomNode(document.createElement('div'));
-		this.domNode.setClassName('glyphMarginWidgets');
+		this.domNode.setClassName('glyph-margin-widgets');
 		this.domNode.setPosition('absolute');
 		this.domNode.setTop(0);
 

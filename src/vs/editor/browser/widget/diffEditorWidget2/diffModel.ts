@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ITransaction, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
+import { IObservable, IReader, ISettableObservable, ITransaction, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
 import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
 import { isDefined } from 'vs/base/common/types';
 import { LineRange } from 'vs/editor/common/core/lineRange';
@@ -31,8 +31,19 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 		'unchangedRegion',
 		{ regions: [], originalDecorationIds: [], modifiedDecorationIds: [] }
 	);
-	public readonly unchangedRegions: IObservable<UnchangedRegion[]> = derived('unchangedRegions', r =>
-		this._hideUnchangedRegions.read(r) ? this._unchangedRegions.read(r).regions : []
+	public readonly unchangedRegions: IObservable<UnchangedRegion[]> = derived('unchangedRegions', r => {
+		if (this.hideUnchangedRegions.read(r)) {
+			return this._unchangedRegions.read(r).regions;
+		} else {
+			// Reset state
+			transaction(tx => {
+				for (const r of this._unchangedRegions.get().regions) {
+					r.setState(0, 0, tx);
+				}
+			});
+			return [];
+		}
+	}
 	);
 
 	public readonly syncedMovedTexts = observableValue<MovedText | undefined>('syncedMovedText', undefined);
@@ -41,7 +52,7 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 		public readonly model: IDiffEditorModel,
 		ignoreTrimWhitespace: IObservable<boolean>,
 		maxComputationTimeMs: IObservable<number>,
-		private readonly _hideUnchangedRegions: IObservable<boolean>,
+		public readonly hideUnchangedRegions: IObservable<boolean>,
 		private readonly _showMoves: IObservable<boolean>,
 		documentDiffProvider: IDocumentDiffProvider,
 	) {
@@ -74,7 +85,7 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 			}
 
 			const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
-			const result = applyModifiedEdits(this._lastDiff!, textEdits, model.original, model.modified);
+			const result = applyOriginalEdits(this._lastDiff!, textEdits, model.original, model.modified);
 			if (result) {
 				this._lastDiff = result;
 				this._diff.set(DiffState.fromDiffResult(this._lastDiff), undefined);
@@ -171,6 +182,9 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 	}
 
 	public ensureModifiedLineIsVisible(lineNumber: number, tx: ITransaction): void {
+		if (this.diff.get()?.mappings.length === 0) {
+			return;
+		}
 		const unchangedRegions = this._unchangedRegions.get().regions;
 		for (const r of unchangedRegions) {
 			if (r.getHiddenModifiedRange(undefined).contains(lineNumber)) {
@@ -181,6 +195,9 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 	}
 
 	public ensureOriginalLineIsVisible(lineNumber: number, tx: ITransaction): void {
+		if (this.diff.get()?.mappings.length === 0) {
+			return;
+		}
 		const unchangedRegions = this._unchangedRegions.get().regions;
 		for (const r of unchangedRegions) {
 			if (r.getHiddenOriginalRange(undefined).contains(lineNumber)) {
@@ -251,8 +268,10 @@ export class UnchangedRegion {
 			let modStart = mapping.modifiedRange.startLineNumber;
 			let length = mapping.originalRange.length;
 
-			if (origStart === 1 && length > minContext + minHiddenLineCount) {
-				length -= minContext;
+			if (origStart === 1 && modStart === 1 && length > minContext + minHiddenLineCount) {
+				if (length < originalLineCount) {
+					length -= minContext;
+				}
 				result.push(new UnchangedRegion(origStart, modStart, length, 0, 0));
 			} else if (origStart + length === originalLineCount + 1 && length > minContext + minHiddenLineCount) {
 				origStart += minContext;
@@ -279,10 +298,14 @@ export class UnchangedRegion {
 	}
 
 	private readonly _visibleLineCountTop = observableValue<number>('visibleLineCountTop', 0);
-	public readonly visibleLineCountTop: IObservable<number> = this._visibleLineCountTop;
+	public readonly visibleLineCountTop: ISettableObservable<number> = this._visibleLineCountTop;
 
 	private readonly _visibleLineCountBottom = observableValue<number>('visibleLineCountBottom', 0);
-	public readonly visibleLineCountBottom: IObservable<number> = this._visibleLineCountBottom;
+	public readonly visibleLineCountBottom: ISettableObservable<number> = this._visibleLineCountBottom;
+
+	private readonly _shouldHideControls = derived('isVisible', reader => this.visibleLineCountTop.read(reader) + this.visibleLineCountBottom.read(reader) === this.lineCount && !this.isDragged.read(reader));
+
+	public readonly isDragged = observableValue<boolean>('isDragged', false);
 
 	constructor(
 		public readonly originalLineNumber: number,
@@ -293,6 +316,10 @@ export class UnchangedRegion {
 	) {
 		this._visibleLineCountTop.set(visibleLineCountTop, undefined);
 		this._visibleLineCountBottom.set(visibleLineCountBottom, undefined);
+	}
+
+	public shouldHideControls(reader: IReader | undefined): boolean {
+		return this._shouldHideControls.read(reader);
 	}
 
 	public getHiddenOriginalRange(reader: IReader | undefined): LineRange {
@@ -309,14 +336,22 @@ export class UnchangedRegion {
 		);
 	}
 
-	public showMoreAbove(tx: ITransaction | undefined): void {
-		const maxVisibleLineCountTop = this.lineCount - this._visibleLineCountBottom.get();
-		this._visibleLineCountTop.set(Math.min(this._visibleLineCountTop.get() + 10, maxVisibleLineCountTop), tx);
+	public getMaxVisibleLineCountTop() {
+		return this.lineCount - this._visibleLineCountBottom.get();
 	}
 
-	public showMoreBelow(tx: ITransaction | undefined): void {
+	public getMaxVisibleLineCountBottom() {
+		return this.lineCount - this._visibleLineCountTop.get();
+	}
+
+	public showMoreAbove(count = 10, tx: ITransaction | undefined): void {
+		const maxVisibleLineCountTop = this.getMaxVisibleLineCountTop();
+		this._visibleLineCountTop.set(Math.min(this._visibleLineCountTop.get() + count, maxVisibleLineCountTop), tx);
+	}
+
+	public showMoreBelow(count = 10, tx: ITransaction | undefined): void {
 		const maxVisibleLineCountBottom = this.lineCount - this._visibleLineCountTop.get();
-		this._visibleLineCountBottom.set(Math.min(this._visibleLineCountBottom.get() + 10, maxVisibleLineCountBottom), tx);
+		this._visibleLineCountBottom.set(Math.min(this._visibleLineCountBottom.get() + count, maxVisibleLineCountBottom), tx);
 	}
 
 	public showAll(tx: ITransaction | undefined): void {

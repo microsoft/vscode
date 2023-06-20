@@ -692,7 +692,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			return manifest;
 		} catch (err) {
 			this.logService.trace('ExtensionManagementService.refreshControlCache - failed to get extension control manifest');
-			return { malicious: [], deprecated: {} };
+			return { malicious: [], deprecated: {}, search: [] };
 		}
 	}
 

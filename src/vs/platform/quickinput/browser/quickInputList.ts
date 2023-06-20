@@ -1006,8 +1006,8 @@ export class QuickInputList {
 	}
 
 	toggleHover() {
-		const element = this.list.getFocusedElements()[0];
-		if (!element.saneTooltip) {
+		const element: IListElement | undefined = this.list.getFocusedElements()[0];
+		if (!element?.saneTooltip) {
 			return;
 		}
 

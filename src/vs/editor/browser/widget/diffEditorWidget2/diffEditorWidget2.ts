@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { h } from 'vs/base/browser/dom';
+import { $, h } from 'vs/base/browser/dom';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { findLast } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -25,9 +25,9 @@ import { ViewZoneManager } from 'vs/editor/browser/widget/diffEditorWidget2/line
 import { MovedBlocksLinesPart } from 'vs/editor/browser/widget/diffEditorWidget2/movedBlocksLines';
 import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditorWidget2/overviewRulerPart';
 import { UnchangedRangesFeature } from 'vs/editor/browser/widget/diffEditorWidget2/unchangedRanges';
-import { ObservableElementSizeObserver, applyObservableDecorations } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
+import { ObservableElementSizeObserver, applyObservableDecorations, applyStyle, deepMerge, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
-import { EditorOptions, IDiffEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOptions, IDiffEditorOptions, IEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
@@ -42,6 +42,8 @@ import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffMapping, DiffModel } from './diffModel';
 import { Range } from 'vs/editor/common/core/range';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { deepClone } from 'vs/base/common/objects';
+import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
 
 const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
 	enableSplitViewResizing: true,
@@ -66,6 +68,7 @@ const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
 
 export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
+		h('div.noModificationsOverlay@overlay', { style: { position: 'absolute', height: '100%', visibility: 'hidden', } }, [$('span', {}, 'No Changes')]),
 		h('div.editor.original@original', { style: { position: 'absolute', height: '100%' } }),
 		h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%' } }),
 	]);
@@ -82,9 +85,13 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	);
 	private readonly _rootSizeObserver: ObservableElementSizeObserver;
 	private readonly _options: ISettableObservable<ValidDiffEditorBaseOptions>;
+	private _editorOptions: IEditorOptions;
 	private readonly _sash: IObservable<DiffEditorSash | undefined>;
 	private readonly _boundarySashes = observableValue<IBoundarySashes | undefined>('boundarySashes', undefined);
-	private readonly _renderOverviewRuler: IObservable<boolean>;
+	private readonly _renderOverviewRuler = derived('renderOverviewRuler', reader => this._options.read(reader).renderOverviewRuler);
+	private readonly _renderSideBySide = derived('renderSideBySide', reader => this._options.read(reader).renderSideBySide);
+
+	private unchangedRangesFeature!: UnchangedRangesFeature;
 
 	constructor(
 		private readonly _domElement: HTMLElement,
@@ -105,6 +112,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		);
 
 		this._options = observableValue<ValidDiffEditorBaseOptions>('options', validateDiffEditorOptions(options || {}, diffEditorDefaultOptions));
+		this._editorOptions = deepClone(options);
 
 		this._domElement.appendChild(this.elements.root);
 
@@ -117,7 +125,6 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._register(applyObservableDecorations(this._originalEditor, this._decorations.map(d => d?.originalDecorations || [])));
 		this._register(applyObservableDecorations(this._modifiedEditor, this._decorations.map(d => d?.modifiedDecorations || [])));
 
-		this._renderOverviewRuler = this._options.map(o => o.renderOverviewRuler);
 		this._sash = derivedWithStore('sash', (reader, store) => {
 			const showSash = this._options.read(reader).renderSideBySide;
 			this.elements.root.classList.toggle('side-by-side', showSash);
@@ -143,18 +150,20 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		});
 		this._register(keepAlive(this._sash, true));
 
-		this._register(new UnchangedRangesFeature(
-			this._originalEditor,
-			this._modifiedEditor,
-			this._diffModel
-		));
+		this._register(autorunWithStore2('unchangedRangesFeature', (reader, store) => {
+			this.unchangedRangesFeature = store.add(new (readHotReloadableExport(UnchangedRangesFeature, reader))(
+				this._originalEditor, this._modifiedEditor, this._diffModel, this._renderSideBySide,
+			));
+		}));
+
 		this._register(this._instantiationService.createInstance(
 			ViewZoneManager,
 			this._originalEditor,
 			this._modifiedEditor,
 			this._diffModel,
-			this._options.map((o) => o.renderSideBySide),
+			this._renderSideBySide,
 			this,
+			() => this.unchangedRangesFeature.isUpdatingViewZones,
 		));
 
 		this._register(this._instantiationService.createInstance(OverviewRulerPart,
@@ -182,6 +191,11 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			this._originalEditor,
 			this._modifiedEditor,
 		));
+
+		this._register(applyStyle(this.elements.overlay, {
+			width: this._layoutInfo.map((i, r) => i.originalEditor.width + (this._options.read(r).renderSideBySide ? 0 : i.modifiedEditor.width)),
+			visibility: this._diffModel.map((m, r) => (m && m.hideUnchangedRegions.read(r) && m.diff.read(r)?.mappings.length === 0) ? 'visible' : 'hidden'),
+		}));
 	}
 
 	private readonly _layoutInfo = derived('modifiedEditorLayoutInfo', (reader) => {
@@ -243,7 +257,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 				modifiedDecorations.push({ range: i.modifiedRange, options: diffAddDecoration });
 			}
 
-			if (!m.lineRangeMapping.modifiedRange.isEmpty) {
+			if (!m.lineRangeMapping.modifiedRange.isEmpty && this._renderSideBySide.read(reader) && !currentMove) {
 				modifiedDecorations.push({ range: Range.fromPositions(new Position(m.lineRangeMapping.modifiedRange.startLineNumber, 1)), options: arrowRevertChange });
 			}
 		}
@@ -431,6 +445,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		// Clone minimap options before changing them
 		clonedOptions.minimap = { ...(clonedOptions.minimap || {}) };
 		clonedOptions.minimap.enabled = false;
+
+		if (this._options.get().experimental?.collapseUnchangedRegions) {
+			clonedOptions.stickyScroll = { enabled: false };
+		} else {
+			clonedOptions.stickyScroll = this._editorOptions.stickyScroll;
+		}
 		return clonedOptions;
 	}
 
@@ -510,6 +530,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	override updateOptions(_newOptions: IDiffEditorOptions): void {
 		const newOptions = validateDiffEditorOptions(_newOptions, this._options.get());
 		this._options.set(newOptions, undefined);
+		deepMerge(this._editorOptions, deepClone(_newOptions));
 
 		this._modifiedEditor.updateOptions(this._adjustOptionsForRightHandSide(_newOptions));
 		this._originalEditor.updateOptions(this._adjustOptionsForLeftHandSide(_newOptions));

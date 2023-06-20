@@ -16,7 +16,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -309,9 +309,16 @@ export class InlineChatController implements IEditorContribution {
 
 		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
-		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
+		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
+		this._zone.value.widget.onDidChangeInput(_ => {
+			const pos = this._zone.value.position;
+			if (pos && this._zone.value.widget.hasFocus() && this._zone.value.widget.value) {
+				this._editor.revealPosition(pos, ScrollType.Smooth);
+			}
+		});
+
 		this._showWidget(false);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {

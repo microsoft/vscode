@@ -24,8 +24,9 @@ import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/chat/comm
 import { ChatViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+
+export const ASK_QUICK_QUESTION_ACTION_ID = 'chat.action.askQuickQuestion';
 
 export function registerChatQuickQuestionActions() {
 	registerAction2(AskQuickQuestionAction);
@@ -41,15 +42,14 @@ class AskQuickQuestionAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'chat.action.askQuickQuestion',
+			id: ASK_QUICK_QUESTION_ACTION_ID,
 			title: { value: localize('askQuickQuestion', "Ask Quick Question"), original: 'Ask Quick Question' },
 			precondition: CONTEXT_PROVIDER_EXISTS,
-			f1: true,
+			f1: false,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
-				when: ContextKeyExpr.equals('config.chat.experimental.quickQuestion.enable', true),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI
 			}
 		});
 	}
