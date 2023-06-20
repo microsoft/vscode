@@ -150,7 +150,7 @@ const presentation: IJSONSchema = {
 		focus: {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('JsonSchema.tasks.presentation.focus', 'Controls whether the panel takes focus. Default is false. If set to true the panel is revealed as well.
+			description: nls.localize('JsonSchema.tasks.presentation.focus', 'Controls whether the panel takes focus. Default is false. If set to true the panel is revealed as well.')
 		},
 		revealProblems: {
 			type: 'string',
