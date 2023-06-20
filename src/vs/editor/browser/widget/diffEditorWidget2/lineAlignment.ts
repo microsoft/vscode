@@ -213,6 +213,7 @@ export class ViewZoneManager extends Disposable {
 									afterLineNumber: a.originalRange.startLineNumber + i,
 									domNode: createFakeLinesDiv(),
 									heightInPx: (count - 1) * modLineHeight,
+									showInHiddenAreas: true,
 								});
 							}
 						}
@@ -224,6 +225,7 @@ export class ViewZoneManager extends Disposable {
 							minWidthInPx: result.minWidthInPx,
 							marginDomNode,
 							setZoneId(id) { zoneId = id; },
+							showInHiddenAreas: true,
 						});
 					}
 
@@ -290,12 +292,14 @@ export class ViewZoneManager extends Disposable {
 						afterLineNumber: a.originalRange.endLineNumberExclusive - 1,
 						domNode: createFakeLinesDiv(),
 						heightInPx: delta,
+						showInHiddenAreas: true,
 					});
 				} else {
 					modViewZones.push({
 						afterLineNumber: a.modifiedRange.endLineNumberExclusive - 1,
 						domNode: createFakeLinesDiv(),
 						heightInPx: -delta,
+						showInHiddenAreas: true,
 					});
 				}
 			}
