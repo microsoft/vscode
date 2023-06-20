@@ -108,7 +108,7 @@ async function preload(logger: Logger): Promise<void> {
 	}
 
 	const workspaceUri = vscode.workspace.workspaceFolders?.[0].uri;
-	if (!workspaceUri || workspaceUri.scheme !== 'vscode-vfs' || workspaceUri.authority !== 'github') {
+	if (!workspaceUri || workspaceUri.scheme !== 'vscode-vfs' || !workspaceUri.authority.startsWith('github')) {
 		logger.info(`Skipped loading workspace contents for repository ${workspaceUri?.toString()}`);
 		return;
 	}
