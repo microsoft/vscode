@@ -125,6 +125,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$acknowledgeDataEvent': return this._ptyService.acknowledgeDataEvent.apply(this._ptyService, args);
 			case '$shutdown': return this._ptyService.shutdown.apply(this._ptyService, args);
 			case '$resize': return this._ptyService.resize.apply(this._ptyService, args);
+			case '$clearBuffer': return this._ptyService.clearBuffer.apply(this._ptyService, args);
 			case '$getInitialCwd': return this._ptyService.getInitialCwd.apply(this._ptyService, args);
 			case '$getCwd': return this._ptyService.getCwd.apply(this._ptyService, args);
 

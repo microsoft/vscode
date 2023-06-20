@@ -39,7 +39,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 	public async detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined> {
 		const languages: string[] = [];
 		const confidences: number[] = [];
-		const stopWatch = new StopWatch(true);
+		const stopWatch = new StopWatch();
 		const documentTextSample = this.getTextForDetection(uri);
 		if (!documentTextSample) { return; }
 

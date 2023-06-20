@@ -58,7 +58,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 		public readonly metadata: any | undefined,
 		client: ITypeScriptServiceClient,
 	) {
-		super(tsEntry.name, MyCompletionItem.convertKind(tsEntry.kind));
+		const label = tsEntry.name || (tsEntry.insertText ?? '');
+		super(label, MyCompletionItem.convertKind(tsEntry.kind));
 
 		if (tsEntry.source && tsEntry.hasAction && client.apiVersion.lt(API.v490)) {
 			// De-prioritze auto-imports
@@ -72,18 +73,18 @@ class MyCompletionItem extends vscode.CompletionItem {
 			// Render "fancy" when source is a workspace path
 			const qualifierCandidate = vscode.workspace.asRelativePath(tsEntry.source);
 			if (qualifierCandidate !== tsEntry.source) {
-				this.label = { label: tsEntry.name, description: qualifierCandidate };
+				this.label = { label, description: qualifierCandidate };
 			}
 
 		}
 
 		const { sourceDisplay, isSnippet } = tsEntry;
 		if (sourceDisplay) {
-			this.label = { label: tsEntry.name, description: Previewer.asPlainTextWithLinks(sourceDisplay, client) };
+			this.label = { label, description: Previewer.asPlainTextWithLinks(sourceDisplay, client) };
 		}
 
 		if (tsEntry.labelDetails) {
-			this.label = { label: tsEntry.name, ...tsEntry.labelDetails };
+			this.label = { label, ...tsEntry.labelDetails };
 		}
 
 		this.preselect = tsEntry.isRecommended;
@@ -93,7 +94,6 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.range = this.getRangeFromReplacementSpan(tsEntry, completionContext);
 		this.commitCharacters = MyCompletionItem.getCommitCharacters(completionContext, tsEntry);
 		this.insertText = isSnippet && tsEntry.insertText ? new vscode.SnippetString(tsEntry.insertText) : tsEntry.insertText;
-		// @ts-expect-error until 5.2
 		this.filterText = tsEntry.filterText || this.getFilterText(completionContext.line, tsEntry.insertText);
 
 		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext && !(this.insertText instanceof vscode.SnippetString)) {

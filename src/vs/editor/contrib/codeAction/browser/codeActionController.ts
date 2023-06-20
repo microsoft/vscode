@@ -97,6 +97,10 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		return this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: false });
 	}
 
+	public hideCodeActions(): void {
+		this._actionWidgetService.hide();
+	}
+
 	public manualTriggerAtCurrentPosition(
 		notAvailableMessage: string,
 		triggerAction: CodeActionTriggerSource,
@@ -124,6 +128,10 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				this._trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.QuickFix, filter: {} });
 			}
 		}
+	}
+
+	public hideLightBulbWidget(): void {
+		this._lightBulbWidget.rawValue?.hide();
 	}
 
 	private async update(newState: CodeActionsState.State): Promise<void> {

@@ -17,6 +17,7 @@ declare module 'vscode' {
 		placeholder?: string;
 		slashCommands?: InteractiveEditorSlashCommand[];
 		wholeRange?: Range;
+		message?: string;
 	}
 
 	// todo@API make classes
@@ -26,6 +27,7 @@ declare module 'vscode' {
 
 		selection: Selection;
 		wholeRange: Range;
+		attempt: number;
 	}
 
 	// todo@API make classes
@@ -151,6 +153,9 @@ declare module 'vscode' {
 		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<S>;
 		resolveRequest(session: S, context: InteractiveSessionRequestArgs | string, token: CancellationToken): ProviderResult<InteractiveRequest>;
 		provideResponseWithProgress(request: InteractiveRequest, progress: Progress<InteractiveProgress>, token: CancellationToken): ProviderResult<InteractiveResponseForProgress>;
+
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		removeRequest(session: S, requestId: string): void;
 	}
 
 	export interface InteractiveSessionDynamicRequest {

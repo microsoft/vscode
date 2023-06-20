@@ -6,6 +6,8 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { score } from 'vs/editor/common/languageSelector';
 import { localize } from 'vs/nls';
 import { ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -24,7 +26,8 @@ export class ShareService implements IShareService {
 	constructor(
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IQuickInputService private quickInputService: IQuickInputService
+		@IQuickInputService private quickInputService: IQuickInputService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 	) {
 		this.providerCount = ShareProviderCountContext.bindTo(this.contextKeyService);
 	}
@@ -45,8 +48,11 @@ export class ShareService implements IShareService {
 		return [];
 	}
 
-	async provideShare(item: IShareableItem, token: CancellationToken): Promise<URI | undefined> {
-		const providers = [...this._providers.values()];
+	async provideShare(item: IShareableItem, token: CancellationToken): Promise<URI | string | undefined> {
+		const language = this.codeEditorService.getActiveCodeEditor()?.getModel()?.getLanguageId() ?? '';
+		const providers = [...this._providers.values()]
+			.filter((p) => score(p.selector, item.resourceUri, language, true, undefined, undefined) > 0)
+			.sort((a, b) => a.priority - b.priority);
 
 		if (providers.length === 0) {
 			return undefined;

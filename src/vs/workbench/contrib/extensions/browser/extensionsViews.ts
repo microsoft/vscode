@@ -32,7 +32,6 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { coalesce, distinct, flatten } from 'vs/base/common/arrays';
-import { IExperimentService, IExperiment, ExperimentActionType } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -85,7 +84,7 @@ export interface ExtensionsListViewOptions {
 }
 
 interface IQueryResult {
-	readonly model: IPagedModel<IExtension>;
+	model: IPagedModel<IExtension>;
 	readonly onDidChangeModel?: Event<IPagedModel<IExtension>>;
 	readonly disposables: DisposableStore;
 }
@@ -134,7 +133,6 @@ export class ExtensionsListView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IExperimentService private readonly experimentService: IExperimentService,
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWorkbenchExtensionManagementService protected readonly extensionManagementService: IWorkbenchExtensionManagementService,
@@ -264,7 +262,12 @@ export class ExtensionsListView extends ViewPane {
 				const model = this.queryResult.model;
 				this.setModel(model);
 				if (this.queryResult.onDidChangeModel) {
-					this.queryResult.disposables.add(this.queryResult.onDidChangeModel(model => this.updateModel(model)));
+					this.queryResult.disposables.add(this.queryResult.onDidChangeModel(model => {
+						if (this.queryResult) {
+							this.queryResult.model = model;
+							this.updateModel(model);
+						}
+					}));
 				}
 				return model;
 			} catch (e) {
@@ -729,10 +732,6 @@ export class ExtensionsListView extends ViewPane {
 			return this.queryRecommendations(query, options, token);
 		}
 
-		if (/\bcurated:([^\s]+)\b/.test(query.value)) {
-			return this.getCuratedModel(query, options, token);
-		}
-
 		const text = query.value;
 
 		if (/\bext:([^\s]+)\b/g.test(text)) {
@@ -746,12 +745,14 @@ export class ExtensionsListView extends ViewPane {
 			options.text = text.substring(0, 350);
 			options.source = 'searchText';
 			if (!hasUserDefinedSortOrder) {
-				const searchExperiments = await this.getSearchExperiments();
-				for (const experiment of searchExperiments) {
-					if (experiment.action && text.toLowerCase() === experiment.action.properties['searchText'] && Array.isArray(experiment.action.properties['preferredResults'])) {
-						preferredResults = experiment.action.properties['preferredResults'];
-						options.source += `-experiment-${experiment.id}`;
-						break;
+				const manifest = await this.extensionManagementService.getExtensionsControlManifest();
+				const search = manifest.search;
+				if (Array.isArray(search)) {
+					for (const s of search) {
+						if (s.query && s.query.toLowerCase() === text.toLowerCase() && Array.isArray(s.preferredResults)) {
+							preferredResults = s.preferredResults;
+							break;
+						}
 					}
 				}
 			}
@@ -778,19 +779,6 @@ export class ExtensionsListView extends ViewPane {
 
 	}
 
-	resetSearchExperiments() { ExtensionsListView.searchExperiments = undefined; }
-	private static searchExperiments: Promise<IExperiment[]> | undefined;
-	private getSearchExperiments(): Promise<IExperiment[]> {
-		if (!ExtensionsListView.searchExperiments) {
-			ExtensionsListView.searchExperiments = this.experimentService.getExperimentsByType(ExperimentActionType.ExtensionSearchResults)
-				.then(null, e => {
-					this.logService.error(e);
-					return [];
-				});
-		}
-		return ExtensionsListView.searchExperiments;
-	}
-
 	private sortExtensions(extensions: IExtension[], options: IQueryOptions): IExtension[] {
 		switch (options.sortBy) {
 			case GallerySortBy.InstallCount:
@@ -814,20 +802,6 @@ export class ExtensionsListView extends ViewPane {
 			extensions = extensions.reverse();
 		}
 		return extensions;
-	}
-
-	private async getCuratedModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const value = query.value.replace(/curated:/g, '').trim();
-		let ids = await this.experimentService.getCuratedExtensionsList(value);
-		if (Array.isArray(ids) && ids.length) {
-			ids = ids.map(id => id.toLowerCase());
-			const extensions = await this.extensionsWorkbenchService.getExtensions(ids.map(id => ({ id })), { source: `curated:${value}` }, token);
-			// Sorts the firstPage of the pager in the same order as given array of extension ids
-			extensions.sort((a, b) =>
-				ids.indexOf(a.identifier.id.toLowerCase()) < ids.indexOf(b.identifier.id.toLowerCase()) ? -1 : 1);
-			return this.getPagedModel(extensions);
-		}
-		return new PagedModel([]);
 	}
 
 	private isRecommendationsQuery(query: Query): boolean {
@@ -1442,7 +1416,7 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView imple
 	async installWorkspaceRecommendations(): Promise<void> {
 		const installableRecommendations = await this.getInstallableWorkspaceRecommendations();
 		if (installableRecommendations.length) {
-			await this.extensionManagementService.installExtensions(installableRecommendations.map(i => i.gallery!));
+			await this.extensionManagementService.installGalleryExtensions(installableRecommendations.map(i => ({ extension: i.gallery!, options: {} })));
 		} else {
 			this.notificationService.notify({
 				severity: Severity.Info,

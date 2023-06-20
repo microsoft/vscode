@@ -5,8 +5,11 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorAction2, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorAction2, EditorContributionInstantiation, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -14,9 +17,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
+import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
-import { clearChatEditor, clearChatSession } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
@@ -50,36 +52,6 @@ export function registerChatActions() {
 				const widgetService = accessor.get(IChatWidgetService);
 				widgetService.getWidgetByInputUri(editorUri)?.acceptInput();
 			}
-		}
-	});
-
-	registerAction2(class ClearEditorAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chatEditor.clear',
-				title: {
-					value: localize('interactiveSession.clear.label', "Clear"),
-					original: 'Clear'
-				},
-				icon: Codicon.clearAll,
-				f1: false,
-				menu: [{
-					id: MenuId.EditorTitle,
-					group: 'navigation',
-					order: 0,
-					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-				}]
-			});
-		}
-		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const widgetService = accessor.get(IChatWidgetService);
-
-			const widget = widgetService.lastFocusedWidget;
-			if (!widget) {
-				return;
-			}
-
-			await clearChatEditor(accessor, widget);
 		}
 	});
 
@@ -126,23 +98,20 @@ export function registerChatActions() {
 		}
 	});
 
-	registerEditorAction(class AccessibilityHelpChatAction extends EditorAction {
+	class ChatAccessibilityHelpContribution extends Disposable {
+		static ID: 'chatAccessibilityHelpContribution';
 		constructor() {
-			super({
-				id: 'chat.action.accessibilityHelp',
-				label: localize('chat.action.accessibiltyHelp', "Chat View Accessibility Help"),
-				alias: 'Chat View Accessibility Help',
-				precondition: CONTEXT_IN_CHAT_INPUT,
-				kbOpts: {
-					primary: KeyMod.Alt | KeyCode.F1,
-					weight: KeybindingWeight.EditorContrib + 10
+			super();
+			this._register(AccessibilityHelpAction.addImplementation(105, 'panelChat', async accessor => {
+				const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
+				if (!codeEditor) {
+					return;
 				}
-			});
+				runAccessibilityHelpAction(accessor, codeEditor, 'panelChat');
+			}, CONTEXT_IN_CHAT_INPUT));
 		}
-		async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-			runAccessibilityHelpAction(accessor, editor, 'chat');
-		}
-	});
+	}
+	registerEditorContribution(ChatAccessibilityHelpContribution.ID, ChatAccessibilityHelpContribution, EditorContributionInstantiation.AfterFirstRender);
 
 	registerAction2(class FocusChatInputAction extends Action2 {
 		constructor() {
@@ -165,38 +134,6 @@ export function registerChatActions() {
 			widgetService.lastFocusedWidget?.focusInput();
 		}
 	});
-
-	registerAction2(class GlobalClearChatAction extends Action2 {
-		constructor() {
-			super({
-				id: `workbench.action.chat.clear`,
-				title: {
-					value: localize('interactiveSession.clear.label', "Clear"),
-					original: 'Clear'
-				},
-				category: CHAT_CATEGORY,
-				icon: Codicon.clearAll,
-				precondition: CONTEXT_PROVIDER_EXISTS,
-				f1: true,
-				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyMod.WinCtrl | KeyCode.KeyL,
-					when: CONTEXT_IN_CHAT_SESSION
-				}
-			});
-		}
-
-		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const widgetService = accessor.get(IChatWidgetService);
-
-			const widget = widgetService.lastFocusedWidget;
-			if (!widget) {
-				return;
-			}
-
-			await clearChatSession(accessor, widget);
-		}
-	});
 }
 
 export function getOpenChatEditorAction(id: string, label: string, when?: string) {
@@ -214,36 +151,6 @@ export function getOpenChatEditorAction(id: string, label: string, when?: string
 		async run(accessor: ServicesAccessor) {
 			const editorService = accessor.get(IEditorService);
 			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId: id }, pinned: true } });
-		}
-	};
-}
-
-const getClearChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
-	viewId,
-	id: `workbench.action.chat.${providerId}.clear`,
-	title: {
-		value: localize('interactiveSession.clear.label', "Clear"),
-		original: 'Clear'
-	},
-	menu: {
-		id: MenuId.ViewTitle,
-		when: ContextKeyExpr.equals('view', viewId),
-		group: 'navigation',
-		order: 0
-	},
-	category: CHAT_CATEGORY,
-	icon: Codicon.clearAll,
-	f1: false
-});
-
-export function getClearAction(viewId: string, providerId: string) {
-	return class ClearAction extends ViewAction<ChatViewPane> {
-		constructor() {
-			super(getClearChatActionDescriptorForViewTitle(viewId, providerId));
-		}
-
-		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
-			await view.clear();
 		}
 	};
 }
@@ -279,9 +186,20 @@ export function getHistoryAction(viewId: string, providerId: string) {
 			const items = chatService.getHistory();
 			const picks = items.map(i => (<IQuickPickItem & { chat: IChatDetail }>{
 				label: i.title,
-				chat: i
+				chat: i,
+				buttons: [{
+					iconClass: ThemeIcon.asClassName(Codicon.x),
+					tooltip: localize('interactiveSession.history.delete', "Delete"),
+				}]
 			}));
-			const selection = await quickInputService.pick(picks, { placeHolder: localize('interactiveSession.history.pick', "Select a chat session to restore") });
+			const selection = await quickInputService.pick(picks,
+				{
+					placeHolder: localize('interactiveSession.history.pick', "Select a chat session to restore"),
+					onDidTriggerItemButton: context => {
+						chatService.removeHistoryEntry(context.item.chat.sessionId);
+						context.removeItem();
+					}
+				});
 			if (selection) {
 				const sessionId = selection.chat.sessionId;
 				await editorService.openEditor({

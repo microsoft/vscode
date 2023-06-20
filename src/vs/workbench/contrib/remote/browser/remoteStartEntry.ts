@@ -162,12 +162,12 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 	}
 
 	private registerListeners(): void {
-		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
-			for (const ext of result) {
-				const index = this.remoteExtensionMetadata.findIndex(value => ExtensionIdentifier.equals(value.id, ext.identifier.id));
+		this._register(this.extensionService.onDidChangeExtensions(async (result) => {
+			for (const ext of result.added) {
+				const index = this.remoteExtensionMetadata.findIndex(value => ExtensionIdentifier.equals(value.id, ext.identifier));
 				if (index > -1) {
 					this.remoteExtensionMetadata[index].installed = true;
-					this.remoteExtensionMetadata[index].remoteCommands = await this.getRemoteCommands(ext.identifier.id);
+					this.remoteExtensionMetadata[index].remoteCommands = await this.getRemoteCommands(ext.identifier.value);
 				}
 			}
 		}));
