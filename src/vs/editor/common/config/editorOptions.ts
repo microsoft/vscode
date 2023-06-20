@@ -3474,14 +3474,7 @@ class ReadonlyMessage extends BaseEditorOption<EditorOption.readOnlyMessage, IMa
 		const defaults = undefined;
 
 		super(
-			EditorOption.readOnlyMessage, 'readOnlyMessage', defaults,
-			{
-				'editor.readOnlyMessage': {
-					type: 'boolean',
-					default: defaults,
-					description: nls.localize('readOnlyMessage.value', "The value of the readonly message.")
-				}
-			}
+			EditorOption.readOnlyMessage, 'readOnlyMessage', defaults
 		);
 	}
 
