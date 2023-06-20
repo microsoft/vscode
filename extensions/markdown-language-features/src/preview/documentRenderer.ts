@@ -105,7 +105,7 @@ export class MdDocumentRenderer {
 				${this._getStyles(resourceProvider, sourceUri, config, imageInfo)}
 				<base href="${resourceProvider.asWebviewUri(markdownDocument.uri)}">
 			</head>
-			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''} ${isWeb ? 'style="overscroll-behavior-x: none;"' : ''}">
+			<body class="vscode-body style="overscroll-behavior-x: none;" ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
 				${body.html}
 				${this._getScripts(resourceProvider, nonce)}
 			</body>
