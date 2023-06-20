@@ -222,18 +222,19 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 	private _addRawPerfMarks(md: MarkdownBuilder): void {
 
 		for (const [source, marks] of this._timerService.getPerformanceMarks()) {
-			md.heading(2, `Raw Perf Marks: ${source}`);
-			md.value += '```\n';
-			md.value += `Name\tTimestamp\tDelta\tTotal\n`;
+			const table: Array<Array<string | number | undefined>> = [];
 			let lastStartTime = -1;
 			let total = 0;
 			for (const { name, startTime } of marks) {
 				const delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
 				total += delta;
-				md.value += `${name}\t${startTime}\t${delta}\t${total}\n`;
+				table.push([name, startTime, delta, total]);
 				lastStartTime = startTime;
 			}
-			md.value += '```\n';
+
+			md.heading(2, `Raw Perf Marks: ${source}`);
+			md.table(['Name', 'Timestamp', 'Delta', 'Total'], table);
+			md.blank();
 		}
 	}
 
