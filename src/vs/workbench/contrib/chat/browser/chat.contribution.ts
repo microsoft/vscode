@@ -117,7 +117,7 @@ class ChatResolverContribution extends Disposable {
 	}
 }
 
-class ChatAccessibileViewContribution extends Disposable {
+class ChatAccessibleViewContribution extends Disposable {
 	static ID: 'chatAccessibleViewContribution';
 	constructor() {
 		super();
@@ -164,7 +164,7 @@ class ChatAccessibileViewContribution extends Disposable {
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatResolverContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(ChatAccessibileViewContribution, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(ChatAccessibleViewContribution, LifecyclePhase.Eventually);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 
 registerChatActions();

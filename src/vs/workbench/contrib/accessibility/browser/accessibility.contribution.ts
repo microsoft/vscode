@@ -126,7 +126,7 @@ workbenchRegistry.registerWorkbenchContribution(EditorAccessibilityHelpContribut
 
 
 
-class HoverAccessibileViewContribution extends Disposable {
+class HoverAccessibleViewContribution extends Disposable {
 	static ID: 'hoverAccessibleViewContribution';
 	constructor() {
 		super();
@@ -163,5 +163,5 @@ class HoverAccessibileViewContribution extends Disposable {
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(HoverAccessibileViewContribution, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(HoverAccessibleViewContribution, LifecyclePhase.Eventually);
 
