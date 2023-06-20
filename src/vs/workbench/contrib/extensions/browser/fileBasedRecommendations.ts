@@ -369,6 +369,11 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	}
 
 	private async promptRecommendedExtensionForFileExtension(uri: URI, fileExtension: string): Promise<void> {
+
+		if (this.extensionRecommendationNotificationService.hasToIgnoreRecommendationNotifications()) {
+			return;
+		}
+
 		// Do not prompt when there is no local and remote extension management servers
 		if (!this.extensionManagementServerService.localExtensionManagementServer && !this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return;
