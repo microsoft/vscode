@@ -249,7 +249,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		const thisWorkspace = workspaceUri.toString();
 		const transferred = data.find(item => URI.revive(item.toWorkspace).toString() === thisWorkspace);
-		const filtered = data.filter(item => URI.revive(item.toWorkspace).toString() === thisWorkspace);
+		const filtered = data.filter(item => URI.revive(item.toWorkspace).toString() !== thisWorkspace);
 		this.storageService.store(globalChatKey, JSON.stringify(filtered), StorageScope.PROFILE, StorageTarget.MACHINE);
 		return transferred?.chat;
 	}
