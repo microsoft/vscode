@@ -450,12 +450,11 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	public static ID = 'editor.contrib.resizableContentHoverWidget';
 
-	private _disposableStore = new DisposableStore();
 	private _visibleData: ContentHoverVisibleData | undefined;
 	private _positionPreference: ContentWidgetPositionPreference | undefined;
 	private _position: Position | undefined;
 
-	private readonly _hover: HoverWidget = this._disposableStore.add(new HoverWidget());
+	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
 	private readonly _hoverFocusedKey: IContextKey<boolean>;
 
@@ -490,17 +489,17 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		dom.append(this._resizableNode.domNode, this._hover.containerDomNode);
 		this._resizableNode.domNode.style.zIndex = '50';
 
-		this._disposableStore.add(this._editor.onDidLayoutChange(() => this._layout()));
-		this._disposableStore.add(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+		this._register(this._editor.onDidLayoutChange(() => this._layout()));
+		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
 				this._updateFont();
 			}
 		}));
-		const focusTracker = this._disposableStore.add(dom.trackFocus(this._resizableNode.domNode));
-		this._disposableStore.add(focusTracker.onDidFocus(() => {
+		const focusTracker = this._register(dom.trackFocus(this._resizableNode.domNode));
+		this._register(focusTracker.onDidFocus(() => {
 			this._hoverFocusedKey.set(true);
 		}));
-		this._disposableStore.add(focusTracker.onDidBlur(() => {
+		this._register(focusTracker.onDidBlur(() => {
 			this._hoverFocusedKey.set(false);
 		}));
 		this._setHoverData(undefined);
@@ -510,7 +509,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	public override dispose(): void {
 		super.dispose();
 		this._visibleData?.disposables.dispose();
-		this._disposableStore.dispose();
 		this._editor.removeContentWidget(this);
 	}
 
