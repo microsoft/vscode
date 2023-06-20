@@ -150,7 +150,7 @@ class ChatAccessibleViewContribution extends Disposable {
 				id: 'panelChat',
 				provideContent(): string { return responseContent; },
 				onClose() {
-					widget.reveal(focusedItem, true);
+					widget.focus(focusedItem);
 					provider.dispose();
 				},
 				options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript', type: AccessibleViewType.View }
