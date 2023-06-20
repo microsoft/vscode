@@ -513,7 +513,7 @@ export class SuggestController implements IEditorContribution {
 		};
 
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
-			providerId: item.extensionId?.value ?? 'unknown',
+			providerId: item.extensionId?.value ?? item.provider._debugDisplayName ?? 'unknown',
 			kind: item.completion.kind,
 			basenameHash: hash(basename(model.uri)).toString(16),
 			languageId: model.getLanguageId(),
