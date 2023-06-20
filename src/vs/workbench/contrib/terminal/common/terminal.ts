@@ -100,6 +100,8 @@ export interface IShellLaunchConfigResolveOptions {
 export interface ITerminalBackend {
 	readonly remoteAuthority: string | undefined;
 
+	readonly isResponsive: boolean;
+
 	/**
 	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
 	 * terminals using this pty host connection and mark them as disconnected.
@@ -145,6 +147,8 @@ export interface ITerminalBackend {
 		options: ITerminalProcessOptions,
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess>;
+
+	restartPtyHost(): void;
 }
 
 export const TerminalExtensions = {
@@ -152,6 +156,11 @@ export const TerminalExtensions = {
 };
 
 export interface ITerminalBackendRegistry {
+	/**
+	 * Gets all backends in the registry.
+	 */
+	backends: ReadonlyMap<string, ITerminalBackend>;
+
 	/**
 	 * Registers a terminal backend for a remote authority.
 	 */
@@ -165,6 +174,8 @@ export interface ITerminalBackendRegistry {
 
 class TerminalBackendRegistry implements ITerminalBackendRegistry {
 	private readonly _backends = new Map<string, ITerminalBackend>();
+
+	get backends(): ReadonlyMap<string, ITerminalBackend> { return this._backends; }
 
 	registerTerminalBackend(backend: ITerminalBackend): void {
 		const key = this._sanitizeRemoteAuthority(backend.remoteAuthority);
@@ -197,15 +208,6 @@ export type ConfirmOnKill = 'never' | 'always' | 'editor' | 'panel';
 export type ConfirmOnExit = 'never' | 'always' | 'hasChildProcesses';
 
 export interface ICompleteTerminalConfiguration {
-	'terminal.integrated.automationShell.windows': string;
-	'terminal.integrated.automationShell.osx': string;
-	'terminal.integrated.automationShell.linux': string;
-	'terminal.integrated.shell.windows': string;
-	'terminal.integrated.shell.osx': string;
-	'terminal.integrated.shell.linux': string;
-	'terminal.integrated.shellArgs.windows': string | string[];
-	'terminal.integrated.shellArgs.osx': string | string[];
-	'terminal.integrated.shellArgs.linux': string | string[];
 	'terminal.integrated.env.windows': ITerminalEnvironment;
 	'terminal.integrated.env.osx': ITerminalEnvironment;
 	'terminal.integrated.env.linux': ITerminalEnvironment;
@@ -574,7 +576,6 @@ export const enum TerminalCommandId {
 	SelectToNextCommand = 'workbench.action.terminal.selectToNextCommand',
 	SelectToPreviousLine = 'workbench.action.terminal.selectToPreviousLine',
 	SelectToNextLine = 'workbench.action.terminal.selectToNextLine',
-	ToggleEscapeSequenceLogging = 'toggleEscapeSequenceLogging',
 	SendSequence = 'workbench.action.terminal.sendSequence',
 	ToggleFindRegex = 'workbench.action.terminal.toggleFindRegex',
 	ToggleFindWholeWord = 'workbench.action.terminal.toggleFindWholeWord',
@@ -587,8 +588,6 @@ export const enum TerminalCommandId {
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
 	ClearPreviousSessionHistory = 'workbench.action.terminal.clearPreviousSessionHistory',
-	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal',
-	ShowTextureAtlas = 'workbench.action.terminal.showTextureAtlas',
 	ShowTerminalAccessibilityHelp = 'workbench.action.terminal.showAccessibilityHelp',
 	SelectPrevSuggestion = 'workbench.action.terminal.selectPrevSuggestion',
 	SelectPrevPageSuggestion = 'workbench.action.terminal.selectPrevPageSuggestion',
@@ -598,6 +597,12 @@ export const enum TerminalCommandId {
 	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
 	FocusHover = 'workbench.action.terminal.focusHover',
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
+
+	// Developer commands
+
+	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal',
+	ShowTextureAtlas = 'workbench.action.terminal.showTextureAtlas',
+	RestartPtyHost = 'workbench.action.terminal.restartPtyHost',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

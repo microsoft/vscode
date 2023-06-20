@@ -17,26 +17,15 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
 export const enum TerminalSettingPrefix {
-	Shell = 'terminal.integrated.shell.',
-	ShellArgs = 'terminal.integrated.shellArgs.',
 	DefaultProfile = 'terminal.integrated.defaultProfile.',
 	Profiles = 'terminal.integrated.profiles.'
 }
 
 export const enum TerminalSettingId {
-	ShellLinux = 'terminal.integrated.shell.linux',
-	ShellMacOs = 'terminal.integrated.shell.osx',
-	ShellWindows = 'terminal.integrated.shell.windows',
 	SendKeybindingsToShell = 'terminal.integrated.sendKeybindingsToShell',
-	AutomationShellLinux = 'terminal.integrated.automationShell.linux',
-	AutomationShellMacOs = 'terminal.integrated.automationShell.osx',
-	AutomationShellWindows = 'terminal.integrated.automationShell.windows',
 	AutomationProfileLinux = 'terminal.integrated.automationProfile.linux',
 	AutomationProfileMacOs = 'terminal.integrated.automationProfile.osx',
 	AutomationProfileWindows = 'terminal.integrated.automationProfile.windows',
-	ShellArgsLinux = 'terminal.integrated.shellArgs.linux',
-	ShellArgsMacOs = 'terminal.integrated.shellArgs.osx',
-	ShellArgsWindows = 'terminal.integrated.shellArgs.windows',
 	ProfilesWindows = 'terminal.integrated.profiles.windows',
 	ProfilesMacOs = 'terminal.integrated.profiles.osx',
 	ProfilesLinux = 'terminal.integrated.profiles.linux',
@@ -118,7 +107,14 @@ export const enum TerminalSettingId {
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
 	EnableImages = 'terminal.integrated.enableImages',
-	SmoothScrolling = 'terminal.integrated.smoothScrolling'
+	SmoothScrolling = 'terminal.integrated.smoothScrolling',
+
+	// Debug settings that are hidden from user
+
+	/** Simulated latency applied to all calls made to the pty host */
+	DeveloperPtyHostLatency = 'terminal.integrated.developer.ptyHost.latency',
+	/** Simulated startup delay of the pty host process */
+	DeveloperPtyHostStartupDelay = 'terminal.integrated.developer.ptyHost.startupDelay',
 }
 
 export const enum PosixShellType {
@@ -396,6 +392,12 @@ export enum HeartbeatConstants {
 	 * The duration between heartbeats
 	 */
 	BeatInterval = 5000,
+	/**
+	 * The duration of the first heartbeat while the pty host is starting up. This is much larger
+	 * than the regular BeatInterval to accomodate slow machines, we still want to warn about the
+	 * pty host's unresponsiveness eventually though.
+	 */
+	ConnectingBeatInterval = 20000,
 	/**
 	 * Defines a multiplier for BeatInterval for how long to wait before starting the second wait
 	 * timer.

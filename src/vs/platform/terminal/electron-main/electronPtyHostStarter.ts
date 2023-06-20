@@ -8,7 +8,7 @@ import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentS
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IReconnectConstants } from 'vs/platform/terminal/common/terminal';
+import { IReconnectConstants, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
@@ -17,6 +17,7 @@ import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { deepClone } from 'vs/base/common/objects';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class ElectronPtyHostStarter implements IPtyHostStarter {
 
@@ -29,6 +30,7 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly _logService: ILogService
@@ -42,15 +44,10 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 		this.utilityProcess = new UtilityProcess(this._logService, NullTelemetryService, this._lifecycleMainService);
 
 		const inspectParams = parsePtyHostDebugPort(this._environmentService.args, this._environmentService.isBuilt);
-		let execArgv: string[] | undefined = undefined;
-		if (inspectParams) {
-			execArgv = ['--nolazy'];
-			if (inspectParams.break) {
-				execArgv.push(`--inspect-brk=${inspectParams.port}`);
-			} else if (!inspectParams.break) {
-				execArgv.push(`--inspect=${inspectParams.port}`);
-			}
-		}
+		const execArgv = inspectParams.port ? [
+			'--nolazy',
+			`--inspect${inspectParams.break ? '-brk' : ''}=${inspectParams.port}`
+		] : undefined;
 
 		this.utilityProcess.start({
 			type: 'ptyHost',
@@ -78,7 +75,7 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 	}
 
 	private _createPtyHostConfiguration(lastPtyId: number) {
-		return {
+		const config: { [key: string]: string } = {
 			...deepClone(process.env),
 			VSCODE_LAST_PTY_ID: String(lastPtyId),
 			VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
@@ -86,8 +83,17 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 			VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
 			VSCODE_RECONNECT_GRACE_TIME: String(this._reconnectConstants.graceTime),
 			VSCODE_RECONNECT_SHORT_GRACE_TIME: String(this._reconnectConstants.shortGraceTime),
-			VSCODE_RECONNECT_SCROLLBACK: String(this._reconnectConstants.scrollback)
+			VSCODE_RECONNECT_SCROLLBACK: String(this._reconnectConstants.scrollback),
 		};
+		const simulatedLatency = this._configurationService.getValue(TerminalSettingId.DeveloperPtyHostLatency);
+		if (simulatedLatency && typeof simulatedLatency === 'number') {
+			config.VSCODE_LATENCY = String(simulatedLatency);
+		}
+		const startupDelay = this._configurationService.getValue(TerminalSettingId.DeveloperPtyHostStartupDelay);
+		if (startupDelay && typeof startupDelay === 'number') {
+			config.VSCODE_STARTUP_DELAY = String(startupDelay);
+		}
+		return config;
 	}
 
 	private _onWindowConnection(e: IpcMainEvent, nonce: string) {

@@ -76,6 +76,7 @@ class CellStatusBarHelper extends Disposable {
 	private _currentItemLists: INotebookCellStatusBarItemList[] = [];
 
 	private _activeToken: CancellationTokenSource | undefined;
+	private _isDisposed: boolean = false;
 
 	private readonly _updateThrottler = new Throttler();
 
@@ -101,7 +102,18 @@ class CellStatusBarHelper extends Disposable {
 	private _updateSoon(): void {
 		// Wait a tick to make sure that the event is fired to the EH before triggering status bar providers
 		this._register(disposableTimeout(() => {
-			this._updateThrottler.queue(() => this._update());
+			this._updateThrottler.queue(async () => {
+				if (this._isDisposed) {
+					// This order of events can happen
+					// - Start one update
+					// - Start a second update, its queued
+					// - This class is disposed, cancelling the first update
+					// - The second update runs, and we're disposed. So bail at this point.
+					return;
+				}
+
+				return this._update();
+			});
 		}, 0));
 	}
 
@@ -128,6 +140,7 @@ class CellStatusBarHelper extends Disposable {
 
 	override dispose() {
 		super.dispose();
+		this._isDisposed = true;
 		this._activeToken?.dispose(true);
 
 		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);

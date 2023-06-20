@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
+export const IChatAccessibilityService = createDecorator<IChatAccessibilityService>('chatAccessibilityService');
 
 export interface IChatWidgetService {
 
@@ -27,6 +28,13 @@ export interface IChatWidgetService {
 	revealViewForProvider(providerId: string): Promise<IChatWidget | undefined>;
 
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
+}
+
+
+export interface IChatAccessibilityService {
+	readonly _serviceBrand: undefined;
+	acceptRequest(): void;
+	acceptResponse(response?: IChatResponseViewModel): void;
 }
 
 export interface IChatCodeBlockInfo {

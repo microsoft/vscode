@@ -31,6 +31,8 @@ import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench
 import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const $ = dom.$;
 
@@ -59,6 +61,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private followupsDisposables = this._register(new DisposableStore());
 
 	private _inputEditor!: CodeEditorWidget;
+	private _inputEditorElement!: HTMLElement;
+
 	public get inputEditor() {
 		return this._inputEditor;
 	}
@@ -78,7 +82,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 
@@ -148,8 +153,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.history.add(editorValue);
 		}
 
-		this._inputEditor.focus();
+		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
+			this._acceptInputForVoiceover();
+		} else {
+			this._inputEditor.focus();
+			this._inputEditor.setValue('');
+		}
+	}
+
+	private _acceptInputForVoiceover(): void {
+		const domNode = this._inputEditor.getDomNode();
+		if (!domNode) {
+			return;
+		}
+		// Remove the input editor from the DOM temporarily to prevent VoiceOver
+		// from reading the cleared text (the request) to the user.
+		this._inputEditorElement.removeChild(domNode);
 		this._inputEditor.setValue('');
+		this._inputEditorElement.appendChild(domNode);
+		this._inputEditor.focus();
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
@@ -168,7 +190,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			historyNavigationForwardsEnablement.set(enabled);
 		};
 
-		const options = getSimpleEditorOptions();
+		const options = getSimpleEditorOptions(this.configurationService);
 		options.readOnly = false;
 		options.ariaLabel = this._getAriaLabel();
 		options.fontFamily = DEFAULT_FONT_FAMILY;
@@ -181,8 +203,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.suggest = { showIcons: false };
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 
-		const inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
-		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputEditorElement, options, getSimpleCodeEditorWidgetOptions()));
+		this._inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
+		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, getSimpleCodeEditorWidgetOptions()));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT);

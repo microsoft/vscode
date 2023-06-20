@@ -67,7 +67,7 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 			return c.result;
 		}
 
-		const sw = StopWatch.create(true);
+		const sw = StopWatch.create();
 		const result = await this.editorWorkerService.computeDiff(original.uri, modified.uri, options, this.diffAlgorithm);
 		const timeMs = sw.elapsed();
 

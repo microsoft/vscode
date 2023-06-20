@@ -404,7 +404,7 @@ export class Git {
 	async init(repository: string, options: InitOptions = {}): Promise<void> {
 		const args = ['init'];
 
-		if (options.defaultBranch && options.defaultBranch !== '') {
+		if (options.defaultBranch && options.defaultBranch !== '' && this.compareGitVersionTo('2.28.0') !== -1) {
 			args.push('-b', options.defaultBranch);
 		}
 

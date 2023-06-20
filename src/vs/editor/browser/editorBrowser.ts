@@ -12,7 +12,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer, PositionAffinity } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer, PositionAffinity, GlyphMarginLane } from 'vs/editor/common/model';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
@@ -249,6 +249,43 @@ export interface IOverlayWidget {
 	 * If null is returned, the overlay widget is responsible to place itself.
 	 */
 	getPosition(): IOverlayWidgetPosition | null;
+}
+
+/**
+ * A glyph margin widget renders in the editor glyph margin.
+ */
+export interface IGlyphMarginWidget {
+	/**
+	 * Get a unique identifier of the glyph widget.
+	 */
+	getId(): string;
+	/**
+	 * Get the dom node of the glyph widget.
+	 */
+	getDomNode(): HTMLElement;
+	/**
+	 * Get the placement of the glyph widget.
+	 */
+	getPosition(): IGlyphMarginWidgetPosition;
+}
+
+/**
+ * A position for rendering glyph margin widgets.
+ */
+export interface IGlyphMarginWidgetPosition {
+	/**
+	 * The glyph margin lane where the widget should be shown.
+	 */
+	lane: GlyphMarginLane;
+	/**
+	 * The priority order of the widget, used for determining which widget
+	 * to render when there are multiple.
+	 */
+	zIndex: number;
+	/**
+	 * The editor range that this widget applies to.
+	 */
+	range: IRange;
 }
 
 /**
@@ -992,6 +1029,20 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Remove an overlay widget.
 	 */
 	removeOverlayWidget(widget: IOverlayWidget): void;
+
+	/**
+	 * Add a glyph margin widget. Widgets must have unique ids, otherwise they will be overwritten.
+	 */
+	addGlyphMarginWidget(widget: IGlyphMarginWidget): void;
+	/**
+	 * Layout/Reposition a glyph margin widget. This is a ping to the editor to call widget.getPosition()
+	 * and update appropriately.
+	 */
+	layoutGlyphMarginWidget(widget: IGlyphMarginWidget): void;
+	/**
+	 * Remove a glyph margin widget.
+	 */
+	removeGlyphMarginWidget(widget: IGlyphMarginWidget): void;
 
 	/**
 	 * Change the view zones. View zones are lost when a new model is attached to the editor.

@@ -2,6 +2,11 @@
 	"version": "0.1.0",
 	"configurations": [
 		{
+			"request": "attach",
+			"type": "node",
+			""
+		},
+		{
 			"type": "node",
 			"request": "launch",
 			"name": "Gulp Build",

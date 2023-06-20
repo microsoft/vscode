@@ -982,7 +982,7 @@ class CompletionsAdapter {
 		const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
 		const insertRange = replaceRange.with({ end: pos });
 
-		const sw = new StopWatch(true);
+		const sw = new StopWatch();
 		const itemsOrList = await this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context));
 
 		if (!itemsOrList) {
