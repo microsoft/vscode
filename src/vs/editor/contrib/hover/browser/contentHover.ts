@@ -488,7 +488,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(_contextKeyService);
 
 		dom.append(this._resizableNode.domNode, this._hover.containerDomNode);
-		this._resizableNode.domNode.classList.add('monaco-hover');
+		this._resizableNode.domNode.style.zIndex = '50';
 
 		this._disposableStore.add(this._editor.onDidLayoutChange(() => this._layout()));
 		this._disposableStore.add(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {

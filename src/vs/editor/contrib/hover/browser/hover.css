@@ -7,26 +7,26 @@
 	background-color: var(--vscode-editor-hoverHighlightBackground);
 }
 
-.monaco-editor .monaco-hover-container {
+.monaco-editor .monaco-hover {
 	color: var(--vscode-editorHoverWidget-foreground);
 	background-color: var(--vscode-editorHoverWidget-background);
 	border: 1px solid var(--vscode-editorHoverWidget-border);
 	border-radius: 3px;
 }
 
-.monaco-editor .monaco-hover-container a {
+.monaco-editor .monaco-hover a {
 	color: var(--vscode-textLink-foreground);
 }
 
-.monaco-editor .monaco-hover-container a:hover {
+.monaco-editor .monaco-hover a:hover {
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.monaco-editor .monaco-hover-container .hover-row .actions {
+.monaco-editor .monaco-hover .hover-row .actions {
 	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
 }
 
-.monaco-editor .monaco-hover-container code {
+.monaco-editor .monaco-hover code {
 	background-color: var(--vscode-textCodeBlock-background);
 }
 

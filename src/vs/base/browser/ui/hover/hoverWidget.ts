@@ -26,7 +26,7 @@ export class HoverWidget extends Disposable {
 		super();
 
 		this.containerDomNode = document.createElement('div');
-		this.containerDomNode.className = 'monaco-hover-container';
+		this.containerDomNode.className = 'monaco-hover';
 		this.containerDomNode.tabIndex = 0;
 		this.containerDomNode.setAttribute('role', 'tooltip');
 
