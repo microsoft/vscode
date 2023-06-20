@@ -90,8 +90,6 @@ export class MdDocumentRenderer {
 			return { html: '', containingImages: new Set() };
 		}
 
-
-		const isWeb = (typeof navigator === 'object' && navigator.userAgent);
 		const html = `<!DOCTYPE html>
 			<html style="${escapeAttribute(this._getSettingsOverrideStyles(config))}">
 			<head>
