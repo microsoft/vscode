@@ -8,10 +8,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { clamp } from 'vs/base/common/numbers';
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import * as dom from 'vs/base/browser/dom';
 
-const HEADER_HEIGHT = 30;
+const TOP_HEIGHT = 30;
+const BOTTOM_HEIGHT = 24;
 const MIN_HEIGHT = 24;
 
 export abstract class ResizableContentWidget extends Disposable implements IContentWidget {
@@ -58,6 +59,10 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 		return this._contentPosition;
 	}
 
+	get position(): Position | undefined {
+		return this._contentPosition?.position ? Position.lift(this._contentPosition.position) : undefined;
+	}
+
 	protected _availableVerticalSpaceAbove(position: IPosition): number | undefined {
 		const editorDomNode = this._editor.getDomNode();
 		const mouseBox = this._editor.getScrolledVisiblePosition(position);
@@ -65,7 +70,7 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 			return;
 		}
 		const editorBox = dom.getDomNodePagePosition(editorDomNode);
-		return editorBox.top + mouseBox.top - HEADER_HEIGHT;
+		return editorBox.top + mouseBox.top - TOP_HEIGHT;
 	}
 
 	protected _availableVerticalSpaceBelow(position: IPosition): number | undefined {
@@ -77,7 +82,7 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 		const editorBox = dom.getDomNodePagePosition(editorDomNode);
 		const bodyBox = dom.getClientArea(document.body);
 		const mouseBottom = editorBox.top + mouseBox.top + mouseBox.height;
-		return bodyBox.height - mouseBottom;
+		return bodyBox.height - mouseBottom - BOTTOM_HEIGHT;
 	}
 
 	protected _findPositionPreference(widgetHeight: number, showAtPosition: IPosition): ContentWidgetPositionPreference | undefined {

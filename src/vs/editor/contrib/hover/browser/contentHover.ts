@@ -9,7 +9,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -452,7 +452,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _visibleData: ContentHoverVisibleData | undefined;
 	private _positionPreference: ContentWidgetPositionPreference | undefined;
-	private _position: Position | undefined;
 
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
@@ -468,14 +467,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	public get isVisible(): boolean {
 		return this._hoverVisibleKey.get() ?? false;
-	}
-
-	get position(): Position | undefined {
-		return this._position;
-	}
-
-	set position(position: Position | undefined) {
-		this._position = position;
 	}
 
 	constructor(
@@ -504,6 +495,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		}));
 		this._setHoverData(undefined);
 		this._layout();
+		this._editor.addContentWidget(this);
 	}
 
 	public override dispose(): void {
@@ -643,7 +635,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _setHoverData(hoverData: ContentHoverVisibleData | undefined): void {
-		this._position = hoverData?.showAtPosition;
 		this._visibleData?.disposables.dispose();
 		this._visibleData = hoverData;
 		this._hoverVisibleKey.set(!!hoverData);
@@ -687,9 +678,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _render(node: DocumentFragment, hoverData: ContentHoverVisibleData) {
-		if (!this._hoverVisibleKey.get()) {
-			this._editor.addContentWidget(this);
-		}
 		this._setHoverData(hoverData);
 		this._updateFont();
 		this._updateContent(node);
@@ -700,12 +688,15 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._editor.render();
 	}
 
-	private _setContentPosition(hoverData: ContentHoverVisibleData, preference?: ContentWidgetPositionPreference) {
-		this._contentPosition = {
-			position: hoverData.showAtPosition,
-			secondaryPosition: hoverData.showAtSecondaryPosition,
-			positionAffinity: hoverData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined,
-			preference: [preference ?? ContentWidgetPositionPreference.ABOVE]
+	override getPosition(): IContentWidgetPosition | null {
+		if (!this._visibleData) {
+			return null;
+		}
+		return {
+			position: this._visibleData.showAtPosition,
+			secondaryPosition: this._visibleData.showAtSecondaryPosition,
+			positionAffinity: this._visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined,
+			preference: [this._positionPreference ?? ContentWidgetPositionPreference.ABOVE]
 		};
 	}
 
@@ -713,12 +704,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
-		this._setContentPosition(hoverData);
 		this._render(node, hoverData);
 		const widgetHeight = this._getWidgetHeight();
 		const widgetPosition = hoverData.showAtPosition;
 		this._positionPreference = this._findPositionPreference(widgetHeight, widgetPosition) ?? ContentWidgetPositionPreference.ABOVE;
-		this._setContentPosition(hoverData, this._positionPreference);
 
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
@@ -733,13 +722,13 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!this._visibleData) {
 			return;
 		}
+		const stoleFocus = this._visibleData.stoleFocus;
 		this._setHoverData(undefined);
 		this._resizableNode.maxSize = new dom.Dimension(Infinity, Infinity);
 		this._resizableNode.clearSashHoverState();
-		this._editor.removeContentWidget(this);
 		this._hoverFocusedKey.set(false);
 		this._editor.layoutContentWidget(this);
-		if (this._visibleData.stoleFocus) {
+		if (stoleFocus) {
 			this._editor.focus();
 		}
 	}

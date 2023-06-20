@@ -32,6 +32,11 @@ import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
 
+// sticky suggest widget which doesn't disappear on focus out and such
+const _sticky = false
+	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
+	;
+
 export class ModesHoverController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.hover';
@@ -138,7 +143,9 @@ export class ModesHoverController implements IEditorContribution {
 			// when the mouse is inside hover widget
 			return;
 		}
-		this._hideWidgets();
+		if (!_sticky) {
+			this._hideWidgets();
+		}
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
@@ -177,7 +184,7 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (!this._isHoverEnabled) {
+		if (!this._isHoverEnabled && !_sticky) {
 			this._hideWidgets();
 			return;
 		}
@@ -197,7 +204,7 @@ export class ModesHoverController implements IEditorContribution {
 			this._glyphWidget.startShowingAt(target.position.lineNumber);
 			return;
 		}
-		if (!this._contentWidget?.widget.isResizing) {
+		if (!this._contentWidget?.widget.isResizing && !_sticky) {
 			this._hideWidgets();
 		}
 	}
@@ -219,6 +226,9 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
+		if (_sticky) {
+			return;
+		}
 		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible()) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
