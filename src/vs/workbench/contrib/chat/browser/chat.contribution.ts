@@ -41,6 +41,7 @@ import { AccessibilityViewAction } from 'vs/workbench/contrib/accessibility/brow
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -157,7 +158,7 @@ class ChatAccessibleViewContribution extends Disposable {
 			});
 			accessibleViewService.show('panelChat');
 			return true;
-		}));
+		}, CONTEXT_IN_CHAT_SESSION));
 	}
 }
 

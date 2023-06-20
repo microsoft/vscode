@@ -27,22 +27,18 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const $ = dom.$;
 
-export interface IHoverElementInfo {
-	dimensions?: { width: number; height: number }; content?: string;
-}
-
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
 
 	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
 
-	getWidgetInfo(): IHoverElementInfo | undefined {
+	getWidgetContent(): string | undefined {
 		const node = this._widget.getDomNode();
 		if (!node.textContent) {
 			return undefined;
 		}
-		return { content: node.textContent, dimensions: { width: node.clientWidth, height: node.clientHeight } };
+		return node.textContent;
 	}
 
 	private readonly _computer: ContentHoverComputer;

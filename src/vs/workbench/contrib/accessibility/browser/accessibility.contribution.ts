@@ -137,22 +137,19 @@ class HoverAccessibleViewContribution extends Disposable {
 				return false;
 			}
 			const controller = ModesHoverController.get(editor);
-			const hoverInfo = withNullAsUndefined(controller?.getWidgetInfo());
-			if (!controller || !hoverInfo?.content) {
+			const content = withNullAsUndefined(controller?.getWidgetContent());
+			if (!controller || !content) {
 				return false;
-			}
-			function provideContent(): string {
-				return hoverInfo?.content!;
 			}
 			const provider = accessibleViewService.registerProvider({
 				id: 'hover',
-				provideContent,
+				provideContent() { return content; },
 				onClose() {
 					provider.dispose();
 					controller.focus();
 				},
 				options: {
-					ariaLabel: localize('hoverAccessibleView', "Hover Accessible View"), language: 'typescript', type: AccessibleViewType.View, dimensions: controller.getWidgetInfo()!.dimensions
+					ariaLabel: localize('hoverAccessibleView', "Hover Accessible View"), language: 'typescript', type: AccessibleViewType.View
 				}
 			});
 			accessibleViewService.show('hover');
