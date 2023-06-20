@@ -174,11 +174,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputEditor.focus();
 	}
 
-	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
+	render(container: HTMLElement, initialValue: string, widget: IChatWidget, inputOnTop: boolean = false) {
 		this.container = dom.append(container, $('.interactive-input-part'));
-		this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
 
-		const inputContainer = dom.append(this.container, $('.interactive-input-and-toolbar'));
+		let inputContainer: HTMLElement;
+		if (inputOnTop) {
+			inputContainer = dom.append(this.container, $('.interactive-input-and-toolbar'));
+			this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
+		} else {
+			this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
+			inputContainer = dom.append(this.container, $('.interactive-input-and-toolbar'));
+		}
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		CONTEXT_IN_CHAT_INPUT.bindTo(inputScopedContextKeyService).set(true);

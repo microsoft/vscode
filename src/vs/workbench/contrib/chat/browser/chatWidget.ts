@@ -62,8 +62,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidChangeViewModel = this._register(new Emitter<void>());
 	readonly onDidChangeViewModel = this._onDidChangeViewModel.event;
 
-	private tree!: WorkbenchObjectTree<ChatTreeItem>;
-	private renderer!: ChatListItemRenderer;
+	tree!: WorkbenchObjectTree<ChatTreeItem>;
+	renderer!: ChatListItemRenderer;
 
 	private inputPart!: ChatInputPart;
 	private editorOptions!: ChatEditorOptions;
@@ -137,14 +137,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.inputPart.inputUri;
 	}
 
-	render(parent: HTMLElement): void {
+	render(parent: HTMLElement, inputOnTop: boolean = false): void {
 		this.container = dom.append(parent, $('.interactive-session'));
-		this.listContainer = dom.append(this.container, $(`.interactive-list`));
 
 		const viewId = 'viewId' in this.viewContext ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(ChatEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
-		this.createList(this.listContainer);
-		this.createInput(this.container);
+		if (inputOnTop) {
+			this.createInput(this.container, inputOnTop);
+			this.listContainer = dom.append(this.container, $(`.interactive-list`));
+			this.createList(this.listContainer);
+		} else {
+			this.listContainer = dom.append(this.container, $(`.interactive-list`));
+			this.createList(this.listContainer);
+			this.createInput(this.container);
+		}
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
 		this.onDidStyleChange();
@@ -329,9 +335,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.previousTreeScrollHeight = this.tree.scrollHeight;
 	}
 
-	private createInput(container: HTMLElement): void {
+	private createInput(container: HTMLElement, inputOnTop: boolean = false): void {
 		this.inputPart = this.instantiationService.createInstance(ChatInputPart);
-		this.inputPart.render(container, '', this);
+		this.inputPart.render(container, '', this, inputOnTop);
 
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
 		this._register(this.inputPart.onDidAcceptFollowup(followup => this.acceptInput(followup)));
