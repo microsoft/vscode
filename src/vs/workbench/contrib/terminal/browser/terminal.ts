@@ -157,6 +157,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	configHelper: ITerminalConfigHelper;
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
+	readonly whenConnected: Promise<void>;
 	readonly defaultLocation: TerminalLocation;
 
 	onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
