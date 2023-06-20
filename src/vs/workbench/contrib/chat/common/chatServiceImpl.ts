@@ -20,13 +20,11 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IViewsService } from 'vs/workbench/common/views';
-// import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ChatModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatService, IChatUserActionEvent, ISlashCommand, ISlashCommandProvider, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -127,6 +125,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _hasProvider: IContextKey<boolean>;
 
 	private _transferred: ISerializableChatData | undefined;
+	public get transferredSessionId(): string | undefined {
+		return this._transferred?.sessionId;
+	}
 
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
@@ -139,8 +140,7 @@ export class ChatService extends Disposable implements IChatService {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IChatContributionService private readonly chatContribService: IChatContributionService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -341,6 +341,10 @@ export class ChatService extends Disposable implements IChatService {
 		const sessionData = this._persistedSessions[sessionId];
 		if (!sessionData) {
 			return undefined;
+		}
+
+		if (sessionId === this.transferredSessionId) {
+			this._transferred = undefined;
 		}
 
 		return this._startSession(sessionData.providerId, sessionData, CancellationToken.None);
@@ -603,15 +607,6 @@ export class ChatService extends Disposable implements IChatService {
 		this._providers.set(provider.id, provider);
 		this._hasProvider.set(true);
 
-		if (this._transferred && this._transferred.providerId === provider.id) {
-			const id = this.chatContribService.getViewIdForProvider(this._transferred.providerId);
-			// layer-breaker
-			this.viewsService.openView(id).then(view => {
-				(view as any).loadSession(this._transferred!.sessionId);
-				this._transferred = undefined;
-			});
-		}
-
 		return toDisposable(() => {
 			this.trace('registerProvider', `Disposing chat provider`);
 			this._providers.delete(provider.id);
@@ -652,5 +647,11 @@ export class ChatService extends Disposable implements IChatService {
 
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this.trace('transferChatSession', `Transferred session ${model.sessionId} to workspace ${toWorkspace.toString()}`);
+
+		this.hostService.openWindow([{ workspaceUri: toWorkspace }]).catch(() => {
+			// If opening the workspace fails, clean up to avoid abandoned interactive sessions
+			const removedFailedRawEntry = this.storageService.getObject<IChatTransfer[]>(globalChatKey, StorageScope.PROFILE, []).filter((transfer) => URI.revive(transfer.toWorkspace).toString() !== toWorkspace.toString());
+			this.storageService.store(globalChatKey, removedFailedRawEntry, StorageScope.PROFILE, StorageTarget.MACHINE);
+		});
 	}
 }
