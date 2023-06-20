@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { clamp } from 'vs/base/common/numbers';
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IPosition } from 'vs/editor/common/core/position';
 import * as dom from 'vs/base/browser/dom';
 
 const HEADER_HEIGHT = 30;
@@ -21,7 +21,6 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 
 	protected readonly _resizableNode = this._register(new ResizableHTMLElement());
 	protected _contentPosition: IContentWidgetPosition | null = null;
-	protected _position: Position | undefined;
 
 	private _isResizing: boolean = false;
 
@@ -57,14 +56,6 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 
 	getPosition(): IContentWidgetPosition | null {
 		return this._contentPosition;
-	}
-
-	get position(): Position | undefined {
-		return this._position;
-	}
-
-	set position(position: Position | undefined) {
-		this._position = position;
 	}
 
 	protected _availableVerticalSpaceAbove(position: IPosition): number | undefined {

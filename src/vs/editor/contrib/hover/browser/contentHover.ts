@@ -453,6 +453,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	private _disposableStore = new DisposableStore();
 	private _visibleData: ContentHoverVisibleData | undefined;
 	private _positionPreference: ContentWidgetPositionPreference | undefined;
+	private _position: Position | undefined;
 
 	private readonly _hover: HoverWidget = this._disposableStore.add(new HoverWidget());
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
@@ -468,6 +469,14 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	public get isVisible(): boolean {
 		return this._hoverVisibleKey.get() ?? false;
+	}
+
+	get position(): Position | undefined {
+		return this._position;
+	}
+
+	set position(position: Position | undefined) {
+		this._position = position;
 	}
 
 	constructor(
@@ -635,12 +644,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		return true;
 	}
 
-	private _setWidgetPosition(position: Position | undefined) {
-		this._position = position;
-	}
-
 	private _setHoverData(hoverData: ContentHoverVisibleData | undefined): void {
-		this._setWidgetPosition(hoverData?.showAtPosition);
+		this._position = hoverData?.showAtPosition;
 		this._visibleData?.disposables.dispose();
 		this._visibleData = hoverData;
 		this._hoverVisibleKey.set(!!hoverData);
