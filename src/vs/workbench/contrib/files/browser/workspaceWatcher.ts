@@ -14,7 +14,7 @@ import { INotificationService, Severity, NeverShowAgainScope, NotificationPriori
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { isAbsolute } from 'vs/base/common/path';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 
 export class WorkspaceWatcher extends Disposable {

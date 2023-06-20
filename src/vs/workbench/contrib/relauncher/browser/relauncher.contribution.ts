@@ -7,7 +7,7 @@ import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/l
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWindowsConfiguration, IWindowSettings } from 'vs/platform/window/common/window';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';

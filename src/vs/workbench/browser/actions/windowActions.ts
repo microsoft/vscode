@@ -26,7 +26,7 @@ import { splitRecentLabel } from 'vs/base/common/labels';
 import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { ResourceMap } from 'vs/base/common/map';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';

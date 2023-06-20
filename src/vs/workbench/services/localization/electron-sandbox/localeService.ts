@@ -18,7 +18,7 @@ import { toAction } from 'vs/base/common/actions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { stripComments } from 'vs/base/common/stripComments';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';

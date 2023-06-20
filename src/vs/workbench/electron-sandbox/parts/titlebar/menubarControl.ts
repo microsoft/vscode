@@ -21,7 +21,7 @@ import { IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu
 import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';

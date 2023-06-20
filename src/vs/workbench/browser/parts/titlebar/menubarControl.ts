@@ -30,7 +30,7 @@ import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { isFullscreen } from 'vs/base/browser/browser';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';

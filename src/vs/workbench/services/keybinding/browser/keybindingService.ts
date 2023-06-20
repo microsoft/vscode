@@ -47,7 +47,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { commandsExtensionPoint } from 'vs/workbench/services/actions/common/menusExtensionPoint';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { IKeyboard, INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
 import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
 import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';

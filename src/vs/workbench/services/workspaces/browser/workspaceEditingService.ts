@@ -13,7 +13,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/abstractWorkspaceEditingService';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';

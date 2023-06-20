@@ -15,7 +15,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
 import { INotificationHandle, INotificationService, IPromptChoice, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';

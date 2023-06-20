@@ -52,7 +52,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { localize } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { BrowserWindow } from 'vs/workbench/browser/window';

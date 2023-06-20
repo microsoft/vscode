@@ -47,7 +47,7 @@ import { IUserDataSyncWorkbenchService, getSyncAreaLabel, AccountStatus, CONTEXT
 import { Codicon } from 'vs/base/common/codicons';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ctxIsMergeResultEditor, ctxMergeBaseUri } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';

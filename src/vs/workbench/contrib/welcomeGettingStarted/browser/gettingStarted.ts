@@ -32,7 +32,7 @@ import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from 'vs/pla
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { splitRecentLabel } from 'vs/base/common/labels';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { isMacintosh } from 'vs/base/common/platform';
 import { Delayer, Throttler } from 'vs/base/common/async';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';

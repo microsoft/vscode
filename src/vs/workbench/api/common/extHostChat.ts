@@ -62,7 +62,7 @@ export class ExtHostChat implements ExtHostChatShape {
 	}
 
 	transferChatSession(session: vscode.InteractiveSession, newWorkspace: vscode.Uri): void {
-		const sessionId = Iterable.find(this._chatSessions.keys(), key => this._chatSessions.get(key) === session);
+		const sessionId = Iterable.find(this._chatSessions.keys(), key => this._chatSessions.get(key) === session) ?? 0;
 		if (typeof sessionId !== 'number') {
 			return;
 		}

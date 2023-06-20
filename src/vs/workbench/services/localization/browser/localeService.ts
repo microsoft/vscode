@@ -8,7 +8,7 @@ import { Language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ILanguagePackItem } from 'vs/platform/languagePacks/common/languagePacks';
 import { IActiveLanguagePackService, ILocaleService } from 'vs/workbench/services/localization/common/locale';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';

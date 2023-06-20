@@ -18,7 +18,7 @@ import { osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/te
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

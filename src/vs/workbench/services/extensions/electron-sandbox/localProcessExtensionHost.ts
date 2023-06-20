@@ -38,7 +38,7 @@ import { MessagePortExtHostConnection, writeExtHostConnection } from 'vs/workben
 import { IExtensionHostInitData, MessageType, NativeLogMarkers, UIKind, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { LocalProcessRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 

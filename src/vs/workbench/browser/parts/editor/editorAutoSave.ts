@@ -6,7 +6,7 @@
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IFilesConfigurationService, AutoSaveMode, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { SaveReason, IEditorIdentifier, GroupIdentifier, ISaveOptions, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';

@@ -18,7 +18,7 @@ import { basename, dirname, joinPath } from 'vs/base/common/resources';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';

@@ -22,7 +22,7 @@ import { QuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { PlatformToString, isWeb, platform } from 'vs/base/common/platform';
 import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';

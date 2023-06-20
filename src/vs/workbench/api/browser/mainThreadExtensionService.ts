@@ -27,7 +27,7 @@ import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/servi
 import { ActivationKind, ExtensionActivationReason, IExtensionService, IInternalExtensionService, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer, IExtHostContext, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostService } from 'vs/workbench/services/host/common/host';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
