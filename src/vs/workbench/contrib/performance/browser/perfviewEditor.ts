@@ -236,7 +236,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 				md.value += `${name}\t${startTime}\t${delta}\t${total}\n`;
 				lastStartTime = startTime;
 			}
-			md.value += '```\n\n';
+			md.value += '```\n';
 		}
 	}
 
