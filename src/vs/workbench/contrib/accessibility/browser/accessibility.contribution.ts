@@ -59,7 +59,6 @@ class AccessibilityHelpProvider extends Disposable implements IAccessibleContent
 	provideContent(): string {
 		const options = this._editor.getOptions();
 		const content = [];
-		content.push(AccessibilityHelpNLS.accessibilityHelpTitle);
 
 		if (options.get(EditorOption.inDiffEditor)) {
 			if (options.get(EditorOption.readOnly)) {
@@ -105,7 +104,7 @@ class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
 	constructor() {
 		super();
-		this._register(AccessibilityHelpAction.addImplementation(100, 'editor', async accessor => {
+		this._register(AccessibilityHelpAction.addImplementation(95, 'editor', async accessor => {
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const instantiationService = accessor.get(IInstantiationService);
