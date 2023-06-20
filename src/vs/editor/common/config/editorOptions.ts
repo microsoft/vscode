@@ -3482,13 +3482,7 @@ class ReadonlyMessage extends BaseEditorOption<EditorOption.readOnlyMessage, IMa
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
-		const input = _input as IMarkdownString;
-		return {
-			value: input.value,
-			isTrusted: typeof input.isTrusted === 'boolean' ? boolean(input.isTrusted, false) : input.isTrusted,
-			supportThemeIcons: input.supportThemeIcons,
-			supportHtml: input.supportHtml
-		};
+		return _input as IMarkdownString;
 	}
 }
 
