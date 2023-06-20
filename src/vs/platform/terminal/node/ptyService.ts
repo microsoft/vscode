@@ -68,22 +68,31 @@ export class PtyService extends Disposable implements IPtyService {
 	private readonly _autoReplies: Map<string, string> = new Map();
 
 	private readonly _onHeartbeat = this._register(new Emitter<void>());
-	readonly onHeartbeat = this._onHeartbeat.event;
+	readonly onHeartbeat = this._traceEvent('_onHeartbeat', this._onHeartbeat.event);
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number; event: IProcessDataEvent | string }>());
-	readonly onProcessData = this._onProcessData.event;
+	readonly onProcessData = this._traceEvent('_onProcessData', this._onProcessData.event);
 	private readonly _onProcessReplay = this._register(new Emitter<{ id: number; event: IPtyHostProcessReplayEvent }>());
-	readonly onProcessReplay = this._onProcessReplay.event;
+	readonly onProcessReplay = this._traceEvent('_onProcessReplay', this._onProcessReplay.event);
 	private readonly _onProcessReady = this._register(new Emitter<{ id: number; event: IProcessReadyEvent }>());
-	readonly onProcessReady = this._onProcessReady.event;
+	readonly onProcessReady = this._traceEvent('_onProcessReady', this._onProcessReady.event);
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number; event: number | undefined }>());
-	readonly onProcessExit = this._onProcessExit.event;
+	readonly onProcessExit = this._traceEvent('_onProcessExit', this._onProcessExit.event);
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
-	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
+	readonly onProcessOrphanQuestion = this._traceEvent('_onProcessOrphanQuestion', this._onProcessOrphanQuestion.event);
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
-	readonly onDidRequestDetach = this._onDidRequestDetach.event;
+	readonly onDidRequestDetach = this._traceEvent('_onDidRequestDetach', this._onDidRequestDetach.event);
 	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number; property: IProcessProperty<any> }>());
-	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	readonly onDidChangeProperty = this._traceEvent('_onDidChangeProperty', this._onDidChangeProperty.event);
+
+	private _traceEvent<T>(name: string, event: Event<T>): Event<T> {
+		event(e => {
+			if (this._logService.getLevel() === LogLevel.Trace) {
+				this._logService.trace(`[RPC Event] PtyService#${name}.fire(${JSON.stringify(e)})`);
+			}
+		});
+		return event;
+	}
 
 	@memoize
 	get traceRpcArgs(): { logService: ILogService; simulatedLatency: number } {
