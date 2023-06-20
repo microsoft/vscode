@@ -1251,6 +1251,11 @@ export class CodeApplication extends Disposable {
 
 		// Crash reporter
 		this.updateCrashReporterEnablement();
+
+		if (app.runningUnderARM64Translation) {
+			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
+		}
+
 	}
 
 	private async installMutex(): Promise<void> {
