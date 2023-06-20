@@ -22,7 +22,7 @@ import { registerChatExecuteActions } from 'vs/workbench/contrib/chat/browser/ac
 import { registerChatQuickQuestionActions } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { registerChatTitleActions } from 'vs/workbench/contrib/chat/browser/actions/chatTitleActions';
 import { registerChatExportActions } from 'vs/workbench/contrib/chat/browser/actions/chatImportExport';
-import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatContributionService } from 'vs/workbench/contrib/chat/browser/chatContributionServiceImpl';
 import { ChatEditor, IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput, ChatEditorInputSerializer } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
@@ -128,30 +128,29 @@ class ChatAccessibleViewContribution extends Disposable {
 			const widgetService = accessor.get(IChatWidgetService);
 			const editorUri = editor?.getModel()?.uri;
 			const widget: IChatWidget | undefined = widgetService.lastFocusedWidget;
-			const focused = widget?.getFocus();
-			if (!widget || !focused) {
+			const focusedItem: ChatTreeItem | undefined = widget?.getFocus();
+			if (!widget || !focusedItem) {
 				return false;
 			}
-			function provideContent(): string {
-				if (!widget) {
-					return 'No response data';
-				}
-				const curCodeBlockInfo = editorUri ? widget.getCodeBlockInfoForEditor(editorUri) : undefined;
-
-				const currentResponse = curCodeBlockInfo ?
-					curCodeBlockInfo.element :
-					(focused ?? widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item)));
-				if (!currentResponse) {
-					return 'No response data';
-				}
-				// TODO: allow this for requests
-				return isResponseVM(currentResponse) ? currentResponse.response.value : 'No response data';
+			const codeBlockInfo = editorUri ? widget!.getCodeBlockInfoForEditor(editorUri) : undefined;
+			let responseItem: ChatTreeItem | undefined;
+			if (codeBlockInfo) {
+				responseItem = codeBlockInfo.element;
+			} else {
+				responseItem = widget!.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item));
+			}
+			if (!isResponseVM(responseItem)) {
+				return false;
+			}
+			const responseContent = responseItem?.response.value;
+			if (!responseContent) {
+				return false;
 			}
 			const provider = accessibleViewService.registerProvider({
 				id: 'panelChat',
-				provideContent,
+				provideContent(): string { return responseContent; },
 				onClose() {
-					widget.reveal(focused, true);
+					widget.reveal(focusedItem, true);
 					provider.dispose();
 				},
 				options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript', type: AccessibleViewType.View }
