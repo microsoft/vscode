@@ -105,7 +105,7 @@
 }
 
 .monaco-hover .monaco-tokenized-source {
-white-space: pre-wrap;
+	white-space: pre-wrap;
 }
 
 .monaco-hover .hover-row.status-bar {
