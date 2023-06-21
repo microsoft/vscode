@@ -19,7 +19,6 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
@@ -33,11 +32,13 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	private readonly _onDidSave = this._register(new Emitter<IStoredFileWorkingCopySaveEvent>());
 	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
 	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
+	private readonly _onDidRevertUntitled = this._register(new Emitter<void>());
 
 	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
 	readonly onDidSave: Event<IStoredFileWorkingCopySaveEvent> = this._onDidSave.event;
 	readonly onDidChangeOrphaned: Event<void> = this._onDidChangeOrphaned.event;
 	readonly onDidChangeReadonly: Event<void> = this._onDidChangeReadonly.event;
+	readonly onDidRevertUntitled: Event<void> = this._onDidRevertUntitled.event;
 
 	private _workingCopy?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>;
 	private readonly _workingCopyListeners = this._register(new DisposableStore());
@@ -48,7 +49,6 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		private readonly _hasAssociatedFilePath: boolean,
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
-		@ILifecycleService lifecycleService: ILifecycleService,
 		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
@@ -119,6 +119,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				} else {
 					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource, isScratchpad: this.scratchPad });
 				}
+				this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire());
 			} else {
 				this._workingCopy = await this._workingCopyManager.resolve(this.resource, options?.forceReadFromFile ? { reload: { async: false, force: true } } : undefined);
 				this._workingCopyListeners.add(this._workingCopy.onDidSave(e => this._onDidSave.fire(e)));
