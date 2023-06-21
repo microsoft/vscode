@@ -50,34 +50,78 @@ export function joinSequenceDiffs(sequence1: ISequence, sequence2: ISequence, se
 		result.push(sequenceDiffs[0]);
 	}
 
+	// First move them all to the left as much as possible and join them if possible
 	for (let i = 1; i < sequenceDiffs.length; i++) {
-		const lastResult = result[result.length - 1];
-		const cur = sequenceDiffs[i];
+		const prevResult = sequenceDiffs[i - 1];
+		let cur = sequenceDiffs[i];
 
-		if (cur.seq1Range.isEmpty) {
-			let all = true;
-			const length = cur.seq1Range.start - lastResult.seq1Range.endExclusive;
-			for (let i = 1; i <= length; i++) {
-				if (sequence2.getElement(cur.seq2Range.start - i) !== sequence2.getElement(cur.seq2Range.endExclusive - i)) {
-					all = false;
+		if (cur.seq1Range.isEmpty || cur.seq2Range.isEmpty) {
+			const length = cur.seq1Range.start - prevResult.seq1Range.endExclusive;
+			let d;
+			for (d = 1; d <= length; d++) {
+				if (
+					sequence1.getElement(cur.seq1Range.start - d) !== sequence1.getElement(cur.seq1Range.endExclusive - d) ||
+					sequence2.getElement(cur.seq2Range.start - d) !== sequence2.getElement(cur.seq2Range.endExclusive - d)) {
 					break;
 				}
 			}
+			d--;
 
-			if (all) {
+			if (d === length) {
 				// Merge previous and current diff
-				result[result.length - 1] = new SequenceDiff(lastResult.seq1Range, new OffsetRange(
-					lastResult.seq2Range.start,
-					cur.seq2Range.endExclusive - length
-				));
+				result[result.length - 1] = new SequenceDiff(
+					new OffsetRange(prevResult.seq1Range.start, cur.seq1Range.endExclusive - length),
+					new OffsetRange(prevResult.seq2Range.start, cur.seq2Range.endExclusive - length),
+				);
 				continue;
 			}
+
+			cur = cur.delta(-d);
 		}
 
 		result.push(cur);
 	}
 
-	return result;
+	const result2: SequenceDiff[] = [];
+	// Then move them all to the right and join them again if possible
+	for (let i = 0; i < result.length - 1; i++) {
+		const nextResult = result[i + 1];
+		let cur = result[i];
+
+		if (cur.seq1Range.isEmpty || cur.seq2Range.isEmpty) {
+			const length = nextResult.seq1Range.start - cur.seq1Range.endExclusive;
+			let d;
+			for (d = 0; d < length; d++) {
+				if (
+					sequence1.getElement(cur.seq1Range.start + d) !== sequence1.getElement(cur.seq1Range.endExclusive + d) ||
+					sequence2.getElement(cur.seq2Range.start + d) !== sequence2.getElement(cur.seq2Range.endExclusive + d)
+				) {
+					break;
+				}
+			}
+
+			if (d === length) {
+				// Merge previous and current diff, write to result!
+				result[i + 1] = new SequenceDiff(
+					new OffsetRange(cur.seq1Range.start + length, nextResult.seq1Range.endExclusive),
+					new OffsetRange(cur.seq2Range.start + length, nextResult.seq2Range.endExclusive),
+				);
+				continue;
+			}
+
+			if (d > 0) {
+				cur = cur.delta(d);
+			}
+		}
+
+		result2.push(cur);
+	}
+
+	if (result.length > 0) {
+		result2.push(result[result.length - 1]);
+	}
+
+	return result2;
 }
 
 // align character level diffs at whitespace characters
@@ -102,37 +146,45 @@ export function shiftSequenceDiffs(sequence1: ISequence, sequence2: ISequence, s
 	}
 
 	for (let i = 0; i < sequenceDiffs.length; i++) {
+		const prevDiff = (i > 0 ? sequenceDiffs[i - 1] : undefined);
 		const diff = sequenceDiffs[i];
+		const nextDiff = (i + 1 < sequenceDiffs.length ? sequenceDiffs[i + 1] : undefined);
+
+		const seq1ValidRange = new OffsetRange(prevDiff ? prevDiff.seq1Range.start + 1 : 0, nextDiff ? nextDiff.seq1Range.endExclusive - 1 : sequence1.length);
+		const seq2ValidRange = new OffsetRange(prevDiff ? prevDiff.seq2Range.start + 1 : 0, nextDiff ? nextDiff.seq2Range.endExclusive - 1 : sequence2.length);
+
 		if (diff.seq1Range.isEmpty) {
-			const seq2PrevEndExclusive = (i > 0 ? sequenceDiffs[i - 1].seq2Range.endExclusive : -1);
-			const seq2NextStart = (i + 1 < sequenceDiffs.length ? sequenceDiffs[i + 1].seq2Range.start : sequence2.length);
-			sequenceDiffs[i] = shiftDiffToBetterPosition(diff, sequence1, sequence2, seq2NextStart, seq2PrevEndExclusive);
+			sequenceDiffs[i] = shiftDiffToBetterPosition(diff, sequence1, sequence2, seq1ValidRange, seq2ValidRange);
 		} else if (diff.seq2Range.isEmpty) {
-			const seq1PrevEndExclusive = (i > 0 ? sequenceDiffs[i - 1].seq1Range.endExclusive : -1);
-			const seq1NextStart = (i + 1 < sequenceDiffs.length ? sequenceDiffs[i + 1].seq1Range.start : sequence1.length);
-			sequenceDiffs[i] = shiftDiffToBetterPosition(diff.reverse(), sequence2, sequence1, seq1NextStart, seq1PrevEndExclusive).reverse();
+			sequenceDiffs[i] = shiftDiffToBetterPosition(diff.reverse(), sequence2, sequence1, seq2ValidRange, seq1ValidRange).reverse();
 		}
 	}
 
 	return sequenceDiffs;
 }
 
-function shiftDiffToBetterPosition(diff: SequenceDiff, sequence1: ISequence, sequence2: ISequence, seq2NextStart: number, seq2PrevEndExclusive: number) {
-	const maxShiftLimit = 20; // To prevent performance issues
+function shiftDiffToBetterPosition(diff: SequenceDiff, sequence1: ISequence, sequence2: ISequence, seq1ValidRange: OffsetRange, seq2ValidRange: OffsetRange,) {
+	const maxShiftLimit = 100; // To prevent performance issues
 
 	// don't touch previous or next!
 	let deltaBefore = 1;
-	while (diff.seq2Range.start - deltaBefore > seq2PrevEndExclusive &&
+	while (
+		diff.seq1Range.start - deltaBefore >= seq1ValidRange.start &&
+		diff.seq2Range.start - deltaBefore >= seq2ValidRange.start &&
 		sequence2.getElement(diff.seq2Range.start - deltaBefore) ===
-		sequence2.getElement(diff.seq2Range.endExclusive - deltaBefore) && deltaBefore < maxShiftLimit) {
+		sequence2.getElement(diff.seq2Range.endExclusive - deltaBefore) && deltaBefore < maxShiftLimit
+	) {
 		deltaBefore++;
 	}
 	deltaBefore--;
 
 	let deltaAfter = 0;
-	while (diff.seq2Range.start + deltaAfter < seq2NextStart &&
+	while (
+		diff.seq1Range.start + deltaAfter < seq1ValidRange.endExclusive &&
+		diff.seq2Range.endExclusive + deltaAfter < seq2ValidRange.endExclusive &&
 		sequence2.getElement(diff.seq2Range.start + deltaAfter) ===
-		sequence2.getElement(diff.seq2Range.endExclusive + deltaAfter) && deltaAfter < maxShiftLimit) {
+		sequence2.getElement(diff.seq2Range.endExclusive + deltaAfter) && deltaAfter < maxShiftLimit
+	) {
 		deltaAfter++;
 	}
 
@@ -158,8 +210,5 @@ function shiftDiffToBetterPosition(diff: SequenceDiff, sequence1: ISequence, seq
 		}
 	}
 
-	if (bestDelta !== 0) {
-		return new SequenceDiff(diff.seq1Range.delta(bestDelta), diff.seq2Range.delta(bestDelta));
-	}
-	return diff;
+	return diff.delta(bestDelta);
 }
