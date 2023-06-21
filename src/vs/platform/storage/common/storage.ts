@@ -118,8 +118,10 @@ export interface IStorageService {
 	 *
 	 * @param target allows to define the target of the storage operation
 	 * to either the current machine or user.
+	 *
+	 * @param source allows to specify the source of the storage change.
 	 */
-	store(key: string, value: string | boolean | number | undefined | null | object, scope: StorageScope, target: StorageTarget, reason?: StorageChangeSource): void;
+	store(key: string, value: string | boolean | number | undefined | null | object, scope: StorageScope, target: StorageTarget, source?: StorageChangeSource): void;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
