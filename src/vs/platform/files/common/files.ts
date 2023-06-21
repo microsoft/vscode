@@ -584,7 +584,6 @@ export const enum FileSystemProviderCapabilities {
 export interface IFileSystemProvider {
 
 	readonly capabilities: FileSystemProviderCapabilities;
-	readonly readOnlyMessage?: IMarkdownString;
 	readonly onDidChangeCapabilities: Event<void>;
 
 	readonly onDidChangeFile: Event<readonly IFileChange[]>;
@@ -686,6 +685,20 @@ export interface IFileSystemProviderWithFileAtomicDeleteCapability extends IFile
 
 export function hasFileAtomicDeleteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicDeleteCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicDelete);
+}
+
+export interface IFileSystemProviderWithReadonlyCapability extends IFileSystemProvider {
+
+	readonly capabilities: FileSystemProviderCapabilities.Readonly & FileSystemProviderCapabilities;
+
+	/**
+	 * An optional message to show in the UI to explain why the file system is readonly.
+	 */
+	readonly readOnlyMessage?: IMarkdownString;
+}
+
+export function hasReadonlyCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithReadonlyCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.Readonly);
 }
 
 export enum FileSystemProviderErrorCode {

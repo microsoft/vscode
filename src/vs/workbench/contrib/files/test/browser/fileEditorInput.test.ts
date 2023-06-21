@@ -70,6 +70,7 @@ suite('Files - FileEditorInput', () => {
 
 		assert.ok(!input.hasCapability(EditorInputCapabilities.Untitled));
 		assert.ok(!input.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(!input.isReadonly());
 		assert.ok(!input.hasCapability(EditorInputCapabilities.Singleton));
 		assert.ok(!input.hasCapability(EditorInputCapabilities.RequiresTrust));
 
@@ -123,6 +124,7 @@ suite('Files - FileEditorInput', () => {
 
 		assert.ok(input.hasCapability(EditorInputCapabilities.Untitled));
 		assert.ok(!input.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(!input.isReadonly());
 	});
 
 	test('reports as readonly with readonly file scheme', async function () {
@@ -136,6 +138,7 @@ suite('Files - FileEditorInput', () => {
 
 			assert.ok(!input.hasCapability(EditorInputCapabilities.Untitled));
 			assert.ok(input.hasCapability(EditorInputCapabilities.Readonly));
+			assert.ok(input.isReadonly());
 		} finally {
 			disposable.dispose();
 		}
@@ -431,6 +434,7 @@ suite('Files - FileEditorInput', () => {
 
 		assert.strictEqual(model.isReadonly(), false);
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(input.isReadonly(), false);
 
 		const stat = await accessor.fileService.resolve(input.resource, { resolveMetadata: true });
 
@@ -441,8 +445,9 @@ suite('Files - FileEditorInput', () => {
 			accessor.fileService.readShouldThrowError = undefined;
 		}
 
-		assert.strictEqual(model.isReadonly(), true);
+		assert.strictEqual(!!model.isReadonly(), true);
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), true);
+		assert.strictEqual(!!input.isReadonly(), true);
 		assert.strictEqual(listenerCount, 1);
 
 		try {
@@ -454,6 +459,7 @@ suite('Files - FileEditorInput', () => {
 
 		assert.strictEqual(model.isReadonly(), false);
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(input.isReadonly(), false);
 		assert.strictEqual(listenerCount, 2);
 
 		input.dispose();

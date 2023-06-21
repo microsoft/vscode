@@ -193,8 +193,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return this.preferredName;
 	}
 
-	override isReadonly(): boolean | IMarkdownString | undefined {
-		return this.model ? this.model.isReadonly() : super.isReadonly();
+	override isReadonly(): boolean | IMarkdownString {
+		return this.model ? this.model.isReadonly() : this.filesConfigurationService.isReadonly(this.resource);
 	}
 
 	override getDescription(verbosity?: Verbosity): string | undefined {
