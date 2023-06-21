@@ -573,8 +573,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	override _resize(size: dom.Dimension) {
 		this._setAdjustedHoverWidgetDimensions(size);
-		this._setResizableNodeMaxDimensions();
 		this._resizableNode.layout(size.height, size.width);
+		this._setResizableNodeMaxDimensions();
 		this._hover.scrollbar.scanDomNode();
 		this._editor.layoutContentWidget(this);
 	}
