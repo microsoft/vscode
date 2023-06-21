@@ -14,7 +14,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IViewsService } from 'vs/workbench/common/views';
 import { VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHostService } from 'vs/workbench/services/host/common/host';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 

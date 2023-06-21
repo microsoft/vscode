@@ -15,7 +15,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITextModel } from 'vs/editor/common/model';
 import { Constants } from 'vs/base/common/uint';
-import { IHostService } from 'vs/workbench/services/host/common/host';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { joinPath } from 'vs/base/common/resources';

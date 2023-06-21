@@ -22,7 +22,7 @@ import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/brow
 import { IProgressService, ProgressLocation, IProgressNotificationOptions, IProgressCompositeOptions } from 'vs/platform/progress/common/progress';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IHostService } from 'vs/workbench/services/host/common/host';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExpression } from 'vs/base/common/glob';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';

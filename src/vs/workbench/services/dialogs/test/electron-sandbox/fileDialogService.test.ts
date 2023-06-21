@@ -27,7 +27,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IHostService } from 'vs/workbench/services/host/common/host';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ISimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';

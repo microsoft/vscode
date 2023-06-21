@@ -16,7 +16,7 @@ import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/u
 import { Action } from 'vs/base/common/actions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IHostService } from 'vs/workbench/services/host/common/host';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { SHOW_SYNC_LOG_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
 
 class UserDataSyncReportIssueContribution extends Disposable implements IWorkbenchContribution {

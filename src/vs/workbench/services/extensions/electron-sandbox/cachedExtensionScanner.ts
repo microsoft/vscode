@@ -13,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IHostService } from 'vs/workbench/services/host/common/host';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { timeout } from 'vs/base/common/async';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { getErrorMessage } from 'vs/base/common/errors';

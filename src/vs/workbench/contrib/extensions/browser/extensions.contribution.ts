@@ -50,7 +50,7 @@ import { IExtensionRecommendationNotificationService } from 'vs/platform/extensi
 import { ExtensionRecommendationNotificationService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationNotificationService';
 import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IHostService } from 'vs/workbench/services/host/common/host';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceContextKey, WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { IAction } from 'vs/base/common/actions';
 import { IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';

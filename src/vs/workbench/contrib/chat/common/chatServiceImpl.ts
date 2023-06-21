@@ -24,7 +24,6 @@ import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatCo
 import { ChatModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatService, IChatUserActionEvent, ISlashCommand, ISlashCommandProvider, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IHostService } from 'vs/workbench/services/host/common/host';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -139,8 +138,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IHostService private readonly hostService: IHostService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		super();
 
@@ -647,11 +645,5 @@ export class ChatService extends Disposable implements IChatService {
 
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this.trace('transferChatSession', `Transferred session ${model.sessionId} to workspace ${toWorkspace.toString()}`);
-
-		this.hostService.openWindow([{ workspaceUri: toWorkspace }]).catch(() => {
-			// If opening the workspace fails, clean up to avoid abandoned interactive sessions
-			const removedFailedRawEntry = this.storageService.getObject<IChatTransfer[]>(globalChatKey, StorageScope.PROFILE, []).filter((transfer) => URI.revive(transfer.toWorkspace).toString() !== toWorkspace.toString());
-			this.storageService.store(globalChatKey, removedFailedRawEntry, StorageScope.PROFILE, StorageTarget.MACHINE);
-		});
 	}
 }

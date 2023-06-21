@@ -6,7 +6,7 @@
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IHostService } from 'vs/workbench/services/host/common/host';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 
 export class DebugTitleContribution implements IWorkbenchContribution {

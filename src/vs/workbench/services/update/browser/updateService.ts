@@ -7,7 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IUpdateService, State, UpdateType } from 'vs/platform/update/common/update';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IHostService } from 'vs/workbench/services/host/common/host';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface IUpdate {

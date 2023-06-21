@@ -16,7 +16,7 @@ import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/window/common/win
 import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
-import { IHostService } from 'vs/workbench/services/host/common/host';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient implements IExtensionHostDebugService {
