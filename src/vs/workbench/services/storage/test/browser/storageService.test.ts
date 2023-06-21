@@ -271,7 +271,7 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 	});
 
 	test('Storage change event', async () => {
-		let storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		const storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
 		let storageChangeEvents: IStorageChangeEvent[] = [];
 		storage.onDidChangeStorage(e => storageChangeEvents.push(e));
 

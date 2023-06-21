@@ -38,13 +38,13 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		// Explicit external source
 		storageService.store('testChange', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE, StorageChangeSource.EXTERNAL);
 		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'testChange');
-		strictEqual(storageValueChangeEvent?.source === StorageChangeSource.EXTERNAL);
+		strictEqual(storageValueChangeEvent?.source, StorageChangeSource.EXTERNAL);
 		storageValueChangeEvents = [];
 
 		// Default source
 		storageService.store('testChange', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'testChange');
-		strictEqual(storageValueChangeEvent?.source === StorageChangeSource.SELF);
+		strictEqual(storageValueChangeEvent?.source, StorageChangeSource.SELF);
 	});
 
 	function storeData(scope: StorageScope): void {
