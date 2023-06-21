@@ -31,14 +31,13 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 	});
 
 	test('Storage change source', () => {
-		let storageValueChangeEvents: IStorageValueChangeEvent[] = [];
+		const storageValueChangeEvents: IStorageValueChangeEvent[] = [];
 		storageService.onDidChangeValue(e => storageValueChangeEvents.push(e));
 
 		// Explicit external source
-		storageService.store('testChange', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE, true);
-		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'testChange');
+		storageService.store('testExternalChange', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE, true);
+		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'testExternalChange');
 		strictEqual(storageValueChangeEvent?.wasChangedExternally, true);
-		storageValueChangeEvents = [];
 
 		// Default source
 		storageService.store('testChange', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE);
