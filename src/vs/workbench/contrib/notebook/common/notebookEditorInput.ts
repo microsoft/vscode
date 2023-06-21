@@ -290,6 +290,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			}
 			this._register(this._editorModelReference.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 			this._register(this._editorModelReference.object.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
+			this._register(this._editorModelReference.object.onDidRevertUntitled(() => this.dispose()));
 			if (this._editorModelReference.object.isDirty()) {
 				this._onDidChangeDirty.fire();
 			}
