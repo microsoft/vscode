@@ -51,6 +51,7 @@ import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xterm
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { mark } from 'vs/base/common/performance';
 
 export class TerminalService implements ITerminalService {
@@ -175,7 +176,8 @@ export class TerminalService implements ITerminalService {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ITimerService private readonly _timerService: ITimerService
 	) {
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 		// the below avoids having to poll routinely.
@@ -285,10 +287,13 @@ export class TerminalService implements ITerminalService {
 		} else {
 			reconnectedPromise = Promise.resolve();
 		}
-		reconnectedPromise.then(() => {
+		reconnectedPromise.then(async () => {
 			this._setConnected();
 			mark('code/terminal/didReconnect');
 			for (const backend of this._terminalInstanceService.getRegisteredBackends()) {
+				mark('code/terminal/willGetPerformanceMarks');
+				this._timerService.setPerformanceMarks(backend.remoteAuthority === undefined ? 'localPtyHost' : 'remotePtyHost', await backend.getPerformanceMarks());
+				mark('code/terminal/didGetPerformanceMarks');
 				backend.setConnected();
 			}
 			this._whenConnected.complete();

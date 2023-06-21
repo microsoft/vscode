@@ -516,3 +516,4 @@ export class ChatWidgetService implements IChatWidgetService {
 		);
 	}
 }
+

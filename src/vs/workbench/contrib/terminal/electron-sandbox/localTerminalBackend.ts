@@ -32,7 +32,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
 import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { mark } from 'vs/base/common/performance';
+import { mark, PerformanceMark } from 'vs/base/common/performance';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { DeferredPromise } from 'vs/base/common/async';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
@@ -217,6 +217,10 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	async listProcesses(): Promise<IProcessDetails[]> {
 		return this._proxy.listProcesses();
+	}
+
+	async getPerformanceMarks(): Promise<PerformanceMark[]> {
+		return this._proxy.getPerformanceMarks();
 	}
 
 	async reduceConnectionGraceTime(): Promise<void> {
