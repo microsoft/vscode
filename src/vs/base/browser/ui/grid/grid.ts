@@ -10,7 +10,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./gridview';
 import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing } from './gridview';
 import type { GridLocation } from 'vs/base/browser/ui/grid/gridview';
-///@ts-ignore
 import type { SplitView, AutoSizing as SplitViewAutoSizing } from 'vs/base/browser/ui/splitview/splitview';
 
 export { IViewSize, LayoutPriority, Orientation, orthogonal } from './gridview';
