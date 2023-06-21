@@ -371,15 +371,10 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					description: {
 						description: 'workbench.action.openLogFile',
 						args: [{
-							name: 'args',
+							name: 'logFile',
 							schema: {
-								type: 'object',
-								properties: {
-									logFile: {
-										description: nls.localize('logFile', "The name of the log file to open, for example \"Extension Host\""),
-										type: 'string'
-									}
-								}
+								markdownDescription: nls.localize('logFile', "The id of the log file to open, for example `\"window\"`. Currently the best way to get this is to get the ID by checking the `workbench.action.output.show.<id>` commands"),
+								type: 'string'
 							}
 						}]
 					},
@@ -394,10 +389,10 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				const entries: IOutputChannelQuickPickItem[] = outputService.getChannelDescriptors().filter(c => c.file && c.log)
 					.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, channel }));
 
-				const argName = args && typeof args === 'object' && 'logFile' in args && typeof args.logFile === 'string' ? args.logFile : undefined;
+				const argName = args && typeof args === 'string' ? args : undefined;
 				let entry: IOutputChannelQuickPickItem | undefined;
 				if (argName) {
-					entry = entries.find(e => e.label === argName);
+					entry = entries.find(e => e.id === argName);
 				}
 				if (!entry) {
 					entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log File") });
