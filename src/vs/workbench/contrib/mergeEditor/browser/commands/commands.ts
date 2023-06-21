@@ -4,18 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { basename } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IResourceMergeEditorInput } from 'vs/workbench/common/editor';
-import { MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IEditorIdentifier, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
+import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { IMergeEditorInputModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges, StorageCloseWithConflicts } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 abstract class MergeEditorAction extends Action2 {
@@ -35,6 +40,41 @@ abstract class MergeEditorAction extends Action2 {
 	}
 
 	abstract runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void;
+}
+
+interface MergeEditorAction2Args {
+	inputModel: IMergeEditorInputModel;
+	viewModel: MergeEditorViewModel;
+	input: MergeEditorInput;
+	editorIdentifier: IEditorIdentifier;
+}
+
+abstract class MergeEditorAction2 extends Action2 {
+	constructor(desc: Readonly<IAction2Options>) {
+		super(desc);
+	}
+
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			const vm = activeEditorPane.viewModel.get();
+			if (!vm) {
+				return;
+			}
+
+			return this.runWithMergeEditor({
+				viewModel: vm,
+				inputModel: activeEditorPane.inputModel.get()!,
+				input: activeEditorPane.input as MergeEditorInput,
+				editorIdentifier: {
+					editor: activeEditorPane.input,
+					groupId: activeEditorPane.group.id,
+				}
+			}, accessor, ...args) as any;
+		}
+	}
+
+	abstract runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: any[]): unknown;
 }
 
 export class OpenMergeEditor extends Action2 {
@@ -181,6 +221,35 @@ export class SetColumnLayout extends Action2 {
 	}
 }
 
+export class ShowNonConflictingChanges extends Action2 {
+	constructor() {
+		super({
+			id: 'merge.showNonConflictingChanges',
+			title: {
+				value: localize('showNonConflictingChanges', 'Show Non-Conflicting Changes'),
+				original: 'Show Non-Conflicting Changes',
+			},
+			toggled: ctxMergeEditorShowNonConflictingChanges.isEqualTo(true),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ctxIsMergeEditor,
+					group: '3_merge',
+					order: 9,
+				},
+			],
+			precondition: ctxIsMergeEditor,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			activeEditorPane.toggleShowNonConflictingChanges();
+		}
+	}
+}
+
 export class ShowHideBase extends Action2 {
 	constructor() {
 		super({
@@ -193,12 +262,11 @@ export class ShowHideBase extends Action2 {
 			menu: [
 				{
 					id: MenuId.EditorTitle,
-					when: ctxIsMergeEditor,
+					when: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorLayout.isEqualTo('columns')),
 					group: '2_merge',
 					order: 9,
 				},
-			],
-			precondition: ctxIsMergeEditor,
+			]
 		});
 	}
 
@@ -206,6 +274,62 @@ export class ShowHideBase extends Action2 {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
 			activeEditorPane.toggleBase();
+		}
+	}
+}
+
+export class ShowHideTopBase extends Action2 {
+	constructor() {
+		super({
+			id: 'merge.showBaseTop',
+			title: {
+				value: localize('layout.showBaseTop', 'Show Base Top'),
+				original: 'Show Base Top',
+			},
+			toggled: ContextKeyExpr.and(ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorLayout.isEqualTo('mixed')),
+					group: '2_merge',
+					order: 10,
+				},
+			],
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			activeEditorPane.toggleShowBaseTop();
+		}
+	}
+}
+
+export class ShowHideCenterBase extends Action2 {
+	constructor() {
+		super({
+			id: 'merge.showBaseCenter',
+			title: {
+				value: localize('layout.showBaseCenter', 'Show Base Center'),
+				original: 'Show Base Center',
+			},
+			toggled: ContextKeyExpr.and(ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop.negate()),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorLayout.isEqualTo('mixed')),
+					group: '2_merge',
+					order: 11,
+				},
+			],
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			activeEditorPane.toggleShowBaseCenter();
 		}
 	}
 }
@@ -265,6 +389,7 @@ export class GoToNextUnhandledConflict extends MergeEditorAction {
 	}
 
 	override runWithViewModel(viewModel: MergeEditorViewModel): void {
+		viewModel.model.telemetry.reportNavigationToNextConflict();
 		viewModel.goToNextModifiedBaseRange(r => !viewModel.model.isHandled(r).get());
 	}
 }
@@ -296,6 +421,7 @@ export class GoToPreviousUnhandledConflict extends MergeEditorAction {
 	}
 
 	override runWithViewModel(viewModel: MergeEditorViewModel): void {
+		viewModel.model.telemetry.reportNavigationToPreviousConflict();
 		viewModel.goToPreviousModifiedBaseRange(r => !viewModel.model.isHandled(r).get());
 	}
 }
@@ -395,6 +521,9 @@ export class CompareInput2WithBaseCommand extends MergeEditorAction {
 }
 
 async function mergeEditorCompare(viewModel: MergeEditorViewModel, editorService: IEditorService, inputNumber: 1 | 2) {
+
+	editorService.openEditor(editorService.activeEditor!, { pinned: true });
+
 	const model = viewModel.model;
 	const base = model.base;
 	const input = inputNumber === 1 ? viewModel.inputCodeEditorView1.editor : viewModel.inputCodeEditorView2.editor;
@@ -504,30 +633,71 @@ export class ResetToBaseAndAutoMergeCommand extends MergeEditorAction {
 	}
 
 	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
-		viewModel.model.resetResultToBaseAndAutoMerge();
+		viewModel.model.reset();
 	}
 }
 
-export class ResetDirtyConflictsToBaseCommand extends MergeEditorAction {
+export class ResetCloseWithConflictsChoice extends Action2 {
 	constructor() {
 		super({
-			id: 'mergeEditor.resetDirtyConflictsToBase',
+			id: 'mergeEditor.resetCloseWithConflictsChoice',
 			category: mergeEditorCategory,
 			title: {
 				value: localize(
-					'mergeEditor.resetDirtyConflictsToBase',
-					'Reset Dirty Conflicts In Result To Base'
+					'mergeEditor.resetChoice',
+					'Reset Choice for \'Close with Conflicts\''
 				),
-				original: 'Reset Dirty Conflicts In Result To Base',
+				original: 'Reset Choice for \'Close with Conflicts\'',
 			},
-			shortTitle: localize('mergeEditor.resetDirtyConflictsToBase.short', 'Reset Dirty Conflicts To Base'),
 			f1: true,
-			precondition: ctxIsMergeEditor,
-			menu: { id: MenuId.MergeInputResultToolbar }
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IStorageService).remove(StorageCloseWithConflicts, StorageScope.PROFILE);
+	}
+}
+
+// this is an API command
+export class AcceptMerge extends MergeEditorAction2 {
+	constructor() {
+		super({
+			id: 'mergeEditor.acceptMerge',
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'mergeEditor.acceptMerge',
+					'Complete Merge'
+				),
+				original: 'Complete Merge',
+			},
+			f1: false,
+			precondition: ctxIsMergeEditor
 		});
 	}
 
-	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
-		viewModel.model.resetDirtyConflictsToBase();
+	override async runWithMergeEditor({ inputModel, editorIdentifier, viewModel }: MergeEditorAction2Args, accessor: ServicesAccessor) {
+		const dialogService = accessor.get(IDialogService);
+		const editorService = accessor.get(IEditorService);
+
+		if (viewModel.model.unhandledConflictsCount.get() > 0) {
+			const { confirmed } = await dialogService.confirm({
+				message: localize('mergeEditor.acceptMerge.unhandledConflicts.message', "Do you want to complete the merge of {0}?", basename(inputModel.resultUri)),
+				detail: localize('mergeEditor.acceptMerge.unhandledConflicts.detail', "The file contains unhandled conflicts."),
+				primaryButton: localize({ key: 'mergeEditor.acceptMerge.unhandledConflicts.accept', comment: ['&& denotes a mnemonic'] }, "&&Complete with Conflicts")
+			});
+
+			if (!confirmed) {
+				return {
+					successful: false
+				};
+			}
+		}
+
+		await inputModel.accept();
+		await editorService.closeEditor(editorIdentifier);
+
+		return {
+			successful: true
+		};
 	}
 }

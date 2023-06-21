@@ -26,20 +26,20 @@ const editorConfiguration: IConfigurationNode = {
 			minimum: 1,
 			markdownDescription: nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when {0} is on.", '`#editor.detectIndentation#`')
 		},
-		// 'editor.indentSize': {
-		// 	'anyOf': [
-		// 		{
-		// 			type: 'string',
-		// 			enum: ['tabSize']
-		// 		},
-		// 		{
-		// 			type: 'number',
-		// 			minimum: 1
-		// 		}
-		// 	],
-		// 	default: 'tabSize',
-		// 	markdownDescription: nls.localize('indentSize', "The number of spaces used for indentation or 'tabSize' to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
-		// },
+		'editor.indentSize': {
+			'anyOf': [
+				{
+					type: 'string',
+					enum: ['tabSize']
+				},
+				{
+					type: 'number',
+					minimum: 1
+				}
+			],
+			default: 'tabSize',
+			markdownDescription: nls.localize('indentSize', "The number of spaces used for indentation or `\"tabSize\"` to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
+		},
 		'editor.insertSpaces': {
 			type: 'boolean',
 			default: EDITOR_MODEL_DEFAULTS.insertSpaces,
@@ -88,12 +88,28 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.stablePeek': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('stablePeek', "Keep peek editors open even when double clicking their content or when hitting `Escape`.")
+			markdownDescription: nls.localize('stablePeek', "Keep peek editors open even when double-clicking their content or when hitting `Escape`.")
 		},
 		'editor.maxTokenizationLineLength': {
 			type: 'integer',
 			default: 20_000,
 			description: nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
+		},
+		'editor.experimental.asyncTokenization': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('editor.experimental.asyncTokenization', "Controls whether the tokenization should happen asynchronously on a web worker."),
+			tags: ['experimental'],
+		},
+		'editor.experimental.asyncTokenizationLogging': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('editor.experimental.asyncTokenizationLogging', "Controls whether async tokenization should be logged. For debugging only."),
+		},
+		'editor.experimental.asyncTokenizationVerification': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('editor.experimental.asyncTokenizationVerification', "Controls whether async tokenization should be verified against legacy background tokenization. Might slow down tokenization. For debugging only."),
 		},
 		'editor.language.brackets': {
 			type: ['array', 'null'],
@@ -178,13 +194,29 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'diffEditor.diffAlgorithm': {
 			type: 'string',
-			enum: ['smart', 'experimental'],
-			default: 'smart',
+			enum: ['legacy', 'advanced'],
+			default: 'legacy',
 			markdownEnumDescriptions: [
-				nls.localize('diffAlgorithm.smart', "Uses the default diffing algorithm."),
-				nls.localize('diffAlgorithm.experimental', "Uses an experimental diffing algorithm."),
-			]
+				nls.localize('diffAlgorithm.legacy', "Uses the legacy diffing algorithm."),
+				nls.localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
+			],
+			tags: ['experimental'],
 		},
+		'diffEditor.experimental.collapseUnchangedRegions': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('collapseUnchangedRegions', "Controls whether the diff editor shows unchanged regions. Only works when 'diffEditor.experimental.useVersion2' is set."),
+		},
+		'diffEditor.experimental.showMoves': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('showMoves', "Controls whether the diff editor should show detected code moves. Only works when 'diffEditor.experimental.useVersion2' is set."),
+		},
+		'diffEditor.experimental.useVersion2': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('useVersion2', "Controls whether the diff editor uses the new or the old implementation."),
+		}
 	}
 };
 

@@ -5,9 +5,9 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 
-export class CollapsedCellInput extends CellPart {
+export class CollapsedCellInput extends CellContentPart {
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		cellInputCollapsedContainer: HTMLElement,

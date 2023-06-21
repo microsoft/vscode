@@ -9,7 +9,6 @@ import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 
 import { promisify } from 'util';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { dirname, join, resolve } from 'vs/base/common/path';
@@ -31,7 +30,6 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
@@ -41,6 +39,8 @@ import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/worksp
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
+import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -51,7 +51,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
@@ -160,7 +159,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				gotoLineMode: options.gotoLineMode,
 				noRecentEntry: options.noRecentEntry,
 				waitMarkerFileURI: options.waitMarkerFileURI,
-				remoteAuthority: options.remoteAuthority || undefined
+				remoteAuthority: options.remoteAuthority || undefined,
+				forceProfile: options.forceProfile,
+				forceTempProfile: options.forceTempProfile,
 			});
 		}
 	}
@@ -283,16 +284,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			}
 
 			const { response } = await this.showMessageBox(windowId, {
-				title: this.productService.nameLong,
 				type: 'info',
 				message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
 				buttons: [
-					mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
-					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
-				],
-				noLink: true,
-				defaultId: 0,
-				cancelId: 1
+					localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+					localize('cancel', "Cancel")
+				]
 			});
 
 			if (response === 0 /* OK */) {
@@ -315,16 +312,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			switch (error.code) {
 				case 'EACCES': {
 					const { response } = await this.showMessageBox(windowId, {
-						title: this.productService.nameLong,
 						type: 'info',
 						message: localize('warnEscalationUninstall', "{0} will now prompt with 'osascript' for Administrator privileges to uninstall the shell command.", this.productService.nameShort),
 						buttons: [
-							mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
-							mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
-						],
-						noLink: true,
-						defaultId: 0,
-						cancelId: 1
+							localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+							localize('cancel', "Cancel")
+						]
 					});
 
 					if (response === 0 /* OK */) {
@@ -454,14 +447,29 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		// Remove some environment variables before opening to avoid issues...
 		const gdkPixbufModuleFile = process.env['GDK_PIXBUF_MODULE_FILE'];
 		const gdkPixbufModuleDir = process.env['GDK_PIXBUF_MODULEDIR'];
+		const gtkIMModuleFile = process.env['GTK_IM_MODULE_FILE'];
+		const gdkBackend = process.env['GDK_BACKEND'];
+		const gioModuleDir = process.env['GIO_MODULE_DIR'];
+		const gtkExePrefix = process.env['GTK_EXE_PREFIX'];
+		const gsettingsSchemaDir = process.env['GSETTINGS_SCHEMA_DIR'];
 		delete process.env['GDK_PIXBUF_MODULE_FILE'];
 		delete process.env['GDK_PIXBUF_MODULEDIR'];
+		delete process.env['GTK_IM_MODULE_FILE'];
+		delete process.env['GDK_BACKEND'];
+		delete process.env['GIO_MODULE_DIR'];
+		delete process.env['GTK_EXE_PREFIX'];
+		delete process.env['GSETTINGS_SCHEMA_DIR'];
 
 		shell.openExternal(url);
 
 		// ...but restore them after
 		process.env['GDK_PIXBUF_MODULE_FILE'] = gdkPixbufModuleFile;
 		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
+		process.env['GTK_IM_MODULE_FILE'] = gtkIMModuleFile;
+		process.env['GDK_BACKEND'] = gdkBackend;
+		process.env['GIO_MODULE_DIR'] = gioModuleDir;
+		process.env['GTK_EXE_PREFIX'] = gtkExePrefix;
+		process.env['GSETTINGS_SCHEMA_DIR'] = gsettingsSchemaDir;
 	}
 
 	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
@@ -511,6 +519,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				}
 			});
 		});
+	}
+
+	async isRunningUnderARM64Translation(): Promise<boolean> {
+		if (isLinux) {
+			return false;
+		}
+		return app.runningUnderARM64Translation;
 	}
 
 	@memoize
@@ -733,11 +748,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
 		const window = this.windowById(windowId);
 		const session = window?.win?.webContents?.session;
-		if (session) {
-			return session.resolveProxy(url);
-		} else {
-			return undefined;
-		}
+
+		return session?.resolveProxy(url);
 	}
 
 	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {
@@ -771,12 +783,21 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async toggleSharedProcessWindow(): Promise<void> {
-		return this.sharedProcess.toggle();
-	}
-
 	//#endregion
 
+	// #region Performance
+
+	async profileRenderer(windowId: number | undefined, session: string, duration: number): Promise<IV8Profile> {
+		const win = this.windowById(windowId);
+		if (!win || !win.win) {
+			throw new Error();
+		}
+		const profiler = new WindowProfiler(win.win, session, this.logService);
+		const result = await profiler.inspect(duration);
+		return result;
+	}
+
+	// #endregion
 
 	//#region Registry (windows)
 

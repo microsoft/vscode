@@ -37,6 +37,7 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 	const inMemoryExtraProfile: IUserDataProfile = {
 		id: 'id',
 		name: 'inMemory',
+		shortName: 'inMemory',
 		isDefault: false,
 		location: inMemoryExtraProfileRoot,
 		globalStorageHome: joinPath(inMemoryExtraProfileRoot, 'globalStorageHome'),
@@ -44,7 +45,8 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 		keybindingsResource: joinPath(inMemoryExtraProfileRoot, 'keybindingsResource'),
 		tasksResource: joinPath(inMemoryExtraProfileRoot, 'tasksResource'),
 		snippetsHome: joinPath(inMemoryExtraProfileRoot, 'snippetsHome'),
-		extensionsResource: joinPath(inMemoryExtraProfileRoot, 'extensionsResource')
+		extensionsResource: joinPath(inMemoryExtraProfileRoot, 'extensionsResource'),
+		cacheHome: joinPath(inMemoryExtraProfileRoot, 'cache')
 	};
 
 	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, new UserDataProfileService(inMemoryExtraProfile, new UserDataProfilesService(TestEnvironmentService, fileService, new UriIdentityService(fileService), logService)), logService));

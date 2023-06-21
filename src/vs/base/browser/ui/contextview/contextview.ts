@@ -366,12 +366,6 @@ const SHADOW_ROOT_CSS = /* css */ `
 		all: initial; /* 1st rule so subsequent properties are reset. */
 	}
 
-	@font-face {
-		font-family: "codicon";
-		font-display: block;
-		src: url("./codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
-	}
-
 	.codicon[class*='codicon-'] {
 		font: normal normal normal 16px/1 codicon;
 		display: inline-block;

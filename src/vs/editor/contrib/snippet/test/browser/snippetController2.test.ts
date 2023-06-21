@@ -21,6 +21,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { EndOfLineSequence } from 'vs/editor/common/model';
 
 suite('SnippetController2', function () {
 
@@ -59,7 +60,11 @@ suite('SnippetController2', function () {
 		model = createTextModel('if\n    $state\nfi');
 		const serviceCollection = new ServiceCollection(
 			[ILabelService, new class extends mock<ILabelService>() { }],
-			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
+				override getWorkspace() {
+					return { id: 'foo', folders: [] };
+				}
+			}],
 			[ILogService, new NullLogService()],
 			[IContextKeyService, contextKeys],
 		);
@@ -334,7 +339,7 @@ suite('SnippetController2', function () {
 		assertContextKeys(contextKeys, false, false, false);
 	});
 
-	test('Problems with nested snippet insertion #39594', function () {
+	test('Problems with nested snippet insertion #39594 (part2)', function () {
 		// ensure selection-change-to-cancel logic isn't too aggressive
 		const ctrl = instaService.createInstance(SnippetController2, editor);
 
@@ -691,5 +696,46 @@ suite('SnippetController2', function () {
 			assert.deepStrictEqual(getContextState(), { inSnippet: false, hasPrev: false, hasNext: false });
 			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 5), new Selection(1, 10, 1, 10), new Selection(2, 5, 2, 5), new Selection(2, 10, 2, 10)]);
 		});
+	});
+
+	test('Bug: cursor position $0 with user snippets #163808', function () {
+
+		const ctrl = instaService.createInstance(SnippetController2, editor);
+		model.setValue('');
+
+		ctrl.insert('<Element1 Attr1="foo" $1>\n  <Element2 Attr1="$2"/>\n$0"\n</Element1>');
+		assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 23, 1, 23)]);
+
+		ctrl.insert('Qualifier="$0"');
+		assert.strictEqual(model.getValue(), '<Element1 Attr1="foo" Qualifier="">\n  <Element2 Attr1=""/>\n"\n</Element1>');
+		assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 34, 1, 34)]);
+
+	});
+
+	test('EOL-Sequence (CRLF) shifts tab stop in isFileTemplate snippets #167386', function () {
+		const ctrl = instaService.createInstance(SnippetController2, editor);
+		model.setValue('');
+		model.setEOL(EndOfLineSequence.CRLF);
+
+		ctrl.apply([{
+			range: model.getFullModelRange(),
+			template: 'line 54321${1:FOO}\nline 54321${1:FOO}\n(no tab stop)\nline 54321${1:FOO}\nline 54321'
+		}]);
+
+		assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 11, 1, 14), new Selection(2, 11, 2, 14), new Selection(4, 11, 4, 14)]);
+
+	});
+
+	test('"Surround With" code action snippets use incorrect indentation levels and styles #169319', function () {
+		model.setValue('function foo(f, x, condition) {\n    f();\n    return x;\n}');
+		const sel = new Range(2, 5, 3, 14);
+		editor.setSelection(sel);
+		const ctrl = instaService.createInstance(SnippetController2, editor);
+		ctrl.apply([{
+			range: sel,
+			template: 'if (${1:condition}) {\n\t$TM_SELECTED_TEXT$0\n}'
+		}]);
+
+		assert.strictEqual(model.getValue(), `function foo(f, x, condition) {\n    if (condition) {\n        f();\n        return x;\n    }\n}`);
 	});
 });

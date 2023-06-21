@@ -16,15 +16,15 @@ export function initialize(foreignModule: any) {
 	initialized = true;
 
 	const simpleWorker = new SimpleWorkerServer((msg) => {
-		(<any>self).postMessage(msg);
+		globalThis.postMessage(msg);
 	}, (host: IEditorWorkerHost) => new EditorSimpleWorker(host, foreignModule));
 
-	self.onmessage = (e: MessageEvent) => {
+	globalThis.onmessage = (e: MessageEvent) => {
 		simpleWorker.onmessage(e.data);
 	};
 }
 
-self.onmessage = (e: MessageEvent) => {
+globalThis.onmessage = (e: MessageEvent) => {
 	// Ignore first message in this case and initialize if not yet initialized
 	if (!initialized) {
 		initialize(null);

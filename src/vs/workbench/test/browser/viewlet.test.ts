@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { PaneCompositeDescriptor, Extensions, PaneCompositeRegistry, PaneComposite } from 'vs/workbench/browser/panecomposite';
 import { isFunction } from 'vs/base/common/types';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 suite('Viewlets', () => {
 
@@ -20,7 +21,11 @@ suite('Viewlets', () => {
 			throw new Error('Method not implemented.');
 		}
 
-		createViewPaneContainer() { return null!; }
+		override setBoundarySashes(sashes: IBoundarySashes): void {
+			throw new Error('Method not implemented.');
+		}
+
+		protected override createViewPaneContainer() { return null!; }
 	}
 
 	test('ViewletDescriptor API', function () {

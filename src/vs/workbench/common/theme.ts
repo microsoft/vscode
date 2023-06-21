@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground, toolbarHoverBackground, inputBorder, widgetBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -352,10 +352,10 @@ export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder'
 }, localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_INPUT_BORDER = registerColor('panelInput.border', {
-	dark: null,
+	dark: inputBorder,
 	light: Color.fromHex('#ddd'),
-	hcDark: null,
-	hcLight: null
+	hcDark: inputBorder,
+	hcLight: inputBorder
 }, localize('panelInputBorder', "Input box border for inputs in the panel."));
 
 export const PANEL_DRAG_AND_DROP_BORDER = registerColor('panel.dropBorder', {
@@ -625,6 +625,21 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.for
 	hcLight: Color.white
 }, localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+// < --- Profiles --- >
+
+export const PROFILE_BADGE_BACKGROUND = registerColor('profileBadge.background', {
+	dark: '#4D4D4D',
+	light: '#C4C4C4',
+	hcDark: Color.white,
+	hcLight: Color.black
+}, localize('profileBadgeBackground', "Profile badge background color. The profile badge shows on top of the settings gear icon in the activity bar."));
+
+export const PROFILE_BADGE_FOREGROUND = registerColor('profileBadge.foreground', {
+	dark: Color.white,
+	light: '#333333',
+	hcDark: Color.black,
+	hcLight: Color.white
+}, localize('profileBadgeForeground', "Profile badge foreground color. The profile badge shows on top of the settings gear icon in the activity bar."));
 
 // < --- Remote --- >
 
@@ -779,15 +794,15 @@ export const MENUBAR_SELECTION_BORDER = registerColor('menubar.selectionBorder',
 // < --- Notifications --- >
 
 export const NOTIFICATIONS_CENTER_BORDER = registerColor('notificationCenter.border', {
-	dark: null,
-	light: null,
+	dark: widgetBorder,
+	light: widgetBorder,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('notificationCenterBorder', "Notifications center border color. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_TOAST_BORDER = registerColor('notificationToast.border', {
-	dark: null,
-	light: null,
+	dark: widgetBorder,
+	light: widgetBorder,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('notificationToastBorder', "Notification toast border color. Notifications slide in from the bottom right of the window."));

@@ -14,7 +14,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IActiveNotebookEditor, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
@@ -44,7 +44,12 @@ suite('Notebook Outline', function () {
 			if (!editor.hasModel()) {
 				assert.ok(false, 'MUST have active text editor');
 			}
-			const outline = instantiationService.createInstance(NotebookCellOutline, editor, OutlineTarget.OutlinePane);
+			const outline = instantiationService.createInstance(NotebookCellOutline, new class extends mock<INotebookEditorPane>() {
+				override getControl() {
+					return editor;
+				}
+				override onDidChangeModel: Event<void> = Event.None;
+			}, OutlineTarget.OutlinePane);
 			return callback(outline, editor);
 		});
 

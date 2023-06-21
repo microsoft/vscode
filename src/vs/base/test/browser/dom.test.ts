@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { $, h, multibyteAwareBtoa } from 'vs/base/browser/dom';
+import { $, asCssValueWithDefault, h, multibyteAwareBtoa } from 'vs/base/browser/dom';
 
 suite('dom', () => {
 	test('hasClass', () => {
@@ -18,6 +18,8 @@ suite('dom', () => {
 		assert(!element.classList.contains('bar'));
 		assert(!element.classList.contains('foo'));
 		assert(!element.classList.contains(''));
+
+
 	});
 
 	test('removeClass', () => {
@@ -276,4 +278,14 @@ suite('dom', () => {
 		assert.strictEqual(result.editor.className, '');
 		assert.strictEqual(result.editor.childElementCount, 0);
 	});
+
+	test('cssValueWithDefault', () => {
+		assert.strictEqual(asCssValueWithDefault('red', 'blue'), 'red');
+		assert.strictEqual(asCssValueWithDefault(undefined, 'blue'), 'blue');
+		assert.strictEqual(asCssValueWithDefault('var(--my-var)', 'blue'), 'var(--my-var, blue)');
+		assert.strictEqual(asCssValueWithDefault('var(--my-var, red)', 'blue'), 'var(--my-var, red)');
+		assert.strictEqual(asCssValueWithDefault('var(--my-var, var(--my-var2))', 'blue'), 'var(--my-var, var(--my-var2, blue))');
+	});
+
+
 });

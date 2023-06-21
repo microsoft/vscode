@@ -8,14 +8,14 @@ import { MainContext, IMainContext, ExtHostUrlsShape, MainThreadUrlsShape } from
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostUrls implements ExtHostUrlsShape {
 
 	private static HandlePool = 0;
 	private readonly _proxy: MainThreadUrlsShape;
 
-	private handles = new Set<string>();
+	private handles = new ExtensionIdentifierSet();
 	private handlers = new Map<number, vscode.UriHandler>();
 
 	constructor(
@@ -24,18 +24,19 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadUrls);
 	}
 
-	registerUriHandler(extensionId: ExtensionIdentifier, handler: vscode.UriHandler): vscode.Disposable {
-		if (this.handles.has(ExtensionIdentifier.toKey(extensionId))) {
+	registerUriHandler(extension: IExtensionDescription, handler: vscode.UriHandler): vscode.Disposable {
+		const extensionId = extension.identifier;
+		if (this.handles.has(extensionId)) {
 			throw new Error(`Protocol handler already registered for extension ${extensionId}`);
 		}
 
 		const handle = ExtHostUrls.HandlePool++;
-		this.handles.add(ExtensionIdentifier.toKey(extensionId));
+		this.handles.add(extensionId);
 		this.handlers.set(handle, handler);
-		this._proxy.$registerUriHandler(handle, extensionId);
+		this._proxy.$registerUriHandler(handle, extensionId, extension.displayName || extension.name);
 
 		return toDisposable(() => {
-			this.handles.delete(ExtensionIdentifier.toKey(extensionId));
+			this.handles.delete(extensionId);
 			this.handlers.delete(handle);
 			this._proxy.$unregisterUriHandler(handle);
 		});

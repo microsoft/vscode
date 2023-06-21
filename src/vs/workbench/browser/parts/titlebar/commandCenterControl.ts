@@ -4,26 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { reset } from 'vs/base/browser/dom';
+import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
-import { createActionViewItem, createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Action2, IMenuService, MenuId, MenuItemAction, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
-import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND, PANEL_BORDER, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
+import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 
 export class CommandCenterControl {
 
@@ -37,47 +36,56 @@ export class CommandCenterControl {
 	constructor(
 		windowTitle: WindowTitle,
 		hoverDelegate: IHoverDelegate,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IMenuService menuService: IMenuService,
 		@IQuickInputService quickInputService: IQuickInputService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		this.element.classList.add('command-center');
 
-		const titleToolbar = new ToolBar(this.element, contextMenuService, {
+		const titleToolbar = instantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.CommandCenter, {
+			contextMenu: MenuId.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			toolbarOptions: {
+				primaryGroup: () => true,
+			},
+			telemetrySource: 'commandCenter',
 			actionViewItemProvider: (action) => {
 
-				if (action instanceof MenuItemAction && action.id === 'workbench.action.quickOpen') {
+				if (action instanceof MenuItemAction && action.id === 'workbench.action.quickOpenWithModes') {
 
-					class InputLikeViewItem extends MenuEntryActionViewItem {
+					class CommandCenterViewItem extends BaseActionViewItem {
 
-						private readonly workspaceTitle = document.createElement('span');
+						constructor(action: IAction, options: IBaseActionViewItemOptions) {
+							super(undefined, action, options);
+						}
 
 						override render(container: HTMLElement): void {
 							super.render(container);
-							container.classList.add('quickopen', 'left');
+							container.classList.add('command-center');
 
-							assertType(this.label);
-							this.label.classList.add('search');
-
+							// icon (search)
 							const searchIcon = renderIcon(Codicon.search);
 							searchIcon.classList.add('search-icon');
 
-							this.workspaceTitle.classList.add('search-label');
-							this.updateTooltip();
-							reset(this.label, searchIcon, this.workspaceTitle);
-							// this._renderAllQuickPickItem(container);
+							// label: just workspace name and optional decorations
+							const label = this._getLabel();
+							const labelElement = document.createElement('span');
+							labelElement.classList.add('search-label');
+							labelElement.innerText = label;
+							reset(container, searchIcon, labelElement);
 
-							this._store.add(windowTitle.onDidChange(this.updateTooltip, this));
+							const hover = this._store.add(setupCustomHover(hoverDelegate, container, this.getTooltip()));
+
+							// update label & tooltip when window title changes
+							this._store.add(windowTitle.onDidChange(() => {
+								hover.update(this.getTooltip());
+								labelElement.innerText = this._getLabel();
+							}));
 						}
 
-						override getTooltip() {
-							// label: just workspace name and optional decorations
+						private _getLabel(): string {
 							const { prefix, suffix } = windowTitle.getTitleDecorations();
-							let label = windowTitle.workspaceName;
+							let label = windowTitle.isCustomTitleFormat() ? windowTitle.getWindowTitle() : windowTitle.workspaceName;
 							if (!label) {
 								label = localize('label.dfl', "Search");
 							}
@@ -87,7 +95,10 @@ export class CommandCenterControl {
 							if (suffix) {
 								label = localize('label2', "{0} {1}", label, suffix);
 							}
-							this.workspaceTitle.innerText = label;
+							return label;
+						}
+
+						protected override getTooltip() {
 
 							// tooltip: full windowTitle
 							const kb = keybindingService.lookupKeybinding(action.id)?.getLabel();
@@ -98,42 +109,18 @@ export class CommandCenterControl {
 							return title;
 						}
 					}
-					return instantiationService.createInstance(InputLikeViewItem, action, { hoverDelegate });
 
-				} else if (action instanceof MenuItemAction && action.id === 'commandCenter.help') {
-
-					class ExtraClass extends MenuEntryActionViewItem {
-						override render(container: HTMLElement): void {
-							super.render(container);
-							container.classList.add('quickopen', 'right');
-						}
-					}
-
-					return instantiationService.createInstance(ExtraClass, action, { hoverDelegate });
+					return instantiationService.createInstance(CommandCenterViewItem, action, {});
 
 				} else {
 					return createActionViewItem(instantiationService, action, { hoverDelegate });
 				}
-			},
-			allowContextMenu: true
+			}
 		});
-		const menu = this._disposables.add(menuService.createMenu(MenuId.CommandCenter, contextKeyService));
-		const menuUpdater = () => {
-			const actions: IAction[] = [];
-			createAndFillInContextMenuActions(menu, undefined, actions);
-			titleToolbar.setActions(actions);
-		};
-		menuUpdater();
-		this._disposables.add(menu.onDidChange(menuUpdater));
-		this._disposables.add(keybindingService.onDidUpdateKeybindings(() => {
-			menuUpdater();
-		}));
+
 		this._disposables.add(quickInputService.onShow(this._setVisibility.bind(this, false)));
 		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
-
-		titleToolbar.actionRunner.onDidRun(e => {
-			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'commandCenter' });
-		});
+		this._disposables.add(titleToolbar);
 	}
 
 	private _setVisibility(show: boolean): void {
@@ -146,20 +133,6 @@ export class CommandCenterControl {
 	}
 }
 
-registerAction2(class extends Action2 {
-
-	constructor() {
-		super({
-			id: 'commandCenter.help',
-			title: localize('all', "Show Search Modes..."),
-			icon: Codicon.chevronDown,
-			menu: { id: MenuId.CommandCenter, order: 101 }
-		});
-	}
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IQuickInputService).quickAccess.show('?');
-	}
-});
 
 // --- theme colors
 
@@ -176,22 +149,41 @@ colors.registerColor(
 	localize('commandCenter-activeForeground', "Active foreground color of the command center"),
 	false
 );
+colors.registerColor(
+	'commandCenter.inactiveForeground',
+	{ dark: TITLE_BAR_INACTIVE_FOREGROUND, hcDark: TITLE_BAR_INACTIVE_FOREGROUND, light: TITLE_BAR_INACTIVE_FOREGROUND, hcLight: TITLE_BAR_INACTIVE_FOREGROUND },
+	localize('commandCenter-inactiveForeground', "Foreground color of the command center when the window is inactive"),
+	false
+);
 // background (inactive and active)
 colors.registerColor(
 	'commandCenter.background',
-	{ dark: null, hcDark: null, light: null, hcLight: null },
+	{
+		dark: Color.white.transparent(0.05), hcDark: null, light: Color.black.transparent(0.05), hcLight: null
+	},
 	localize('commandCenter-background', "Background color of the command center"),
 	false
 );
 colors.registerColor(
 	'commandCenter.activeBackground',
-	{ dark: MENUBAR_SELECTION_BACKGROUND, hcDark: MENUBAR_SELECTION_BACKGROUND, light: MENUBAR_SELECTION_BACKGROUND, hcLight: MENUBAR_SELECTION_BACKGROUND },
+	{ dark: Color.white.transparent(0.08), hcDark: MENUBAR_SELECTION_BACKGROUND, light: Color.black.transparent(0.08), hcLight: MENUBAR_SELECTION_BACKGROUND },
 	localize('commandCenter-activeBackground', "Active background color of the command center"),
+	false
+);
+// border: active and inactive. defaults to active background
+colors.registerColor(
+	'commandCenter.border', { dark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcDark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .60), light: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcLight: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .60) },
+	localize('commandCenter-border', "Border color of the command center"),
+	false
+);
+colors.registerColor(
+	'commandCenter.activeBorder', { dark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .30), hcDark: TITLE_BAR_ACTIVE_FOREGROUND, light: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .30), hcLight: TITLE_BAR_ACTIVE_FOREGROUND },
+	localize('commandCenter-activeBorder', "Active border color of the command center"),
 	false
 );
 // border: defaults to active background
 colors.registerColor(
-	'commandCenter.border', { dark: PANEL_BORDER, hcDark: PANEL_BORDER, light: PANEL_BORDER, hcLight: PANEL_BORDER },
-	localize('commandCenter-border', "Border color of the command center"),
+	'commandCenter.inactiveBorder', { dark: colors.transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25), hcDark: colors.transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25), light: colors.transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25), hcLight: colors.transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25) },
+	localize('commandCenter-inactiveBorder', "Border color of the command center when the window is inactive"),
 	false
 );

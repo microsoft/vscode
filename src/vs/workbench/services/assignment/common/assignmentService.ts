@@ -9,7 +9,7 @@ import { MementoObject, Memento } from 'vs/workbench/common/memento';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryData } from 'vs/base/common/actions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IAssignmentService } from 'vs/platform/assignment/common/assignment';
@@ -83,13 +83,13 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 		@IProductService productService: IProductService
 	) {
 
-		super(() => {
-			return telemetryService.getTelemetryInfo().then(telemetryInfo => {
-				return telemetryInfo.machineId;
-			});
-		}, configurationService, productService,
+		super(
+			telemetryService.machineId,
+			configurationService,
+			productService,
 			new WorkbenchAssignmentServiceTelemetry(telemetryService, productService),
-			new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService)));
+			new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService))
+		);
 	}
 
 	protected override get experimentsEnabled(): boolean {
@@ -131,4 +131,4 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 	}
 }
 
-registerSingleton(IWorkbenchAssignmentService, WorkbenchAssignmentService, false);
+registerSingleton(IWorkbenchAssignmentService, WorkbenchAssignmentService, InstantiationType.Delayed);

@@ -32,6 +32,8 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { mock } from 'vs/base/test/common/mock';
 
 class TestTextModel extends TextModel {
 	public registerDisposable(disposable: IDisposable): void {
@@ -47,7 +49,7 @@ export function withEditorModel(text: string[], callback: (model: TextModel) => 
 
 export interface IRelaxedTextModelCreationOptions {
 	tabSize?: number;
-	indentSize?: number;
+	indentSize?: number | 'tabSize';
 	insertSpaces?: boolean;
 	detectIndentation?: boolean;
 	trimAutoWhitespace?: boolean;
@@ -96,6 +98,10 @@ export function createModelServices(disposables: DisposableStore, services: Serv
 		[ITextResourcePropertiesService, TestTextResourcePropertiesService],
 		[IThemeService, TestThemeService],
 		[ILogService, NullLogService],
+		[IEnvironmentService, new class extends mock<IEnvironmentService>() {
+			override isBuilt: boolean = true;
+			override isExtensionDevelopment: boolean = false;
+		}],
 		[ILanguageFeatureDebounceService, LanguageFeatureDebounceService],
 		[ILanguageFeaturesService, LanguageFeaturesService],
 		[IModelService, ModelService],

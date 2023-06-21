@@ -18,15 +18,15 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IShowNotebookFindWidgetOptions, NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
+import { IShowNotebookFindWidgetOptions, NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-registerNotebookContribution(NotebookFindWidget.id, NotebookFindWidget);
+registerNotebookContribution(NotebookFindContrib.id, NotebookFindContrib);
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -49,7 +49,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+		const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
 		controller.hide();
 		editor.focus();
 	}
@@ -61,7 +61,7 @@ registerAction2(class extends Action2 {
 			id: 'notebook.find',
 			title: { value: localize('notebookActions.findInNotebook', "Find in Notebook"), original: 'Find in Notebook' },
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, EditorContextKeys.focus.toNegated()),
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.or(NOTEBOOK_IS_ACTIVE_EDITOR, INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR), EditorContextKeys.focus.toNegated()),
 				primary: KeyCode.KeyF | KeyMod.CtrlCmd,
 				weight: KeybindingWeight.WorkbenchContrib
 			}
@@ -76,7 +76,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+		const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
 		controller.show();
 	}
 });
@@ -139,7 +139,7 @@ StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: 
 		}
 	}
 
-	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+	const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
 
 	const searchStringOptions = getSearchStringOptions(codeEditor, {
 		forceRevealReplace: false,
@@ -180,7 +180,7 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 		return false;
 	}
 
-	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+	const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
 
 	const searchStringOptions = getSearchStringOptions(codeEditor, {
 		forceRevealReplace: false,

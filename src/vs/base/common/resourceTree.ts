@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { memoize } from 'vs/base/common/decorators';
-import { PathIterator } from 'vs/base/common/map';
+import { PathIterator } from 'vs/base/common/ternarySearchTree';
 import * as paths from 'vs/base/common/path';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';

@@ -26,7 +26,7 @@ export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 		// Fork the universal file watcher and build a client around
 		// its server for passing over requests and receiving events.
 		const client = disposables.add(new Client(
-			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
+			FileAccess.asFileUri('bootstrap-fork').fsPath,
 			{
 				serverName: 'File Watcher',
 				args: ['--type=fileWatcher'],

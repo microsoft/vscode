@@ -72,6 +72,7 @@ export class SurroundWithSnippetEditorAction extends SnippetEditorAction {
 			clipboardText = await clipboardService.readText();
 		}
 
+		editor.focus();
 		SnippetController2.get(editor)?.insert(snippet.codeSnippet, { clipboardText });
 		snippetsService.updateUsageTimestamp(snippet);
 	}

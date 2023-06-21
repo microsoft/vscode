@@ -9,14 +9,19 @@ import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ICrossVersionSerializedTerminalState, IPtyHostController, ISerializedTerminalState } from 'vs/platform/terminal/common/terminal';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 export abstract class BaseTerminalBackend extends Disposable {
 	private _isPtyHostUnresponsive: boolean = false;
+
+	get isResponsive(): boolean { return !this._isPtyHostUnresponsive; }
 
 	protected readonly _onPtyHostRestart = this._register(new Emitter<void>());
 	readonly onPtyHostRestart = this._onPtyHostRestart.event;
@@ -26,56 +31,63 @@ export abstract class BaseTerminalBackend extends Disposable {
 	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
 
 	constructor(
-		eventSource: IPtyHostController,
+		private readonly _ptyHostController: IPtyHostController,
 		protected readonly _logService: ILogService,
-		notificationService: INotificationService,
 		historyService: IHistoryService,
 		configurationResolverService: IConfigurationResolverService,
+		statusBarService: IStatusbarService,
 		protected readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super();
 
+		let unresponsiveStatusBarEntry: IStatusbarEntry;
+		let statusBarAccessor: IStatusbarEntryAccessor;
+
 		// Attach pty host listeners
-		if (eventSource.onPtyHostExit) {
-			this._register(eventSource.onPtyHostExit(() => {
+		if (this._ptyHostController.onPtyHostExit) {
+			this._register(this._ptyHostController.onPtyHostExit(() => {
 				this._logService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
 			}));
 		}
-		let unresponsiveNotification: INotificationHandle | undefined;
-		if (eventSource.onPtyHostStart) {
-			this._register(eventSource.onPtyHostStart(() => {
-				this._logService.info(`ptyHost restarted`);
+		if (this._ptyHostController.onPtyHostStart) {
+			this._register(this._ptyHostController.onPtyHostStart(() => {
 				this._onPtyHostRestart.fire();
-				unresponsiveNotification?.close();
-				unresponsiveNotification = undefined;
+				statusBarAccessor?.dispose();
 				this._isPtyHostUnresponsive = false;
 			}));
 		}
-		if (eventSource.onPtyHostUnresponsive) {
-			this._register(eventSource.onPtyHostUnresponsive(() => {
-				const choices: IPromptChoice[] = [{
-					label: localize('restartPtyHost', "Restart pty host"),
-					run: () => eventSource.restartPtyHost!()
-				}];
-				unresponsiveNotification = notificationService.prompt(Severity.Error, localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, the terminals may stop working."), choices);
+		if (this._ptyHostController.onPtyHostUnresponsive) {
+			this._register(this._ptyHostController.onPtyHostUnresponsive(() => {
+				statusBarAccessor?.dispose();
+				if (!unresponsiveStatusBarEntry) {
+					unresponsiveStatusBarEntry = {
+						name: localize('ptyHostStatus', 'Pty Host Status'),
+						text: `$(debug-disconnect) ${localize('ptyHostStatus.short', 'Pty Host')}`,
+						tooltip: localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, terminals may stop working. Click to manually restart the pty host."),
+						ariaLabel: localize('ptyHostStatus.ariaLabel', 'Pty Host is unresponsive'),
+						command: TerminalCommandId.RestartPtyHost,
+						backgroundColor: themeColorFromId(STATUS_BAR_WARNING_ITEM_BACKGROUND),
+						color: themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND),
+					};
+				}
+				statusBarAccessor = statusBarService.addEntry(unresponsiveStatusBarEntry, 'ptyHostStatus', StatusbarAlignment.LEFT);
 				this._isPtyHostUnresponsive = true;
 				this._onPtyHostUnresponsive.fire();
 			}));
 		}
-		if (eventSource.onPtyHostResponsive) {
-			this._register(eventSource.onPtyHostResponsive(() => {
+		if (this._ptyHostController.onPtyHostResponsive) {
+			this._register(this._ptyHostController.onPtyHostResponsive(() => {
 				if (!this._isPtyHostUnresponsive) {
 					return;
 				}
 				this._logService.info('The pty host became responsive again');
-				unresponsiveNotification?.close();
-				unresponsiveNotification = undefined;
+				statusBarAccessor?.dispose();
 				this._isPtyHostUnresponsive = false;
 				this._onPtyHostResponsive.fire();
 			}));
 		}
-		if (eventSource.onPtyHostRequestResolveVariables) {
-			this._register(eventSource.onPtyHostRequestResolveVariables(async e => {
+		if (this._ptyHostController.onPtyHostRequestResolveVariables) {
+			this._register(this._ptyHostController.onPtyHostRequestResolveVariables(async e => {
 				// Only answer requests for this workspace
 				if (e.workspaceId !== this._workspaceContextService.getWorkspace().id) {
 					return;
@@ -86,9 +98,13 @@ export abstract class BaseTerminalBackend extends Disposable {
 					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
 				});
 				const result = await Promise.all(resolveCalls);
-				eventSource.acceptPtyHostResolvedVariables?.(e.requestId, result);
+				this._ptyHostController.acceptPtyHostResolvedVariables?.(e.requestId, result);
 			}));
 		}
+	}
+
+	restartPtyHost(): void {
+		this._ptyHostController.restartPtyHost?.();
 	}
 
 	protected _deserializeTerminalState(serializedState: string | undefined): ISerializedTerminalState[] | undefined {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
@@ -23,14 +23,16 @@ import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/s
 import { peekViewBorder /*, peekViewEditorBackground, peekViewResultsBackground */ } from 'vs/editor/contrib/peekView/browser/peekView';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { localize } from 'vs/nls';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -49,25 +51,27 @@ import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/work
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { IInteractiveHistoryService, InteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
+import { InteractiveWindowFileSystem } from 'vs/workbench/contrib/interactive/browser/interactiveWindowFileSystem';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellEditType, CellKind, CellUri, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { CellEditType, CellKind, CellUri, ICellOutput, INTERACTIVE_WINDOW_EDITOR_ID, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookSerializer, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-
+const interactiveWindowCategory: ILocalizedString = { value: localize('interactiveWindow', 'Interactive Window'), original: 'Interactive Window' };
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		InteractiveEditor,
-		InteractiveEditor.ID,
+		INTERACTIVE_WINDOW_EDITOR_ID,
 		'Interactive Window'
 	),
 	[
@@ -80,110 +84,92 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		@INotebookService notebookService: INotebookService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IEditorService editorService: IEditorService,
+		@IFileService fileService: IFileService,
+		@ILogService logService: ILogService
 	) {
 		super();
 
 		const contentOptions = {
 			transientOutputs: true,
 			transientCellMetadata: {},
-			transientDocumentMetadata: {}
+			transientDocumentMetadata: {},
+			cellContentMetadata: {}
 		};
 
-		const controller: INotebookContentProvider = {
-			get options() {
-				return contentOptions;
-			},
-			set options(newOptions) {
-				contentOptions.transientCellMetadata = newOptions.transientCellMetadata;
-				contentOptions.transientDocumentMetadata = newOptions.transientDocumentMetadata;
-				contentOptions.transientOutputs = newOptions.transientOutputs;
-			},
-			open: async (_uri: URI, _backupId: string | VSBuffer | undefined, _untitledDocumentData: VSBuffer | undefined, _token: CancellationToken) => {
-				if (_backupId instanceof VSBuffer) {
-					const backup = _backupId.toString();
+		const interactiveWindowFS = new InteractiveWindowFileSystem();
+		this._register(fileService.registerProvider(Schemas.vscodeInteractive, interactiveWindowFS));
+
+		const serializer: INotebookSerializer = {
+			options: contentOptions,
+			dataToNotebook: async (data: VSBuffer): Promise<NotebookData> => {
+				if (data.byteLength > 0) {
 					try {
-						const document = JSON.parse(backup) as { cells: { kind: CellKind; language: string; metadata: any; mime: string | undefined; content: string; outputs?: ICellOutput[] }[] };
+						const document = JSON.parse(data.toString()) as { cells: { kind: CellKind; language: string; metadata: any; mime: string | undefined; content: string; outputs?: ICellOutput[] }[] };
 						return {
-							data: {
-								metadata: {},
-								cells: document.cells.map(cell => ({
-									source: cell.content,
-									language: cell.language,
-									cellKind: cell.kind,
-									mime: cell.mime,
-									outputs: cell.outputs
-										? cell.outputs.map(output => ({
-											outputId: output.outputId,
-											outputs: output.outputs.map(ot => ({
-												mime: ot.mime,
-												data: ot.data
-											}))
+							cells: document.cells.map(cell => ({
+								source: cell.content,
+								language: cell.language,
+								cellKind: cell.kind,
+								mime: cell.mime,
+								outputs: cell.outputs
+									? cell.outputs.map(output => ({
+										outputId: output.outputId,
+										outputs: output.outputs.map(ot => ({
+											mime: ot.mime,
+											data: ot.data
 										}))
-										: [],
-									metadata: cell.metadata
-								}))
-							},
-							transientOptions: contentOptions
+									}))
+									: [],
+								metadata: cell.metadata
+							})),
+							metadata: {}
 						};
-					} catch (_e) { }
+					} catch (e) {
+						logService.error(`error when converting data to notebook data object: ${e}`);
+					}
 				}
 
 				return {
-					data: {
-						metadata: {},
-						cells: []
-					},
-					transientOptions: contentOptions
+					metadata: {},
+					cells: []
 				};
-			},
-			save: async (uri: URI) => {
-				// trigger backup always
-				return false;
-			},
-			saveAs: async (uri: URI, target: URI, token: CancellationToken) => {
-				// return this._proxy.$saveNotebookAs(viewType, uri, target, token);
-				return false;
-			},
-			backup: async (uri: URI, token: CancellationToken) => {
-				const doc = notebookService.listNotebookDocuments().find(document => document.uri.toString() === uri.toString());
-				if (doc) {
-					const cells = doc.cells.map(cell => ({
-						kind: cell.cellKind,
-						language: cell.language,
-						metadata: cell.metadata,
-						mine: cell.mime,
-						outputs: cell.outputs.map(output => {
-							return {
-								outputId: output.outputId,
-								outputs: output.outputs.map(ot => ({
-									mime: ot.mime,
-									data: ot.data
-								}))
-							};
-						}),
-						content: cell.getValue()
-					}));
 
-					const buffer = VSBuffer.fromString(JSON.stringify({
-						cells: cells
-					}));
+			},
+			notebookToData: async (data: NotebookData): Promise<VSBuffer> => {
+				const cells = data.cells.map(cell => ({
+					kind: cell.cellKind,
+					language: cell.language,
+					metadata: cell.metadata,
+					mine: cell.mime,
+					outputs: cell.outputs.map(output => {
+						return {
+							outputId: output.outputId,
+							outputs: output.outputs.map(ot => ({
+								mime: ot.mime,
+								data: ot.data
+							}))
+						};
+					}),
+					content: cell.source
+				}));
 
-					return buffer;
-				} else {
-					return '';
-				}
+				return VSBuffer.fromString(JSON.stringify({
+					cells: cells
+				}));
 			}
 		};
-		this._register(notebookService.registerNotebookController('interactive', {
+
+		this._register(notebookService.registerNotebookSerializer('interactive', {
 			id: new ExtensionIdentifier('interactive.builtin'),
 			location: undefined
-		}, controller));
+		}, serializer));
 
 		const info = notebookService.getContributedNotebookType('interactive');
 
-		if (info) {
-			info.update({ selectors: ['*.interactive'] });
-		} else {
+		// We need to contribute a notebook type for the Interactive Window to provide notebook models.
+		// Don't add a file selector for the notebook type to avoid having the notebook Service create an editor for it.
+		// The IW editor is registered below, and we don't want it overwritten by the notebook Service.
+		if (!info) {
 			this._register(notebookService.registerContributedNotebookType('interactive', {
 				providerDisplayName: 'Interactive Notebook',
 				displayName: 'Interactive',
@@ -273,8 +259,8 @@ class InteractiveInputContentProvider implements ITextModelContentProvider {
 
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, 'InteractiveDocumentContribution', LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveInputContentProvider, 'InteractiveInputContentProvider', LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveInputContentProvider, LifecyclePhase.Ready);
 
 export class InteractiveEditorSerializer implements IEditorSerializer {
 	public static readonly ID = InteractiveEditorInput.ID;
@@ -321,8 +307,8 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 		InteractiveEditorSerializer.ID,
 		InteractiveEditorSerializer);
 
-registerSingleton(IInteractiveHistoryService, InteractiveHistoryService, false);
-registerSingleton(IInteractiveDocumentService, InteractiveDocumentService, false);
+registerSingleton(IInteractiveHistoryService, InteractiveHistoryService, InstantiationType.Delayed);
+registerSingleton(IInteractiveDocumentService, InteractiveDocumentService, InstantiationType.Delayed);
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -330,7 +316,7 @@ registerAction2(class extends Action2 {
 			id: '_interactive.open',
 			title: { value: localize('interactive.open', "Open Interactive Window"), original: 'Open Interactive Window' },
 			f1: false,
-			category: 'Interactive',
+			category: interactiveWindowCategory,
 			description: {
 				description: localize('interactive.open', "Open Interactive Window"),
 				args: [
@@ -415,7 +401,7 @@ registerAction2(class extends Action2 {
 		let inputUri: URI | undefined = undefined;
 		let counter = 1;
 		do {
-			notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
+			notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `/Interactive-${counter}.interactive` });
 			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `/InteractiveInput-${counter}` });
 
 			counter++;
@@ -446,7 +432,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'interactive.execute',
 			title: { value: localize('interactive.execute', "Execute Code"), original: 'Execute Code' },
-			category: 'Interactive',
+			category: interactiveWindowCategory,
 			keybinding: {
 				// when: NOTEBOOK_CELL_LIST_FOCUSED,
 				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
@@ -480,6 +466,7 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const bulkEditService = accessor.get(IBulkEditService);
 		const historyService = accessor.get(IInteractiveHistoryService);
+		const notebookEditorService = accessor.get(INotebookEditorService);
 		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 		if (context) {
 			if (context.scheme === Schemas.vscodeInteractive) {
@@ -520,6 +507,7 @@ registerAction2(class extends Action2 {
 						outputCollapsed: false
 					} :
 					undefined;
+
 				await bulkEditService.apply([
 					new ResourceNotebookCellEdit(notebookDocument.uri,
 						{
@@ -540,8 +528,16 @@ registerAction2(class extends Action2 {
 				]);
 
 				// reveal the cell into view first
-				editorControl.notebookEditor.revealCellRangeInView({ start: index, end: index + 1 });
+				const range = { start: index, end: index + 1 };
+				editorControl.notebookEditor.revealCellRangeInView(range);
 				await editorControl.notebookEditor.executeNotebookCells(editorControl.notebookEditor.getCellsInRange({ start: index, end: index + 1 }));
+
+				// update the selection and focus in the extension host model
+				const editor = notebookEditorService.getNotebookEditor(editorControl.notebookEditor.getId());
+				if (editor) {
+					editor.setSelections([range]);
+					editor.setFocus(range);
+				}
 			}
 		}
 	}
@@ -552,7 +548,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'interactive.input.clear',
 			title: { value: localize('interactive.input.clear', "Clear the interactive window input editor contents"), original: 'Clear the interactive window input editor contents' },
-			category: 'Interactive',
+			category: interactiveWindowCategory,
 			f1: false
 		});
 	}
@@ -578,7 +574,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'interactive.history.previous',
 			title: { value: localize('interactive.history.previous', "Previous value in history"), original: 'Previous value in history' },
-			category: 'Interactive',
+			category: interactiveWindowCategory,
 			f1: false,
 			keybinding: {
 				when: ContextKeyExpr.and(
@@ -617,7 +613,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'interactive.history.next',
 			title: { value: localize('interactive.history.next', "Next value in history"), original: 'Next value in history' },
-			category: 'Interactive',
+			category: interactiveWindowCategory,
 			f1: false,
 			keybinding: {
 				when: ContextKeyExpr.and(
@@ -663,7 +659,7 @@ registerAction2(class extends Action2 {
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			category: 'Interactive',
+			category: interactiveWindowCategory,
 		});
 	}
 
@@ -692,7 +688,7 @@ registerAction2(class extends Action2 {
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			category: 'Interactive',
+			category: interactiveWindowCategory,
 		});
 	}
 
@@ -715,9 +711,9 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.input.focus',
-			title: { value: localize('interactive.input.focus', "Focus input editor in the interactive window"), original: 'Focus input editor in the interactive window' },
-			category: 'Interactive',
-			f1: false
+			title: { value: localize('interactive.input.focus', "Focus Input Editor"), original: 'Focus Input Editor' },
+			category: interactiveWindowCategory,
+			f1: true
 		});
 	}
 
@@ -728,6 +724,21 @@ registerAction2(class extends Action2 {
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
 			editorService.activeEditorPane?.focus();
 		}
+		else {
+			// find and open the most recent interactive window
+			const openEditors = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
+			const interactiveWindow = Iterable.find(openEditors, identifier => { return identifier.editor.typeId === InteractiveEditorInput.ID; });
+			if (interactiveWindow) {
+				const editorInput = interactiveWindow.editor as InteractiveEditorInput;
+				const currentGroup = interactiveWindow.groupId;
+				const editor = await editorService.openEditor(editorInput, currentGroup);
+				const editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+
+				if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+					editorService.activeEditorPane?.focus();
+				}
+			}
+		}
 	}
 });
 
@@ -735,9 +746,13 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.history.focus',
-			title: { value: localize('interactive.history.focus', "Focus history in the interactive window"), original: 'Focus input editor in the interactive window' },
-			category: 'Interactive',
-			f1: false
+			title: { value: localize('interactive.history.focus', "Focus History"), original: 'Focus History' },
+			category: interactiveWindowCategory,
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+			},
+			precondition: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
 		});
 	}
 

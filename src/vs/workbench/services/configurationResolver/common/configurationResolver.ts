@@ -55,7 +55,7 @@ export interface IConfigurationResolverService {
 	contributeVariable(variable: string, resolution: () => Promise<string | undefined>): void;
 }
 
-export interface PromptStringInputInfo {
+interface PromptStringInputInfo {
 	id: string;
 	type: 'promptString';
 	description: string;
@@ -63,7 +63,7 @@ export interface PromptStringInputInfo {
 	password?: boolean;
 }
 
-export interface PickStringInputInfo {
+interface PickStringInputInfo {
 	id: string;
 	type: 'pickString';
 	description: string;
@@ -71,7 +71,7 @@ export interface PickStringInputInfo {
 	default?: string;
 }
 
-export interface CommandInputInfo {
+interface CommandInputInfo {
 	id: string;
 	type: 'command';
 	command: string;

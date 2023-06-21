@@ -5,30 +5,29 @@
 
 import { h } from 'vs/base/browser/dom';
 import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { autorun, derived, IObservable, observableFromEvent } from 'vs/base/common/observable';
-import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { IObservable, autorun, derived, observableFromEvent } from 'vs/base/common/observable';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
+import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { observableConfigValue, setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 
 export abstract class CodeEditorView extends Disposable {
 	readonly model = this.viewModel.map(m => /** @description model */ m?.model);
 
 	protected readonly htmlElements = h('div.code-view', [
-		h('div.title@header', [
+		h('div.header@header', [
 			h('span.title@title'),
 			h('span.description@description'),
 			h('span.detail@detail'),
@@ -62,6 +61,10 @@ export abstract class CodeEditorView extends Disposable {
 		// snap?: boolean | undefined;
 	};
 
+	protected readonly checkboxesVisible = observableConfigValue<boolean>('mergeEditor.showCheckboxes', false, this.configurationService);
+	protected readonly showDeletionMarkers = observableConfigValue<boolean>('mergeEditor.showDeletionMarkers', true, this.configurationService);
+	protected readonly useSimplifiedDecorations = observableConfigValue<boolean>('mergeEditor.useSimplifiedDecorations', false, this.configurationService);
+
 	public readonly editor = this.instantiationService.createInstance(
 		CodeEditorWidget,
 		this.htmlElements.editor,
@@ -93,15 +96,16 @@ export abstract class CodeEditorView extends Disposable {
 	public readonly cursorLineNumber = this.cursorPosition.map(p => /** @description cursorPosition.lineNumber */ p?.lineNumber);
 
 	constructor(
-		@IInstantiationService
 		private readonly instantiationService: IInstantiationService,
 		public readonly viewModel: IObservable<undefined | MergeEditorViewModel>,
+		private readonly configurationService: IConfigurationService,
 	) {
 		super();
+
 	}
 
-	protected getEditorContributions(): IEditorContributionDescription[] | undefined {
-		return undefined;
+	protected getEditorContributions(): IEditorContributionDescription[] {
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== FoldingController.ID && c.id !== CodeLensContribution.ID);
 	}
 }
 
@@ -134,22 +138,14 @@ export class TitleMenu extends Disposable {
 	constructor(
 		menuId: MenuId,
 		targetHtmlElement: HTMLElement,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		const titleMenu = menuService.createMenu(menuId, contextKeyService);
-		const toolBar = new ToolBar(targetHtmlElement, contextMenuService);
-		const toolBarUpdate = () => {
-			const secondary: IAction[] = [];
-			createAndFillInActionBarActions(titleMenu, { renderShortTitle: true }, secondary);
-			toolBar.setActions([], secondary);
-		};
-		this._store.add(toolBar);
-		this._store.add(titleMenu);
-		this._store.add(titleMenu.onDidChange(toolBarUpdate));
-		toolBarUpdate();
+		const toolbar = instantiationService.createInstance(MenuWorkbenchToolBar, targetHtmlElement, menuId, {
+			menuOptions: { renderShortTitle: true },
+			toolbarOptions: { primaryGroup: () => false }
+		});
+		this._store.add(toolbar);
 	}
 }

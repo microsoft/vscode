@@ -7,8 +7,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ISplashStorageService } from 'vs/workbench/contrib/splash/browser/splash';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { INativeHostService } from 'vs/platform/native/common/native';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { PartsSplash } from 'vs/workbench/contrib/splash/browser/partsSplash';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 
@@ -21,10 +21,9 @@ class SplashStorageService implements ISplashStorageService {
 	}
 }
 
-registerSingleton(ISplashStorageService, SplashStorageService, true);
+registerSingleton(ISplashStorageService, SplashStorageService, InstantiationType.Delayed);
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	PartsSplash,
-	'PartsSplash',
 	LifecyclePhase.Starting
 );

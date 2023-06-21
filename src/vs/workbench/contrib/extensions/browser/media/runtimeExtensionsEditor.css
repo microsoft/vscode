@@ -37,6 +37,10 @@
 	opacity: .8;
 }
 
+.runtime-extensions-editor .monaco-action-bar  {
+	height: unset;
+}
+
 .runtime-extensions-editor .monaco-action-bar .actions-container {
 	justify-content: left;
 }
@@ -83,5 +87,4 @@
 	font-size: 80%;
 	padding-left: 6px;
 	min-width: fit-content;
-	min-width: -moz-fit-content;
 }

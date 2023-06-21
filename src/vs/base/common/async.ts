@@ -10,6 +10,7 @@ import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/bas
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { setTimeout0 } from 'vs/base/common/platform';
+import { MicrotaskDelay } from './symbols';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
@@ -93,18 +94,21 @@ export function raceCancellationError<T>(promise: Promise<T>, token: Cancellatio
 }
 
 /**
- * Returns as soon as one of the promises is resolved and cancels remaining promises
+ * Returns as soon as one of the promises resolves or rejects and cancels remaining promises
  */
 export async function raceCancellablePromises<T>(cancellablePromises: CancelablePromise<T>[]): Promise<T> {
 	let resolvedPromiseIndex = -1;
 	const promises = cancellablePromises.map((promise, index) => promise.then(result => { resolvedPromiseIndex = index; return result; }));
-	const result = await Promise.race(promises);
-	cancellablePromises.forEach((cancellablePromise, index) => {
-		if (index !== resolvedPromiseIndex) {
-			cancellablePromise.cancel();
-		}
-	});
-	return result;
+	try {
+		const result = await Promise.race(promises);
+		return result;
+	} finally {
+		cancellablePromises.forEach((cancellablePromise, index) => {
+			if (index !== resolvedPromiseIndex) {
+				cancellablePromise.cancel();
+			}
+		});
+	}
 }
 
 export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?: () => void): Promise<T | undefined> {
@@ -162,11 +166,13 @@ export interface ITask<T> {
  * 			throttler.queue(deliver);
  * 		}
  */
-export class Throttler {
+export class Throttler implements IDisposable {
 
 	private activePromise: Promise<any> | null;
 	private queuedPromise: Promise<any> | null;
 	private queuedPromiseFactory: ITask<Promise<any>> | null;
+
+	private isDisposed = false;
 
 	constructor() {
 		this.activePromise = null;
@@ -175,12 +181,20 @@ export class Throttler {
 	}
 
 	queue<T>(promiseFactory: ITask<Promise<T>>): Promise<T> {
+		if (this.isDisposed) {
+			throw new Error('Throttler is disposed');
+		}
+
 		if (this.activePromise) {
 			this.queuedPromiseFactory = promiseFactory;
 
 			if (!this.queuedPromise) {
 				const onComplete = () => {
 					this.queuedPromise = null;
+
+					if (this.isDisposed) {
+						return;
+					}
 
 					const result = this.queue(this.queuedPromiseFactory!);
 					this.queuedPromiseFactory = null;
@@ -209,6 +223,10 @@ export class Throttler {
 				reject(err);
 			});
 		});
+	}
+
+	dispose(): void {
+		this.isDisposed = true;
 	}
 }
 
@@ -273,9 +291,6 @@ const microtaskDeferred = (fn: () => void): IScheduledLater => {
 		dispose: () => { scheduled = false; },
 	};
 };
-
-/** Can be passed into the Delayed to defer using a microtask */
-export const MicrotaskDelay = Symbol('MicrotaskDelay');
 
 /**
  * A helper to delay (debounce) execution of a task that is being requested often.
@@ -819,7 +834,7 @@ export class IntervalTimer implements IDisposable {
 	}
 }
 
-export class RunOnceScheduler {
+export class RunOnceScheduler implements IDisposable {
 
 	protected runner: ((...args: unknown[]) => void) | null;
 
@@ -873,6 +888,13 @@ export class RunOnceScheduler {
 	 */
 	isScheduled(): boolean {
 		return this.timeoutToken !== -1;
+	}
+
+	flush(): void {
+		if (this.isScheduled()) {
+			this.cancel();
+			this.doRun();
+		}
 	}
 
 	private onTimeout() {
@@ -961,6 +983,7 @@ export class ProcessTimeRunOnceScheduler {
 }
 
 export class RunOnceWorker<T> extends RunOnceScheduler {
+
 	private units: T[] = [];
 
 	constructor(runner: (units: T[]) => void, timeout: number) {
@@ -1068,7 +1091,9 @@ export class ThrottledWorker<T> extends Disposable {
 		}
 
 		// Add to pending units first
-		this.pendingWork.push(...units);
+		for (const unit of units) {
+			this.pendingWork.push(unit);
+		}
 
 		// If not throttled, start working directly
 		// Otherwise, when the throttle delay has
@@ -1111,7 +1136,22 @@ export interface IdleDeadline {
 }
 
 /**
- * Execute the callback the next time the browser is idle
+ * Execute the callback the next time the browser is idle, returning an
+ * {@link IDisposable} that will cancel the callback when disposed. This wraps
+ * [requestIdleCallback] so it will fallback to [setTimeout] if the environment
+ * doesn't support it.
+ *
+ * @param callback The callback to run when idle, this includes an
+ * [IdleDeadline] that provides the time alloted for the idle callback by the
+ * browser. Not respecting this deadline will result in a degraded user
+ * experience.
+ * @param timeout A timeout at which point to queue no longer wait for an idle
+ * callback but queue it on the regular event loop (like setTimeout). Typically
+ * this should not be used.
+ *
+ * [IdleDeadline]: https://developer.mozilla.org/en-US/docs/Web/API/IdleDeadline
+ * [requestIdleCallback]: https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback
+ * [setTimeout]: https://developer.mozilla.org/en-US/docs/Web/API/Window/setTimeout
  */
 export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
 
@@ -1380,6 +1420,11 @@ export class IntervalCounter {
 
 export type ValueCallback<T = unknown> = (value: T | Promise<T>) => void;
 
+const enum DeferredOutcome {
+	Resolved,
+	Rejected
+}
+
 /**
  * Creates a promise whose resolution or rejection can be controlled imperatively.
  */
@@ -1387,19 +1432,22 @@ export class DeferredPromise<T> {
 
 	private completeCallback!: ValueCallback<T>;
 	private errorCallback!: (err: unknown) => void;
-	private rejected = false;
-	private resolved = false;
+	private outcome?: { outcome: DeferredOutcome.Rejected; value: any } | { outcome: DeferredOutcome.Resolved; value: T };
 
 	public get isRejected() {
-		return this.rejected;
+		return this.outcome?.outcome === DeferredOutcome.Rejected;
 	}
 
 	public get isResolved() {
-		return this.resolved;
+		return this.outcome?.outcome === DeferredOutcome.Resolved;
 	}
 
 	public get isSettled() {
-		return this.rejected || this.resolved;
+		return !!this.outcome;
+	}
+
+	public get value() {
+		return this.outcome?.outcome === DeferredOutcome.Resolved ? this.outcome?.value : undefined;
 	}
 
 	public readonly p: Promise<T>;
@@ -1414,7 +1462,7 @@ export class DeferredPromise<T> {
 	public complete(value: T) {
 		return new Promise<void>(resolve => {
 			this.completeCallback(value);
-			this.resolved = true;
+			this.outcome = { outcome: DeferredOutcome.Resolved, value };
 			resolve();
 		});
 	}
@@ -1422,17 +1470,13 @@ export class DeferredPromise<T> {
 	public error(err: unknown) {
 		return new Promise<void>(resolve => {
 			this.errorCallback(err);
-			this.rejected = true;
+			this.outcome = { outcome: DeferredOutcome.Rejected, value: err };
 			resolve();
 		});
 	}
 
 	public cancel() {
-		new Promise<void>(resolve => {
-			this.errorCallback(new CancellationError());
-			this.rejected = true;
-			resolve();
-		});
+		return this.error(new CancellationError());
 	}
 }
 
@@ -1528,7 +1572,7 @@ export interface AsyncIterableEmitter<T> {
 /**
  * An executor for the `AsyncIterableObject` that has access to an emitter.
  */
-export interface AyncIterableExecutor<T> {
+export interface AsyncIterableExecutor<T> {
 	/**
 	 * @param emitter An object that allows to emit async values valid only for the duration of the executor.
 	 */
@@ -1575,7 +1619,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	private _error: Error | null;
 	private readonly _onStateChanged: Emitter<void>;
 
-	constructor(executor: AyncIterableExecutor<T>) {
+	constructor(executor: AsyncIterableExecutor<T>) {
 		this._state = AsyncIterableSourceState.Initial;
 		this._results = [];
 		this._error = null;
@@ -1729,7 +1773,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 export class CancelableAsyncIterableObject<T> extends AsyncIterableObject<T> {
 	constructor(
 		private readonly _source: CancellationTokenSource,
-		executor: AyncIterableExecutor<T>
+		executor: AsyncIterableExecutor<T>
 	) {
 		super(executor);
 	}

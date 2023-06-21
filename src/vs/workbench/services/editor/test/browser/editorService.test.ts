@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditorActivation, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput, SideBySideEditor, isEditorInput } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestTextFileEditor, TestSingletonFileEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -602,8 +602,13 @@ suite('EditorService', () => {
 
 		async function openEditor(editor: EditorInputWithOptions | IUntypedEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined> {
 			if (useOpenEditors) {
+				// The type safety isn't super good here, so we assist with runtime checks
+				// Open editors expects untyped or editor input with options, you cannot pass a typed editor input
+				// without options
+				if (!isEditorInputWithOptions(editor) && isEditorInput(editor)) {
+					editor = { editor: editor, options: {} };
+				}
 				const panes = await service.openEditors([editor], group);
-
 				return panes[0];
 			}
 
@@ -651,7 +656,7 @@ suite('EditorService', () => {
 				assert.ok(typedEditor instanceof TestFileEditorInput);
 				assert.strictEqual(typedEditor?.resource?.toString(), untypedEditorReplacement.resource.toString());
 
-				assert.strictEqual(editorFactoryCalled, 2);
+				assert.strictEqual(editorFactoryCalled, 3);
 				assert.strictEqual(untitledEditorFactoryCalled, 0);
 				assert.strictEqual(diffEditorFactoryCalled, 0);
 
@@ -881,7 +886,6 @@ suite('EditorService', () => {
 				assert.strictEqual(untitledEditorFactoryCalled, 0);
 				assert.strictEqual(diffEditorFactoryCalled, 0);
 
-				assert.ok(!lastEditorFactoryEditor);
 				assert.ok(!lastUntitledEditorFactoryEditor);
 				assert.ok(!lastDiffEditorFactoryEditor);
 
@@ -2064,7 +2068,9 @@ suite('EditorService', () => {
 		await service.openEditor(input2, { pinned: true });
 		await service.openEditor(sameInput1, { pinned: true }, SIDE_GROUP);
 
-		await service.save({ groupId: rootGroup.id, editor: input1 });
+		const res1 = await service.save({ groupId: rootGroup.id, editor: input1 });
+		assert.strictEqual(res1.success, true);
+		assert.strictEqual(res1.editors[0], input1);
 		assert.strictEqual(input1.gotSaved, true);
 
 		input1.gotSaved = false;
@@ -2075,7 +2081,9 @@ suite('EditorService', () => {
 		input2.dirty = true;
 		sameInput1.dirty = true;
 
-		await service.save({ groupId: rootGroup.id, editor: input1 }, { saveAs: true });
+		const res2 = await service.save({ groupId: rootGroup.id, editor: input1 }, { saveAs: true });
+		assert.strictEqual(res2.success, true);
+		assert.strictEqual(res2.editors[0], input1);
 		assert.strictEqual(input1.gotSavedAs, true);
 
 		input1.gotSaved = false;
@@ -2098,8 +2106,9 @@ suite('EditorService', () => {
 		input2.dirty = true;
 		sameInput1.dirty = true;
 
-		const saveRes = await service.saveAll();
-		assert.strictEqual(saveRes, true);
+		const res3 = await service.saveAll();
+		assert.strictEqual(res3.success, true);
+		assert.strictEqual(res3.editors.length, 2);
 		assert.strictEqual(input1.gotSaved, true);
 		assert.strictEqual(input2.gotSaved, true);
 
@@ -2157,7 +2166,8 @@ suite('EditorService', () => {
 		sameInput1.dirty = true;
 
 		const saveRes = await service.saveAll({ excludeSticky: true });
-		assert.strictEqual(saveRes, true);
+		assert.strictEqual(saveRes.success, true);
+		assert.strictEqual(saveRes.editors.length, 2);
 		assert.strictEqual(input1.gotSaved, false);
 		assert.strictEqual(input2.gotSaved, true);
 		assert.strictEqual(sameInput1.gotSaved, true);
@@ -2222,6 +2232,7 @@ suite('EditorService', () => {
 			size: 0,
 			isSymbolicLink: false,
 			readonly: false,
+			locked: false,
 			children: undefined
 		}));
 		await activeEditorChangePromise;

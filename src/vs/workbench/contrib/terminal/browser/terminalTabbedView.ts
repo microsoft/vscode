@@ -13,7 +13,7 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Action, Separator } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -23,6 +23,8 @@ import { localize } from 'vs/nls';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -77,6 +79,7 @@ export class TerminalTabbedView extends Disposable {
 		@IMenuService menuService: IMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 
@@ -426,7 +429,7 @@ export class TerminalTabbedView extends Disposable {
 		}));
 	}
 
-	private _getTabActions(): Action[] {
+	private _getTabActions(): IAction[] {
 		return [
 			new Separator(),
 			this._configurationService.inspect(TerminalSettingId.TabsLocation).userValue === 'left' ?
@@ -477,6 +480,22 @@ export class TerminalTabbedView extends Disposable {
 			return;
 		}
 		this._focus();
+	}
+
+	focusHover() {
+		if (this._shouldShowTabs()) {
+			this._tabList.focusHover();
+			return;
+		}
+		const instance = this._terminalGroupService.activeInstance;
+		if (!instance) {
+			return;
+		}
+		this._hoverService.showHover({
+			...getInstanceHoverInfo(instance),
+			target: this._terminalContainer,
+			trapFocus: true
+		}, true);
 	}
 
 	private _focus() {

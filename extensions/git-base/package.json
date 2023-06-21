@@ -8,7 +8,7 @@
   "engines": {
     "vscode": "0.10.x"
   },
-	"categories": [
+  "categories": [
     "Other"
   ],
   "activationEvents": [
@@ -66,6 +66,9 @@
         "filenames": [
           "git-rebase-todo"
         ],
+        "filenamePatterns": [
+          "**/rebase-merge/done"
+        ],
         "configuration": "./languages/git-rebase.language-configuration.json"
       },
       {
@@ -98,9 +101,6 @@
         "path": "./syntaxes/ignore.tmLanguage.json"
       }
     ]
-  },
-  "dependencies": {
-    "vscode-nls": "^5.1.0"
   },
   "devDependencies": {
     "@types/node": "16.x"

@@ -9,6 +9,7 @@ import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -207,6 +208,27 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1)), 'y First Line\nMy Second Line\n'.length);
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1000)), 'y First Line\nMy Second Line\nMy Third Line'.length);
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000)), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		m.dispose();
+	});
+
+	test('getValueLengthInRange different EOL', () => {
+
+		let m = createTextModel('My First Line\r\nMy Second Line\r\nMy Third Line');
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.TextDefined), 'My First Line\r\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.CRLF), 'My First Line\r\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.LF), 'My First Line\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.TextDefined), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.CRLF), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.LF), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		m.dispose();
+
+		m = createTextModel('My First Line\nMy Second Line\nMy Third Line');
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.TextDefined), 'My First Line\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.LF), 'My First Line\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.CRLF), 'My First Line\r\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.TextDefined), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.LF), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.CRLF), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
 		m.dispose();
 	});
 
@@ -1022,6 +1044,23 @@ suite('Editor Model - TextModel', () => {
 		const m = createTextModel('My First Line\r\nMy Second Line\r\nMy Third Line');
 		assert.strictEqual(m.getValueInRange(new Range(1, NaN, 1, 3)), 'My');
 		assert.strictEqual(m.getValueInRange(new Range(NaN, NaN, NaN, NaN)), '');
+		m.dispose();
+	});
+
+	test('issue #168836: updating tabSize should also update indentSize when indentSize is set to "tabSize"', () => {
+		const m = createTextModel('some text', null, {
+			tabSize: 2,
+			indentSize: 'tabSize'
+		});
+		assert.strictEqual(m.getOptions().tabSize, 2);
+		assert.strictEqual(m.getOptions().indentSize, 2);
+		assert.strictEqual(m.getOptions().originalIndentSize, 'tabSize');
+		m.updateOptions({
+			tabSize: 4
+		});
+		assert.strictEqual(m.getOptions().tabSize, 4);
+		assert.strictEqual(m.getOptions().indentSize, 4);
+		assert.strictEqual(m.getOptions().originalIndentSize, 'tabSize');
 		m.dispose();
 	});
 });

@@ -5,6 +5,7 @@
 
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
+import { QuickInput } from './quickinput';
 
 const activeRowSelector = `.notebook-editor .monaco-list-row.focused`;
 
@@ -12,11 +13,14 @@ export class Notebook {
 
 	constructor(
 		private readonly quickAccess: QuickAccess,
+		private readonly quickInput: QuickInput,
 		private readonly code: Code) {
 	}
 
 	async openNotebook() {
-		await this.quickAccess.runCommand('vscode-notebook-tests.createNewNotebook');
+		await this.quickAccess.openFileQuickAccessAndWait('notebook.ipynb', 1);
+		await this.quickInput.selectQuickInputElement(0);
+
 		await this.code.waitForElement(activeRowSelector);
 		await this.focusFirstCell();
 		await this.waitForActiveCellEditorContents('code()');

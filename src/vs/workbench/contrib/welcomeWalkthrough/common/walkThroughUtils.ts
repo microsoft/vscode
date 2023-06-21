@@ -3,21 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { editorBackground, ColorDefaults, ColorValue } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from 'vs/nls';
+import { Color, RGBA } from 'vs/base/common/color';
 
-export function getExtraColor(theme: IColorTheme, colorId: string, defaults: ColorDefaults & { extra_dark: string }): ColorValue | null {
-	const color = theme.getColor(colorId);
-	if (color) {
-		return color;
-	}
-
-	if (theme.type === 'dark') {
-		const background = theme.getColor(editorBackground);
-		if (background && background.getRelativeLuminance() < 0.004) {
-			return defaults.extra_dark;
-		}
-	}
-
-	return defaults[theme.type];
-}
+export const embeddedEditorBackground = registerColor('walkThrough.embeddedEditorBackground', { dark: new Color(new RGBA(0, 0, 0, .4)), light: '#f4f4f4', hcDark: null, hcLight: null }, localize('walkThrough.embeddedEditorBackground', 'Background color for the embedded editors on the Interactive Playground.'));

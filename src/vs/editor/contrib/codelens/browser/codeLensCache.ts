@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { CodeLens, CodeLensList, CodeLensProvider } from 'vs/editor/common/languages';
 import { CodeLensModel } from 'vs/editor/contrib/codelens/browser/codelens';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 
@@ -129,4 +129,4 @@ export class CodeLensCache implements ICodeLensCache {
 	}
 }
 
-registerSingleton(ICodeLensCache, CodeLensCache, true);
+registerSingleton(ICodeLensCache, CodeLensCache, InstantiationType.Delayed);

@@ -17,8 +17,11 @@
 			}
 		},
 		{
-			"name": "Comment",
-			"scope": "comment",
+			"name": "Comments",
+			"scope": [
+				"comment",
+				"string.quoted.docstring"
+			],
 			"settings": {
 				"foreground": "#384887"
 			}
@@ -409,6 +412,7 @@
 		// "activityBar.foreground": "",
 		// "activityBarBadge.background": "",
 		// "activityBarBadge.foreground": "",
+		"activityBarItem.profilesBackground": "#082877",
 
 		// Workbench: Panel
 		// "panel.background": "",

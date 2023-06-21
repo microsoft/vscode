@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
@@ -159,4 +159,4 @@ export class PaneCompositeParts extends Disposable implements IPaneCompositePart
 	}
 }
 
-registerSingleton(IPaneCompositePartService, PaneCompositeParts, true);
+registerSingleton(IPaneCompositePartService, PaneCompositeParts, InstantiationType.Delayed);

@@ -10,7 +10,8 @@ const vfs = require('vinyl-fs');
 const path = require('path');
 const fs = require('fs');
 const pall = require('p-all');
-const { all, copyrightFilter, unicodeFilter, indentationFilter, tsFormattingFilter, eslintFilter } = require('./filters');
+
+const { all, copyrightFilter, unicodeFilter, indentationFilter, tsFormattingFilter, eslintFilter, stylelintFilter } = require('./filters');
 
 const copyrightHeaderLines = [
 	'/*---------------------------------------------------------------------------------------------',
@@ -21,6 +22,7 @@ const copyrightHeaderLines = [
 
 function hygiene(some, linting = true) {
 	const gulpeslint = require('gulp-eslint');
+	const gulpstylelint = require('./stylelint');
 	const tsfmt = require('typescript-formatter');
 
 	let errorCount = 0;
@@ -184,6 +186,16 @@ function hygiene(some, linting = true) {
 					})
 				)
 		);
+		streams.push(
+			result.pipe(filter(stylelintFilter)).pipe(gulpstylelint(((message, isError) => {
+				if (isError) {
+					console.error(message);
+				errorCount++;
+				} else {
+					console.warn(message);
+				}
+			})))
+		);
 	}
 
 	let count = 0;
@@ -291,7 +303,7 @@ if (require.main === module) {
 						.then(
 							(vinyls) =>
 								new Promise((c, e) =>
-									hygiene(es.readArray(vinyls))
+									hygiene(es.readArray(vinyls).pipe(filter(all)))
 										.on('end', () => c())
 										.on('error', e)
 								)

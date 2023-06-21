@@ -5,23 +5,12 @@
 
 import { Terminal } from 'xterm';
 import { strictEqual, deepStrictEqual, deepEqual } from 'assert';
-import { timeout } from 'vs/base/common/async';
 import * as sinon from 'sinon';
-import { parseKeyValueAssignment, parseMarkSequence, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
+import { parseKeyValueAssignment, parseMarkSequence, deserializeMessage, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-
-async function writeP(terminal: Terminal, data: string): Promise<void> {
-	return new Promise<void>((resolve, reject) => {
-		const failTimeout = timeout(2000);
-		failTimeout.then(() => reject('Writing to xterm is taking longer than 2 seconds'));
-		terminal.write(data, () => {
-			failTimeout.cancel();
-			resolve();
-		});
-	});
-}
+import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 
 class TestShellIntegrationAddon extends ShellIntegrationAddon {
 	getCommandDetectionMock(terminal: Terminal): sinon.SinonMock {
@@ -45,7 +34,7 @@ suite('ShellIntegrationAddon', () => {
 		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(ILogService, NullLogService);
-		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon, undefined, undefined);
+		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon, '', true, undefined);
 		xterm.loadAddon(shellIntegrationAddon);
 		capabilities = shellIntegrationAddon.capabilities;
 	});
@@ -197,6 +186,18 @@ suite('ShellIntegrationAddon', () => {
 			await writeP(xterm, '\x1b]633;D;7\x07');
 			mock.verify();
 		});
+		test('should pass command line sequence to the capability', async () => {
+			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
+			mock.expects('setCommandLine').once().withExactArgs('', false);
+			await writeP(xterm, '\x1b]633;E\x07');
+			mock.verify();
+
+			const mock2 = shellIntegrationAddon.getCommandDetectionMock(xterm);
+			mock2.expects('setCommandLine').twice().withExactArgs('cmd', false);
+			await writeP(xterm, '\x1b]633;E;cmd\x07');
+			await writeP(xterm, '\x1b]633;E;cmd;invalid-nonce\x07');
+			mock2.verify();
+		});
 		test('should not activate capability on the cwd sequence (OSC 633 ; P=Cwd=<cwd> ST)', async () => {
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
 			await writeP(xterm, 'foo');
@@ -254,6 +255,41 @@ suite('ShellIntegrationAddon', () => {
 				deepEqual(parseMarkSequence(['Id=4555', 'Hidden']), { id: "4555", hidden: true });
 			});
 		});
+	});
+});
+
+suite('deserializeMessage', () => {
+	// A single literal backslash, in order to avoid confusion about whether we are escaping test data or testing escapes.
+	const Backslash = '\\' as const;
+	const Newline = '\n' as const;
+	const Semicolon = ';' as const;
+
+	type TestCase = [title: string, input: string, expected: string];
+	const cases: TestCase[] = [
+		['empty', '', ''],
+		['basic', 'value', 'value'],
+		['space', 'some thing', 'some thing'],
+		['escaped backslash', `${Backslash}${Backslash}`, Backslash],
+		['non-initial escaped backslash', `foo${Backslash}${Backslash}`, `foo${Backslash}`],
+		['two escaped backslashes', `${Backslash}${Backslash}${Backslash}${Backslash}`, `${Backslash}${Backslash}`],
+		['escaped backslash amidst text', `Hello${Backslash}${Backslash}there`, `Hello${Backslash}there`],
+		['backslash escaped literally and as hex', `${Backslash}${Backslash} is same as ${Backslash}x5c`, `${Backslash} is same as ${Backslash}`],
+		['escaped semicolon', `${Backslash}x3b`, Semicolon],
+		['non-initial escaped semicolon', `foo${Backslash}x3b`, `foo${Semicolon}`],
+		['escaped semicolon (upper hex)', `${Backslash}x3B`, Semicolon],
+		['escaped backslash followed by literal "x3b" is not a semicolon', `${Backslash}${Backslash}x3b`, `${Backslash}x3b`],
+		['non-initial escaped backslash followed by literal "x3b" is not a semicolon', `foo${Backslash}${Backslash}x3b`, `foo${Backslash}x3b`],
+		['escaped backslash followed by escaped semicolon', `${Backslash}${Backslash}${Backslash}x3b`, `${Backslash}${Semicolon}`],
+		['escaped semicolon amidst text', `some${Backslash}x3bthing`, `some${Semicolon}thing`],
+		['escaped newline', `${Backslash}x0a`, Newline],
+		['non-initial escaped newline', `foo${Backslash}x0a`, `foo${Newline}`],
+		['escaped newline (upper hex)', `${Backslash}x0A`, Newline],
+		['escaped backslash followed by literal "x0a" is not a newline', `${Backslash}${Backslash}x0a`, `${Backslash}x0a`],
+		['non-initial escaped backslash followed by literal "x0a" is not a newline', `foo${Backslash}${Backslash}x0a`, `foo${Backslash}x0a`],
+	];
+
+	cases.forEach(([title, input, expected]) => {
+		test(title, () => strictEqual(deserializeMessage(input), expected));
 	});
 });
 

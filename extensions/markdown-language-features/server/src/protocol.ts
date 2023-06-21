@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RequestType } from 'vscode-languageserver';
+import { FileRename, RequestType } from 'vscode-languageserver';
 import type * as lsp from 'vscode-languageserver-types';
 import type * as md from 'vscode-markdown-languageservice';
 
@@ -22,7 +22,7 @@ export const findMarkdownFilesInWorkspace = new RequestType<{}, string[], any>('
 
 //#region To server
 export const getReferencesToFileInWorkspace = new RequestType<{ uri: string }, lsp.Location[], any>('markdown/getReferencesToFileInWorkspace');
-export const getEditForFileRenames = new RequestType<Array<{ oldUri: string; newUri: string }>, lsp.WorkspaceEdit, any>('markdown/getEditForFileRenames');
+export const getEditForFileRenames = new RequestType<FileRename[], { participatingRenames: readonly FileRename[]; edit: lsp.WorkspaceEdit }, any>('markdown/getEditForFileRenames');
 
 export const fs_watcher_onChange = new RequestType<{ id: number; uri: string; kind: 'create' | 'change' | 'delete' }, void, any>('markdown/fs/watcher/onChange');
 

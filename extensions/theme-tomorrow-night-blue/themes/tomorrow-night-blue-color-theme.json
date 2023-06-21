@@ -36,6 +36,7 @@
 		"statusBar.noFolderBackground": "#001126",
 		"statusBar.debuggingBackground": "#001126",
 		"activityBar.background": "#001733",
+		"activityBarItem.profilesBackground": "#003271",
 		"progressBar.background": "#bbdaffcc",
 		"badge.background": "#bbdaffcc",
 		"badge.foreground": "#001733",
@@ -77,8 +78,11 @@
 			}
 		},
 		{
-			"name": "Comment",
-			"scope": "comment",
+			"name": "Comments",
+			"scope": [
+				"comment",
+				"string.quoted.docstring"
+			],
 			"settings": {
 				"foreground": "#7285B7"
 			}
