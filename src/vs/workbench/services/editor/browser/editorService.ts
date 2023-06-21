@@ -1018,7 +1018,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					continue;
 				}
 
-				if (!options?.includeScratchpad && editor.hasCapability(EditorInputCapabilities.Scratchpad)) {
+				if ((typeof options?.includeUntitled === 'boolean' || !options?.includeUntitled?.includeScratchpad)
+					&& editor.hasCapability(EditorInputCapabilities.Scratchpad)) {
 					continue;
 				}
 

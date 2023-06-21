@@ -80,13 +80,14 @@ export interface IBaseSaveRevertAllEditorOptions {
 	/**
 	 * Whether to include untitled editors as well.
 	 */
-	readonly includeUntitled?: boolean;
+	readonly includeUntitled?: {
 
-	/**
-	 * Whether to include scratchpad editors.
-	 * if set to true, `includeUntitled` should also be true.
-	 */
-	readonly includeScratchpad?: boolean;
+		/**
+		 * Whether to include scratchpad editors.
+		 */
+		readonly includeScratchpad: boolean;
+	}
+	| boolean;
 
 	/**
 	 * Whether to exclude sticky editors.

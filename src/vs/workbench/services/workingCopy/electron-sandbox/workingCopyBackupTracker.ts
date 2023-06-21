@@ -89,9 +89,10 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 
 		if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
 
-			// Save all modified working copies
+			// Save all modified working copies that can be auto-saved
 			try {
-				await this.doSaveAllBeforeShutdown(false /* not untitled */, SaveReason.AUTO);
+				const workingCopiesToSave = modifiedWorkingCopies.filter(wc => !(wc.capabilities & WorkingCopyCapabilities.Untitled));
+				await this.doSaveAllBeforeShutdown(workingCopiesToSave, SaveReason.AUTO);
 			} catch (error) {
 				this.logService.error(`[backup tracker] error saving modified working copies: ${error}`); // guard against misbehaving saves, we handle remaining modified below
 			}
@@ -302,16 +303,8 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		return true; // veto (user canceled)
 	}
 
-	private doSaveAllBeforeShutdown(modifiedWorkingCopies: IWorkingCopy[], reason: SaveReason): Promise<void>;
-	private doSaveAllBeforeShutdown(includeAllUntitled: boolean, reason: SaveReason): Promise<void>;
-	private doSaveAllBeforeShutdown(arg1: IWorkingCopy[] | boolean, reason: SaveReason): Promise<void> {
-		const modifiedWorkingCopies = Array.isArray(arg1) ? arg1 : this.workingCopyService.modifiedWorkingCopies.filter(workingCopy => {
-			if (arg1 === false && (workingCopy.capabilities & WorkingCopyCapabilities.Untitled)) {
-				return false; // skip untitled unless explicitly included
-			}
-
-			return true;
-		});
+	private doSaveAllBeforeShutdown(workingCopies: IWorkingCopy[], reason: SaveReason): Promise<void> {
+		const modifiedWorkingCopies = workingCopies;
 
 		return this.withProgressAndCancellation(async () => {
 
@@ -320,12 +313,10 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 
 			// First save through the editor service if we save all to benefit
 			// from some extras like switching to untitled modified editors before saving.
-
 			let result: boolean | undefined = undefined;
-			if (typeof arg1 === 'boolean' || modifiedWorkingCopies.length === this.workingCopyService.modifiedCount) {
+			if (modifiedWorkingCopies.length === this.workingCopyService.modifiedCount) {
 				result = (await this.editorService.saveAll({
-					includeScratchpad: typeof arg1 === 'boolean' ? arg1 : true,
-					includeUntitled: typeof arg1 === 'boolean' ? arg1 : true,
+					includeUntitled: { includeScratchpad: true },
 					...saveOptions
 				})).success;
 			}
