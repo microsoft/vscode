@@ -128,6 +128,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 				md.blank();
 				this._addExtensionsTable(md);
 				md.blank();
+				this._addTerminalTable(md);
+				md.blank();
 				this._addRawPerfMarks(md);
 				md.blank();
 				this._addLoaderStats(md, stats);
@@ -220,6 +222,22 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 				table
 			);
 		}
+	}
+
+	private _addTerminalTable(md: MarkdownBuilder): void {
+		const table: Array<Array<string | number | undefined>> = [];
+		const marks = this._terminalService.perfMarks;
+		let lastStartTime = -1;
+		let total = 0;
+		for (const { name, startTime, detail } of marks) {
+			const delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
+			total += delta;
+			table.push([name, Math.round(startTime), Math.round(delta), Math.round(total), detail ?? '']);
+			lastStartTime = startTime;
+		}
+
+		md.heading(2, 'Terminal Stats');
+		md.table(['Name', 'Timestamp', 'Delta', 'Total', 'Detail'], table);
 	}
 
 	private _addRawPerfMarks(md: MarkdownBuilder): void {

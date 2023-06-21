@@ -159,6 +159,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly connectionState: TerminalConnectionState;
 	readonly whenConnected: Promise<void>;
 	readonly defaultLocation: TerminalLocation;
+	readonly perfMarks: readonly PerformanceMark[];
 
 	onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	onDidDisposeGroup: Event<ITerminalGroup>;

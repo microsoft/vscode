@@ -266,14 +266,15 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private readonly _perfMarks: PerformanceMark[] = [];
-	private _mark(name: string) {
-		this._perfMarks.push(new PerformanceMark(name));
+	get perfMarks(): readonly PerformanceMark[] { return this._perfMarks; }
+	private _mark(name: string, detail?: string) {
+		this._perfMarks.push(new PerformanceMark(name, { detail }));
 	}
 
 	async initializePrimaryBackend() {
-		this._mark('code/terminal/willGetTerminalBackend');
+		this._mark('terminal/willGetTerminalBackend');
 		this._primaryBackend = await this._terminalInstanceService.getBackend(this._environmentService.remoteAuthority);
-		this._mark('code/terminal/didGetTerminalBackend');
+		this._mark('terminal/didGetTerminalBackend');
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 
 		// Connect to the extension host if it's there, set the connection state to connected when
@@ -282,7 +283,7 @@ export class TerminalService implements ITerminalService {
 
 		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
 
-		this._mark('code/terminal/willReconnect');
+		this._mark('terminal/willReconnect');
 		let reconnectedPromise: Promise<any>;
 		if (isPersistentRemote) {
 			reconnectedPromise = this._reconnectToRemoteTerminals();
@@ -293,7 +294,7 @@ export class TerminalService implements ITerminalService {
 		}
 		reconnectedPromise.then(() => {
 			this._setConnected();
-			this._mark('code/terminal/didReconnect');
+			this._mark('terminal/didReconnect');
 			this._timerService.setPerformanceMarks('terminal', this._perfMarks);
 			this._whenConnected.complete();
 		});
@@ -425,13 +426,13 @@ export class TerminalService implements ITerminalService {
 		if (!backend) {
 			return;
 		}
-		this._mark('code/terminal/willGetTerminalLayoutInfo');
+		this._mark('terminal/willGetTerminalLayoutInfo');
 		const layoutInfo = await backend.getTerminalLayoutInfo();
-		this._mark('code/terminal/didGetTerminalLayoutInfo');
+		this._mark('terminal/didGetTerminalLayoutInfo');
 		backend.reduceConnectionGraceTime();
-		this._mark('code/terminal/willRecreateTerminalGroups');
+		this._mark('terminal/willRecreateTerminalGroups');
 		await this._recreateTerminalGroups(layoutInfo);
-		this._mark('code/terminal/didRecreateTerminalGroups');
+		this._mark('terminal/didRecreateTerminalGroups');
 		// now that terminals have been restored,
 		// attach listeners to update remote when terminals are changed
 		this._attachProcessLayoutListeners();
@@ -442,13 +443,13 @@ export class TerminalService implements ITerminalService {
 		if (!localBackend) {
 			return;
 		}
-		this._mark('code/terminal/willGetTerminalLayoutInfo');
+		this._mark('terminal/willGetTerminalLayoutInfo');
 		const layoutInfo = await localBackend.getTerminalLayoutInfo();
-		this._mark('code/terminal/didGetTerminalLayoutInfo');
+		this._mark('terminal/didGetTerminalLayoutInfo');
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
-			this._mark('code/terminal/willRecreateTerminalGroups');
+			this._mark('terminal/willRecreateTerminalGroups');
 			await this._recreateTerminalGroups(layoutInfo);
-			this._mark('code/terminal/didRecreateTerminalGroups');
+			this._mark('terminal/didRecreateTerminalGroups');
 		}
 		// now that terminals have been restored,
 		// attach listeners to update local state when terminals are changed
@@ -466,14 +467,15 @@ export class TerminalService implements ITerminalService {
 					let terminalInstance: ITerminalInstance | undefined;
 					let group: ITerminalGroup | undefined;
 					for (const terminalLayout of terminalLayouts) {
-						this._mark(`code/terminal/willRecreateTerminal/${terminalLayout.terminal?.id}`);
-						if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow && terminalLayout.terminal?.type === 'Task') {
+						const attachPersistentProcess = terminalLayout.terminal!;
+						if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow && attachPersistentProcess.type === 'Task') {
 							continue;
 						}
+						this._mark(`terminal/willRecreateTerminal/${attachPersistentProcess.id}`, `pid: ${attachPersistentProcess.pid}`);
 						if (!terminalInstance) {
 							// create group and terminal
 							terminalInstance = await this.createTerminal({
-								config: { attachPersistentProcess: terminalLayout.terminal! },
+								config: { attachPersistentProcess },
 								location: TerminalLocation.Panel
 							});
 							group = this._terminalGroupService.getGroupForInstance(terminalInstance);
@@ -483,11 +485,11 @@ export class TerminalService implements ITerminalService {
 						} else {
 							// add split terminals to this group
 							terminalInstance = await this.createTerminal({
-								config: { attachPersistentProcess: terminalLayout.terminal! },
+								config: { attachPersistentProcess },
 								location: { parentTerminal: terminalInstance }
 							});
 						}
-						this._mark(`code/terminal/didRecreateTerminal/${terminalLayout.terminal?.id}`);
+						this._mark(`terminal/didRecreateTerminal/${attachPersistentProcess.id}`, `pid: ${attachPersistentProcess.pid}`);
 					}
 					const activeInstance = this.instances.find(t => {
 						return t.shellLaunchConfig.attachPersistentProcess?.id === groupLayout.activePersistentProcessId;
@@ -926,7 +928,13 @@ export class TerminalService implements ITerminalService {
 			const isPtyTerminal = options?.config && 'customPtyImplementation' in options.config;
 			const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.vscodeFileResource;
 			if (!isPtyTerminal && !isLocalInRemoteTerminal) {
+				if (this._connectionState === TerminalConnectionState.Connecting) {
+					this._mark(`terminal/willGetProfiles`);
+				}
 				await this._terminalProfileService.profilesReady;
+				if (this._connectionState === TerminalConnectionState.Connecting) {
+					this._mark(`terminal/didGetProfiles`, `count: ${this._terminalProfileService.availableProfiles.length}`);
+				}
 			}
 		}
 
