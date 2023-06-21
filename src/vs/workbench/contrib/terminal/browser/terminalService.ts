@@ -20,7 +20,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
@@ -38,7 +38,7 @@ import { getColorStyleContent, getUriClasses } from 'vs/workbench/contrib/termin
 import { TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { getInstanceFromResource, getTerminalUri, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -51,7 +51,7 @@ import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xterm
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { mark } from 'vs/base/common/performance';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -175,8 +175,7 @@ export class TerminalService implements ITerminalService {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ITimerService private readonly _timerService: ITimerService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 		// the below avoids having to poll routinely.
@@ -265,15 +264,10 @@ export class TerminalService implements ITerminalService {
 		return undefined;
 	}
 
-	private readonly _perfMarks: PerformanceMark[] = [];
-	private _mark(name: string) {
-		this._perfMarks.push(new PerformanceMark(name));
-	}
-
 	async initializePrimaryBackend() {
-		this._mark('code/terminal/willGetTerminalBackend');
+		mark('code/terminal/willGetTerminalBackend');
 		this._primaryBackend = await this._terminalInstanceService.getBackend(this._environmentService.remoteAuthority);
-		this._mark('code/terminal/didGetTerminalBackend');
+		mark('code/terminal/didGetTerminalBackend');
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 
 		// Connect to the extension host if it's there, set the connection state to connected when
@@ -282,7 +276,7 @@ export class TerminalService implements ITerminalService {
 
 		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
 
-		this._mark('code/terminal/willReconnect');
+		mark('code/terminal/willReconnect');
 		let reconnectedPromise: Promise<any>;
 		if (isPersistentRemote) {
 			reconnectedPromise = this._reconnectToRemoteTerminals();
@@ -293,8 +287,10 @@ export class TerminalService implements ITerminalService {
 		}
 		reconnectedPromise.then(() => {
 			this._setConnected();
-			this._mark('code/terminal/didReconnect');
-			this._timerService.setPerformanceMarks('terminal', this._perfMarks);
+			mark('code/terminal/didReconnect');
+			for (const backend of this._terminalInstanceService.getRegisteredBackends()) {
+				backend.setConnected();
+			}
 			this._whenConnected.complete();
 		});
 
@@ -425,13 +421,13 @@ export class TerminalService implements ITerminalService {
 		if (!backend) {
 			return;
 		}
-		this._mark('code/terminal/willGetTerminalLayoutInfo');
+		mark('code/terminal/willGetTerminalLayoutInfo');
 		const layoutInfo = await backend.getTerminalLayoutInfo();
-		this._mark('code/terminal/didGetTerminalLayoutInfo');
+		mark('code/terminal/didGetTerminalLayoutInfo');
 		backend.reduceConnectionGraceTime();
-		this._mark('code/terminal/willRecreateTerminalGroups');
+		mark('code/terminal/willRecreateTerminalGroups');
 		await this._recreateTerminalGroups(layoutInfo);
-		this._mark('code/terminal/didRecreateTerminalGroups');
+		mark('code/terminal/didRecreateTerminalGroups');
 		// now that terminals have been restored,
 		// attach listeners to update remote when terminals are changed
 		this._attachProcessLayoutListeners();
@@ -442,13 +438,13 @@ export class TerminalService implements ITerminalService {
 		if (!localBackend) {
 			return;
 		}
-		this._mark('code/terminal/willGetTerminalLayoutInfo');
+		mark('code/terminal/willGetTerminalLayoutInfo');
 		const layoutInfo = await localBackend.getTerminalLayoutInfo();
-		this._mark('code/terminal/didGetTerminalLayoutInfo');
+		mark('code/terminal/didGetTerminalLayoutInfo');
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
-			this._mark('code/terminal/willRecreateTerminalGroups');
+			mark('code/terminal/willRecreateTerminalGroups');
 			await this._recreateTerminalGroups(layoutInfo);
-			this._mark('code/terminal/didRecreateTerminalGroups');
+			mark('code/terminal/didRecreateTerminalGroups');
 		}
 		// now that terminals have been restored,
 		// attach listeners to update local state when terminals are changed
@@ -466,14 +462,15 @@ export class TerminalService implements ITerminalService {
 					let terminalInstance: ITerminalInstance | undefined;
 					let group: ITerminalGroup | undefined;
 					for (const terminalLayout of terminalLayouts) {
-						this._mark(`code/terminal/willRecreateTerminal/${terminalLayout.terminal?.id}`);
-						if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow && terminalLayout.terminal?.type === 'Task') {
+						const attachPersistentProcess = terminalLayout.terminal!;
+						if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow && attachPersistentProcess.type === 'Task') {
 							continue;
 						}
+						mark(`code/terminal/willRecreateTerminal/${attachPersistentProcess.id}-${attachPersistentProcess.pid}`);
 						if (!terminalInstance) {
 							// create group and terminal
 							terminalInstance = await this.createTerminal({
-								config: { attachPersistentProcess: terminalLayout.terminal! },
+								config: { attachPersistentProcess },
 								location: TerminalLocation.Panel
 							});
 							group = this._terminalGroupService.getGroupForInstance(terminalInstance);
@@ -483,11 +480,11 @@ export class TerminalService implements ITerminalService {
 						} else {
 							// add split terminals to this group
 							terminalInstance = await this.createTerminal({
-								config: { attachPersistentProcess: terminalLayout.terminal! },
+								config: { attachPersistentProcess },
 								location: { parentTerminal: terminalInstance }
 							});
 						}
-						this._mark(`code/terminal/didRecreateTerminal/${terminalLayout.terminal?.id}`);
+						mark(`code/terminal/didRecreateTerminal/${attachPersistentProcess.id}-${attachPersistentProcess.pid}`);
 					}
 					const activeInstance = this.instances.find(t => {
 						return t.shellLaunchConfig.attachPersistentProcess?.id === groupLayout.activePersistentProcessId;
@@ -926,7 +923,13 @@ export class TerminalService implements ITerminalService {
 			const isPtyTerminal = options?.config && 'customPtyImplementation' in options.config;
 			const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.vscodeFileResource;
 			if (!isPtyTerminal && !isLocalInRemoteTerminal) {
+				if (this._connectionState === TerminalConnectionState.Connecting) {
+					mark(`code/terminal/willGetProfiles`);
+				}
 				await this._terminalProfileService.profilesReady;
+				if (this._connectionState === TerminalConnectionState.Connecting) {
+					mark(`code/terminal/didGetProfiles`);
+				}
 			}
 		}
 

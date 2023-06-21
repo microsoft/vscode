@@ -3,21 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
-import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment, ITerminalProcessOptions, ITerminalContributions, IProcessReadyWindowsPty } from 'vs/platform/terminal/common/terminal';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import Severity from 'vs/base/common/severity';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { URI } from 'vs/base/common/uri';
+import * as nls from 'vs/nls';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IFixedTerminalDimensions, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IProcessReadyWindowsPty, IShellLaunchConfig, ITerminalBackend, ITerminalContributions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ProcessPropertyType, TerminalIcon, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -96,105 +94,6 @@ export interface IShellLaunchConfigResolveOptions {
 	os: OperatingSystem;
 	allowAutomationShell?: boolean;
 }
-
-export interface ITerminalBackend {
-	readonly remoteAuthority: string | undefined;
-
-	readonly isResponsive: boolean;
-
-	/**
-	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
-	 * terminals using this pty host connection and mark them as disconnected.
-	 */
-	onPtyHostUnresponsive: Event<void>;
-	/**
-	 * Fired when the ptyHost process becomes responsive after being non-responsive. Allowing
-	 * previously disconnected terminals to reconnect.
-	 */
-	onPtyHostResponsive: Event<void>;
-	/**
-	 * Fired when the ptyHost has been restarted, this is used as a signal for listening terminals
-	 * that its pty has been lost and will remain disconnected.
-	 */
-	onPtyHostRestart: Event<void>;
-
-	onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
-
-	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
-	attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined>;
-	listProcesses(): Promise<IProcessDetails[]>;
-	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
-	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string>;
-	getEnvironment(): Promise<IProcessEnvironment>;
-	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
-	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
-	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
-	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void>;
-	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
-	reduceConnectionGraceTime(): Promise<void>;
-	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
-	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
-	persistTerminalState(): Promise<void>;
-
-	createProcess(
-		shellLaunchConfig: IShellLaunchConfig,
-		cwd: string,
-		cols: number,
-		rows: number,
-		unicodeVersion: '6' | '11',
-		env: IProcessEnvironment,
-		options: ITerminalProcessOptions,
-		shouldPersist: boolean
-	): Promise<ITerminalChildProcess>;
-
-	restartPtyHost(): void;
-}
-
-export const TerminalExtensions = {
-	Backend: 'workbench.contributions.terminal.processBackend'
-};
-
-export interface ITerminalBackendRegistry {
-	/**
-	 * Gets all backends in the registry.
-	 */
-	backends: ReadonlyMap<string, ITerminalBackend>;
-
-	/**
-	 * Registers a terminal backend for a remote authority.
-	 */
-	registerTerminalBackend(backend: ITerminalBackend): void;
-
-	/**
-	 * Returns the registered terminal backend for a remote authority.
-	 */
-	getTerminalBackend(remoteAuthority?: string): ITerminalBackend | undefined;
-}
-
-class TerminalBackendRegistry implements ITerminalBackendRegistry {
-	private readonly _backends = new Map<string, ITerminalBackend>();
-
-	get backends(): ReadonlyMap<string, ITerminalBackend> { return this._backends; }
-
-	registerTerminalBackend(backend: ITerminalBackend): void {
-		const key = this._sanitizeRemoteAuthority(backend.remoteAuthority);
-		if (this._backends.has(key)) {
-			throw new Error(`A terminal backend with remote authority '${key}' was already registered.`);
-		}
-		this._backends.set(key, backend);
-	}
-
-	getTerminalBackend(remoteAuthority: string | undefined): ITerminalBackend | undefined {
-		return this._backends.get(this._sanitizeRemoteAuthority(remoteAuthority));
-	}
-
-	private _sanitizeRemoteAuthority(remoteAuthority: string | undefined) {
-		// Normalize the key to lowercase as the authority is case-insensitive
-		return remoteAuthority?.toLowerCase() ?? '';
-	}
-}
-Registry.add(TerminalExtensions.Backend, new TerminalBackendRegistry());
 
 export type FontWeight = 'normal' | 'bold' | number;
 
