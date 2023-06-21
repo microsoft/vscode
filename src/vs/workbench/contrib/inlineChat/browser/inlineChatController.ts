@@ -612,7 +612,7 @@ export class InlineChatController implements IEditorContribution {
 		} else if (response instanceof ErrorResponse) {
 			// show error
 			if (!response.isCancellation) {
-				status = response.message;
+				status = localize('errorResponseMessage', "{0}", response.message);
 				this._zone.value.widget.updateStatus(status, { classes: ['error'] });
 			}
 
@@ -622,7 +622,10 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.widget.updateStatus('');
 			this._zone.value.widget.updateMarkdownMessage(renderedMarkdown.element);
 			this._zone.value.widget.updateToolbar(true);
-			status = renderedMarkdown.element?.textContent ?? '';
+			const content = renderedMarkdown.element?.textContent;
+			if (content) {
+				status = localize('markdownResponseMessage', "{0}", content);
+			}
 			this._activeSession.lastExpansionState = this._zone.value.widget.expansionState;
 
 		} else if (response instanceof EditResponse) {
@@ -634,11 +637,9 @@ export class InlineChatController implements IEditorContribution {
 			if (!canContinue) {
 				return State.ACCEPT;
 			}
-			// TODO: summarize proposed changes
-			status = 'navigate to the diff editor to review proposed changes.';
+			status = localize('editResponseMessage', "Navigate to the diff editor to review proposed changes.");
 			await this._strategy.renderChanges(response);
 		}
-
 		this._chatAccessibilityService.acceptResponse(status);
 
 		return State.WAIT_FOR_INPUT;
