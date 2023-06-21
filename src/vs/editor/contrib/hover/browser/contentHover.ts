@@ -592,6 +592,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!availableSpace) {
 			return;
 		}
+		// Padding needed in order to stop the resizing down to a smaller height
 		let maximumHeight = CONTAINER_HEIGHT_PADDING;
 		Array.from(this._hover.contentsDomNode.children).forEach((hoverPart) => {
 			maximumHeight += hoverPart.clientHeight;
