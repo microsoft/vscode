@@ -303,7 +303,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 	}
 
 	private doSaveAllBeforeShutdown(modifiedWorkingCopies: IWorkingCopy[], reason: SaveReason): Promise<void>;
-	private doSaveAllBeforeShutdown(includeUntitled: boolean, reason: SaveReason): Promise<void>;
+	private doSaveAllBeforeShutdown(includeAllUntitled: boolean, reason: SaveReason): Promise<void>;
 	private doSaveAllBeforeShutdown(arg1: IWorkingCopy[] | boolean, reason: SaveReason): Promise<void> {
 		const modifiedWorkingCopies = Array.isArray(arg1) ? arg1 : this.workingCopyService.modifiedWorkingCopies.filter(workingCopy => {
 			if (arg1 === false && (workingCopy.capabilities & WorkingCopyCapabilities.Untitled)) {
@@ -324,7 +324,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			let result: boolean | undefined = undefined;
 			if (typeof arg1 === 'boolean' || modifiedWorkingCopies.length === this.workingCopyService.modifiedCount) {
 				result = (await this.editorService.saveAll({
-					includeScratchpad: true,
+					includeScratchpad: typeof arg1 === 'boolean' ? arg1 : true,
 					includeUntitled: typeof arg1 === 'boolean' ? arg1 : true,
 					...saveOptions
 				})).success;
