@@ -587,6 +587,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._setResizableNodeMaxDimensions();
 		this._hover.scrollbar.scanDomNode();
 		this._editor.layoutContentWidget(this);
+		this._visibleData?.colorPicker?.layout();
 	}
 
 	private _findAvailableSpaceVertically(): number | undefined {
