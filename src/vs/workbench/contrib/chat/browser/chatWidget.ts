@@ -526,15 +526,23 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	declare readonly _serviceBrand: undefined;
 
 	private _responsePendingAudioCue: IDisposable | undefined;
+	private _hasReceivedRequest: boolean = false;
 
 	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
 	}
-	acceptRequest(): void {
+	async acceptRequest(): Promise<void> {
 		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
-		this._responsePendingAudioCue = this._audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
+		// Only play the pending cue if the response is not accepted within the timeout
+		setTimeout(() => {
+			if (!this._hasReceivedRequest) {
+				this._responsePendingAudioCue = this._audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
+			}
+		}, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
 	}
 	acceptResponse(response?: IChatResponseViewModel): void {
+		this._hasReceivedRequest = true;
+		// The response pending cue has started looping, time to cancel it
 		this._responsePendingAudioCue?.dispose();
 		this._audioCueService.playRandomAudioCue(AudioCueGroupId.chatResponseReceived, true);
 		if (!response) {
@@ -542,6 +550,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		}
 		const errorDetails = response.errorDetails ? ` ${response.errorDetails.message}` : '';
 		status(response.response.value + errorDetails);
+		this._hasReceivedRequest = false;
 	}
 }
 
