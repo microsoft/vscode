@@ -154,23 +154,23 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 	}
 
 	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout, considerWhitespaceChanges: boolean): { mappings: RangeMapping[]; hitTimeout: boolean } {
-		const sourceSlice = new Slice(originalLines, diff.seq1Range, considerWhitespaceChanges);
-		const targetSlice = new Slice(modifiedLines, diff.seq2Range, considerWhitespaceChanges);
+		const slice1 = new Slice(originalLines, diff.seq1Range, considerWhitespaceChanges);
+		const slice2 = new Slice(modifiedLines, diff.seq2Range, considerWhitespaceChanges);
 
-		const diffResult = sourceSlice.length + targetSlice.length < 500
-			? this.dynamicProgrammingDiffing.compute(sourceSlice, targetSlice, timeout)
-			: this.myersDiffingAlgorithm.compute(sourceSlice, targetSlice, timeout);
+		const diffResult = slice1.length + slice2.length < 500
+			? this.dynamicProgrammingDiffing.compute(slice1, slice2, timeout)
+			: this.myersDiffingAlgorithm.compute(slice1, slice2, timeout);
 
 		let diffs = diffResult.diffs;
-		diffs = optimizeSequenceDiffs(sourceSlice, targetSlice, diffs);
-		diffs = coverFullWords(sourceSlice, targetSlice, diffs);
-		diffs = smoothenSequenceDiffs(sourceSlice, targetSlice, diffs);
+		diffs = optimizeSequenceDiffs(slice1, slice2, diffs);
+		diffs = coverFullWords(slice1, slice2, diffs);
+		diffs = smoothenSequenceDiffs(slice1, slice2, diffs);
 
 		const result = diffs.map(
 			(d) =>
 				new RangeMapping(
-					sourceSlice.translateRange(d.seq1Range),
-					targetSlice.translateRange(d.seq2Range)
+					slice1.translateRange(d.seq1Range),
+					slice2.translateRange(d.seq2Range)
 				)
 		);
 
@@ -297,6 +297,9 @@ export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[], or
 	}
 
 	assertFn(() => {
+		if (changes.length > 0 && changes[0].originalRange.startLineNumber !== changes[0].modifiedRange.startLineNumber) {
+			return false;
+		}
 		return checkAdjacentItems(changes,
 			(m1, m2) => m2.originalRange.startLineNumber - m1.originalRange.endLineNumberExclusive === m2.modifiedRange.startLineNumber - m1.modifiedRange.endLineNumberExclusive &&
 				// There has to be an unchanged line in between (otherwise both diffs should have been joined)
