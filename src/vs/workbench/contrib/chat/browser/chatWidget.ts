@@ -533,7 +533,6 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	}
 	async acceptRequest(): Promise<void> {
 		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
-		// Only play the pending cue if the response is not accepted within the timeout
 		setTimeout(() => {
 			if (!this._hasReceivedRequest) {
 				this._responsePendingAudioCue = this._audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
@@ -542,7 +541,6 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	}
 	acceptResponse(response?: IChatResponseViewModel): void {
 		this._hasReceivedRequest = true;
-		// The response pending cue has started looping, time to cancel it
 		this._responsePendingAudioCue?.dispose();
 		this._audioCueService.playRandomAudioCue(AudioCueGroupId.chatResponseReceived, true);
 		if (!response) {
