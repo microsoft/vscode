@@ -51,7 +51,6 @@ import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xterm
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -175,8 +174,7 @@ export class TerminalService implements ITerminalService {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ITimerService private readonly _timerService: ITimerService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 		// the below avoids having to poll routinely.
@@ -295,7 +293,6 @@ export class TerminalService implements ITerminalService {
 		reconnectedPromise.then(() => {
 			this._setConnected();
 			this._mark('terminal/didReconnect');
-			this._timerService.setPerformanceMarks('terminal', this._perfMarks);
 			this._whenConnected.complete();
 		});
 
