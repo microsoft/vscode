@@ -531,7 +531,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
 	}
-	async acceptRequest(): Promise<void> {
+	acceptRequest(): void {
 		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
 		setTimeout(() => {
 			if (!this._hasReceivedRequest) {
