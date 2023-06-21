@@ -18,6 +18,7 @@ import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/comm
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
+import * as performance from 'vs/base/common/performance';
 
 enum Constants {
 	MaxRestarts = 5
@@ -228,6 +229,9 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 	listProcesses(): Promise<IProcessDetails[]> {
 		return this._proxy.listProcesses();
+	}
+	getPerformanceMarks(): Promise<performance.PerformanceMark[]> {
+		return this._proxy.getPerformanceMarks();
 	}
 	reduceConnectionGraceTime(): Promise<void> {
 		return this._proxy.reduceConnectionGraceTime();

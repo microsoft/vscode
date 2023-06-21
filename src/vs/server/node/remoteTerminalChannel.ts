@@ -117,6 +117,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$detachFromProcess': return this._ptyService.detachFromProcess.apply(this._ptyService, args);
 
 			case '$listProcesses': return this._ptyService.listProcesses.apply(this._ptyService, args);
+			case '$getPerformanceMarks': return this._ptyService.getPerformanceMarks.apply(this._ptyService, args);
 			case '$orphanQuestionReply': return this._ptyService.orphanQuestionReply.apply(this._ptyService, args);
 			case '$acceptPtyHostResolvedVariables': return this._ptyService.acceptPtyHostResolvedVariables?.apply(this._ptyService, args);
 

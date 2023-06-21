@@ -5,6 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { revive } from 'vs/base/common/marshalling';
+import { PerformanceMark } from 'vs/base/common/performance';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -65,7 +66,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IStatusbarService statusBarService: IStatusbarService,
+		@IStatusbarService statusBarService: IStatusbarService
 	) {
 		super(_remoteTerminalChannel, logService, _historyService, configurationResolverService, statusBarService, workspaceContextService);
 
@@ -337,5 +338,9 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		}
 
 		return this._remoteTerminalChannel.getTerminalLayoutInfo();
+	}
+
+	async getPerformanceMarks(): Promise<PerformanceMark[]> {
+		return this._remoteTerminalChannel.getPerformanceMarks();
 	}
 }

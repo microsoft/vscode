@@ -51,6 +51,7 @@ import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xterm
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -174,7 +175,8 @@ export class TerminalService implements ITerminalService {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ITimerService private readonly _timerService: ITimerService
 	) {
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 		// the below avoids having to poll routinely.
@@ -290,9 +292,14 @@ export class TerminalService implements ITerminalService {
 		} else {
 			reconnectedPromise = Promise.resolve();
 		}
-		reconnectedPromise.then(() => {
+		reconnectedPromise.then(async () => {
 			this._setConnected();
 			this._mark('terminal/didReconnect');
+			if (isPersistentRemote || enableTerminalReconnection) {
+				this._mark('terminal/willGetPerformanceMarks');
+				this._timerService.setPerformanceMarks(isPersistentRemote ? 'remotePtyHost' : 'localPtyHost', await this._primaryBackend!.getPerformanceMarks());
+				this._mark('terminal/didGetPerformanceMarks');
+			}
 			this._whenConnected.complete();
 		});
 
