@@ -78,7 +78,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		logDirectoryProvider: noopLogDirectoryProvider,
 		cancellerFactory: noopRequestCancellerFactory,
 		versionProvider,
-		processFactory: new WorkerServerProcessFactory(context.extensionUri),
+		processFactory: new WorkerServerProcessFactory(context.extensionUri, logger),
 		activeJsTsEditorTracker,
 		serviceConfigurationProvider: new BrowserServiceConfigurationProvider(),
 		experimentTelemetryReporter,
