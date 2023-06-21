@@ -109,7 +109,7 @@ export abstract class AbstractUserDataProfileStorageService extends Disposable i
 
 	private writeItems(storageService: IStorageService, items: Map<string, string | undefined | null>, target: StorageTarget): void {
 		for (const [key, value] of items) {
-			storageService.store(key, value, StorageScope.PROFILE, target);
+			storageService.store(key, value, StorageScope.PROFILE, target, true);
 		}
 	}
 

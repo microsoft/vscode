@@ -29,7 +29,7 @@ export class GlobalStateResourceInitializer implements IProfileResourceInitializ
 		const storageKeys = Object.keys(globalState.storage);
 		if (storageKeys.length) {
 			for (const key of storageKeys) {
-				this.storageService.store(key, globalState.storage[key], StorageScope.PROFILE, StorageTarget.USER);
+				this.storageService.store(key, globalState.storage[key], StorageScope.PROFILE, StorageTarget.USER, true);
 			}
 		}
 	}
