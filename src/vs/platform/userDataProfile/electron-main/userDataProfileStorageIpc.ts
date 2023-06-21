@@ -13,7 +13,6 @@ import { IBaseSerializableStorageRequest } from 'vs/platform/storage/common/stor
 import { IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { StorageChangeSource } from 'vs/base/parts/storage/common/storage';
 
 export class ProfileStorageChangesListenerChannel extends Disposable implements IServerChannel {
 
@@ -67,7 +66,7 @@ export class ProfileStorageChangesListenerChannel extends Disposable implements 
 		keys = keys.filter(key => key !== TARGET_KEY);
 		if (keys.length) {
 			const keyTargets = loadKeyTargets(this.storageMainService.applicationStorage.storage);
-			profileStorageValueChanges.push({ profile: this.userDataProfilesService.defaultProfile, changes: keys.map(key => ({ key, scope: StorageScope.PROFILE, target: keyTargets[key], source: StorageChangeSource.SELF })) });
+			profileStorageValueChanges.push({ profile: this.userDataProfilesService.defaultProfile, changes: keys.map(key => ({ key, scope: StorageScope.PROFILE, target: keyTargets[key] })) });
 		}
 		this.triggerEvents(targetChangedProfiles, profileStorageValueChanges);
 	}

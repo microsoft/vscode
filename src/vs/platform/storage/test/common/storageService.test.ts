@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
-import { StorageChangeSource } from 'vs/base/parts/storage/common/storage';
 import { InMemoryStorageService, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export function createSuite<T extends IStorageService>(params: { setup: () => Promise<T>; teardown: (service: T) => Promise<void> }): void {
@@ -36,15 +35,15 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		storageService.onDidChangeValue(e => storageValueChangeEvents.push(e));
 
 		// Explicit external source
-		storageService.store('testChange', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE, StorageChangeSource.EXTERNAL);
+		storageService.store('testChange', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE, true);
 		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'testChange');
-		strictEqual(storageValueChangeEvent?.source, StorageChangeSource.EXTERNAL);
+		strictEqual(storageValueChangeEvent?.wasChangedExternally, true);
 		storageValueChangeEvents = [];
 
 		// Default source
 		storageService.store('testChange', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'testChange');
-		strictEqual(storageValueChangeEvent?.source, StorageChangeSource.SELF);
+		strictEqual(storageValueChangeEvent?.wasChangedExternally, false);
 	});
 
 	function storeData(scope: StorageScope): void {

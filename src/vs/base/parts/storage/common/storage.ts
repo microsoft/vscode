@@ -54,7 +54,7 @@ export interface IStorageDatabase {
 
 export interface IStorageChangeEvent {
 	readonly key: string;
-	readonly source: StorageChangeSource;
+	readonly wasChangedExternally?: boolean;
 }
 
 export interface IStorage extends IDisposable {
@@ -78,7 +78,7 @@ export interface IStorage extends IDisposable {
 	getObject<T extends object>(key: string, fallbackValue: T): T;
 	getObject<T extends object>(key: string, fallbackValue?: T): T | undefined;
 
-	set(key: string, value: string | boolean | number | undefined | null | object, source?: StorageChangeSource): Promise<void>;
+	set(key: string, value: string | boolean | number | undefined | null | object, wasChangedExternally?: boolean): Promise<void>;
 	delete(key: string): Promise<void>;
 
 	flush(delay?: number): Promise<void>;
@@ -91,18 +91,6 @@ export enum StorageState {
 	None,
 	Initialized,
 	Closed
-}
-
-export enum StorageChangeSource {
-	/**
-	 * The value changed due to a component storing to it.
-	 */
-	SELF,
-
-	/**
-	 * The value changed due to external reasons.
-	 */
-	EXTERNAL
 }
 
 export class Storage extends Disposable implements IStorage {
@@ -142,11 +130,11 @@ export class Storage extends Disposable implements IStorage {
 		// items that change external require us to update our
 		// caches with the values. we just accept the value and
 		// emit an event if there is a change.
-		e.changed?.forEach((value, key) => this.accept(key, value, StorageChangeSource.EXTERNAL));
-		e.deleted?.forEach(key => this.accept(key, undefined, StorageChangeSource.EXTERNAL));
+		e.changed?.forEach((value, key) => this.accept(key, value, true));
+		e.deleted?.forEach(key => this.accept(key, undefined, true));
 	}
 
-	private accept(key: string, value: string | undefined, source: StorageChangeSource): void {
+	private accept(key: string, value: string | undefined, wasChangedExternally = false): void {
 		if (this.state === StorageState.Closed) {
 			return; // Return early if we are already closed
 		}
@@ -169,7 +157,7 @@ export class Storage extends Disposable implements IStorage {
 
 		// Signal to outside listeners
 		if (changed) {
-			this._onDidChangeStorage.fire({ key, source });
+			this._onDidChangeStorage.fire({ key, wasChangedExternally });
 		}
 	}
 
@@ -246,7 +234,7 @@ export class Storage extends Disposable implements IStorage {
 		return parse(value);
 	}
 
-	async set(key: string, value: string | boolean | number | null | undefined | object, source: StorageChangeSource = StorageChangeSource.SELF): Promise<void> {
+	async set(key: string, value: string | boolean | number | null | undefined | object, wasChangedExternally = false): Promise<void> {
 		if (this.state === StorageState.Closed) {
 			return; // Return early if we are already closed
 		}
@@ -271,7 +259,7 @@ export class Storage extends Disposable implements IStorage {
 		this.pendingDeletes.delete(key);
 
 		// Event
-		this._onDidChangeStorage.fire({ key, source });
+		this._onDidChangeStorage.fire({ key, wasChangedExternally });
 
 		// Accumulate work by scheduling after timeout
 		return this.doFlush();
@@ -295,7 +283,7 @@ export class Storage extends Disposable implements IStorage {
 		this.pendingInserts.delete(key);
 
 		// Event
-		this._onDidChangeStorage.fire({ key, source: StorageChangeSource.SELF });
+		this._onDidChangeStorage.fire({ key, wasChangedExternally: false });
 
 		// Accumulate work by scheduling after timeout
 		return this.doFlush();

@@ -8,7 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IStorageChangeEvent, Storage, StorageChangeSource } from 'vs/base/parts/storage/common/storage';
+import { IStorageChangeEvent, Storage } from 'vs/base/parts/storage/common/storage';
 import { flakySuite } from 'vs/base/test/common/testUtils';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -277,13 +277,13 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 
 		await storage.init();
 
-		storage.set('noSource', 42);
-		let storageValueChangeEvent = storageChangeEvents.find(e => e.key === 'noSource');
-		strictEqual(storageValueChangeEvent?.source, StorageChangeSource.SELF);
+		storage.set('notExternal', 42);
+		let storageValueChangeEvent = storageChangeEvents.find(e => e.key === 'notExternal');
+		strictEqual(storageValueChangeEvent?.wasChangedExternally, false);
 		storageChangeEvents = [];
 
-		storage.set('hasSource', 42, StorageChangeSource.EXTERNAL);
-		storageValueChangeEvent = storageChangeEvents.find(e => e.key === 'hasSource');
-		strictEqual(storageValueChangeEvent?.source, StorageChangeSource.EXTERNAL);
+		storage.set('isExternal', 42, true);
+		storageValueChangeEvent = storageChangeEvents.find(e => e.key === 'isExternal');
+		strictEqual(storageValueChangeEvent?.wasChangedExternally, true);
 	});
 });
