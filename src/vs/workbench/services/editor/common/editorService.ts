@@ -84,10 +84,11 @@ export interface IBaseSaveRevertAllEditorOptions {
 
 		/**
 		 * Whether to include scratchpad editors.
+		 * Scratchpads are not included if not specified.
 		 */
 		readonly includeScratchpad: boolean;
-	}
-	| boolean;
+
+	} | boolean;
 
 	/**
 	 * Whether to exclude sticky editors.
