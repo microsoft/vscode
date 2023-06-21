@@ -2,6 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
+import * as perf from 'vs/base/common/performance';
 import { IDimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
@@ -159,7 +161,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly connectionState: TerminalConnectionState;
 	readonly whenConnected: Promise<void>;
 	readonly defaultLocation: TerminalLocation;
-	readonly perfMarks: readonly PerformanceMark[];
+	readonly perfMarks: readonly perf.PerformanceMark[];
 
 	onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	onDidDisposeGroup: Event<ITerminalGroup>;

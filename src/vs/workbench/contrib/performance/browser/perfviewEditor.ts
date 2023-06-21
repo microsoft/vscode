@@ -26,6 +26,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { isWeb } from 'vs/base/common/platform';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import * as perf from 'vs/base/common/performance';
 
 export class PerfviewContrib {
 
@@ -224,18 +225,18 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		}
 	}
 
-	private _addPerfMarksTable(name: string, md: MarkdownBuilder, marks: readonly PerformanceMark[]): void {
+	private _addPerfMarksTable(name: string, md: MarkdownBuilder, marks: readonly perf.PerformanceMark[]): void {
 		const table: Array<Array<string | number | undefined>> = [];
 		let lastStartTime = -1;
 		let total = 0;
-		for (const { name, startTime, detail } of marks) {
+		for (const { name, startTime } of marks) {
 			const delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
 			total += delta;
-			table.push([name, Math.round(startTime), Math.round(delta), Math.round(total), detail ?? '']);
+			table.push([name, Math.round(startTime), Math.round(delta), Math.round(total)]);
 			lastStartTime = startTime;
 		}
 		md.heading(2, name);
-		md.table(['Name', 'Timestamp', 'Delta', 'Total', 'Detail'], table);
+		md.table(['Name', 'Timestamp', 'Delta', 'Total'], table);
 	}
 
 	private _addRawPerfMarks(md: MarkdownBuilder): void {
