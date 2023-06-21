@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { status, alert } from 'vs/base/browser/ui/aria/aria';
+import { status } from 'vs/base/browser/ui/aria/aria';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { AudioCue, AudioCueGroupId, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -31,7 +31,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		}
 		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
 		const content = isPanelChat ? response.response.value : response;
-		isPanelChat ? status(content + errorDetails) : alert(content);
+		status(content + errorDetails);
 	}
 }
 

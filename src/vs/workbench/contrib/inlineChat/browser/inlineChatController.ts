@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Barrier, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -411,6 +412,7 @@ export class InlineChatController implements IEditorContribution {
 		if (options.message) {
 			this._zone.value.widget.value = options.message;
 			this._zone.value.widget.selectAll();
+			aria.alert(options.message);
 			delete options.message;
 		}
 
