@@ -584,9 +584,12 @@ export interface CompletionContext {
 export interface CompletionItemProvider {
 
 	/**
+	 * Used to identify completions in the (debug) UI and telemetry. This isn't the extension identifier because extensions
+	 * often contribute multiple completion item providers.
+	 *
 	 * @internal
 	 */
-	_debugDisplayName?: string;
+	_debugDisplayName: string;
 
 	triggerCharacters?: string[];
 	/**

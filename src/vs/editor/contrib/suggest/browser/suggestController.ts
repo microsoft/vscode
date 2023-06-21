@@ -399,16 +399,18 @@ export class SuggestController implements IEditorContribution {
 				return true;
 			}).then(applied => {
 				this._logService.trace('[suggest] async resolving of edits DONE (ms, applied?)', sw.elapsed(), applied);
-				type AsyncSuggestEdits = { providerId: string; applied: boolean };
+				type AsyncSuggestEdits = { extensionId: string; providerId: string; applied: boolean };
 				type AsyncSuggestEditsClassification = {
 					owner: 'jrieken';
 					comment: 'Information about async additional text edits';
+					extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Extension contributing the completions item' };
 					providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Provider of the completions item' };
 					applied: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If async additional text edits could be applied' };
 				};
 				if (typeof applied === 'boolean') {
 					this._telemetryService.publicLog2<AsyncSuggestEdits, AsyncSuggestEditsClassification>('suggest.asyncAdditionalEdits', {
-						providerId: item.extensionId?.value ?? 'unknown',
+						extensionId: item.extensionId?.value ?? 'unknown',
+						providerId: item.provider._debugDisplayName ?? 'unknown',
 						applied
 					});
 				}
@@ -497,12 +499,14 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		type AcceptedSuggestion = {
-			providerId: string; fileExtension: string; languageId: string; basenameHash: string; kind: number;
+			extensionId: string; providerId: string;
+			fileExtension: string; languageId: string; basenameHash: string; kind: number;
 			resolveInfo: number; resolveDuration: number;
 		};
 		type AcceptedSuggestionClassification = {
 			owner: 'jrieken';
 			comment: 'Information accepting completion items';
+			extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Extension contributing the completions item' };
 			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Provider of the completions item' };
 			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Hash of the basename of the file into which the completion was inserted' };
 			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension of the file into which the completion was inserted' };
@@ -513,7 +517,8 @@ export class SuggestController implements IEditorContribution {
 		};
 
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
-			providerId: item.extensionId?.value ?? item.provider._debugDisplayName ?? 'unknown',
+			extensionId: item.extensionId?.value ?? 'unknown',
+			providerId: item.provider._debugDisplayName ?? 'unknown',
 			kind: item.completion.kind,
 			basenameHash: hash(basename(model.uri)).toString(16),
 			languageId: model.getLanguageId(),

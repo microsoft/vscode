@@ -17,7 +17,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtUri } from 'vs/base/common/resources';
 import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
  * Base class of editors that want to store and restore view state.
@@ -52,12 +51,6 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		this.groupListener.value = group?.onWillCloseEditor(e => this.onWillCloseEditor(e));
 
 		super.setEditorVisible(visible, group);
-	}
-
-	protected readonlyValues(isReadonly: boolean | IMarkdownString | undefined): { readOnly: boolean; readOnlyMessage: IMarkdownString | undefined } {
-		const readOnly = !!isReadonly;
-		const readOnlyMessage = typeof isReadonly !== 'boolean' ? isReadonly : undefined;
-		return { readOnly, readOnlyMessage };
 	}
 
 	private onWillCloseEditor(e: IEditorCloseEvent): void {
