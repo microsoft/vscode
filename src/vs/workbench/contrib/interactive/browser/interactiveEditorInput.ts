@@ -220,7 +220,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	}
 
 	override isModified() {
-		return true;
+		return this._editorModelReference?.isModified() ?? false;
 	}
 
 	override dispose() {
