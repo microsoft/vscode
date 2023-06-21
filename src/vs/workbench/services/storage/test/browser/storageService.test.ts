@@ -8,7 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { Storage } from 'vs/base/parts/storage/common/storage';
+import { IStorageChangeEvent, Storage, StorageChangeSource } from 'vs/base/parts/storage/common/storage';
 import { flakySuite } from 'vs/base/test/common/testUtils';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -268,5 +268,22 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 		strictEqual(storage.get('largeItem'), largeItem);
 		strictEqual(storage.get('barNumber'), undefined);
 		strictEqual(storage.get('barBoolean'), undefined);
+	});
+
+	test('Storage change event', async () => {
+		let storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		let storageChangeEvents: IStorageChangeEvent[] = [];
+		storage.onDidChangeStorage(e => storageChangeEvents.push(e));
+
+		await storage.init();
+
+		storage.set('noSource', 42);
+		let storageValueChangeEvent = storageChangeEvents.find(e => e.key === 'noSource');
+		strictEqual(storageValueChangeEvent?.source, StorageChangeSource.SELF);
+		storageChangeEvents = [];
+
+		storage.set('hasSource', 42, StorageChangeSource.EXTERNAL);
+		storageValueChangeEvent = storageChangeEvents.find(e => e.key === 'hasSource');
+		strictEqual(storageValueChangeEvent?.source, StorageChangeSource.EXTERNAL);
 	});
 });
