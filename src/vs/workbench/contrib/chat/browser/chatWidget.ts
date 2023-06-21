@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { status } from 'vs/base/browser/ui/aria/aria';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -533,11 +534,11 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	}
 	acceptRequest(): void {
 		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
-		setTimeout(() => {
+		this._register(disposableTimeout(() => {
 			if (!this._hasReceivedRequest) {
 				this._responsePendingAudioCue = this._audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
 			}
-		}, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
+		}, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS));
 	}
 	acceptResponse(response?: IChatResponseViewModel): void {
 		this._hasReceivedRequest = true;
