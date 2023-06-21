@@ -13,12 +13,12 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ILocalPtyService, IProcessPropertyMap, IPtyService, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ILocalPtyService, IProcessPropertyMap, IPtyService, IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalBackend, ITerminalBackendRegistry, ITerminalConfiguration, ITerminalProfileResolverService, TerminalExtensions, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalProfileResolverService, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -53,8 +53,11 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	private readonly _proxy: IPtyService;
 	private readonly _clientEventually: DeferredPromise<MessagePortClient> = new DeferredPromise();
-
 	private readonly _ptys: Map<number, LocalPty> = new Map();
+
+	private readonly _whenConnected = new DeferredPromise<void>();
+	get whenConnected(): Promise<void> { return this._whenConnected.p; }
+	setConnected(): void { this._whenConnected.complete(); }
 
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
