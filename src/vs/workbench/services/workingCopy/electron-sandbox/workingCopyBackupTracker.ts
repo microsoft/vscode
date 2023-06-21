@@ -323,7 +323,11 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 
 			let result: boolean | undefined = undefined;
 			if (typeof arg1 === 'boolean' || modifiedWorkingCopies.length === this.workingCopyService.modifiedCount) {
-				result = (await this.editorService.saveAll({ includeUntitled: typeof arg1 === 'boolean' ? arg1 : true, ...saveOptions })).success;
+				result = (await this.editorService.saveAll({
+					includeScratchpad: true,
+					includeUntitled: typeof arg1 === 'boolean' ? arg1 : true,
+					...saveOptions
+				})).success;
 			}
 
 			// If we still have modified working copies, save those directly
