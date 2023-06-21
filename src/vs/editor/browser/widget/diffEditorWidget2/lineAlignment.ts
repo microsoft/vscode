@@ -551,7 +551,7 @@ function getAdditionalLineHeights(editor: CodeEditorWidget, viewZonesToIgnore: R
 		if (viewZonesToIgnore.has(w.id)) {
 			continue;
 		}
-		const modelLineNumber = coordinatesConverter.convertViewPositionToModelPosition(
+		const modelLineNumber = w.afterLineNumber === 0 ? 0 : coordinatesConverter.convertViewPositionToModelPosition(
 			new Position(w.afterLineNumber, 1)
 		).lineNumber;
 		viewZoneHeights.push({ lineNumber: modelLineNumber, heightInPx: w.height });
