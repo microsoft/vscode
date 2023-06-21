@@ -1260,6 +1260,10 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	revealFirstDiff(): unknown;
+
+	diffReviewNext(): void;
+
+	diffReviewPrev(): void;
 }
 
 /**

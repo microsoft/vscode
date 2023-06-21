@@ -53,6 +53,7 @@ suite('Untitled text editors', () => {
 
 		assert.ok(input1.hasCapability(EditorInputCapabilities.Untitled));
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(!input1.isReadonly());
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.Singleton));
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.RequiresTrust));
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.Scratchpad));

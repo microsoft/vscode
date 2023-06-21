@@ -50,8 +50,14 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			options,
 			dataToNotebook: async (data: VSBuffer): Promise<NotebookData> => {
 				const sw = new StopWatch();
-				const dto = await this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
-				const result = NotebookDto.fromNotebookDataDto(dto.value);
+				let result: NotebookData;
+				if (data.byteLength === 0 && viewType === 'interactive') {
+					// we don't want any starting cells for an empty interactive window.
+					result = NotebookDto.fromNotebookDataDto({ cells: [], metadata: {} });
+				} else {
+					const dto = await this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
+					result = NotebookDto.fromNotebookDataDto(dto.value);
+				}
 				this._logService.trace(`[NotebookSerializer] dataToNotebook DONE after ${sw.elapsed()}ms`, {
 					viewType,
 					extensionId: extension.id.value,
