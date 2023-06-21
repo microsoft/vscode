@@ -10,13 +10,13 @@ import { Logger } from '../logging/logger';
 import { disposeAll, IDisposable } from '../utils/dispose';
 import { ResourceMap } from '../utils/resourceMap';
 
-type DirWatcherEntry = {
+interface DirWatcherEntry {
 	readonly uri: vscode.Uri;
 	readonly listeners: IDisposable[];
-};
+}
 
 
-export class FileWatcherManager {
+export class FileWatcherManager implements IDisposable {
 
 	private readonly _fileWatchers = new Map<number, {
 		readonly uri: vscode.Uri;
@@ -33,6 +33,18 @@ export class FileWatcherManager {
 	constructor(
 		private readonly logger: Logger,
 	) { }
+
+	dispose(): void {
+		for (const entry of this._fileWatchers.values()) {
+			entry.watcher.dispose();
+		}
+		this._fileWatchers.clear();
+
+		for (const entry of this._dirWatchers.values()) {
+			entry.watcher.dispose();
+		}
+		this._dirWatchers.clear();
+	}
 
 	create(id: number, uri: vscode.Uri, watchParentDirs: boolean, isRecursive: boolean, listeners: { create?: (uri: vscode.Uri) => void; change?: (uri: vscode.Uri) => void; delete?: (uri: vscode.Uri) => void }): void {
 		this.logger.trace(`Creating file watcher for ${uri.toString()}`);
