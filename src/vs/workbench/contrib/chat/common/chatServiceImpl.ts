@@ -103,7 +103,7 @@ type ChatTerminalClassification = {
 	comment: 'Provides insight into the usage of Chat features.';
 };
 
-const maxPersistedSessions = 20;
+const maxPersistedSessions = 25;
 
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
@@ -147,12 +147,15 @@ export class ChatService extends Disposable implements IChatService {
 		let allSessions: (ChatModel | ISerializableChatData)[] = Array.from(this._sessionModels.values())
 			.filter(session => session.getRequests().length > 0);
 		allSessions = allSessions.concat(
-			Object.values(this._persistedSessions).filter(session => session.requests.length));
+			Object.values(this._persistedSessions)
+				.filter(session => !this._sessionModels.has(session.sessionId))
+				.filter(session => session.requests.length));
 		allSessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
 		allSessions = allSessions.slice(0, maxPersistedSessions);
 		this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
 
 		const serialized = JSON.stringify(allSessions);
+		this.trace('onWillSaveState', `Persisting ${serialized.length} chars`);
 		this.storageService.store(serializedChatKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
@@ -216,15 +219,23 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	getHistory(): IChatDetail[] {
-		const sessions = Object.values(this._persistedSessions);
+		const sessions = Object.values(this._persistedSessions)
+			.filter(session => session.requests.length > 0);
 		sessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
 
-		return sessions.map(item => {
-			return <IChatDetail>{
-				sessionId: item.sessionId,
-				title: item.requests[0]?.message || '',
-			};
-		});
+		return sessions
+			.filter(session => !this._sessionModels.has(session.sessionId))
+			.filter(session => !session.isImported)
+			.map(item => {
+				return <IChatDetail>{
+					sessionId: item.sessionId,
+					title: item.requests[0]?.message || '',
+				};
+			});
+	}
+
+	removeHistoryEntry(sessionId: string): void {
+		delete this._persistedSessions[sessionId];
 	}
 
 	startSession(providerId: string, token: CancellationToken): ChatModel {
@@ -267,11 +278,6 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		if (!session) {
-			if (sessionHistory) {
-				// sessionHistory was not used, so store it for later
-				this._persistedSessions[sessionHistory.sessionId] = sessionHistory;
-			}
-
 			this.trace('startSession', 'Provider returned no session');
 			return undefined;
 		}
@@ -301,7 +307,6 @@ export class ChatService extends Disposable implements IChatService {
 			return undefined;
 		}
 
-		delete this._persistedSessions[sessionId];
 		return this._startSession(sessionData.providerId, sessionData, CancellationToken.None);
 	}
 
@@ -526,7 +531,7 @@ export class ChatService extends Disposable implements IChatService {
 		const request = model.addRequest(message);
 		model.acceptResponseProgress(request, {
 			content: response.message,
-		});
+		}, true);
 		model.completeResponse(request, {
 			session: model.session!,
 			errorDetails: response.errorDetails,
@@ -545,9 +550,7 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		if (model.getRequests().length && !model.isImported) {
-			this._persistedSessions[sessionId] = model.toJSON();
-		}
+		this._persistedSessions[sessionId] = model.toJSON();
 
 		model.dispose();
 		this._sessionModels.delete(sessionId);

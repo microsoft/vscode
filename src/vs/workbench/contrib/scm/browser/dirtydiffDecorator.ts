@@ -467,7 +467,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.editor.revealLineInCenterIfOutsideViewport(range.endLineNumber, ScrollType.Smooth);
 	}
 
-	hasFocus(): boolean {
+	override hasFocus(): boolean {
 		return this.diffEditor.hasTextFocus();
 	}
 
@@ -922,7 +922,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		const gutterOffsetX = data.offsetX - offsetLeftInGutter;
 
 		// TODO@joao TODO@alex TODO@martin this is such that we don't collide with folding
-		if (gutterOffsetX < -3 || gutterOffsetX > 6) { // dirty diff decoration on hover is 9px wide
+		if (gutterOffsetX < -3 || gutterOffsetX > 3) { // dirty diff decoration on hover is 6px wide
 			return;
 		}
 

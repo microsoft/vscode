@@ -10,22 +10,9 @@
 		"vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils.ts"
 	],
 	"ban-trustedtypes-createpolicy": [
-		"vs/base/browser/dom.ts",
-		"vs/base/browser/markdownRenderer.ts",
-		"vs/base/browser/defaultWorkerFactory.ts",
+		"vs/base/browser/trustedTypes.ts",
 		"vs/base/worker/workerMain.ts",
-		"vs/editor/contrib/markdownRenderer/browser/markdownRenderer.ts",
-		"vs/editor/contrib/stickyScroll/browser/stickyScrollWidget.ts",
-		"vs/editor/browser/view/domLineBreaksComputer.ts",
-		"vs/editor/browser/view/viewLayer.ts",
-		"vs/editor/browser/widget/diffEditorWidget.ts",
-		"vs/editor/contrib/inlineCompletions/browser/ghostTextWidget.ts",
-		"vs/editor/browser/widget/diffReview.ts",
-		"vs/editor/standalone/browser/colorizer.ts",
-		"vs/workbench/api/worker/extHostExtensionService.ts",
-		"vs/workbench/contrib/notebook/browser/view/cellParts/cellDragRenderer.ts",
-		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts",
-		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
+		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts"
 	],
 	"ban-worker-calls": [
 		"vs/base/browser/defaultWorkerFactory.ts",

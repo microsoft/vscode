@@ -53,6 +53,8 @@ export namespace Schemas {
 
 	export const vscodeRemoteResource = 'vscode-remote-resource';
 
+	export const vscodeManagedRemoteResource = 'vscode-managed-remote-resource';
+
 	export const vscodeUserData = 'vscode-userdata';
 
 	export const vscodeCustomEditor = 'vscode-custom-editor';

@@ -28,10 +28,9 @@ import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource 
 import { Codicon } from 'vs/base/common/codicons';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IShellLaunchConfig, TerminalSettingId, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -39,7 +38,6 @@ import { TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTermi
 import { ProblemCollectorEventKind, ProblemHandlingStrategy, StartStopProblemCollector, WatchingProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import { GroupKind } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
 import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, InMemoryTask, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, Task, TaskEvent, TaskEventKind, TaskScope, TaskSourceKind } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IResolvedVariables, IResolveSet, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskSystemInfoResolver, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from 'vs/workbench/contrib/terminal/browser/terminalEscapeSequences';
@@ -232,9 +230,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		private _pathService: IPathService,
 		private _viewDescriptorService: IViewDescriptorService,
 		private _logService: ILogService,
-		private _configurationService: IConfigurationService,
 		private _notificationService: INotificationService,
-		taskService: ITaskService,
 		instantiationService: IInstantiationService,
 		taskSystemInfoResolver: ITaskSystemInfoResolver,
 	) {
@@ -1157,17 +1153,18 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					// Under Mac remove -l to not start it as a login shell.
 					if (platform === Platform.Platform.Mac) {
 						// Background on -l on osx https://github.com/microsoft/vscode/issues/107563
-						const osxShellArgs = this._configurationService.inspect(TerminalSettingId.ShellArgsMacOs);
-						if ((osxShellArgs.user === undefined) && (osxShellArgs.userLocal === undefined) && (osxShellArgs.userLocalValue === undefined)
-							&& (osxShellArgs.userRemote === undefined) && (osxShellArgs.userRemoteValue === undefined)
-							&& (osxShellArgs.userValue === undefined) && (osxShellArgs.workspace === undefined)
-							&& (osxShellArgs.workspaceFolder === undefined) && (osxShellArgs.workspaceFolderValue === undefined)
-							&& (osxShellArgs.workspaceValue === undefined)) {
-							const index = shellArgs.indexOf('-l');
-							if (index !== -1) {
-								shellArgs.splice(index, 1);
-							}
-						}
+						// TODO: Handle by pulling the default terminal profile?
+						// const osxShellArgs = this._configurationService.inspect(TerminalSettingId.ShellArgsMacOs);
+						// if ((osxShellArgs.user === undefined) && (osxShellArgs.userLocal === undefined) && (osxShellArgs.userLocalValue === undefined)
+						// 	&& (osxShellArgs.userRemote === undefined) && (osxShellArgs.userRemoteValue === undefined)
+						// 	&& (osxShellArgs.userValue === undefined) && (osxShellArgs.workspace === undefined)
+						// 	&& (osxShellArgs.workspaceFolder === undefined) && (osxShellArgs.workspaceFolderValue === undefined)
+						// 	&& (osxShellArgs.workspaceValue === undefined)) {
+						// 	const index = shellArgs.indexOf('-l');
+						// 	if (index !== -1) {
+						// 		shellArgs.splice(index, 1);
+						// 	}
+						// }
 					}
 					toAdd.push('-c');
 				}

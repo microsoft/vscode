@@ -10,7 +10,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -23,17 +23,16 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const configurationKey = 'workbench.welcome.experimental.dialog';
 
 class WelcomeDialogContribution extends Disposable implements IWorkbenchContribution {
 
-	private contextKeysToWatch = new Set<string>();
 	private isRendered = false;
 
 	constructor(
@@ -50,7 +49,8 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 		@IFileService readonly fileService: IFileService,
 		@INotificationService readonly notificationService: INotificationService,
 		@IExtensionService readonly extensionService: IExtensionService,
-		@ILanguageService readonly languageService: LanguageService
+		@ILanguageService readonly languageService: LanguageService,
+		@IEditorService readonly editorService: IEditorService
 	) {
 		super();
 
@@ -68,37 +68,27 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 			return;
 		}
 
-		this.contextKeysToWatch.add(welcomeDialog.when);
+		this._register(editorService.onDidActiveEditorChange(() => {
+			if (!this.isRendered) {
 
-		this._register(this.contextService.onDidChangeContext(e => {
-			if (e.affectsSome(this.contextKeysToWatch) && !this.isRendered) {
-
-				if (!Array.from(this.contextKeysToWatch).every(value => this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(value)))) {
-					return;
-				}
-
-				const codeEditor = this.codeEditorService.getActiveCodeEditor();
-
+				const codeEditor = codeEditorService.getActiveCodeEditor();
 				if (codeEditor?.hasModel()) {
 					const scheduler = new RunOnceScheduler(() => {
-						this.isRendered = true;
-						const detailsRenderer = new GettingStartedDetailsRenderer(fileService, notificationService, extensionService, languageService);
+						if (codeEditor === codeEditorService.getActiveCodeEditor()) {
+							this.isRendered = true;
 
-						const welcomeWidget = new WelcomeWidget(
-							codeEditor,
-							instantiationService,
-							commandService,
-							telemetryService,
-							openerService,
-							webviewService,
-							detailsRenderer);
+							const welcomeWidget = new WelcomeWidget(
+								codeEditor,
+								instantiationService,
+								commandService,
+								telemetryService,
+								openerService);
 
-						welcomeWidget.render(welcomeDialog.title,
-							welcomeDialog.message,
-							welcomeDialog.buttonText,
-							welcomeDialog.buttonCommand,
-							welcomeDialog.media);
-
+							welcomeWidget.render(welcomeDialog.title,
+								welcomeDialog.message,
+								welcomeDialog.buttonText,
+								welcomeDialog.buttonCommand);
+						}
 					}, 3000);
 
 					this._register(codeEditor.onDidChangeModelContent((e) => {
@@ -106,8 +96,6 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 							scheduler.schedule();
 						}
 					}));
-
-					this.contextKeysToWatch.delete(welcomeDialog.when);
 				}
 			}
 		}));
@@ -115,7 +103,7 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WelcomeDialogContribution, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(WelcomeDialogContribution, LifecyclePhase.Eventually);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({

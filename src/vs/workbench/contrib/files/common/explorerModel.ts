@@ -149,7 +149,7 @@ export class ExplorerItem {
 	}
 
 	get isReadonly(): boolean {
-		return this.filesConfigService.isReadonly(this.resource, { resource: this.resource, name: this.name, readonly: this._readonly, locked: this._locked });
+		return !!this.filesConfigService.isReadonly(this.resource, { resource: this.resource, name: this.name, readonly: this._readonly, locked: this._locked });
 	}
 
 	get mtime(): number | undefined {

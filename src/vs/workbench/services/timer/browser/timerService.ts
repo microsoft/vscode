@@ -78,7 +78,8 @@ export interface IMemoryInfo {
 		"hasAccessibilitySupport" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"isVMLikelyhood" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"emptyWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+		"loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"isARM64Emulated" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 	}
 */
 export interface IStartupMetrics {
@@ -388,6 +389,7 @@ export interface IStartupMetrics {
 	readonly meminfo?: IMemoryInfo;
 	readonly cpus?: { count: number; speed: number; model: string };
 	readonly loadavg?: number[];
+	readonly isARM64Emulated?: boolean;
 }
 
 export interface ITimerService {
@@ -727,6 +729,7 @@ export class TimerService extends AbstractTimerService {
 	}
 	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> {
 		info.isVMLikelyhood = 0;
+		info.isARM64Emulated = false;
 		info.platform = navigator.userAgent;
 		info.release = navigator.appVersion;
 	}

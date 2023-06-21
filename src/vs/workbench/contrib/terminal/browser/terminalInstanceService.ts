@@ -104,6 +104,10 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return backend;
 	}
 
+	getRegisteredBackends(): IterableIterator<ITerminalBackend> {
+		return Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).backends.values();
+	}
+
 	didRegisterBackend(remoteAuthority?: string) {
 		this._backendRegistration.get(remoteAuthority)?.resolve();
 	}

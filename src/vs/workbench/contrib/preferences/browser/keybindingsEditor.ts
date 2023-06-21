@@ -1187,13 +1187,18 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 		return localize('keybindingsLabel', "Keybindings");
 	}
 
-	getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
-		let ariaLabel = keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command;
-		ariaLabel += ', ' + (keybindingItemEntry.keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No Keybinding assigned."));
-		ariaLabel += ', ' + keybindingItemEntry.keybindingItem.when ? keybindingItemEntry.keybindingItem.when : localize('noWhen', "No when context.");
-		ariaLabel += ', ' + (isString(keybindingItemEntry.keybindingItem.source) ? keybindingItemEntry.keybindingItem.source : keybindingItemEntry.keybindingItem.source.description ?? keybindingItemEntry.keybindingItem.source.identifier.value);
-		ariaLabel += this.configurationService.getValue(AccessibilityVerbositySettingId.KeybindingsEditor) ? localize('keyboard shortcuts aria label', ", use space or enter to change the keybinding.") : '';
-		return ariaLabel;
+	getAriaLabel({ keybindingItem }: IKeybindingItemEntry): string {
+		const ariaLabel = [
+			keybindingItem.commandLabel ? keybindingItem.commandLabel : keybindingItem.command,
+			keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No keybinding assigned"),
+			keybindingItem.when ? keybindingItem.when : localize('noWhen', "No when context"),
+			isString(keybindingItem.source) ? keybindingItem.source : keybindingItem.source.description ?? keybindingItem.source.identifier.value,
+		];
+		if (this.configurationService.getValue(AccessibilityVerbositySettingId.KeybindingsEditor)) {
+			const kbEditorAriaLabel = localize('keyboard shortcuts aria label', "use space or enter to change the keybinding.");
+			ariaLabel.push(kbEditorAriaLabel);
+		}
+		return ariaLabel.join(', ');
 	}
 }
 

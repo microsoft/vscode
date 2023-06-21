@@ -285,7 +285,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			outputWordWrap: this.options.outputWordWrap
 		};
 		const preloadScript = preloadsScriptStr(
-			this.options,
+			{
+				...this.options,
+				tokenizationCss: getTokenizationCss(),
+			},
 			{ dragAndDropEnabled: this.options.dragAndDropEnabled },
 			renderOptions,
 			renderersData,
@@ -447,7 +450,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						background-color: var(--vscode-editor-findMatchBackground);
 					}
 				</style>
-				<style id="vscode-tokenization-styles" nonce="${this.nonce}">${getTokenizationCss()}</style>
 			</head>
 			<body style="overflow: hidden;">
 				<div id='findStart' tabIndex=-1></div>
@@ -616,13 +618,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 							{
 								if (!update.init) {
-									return;
+									continue;
 								}
 
 								const output = this.reversedInsetMapping.get(update.id);
 
 								if (!output) {
-									return;
+									continue;
 								}
 
 								const inset = this.insetMapping.get(output)!;

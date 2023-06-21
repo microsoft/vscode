@@ -133,7 +133,7 @@
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left > .statusbar-item-label {
-	padding: 0 5px 0 3px;
+	padding: 0 3px;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right > .statusbar-item-label {
