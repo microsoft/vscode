@@ -30,8 +30,10 @@ const serializedChatKey = 'interactive.sessions';
 const globalChatKey = 'chat.workspaceTransfer';
 interface IChatTransfer {
 	toWorkspace: UriComponents;
+	timestampInMilliseconds: number;
 	chat: ISerializableChatData;
 }
+const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
 
 type ChatProviderInvokedEvent = {
 	providerId: string;
@@ -246,8 +248,11 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		const thisWorkspace = workspaceUri.toString();
-		const transferred = data.find(item => URI.revive(item.toWorkspace).toString() === thisWorkspace);
-		const filtered = data.filter(item => URI.revive(item.toWorkspace).toString() !== thisWorkspace);
+		const currentTime = Date.now();
+		// Only use transferred data if it was created recently
+		const transferred = data.find(item => URI.revive(item.toWorkspace).toString() === thisWorkspace && (currentTime - item.timestampInMilliseconds < SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS));
+		// Keep data that isn't for the current workspace and that hasn't expired yet
+		const filtered = data.filter(item => URI.revive(item.toWorkspace).toString() !== thisWorkspace && (currentTime - item.timestampInMilliseconds < SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS));
 		this.storageService.store(globalChatKey, JSON.stringify(filtered), StorageScope.PROFILE, StorageTarget.MACHINE);
 		return transferred?.chat;
 	}
@@ -640,6 +645,7 @@ export class ChatService extends Disposable implements IChatService {
 		const existingRaw: IChatTransfer[] = this.storageService.getObject(globalChatKey, StorageScope.PROFILE, []);
 		existingRaw.push({
 			chat: model.toJSON(),
+			timestampInMilliseconds: Date.now(),
 			toWorkspace: toWorkspace
 		});
 
