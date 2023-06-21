@@ -1037,7 +1037,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const showProblemPanel = task.command.presentation && (task.command.presentation.revealProblems === RevealProblemKind.Always);
 		if (showProblemPanel) {
 			this._viewsService.openView(Markers.MARKERS_VIEW_ID);
-		} else if (task.command.presentation && (task.command.presentation.reveal === RevealKind.Always)) {
+		} else if (task.command.presentation && (task.command.presentation.focus || task.command.presentation.reveal === RevealKind.Always)) {
 			this._terminalService.setActiveInstance(terminal);
 			this._terminalGroupService.showPanel(task.command.presentation.focus);
 		}
