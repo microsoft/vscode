@@ -292,7 +292,7 @@ export class TerminalService implements ITerminalService {
 			mark('code/terminal/didReconnect');
 			for (const backend of this._terminalInstanceService.getRegisteredBackends()) {
 				mark('code/terminal/willGetPerformanceMarks');
-				this._timerService.setPerformanceMarks(isPersistentRemote ? 'remotePtyHost' : 'localPtyHost', await backend.getPerformanceMarks());
+				this._timerService.setPerformanceMarks(backend.remoteAuthority === undefined ? 'localPtyHost' : 'remotePtyHost', await backend.getPerformanceMarks());
 				mark('code/terminal/didGetPerformanceMarks');
 				backend.setConnected();
 			}
