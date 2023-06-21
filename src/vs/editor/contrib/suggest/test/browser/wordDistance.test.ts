@@ -99,6 +99,7 @@ suite('suggest, word distance', function () {
 			suggestions: [suggestion]
 		};
 		const provider: languages.CompletionItemProvider = {
+			_debugDisplayName: 'test',
 			provideCompletionItems(): any {
 				return;
 			}
