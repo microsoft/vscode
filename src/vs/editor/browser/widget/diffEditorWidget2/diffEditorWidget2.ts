@@ -44,6 +44,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { deepClone } from 'vs/base/common/objects';
 import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
+import { DiffReview2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffReview';
 
 const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
 	enableSplitViewResizing: true,
@@ -92,6 +93,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly _renderSideBySide = derived('renderSideBySide', reader => this._options.read(reader).renderSideBySide);
 
 	private unchangedRangesFeature!: UnchangedRangesFeature;
+
+	private readonly _reviewPane: DiffReview2;
 
 	constructor(
 		private readonly _domElement: HTMLElement,
@@ -177,6 +180,11 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			this._renderOverviewRuler,
 		));
 
+		this._reviewPane = this._register(this._instantiationService.createInstance(DiffReview2, this));
+		this.elements.root.appendChild(this._reviewPane.domNode.domNode);
+		this.elements.root.appendChild(this._reviewPane.shadow.domNode);
+		this.elements.root.appendChild(this._reviewPane.actionBarContainer.domNode);
+
 		this._createDiffEditorContributions();
 
 		codeEditorService.addDiffEditor(this);
@@ -217,6 +225,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 				(this._renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0),
 			height
 		});
+		this._reviewPane.layout(0, width, height);
 
 		return {
 			modifiedEditor: this._modifiedEditor.getLayoutInfo(),
@@ -676,6 +685,13 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		});
 	}
 
+	public diffReviewNext(): void {
+		this._reviewPane.next();
+	}
+
+	public diffReviewPrev(): void {
+		this._reviewPane.prev();
+	}
 
 	public async waitForDiff(): Promise<void> {
 		const diffModel = this._diffModel.get();

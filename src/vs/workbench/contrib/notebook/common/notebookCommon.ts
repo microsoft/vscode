@@ -533,6 +533,8 @@ export interface INotebookContributionData {
 	displayName: string;
 	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
 	exclusive: boolean;
+	/// Editor contribution is handled elswhere e.g. interactive
+	externalEditor?: boolean;
 }
 
 
@@ -795,7 +797,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly notebook: INotebookTextModel | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
-	isReadonly(): boolean;
+	isReadonly(): boolean | IMarkdownString;
 	isOrphaned(): boolean;
 	hasAssociatedFilePath(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;

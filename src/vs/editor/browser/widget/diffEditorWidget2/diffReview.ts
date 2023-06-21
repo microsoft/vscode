@@ -5,7 +5,6 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Action } from 'vs/base/common/actions';
@@ -14,9 +13,9 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Constants } from 'vs/base/common/uint';
-import 'vs/css!./media/diffReview';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
+import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
@@ -81,11 +80,11 @@ const diffReviewInsertIcon = registerIcon('diff-review-insert', Codicon.add, nls
 const diffReviewRemoveIcon = registerIcon('diff-review-remove', Codicon.remove, nls.localize('diffReviewRemoveIcon', 'Icon for \'Remove\' in diff review.'));
 const diffReviewCloseIcon = registerIcon('diff-review-close', Codicon.close, nls.localize('diffReviewCloseIcon', 'Icon for \'Close\' in diff review.'));
 
-export class DiffReview extends Disposable {
+export class DiffReview2 extends Disposable {
 
-	public static _ttPolicy = createTrustedTypesPolicy('diffReview', { createHTML: value => value });
+	private static _ttPolicy = DiffReview._ttPolicy; // TODO inline once DiffReview is deprecated.
 
-	private readonly _diffEditor: DiffEditorWidget;
+	private readonly _diffEditor: DiffEditorWidget2;
 	private _isVisible: boolean;
 	public readonly shadow: FastDomNode<HTMLElement>;
 	private readonly _actionBar: ActionBar;
@@ -97,7 +96,7 @@ export class DiffReview extends Disposable {
 	private _currentDiff: Diff | null;
 
 	constructor(
-		diffEditor: DiffEditorWidget,
+		diffEditor: DiffEditorWidget2,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
@@ -217,7 +216,7 @@ export class DiffReview extends Disposable {
 		this._diffEditor.setPosition(new Position(entries[0].modifiedLineStart, 1));
 		this._diffEditor.setSelection({ startColumn: 1, startLineNumber: entries[0].modifiedLineStart, endColumn: Constants.MAX_SAFE_SMALL_INTEGER, endLineNumber: entries[entries.length - 1].modifiedLineEnd });
 		this._isVisible = true;
-		this._diffEditor.doLayout();
+		//this._diffEditor.doLayout();
 		this._render();
 		this._goToRow(this._getPrevRow(), 'previous');
 	}
@@ -252,7 +251,7 @@ export class DiffReview extends Disposable {
 		this._diffEditor.setPosition(new Position(entries[0].modifiedLineStart, 1));
 		this._diffEditor.setSelection({ startColumn: 1, startLineNumber: entries[0].modifiedLineStart, endColumn: Constants.MAX_SAFE_SMALL_INTEGER, endLineNumber: entries[entries.length - 1].modifiedLineEnd });
 		this._isVisible = true;
-		this._diffEditor.doLayout();
+		//this._diffEditor.doLayout();
 		this._render();
 		this._goToRow(this._getNextRow(), 'next');
 	}
@@ -278,7 +277,7 @@ export class DiffReview extends Disposable {
 		this._isVisible = false;
 		this._diffEditor.updateOptions({ readOnly: false });
 		this._diffEditor.focus();
-		this._diffEditor.doLayout();
+		//this._diffEditor.doLayout();
 		this._render();
 	}
 
@@ -350,9 +349,11 @@ export class DiffReview extends Disposable {
 		this._content.setWidth(width);
 
 		if (this._isVisible) {
+			this.domNode.setDisplay('block');
 			this.actionBarContainer.setAttribute('aria-hidden', 'false');
 			this.actionBarContainer.setDisplay('block');
 		} else {
+			this.domNode.setDisplay('none');
 			this.actionBarContainer.setAttribute('aria-hidden', 'true');
 			this.actionBarContainer.setDisplay('none');
 		}
@@ -370,7 +371,7 @@ export class DiffReview extends Disposable {
 			return [];
 		}
 
-		return DiffReview._mergeAdjacent(lineChanges, originalModel.getLineCount(), modifiedModel.getLineCount());
+		return DiffReview2._mergeAdjacent(lineChanges, originalModel.getLineCount(), modifiedModel.getLineCount());
 	}
 
 	private static _mergeAdjacent(lineChanges: ILineChange[], originalLineCount: number, modifiedLineCount: number): Diff[] {
@@ -641,7 +642,7 @@ export class DiffReview extends Disposable {
 		let modLine = minModifiedLine;
 		for (let i = 0, len = diffs.length; i < len; i++) {
 			const diffEntry = diffs[i];
-			DiffReview._renderSection(container, diffEntry, modLine, lineHeight, this._width, originalOptions, originalModel, originalModelOpts, modifiedOptions, modifiedModel, modifiedModelOpts, this._languageService.languageIdCodec);
+			DiffReview2._renderSection(container, diffEntry, modLine, lineHeight, this._width, originalOptions, originalModel, originalModelOpts, modifiedOptions, modifiedModel, modifiedModelOpts, this._languageService.languageIdCodec);
 			if (diffEntry.modifiedLineStart !== 0) {
 				modLine = diffEntry.modifiedLineEnd;
 			}
@@ -751,15 +752,15 @@ export class DiffReview extends Disposable {
 			let lineContent: string;
 			if (modifiedLine !== 0) {
 				let html: string | TrustedHTML = this._renderLine(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, modifiedLine, languageIdCodec);
-				if (DiffReview._ttPolicy) {
-					html = DiffReview._ttPolicy.createHTML(html as string);
+				if (DiffReview2._ttPolicy) {
+					html = DiffReview2._ttPolicy.createHTML(html as string);
 				}
 				cell.insertAdjacentHTML('beforeend', html as string);
 				lineContent = modifiedModel.getLineContent(modifiedLine);
 			} else {
 				let html: string | TrustedHTML = this._renderLine(originalModel, originalOptions, originalModelOpts.tabSize, originalLine, languageIdCodec);
-				if (DiffReview._ttPolicy) {
-					html = DiffReview._ttPolicy.createHTML(html as string);
+				if (DiffReview2._ttPolicy) {
+					html = DiffReview2._ttPolicy.createHTML(html as string);
 				}
 				cell.insertAdjacentHTML('beforeend', html as string);
 				lineContent = originalModel.getLineContent(originalLine);
@@ -822,5 +823,3 @@ export class DiffReview extends Disposable {
 		return r.html;
 	}
 }
-
-// theming

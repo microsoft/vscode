@@ -7,6 +7,7 @@ import { VSBufferReadableStream, bufferToStream, streamToBuffer } from 'vs/base/
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { filter } from 'vs/base/common/objects';
@@ -40,6 +41,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 	private _workingCopy?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>;
 	private readonly _workingCopyListeners = this._register(new DisposableStore());
+	private readonly scratchPad: boolean;
 
 	constructor(
 		readonly resource: URI,
@@ -51,16 +53,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	) {
 		super();
 
-		if (this.viewType === 'interactive') {
-			lifecycleService.onBeforeShutdown(async e => e.veto(this.onBeforeShutdown(), 'veto.InteractiveWindow'));
-		}
-	}
-
-	private async onBeforeShutdown() {
-		if (this._workingCopy?.isDirty()) {
-			await this._workingCopy.save();
-		}
-		return false;
+		this.scratchPad = viewType === 'interactive';
 	}
 
 	override dispose(): void {
@@ -100,13 +93,11 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return !SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy) && !!this._workingCopy?.hasAssociatedFilePath;
 	}
 
-	isReadonly(): boolean {
+	isReadonly(): boolean | IMarkdownString {
 		if (SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy)) {
 			return this._workingCopy?.isReadonly();
-		} else if (this._filesConfigurationService.isReadonly(this.resource)) {
-			return true;
 		} else {
-			return false;
+			return this._filesConfigurationService.isReadonly(this.resource);
 		}
 	}
 
@@ -126,7 +117,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				if (this._hasAssociatedFilePath) {
 					this._workingCopy = await this._workingCopyManager.resolve({ associatedResource: this.resource });
 				} else {
-					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource });
+					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource, isScratchpad: this.scratchPad });
 				}
 			} else {
 				this._workingCopy = await this._workingCopyManager.resolve(this.resource, options?.forceReadFromFile ? { reload: { async: false, force: true } } : undefined);
@@ -287,14 +278,8 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 			throw new Error('CANNOT open file notebook with this provider');
 		}
 
-		let data: NotebookData = {
-			metadata: {},
-			cells: []
-		};
-		if (resource.scheme !== Schemas.vscodeInteractive) {
-			const bytes = await streamToBuffer(stream);
-			data = await info.serializer.dataToNotebook(bytes);
-		}
+		const bytes = await streamToBuffer(stream);
+		const data = await info.serializer.dataToNotebook(bytes);
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();

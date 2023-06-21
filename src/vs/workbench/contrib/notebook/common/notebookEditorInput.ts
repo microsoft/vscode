@@ -28,6 +28,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -139,6 +140,13 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		return undefined; // no description for untitled notebooks without associated file path
+	}
+
+	override isReadonly(): boolean | IMarkdownString {
+		if (!this._editorModelReference) {
+			return this.filesConfigurationService.isReadonly(this.resource);
+		}
+		return this._editorModelReference.object.isReadonly();
 	}
 
 	override isDirty() {
