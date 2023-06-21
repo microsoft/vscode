@@ -32,7 +32,7 @@ import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
 
-// sticky suggest widget which doesn't disappear on focus out and such
+// sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
 	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
 	;

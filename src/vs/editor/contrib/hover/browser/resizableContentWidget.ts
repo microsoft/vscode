@@ -7,13 +7,11 @@ import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { clamp } from 'vs/base/common/numbers';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import * as dom from 'vs/base/browser/dom';
 
 const TOP_HEIGHT = 30;
 const BOTTOM_HEIGHT = 24;
-const MIN_HEIGHT = 24;
 
 export abstract class ResizableContentWidget extends Disposable implements IContentWidget {
 
@@ -27,13 +25,13 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
-		_initialSize: dom.IDimension = new dom.Dimension(10, 10)
+		initialSize: dom.IDimension = new dom.Dimension(10, 10)
 	) {
 		super();
 		this._resizableNode.domNode.style.position = 'absolute';
 		this._resizableNode.minSize = new dom.Dimension(10, 10);
 		this._resizableNode.enableSashes(true, true, true, true);
-		this._resizableNode.layout(_initialSize.height, _initialSize.width);
+		this._resizableNode.layout(initialSize.height, initialSize.width);
 		this._register(this._resizableNode.onDidResize(e => {
 			this._resize(new dom.Dimension(e.dimension.width, e.dimension.height));
 			if (e.done) {
@@ -89,7 +87,7 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 		const maxHeightBelow = Math.min(this._availableVerticalSpaceBelow(showAtPosition) ?? Infinity, widgetHeight);
 		const maxHeightAbove = Math.min(this._availableVerticalSpaceAbove(showAtPosition) ?? Infinity, widgetHeight);
 		const maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow), widgetHeight);
-		const height = clamp(widgetHeight, MIN_HEIGHT, maxHeight);
+		const height = Math.min(widgetHeight, maxHeight);
 		let renderingAbove: ContentWidgetPositionPreference;
 		if (this._editor.getOption(EditorOption.hover).above) {
 			renderingAbove = height <= maxHeightAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;

@@ -480,12 +480,12 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	constructor(
-		_editor: ICodeEditor,
-		@IContextKeyService _contextKeyService: IContextKeyService
+		editor: ICodeEditor,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(_editor);
-		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(_contextKeyService);
-		this._hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(_contextKeyService);
+		super(editor);
+		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(contextKeyService);
+		this._hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(contextKeyService);
 
 		dom.append(this._resizableNode.domNode, this._hover.containerDomNode);
 		this._resizableNode.domNode.style.zIndex = '50';
@@ -518,30 +518,30 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		return ContentHoverWidget.ID;
 	}
 
-	private _setDimensions(container: HTMLElement, width: number | string, height: number | string) {
+	private static _applyDimensions(container: HTMLElement, width: number | string, height: number | string): void {
 		const transformedWidth = typeof width === 'number' ? `${width}px` : width;
 		const transformedHeight = typeof height === 'number' ? `${height}px` : height;
 		container.style.width = transformedWidth;
 		container.style.height = transformedHeight;
 	}
 
-	private _setContentsDomNodeDimensions(width: number | string, height: number | string) {
+	private _setContentsDomNodeDimensions(width: number | string, height: number | string): void {
 		const contentsDomNode = this._hover.contentsDomNode;
-		return this._setDimensions(contentsDomNode, width, height);
+		return ContentHoverWidget._applyDimensions(contentsDomNode, width, height);
 	}
 
-	private _setContainerDomNodeDimensions(width: number | string, height: number | string) {
+	private _setContainerDomNodeDimensions(width: number | string, height: number | string): void {
 		const containerDomNode = this._hover.containerDomNode;
-		return this._setDimensions(containerDomNode, width, height);
+		return ContentHoverWidget._applyDimensions(containerDomNode, width, height);
 	}
 
-	private _setHoverWidgetDimensions(width: number | string, height: number | string) {
+	private _setHoverWidgetDimensions(width: number | string, height: number | string): void {
 		this._setContentsDomNodeDimensions(width, height);
 		this._setContainerDomNodeDimensions(width, height);
 		this._layoutContentWidget();
 	}
 
-	private _setContentsDomNodeMaxDimensions(width: number | string, height: number | string) {
+	private _setContentsDomNodeMaxDimensions(width: number | string, height: number | string): void {
 		const transformedWidth = typeof width === 'number' ? `${width}px` : width;
 		const transformedHeight = typeof height === 'number' ? `${height}px` : height;
 		const contentsDomNode = this._hover.contentsDomNode;
@@ -555,7 +555,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		return hasHorizontalScrollbar;
 	}
 
-	private _adjustContentsBottomPadding() {
+	private _adjustContentsBottomPadding(): void {
 		const contentsDomNode = this._hover.contentsDomNode;
 		const extraBottomPadding = `${this._hover.scrollbar.options.horizontalScrollbarSize}px`;
 		if (contentsDomNode.style.paddingBottom !== extraBottomPadding) {
@@ -575,13 +575,13 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		}
 	}
 
-	private _setResizableNodeMaxDimensions() {
+	private _setResizableNodeMaxDimensions(): void {
 		const maxRenderingWidth = this._findMaximumRenderingWidth() ?? Infinity;
 		const maxRenderingHeight = this._findMaximumRenderingHeight() ?? Infinity;
 		this._resizableNode.maxSize = new dom.Dimension(maxRenderingWidth, maxRenderingHeight);
 	}
 
-	override _resize(size: dom.Dimension) {
+	override _resize(size: dom.Dimension): void {
 		this._setAdjustedHoverWidgetDimensions(size);
 		this._resizableNode.layout(size.height, size.width);
 		this._setResizableNodeMaxDimensions();
