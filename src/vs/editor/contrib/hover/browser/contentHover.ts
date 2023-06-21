@@ -444,7 +444,6 @@ class ContentHoverVisibleData {
 
 const HORIZONTAL_SCROLLING_BY = 30;
 const SCROLLBAR_WIDTH = 10;
-const SASH_WIDTH_MINUS_BORDER = 3;
 
 export class ContentHoverWidget extends ResizableContentWidget {
 
@@ -555,8 +554,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _setAdjustedHoverWidgetDimensions(size: dom.Dimension): void {
 		this._setContentsDomNodeMaxDimensions('none', 'none');
-		const width = size.width - 2 * SASH_WIDTH_MINUS_BORDER;
-		const height = size.height - 2 * SASH_WIDTH_MINUS_BORDER;
+		const width = size.width;
+		const height = size.height;
 		this._setHoverWidgetDimensions(width, height);
 		// measure if widget has horizontal scrollbar after setting the dimensions
 		if (this._hasHorizontalScrollbar()) {
@@ -591,7 +590,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!availableSpace) {
 			return;
 		}
-		let maximumHeight = 3 * SASH_WIDTH_MINUS_BORDER;
+		let maximumHeight = 0;
 		Array.from(this._hover.contentsDomNode.children).forEach((hoverPart) => {
 			maximumHeight += hoverPart.clientHeight;
 		});
@@ -662,10 +661,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		contentsDomNode.appendChild(node);
 	}
 
-	private _getWidgetHeight(): number {
-		return this._hover.containerDomNode.clientHeight + 2 * SASH_WIDTH_MINUS_BORDER;
-	}
-
 	private _layoutContentWidget(): void {
 		this._editor.layoutContentWidget(this);
 		this._hover.onContentsChanged();
@@ -705,7 +700,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			return;
 		}
 		this._render(node, hoverData);
-		const widgetHeight = this._getWidgetHeight();
+		const widgetHeight = dom.getTotalHeight(this._hover.containerDomNode);
 		const widgetPosition = hoverData.showAtPosition;
 		this._positionPreference = this._findPositionPreference(widgetHeight, widgetPosition) ?? ContentWidgetPositionPreference.ABOVE;
 
@@ -733,38 +728,38 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		}
 	}
 
-	private _setPersistedHoverDimensionsOrRenderNormally(): void {
+	private _removeConstraintsRenderNormally(): void {
 		// Added because otherwise the initial size of the hover content is smaller than should be
 		const layoutInfo = this._editor.getLayoutInfo();
 		this._resizableNode.layout(layoutInfo.height, layoutInfo.width);
 		this._setHoverWidgetDimensions('auto', 'auto');
 	}
 
-	private _setContainerAbsolutePosition(top: number, left: number): void {
-		const containerDomNode = this._hover.containerDomNode;
-		containerDomNode.style.top = top + 'px';
-		containerDomNode.style.left = left + 'px';
-	}
-
 	private _adjustHoverHeightForScrollbar(height: number) {
 		const containerDomNode = this._hover.containerDomNode;
 		const contentsDomNode = this._hover.contentsDomNode;
 		const maxRenderingHeight = this._findMaximumRenderingHeight() ?? Infinity;
-		this._setContainerDomNodeDimensions(containerDomNode.clientWidth, Math.min(maxRenderingHeight, height));
-		this._setContentsDomNodeDimensions(contentsDomNode.clientWidth, Math.min(maxRenderingHeight, height - SCROLLBAR_WIDTH));
+		this._setContainerDomNodeDimensions(dom.getTotalWidth(containerDomNode), Math.min(maxRenderingHeight, height));
+		this._setContentsDomNodeDimensions(dom.getTotalWidth(contentsDomNode), Math.min(maxRenderingHeight, height - SCROLLBAR_WIDTH));
 	}
 
 	public onContentsChanged(): void {
-		this._setPersistedHoverDimensionsOrRenderNormally();
+		this._removeConstraintsRenderNormally();
 		const containerDomNode = this._hover.containerDomNode;
-		const clientHeight = containerDomNode.clientHeight;
-		const clientWidth = containerDomNode.clientWidth;
-		const totalBorderWidth = 2 * SASH_WIDTH_MINUS_BORDER;
-		this._resizableNode.layout(clientHeight + totalBorderWidth, clientWidth + totalBorderWidth);
-		this._setContainerAbsolutePosition(SASH_WIDTH_MINUS_BORDER - 1, SASH_WIDTH_MINUS_BORDER - 1);
+
+		let height = dom.getTotalHeight(containerDomNode);
+		let width = dom.getTotalWidth(containerDomNode);
+		this._resizableNode.layout(height, width);
+
+		this._setHoverWidgetDimensions(width, height);
+
+		height = dom.getTotalHeight(containerDomNode);
+		width = dom.getTotalWidth(containerDomNode);
+		this._resizableNode.layout(height, width);
+
 		if (this._hasHorizontalScrollbar()) {
 			this._adjustContentsBottomPadding();
-			this._adjustHoverHeightForScrollbar(clientHeight);
+			this._adjustHoverHeightForScrollbar(height);
 		}
 		this._layoutContentWidget();
 	}
