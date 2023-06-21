@@ -380,6 +380,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.reveal(item);
 	}
 
+	focus(item: ChatTreeItem): void {
+		const items = this.tree.getNode(null).children;
+		const node = items.find(i => i.element?.id === item.id);
+		if (!node) {
+			return;
+		}
+
+		this.tree.setFocus([node.element]);
+		this.tree.domFocus();
+	}
+
 	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
 		if (this.viewModel) {
 			const editorValue = this.inputPart.inputEditor.getValue();
@@ -397,11 +408,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (result) {
 				this.inputPart.acceptInput(query);
 				result.responseCompletePromise.then(async () => {
-
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
 					this._chatAccessibilityService.acceptResponse(lastResponse);
 				});
+			} else {
+				this._chatAccessibilityService.acceptResponse();
 			}
 		}
 	}
@@ -508,7 +520,7 @@ export class ChatWidgetService implements IChatWidgetService {
 }
 
 
-const CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS = 7000;
+const CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS = 5000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
 
 	declare readonly _serviceBrand: undefined;

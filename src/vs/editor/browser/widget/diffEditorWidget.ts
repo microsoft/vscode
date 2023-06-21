@@ -143,6 +143,7 @@ class VisualEditorState {
 			for (let i = 0, length = newDecorations.zones.length; i < length; i++) {
 				const viewZone = <editorBrowser.IViewZone>newDecorations.zones[i];
 				viewZone.suppressMouseDown = true;
+				viewZone.showInHiddenAreas = true;
 				const zoneId = viewChangeAccessor.addZone(viewZone);
 				this._zones.push(zoneId);
 				this._zonesMap[String(zoneId)] = true;

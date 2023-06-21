@@ -1240,10 +1240,10 @@
   resolved "https://registry.yarnpkg.com/@ungap/promise-all-settled/-/promise-all-settled-1.1.2.tgz#aa58042711d6e3275dd37dc597e5d31e8c290a44"
   integrity sha512-sL/cEvJWAnClXw0wHk85/2L0G6Sj8UB0Ctc1TEMbKSsmpRosqhwj9gWgFRZSrBr2f9tiXISwNhCPmlfqUqyb9Q==
 
-"@vscode/gulp-electron@^1.35.0":
-  version "1.35.0"
-  resolved "https://registry.yarnpkg.com/@vscode/gulp-electron/-/gulp-electron-1.35.0.tgz#b66aa307b1edefb0b37988faf29b82ab9974c466"
-  integrity sha512-FjRdAlfJBflFs28RYBaJ3gK/LHFZ4T34nP/FnKZrwNjWq5ojDC9WiwOMDHaG7wP7AKBcxh267Gz2epghMeO1ng==
+"@vscode/gulp-electron@^1.36.0":
+  version "1.36.0"
+  resolved "https://registry.yarnpkg.com/@vscode/gulp-electron/-/gulp-electron-1.36.0.tgz#b2895c4bafaa0cf2b13042aa654e9fdd1f3a90cd"
+  integrity sha512-zGNnxN2mccAa0fgyjUn0+HUX4sv4syUfoLQru3/QAQYki1oeqnkPpCXZxhismFmWpXwTwsf5sXeh1AOs8uyU0g==
   dependencies:
     "@electron/get" "^2.0.2"
     "@octokit/rest" "^18.0.14"
@@ -1258,6 +1258,7 @@
     rcedit "^0.3.0"
     rimraf "^2.4.2"
     semver "^4.3.4"
+    sumchecker "^3.0.1"
     temp "^0.8.3"
     vinyl "^3.0.0"
     vinyl-fs "^3.0.3"
@@ -1287,10 +1288,10 @@
     bindings "^1.5.0"
     node-addon-api "^6.0.0"
 
-"@vscode/proxy-agent@^0.13.2":
-  version "0.13.2"
-  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.13.2.tgz#0d289826c07faecc4ca07de80a8e5a9459d06119"
-  integrity sha512-BSUd0NTj44WvG4O9A6N+4R1XhxtPqCYltWeHyNkquX9T//a1US+cd8fxzcZCPd3z7dygdYIPkZAKM+CrefWWOA==
+"@vscode/proxy-agent@^0.14.1":
+  version "0.14.1"
+  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.14.1.tgz#61866221a8fbd5143f73a14c29deccdf85f13113"
+  integrity sha512-bJxCO9E6zDpy90TiViAZgFjAgo83gS0Lh5CUIu/JZ8p5UwwQ37Y6LZH2f2l6kBr2RGdNSRbORTFrfmLtr1faRA==
   dependencies:
     "@tootallnate/once" "^1.1.2"
     agent-base "^6.0.2"
@@ -1326,10 +1327,10 @@
     mkdirp "^0.5.5"
     nan "^2.17.0"
 
-"@vscode/sqlite3@5.1.5-vscode":
-  version "5.1.5-vscode"
-  resolved "https://registry.yarnpkg.com/@vscode/sqlite3/-/sqlite3-5.1.5-vscode.tgz#5de2fd3373c3b8daea8ef3589545f69e0fd87ebb"
-  integrity sha512-7nk6gkOXSBsuQ3zsdSdnB47mGyvRO2/w/miX5ri3xv6PfWKLNOabdydCb+4JuEwTnY5YOZ9ltGzexV3qsSX0Yg==
+"@vscode/sqlite3@5.1.6-vscode":
+  version "5.1.6-vscode"
+  resolved "https://registry.yarnpkg.com/@vscode/sqlite3/-/sqlite3-5.1.6-vscode.tgz#2f20e80fe2af59f3e81bf777f5fe2da5a6ec8329"
+  integrity sha512-SzNUiijrRyJr1ly6eHIs5UcCqH/V8aaoz9mHNm5SdnJCJOX5T9RcHqO1AJ9VreHcPcRPKuG2paUpMkTeyynmYQ==
   dependencies:
     node-addon-api "^4.2.0"
     tar "^6.1.11"
@@ -3526,10 +3527,10 @@ electron-to-chromium@^1.4.202:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.207.tgz#9c3310ebace2952903d05dcaba8abe3a4ed44c01"
   integrity sha512-piH7MJDJp4rJCduWbVvmUd59AUne1AFBJ8JaRQvk0KzNTSUnZrVXHCZc+eg+CGE4OujkcLJznhGKD6tuAshj5Q==
 
-electron@22.3.11:
-  version "22.3.11"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-22.3.11.tgz#db68c3f820eab9868ccf65bd4604c2805c4c93b9"
-  integrity sha512-4PW1rJRUckJUCxTXRJkzJ7qlGTZ8Qfwoke5aFlaGccmn/zViuE9iSCg9zqIx00rzsbF9R5j8j9V4tAqyqjjJRA==
+electron@22.3.13:
+  version "22.3.13"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-22.3.13.tgz#ce1de257a3f17dc44c8954789ada0ac31dec1120"
+  integrity sha512-SDqQM3zSNiiiHIaxhx9yshWwgkqhyYMEH7XfWQhnvtI3N+5bnC6Po7Uz7p2jVqHWaBYTatdbBwB0flhvlDtBuQ==
   dependencies:
     "@electron/get" "^2.0.0"
     "@types/node" "^16.11.26"
@@ -9782,10 +9783,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.2.0-dev.20230602:
-  version "5.2.0-dev.20230602"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.2.0-dev.20230602.tgz#01e2055aa8d8bde4431947c0c048c07c23cc6027"
-  integrity sha512-LenKdxmkwzZRmEKzShAq83TvEuvCGR8pCYBe0VpUTuJ7NMSK4r2yV2GTmJrSqtk8IoJAmc+PfymMQIfwX1JGQQ==
+typescript@^5.2.0-dev.20230621:
+  version "5.2.0-dev.20230621"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.2.0-dev.20230621.tgz#fc61be8c6448dce096aa5df1abda7966d730999d"
+  integrity sha512-8iIehsqwx8TrzBcPWAuXZ0Z4wF/+0CmwdbibftaivqXJlD3V4qWr26hn67r/UT/VNm67iO86XN45F8Viivvobw==
 
 typical@^4.0.0:
   version "4.0.0"

@@ -31,6 +31,7 @@ import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabili
 import { IProductService } from 'vs/platform/product/common/productService';
 import { join } from 'path';
 import { memoize } from 'vs/base/common/decorators';
+import * as performance from 'vs/base/common/performance';
 
 export function traceRpc(_target: any, key: string, descriptor: any) {
 	if (typeof descriptor.value !== 'function') {
@@ -68,22 +69,31 @@ export class PtyService extends Disposable implements IPtyService {
 	private readonly _autoReplies: Map<string, string> = new Map();
 
 	private readonly _onHeartbeat = this._register(new Emitter<void>());
-	readonly onHeartbeat = this._onHeartbeat.event;
+	readonly onHeartbeat = this._traceEvent('_onHeartbeat', this._onHeartbeat.event);
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number; event: IProcessDataEvent | string }>());
-	readonly onProcessData = this._onProcessData.event;
+	readonly onProcessData = this._traceEvent('_onProcessData', this._onProcessData.event);
 	private readonly _onProcessReplay = this._register(new Emitter<{ id: number; event: IPtyHostProcessReplayEvent }>());
-	readonly onProcessReplay = this._onProcessReplay.event;
+	readonly onProcessReplay = this._traceEvent('_onProcessReplay', this._onProcessReplay.event);
 	private readonly _onProcessReady = this._register(new Emitter<{ id: number; event: IProcessReadyEvent }>());
-	readonly onProcessReady = this._onProcessReady.event;
+	readonly onProcessReady = this._traceEvent('_onProcessReady', this._onProcessReady.event);
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number; event: number | undefined }>());
-	readonly onProcessExit = this._onProcessExit.event;
+	readonly onProcessExit = this._traceEvent('_onProcessExit', this._onProcessExit.event);
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
-	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
+	readonly onProcessOrphanQuestion = this._traceEvent('_onProcessOrphanQuestion', this._onProcessOrphanQuestion.event);
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
-	readonly onDidRequestDetach = this._onDidRequestDetach.event;
+	readonly onDidRequestDetach = this._traceEvent('_onDidRequestDetach', this._onDidRequestDetach.event);
 	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number; property: IProcessProperty<any> }>());
-	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	readonly onDidChangeProperty = this._traceEvent('_onDidChangeProperty', this._onDidChangeProperty.event);
+
+	private _traceEvent<T>(name: string, event: Event<T>): Event<T> {
+		event(e => {
+			if (this._logService.getLevel() === LogLevel.Trace) {
+				this._logService.trace(`[RPC Event] PtyService#${name}.fire(${JSON.stringify(e)})`);
+			}
+		});
+		return event;
+	}
 
 	@memoize
 	get traceRpcArgs(): { logService: ILogService; simulatedLatency: number } {
@@ -259,7 +269,6 @@ export class PtyService extends Disposable implements IPtyService {
 			options
 		};
 		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving && typeof shellLaunchConfig.initialText === 'string' ? shellLaunchConfig.initialText : undefined, rawReviveBuffer, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
-		process.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
 		process.onProcessExit(event => {
 			persistentProcess.dispose();
 			this._ptys.delete(id);
@@ -334,6 +343,11 @@ export class PtyService extends Disposable implements IPtyService {
 		const promises = persistentProcesses.map(async ([id, terminalProcessData]) => this._buildProcessDetails(id, terminalProcessData));
 		const allTerminals = await Promise.all(promises);
 		return allTerminals.filter(entry => entry.isOrphan);
+	}
+
+	@traceRpc
+	async getPerformanceMarks(): Promise<performance.PerformanceMark[]> {
+		return performance.getMarks();
 	}
 
 	@traceRpc
@@ -487,13 +501,16 @@ export class PtyService extends Disposable implements IPtyService {
 
 	@traceRpc
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+		performance.mark('code/willGetTerminalLayoutInfo');
 		const layout = this._workspaceLayoutInfos.get(args.workspaceId);
 		if (layout) {
 			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
 			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
 			this._logService.trace('PtyService.getTerminalLayoutInfo result', tabs);
+			performance.mark('code/didGetTerminalLayoutInfo');
 			return { tabs };
 		}
+		performance.mark('code/didGetTerminalLayoutInfo');
 		return undefined;
 	}
 
@@ -529,10 +546,11 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	private async _buildProcessDetails(id: number, persistentProcess: PersistentTerminalProcess, wasRevived: boolean = false): Promise<IProcessDetails> {
+		performance.mark(`code/willBuildProcessDetails/${id}`);
 		// If the process was just revived, don't do the orphan check as it will
 		// take some time
 		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), wasRevived ? true : persistentProcess.isOrphaned()]);
-		return {
+		const result = {
 			id,
 			title: persistentProcess.title,
 			titleSource: persistentProcess.titleSource,
@@ -553,6 +571,8 @@ export class PtyService extends Disposable implements IPtyService {
 			hasChildProcesses: persistentProcess.hasChildProcesses,
 			shellIntegrationNonce: persistentProcess.processLaunchOptions.options.shellIntegration.nonce
 		};
+		performance.mark(`code/didBuildProcessDetails/${id}`);
+		return result;
 	}
 
 	private _throwIfNoPty(id: number): PersistentTerminalProcess {

@@ -24,6 +24,7 @@ import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ISerializableEnvironmentDescriptionMap as ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import type * as performance from 'vs/base/common/performance';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 
@@ -201,6 +202,9 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	}
 	listProcesses(): Promise<IProcessDetails[]> {
 		return this._channel.call('$listProcesses');
+	}
+	getPerformanceMarks(): Promise<performance.PerformanceMark[]> {
+		return this._channel.call('$getPerformanceMarks');
 	}
 	reduceConnectionGraceTime(): Promise<void> {
 		return this._channel.call('$reduceConnectionGraceTime');
