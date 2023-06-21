@@ -444,6 +444,7 @@ class ContentHoverVisibleData {
 
 const HORIZONTAL_SCROLLING_BY = 30;
 const SCROLLBAR_WIDTH = 10;
+const CONTAINER_HEIGHT_PADDING = 6;
 
 export class ContentHoverWidget extends ResizableContentWidget {
 
@@ -573,6 +574,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	override _resize(size: dom.Dimension) {
 		this._setAdjustedHoverWidgetDimensions(size);
 		this._setResizableNodeMaxDimensions();
+		this._resizableNode.layout(size.height, size.width);
 		this._hover.scrollbar.scanDomNode();
 		this._editor.layoutContentWidget(this);
 	}
@@ -590,7 +592,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!availableSpace) {
 			return;
 		}
-		let maximumHeight = 0;
+		let maximumHeight = CONTAINER_HEIGHT_PADDING;
 		Array.from(this._hover.contentsDomNode.children).forEach((hoverPart) => {
 			maximumHeight += hoverPart.clientHeight;
 		});
