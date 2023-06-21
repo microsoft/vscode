@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { Schemes } from '../configuration/schemes';
+import { Logger } from '../logging/logger';
 import { disposeAll, IDisposable } from '../utils/dispose';
 import { ResourceMap } from '../utils/resourceMap';
 
@@ -18,19 +19,27 @@ type DirWatcherEntry = {
 export class FileWatcherManager {
 
 	private readonly _fileWatchers = new Map<number, {
+		readonly uri: vscode.Uri;
 		readonly watcher: vscode.FileSystemWatcher;
 		readonly dirWatchers: DirWatcherEntry[];
 	}>();
 
 	private readonly _dirWatchers = new ResourceMap<{
+		readonly uri: vscode.Uri;
 		readonly watcher: vscode.FileSystemWatcher;
 		refCount: number;
 	}>(uri => uri.toString(), { onCaseInsensitiveFileSystem: false });
 
+	constructor(
+		private readonly logger: Logger,
+	) { }
+
 	create(id: number, uri: vscode.Uri, watchParentDirs: boolean, isRecursive: boolean, listeners: { create?: (uri: vscode.Uri) => void; change?: (uri: vscode.Uri) => void; delete?: (uri: vscode.Uri) => void }): void {
+		this.logger.trace(`Creating file watcher for ${uri.toString()}`);
+
 		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(uri, isRecursive ? '**' : '*'), !listeners.create, !listeners.change, !listeners.delete);
 		const parentDirWatchers: DirWatcherEntry[] = [];
-		this._fileWatchers.set(id, { watcher, dirWatchers: parentDirWatchers });
+		this._fileWatchers.set(id, { uri, watcher, dirWatchers: parentDirWatchers });
 
 		if (listeners.create) { watcher.onDidCreate(listeners.create); }
 		if (listeners.change) { watcher.onDidChange(listeners.change); }
@@ -43,9 +52,10 @@ export class FileWatcherManager {
 
 				let parentDirWatcher = this._dirWatchers.get(dirUri);
 				if (!parentDirWatcher) {
+					this.logger.trace(`Creating parent dir watcher for ${dirUri.toString()}`);
 					const glob = new vscode.RelativePattern(Utils.dirname(dirUri), Utils.basename(dirUri));
 					const parentWatcher = vscode.workspace.createFileSystemWatcher(glob, !listeners.create, true, !listeners.delete);
-					parentDirWatcher = { refCount: 0, watcher: parentWatcher };
+					parentDirWatcher = { uri: dirUri, refCount: 0, watcher: parentWatcher };
 					this._dirWatchers.set(dirUri, parentDirWatcher);
 				}
 				parentDirWatcher.refCount++;
@@ -75,15 +85,19 @@ export class FileWatcherManager {
 		}
 	}
 
+
 	delete(id: number): void {
 		const entry = this._fileWatchers.get(id);
 		if (entry) {
+			this.logger.trace(`Deleting file watcher for ${entry.uri}`);
+
 			for (const dirWatcher of entry.dirWatchers) {
 				disposeAll(dirWatcher.listeners);
 
 				const dirWatcherEntry = this._dirWatchers.get(dirWatcher.uri);
 				if (dirWatcherEntry) {
 					if (--dirWatcherEntry.refCount <= 0) {
+						this.logger.trace(`Deleting parent dir ${dirWatcherEntry.uri}`);
 						dirWatcherEntry.watcher.dispose();
 						this._dirWatchers.delete(dirWatcher.uri);
 					}

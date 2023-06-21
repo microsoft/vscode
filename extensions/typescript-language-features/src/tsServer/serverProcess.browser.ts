@@ -7,6 +7,7 @@ import { ServiceConnection } from '@vscode/sync-api-common/browser';
 import { ApiService, Requests } from '@vscode/sync-api-service';
 import * as vscode from 'vscode';
 import { TypeScriptServiceConfiguration } from '../configuration/configuration';
+import { Logger } from '../logging/logger';
 import { FileWatcherManager } from './fileWatchingManager';
 import type * as Proto from './protocol/protocol';
 import { TsServerLog, TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
@@ -30,6 +31,7 @@ type BrowserWatchEvent = {
 export class WorkerServerProcessFactory implements TsServerProcessFactory {
 	constructor(
 		private readonly _extensionUri: vscode.Uri,
+		private readonly _logger: Logger,
 	) { }
 
 	public fork(
@@ -47,7 +49,7 @@ export class WorkerServerProcessFactory implements TsServerProcessFactory {
 			// Explicitly give TS Server its path so it can
 			// load local resources
 			'--executingFilePath', tsServerPath,
-		], tsServerLog);
+		], tsServerLog, this._logger);
 	}
 }
 
@@ -60,7 +62,7 @@ class WorkerServerProcess implements TsServerProcess {
 	private readonly _onDataHandlers = new Set<(data: Proto.Response) => void>();
 	private readonly _onErrorHandlers = new Set<(err: Error) => void>();
 	private readonly _onExitHandlers = new Set<(code: number | null, signal: string | null) => void>();
-	private readonly watches = new FileWatcherManager();
+	private readonly _watches: FileWatcherManager;
 
 	private readonly worker: Worker;
 
@@ -77,8 +79,11 @@ class WorkerServerProcess implements TsServerProcess {
 		extensionUri: vscode.Uri,
 		args: readonly string[],
 		private readonly tsServerLog: TsServerLog | undefined,
+		logger: Logger,
 	) {
 		this.worker = new Worker(tsServerPath, { name: `TS ${kind} server #${this.id}` });
+
+		this._watches = new FileWatcherManager(logger);
 
 		const tsserverChannel = new MessageChannel();
 		const watcherChannel = new MessageChannel();
@@ -100,12 +105,12 @@ class WorkerServerProcess implements TsServerProcess {
 		this.watcher.onmessage = (event: MessageEvent<BrowserWatchEvent>) => {
 			switch (event.data.type) {
 				case 'dispose': {
-					this.watches.delete(event.data.id);
+					this._watches.delete(event.data.id);
 					break;
 				}
 				case 'watchDirectory':
 				case 'watchFile': {
-					this.watches.create(event.data.id, vscode.Uri.from(event.data.uri), /*watchParentDirs*/ true, !!event.data.recursive, {
+					this._watches.create(event.data.id, vscode.Uri.from(event.data.uri), /*watchParentDirs*/ true, !!event.data.recursive, {
 						change: uri => this.watcher.postMessage({ type: 'watch', event: 'change', uri }),
 						create: uri => this.watcher.postMessage({ type: 'watch', event: 'create', uri }),
 						delete: uri => this.watcher.postMessage({ type: 'watch', event: 'delete', uri }),
