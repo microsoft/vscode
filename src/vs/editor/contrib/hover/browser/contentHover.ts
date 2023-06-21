@@ -581,7 +581,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._resizableNode.maxSize = new dom.Dimension(maxRenderingWidth, maxRenderingHeight);
 	}
 
-	override _resize(size: dom.Dimension): void {
+	protected override _resize(size: dom.Dimension): void {
 		this._setAdjustedHoverWidgetDimensions(size);
 		this._resizableNode.layout(size.height, size.width);
 		this._setResizableNodeMaxDimensions();
