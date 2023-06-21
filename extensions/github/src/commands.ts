@@ -16,7 +16,9 @@ async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean, context:
 			return vscode.env.clipboard.writeText(permalink);
 		}
 	} catch (err) {
-		vscode.window.showErrorMessage(err.message);
+		if (!(err instanceof vscode.CancellationError)) {
+			vscode.window.showErrorMessage(err.message);
+		}
 	}
 }
 
@@ -25,7 +27,9 @@ async function openVscodeDevLink(gitAPI: GitAPI): Promise<vscode.Uri | undefined
 		const headlink = await getLink(gitAPI, true, getVscodeDevHost(), 'headlink');
 		return headlink ? vscode.Uri.parse(headlink) : undefined;
 	} catch (err) {
-		vscode.window.showErrorMessage(err.message);
+		if (!(err instanceof vscode.CancellationError)) {
+			vscode.window.showErrorMessage(err.message);
+		}
 		return undefined;
 	}
 }
