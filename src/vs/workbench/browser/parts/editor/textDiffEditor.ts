@@ -160,7 +160,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			// a resolved model might have more specific information about being
 			// readonly or not that the input did not have.
 			control.updateOptions({
-				readOnly: resolvedDiffEditorModel.modifiedModel?.isReadonly(),
+				...this.readonlyValues(resolvedDiffEditorModel.modifiedModel?.isReadonly()),
 				originalEditable: !resolvedDiffEditorModel.originalModel?.isReadonly()
 			});
 

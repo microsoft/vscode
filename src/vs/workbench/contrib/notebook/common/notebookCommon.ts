@@ -795,7 +795,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly notebook: INotebookTextModel | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
-	isReadonly(): boolean;
+	isReadonly(): boolean | IMarkdownString;
 	isOrphaned(): boolean;
 	hasAssociatedFilePath(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;

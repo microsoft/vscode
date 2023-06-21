@@ -7,6 +7,7 @@ import { VSBufferReadableStream, bufferToStream, streamToBuffer } from 'vs/base/
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { filter } from 'vs/base/common/objects';
@@ -100,13 +101,11 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return !SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy) && !!this._workingCopy?.hasAssociatedFilePath;
 	}
 
-	isReadonly(): boolean {
+	isReadonly(): boolean | IMarkdownString {
 		if (SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy)) {
 			return this._workingCopy?.isReadonly();
-		} else if (this._filesConfigurationService.isReadonly(this.resource)) {
-			return true;
 		} else {
-			return false;
+			return this._filesConfigurationService.isReadonly(this.resource);
 		}
 	}
 

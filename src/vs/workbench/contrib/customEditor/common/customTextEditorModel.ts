@@ -64,7 +64,7 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 	}
 
 	public isReadonly(): boolean {
-		return this._model.object.isReadonly();
+		return !!this._model.object.isReadonly();
 	}
 
 	public get backupId() {

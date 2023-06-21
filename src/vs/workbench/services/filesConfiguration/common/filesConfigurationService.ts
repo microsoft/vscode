@@ -20,6 +20,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ResourceMap } from 'vs/base/common/map';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 
@@ -59,7 +60,7 @@ export interface IFilesConfigurationService {
 
 	readonly onReadonlyChange: Event<void>;
 
-	isReadonly(resource: URI, stat?: IBaseFileStat): boolean;
+	isReadonly(resource: URI, stat?: IBaseFileStat): boolean | IMarkdownString;
 
 	updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void>;
 
@@ -103,7 +104,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private readonly readonlyExcludeMatcher = this._register(new IdleValue(() => this.createReadonlyMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
 	private configuredReadonlyFromPermissions: boolean | undefined;
 
-	private readonly sessionReadonlyOverrides = new ResourceMap<boolean>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+	private readonly sessionReadonlyOverrides = new ResourceMap<boolean | IMarkdownString>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -140,13 +141,13 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return matcher;
 	}
 
-	isReadonly(resource: URI, stat?: IBaseFileStat): boolean {
+	isReadonly(resource: URI, stat?: IBaseFileStat): boolean | IMarkdownString {
 
 		// if the entire file system provider is readonly, we respect that
 		// and do not allow to change readonly. we take this as a hint that
 		// the provider has no capabilities of writing.
 		if (this.fileService.hasCapability(resource, FileSystemProviderCapabilities.Readonly)) {
-			return true;
+			return this.fileService.getProvider(resource.scheme)?.readOnlyMessage ?? true;
 		}
 
 		// session override always wins over the others
