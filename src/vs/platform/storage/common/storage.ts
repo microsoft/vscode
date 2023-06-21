@@ -394,7 +394,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.getStorage(scope)?.getObject(key, fallbackValue);
 	}
 
-	store(key: string, value: string | boolean | number | undefined | null | object, scope: StorageScope, target: StorageTarget, source: StorageChangeSource = StorageChangeSource.PART): void {
+	store(key: string, value: string | boolean | number | undefined | null | object, scope: StorageScope, target: StorageTarget, source: StorageChangeSource = StorageChangeSource.SELF): void {
 
 		// We remove the key for undefined/null values
 		if (isUndefinedOrNull(value)) {

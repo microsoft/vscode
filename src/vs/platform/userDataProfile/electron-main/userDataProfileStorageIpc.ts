@@ -67,7 +67,7 @@ export class ProfileStorageChangesListenerChannel extends Disposable implements 
 		keys = keys.filter(key => key !== TARGET_KEY);
 		if (keys.length) {
 			const keyTargets = loadKeyTargets(this.storageMainService.applicationStorage.storage);
-			profileStorageValueChanges.push({ profile: this.userDataProfilesService.defaultProfile, changes: keys.map(key => ({ key, scope: StorageScope.PROFILE, target: keyTargets[key], source: StorageChangeSource.PART })) });
+			profileStorageValueChanges.push({ profile: this.userDataProfilesService.defaultProfile, changes: keys.map(key => ({ key, scope: StorageScope.PROFILE, target: keyTargets[key], source: StorageChangeSource.SELF })) });
 		}
 		this.triggerEvents(targetChangedProfiles, profileStorageValueChanges);
 	}

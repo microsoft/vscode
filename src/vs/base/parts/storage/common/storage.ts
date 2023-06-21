@@ -97,7 +97,7 @@ export enum StorageChangeSource {
 	/**
 	 * The value changed due to a component storing to it.
 	 */
-	PART,
+	SELF,
 
 	/**
 	 * The value changed due to external reasons.
@@ -246,7 +246,7 @@ export class Storage extends Disposable implements IStorage {
 		return parse(value);
 	}
 
-	async set(key: string, value: string | boolean | number | null | undefined | object, source: StorageChangeSource = StorageChangeSource.PART): Promise<void> {
+	async set(key: string, value: string | boolean | number | null | undefined | object, source: StorageChangeSource = StorageChangeSource.SELF): Promise<void> {
 		if (this.state === StorageState.Closed) {
 			return; // Return early if we are already closed
 		}
@@ -295,7 +295,7 @@ export class Storage extends Disposable implements IStorage {
 		this.pendingInserts.delete(key);
 
 		// Event
-		this._onDidChangeStorage.fire({ key, source: StorageChangeSource.PART });
+		this._onDidChangeStorage.fire({ key, source: StorageChangeSource.SELF });
 
 		// Accumulate work by scheduling after timeout
 		return this.doFlush();
