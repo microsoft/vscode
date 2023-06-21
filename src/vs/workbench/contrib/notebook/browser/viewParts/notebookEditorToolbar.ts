@@ -555,10 +555,6 @@ export function workbenchDynamicCalculateActions(initialPrimaryActions: IActionM
 			action.renderLabel = true;
 		});
 		return actionOverflowHelper(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth, false);
-		// return {
-		// 	primaryActions: initialPrimaryActions,
-		// 	secondaryActions: initialSecondaryActions
-		// };
 	}
 
 	// step 2: check if they fit without labels
