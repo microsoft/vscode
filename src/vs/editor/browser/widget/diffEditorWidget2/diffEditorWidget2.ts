@@ -166,7 +166,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(autorunWithStore2('decorations', (reader, store) => {
 			store.add(new (readHotReloadableExport(DiffEditorDecorations, reader))(
-				this._originalEditor, this._modifiedEditor, this._diffModel, this._renderSideBySide, this._shouldRenderRevertArrows,
+				this._originalEditor, this._modifiedEditor, this._diffModel, this._shouldRenderRevertArrows,
 			));
 		}));
 

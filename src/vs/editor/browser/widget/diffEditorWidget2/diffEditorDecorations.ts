@@ -21,7 +21,6 @@ export class DiffEditorDecorations extends Disposable {
 		private readonly _originalEditor: CodeEditorWidget,
 		private readonly _modifiedEditor: CodeEditorWidget,
 		private readonly _diffModel: IObservable<DiffModel | undefined>,
-		private readonly _renderSideBySide: IObservable<boolean>,
 		private readonly _shouldRenderRevertArrows: IObservable<boolean>,
 	) {
 		super();
