@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { streamToBuffer } from 'vs/base/common/buffer';
-import { Schemas } from 'vs/base/common/network';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -79,16 +78,15 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 					metadata: {},
 					cells: []
 				};
-				if (uri.scheme !== Schemas.vscodeInteractive) {
-					const bytes = await streamToBuffer(content.value);
-					processedBytes += bytes.byteLength;
 
-					const readTimeEnd = Date.now();
-					readTime += readTimeEnd - readTimeStart;
-					const parseStart = Date.now();
-					_data = await info.serializer.dataToNotebook(bytes);
-					parseTime += Date.now() - parseStart;
-				}
+				const bytes = await streamToBuffer(content.value);
+				processedBytes += bytes.byteLength;
+
+				const readTimeEnd = Date.now();
+				readTime += readTimeEnd - readTimeStart;
+				const parseStart = Date.now();
+				_data = await info.serializer.dataToNotebook(bytes);
+				parseTime += Date.now() - parseStart;
 
 				const deserializeEnd = Date.now();
 				deserializeTime += deserializeEnd - deserializeStart;

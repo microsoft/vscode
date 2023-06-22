@@ -2443,11 +2443,6 @@ class NotebookDataCache {
 	}
 
 	async getNotebookData(notebookUri: URI): Promise<NotebookData> {
-
-		if (notebookUri.scheme === Schemas.vscodeInteractive) {
-			//unsupported
-			throw new Error(`CANNOT parse notebook uri ${notebookUri.toString()}`);
-		}
 		const mTime = (await this.fileService.stat(notebookUri)).mtime;
 
 		const entry = this._entries.get(notebookUri);
