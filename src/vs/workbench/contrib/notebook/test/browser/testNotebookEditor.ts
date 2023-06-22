@@ -448,6 +448,9 @@ class TestNotebookExecutionStateService implements INotebookExecutionStateServic
 	getLastFailedCellForNotebook(notebook: URI): number | undefined {
 		return;
 	}
+	getLastRunCellForNotebook(notebook: URI): number | undefined {
+		return;
+	}
 	getExecution(notebook: URI): INotebookExecution | undefined {
 		return;
 	}

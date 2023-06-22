@@ -41,6 +41,7 @@ const EXECUTE_CELLS_ABOVE = 'notebook.cell.executeCellsAbove';
 const RENDER_ALL_MARKDOWN_CELLS = 'notebook.renderAllMarkdownCells';
 const REVEAL_RUNNING_CELL = 'notebook.revealRunningCell';
 const REVEAL_LAST_FAILED_CELL = 'notebook.revealLastFailedCell';
+const REVEAL_RECENTLY_RUN_CELL = 'notebook.revealRecentlyRunCell';
 
 // If this changes, update getCodeCellExecutionContextKeyService to match
 export const executeCondition = ContextKeyExpr.and(
@@ -634,7 +635,7 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation/execute',
-					order: 0
+					order: 10
 				},
 				{
 					id: MenuId.InteractiveToolbar,
@@ -711,7 +712,7 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation/execute',
-					order: 0
+					order: 10
 				},
 			],
 			icon: icons.errorStateIcon,
@@ -726,6 +727,55 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 			const lastFailedCell = context.notebookEditor.getCellByHandle(lastFailedCellHandle);
 			if (lastFailedCell) {
 				context.notebookEditor.focusNotebookCell(lastFailedCell, 'container');
+			}
+		}
+	}
+});
+
+registerAction2(class RevealRecentlyRunCellAction extends NotebookAction {
+	constructor() {
+		super({
+			id: REVEAL_RECENTLY_RUN_CELL,
+			title: localize('revealRecentlyRunCell', "Go to Most Recently Run Cell"),
+			tooltip: localize('revealRecentlyRunCell', "Go to Most Recently Run Cell"),
+			shortTitle: localize('revealRecentlyRunCellShort', "Go To"),
+			precondition: NOTEBOOK_LAST_CELL_FAILED.toNegated() && NOTEBOOK_HAS_RUNNING_CELL.toNegated(),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						NOTEBOOK_LAST_CELL_FAILED.toNegated(),
+						NOTEBOOK_HAS_RUNNING_CELL.toNegated(),
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+					),
+					group: 'navigation',
+					order: 0
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						NOTEBOOK_LAST_CELL_FAILED.toNegated(),
+						NOTEBOOK_HAS_RUNNING_CELL.toNegated(),
+						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+					),
+					group: 'navigation/execute',
+					order: 10
+				},
+			],
+			icon: icons.gotoRunCellIcon,
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		const notebookExecutionStateService = accessor.get(INotebookExecutionStateService);
+		const notebook = context.notebookEditor.textModel.uri;
+		const lastSuccessfulCellHandle = notebookExecutionStateService.getLastRunCellForNotebook(notebook);
+		if (lastSuccessfulCellHandle !== undefined) {
+			const recentlyRunCell = context.notebookEditor.getCellByHandle(lastSuccessfulCellHandle);
+			if (recentlyRunCell) {
+				context.notebookEditor.focusNotebookCell(recentlyRunCell, 'container');
 			}
 		}
 	}

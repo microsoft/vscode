@@ -35,3 +35,4 @@ export const mimetypeIcon = registerIcon('notebook-mimetype', Codicon.code, loca
 export const previousChangeIcon = registerIcon('notebook-diff-editor-previous-change', Codicon.arrowUp, localize('previousChangeIcon', 'Icon for the previous change action in the diff editor.'));
 export const nextChangeIcon = registerIcon('notebook-diff-editor-next-change', Codicon.arrowDown, localize('nextChangeIcon', 'Icon for the next change action in the diff editor.'));
 
+export const gotoRunCellIcon = registerIcon('notebook-goto-run-cell', Codicon.exportIcon, localize('gotoRunCellIcon', 'Icon to go to the recentrly run cell in notebook editors.'));

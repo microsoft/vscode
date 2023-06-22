@@ -47,7 +47,18 @@ export interface INotebookFailStateChangedEvent {
 	notebook: URI;
 }
 
+export interface INotebookSuccessStateChangedEvent {
+	visible: boolean;
+	notebook: URI;
+}
+
 export interface IFailedCellInfo {
+	cellHandle: number;
+	disposable: IDisposable;
+	visible: boolean;
+}
+
+export interface ISuccessfulCellInfo {
 	cellHandle: number;
 	disposable: IDisposable;
 	visible: boolean;
@@ -69,6 +80,7 @@ export interface INotebookExecutionStateService {
 	getExecution(notebook: URI): INotebookExecution | undefined;
 	createExecution(notebook: URI): INotebookExecution;
 	getLastFailedCellForNotebook(notebook: URI): number | undefined;
+	getLastRunCellForNotebook(notebook: URI): number | undefined;
 }
 
 export interface INotebookCellExecution {
