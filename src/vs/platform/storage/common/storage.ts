@@ -247,9 +247,11 @@ export interface IStorageValueChangeEvent {
 	readonly target: StorageTarget | undefined;
 
 	/**
-	 * Whether the storage value was modified because the
-	 * storage service was updated in bulk from an external
-	 * data source such as settings sync or profile changes.
+	 * A hint how the storage change event was triggered. If
+	 * `true`, the storage change was triggered by an external
+	 * source, such as:
+	 * - another process (for example another window)
+	 * - operations such as settings sync or profiles change
 	 */
 	readonly external?: boolean;
 }
