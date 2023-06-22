@@ -304,8 +304,6 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 	}
 
 	private doSaveAllBeforeShutdown(workingCopies: IWorkingCopy[], reason: SaveReason): Promise<void> {
-		const modifiedWorkingCopies = workingCopies;
-
 		return this.withProgressAndCancellation(async () => {
 
 			// Skip save participants on shutdown for performance reasons
@@ -314,7 +312,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			// First save through the editor service if we save all to benefit
 			// from some extras like switching to untitled modified editors before saving.
 			let result: boolean | undefined = undefined;
-			if (modifiedWorkingCopies.length === this.workingCopyService.modifiedCount) {
+			if (workingCopies.length === this.workingCopyService.modifiedCount) {
 				result = (await this.editorService.saveAll({
 					includeUntitled: { includeScratchpad: true },
 					...saveOptions
@@ -324,7 +322,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			// If we still have modified working copies, save those directly
 			// unless the save was not successful (e.g. cancelled)
 			if (result !== false) {
-				await Promises.settled(modifiedWorkingCopies.map(workingCopy => workingCopy.isModified() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
+				await Promises.settled(workingCopies.map(workingCopy => workingCopy.isModified() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
 			}
 		}, localize('saveBeforeShutdown', "Saving editors with unsaved changes is taking a bit longer..."));
 	}
