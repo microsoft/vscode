@@ -498,6 +498,18 @@
             "%configuration.copyIntoWorkspace.never%"
           ]
         },
+        "markdown.editor.pasteAsTextLink.enabled": {
+          "type": "boolean",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.editor.pasteAsTextLink.enabled%",
+          "default": true
+        },
+        "markdown.editor.pasteAsTextMediaLink.enabled": {
+          "type": "boolean",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.editor.pasteAsTextMediaLink.enabled%",
+          "default": true
+        },
         "markdown.validate.enabled": {
           "type": "boolean",
           "scope": "resource",

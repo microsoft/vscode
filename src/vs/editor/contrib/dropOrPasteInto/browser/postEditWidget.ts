@@ -166,16 +166,24 @@ export class PostEditWidgetManager extends Disposable {
 			return;
 		}
 
+		let insertTextMap: ResourceTextEdit[] = [];
+		if (typeof edit.insertText === 'string' ? edit.insertText === '' : edit.insertText.snippet === '') {
+			insertTextMap = [];
+		} else {
+			insertTextMap = ranges.map(range => new ResourceTextEdit(model.uri,
+				typeof edit.insertText === 'string'
+					? { range, text: edit.insertText, insertAsSnippet: false }
+					: { range, text: edit.insertText.snippet, insertAsSnippet: true }
+			));
+		}
+
+		const allEdits = [
+			...insertTextMap,
+			...(edit.additionalEdit?.edits ?? [])
+		];
+
 		const combinedWorkspaceEdit: WorkspaceEdit = {
-			edits: [
-				...ranges.map(range =>
-					new ResourceTextEdit(model.uri,
-						typeof edit.insertText === 'string'
-							? { range, text: edit.insertText, insertAsSnippet: false }
-							: { range, text: edit.insertText.snippet, insertAsSnippet: true }
-					)),
-				...(edit.additionalEdit?.edits ?? [])
-			]
+			edits: allEdits
 		};
 
 		// Use a decoration to track edits around the trigger range

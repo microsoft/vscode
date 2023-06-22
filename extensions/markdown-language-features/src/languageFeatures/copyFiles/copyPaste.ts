@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Schemes } from '../../util/schemes';
-import { createEditForMediaFiles, mediaMimes, tryGetUriListSnippet } from './shared';
+import { createEditForMediaFiles, getMarkdownLink, mediaMimes, tryGetUriListSnippet } from './shared';
 
 class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
@@ -25,6 +25,15 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		const createEdit = await this._getMediaFilesEdit(document, dataTransfer, token);
 		if (createEdit) {
 			return createEdit;
+		}
+
+		const markdown_link_enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.pasteAsTextMediaLink.enabled', true);
+		if (markdown_link_enabled) {
+			const uriEdit = new vscode.DocumentPasteEdit('', this._id, '');
+			const pasteEdit = await getMarkdownLink(document, _ranges, dataTransfer, uriEdit, token);
+			if (pasteEdit) {
+				return pasteEdit;
+			}
 		}
 
 		const snippet = await tryGetUriListSnippet(document, dataTransfer, token);

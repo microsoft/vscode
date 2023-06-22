@@ -56,9 +56,36 @@ export const mediaMimes = new Set([
 	'audio/x-wav',
 ]);
 
+export async function getMarkdownLink(document: vscode.TextDocument, _ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, uriEdit: vscode.DocumentPasteEdit, token: vscode.CancellationToken) {
+	if (_ranges.length === 0) {
+		return;
+	}
 
-export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
-	const urlList = await dataTransfer.get('text/uri-list')?.asString();
+	const selectedTexts = _ranges.map(range => document.getText(range));
+	const rangeTextTuples = _ranges.map((range, index) => [range, selectedTexts[index]] as [vscode.Range, string]);
+	const edits: vscode.SnippetTextEdit[] = [];
+	let count: number;
+	count = rangeTextTuples.length;
+
+	for (const [range, text] of rangeTextTuples) {
+		const snippet = await tryGetUriListSnippet(document, dataTransfer, token, text, count);
+		if (!snippet) {
+			return;
+		}
+		count--;
+		edits.push(new vscode.SnippetTextEdit(range, snippet.snippet));
+		uriEdit.label = snippet.label;
+	}
+
+	const newAdditionalEdits = new vscode.WorkspaceEdit();
+	newAdditionalEdits.set(document.uri, edits);
+	uriEdit.additionalEdit = newAdditionalEdits;
+	return uriEdit;
+}
+
+export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken, title = '', count = 0): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
+	const urlList = await dataTransfer.get('text/uri-list')?.asString() || await dataTransfer.get('text/plain')?.asString();
+
 	if (!urlList || token.isCancellationRequested) {
 		return undefined;
 	}
@@ -72,7 +99,7 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 		}
 	}
 
-	return createUriListSnippet(document, uris);
+	return createUriListSnippet(document, uris, title, count);
 }
 
 interface UriListSnippetOptions {
@@ -94,7 +121,9 @@ interface UriListSnippetOptions {
 export function createUriListSnippet(
 	document: vscode.TextDocument,
 	uris: readonly vscode.Uri[],
-	options?: UriListSnippetOptions
+	title = '',
+	count = 0,
+	options?: UriListSnippetOptions,
 ): { snippet: vscode.SnippetString; label: string } | undefined {
 	if (!uris.length) {
 		return;
@@ -119,27 +148,31 @@ export function createUriListSnippet(
 		if (insertAsVideo) {
 			insertedAudioVideoCount++;
 			snippet.appendText(`<video src="${escapeHtmlAttribute(mdPath)}" controls title="`);
-			snippet.appendPlaceholder('Title');
+			const newTitle = (title !== '') ? title : 'Title';
+			snippet.appendPlaceholder(newTitle, count);
 			snippet.appendText('"></video>');
 		} else if (insertAsAudio) {
 			insertedAudioVideoCount++;
 			snippet.appendText(`<audio src="${escapeHtmlAttribute(mdPath)}" controls title="`);
-			snippet.appendPlaceholder('Title');
+			const newTitle = (title !== '') ? title : 'Title';
+			snippet.appendPlaceholder(newTitle, count);
 			snippet.appendText('"></audio>');
 		} else {
 			if (insertAsMedia) {
 				insertedImageCount++;
+				snippet.appendText('![');
+				const newTitle = (title !== '') ? title : 'Alt text';
+				const placeholderText = options?.placeholderText ?? (insertAsMedia ? newTitle : 'label');
+				const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (count === 0 ? undefined : count);
+				snippet.appendPlaceholder(placeholderText, placeholderIndex);
+				snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
 			} else {
 				insertedLinkCount++;
+				snippet.appendText('[');
+				const newTitle = (title !== '') ? title : 'Title';
+				snippet.appendPlaceholder(newTitle, count);
+				snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
 			}
-
-			snippet.appendText(insertAsMedia ? '![' : '[');
-
-			const placeholderText = options?.placeholderText ?? (insertAsMedia ? 'Alt text' : 'label');
-			const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : undefined;
-			snippet.appendPlaceholder(placeholderText, placeholderIndex);
-
-			snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
 		}
 
 		if (i < uris.length - 1 && uris.length > 1) {
