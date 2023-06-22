@@ -7,7 +7,7 @@ import { stub } from 'sinon';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay } from 'vs/base/common/event';
+import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, toDisposable } from 'vs/base/common/lifecycle';
 import { observableValue, transaction } from 'vs/base/common/observable';
 import { MicrotaskDelay } from 'vs/base/common/symbols';
@@ -148,7 +148,7 @@ suite('Event', function () {
 		assert.deepStrictEqual(calls, ['a2', 'b2']);
 	});
 
-	test('Emitter, dispose during emission', () => {
+	test('Emitter, dispose listener during emission', () => {
 		for (let keepFirstMod = 1; keepFirstMod < 4; keepFirstMod++) {
 			const emitter = new Emitter<void>();
 			const calls: number[] = [];
@@ -162,6 +162,39 @@ suite('Event', function () {
 			emitter.fire();
 			assert.deepStrictEqual(calls, Array.from({ length: 25 }, (_, n) => n));
 		}
+	});
+
+	test('Emitter, dispose emitter during emission', () => {
+		const emitter = new Emitter<void>();
+		const calls: number[] = [];
+		Array.from({ length: 25 }, (_, n) => emitter.event(() => {
+			if (n === 10) {
+				emitter.dispose();
+			}
+			calls.push(n);
+		}));
+
+		emitter.fire();
+		assert.deepStrictEqual(calls, Array.from({ length: 11 }, (_, n) => n));
+	});
+
+	test('Emitter, shared delivery queue', () => {
+		const deliveryQueue = createEventDeliveryQueue();
+		const emitter1 = new Emitter<number>({ deliveryQueue });
+		const emitter2 = new Emitter<number>({ deliveryQueue });
+
+		const calls: string[] = [];
+		emitter1.event(d => { calls.push(`${d}a`); if (d === 1) { emitter2.fire(2); } });
+		emitter1.event(d => { calls.push(`${d}b`); });
+
+		emitter2.event(d => { calls.push(`${d}c`); emitter1.dispose(); });
+		emitter2.event(d => { calls.push(`${d}d`); });
+
+		emitter1.fire(1);
+
+		// 1. Check that 2 is not delivered before 1 finishes
+		// 2. Check that 2 finishes getting delivered even if one emitter is disposed
+		assert.deepStrictEqual(calls, ['1a', '1b', '2c', '2d']);
 	});
 
 	test('Emitter, handles removal during 3', () => {
