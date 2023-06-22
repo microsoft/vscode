@@ -36,6 +36,7 @@ import { mark, PerformanceMark } from 'vs/base/common/performance';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { DeferredPromise } from 'vs/base/common/async';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { memoize } from 'vs/base/common/decorators';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
@@ -236,6 +237,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return this._localPtyService.getProfiles?.(this._workspaceContextService.getWorkspace().id, profiles, defaultProfile, includeDetectedProfiles) || [];
 	}
 
+	@memoize
 	async getEnvironment(): Promise<IProcessEnvironment> {
 		return this._proxy.getEnvironment();
 	}
