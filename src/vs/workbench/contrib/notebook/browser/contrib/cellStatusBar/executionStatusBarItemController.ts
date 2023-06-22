@@ -19,8 +19,6 @@ import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecuti
 import { INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Codicon } from 'vs/base/common/codicons';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export function formatCellDuration(duration: number, showMilliseconds: boolean = true): string {
 	if (showMilliseconds && duration < 1000) {
@@ -109,8 +107,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,
 		private readonly _cell: ICellViewModel,
-		@INotebookExecutionStateService private readonly _executionStateService: INotebookExecutionStateService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@INotebookExecutionStateService private readonly _executionStateService: INotebookExecutionStateService
 	) {
 		super();
 
@@ -161,7 +158,6 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 	}
 
 	private _getItemForState(runState: INotebookCellExecution | undefined, internalMetadata: NotebookCellInternalMetadata): INotebookCellStatusBarItem[] {
-		const experimentErrorFix = this._configurationService.getValue<boolean>('notebook.experimental.interactiveFix');
 		const state = runState?.state;
 		const { lastRunSuccess } = internalMetadata;
 		if (!state && lastRunSuccess) {
@@ -173,26 +169,13 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 				priority: Number.MAX_SAFE_INTEGER
 			}];
 		} else if (!state && lastRunSuccess === false) {
-			const items: INotebookCellStatusBarItem[] = [{
+			return [{
 				text: `$(${errorStateIcon.id})`,
 				color: themeColorFromId(cellStatusIconError),
 				tooltip: localize('notebook.cell.status.failed', "Failed"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
 			}];
-
-			if (experimentErrorFix) {
-				items.push({
-					text: `$(${Codicon.sparkle.id})`,
-					color: themeColorFromId(cellStatusIconSuccess),
-					tooltip: localize('notebook.cell.status.fixError', "Fix Error"),
-					alignment: CellStatusbarAlignment.Left,
-					command: 'notebook.cell.fixError',
-					priority: Number.MAX_SAFE_INTEGER
-				});
-			}
-
-			return items;
 		} else if (state === NotebookCellExecutionState.Pending || state === NotebookCellExecutionState.Unconfirmed) {
 			return [<INotebookCellStatusBarItem>{
 				text: `$(${pendingStateIcon.id})`,
@@ -338,7 +321,7 @@ class TimerCellStatusBarItem extends Disposable {
 		return <INotebookCellStatusBarItem>{
 			text: formatCellDuration(duration, false),
 			alignment: CellStatusbarAlignment.Left,
-			priority: Number.MAX_SAFE_INTEGER - 1,
+			priority: Number.MAX_SAFE_INTEGER - 5,
 			tooltip
 		};
 	}

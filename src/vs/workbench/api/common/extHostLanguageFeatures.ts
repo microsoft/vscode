@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
 import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem, CodeActionTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import * as languages from 'vs/editor/common/languages';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -376,6 +376,7 @@ class CodeActionAdapter {
 
 	private readonly _cache = new Cache<vscode.CodeAction | vscode.Command>('CodeAction');
 	private readonly _disposables = new Map<number, DisposableStore>();
+	private readonly nbKind = new CodeActionKind('notebook');
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -414,6 +415,7 @@ class CodeActionAdapter {
 		if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested) {
 			return undefined;
 		}
+
 		const cacheId = this._cache.add(commandsOrActions);
 		const disposables = new DisposableStore();
 		this._disposables.set(cacheId, disposables);
@@ -434,6 +436,10 @@ class CodeActionAdapter {
 					command: this._commands.toInternal(candidate, disposables),
 				});
 			} else {
+				if (codeActionContext.triggerKind !== CodeActionTriggerKind.Invoke && candidate.kind && this.nbKind.contains(candidate.kind)) {
+					continue;
+				}
+
 				if (codeActionContext.only) {
 					if (!candidate.kind) {
 						this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
@@ -510,7 +516,7 @@ class DocumentPasteEditProvider {
 
 	async prepareDocumentPaste(resource: URI, ranges: IRange[], dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.DataTransferDTO | undefined> {
 		if (!this._provider.prepareDocumentPaste) {
-			return undefined;
+			return;
 		}
 
 		const doc = this._documents.getDocument(resource);
@@ -520,11 +526,20 @@ class DocumentPasteEditProvider {
 			throw new NotImplementedError();
 		});
 		await this._provider.prepareDocumentPaste(doc, vscodeRanges, dataTransfer, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 
-		return typeConvert.DataTransfer.toDataTransferDTO(dataTransfer);
+		// Only send back values that have been added to the data transfer
+		const entries = Array.from(dataTransfer).filter(([, value]) => !(value instanceof InternalDataTransferItem));
+		return typeConvert.DataTransfer.from(entries);
 	}
 
 	async providePasteEdits(requestId: number, resource: URI, ranges: IRange[], dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<undefined | extHostProtocol.IPasteEditDto> {
+		if (!this._provider.provideDocumentPasteEdits) {
+			return;
+		}
+
 		const doc = this._documents.getDocument(resource);
 		const vscodeRanges = ranges.map(range => typeConvert.Range.to(range));
 
@@ -538,7 +553,10 @@ class DocumentPasteEditProvider {
 		}
 
 		return {
+			id: edit.id ? this._extension.identifier.value + '.' + edit.id : this._extension.identifier.value,
 			label: edit.label ?? localize('defaultPasteLabel', "Paste using '{0}' extension", this._extension.displayName || this._extension.name),
+			detail: this._extension.displayName || this._extension.name,
+			priority: edit.priority ?? 0,
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
 			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		};
@@ -964,7 +982,7 @@ class CompletionsAdapter {
 		const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
 		const insertRange = replaceRange.with({ end: pos });
 
-		const sw = new StopWatch(true);
+		const sw = new StopWatch();
 		const itemsOrList = await this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context));
 
 		if (!itemsOrList) {
@@ -1021,7 +1039,27 @@ class CompletionsAdapter {
 			return undefined;
 		}
 
-		return this._convertCompletionItem(resolvedItem, id);
+		const enforcedResolvedItem = {
+			...item,
+			documentation: resolvedItem.documentation,
+			detail: resolvedItem.detail,
+			additionalTextEdits: resolvedItem.additionalTextEdits
+		};
+
+		if (CompletionsAdapter._insertTextIdent(item.insertText) !== CompletionsAdapter._insertTextIdent(resolvedItem.insertText)) {
+			this._apiDeprecation.report('CompletionItem.insertText', this._extension, 'extension MAY NOT change \'insertText\' of a CompletionItem during resolve');
+			enforcedResolvedItem.insertText = resolvedItem.insertText;
+		}
+
+		return this._convertCompletionItem(enforcedResolvedItem, id);
+	}
+
+	private static _insertTextIdent(insertText: string | vscode.SnippetString | undefined) {
+		switch (typeof insertText) {
+			case 'string': return insertText;
+			case 'undefined': return undefined;
+			case 'object': return insertText.value;
+		}
 	}
 
 	releaseCompletionItems(id: number): any {
@@ -1750,7 +1788,9 @@ class DocumentOnDropEditAdapter {
 			return undefined;
 		}
 		return {
+			id: edit.id ? this._extension.identifier.value + '.' + edit.id : this._extension.identifier.value,
 			label: edit.label ?? localize('defaultDropLabel', "Drop using '{0}' extension", this._extension.displayName || this._extension.name),
+			priority: edit.priority ?? 0,
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
 			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		};
@@ -2180,7 +2220,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._addNewAdapter(new CompletionsAdapter(this._documents, this._commands.converter, provider, this._apiDeprecation, extension), extension);
-		this._proxy.$registerCompletionsProvider(handle, this._transformDocumentSelector(selector, extension), triggerCharacters, CompletionsAdapter.supportsResolving(provider), `${extension.identifier.value}(${triggerCharacters.join('')})`);
+		this._proxy.$registerCompletionsProvider(handle, this._transformDocumentSelector(selector, extension), triggerCharacters, CompletionsAdapter.supportsResolving(provider), extension.identifier);
 		return this._createDisposable(handle);
 	}
 
@@ -2393,7 +2433,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(new DocumentOnDropEditAdapter(this._proxy, this._documents, provider, handle, extension), extension));
 
-		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector, extension), extension.identifier, isProposedApiEnabled(extension, 'dropMetadata') ? metadata : undefined);
+		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector, extension), isProposedApiEnabled(extension, 'dropMetadata') ? metadata : undefined);
 
 		return this._createDisposable(handle);
 	}
@@ -2408,7 +2448,12 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	registerDocumentPasteEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentPasteEditProvider, metadata: vscode.DocumentPasteProviderMetadata): vscode.Disposable {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(new DocumentPasteEditProvider(this._proxy, this._documents, provider, handle, extension), extension));
-		this._proxy.$registerPasteEditProvider(handle, this._transformDocumentSelector(selector, extension), !!provider.prepareDocumentPaste, metadata.pasteMimeTypes);
+		this._proxy.$registerPasteEditProvider(handle, this._transformDocumentSelector(selector, extension), {
+			supportsCopy: !!provider.prepareDocumentPaste,
+			supportsPaste: !!provider.provideDocumentPasteEdits,
+			copyMimeTypes: metadata.copyMimeTypes,
+			pasteMimeTypes: metadata.pasteMimeTypes,
+		});
 		return this._createDisposable(handle);
 	}
 

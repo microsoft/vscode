@@ -16,6 +16,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { deepClone } from 'vs/base/common/objects';
+import { isWindows } from 'vs/base/common/platform';
+import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from 'vs/base/node/unc';
 
 export interface IUtilityProcessConfiguration {
 
@@ -204,7 +206,7 @@ export class UtilityProcess extends Disposable {
 	}
 
 	start(configuration: IUtilityProcessConfiguration): boolean {
-		const started = this.doStart(configuration, false);
+		const started = this.doStart(configuration);
 
 		if (started && configuration.payload) {
 			this.postMessage(configuration.payload);
@@ -213,7 +215,7 @@ export class UtilityProcess extends Disposable {
 		return started;
 	}
 
-	protected doStart(configuration: IUtilityProcessConfiguration, isWindowSandboxed: boolean): boolean {
+	protected doStart(configuration: IUtilityProcessConfiguration): boolean {
 		if (!this.validateCanStart()) {
 			return false;
 		}
@@ -227,7 +229,7 @@ export class UtilityProcess extends Disposable {
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
 		const forceAllocationsToV8Sandbox = this.configuration.forceAllocationsToV8Sandbox;
 		const stdio = 'pipe';
-		const env = this.createEnv(configuration, isWindowSandboxed);
+		const env = this.createEnv(configuration);
 
 		this.log('creating new...', Severity.Info);
 
@@ -242,12 +244,12 @@ export class UtilityProcess extends Disposable {
 		} as ForkOptions & { forceAllocationsToV8Sandbox?: Boolean });
 
 		// Register to events
-		this.registerListeners(this.process, this.configuration, serviceName, isWindowSandboxed);
+		this.registerListeners(this.process, this.configuration, serviceName);
 
 		return true;
 	}
 
-	private createEnv(configuration: IUtilityProcessConfiguration, isWindowSandboxed: boolean): { [key: string]: any } {
+	private createEnv(configuration: IUtilityProcessConfiguration): { [key: string]: any } {
 		const env: { [key: string]: any } = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
 
 		// Apply supported environment variables from config
@@ -255,10 +257,14 @@ export class UtilityProcess extends Disposable {
 		if (typeof configuration.parentLifecycleBound === 'number') {
 			env['VSCODE_PARENT_PID'] = String(configuration.parentLifecycleBound);
 		}
-		if (isWindowSandboxed) {
-			env['VSCODE_CRASH_REPORTER_SANDBOXED_HINT'] = '1'; // TODO@bpasero remove me once sandbox is final
-		}
 		env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'] = configuration.type;
+		if (isWindows) {
+			if (isUNCAccessRestrictionsDisabled()) {
+				env['NODE_DISABLE_UNC_ACCESS_CHECKS'] = '1';
+			} else {
+				env['NODE_UNC_HOST_ALLOWLIST'] = getUNCHostAllowlist().join('\\');
+			}
+		}
 
 		// Remove any environment variables that are not allowed
 		removeDangerousEnvVariables(env);
@@ -271,7 +277,7 @@ export class UtilityProcess extends Disposable {
 		return env;
 	}
 
-	private registerListeners(process: ElectronUtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string, isWindowSandboxed: boolean): void {
+	private registerListeners(process: ElectronUtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
 
 		// Stdout
 		if (process.stdout) {
@@ -319,7 +325,6 @@ export class UtilityProcess extends Disposable {
 				type UtilityProcessCrashClassification = {
 					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of utility process to understand the origin of the crash better.' };
 					reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the utility process crash to understand the nature of the crash better.' };
-					sandboxed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the window for the utility process was sandboxed or not.' };
 					code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the utility process to understand the nature of the crash better' };
 					owner: 'bpasero';
 					comment: 'Provides insight into reasons the utility process crashed.';
@@ -328,13 +333,11 @@ export class UtilityProcess extends Disposable {
 					type: string;
 					reason: string;
 					code: number;
-					sandboxed: string;
 				};
 				this.telemetryService.publicLog2<UtilityProcessCrashEvent, UtilityProcessCrashClassification>('utilityprocesscrash', {
 					type: configuration.type,
 					reason: details.reason,
-					code: details.exitCode,
-					sandboxed: isWindowSandboxed ? '1' : '0' // TODO@bpasero remove this once sandbox is enabled by default
+					code: details.exitCode
 				});
 
 				// Event
@@ -452,7 +455,7 @@ export class WindowUtilityProcess extends UtilityProcess {
 		}
 
 		// Start utility process
-		const started = super.doStart(configuration, responseWindow.isSandboxed);
+		const started = super.doStart(configuration);
 		if (!started) {
 			return false;
 		}

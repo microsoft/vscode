@@ -16,7 +16,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { extname, dirname, join, normalize } from 'vs/base/common/path';
-import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schemas } from 'vs/base/common/network';
+import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schemas, builtinExtensionsPath } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
@@ -29,6 +29,7 @@ import { IProductConfiguration } from 'vs/base/common/product';
 import { isString } from 'vs/base/common/types';
 import { CharCode } from 'vs/base/common/charCode';
 import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -273,7 +274,12 @@ export class WebClientServer {
 			return Array.isArray(val) ? val[0] : val;
 		};
 
-		const remoteAuthority = getFirstHeader('x-original-host') || getFirstHeader('x-forwarded-host') || req.headers.host;
+		const useTestResolver = (!this._environmentService.isBuilt && this._environmentService.args['use-test-resolver']);
+		const remoteAuthority = (
+			useTestResolver
+				? 'test+test'
+				: (getFirstHeader('x-original-host') || getFirstHeader('x-forwarded-host') || req.headers.host)
+		);
 		if (!remoteAuthority) {
 			return serveError(req, res, 400, `Bad request.`);
 		}
@@ -341,6 +347,14 @@ export class WebClientServer {
 			WORKBENCH_NLS_BASE_URL: nlsBaseUrl ? `${nlsBaseUrl}${!nlsBaseUrl.endsWith('/') ? '/' : ''}${this._productService.commit}/${this._productService.version}/` : '',
 		};
 
+		if (useTestResolver) {
+			const bundledExtensions: { extensionPath: string; packageJSON: IExtensionManifest }[] = [];
+			for (const extensionPath of ['vscode-test-resolver', 'github-authentication']) {
+				const packageJSON = JSON.parse((await fsp.readFile(FileAccess.asFileUri(`${builtinExtensionsPath}/${extensionPath}/package.json`).fsPath)).toString());
+				bundledExtensions.push({ extensionPath, packageJSON });
+			}
+			values['WORKBENCH_BUILTIN_EXTENSIONS'] = asJSON(bundledExtensions);
+		}
 
 		let data;
 		try {
@@ -355,7 +369,7 @@ export class WebClientServer {
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',
 			'media-src \'self\';',
-			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-/r7rqQ+yrxt57sxLuQ6AMYcy/lUpvAIzHjIJt/OeLWU=' 'sha256-OFamA3tyjcAu68sYOODXgCBYQzkGSFLQStx0u4hWd/8=' http://${remoteAuthority};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html and src/vs/workbench/services/extensions/worker/webWorkerExtensionHost-esm.html
+			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-/r7rqQ+yrxt57sxLuQ6AMYcy/lUpvAIzHjIJt/OeLWU=' 'sha256-OFamA3tyjcAu68sYOODXgCBYQzkGSFLQStx0u4hWd/8=' ${useTestResolver ? '' : `http://${remoteAuthority}`};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html and src/vs/workbench/services/extensions/worker/webWorkerExtensionHost-esm.html
 			'child-src \'self\';',
 			`frame-src 'self' https://*.vscode-cdn.net data:;`,
 			'worker-src \'self\' data: blob:;',

@@ -96,7 +96,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		@IStorageService storageService: IStorageService
 	) {
 		const stateMemento = new Memento(VIEW_STORAGE_ID, storageService);
-		const viewState = stateMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
+		const viewState = stateMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		super({
 			...options,
 			filterOptions: {

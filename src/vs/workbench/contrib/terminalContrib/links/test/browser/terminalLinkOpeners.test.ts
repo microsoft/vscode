@@ -26,7 +26,7 @@ import type { Terminal } from 'xterm';
 import { IFileQuery, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
 import { importAMDNodeModule } from 'vs/amdX';
-import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
+import { ITerminalLogService, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
@@ -84,6 +84,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.set(ISearchService, searchService);
 		instantiationService.set(IWorkspaceContextService, new TestContextService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IWorkbenchEnvironmentService, {
 			remoteAuthority: undefined
 		} as Partial<IWorkbenchEnvironmentService>);
@@ -132,6 +133,10 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			// Set a fake detected command starting as line 0 to establish the cwd
 			commandDetection.setCommands([{
 				command: '',
+				exitCode: 0,
+				commandStartLineContent: '',
+				markProperties: {},
+				isTrusted: true,
 				cwd: '/initial/cwd',
 				timestamp: 0,
 				getOutput() { return undefined; },
@@ -269,6 +274,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				// Set a fake detected command starting as line 0 to establish the cwd
 				commandDetection.setCommands([{
 					command: '',
+					isTrusted: true,
 					cwd,
 					timestamp: 0,
 					getOutput() { return undefined; },
@@ -276,7 +282,10 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					marker: {
 						line: 0
 					} as Partial<IXtermMarker> as any,
-					hasOutput() { return true; }
+					hasOutput() { return true; },
+					exitCode: 0,
+					commandStartLineContent: '',
+					markProperties: {}
 				}]);
 				await opener.open({
 					text: 'file.txt',
@@ -353,7 +362,11 @@ suite('Workbench - TerminalLinkOpeners', () => {
 
 				// Set a fake detected command starting as line 0 to establish the cwd
 				commandDetection.setCommands([{
+					exitCode: 0,
+					commandStartLineContent: '',
+					markProperties: {},
 					command: '',
+					isTrusted: true,
 					cwd,
 					timestamp: 0,
 					getOutput() { return undefined; },

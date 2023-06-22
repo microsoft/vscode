@@ -25,8 +25,8 @@ import type * as vscode from 'vscode';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
-import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
-import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime, ManagedResolvedAuthority as ExtHostManagedResolvedAuthority } from 'vs/workbench/api/common/extHostTypes';
+import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData, getRemoteAuthorityPrefix, TunnelInformation, ManagedRemoteConnection, WebSocketRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
@@ -43,6 +43,8 @@ import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { setTimeout0 } from 'vs/base/common/platform';
+import { IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
+import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -130,7 +132,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		@IExtensionStoragePaths storagePath: IExtensionStoragePaths,
 		@IExtHostTunnelService extHostTunnelService: IExtHostTunnelService,
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
-		@IExtHostLocalizationService extHostLocalizationService: IExtHostLocalizationService
+		@IExtHostLocalizationService extHostLocalizationService: IExtHostLocalizationService,
+		@IExtHostManagedSockets private readonly _extHostManagedSockets: IExtHostManagedSockets,
 	) {
 		super();
 		this._hostUtils = hostUtils;
@@ -310,7 +313,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		if (this._readyToRunExtensions.isOpen()) {
 			return this._activator.getActivatedExtension(extensionId).exports;
 		} else {
-			return null;
+			try {
+				return this._activator.getActivatedExtension(extensionId).exports;
+			} catch (err) {
+				return null;
+			}
 		}
 	}
 
@@ -776,6 +783,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		});
 	}
 
+	public async getRemoteExecServer(remoteAuthority: string): Promise<vscode.ExecServer | undefined> {
+		const { resolver } = await this._activateAndGetResolver(remoteAuthority);
+		return resolver?.resolveExecServer?.(remoteAuthority, { resolveAttempt: 0 });
+	}
+
 	// -- called by main thread
 
 	private async _activateAndGetResolver(remoteAuthority: string): Promise<{ authorityPrefix: string; resolver: vscode.RemoteAuthorityResolver | undefined }> {
@@ -791,70 +803,15 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return { authorityPrefix, resolver: this._resolvers[authorityPrefix] };
 	}
 
-	public async $resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
+	public async $resolveAuthority(remoteAuthorityChain: string, resolveAttempt: number): Promise<Dto<IResolveAuthorityResult>> {
 		const sw = StopWatch.create(false);
-		const prefix = () => `[resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)},${resolveAttempt})][${sw.elapsed()}ms] `;
+		const prefix = () => `[resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthorityChain)},${resolveAttempt})][${sw.elapsed()}ms] `;
 		const logInfo = (msg: string) => this._logService.info(`${prefix()}${msg}`);
 		const logError = (msg: string, err: any = undefined) => this._logService.error(`${prefix()}${msg}`, err);
-
-		logInfo(`activating resolver...`);
-		const { authorityPrefix, resolver } = await this._activateAndGetResolver(remoteAuthority);
-		if (!resolver) {
-			logError(`no resolver`);
-			return {
-				type: 'error',
-				error: {
-					code: RemoteAuthorityResolverErrorCode.NoResolverFound,
-					message: `No remote extension installed to resolve ${authorityPrefix}.`,
-					detail: undefined
-				}
-			};
-		}
-
-		const intervalLogger = new IntervalTimer();
-		try {
-			logInfo(`setting tunnel factory...`);
-			this._register(await this._extHostTunnelService.setTunnelFactory(resolver));
-
-			intervalLogger.cancelAndSet(() => logInfo('waiting...'), 1000);
-			logInfo(`invoking resolve()...`);
-			performance.mark(`code/extHost/willResolveAuthority/${authorityPrefix}`);
-			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
-			performance.mark(`code/extHost/didResolveAuthorityOK/${authorityPrefix}`);
-			intervalLogger.dispose();
-			logInfo(`returned ${result.host}:${result.port}`);
-
-			// Split merged API result into separate authority/options
-			const authority: ResolvedAuthority = {
-				authority: remoteAuthority,
-				host: result.host,
-				port: result.port,
-				connectionToken: result.connectionToken
-			};
-			const options: ResolvedOptions = {
-				extensionHostEnv: result.extensionHostEnv,
-				isTrusted: result.isTrusted,
-				authenticationSession: result.authenticationSessionForInitializingExtensions ? { id: result.authenticationSessionForInitializingExtensions.id, providerId: result.authenticationSessionForInitializingExtensions.providerId } : undefined
-			};
-
-			return {
-				type: 'ok',
-				value: {
-					authority,
-					options,
-					tunnelInformation: {
-						environmentTunnels: result.environmentTunnels,
-						features: result.tunnelFeatures
-					}
-				}
-			};
-		} catch (err) {
-			performance.mark(`code/extHost/didResolveAuthorityError/${authorityPrefix}`);
-			intervalLogger.dispose();
-			logError(`returned an error`, err);
+		const normalizeError = (err: unknown) => {
 			if (err instanceof RemoteAuthorityResolverError) {
 				return {
-					type: 'error',
+					type: 'error' as const,
 					error: {
 						code: err._code,
 						message: err._message,
@@ -863,7 +820,105 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				};
 			}
 			throw err;
+		};
+
+		const chain = remoteAuthorityChain.split(/@|%40/g).reverse();
+		logInfo(`activating remote resolvers ${chain.join(' -> ')}`);
+
+		let resolvers;
+		try {
+			resolvers = await Promise.all(chain.map(async remoteAuthority => {
+				logInfo(`activating resolver...`);
+				const { resolver, authorityPrefix } = await this._activateAndGetResolver(remoteAuthority);
+				if (!resolver) {
+					logError(`no resolver`);
+					throw new RemoteAuthorityResolverError(`No remote extension installed to resolve ${authorityPrefix}.`, RemoteAuthorityResolverErrorCode.NoResolverFound);
+				}
+				return { resolver, authorityPrefix, remoteAuthority };
+			}));
+		} catch (e) {
+			return normalizeError(e);
 		}
+
+		const intervalLogger = new IntervalTimer();
+		intervalLogger.cancelAndSet(() => logInfo('waiting...'), 1000);
+
+		let result!: vscode.ResolverResult;
+		let execServer: vscode.ExecServer | undefined;
+		for (const [i, { authorityPrefix, resolver, remoteAuthority }] of resolvers.entries()) {
+			try {
+				if (i === resolvers.length - 1) {
+					logInfo(`invoking final resolve()...`);
+					performance.mark(`code/extHost/willResolveAuthority/${authorityPrefix}`);
+					result = await resolver.resolve(remoteAuthority, { resolveAttempt, execServer });
+					performance.mark(`code/extHost/didResolveAuthorityOK/${authorityPrefix}`);
+					// todo@connor4312: we probably need to chain tunnels too, how does this work with 'public' tunnels?
+					logInfo(`setting tunnel factory...`);
+					this._register(await this._extHostTunnelService.setTunnelFactory(resolver));
+				} else {
+					logInfo(`invoking resolveExecServer() for ${remoteAuthority}`);
+					performance.mark(`code/extHost/willResolveExecServer/${authorityPrefix}`);
+					execServer = await resolver.resolveExecServer?.(remoteAuthority, { resolveAttempt, execServer });
+					if (!execServer) {
+						throw new RemoteAuthorityResolverError(`Exec server was not available for ${remoteAuthority}`, RemoteAuthorityResolverErrorCode.NoResolverFound); // we did, in fact, break the chain :(
+					}
+					performance.mark(`code/extHost/didResolveExecServerOK/${authorityPrefix}`);
+				}
+			} catch (e) {
+				performance.mark(`code/extHost/didResolveAuthorityError/${authorityPrefix}`);
+				logError(`returned an error`, e);
+				intervalLogger.dispose();
+				return normalizeError(e);
+			}
+		}
+
+		intervalLogger.dispose();
+
+		const tunnelInformation: TunnelInformation = {
+			environmentTunnels: result.environmentTunnels,
+			features: result.tunnelFeatures
+		};
+
+		// Split merged API result into separate authority/options
+		const options: ResolvedOptions = {
+			extensionHostEnv: result.extensionHostEnv,
+			isTrusted: result.isTrusted,
+			authenticationSession: result.authenticationSessionForInitializingExtensions ? { id: result.authenticationSessionForInitializingExtensions.id, providerId: result.authenticationSessionForInitializingExtensions.providerId } : undefined
+		};
+
+		// extension are not required to return an instance of ResolvedAuthority or ManagedResolvedAuthority, so don't use `instanceof`
+		logInfo(`returned ${ExtHostManagedResolvedAuthority.isManagedResolvedAuthority(result) ? 'managed authority' : `${result.host}:${result.port}`}`);
+
+		let authority: ResolvedAuthority;
+		if (ExtHostManagedResolvedAuthority.isManagedResolvedAuthority(result)) {
+			// The socket factory is identified by the `resolveAttempt`, since that is a number which
+			// always increments and is unique over all resolve() calls in a workbench session.
+			const socketFactoryId = resolveAttempt;
+
+			// There is only on managed socket factory at a time, so we can just overwrite the old one.
+			this._extHostManagedSockets.setFactory(socketFactoryId, result.makeConnection);
+
+			authority = {
+				authority: remoteAuthorityChain,
+				connectTo: new ManagedRemoteConnection(socketFactoryId),
+				connectionToken: result.connectionToken
+			};
+		} else {
+			authority = {
+				authority: remoteAuthorityChain,
+				connectTo: new WebSocketRemoteConnection(result.host, result.port),
+				connectionToken: result.connectionToken
+			};
+		}
+
+		return {
+			type: 'ok',
+			value: {
+				authority: authority as Dto<ResolvedAuthority>,
+				options,
+				tunnelInformation,
+			}
+		};
 	}
 
 	public async $getCanonicalURI(remoteAuthority: string, uriComponents: UriComponents): Promise<UriComponents | null> {
@@ -1020,6 +1075,7 @@ export interface IExtHostExtensionService extends AbstractExtHostExtensionServic
 	getExtensionRegistry(): Promise<ExtensionDescriptionRegistry>;
 	getExtensionPathIndex(): Promise<ExtensionPaths>;
 	registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable;
+	getRemoteExecServer(authority: string): Promise<vscode.ExecServer | undefined>;
 
 	onDidChangeRemoteConnectionData: Event<void>;
 	getRemoteConnectionData(): IRemoteConnectionData | null;

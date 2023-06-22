@@ -450,6 +450,18 @@ export class LiveTestResult implements ITestResult {
 	}
 
 	/**
+	 * Marks the test and all of its children in the run as retired.
+	 */
+	public markRetired(testId: string) {
+		for (const [id, test] of this.testById) {
+			if (!test.retired && id === testId || TestId.isChild(testId, id)) {
+				test.retired = true;
+				this.changeEmitter.fire({ reason: TestResultItemChangeReason.ComputedStateChange, item: test, result: this });
+			}
+		}
+	}
+
+	/**
 	 * @inheritdoc
 	 */
 	public toJSON(): ISerializedTestResults | undefined {

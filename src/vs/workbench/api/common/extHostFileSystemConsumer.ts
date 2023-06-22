@@ -32,19 +32,23 @@ export class ExtHostConsumerFileSystem {
 		this.value = Object.freeze({
 			async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
 				try {
+					let stat;
+
 					const provider = that._fileSystemProvider.get(uri.scheme);
-					if (!provider) {
-						return await that._proxy.$stat(uri);
+					if (provider) {
+						// use shortcut
+						await that._proxy.$ensureActivation(uri.scheme);
+						stat = await provider.stat(uri);
+					} else {
+						stat = await that._proxy.$stat(uri);
 					}
-					// use shortcut
-					await that._proxy.$ensureActivation(uri.scheme);
-					const stat = await provider.stat(uri);
-					return <vscode.FileStat>{
+
+					return {
 						type: stat.type,
 						ctime: stat.ctime,
 						mtime: stat.mtime,
 						size: stat.size,
-						permissions: stat.permissions
+						permissions: stat.permissions === files.FilePermission.Readonly ? 1 : undefined
 					};
 				} catch (err) {
 					ExtHostConsumerFileSystem._handleError(err);
@@ -103,7 +107,7 @@ export class ExtHostConsumerFileSystem {
 						await that._proxy.$ensureActivation(uri.scheme);
 						return await provider.delete(uri, { recursive: false, ...options });
 					} else {
-						return await that._proxy.$delete(uri, { recursive: false, useTrash: false, ...options });
+						return await that._proxy.$delete(uri, { recursive: false, useTrash: false, atomic: false, ...options });
 					}
 				} catch (err) {
 					return ExtHostConsumerFileSystem._handleError(err);
@@ -139,6 +143,20 @@ export class ExtHostConsumerFileSystem {
 		// desired error type
 		if (err instanceof FileSystemError) {
 			throw err;
+		}
+
+		// file system provider error
+		if (err instanceof files.FileSystemProviderError) {
+			switch (err.code) {
+				case files.FileSystemProviderErrorCode.FileExists: throw FileSystemError.FileExists(err.message);
+				case files.FileSystemProviderErrorCode.FileNotFound: throw FileSystemError.FileNotFound(err.message);
+				case files.FileSystemProviderErrorCode.FileNotADirectory: throw FileSystemError.FileNotADirectory(err.message);
+				case files.FileSystemProviderErrorCode.FileIsADirectory: throw FileSystemError.FileIsADirectory(err.message);
+				case files.FileSystemProviderErrorCode.NoPermissions: throw FileSystemError.NoPermissions(err.message);
+				case files.FileSystemProviderErrorCode.Unavailable: throw FileSystemError.Unavailable(err.message);
+
+				default: throw new FileSystemError(err.message, err.name as files.FileSystemProviderErrorCode);
+			}
 		}
 
 		// generic error

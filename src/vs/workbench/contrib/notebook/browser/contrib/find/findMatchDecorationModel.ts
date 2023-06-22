@@ -114,7 +114,7 @@ export class FindMatchDecorationModel extends Disposable {
 
 			const deltaDecorations: ICellModelDeltaDecorations[] = cellFindMatches.map(cellFindMatch => {
 				// Find matches
-				const newFindMatchesDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(cellFindMatch.length);
+				const newFindMatchesDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(cellFindMatch.contentMatches.length);
 				for (let i = 0; i < cellFindMatch.contentMatches.length; i++) {
 					newFindMatchesDecorations[i] = {
 						range: cellFindMatch.contentMatches[i].range,
@@ -142,6 +142,10 @@ export class FindMatchDecorationModel extends Disposable {
 				}
 			};
 		}));
+	}
+
+	stopWebviewFind() {
+		this._notebookEditor.findStop();
 	}
 
 	override dispose() {

@@ -90,11 +90,13 @@ import 'vs/workbench/services/extensions/electron-sandbox/nativeExtensionService
 import 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ISecretStorageService, SecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
+registerSingleton(ISecretStorageService, SecretStorageService, InstantiationType.Delayed);
 registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataInitializationService, [[]], true));
 registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, InstantiationType.Delayed);
 
@@ -167,9 +169,6 @@ import 'vs/workbench/contrib/mergeEditor/electron-sandbox/mergeEditor.contributi
 
 // Remote Tunnel
 import 'vs/workbench/contrib/remoteTunnel/electron-sandbox/remoteTunnel.contribution';
-
-// Sandbox
-import 'vs/workbench/contrib/sandbox/electron-sandbox/sandbox.contribution';
 
 //#endregion
 

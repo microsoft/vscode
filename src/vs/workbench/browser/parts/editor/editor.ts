@@ -28,6 +28,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
+	tabSizingFixedMaxWidth: 160,
 	pinnedTabSizing: 'normal',
 	titleScrollbarSizing: 'default',
 	focusRecentEditorAfterClose: true,
@@ -38,7 +39,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	openSideBySideDirection: 'right',
 	closeEmptyGroups: true,
 	labelFormat: 'default',
-	splitSizing: 'distribute',
+	splitSizing: 'auto',
 	splitOnDragAndDrop: true,
 	centeredLayoutFixedWidth: false,
 };

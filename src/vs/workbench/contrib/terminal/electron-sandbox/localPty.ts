@@ -5,8 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, IProcessReadyEvent, ILocalPtyService } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
@@ -15,8 +14,7 @@ import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } fro
  * created on the local pty host.
  */
 export class LocalPty extends Disposable implements ITerminalChildProcess {
-	private _inReplay = false;
-	private _properties: IProcessPropertyMap = {
+	private readonly _properties: IProcessPropertyMap = {
 		cwd: '',
 		initialCwd: '',
 		fixedDimensions: { cols: undefined, rows: undefined },
@@ -28,6 +26,10 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		failedShellIntegrationActivation: false,
 		usedShellIntegrationInjection: undefined
 	};
+	private readonly _lastDimensions: { cols: number; rows: number } = { cols: -1, rows: -1 };
+
+	private _inReplay = false;
+
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
@@ -71,10 +73,15 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		this._localPtyService.input(this.id, data);
 	}
 	resize(cols: number, rows: number): void {
-		if (this._inReplay) {
+		if (this._inReplay || this._lastDimensions.cols === cols && this._lastDimensions.rows === rows) {
 			return;
 		}
+		this._lastDimensions.cols = cols;
+		this._lastDimensions.rows = rows;
 		this._localPtyService.resize(this.id, cols, rows);
+	}
+	async clearBuffer(): Promise<void> {
+		this._localPtyService.clearBuffer?.(this.id);
 	}
 	freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
 		if (!this._localPtyService.freePortKillProcess) {

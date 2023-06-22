@@ -578,6 +578,7 @@ export class SimpleWorkerServer<H extends object> {
 
 /**
  * Called on the worker side
+ * @skipMangle
  */
 export function create(postMessage: (msg: Message, transfer?: ArrayBuffer[]) => void): SimpleWorkerServer<any> {
 	return new SimpleWorkerServer(postMessage, null);

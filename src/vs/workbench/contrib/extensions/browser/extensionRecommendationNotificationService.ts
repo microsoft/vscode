@@ -196,7 +196,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		});
 
 		if (result === RecommendationsNotificationResult.Accepted) {
-			this.storageService.store(donotShowWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE, StorageTarget.USER);
+			this.storageService.store(donotShowWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 
 	}
@@ -267,17 +267,17 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		return createCancelablePromise<RecommendationsNotificationResult>(async token => {
 			let accepted = false;
 			const choices: (IPromptChoice | IPromptChoiceWithMenu)[] = [];
-			const installExtensions = async (isMachineScoped?: boolean) => {
+			const installExtensions = async (isMachineScoped: boolean) => {
 				this.runAction(this.instantiationService.createInstance(SearchExtensionsAction, searchValue));
 				onDidInstallRecommendedExtensions(extensions);
 				await Promises.settled<any>([
 					Promises.settled(extensions.map(extension => this.extensionsWorkbenchService.open(extension, { pinned: true }))),
-					this.extensionManagementService.installExtensions(extensions.map(e => e.gallery!), { isMachineScoped })
+					this.extensionManagementService.installGalleryExtensions(extensions.map(e => ({ extension: e.gallery!, options: { isMachineScoped } })))
 				]);
 			};
 			choices.push({
 				label: localize('install', "Install"),
-				run: () => installExtensions(),
+				run: () => installExtensions(false),
 				menu: this.userDataSyncEnablementService.isEnabled() && this.userDataSyncEnablementService.isResourceEnabled(SyncResource.Extensions) ? [{
 					label: localize('install and do no sync', "Install (Do not sync)"),
 					run: () => installExtensions(true)

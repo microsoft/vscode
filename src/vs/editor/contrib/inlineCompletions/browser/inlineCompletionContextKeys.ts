@@ -15,7 +15,6 @@ export class InlineCompletionContextKeys extends Disposable {
 	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
 	public static readonly inlineSuggestionHasIndentation = new RawContextKey<boolean>('inlineSuggestionHasIndentation', false, localize('inlineSuggestionHasIndentation', "Whether the inline suggestion starts with whitespace"));
 	public static readonly inlineSuggestionHasIndentationLessThanTabSize = new RawContextKey<boolean>('inlineSuggestionHasIndentationLessThanTabSize', true, localize('inlineSuggestionHasIndentationLessThanTabSize', "Whether the inline suggestion starts with whitespace that is less than what would be inserted by tab"));
-	public static readonly alwaysShowInlineSuggestionToolbar = new RawContextKey<boolean>('alwaysShowInlineSuggestionToolbar', false, localize('alwaysShowInlineSuggestionToolbar', "Whether the inline suggestion toolbar should always be visible"));
 	public static readonly suppressSuggestions = new RawContextKey<boolean | undefined>('inlineSuggestionSuppressSuggestions', undefined, localize('suppressSuggestions', "Whether suggestions should be suppressed for the current suggestion"));
 
 	public readonly inlineCompletionVisible = InlineCompletionContextKeys.inlineSuggestionVisible.bindTo(this.contextKeyService);
@@ -34,7 +33,7 @@ export class InlineCompletionContextKeys extends Disposable {
 			const suggestion = model?.selectedInlineCompletion.read(reader);
 			const ghostText = model?.ghostText.read(reader);
 			const selectedSuggestItem = model?.selectedSuggestItem.read(reader);
-			this.inlineCompletionVisible.set(selectedSuggestItem === undefined && ghostText !== undefined);
+			this.inlineCompletionVisible.set(selectedSuggestItem === undefined && ghostText !== undefined && !ghostText.isEmpty());
 
 			if (ghostText && suggestion) {
 				this.suppressSuggestions.set(suggestion.inlineCompletion.source.inlineCompletions.suppressSuggestions);

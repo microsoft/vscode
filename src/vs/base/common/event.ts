@@ -755,7 +755,7 @@ export class EventProfiling {
 	}
 
 	start(listenerCount: number): void {
-		this._stopWatch = new StopWatch(true);
+		this._stopWatch = new StopWatch();
 		this.listenerCount = listenerCount;
 	}
 
@@ -1170,6 +1170,10 @@ export class PauseableEmitter<T> extends Emitter<T> {
 	private _isPaused = 0;
 	protected _eventQueue = new LinkedList<T>();
 	private _mergeFn?: (input: T[]) => T;
+
+	public get isPaused(): boolean {
+		return this._isPaused !== 0;
+	}
 
 	constructor(options?: EmitterOptions & { merge?: (input: T[]) => T }) {
 		super(options);

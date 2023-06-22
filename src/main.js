@@ -29,6 +29,7 @@ const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const { getUserDataPath } = require(`./vs/platform/environment/node/userDataPath${requireExtension}`);
 const { stripComments } = require(`./vs/base/common/stripComments${requireExtension}`);
+const { getUNCHost, addUNCHostToAllowlist } = require(`./vs/base/node/unc${requireExtension}`);
 /** @type {Partial<IProductConfiguration>} */
 const product = require('../product.json');
 const { app, protocol, crashReporter, Menu } = require('electron');
@@ -39,9 +40,20 @@ const portable = bootstrapNode.configurePortable(product);
 // Enable ASAR support
 bootstrap.enableASARSupport();
 
-// Set userData path before app 'ready' event
+// Enable sandbox globally unless disabled via `--no-sandbox` argument
 const args = parseCLIArgs();
+if (args['sandbox']) {
+	app.enableSandbox();
+}
+
+// Set userData path before app 'ready' event
 const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
+if (process.platform === 'win32') {
+	const userDataUNCHost = getUNCHost(userDataPath);
+	if (userDataUNCHost) {
+		addUNCHostToAllowlist(userDataUNCHost); // enables to use UNC paths in userDataPath
+	}
+}
 app.setPath('userData', userDataPath);
 
 // Resolve code cache path
@@ -461,7 +473,13 @@ function parseCLIArgs() {
 			'locale',
 			'js-flags',
 			'crash-reporter-directory'
-		]
+		],
+		default: {
+			'sandbox': true
+		},
+		alias: {
+			'no-sandbox': 'sandbox'
+		}
 	});
 }
 

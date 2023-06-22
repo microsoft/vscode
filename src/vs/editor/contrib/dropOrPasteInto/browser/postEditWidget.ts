@@ -155,9 +155,9 @@ export class PostEditWidgetManager extends Disposable {
 		)(() => this.clear()));
 	}
 
-	public async applyEditAndShowIfNeeded(range: Range, edits: EditSet, canShowWidget: boolean, token: CancellationToken) {
+	public async applyEditAndShowIfNeeded(ranges: readonly Range[], edits: EditSet, canShowWidget: boolean, token: CancellationToken) {
 		const model = this._editor.getModel();
-		if (!model) {
+		if (!model || !ranges.length) {
 			return;
 		}
 
@@ -168,18 +168,20 @@ export class PostEditWidgetManager extends Disposable {
 
 		const combinedWorkspaceEdit: WorkspaceEdit = {
 			edits: [
-				new ResourceTextEdit(model.uri,
-					typeof edit.insertText === 'string'
-						? { range, text: edit.insertText, insertAsSnippet: false }
-						: { range, text: edit.insertText.snippet, insertAsSnippet: true }
-				),
+				...ranges.map(range =>
+					new ResourceTextEdit(model.uri,
+						typeof edit.insertText === 'string'
+							? { range, text: edit.insertText, insertAsSnippet: false }
+							: { range, text: edit.insertText.snippet, insertAsSnippet: true }
+					)),
 				...(edit.additionalEdit?.edits ?? [])
 			]
 		};
 
 		// Use a decoration to track edits around the trigger range
+		const primaryRange = ranges[0];
 		const editTrackingDecoration = model.deltaDecorations([], [{
-			range,
+			range: primaryRange,
 			options: { description: 'paste-line-suffix', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }
 		}]);
 
@@ -193,14 +195,14 @@ export class PostEditWidgetManager extends Disposable {
 		}
 
 		if (canShowWidget && editResult.isApplied && edits.allEdits.length > 1) {
-			this.show(editRange ?? range, edits, async (newEditIndex) => {
+			this.show(editRange ?? primaryRange, edits, async (newEditIndex) => {
 				const model = this._editor.getModel();
 				if (!model) {
 					return;
 				}
 
 				await model.undo();
-				this.applyEditAndShowIfNeeded(range, { activeEditIndex: newEditIndex, allEdits: edits.allEdits }, canShowWidget, token);
+				this.applyEditAndShowIfNeeded(ranges, { activeEditIndex: newEditIndex, allEdits: edits.allEdits }, canShowWidget, token);
 			});
 		}
 	}

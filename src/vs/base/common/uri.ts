@@ -334,7 +334,7 @@ export class URI implements UriComponents {
 	 * validation and should be used for untrusted uri components retrieved from storage,
 	 * user input, command arguments etc
 	 */
-	static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }, strict?: boolean): URI {
+	static from(components: UriComponents, strict?: boolean): URI {
 		const result = new Uri(
 			components.scheme,
 			components.authority,

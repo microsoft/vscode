@@ -33,7 +33,6 @@ const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
-const { getSettingsSearchBuildId, shouldSetupSettingsSearch } = require('./azure-pipelines/upload-configuration');
 const { promisify } = require('util');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
@@ -68,7 +67,7 @@ const vscodeResources = [
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/contrib/debug/**/*.json',
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
-	'out-build/vs/workbench/contrib/terminal/browser/media/*.fish',
+	'out-build/vs/workbench/contrib/terminal/browser/media/fish_xdg_data/fish/vendor_conf.d/*.fish',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.ps1',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.sh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.zsh',
@@ -149,6 +148,16 @@ const core = task.define('core-ci', task.series(
 	)
 ));
 gulp.task(core);
+
+const corePr = task.define('core-ci-pr', task.series(
+	gulp.task('compile-build-pr'),
+	task.parallel(
+		gulp.task('minify-vscode'),
+		gulp.task('minify-vscode-reh'),
+		gulp.task('minify-vscode-reh-web'),
+	)
+));
+gulp.task(corePr);
 
 /**
  * Compute checksums for some files.
@@ -244,10 +253,6 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const date = new Date().toISOString();
 		const productJsonUpdate = { commit, date, checksums, version };
 
-		if (shouldSetupSettingsSearch()) {
-			productJsonUpdate.settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
-		}
-
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(json(productJsonUpdate));
 
@@ -266,6 +271,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
+			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)

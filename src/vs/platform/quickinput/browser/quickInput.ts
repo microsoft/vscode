@@ -35,6 +35,7 @@ import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickIn
 import { QuickInputBox } from './quickInputBox';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { getIconClass, renderQuickInputDescription } from './quickInputUtils';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -65,6 +66,7 @@ export interface IQuickInputStyles {
 	readonly keybindingLabel: IKeybindingLabelStyles;
 	readonly list: IListStyles;
 	readonly pickerGroup: { pickerGroupBorder: string | undefined; pickerGroupForeground: string | undefined };
+	readonly colorScheme: ColorScheme;
 }
 
 export interface IQuickInputWidgetStyles {
@@ -93,6 +95,7 @@ interface QuickInputUI {
 	title: HTMLElement;
 	description1: HTMLElement;
 	description2: HTMLElement;
+	widget: HTMLElement;
 	rightActionBar: ActionBar;
 	checkAll: HTMLInputElement;
 	filterContainer: HTMLElement;
@@ -141,6 +144,8 @@ class QuickInput extends Disposable implements IQuickInput {
 
 	private _title: string | undefined;
 	private _description: string | undefined;
+	private _widget: HTMLElement | undefined;
+	private _widgetUpdated = false;
 	private _steps: number | undefined;
 	private _totalSteps: number | undefined;
 	protected visible = false;
@@ -187,6 +192,21 @@ class QuickInput extends Disposable implements IQuickInput {
 	set description(description: string | undefined) {
 		this._description = description;
 		this.update();
+	}
+
+	get widget() {
+		return this._widget;
+	}
+
+	set widget(widget: unknown | undefined) {
+		if (!(widget instanceof HTMLElement)) {
+			return;
+		}
+		if (this._widget !== widget) {
+			this._widget = widget;
+			this._widgetUpdated = true;
+			this.update();
+		}
 	}
 
 	get step() {
@@ -350,6 +370,14 @@ class QuickInput extends Disposable implements IQuickInput {
 		}
 		if (this.ui.description2.textContent !== description) {
 			this.ui.description2.textContent = description;
+		}
+		if (this._widgetUpdated) {
+			this._widgetUpdated = false;
+			if (this._widget) {
+				dom.reset(this.ui.widget, this._widget);
+			} else {
+				dom.reset(this.ui.widget);
+			}
 		}
 		if (this.busy && !this.busyDelay) {
 			this.busyDelay = new TimeoutTimer();
@@ -1337,6 +1365,9 @@ export class QuickInputController extends Disposable {
 		const progressBar = new ProgressBar(container, this.styles.progressBar);
 		progressBar.getContainer().classList.add('quick-input-progress');
 
+		const widget = dom.append(container, $('.quick-input-html-widget'));
+		widget.tabIndex = -1;
+
 		const listId = this.idPrefix + 'list';
 		const list = this._register(new QuickInputList(container, listId, this.options));
 		inputBox.setAttribute('aria-controls', listId);
@@ -1391,7 +1422,13 @@ export class QuickInputController extends Disposable {
 					break;
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
-						const selectors = ['.action-label.codicon'];
+						// detect only visible actions
+						const selectors = [
+							'.quick-input-list .monaco-action-bar .always-visible',
+							'.quick-input-list-entry:hover .monaco-action-bar',
+							'.monaco-list-row.focused .monaco-action-bar'
+						];
+
 						if (container.classList.contains('show-checkboxes')) {
 							selectors.push('input');
 						} else {
@@ -1404,13 +1441,21 @@ export class QuickInputController extends Disposable {
 						if (this.getUI().message) {
 							selectors.push('.quick-input-message a');
 						}
+
+						if (this.getUI().widget) {
+							if (dom.isAncestor(event.target, this.getUI().widget)) {
+								// let the widget control tab
+								break;
+							}
+							selectors.push('.quick-input-html-widget');
+						}
 						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
 						if (event.shiftKey && event.target === stops[0]) {
 							// Clear the focus from the list in order to allow
 							// screen readers to read operations in the input box.
 							dom.EventHelper.stop(e, true);
 							list.clearFocus();
-						} else if (!event.shiftKey && event.target === stops[stops.length - 1]) {
+						} else if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
 							dom.EventHelper.stop(e, true);
 							stops[0].focus();
 						}
@@ -1433,6 +1478,7 @@ export class QuickInputController extends Disposable {
 			title,
 			description1,
 			description2,
+			widget,
 			rightActionBar,
 			checkAll,
 			filterContainer,
@@ -1670,6 +1716,7 @@ export class QuickInputController extends Disposable {
 		ui.title.textContent = '';
 		ui.description1.textContent = '';
 		ui.description2.textContent = '';
+		dom.reset(ui.widget);
 		ui.rightActionBar.clear();
 		ui.checkAll.checked = false;
 		// ui.inputBox.value = ''; Avoid triggering an event.

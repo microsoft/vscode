@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ETAG_DISABLED, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { ETAG_DISABLED, FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -28,6 +28,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
  * Stored file specific working copy model factory.
@@ -117,9 +118,9 @@ export interface IStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> e
 	resolve(options?: IStoredFileWorkingCopyResolveOptions): Promise<void>;
 
 	/**
-	 * Explicitly sets the working copy to be dirty.
+	 * Explicitly sets the working copy to be modified.
 	 */
-	markDirty(): void;
+	markModified(): void;
 
 	/**
 	 * Whether the stored file working copy is in the provided `state`
@@ -145,7 +146,7 @@ export interface IStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> e
 	/**
 	 * Whether the stored file working copy is readonly or not.
 	 */
-	isReadonly(): boolean;
+	isReadonly(): boolean | IMarkdownString;
 }
 
 export interface IResolvedStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extends IStoredFileWorkingCopy<M> {
@@ -332,6 +333,12 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 		// Make known to working copy service
 		this._register(workingCopyService.registerWorkingCopy(this));
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.filesConfigurationService.onReadonlyChange(() => this._onDidChangeReadonly.fire()));
 	}
 
 	//#region Dirty
@@ -343,8 +350,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		return this.dirty;
 	}
 
-	markDirty(): void {
-		this.setDirty(true);
+	markModified(): void {
+		this.setDirty(true); // stored file working copy tracks modified via dirty
 	}
 
 	private setDirty(dirty: boolean): void {
@@ -484,7 +491,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			size,
 			etag,
 			value: buffer,
-			readonly: false
+			readonly: false,
+			locked: false
 		}, true /* dirty (resolved from buffer) */);
 	}
 
@@ -524,7 +532,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: backup.value,
-			readonly: false
+			readonly: false,
+			locked: false
 		}, true /* dirty (resolved from backup) */);
 
 		// Restore orphaned flag based on state
@@ -616,6 +625,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			size: content.size,
 			etag: content.etag,
 			readonly: content.readonly,
+			locked: content.locked,
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
@@ -1065,7 +1075,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		// Any other save error
 		else {
 			const isWriteLocked = fileOperationError.fileOperationResult === FileOperationResult.FILE_WRITE_LOCKED;
-			const triedToUnlock = isWriteLocked && fileOperationError.options?.unlock;
+			const triedToUnlock = isWriteLocked && (fileOperationError.options as IWriteFileOptions | undefined)?.unlock;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
 			const canSaveElevated = this.elevatedFileService.isSupported(this.resource);
 
@@ -1101,10 +1111,13 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			primaryActions.push(toAction({
 				id: 'fileWorkingCopy.saveAs',
 				label: localize('saveAs', "Save As..."),
-				run: () => {
+				run: async () => {
 					const editor = this.workingCopyEditorService.findEditor(this);
 					if (editor) {
-						this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
+						const result = await this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
+						if (!result.success) {
+							this.doHandleSaveError(error); // show error again given the operation failed
+						}
 					}
 				}
 			}));
@@ -1235,8 +1248,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 	//#region Utilities
 
-	isReadonly(): boolean {
-		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+	isReadonly(): boolean | IMarkdownString {
+		return this.filesConfigurationService.isReadonly(this.resource, this.lastResolvedFileStat);
 	}
 
 	private trace(msg: string): void {

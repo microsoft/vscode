@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
@@ -12,7 +13,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -21,6 +22,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 interface CustomEditorInputInitInfo {
@@ -80,7 +82,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super({ providedId: init.viewType, viewType: init.viewType, name: '' }, webview, webviewWorkbenchService);
 		this._editorResource = init.resource;
@@ -142,7 +145,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		} else {
-			if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+			if (this.filesConfigurationService.isReadonly(this.resource)) {
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		}
@@ -247,6 +250,13 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public override copy(): EditorInput {
 		return CustomEditorInput.create(this.instantiationService, this.resource, this.viewType, this.group, this.webview.options);
+	}
+
+	public override isReadonly(): boolean | IMarkdownString {
+		if (!this._modelRef) {
+			return this.filesConfigurationService.isReadonly(this.resource);
+		}
+		return this._modelRef.object.isReadonly();
 	}
 
 	public override isDirty(): boolean {
