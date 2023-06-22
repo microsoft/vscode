@@ -1027,27 +1027,30 @@ export class Emitter<T> {
 			return; // expected if a listener gets disposed
 		}
 
-		if (this._listeners instanceof UniqueContainer) {
+		if (this._size === 1) {
 			this._listeners = undefined;
 			this._options?.onDidRemoveLastListener?.(this);
 			this._size = 0;
 			return;
 		}
 
-		const index = this._listeners.indexOf(listener);
+		// size > 1 which requires that listeners be a list:
+		const listeners = this._listeners as (ListenerContainer<T> | undefined)[];
+
+		const index = listeners.indexOf(listener);
 		if (index === -1) {
 			throw new Error('Attempted to dispose unknown listener');
 		}
 
 		this._size--;
-		this._listeners[index] = undefined;
+		listeners[index] = undefined;
 
 		const adjustDeliveryQueue = this._deliveryQueue!.current === this;
-		if (this._size * compactionThreshold <= this._listeners.length) {
+		if (this._size * compactionThreshold <= listeners.length) {
 			let n = 0;
-			for (let i = 0; i < this._listeners.length; i++) {
-				if (this._listeners[i]) {
-					this._listeners[n++] = this._listeners[i];
+			for (let i = 0; i < listeners.length; i++) {
+				if (listeners[i]) {
+					listeners[n++] = listeners[i];
 				} else if (adjustDeliveryQueue) {
 					this._deliveryQueue!.end--;
 					if (n < this._deliveryQueue!.i) {
@@ -1055,7 +1058,7 @@ export class Emitter<T> {
 					}
 				}
 			}
-			this._listeners.length = n;
+			listeners.length = n;
 		}
 	}
 

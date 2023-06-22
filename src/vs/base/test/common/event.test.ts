@@ -280,15 +280,20 @@ suite('Event', function () {
 		assert.strictEqual(firstCount, 0);
 		assert.strictEqual(lastCount, 0);
 
-		let subscription = a.event(function () { });
+		let subscription1 = a.event(function () { });
+		const subscription2 = a.event(function () { });
 		assert.strictEqual(firstCount, 1);
 		assert.strictEqual(lastCount, 0);
 
-		subscription.dispose();
+		subscription1.dispose();
+		assert.strictEqual(firstCount, 1);
+		assert.strictEqual(lastCount, 0);
+
+		subscription2.dispose();
 		assert.strictEqual(firstCount, 1);
 		assert.strictEqual(lastCount, 1);
 
-		subscription = a.event(function () { });
+		subscription1 = a.event(function () { });
 		assert.strictEqual(firstCount, 2);
 		assert.strictEqual(lastCount, 1);
 	});
