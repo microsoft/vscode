@@ -18,9 +18,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
@@ -160,7 +159,7 @@ export class TerminalService implements ITerminalService {
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@ILogService private readonly _logService: ILogService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IRemoteAgentService private _remoteAgentService: IRemoteAgentService,

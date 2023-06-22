@@ -19,9 +19,9 @@ import { Emitter } from 'vs/base/common/event';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { WebglAddon } from 'xterm-addon-webgl';
-import { ILoggerService } from 'vs/platform/log/common/log';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { TestLoggerService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { isSafari } from 'vs/base/browser/browser';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -31,6 +31,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 
 class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;
@@ -112,7 +113,7 @@ suite('XtermTerminal', () => {
 
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(ILoggerService, new TestLoggerService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
