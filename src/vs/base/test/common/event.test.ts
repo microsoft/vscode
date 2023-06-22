@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { stub } from 'sinon';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -127,6 +128,70 @@ suite('Event', function () {
 		assert.strictEqual(counter.count, 2);
 	});
 
+	test('Emitter duplicate functions', () => {
+		const calls: string[] = [];
+		const a = (v: string) => calls.push(`a${v}`);
+		const b = (v: string) => calls.push(`b${v}`);
+
+		const emitter = new Emitter<string>();
+
+		emitter.event(a);
+		emitter.event(b);
+		const s2 = emitter.event(a);
+
+		emitter.fire('1');
+		assert.deepStrictEqual(calls, ['a1', 'b1', 'a1']);
+
+		s2.dispose();
+		calls.length = 0;
+		emitter.fire('2');
+		assert.deepStrictEqual(calls, ['a2', 'b2']);
+	});
+
+	test('Emitter, dispose during emission', () => {
+		for (let keepFirstMod = 1; keepFirstMod < 4; keepFirstMod++) {
+			const emitter = new Emitter<void>();
+			const calls: number[] = [];
+			const disposables = Array.from({ length: 25 }, (_, n) => emitter.event(() => {
+				if (n % keepFirstMod === 0) {
+					disposables[n].dispose();
+				}
+				calls.push(n);
+			}));
+
+			emitter.fire();
+			assert.deepStrictEqual(calls, Array.from({ length: 25 }, (_, n) => n));
+		}
+	});
+
+	test('Emitter, handles removal during 3', () => {
+		const fn1 = stub();
+		const fn2 = stub();
+		const emitter = new Emitter<string>();
+
+		emitter.event(fn1);
+		const h = emitter.event(() => {
+			h.dispose();
+		});
+		emitter.event(fn2);
+		emitter.fire('foo');
+
+		assert.deepStrictEqual(fn2.args, [['foo']]);
+		assert.deepStrictEqual(fn1.args, [['foo']]);
+	});
+
+	test('Emitter, handles removal during 2', () => {
+		const fn1 = stub();
+		const emitter = new Emitter<string>();
+
+		emitter.event(fn1);
+		const h = emitter.event(() => {
+			h.dispose();
+		});
+		emitter.fire('foo');
+
+		assert.deepStrictEqual(fn1.args, [['foo']]);
+	});
 
 	test('Emitter, bucket', function () {
 
@@ -345,6 +410,32 @@ suite('Event', function () {
 
 		// assert that all events are delivered in order
 		assert.deepStrictEqual(listener2Events, ['e1', 'e2']);
+	});
+
+	test('Emitter, - In Order Delivery 3x', function () {
+		const a = new Emitter<string>();
+		const listener2Events: string[] = [];
+		a.event(function listener1(event) {
+			if (event === 'e2') {
+				a.fire('e3');
+				// assert that all events are delivered at this point
+				assert.deepStrictEqual(listener2Events, ['e1', 'e2', 'e3']);
+			}
+		});
+		a.event(function listener1(event) {
+			if (event === 'e1') {
+				a.fire('e2');
+				// assert that all events are delivered at this point
+				assert.deepStrictEqual(listener2Events, ['e1', 'e2', 'e3']);
+			}
+		});
+		a.event(function listener2(event) {
+			listener2Events.push(event);
+		});
+		a.fire('e1');
+
+		// assert that all events are delivered in order
+		assert.deepStrictEqual(listener2Events, ['e1', 'e2', 'e3']);
 	});
 
 	test('Cannot read property \'_actual\' of undefined #142204', function () {
