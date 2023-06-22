@@ -8,7 +8,7 @@ import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { mark } from 'vs/base/common/performance';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { InMemoryStorageDatabase, IStorage, IStorageChangeEvent, Storage, StorageHint } from 'vs/base/parts/storage/common/storage';
+import { InMemoryStorageDatabase, IStorage, IStorageChangeEvent, Storage, StorageHint, StorageValue } from 'vs/base/parts/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isUserDataProfile, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -118,10 +118,17 @@ export interface IStorageService {
 	 *
 	 * @param target allows to define the target of the storage operation
 	 * to either the current machine or user.
-	 *
-	 * @param source allows to specify the source of the storage change.
 	 */
-	store(key: string, value: string | boolean | number | undefined | null | object, scope: StorageScope, target: StorageTarget, wasChangedExternally?: boolean): void;
+	store(key: string, value: StorageValue, scope: StorageScope, target: StorageTarget): void;
+
+	/**
+	 *
+	 * @param entries
+	 * @param scope
+	 * @param target
+	 * @param external
+	 */
+	storeAll(entries: Array<{ key: string; value: StorageValue }>, scope: StorageScope, target: StorageTarget, external?: boolean): void;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
@@ -237,7 +244,7 @@ export interface IStorageValueChangeEvent {
 	 * storage service was updated in bulk from an external
 	 * data source.
 	 */
-	readonly wasChangedExternally?: boolean;
+	readonly external?: boolean;
 }
 
 export interface IStorageTargetChangeEvent {
@@ -342,7 +349,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	}
 
 	protected emitDidChangeValue(scope: StorageScope, event: IStorageChangeEvent): void {
-		const { key, wasChangedExternally } = event;
+		const { key, external } = event;
 
 		// Specially handle `TARGET_KEY`
 		if (key === TARGET_KEY) {
@@ -366,7 +373,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 		// Emit any other key to outside
 		else {
-			this._onDidChangeValue.fire({ scope, key, target: this.getKeyTargets(scope)[key], wasChangedExternally });
+			this._onDidChangeValue.fire({ scope, key, target: this.getKeyTargets(scope)[key], external });
 		}
 	}
 
@@ -398,7 +405,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.getStorage(scope)?.getObject(key, fallbackValue);
 	}
 
-	store(key: string, value: string | boolean | number | undefined | null | object, scope: StorageScope, target: StorageTarget, wasChangedExternally: boolean = false): void {
+	store(key: string, value: StorageValue, scope: StorageScope, target: StorageTarget, external: boolean = false): void {
 
 		// We remove the key for undefined/null values
 		if (isUndefinedOrNull(value)) {
@@ -413,11 +420,19 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 			this.updateKeyTarget(key, scope, target);
 
 			// Store actual value
-			this.getStorage(scope)?.set(key, value, wasChangedExternally);
+			this.getStorage(scope)?.set(key, value, external);
 		});
 	}
 
-	remove(key: string, scope: StorageScope): void {
+	storeAll(entries: Array<{ key: string; value: StorageValue }>, scope: StorageScope, target: StorageTarget, external: boolean = false): void {
+		this.withPausedEmitters(() => {
+			for (const entry of entries) {
+				this.store(entry.key, entry.value, scope, target, external);
+			}
+		});
+	}
+
+	remove(key: string, scope: StorageScope, external: boolean = false): void {
 
 		// Update our datastructures but send events only after
 		this.withPausedEmitters(() => {
@@ -426,7 +441,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 			this.updateKeyTarget(key, scope, undefined);
 
 			// Remove actual key
-			this.getStorage(scope)?.delete(key);
+			this.getStorage(scope)?.delete(key, external);
 		});
 	}
 
@@ -617,13 +632,13 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 					const newValue = newStorage.get(key);
 					if (newValue !== oldValue) {
-						this.emitDidChangeValue(scope, { key, wasChangedExternally: true });
+						this.emitDidChangeValue(scope, { key, external: true });
 					}
 				}
 
 				for (const [key] of newStorage.items) {
 					if (!handledkeys.has(key)) {
-						this.emitDidChangeValue(scope, { key, wasChangedExternally: true });
+						this.emitDidChangeValue(scope, { key, external: true });
 					}
 				}
 			}

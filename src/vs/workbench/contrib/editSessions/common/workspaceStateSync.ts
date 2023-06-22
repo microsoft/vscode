@@ -8,6 +8,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
+import { StorageValue } from 'vs/base/parts/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -129,18 +130,20 @@ export class WorkspaceStateSynchroniser extends AbstractSynchroniser implements 
 
 		if (Object.keys(storage).length) {
 			// Initialize storage with remote storage
+			const storageValues: Array<{ key: string; value: StorageValue }> = [];
 			for (const key of Object.keys(storage)) {
 				// Deserialize the stored state
 				try {
 					const value = parse(storage[key]);
 					// Run URI conversion on the stored state
 					replaceUris(value);
-					// Write the stored state to the storage service
-					this.storageService.store(key, value, StorageScope.WORKSPACE, StorageTarget.USER, true);
+					// Set as value to be stored to the storage service
+					storageValues.push({ key, value });
 				} catch {
-					this.storageService.store(key, storage[key], StorageScope.WORKSPACE, StorageTarget.USER, true);
+					storageValues.push({ key, value: storage[key] });
 				}
 			}
+			this.storageService.storeAll(storageValues, StorageScope.WORKSPACE, StorageTarget.USER, true);
 		}
 		return null;
 	}
