@@ -645,7 +645,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true }
 		});
 
-		// this.telemetryService.publicLog2<RemoteStartActionEvent, RemoteStartActionClassification>('remoteStartList.ActionExecuted', { command: 'workbench.extensions.installExtension', remoteExtensionId: extensionId });
 		await retry(async () => {
 			const ext = await this.extensionService.getExtension(metadata.id);
 			if (!ext) {
@@ -653,11 +652,13 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			}
 			return ext;
 		}, 300, 10);
-
-		await this.extensionService.activateByEvent(`onCommand:${metadata.startCommand}`);
 		this.commandService.executeCommand(metadata.startCommand);
 
-		// this.telemetryService.publicLog2<RemoteStartActionEvent, RemoteStartActionClassification>('remoteStartList.ActionExecuted', { command: command, remoteExtensionId: extensionId });
+		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+			id: 'remoteInstallAndRun',
+			detail: extensionId,
+			from: 'remote indicator'
+		});
 	}
 
 	private showRemoteMenu() {

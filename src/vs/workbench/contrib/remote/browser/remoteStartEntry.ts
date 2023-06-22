@@ -14,26 +14,16 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { isWeb } from 'vs/base/common/platform';
 
-type RemoteStartActionClassification = {
-	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The command being executed by the remote start entry.' };
-	remoteExtensionId?: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The remote extension id being used.' };
-	owner: 'bhavyau';
-	comment: 'Help understand which remote extensions are most commonly used from the remote start entry';
-};
-
-type RemoteStartActionEvent = {
-	command: string;
-	remoteExtensionId?: string;
-};
 export const showStartEntryInWeb = new RawContextKey<boolean>('showRemoteStartEntryInWeb', false);
 export class RemoteStartEntry extends Disposable implements IWorkbenchContribution {
 
 	private static readonly REMOTE_WEB_START_ENTRY_ACTIONS_COMMAND_ID = 'workbench.action.remote.showWebStartEntryActions';
 
 	private readonly remoteExtensionId!: string;
-	private startCommand!: string;
+	private readonly startCommand!: string;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -109,6 +99,9 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 
 	private async showWebRemoteStartActions() {
 		this.commandService.executeCommand(this.startCommand);
-		this.telemetryService.publicLog2<RemoteStartActionEvent, RemoteStartActionClassification>('remoteStartList.ActionExecuted', { command: this.startCommand });
+		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+			id: this.startCommand,
+			from: 'remote start entry'
+		});
 	}
 }
