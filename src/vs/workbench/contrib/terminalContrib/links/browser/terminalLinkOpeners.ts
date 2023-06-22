@@ -37,8 +37,10 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		}
 		const linkSuffix = link.parsedLink ? link.parsedLink.suffix : getLinkSuffix(link.text);
 		const selection: ITextEditorSelection | undefined = linkSuffix?.row === undefined ? undefined : {
-			startLineNumber: linkSuffix?.row ?? 1,
-			startColumn: linkSuffix?.col ?? 1
+			startLineNumber: linkSuffix.row ?? 1,
+			startColumn: linkSuffix.col ?? 1,
+			endLineNumber: linkSuffix.rowEnd,
+			endColumn: linkSuffix.colEnd
 		};
 		await this._editorService.openEditor({
 			resource: link.uri,
