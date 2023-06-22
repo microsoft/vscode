@@ -122,13 +122,13 @@ export interface IStorageService {
 	store(key: string, value: StorageValue, scope: StorageScope, target: StorageTarget): void;
 
 	/**
+	 * Allows to store multiple values in a bulk operation. Events will only
+	 * be emitted when all values have been stored.
 	 *
-	 * @param entries
-	 * @param scope
-	 * @param target
-	 * @param external
+	 * @param external a hint to indicate the source of the operation is external,
+	 * such as settings sync or profile changes.
 	 */
-	storeAll(entries: Array<{ key: string; value: StorageValue }>, scope: StorageScope, target: StorageTarget, external?: boolean): void;
+	storeAll(entries: Array<{ key: string; value: StorageValue; scope: StorageScope; target: StorageTarget }>, external: boolean): void;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
@@ -405,7 +405,15 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.getStorage(scope)?.getObject(key, fallbackValue);
 	}
 
-	store(key: string, value: StorageValue, scope: StorageScope, target: StorageTarget, external: boolean = false): void {
+	storeAll(entries: Array<{ key: string; value: StorageValue; scope: StorageScope; target: StorageTarget }>, external: boolean): void {
+		this.withPausedEmitters(() => {
+			for (const entry of entries) {
+				this.store(entry.key, entry.value, entry.scope, entry.target, external);
+			}
+		});
+	}
+
+	store(key: string, value: StorageValue, scope: StorageScope, target: StorageTarget, external = false): void {
 
 		// We remove the key for undefined/null values
 		if (isUndefinedOrNull(value)) {
@@ -424,15 +432,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		});
 	}
 
-	storeAll(entries: Array<{ key: string; value: StorageValue }>, scope: StorageScope, target: StorageTarget, external: boolean = false): void {
-		this.withPausedEmitters(() => {
-			for (const entry of entries) {
-				this.store(entry.key, entry.value, scope, target, external);
-			}
-		});
-	}
-
-	remove(key: string, scope: StorageScope, external: boolean = false): void {
+	remove(key: string, scope: StorageScope, external = false): void {
 
 		// Update our datastructures but send events only after
 		this.withPausedEmitters(() => {

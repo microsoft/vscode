@@ -30,6 +30,7 @@ import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDat
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { StorageValue } from 'vs/base/parts/storage/common/storage';
 
 const argvStoragePrefx = 'globalState.argv.';
 const argvProperties: string[] = ['locale'];
@@ -440,9 +441,11 @@ export class GlobalStateInitializer extends AbstractInitializer {
 		}
 
 		if (Object.keys(storage).length) {
+			const storageValues: Array<{ key: string; value: StorageValue; scope: StorageScope; target: StorageTarget }> = [];
 			for (const key of Object.keys(storage)) {
-				this.storageService.store(key, storage[key], StorageScope.PROFILE, StorageTarget.USER);
+				storageValues.push({ key, value: storage[key], scope: StorageScope.PROFILE, target: StorageTarget.USER });
 			}
+			this.storageService.storeAll(storageValues, true);
 		}
 	}
 

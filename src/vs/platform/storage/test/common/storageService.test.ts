@@ -35,7 +35,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		storageService.onDidChangeValue(e => storageValueChangeEvents.push(e));
 
 		// Explicit external source
-		storageService.storeAll([{ key: 'testExternalChange', value: 'foobar' }], StorageScope.WORKSPACE, StorageTarget.MACHINE, true);
+		storageService.storeAll([{ key: 'testExternalChange', value: 'foobar', scope: StorageScope.WORKSPACE, target: StorageTarget.MACHINE }], true);
 		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'testExternalChange');
 		strictEqual(storageValueChangeEvent?.external, true);
 

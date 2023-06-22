@@ -5,6 +5,7 @@
 
 import { IStringDictionary } from 'vs/base/common/collections';
 import { URI } from 'vs/base/common/uri';
+import { StorageValue } from 'vs/base/parts/storage/common/storage';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -28,9 +29,11 @@ export class GlobalStateResourceInitializer implements IProfileResourceInitializ
 		const globalState: IGlobalState = JSON.parse(content);
 		const storageKeys = Object.keys(globalState.storage);
 		if (storageKeys.length) {
+			const storageValues: Array<{ key: string; value: StorageValue; scope: StorageScope; target: StorageTarget }> = [];
 			for (const key of storageKeys) {
-				this.storageService.store(key, globalState.storage[key], StorageScope.PROFILE, StorageTarget.USER);
+				storageValues.push({ key, value: globalState.storage[key], scope: StorageScope.PROFILE, target: StorageTarget.USER });
 			}
+			this.storageService.storeAll(storageValues, true);
 		}
 	}
 }

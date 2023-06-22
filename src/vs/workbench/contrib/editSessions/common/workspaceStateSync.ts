@@ -130,7 +130,7 @@ export class WorkspaceStateSynchroniser extends AbstractSynchroniser implements 
 
 		if (Object.keys(storage).length) {
 			// Initialize storage with remote storage
-			const storageValues: Array<{ key: string; value: StorageValue }> = [];
+			const storageValues: Array<{ key: string; value: StorageValue; scope: StorageScope; target: StorageTarget }> = [];
 			for (const key of Object.keys(storage)) {
 				// Deserialize the stored state
 				try {
@@ -138,12 +138,12 @@ export class WorkspaceStateSynchroniser extends AbstractSynchroniser implements 
 					// Run URI conversion on the stored state
 					replaceUris(value);
 					// Set as value to be stored to the storage service
-					storageValues.push({ key, value });
+					storageValues.push({ key, value, scope: StorageScope.WORKSPACE, target: StorageTarget.USER });
 				} catch {
-					storageValues.push({ key, value: storage[key] });
+					storageValues.push({ key, value: storage[key], scope: StorageScope.WORKSPACE, target: StorageTarget.USER });
 				}
 			}
-			this.storageService.storeAll(storageValues, StorageScope.WORKSPACE, StorageTarget.USER, true);
+			this.storageService.storeAll(storageValues, true);
 		}
 		return null;
 	}
