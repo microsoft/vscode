@@ -28,11 +28,11 @@ export class GlobalStateResourceInitializer implements IProfileResourceInitializ
 		const globalState: IGlobalState = JSON.parse(content);
 		const storageKeys = Object.keys(globalState.storage);
 		if (storageKeys.length) {
-			const storageValues: Array<IStorageEntry> = [];
+			const storageEntries: Array<IStorageEntry> = [];
 			for (const key of storageKeys) {
-				storageValues.push({ key, value: globalState.storage[key], scope: StorageScope.PROFILE, target: StorageTarget.USER });
+				storageEntries.push({ key, value: globalState.storage[key], scope: StorageScope.PROFILE, target: StorageTarget.USER });
 			}
-			this.storageService.storeAll(storageValues, true);
+			this.storageService.storeAll(storageEntries, true);
 		}
 	}
 }
