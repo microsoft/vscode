@@ -25,8 +25,10 @@ import { mock } from 'vs/base/test/common/mock';
 import { Emitter, Event } from 'vs/base/common/event';
 import { equals } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
+import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
-suite('InteractiveChatontroller', function () {
+suite('InteractiveChatController', function () {
 
 	class TestController extends InlineChatController {
 
@@ -98,6 +100,10 @@ suite('InteractiveChatontroller', function () {
 						done() { },
 					};
 				}
+			}],
+			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
+				override acceptResponse(response?: IChatResponseViewModel): void { }
+				override acceptRequest(): void { }
 			}]
 		);
 

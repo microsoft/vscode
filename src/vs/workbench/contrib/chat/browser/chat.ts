@@ -34,7 +34,7 @@ export interface IChatWidgetService {
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
 	acceptRequest(): void;
-	acceptResponse(response?: IChatResponseViewModel): void;
+	acceptResponse(response?: IChatResponseViewModel | string): void;
 }
 
 export interface IChatCodeBlockInfo {

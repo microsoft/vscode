@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Barrier, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -32,7 +33,7 @@ import { EditResponse, EmptyResponse, ErrorResponse, ExpansionState, IInlineChat
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, InlineChateResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -115,6 +116,7 @@ export class InlineChatController implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService
 	) {
 		this._ctxHasActiveRequest = CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxDidEdit = CTX_INLINE_CHAT_DID_EDIT.bindTo(contextKeyService);
@@ -412,6 +414,7 @@ export class InlineChatController implements IEditorContribution {
 		if (options.message) {
 			this._zone.value.widget.value = options.message;
 			this._zone.value.widget.selectAll();
+			aria.alert(options.message);
 			delete options.message;
 		}
 
@@ -506,6 +509,7 @@ export class InlineChatController implements IEditorContribution {
 			selection: this._editor.getSelection(),
 			wholeRange: this._activeSession.wholeRange.value,
 		};
+		this._chatAccessibilityService.acceptRequest();
 		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, requestCts.token);
 		this._log('request started', this._activeSession.provider.debugName, this._activeSession.session, request);
 
@@ -596,6 +600,8 @@ export class InlineChatController implements IEditorContribution {
 		const { response } = this._activeSession.lastExchange!;
 		this._showWidget(false);
 
+		let status: string | undefined;
+
 		this._ctxLastResponseType.set(response instanceof EditResponse || response instanceof MarkdownResponse
 			? response.raw.type
 			: undefined);
@@ -618,13 +624,15 @@ export class InlineChatController implements IEditorContribution {
 
 		if (response instanceof EmptyResponse) {
 			// show status message
-			this._zone.value.widget.updateStatus(localize('empty', "No results, please refine your input and try again"), { classes: ['warn'] });
+			status = localize('empty', "No results, please refine your input and try again");
+			this._zone.value.widget.updateStatus(status, { classes: ['warn'] });
 			return State.WAIT_FOR_INPUT;
 
 		} else if (response instanceof ErrorResponse) {
 			// show error
 			if (!response.isCancellation) {
-				this._zone.value.widget.updateStatus(response.message, { classes: ['error'] });
+				status = response.message;
+				this._zone.value.widget.updateStatus(status, { classes: ['error'] });
 			}
 
 		} else if (response instanceof MarkdownResponse) {
@@ -633,6 +641,10 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.widget.updateStatus('');
 			this._zone.value.widget.updateMarkdownMessage(renderedMarkdown.element);
 			this._zone.value.widget.updateToolbar(true);
+			const content = renderedMarkdown.element.textContent;
+			if (content) {
+				status = localize('markdownResponseMessage', "{0}", content);
+			}
 			this._activeSession.lastExpansionState = this._zone.value.widget.expansionState;
 
 		} else if (response instanceof EditResponse) {
@@ -644,9 +656,10 @@ export class InlineChatController implements IEditorContribution {
 			if (!canContinue) {
 				return State.ACCEPT;
 			}
-
+			status = localize('editResponseMessage', "Navigate to the diff editor to review proposed changes.");
 			await this._strategy.renderChanges(response);
 		}
+		this._chatAccessibilityService.acceptResponse(status);
 
 		return State.WAIT_FOR_INPUT;
 	}

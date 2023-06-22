@@ -835,5 +835,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this._ctxCursorPosition.reset();
 		this.widget.reset();
 		super.hide();
+		aria.status(localize('inlineChatClosed', 'Closed inline chat widget'));
 	}
 }
