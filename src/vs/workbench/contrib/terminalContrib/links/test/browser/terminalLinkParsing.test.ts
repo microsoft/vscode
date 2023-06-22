@@ -124,7 +124,7 @@ const testLinks: ITestLink[] = [
 	{ link: '"foo", line 339, character 12', prefix: '"', suffix: '", line 339, character 12', hasRow: true, hasCol: true },
 	{ link: '"foo", line 339, characters 12-14', prefix: '"', suffix: '", line 339, characters 12-14', hasRow: true, hasCol: true, hasColEnd: true },
 	{ link: '"foo", lines 339-341', prefix: '"', suffix: '", lines 339-341', hasRow: true, hasCol: false, hasRowEnd: true },
-	// { link: '"foo", lines 339-341, characters 12-14', prefix: '"', suffix: '", lines 339-341', hasRow: true, hasCol: true, hasRowEnd: true, hasColEnd: true },
+	{ link: '"foo", lines 339-341, characters 12-14', prefix: '"', suffix: '", lines 339-341, characters 12-14', hasRow: true, hasCol: true, hasRowEnd: true, hasColEnd: true },
 
 	// Non-breaking space
 	{ link: 'foo\u00A0339:12', prefix: undefined, suffix: '\u00A0339:12', hasRow: true, hasCol: true },
