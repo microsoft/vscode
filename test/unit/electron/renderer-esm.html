@@ -65,9 +65,8 @@
 		const dependencies = Object.keys(require('../../../package.json').dependencies).sort();
 		const optionalDependencies = Object.keys(require('../../../package.json').optionalDependencies).sort();
 		const dependenciesRemote = Object.keys(require('../../../remote/package.json').dependencies).sort();
-		const optionalDependenciesRemote = Object.keys(require('../../../remote/package.json').optionalDependencies).sort();
 
-		for (const name of new Set([].concat(builtin, dependencies, optionalDependencies, dependenciesRemote, optionalDependenciesRemote))) {
+		for (const name of new Set([].concat(builtin, dependencies, optionalDependencies, dependenciesRemote))) {
 
 			let _mod;
 			try {

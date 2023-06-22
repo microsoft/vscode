@@ -5,6 +5,10 @@
 
 'use strict';
 
+// ESM-uncomment-begin
+// const module = { exports: {} };
+// ESM-uncomment-end
+
 //@ts-check
 
 (function () {
@@ -144,3 +148,11 @@
 		console.trace('vs/base/node/unc defined in UNKNOWN context (neither requirejs or commonjs)');
 	}
 })();
+
+// ESM-uncomment-begin
+// export const getUNCHost = module.exports.getUNCHost;
+// export const getUNCHostAllowlist = module.exports.getUNCHostAllowlist;
+// export const addUNCHostToAllowlist = module.exports.addUNCHostToAllowlist;
+// export const disableUNCAccessRestrictions = module.exports.disableUNCAccessRestrictions;
+// export const isUNCAccessRestrictionsDisabled = module.exports.isUNCAccessRestrictionsDisabled;
+// ESM-uncomment-end

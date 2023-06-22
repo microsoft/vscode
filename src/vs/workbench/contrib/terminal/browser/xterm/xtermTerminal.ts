@@ -707,7 +707,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 
 	protected async _getImageAddonConstructor(): Promise<typeof ImageAddonType> {
 		if (!ImageAddon) {
-			ImageAddon = (await import('xterm-addon-image')).ImageAddon;
+			ImageAddon = (await importAMDNodeModule<typeof import('xterm-addon-image')>('xterm-addon-image', 'lib/xterm-addon-image.js')).ImageAddon;
 		}
 		return ImageAddon;
 	}
