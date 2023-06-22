@@ -17,18 +17,18 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 
 	private _responsePendingAudioCue: IDisposable | undefined;
 	private _hasReceivedRequest: boolean = false;
-	private _runOnceScheduler: RunOnceScheduler | undefined;
+	private _runOnceScheduler: RunOnceScheduler;
 
 	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
-	}
-	acceptRequest(): void {
-		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
-		this._runOnceScheduler = new RunOnceScheduler(() => {
+		this._register(this._runOnceScheduler = new RunOnceScheduler(() => {
 			if (!this._hasReceivedRequest) {
 				this._responsePendingAudioCue = this._audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
 			}
-		}, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
+		}, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS));
+	}
+	acceptRequest(): void {
+		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
 		this._runOnceScheduler.schedule();
 	}
 	acceptResponse(response?: IChatResponseViewModel | string): void {
