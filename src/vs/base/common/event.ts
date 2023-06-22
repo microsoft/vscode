@@ -848,8 +848,10 @@ class Stacktrace {
 	}
 }
 
+let id = 0;
 class UniqueContainer<T> {
 	stack?: Stacktrace;
+	public id = id++;
 	constructor(public readonly value: T) { }
 }
 const compactionThreshold = 2;
@@ -977,6 +979,11 @@ export class Emitter<T> {
 				return Disposable.None;
 			}
 
+			if (this._disposed) {
+				// todo: should we warn if a listener is added to a disposed emitter? This happens often
+				return Disposable.None;
+			}
+
 			if (thisArgs) {
 				callback = callback.bind(thisArgs);
 			}
@@ -1040,6 +1047,9 @@ export class Emitter<T> {
 
 		const index = listeners.indexOf(listener);
 		if (index === -1) {
+			console.log('disposed?', this._disposed);
+			console.log('size?', this._size);
+			console.log('arr?', JSON.stringify(this._listeners));
 			throw new Error('Attempted to dispose unknown listener');
 		}
 
