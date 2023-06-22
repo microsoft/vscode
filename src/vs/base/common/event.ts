@@ -1007,7 +1007,7 @@ export class Emitter<T> {
 
 			this._size++;
 
-			const result = toDisposable(() => { removeMonitor?.(); this.removeListener(contained); });
+			const result = toDisposable(() => { removeMonitor?.(); this._removeListener(contained); });
 			if (disposables instanceof DisposableStore) {
 				disposables.add(result);
 			} else if (Array.isArray(disposables)) {
@@ -1020,7 +1020,7 @@ export class Emitter<T> {
 		return this._event;
 	}
 
-	private removeListener(listener: ListenerContainer<T>) {
+	private _removeListener(listener: ListenerContainer<T>) {
 		this._options?.onWillRemoveListener?.(this);
 
 		if (!this._listeners) {
@@ -1059,7 +1059,7 @@ export class Emitter<T> {
 		}
 	}
 
-	private deliver(listener: undefined | UniqueContainer<(value: T) => void>, value: T) {
+	private _deliver(listener: undefined | UniqueContainer<(value: T) => void>, value: T) {
 		if (!listener) {
 			return;
 		}
@@ -1078,11 +1078,11 @@ export class Emitter<T> {
 	}
 
 	/** Delivers items in the queue. Assumes the queue is ready to go. */
-	private deliverQueue(dq: EventDeliveryQueuePrivate) {
+	private _deliverQueue(dq: EventDeliveryQueuePrivate) {
 		const listeners = dq.current!._listeners! as (ListenerContainer<T> | undefined)[];
 		while (dq.i < dq.end) {
 			// important: dq.i is incremented before calling deliver() because it might reenter deliverQueue()
-			this.deliver(listeners[dq.i++], dq.value as T);
+			this._deliver(listeners[dq.i++], dq.value as T);
 		}
 		dq.reset();
 	}
@@ -1093,7 +1093,7 @@ export class Emitter<T> {
 	 */
 	fire(event: T): void {
 		if (this._deliveryQueue?.current) {
-			this.deliverQueue(this._deliveryQueue);
+			this._deliverQueue(this._deliveryQueue);
 			this._perfMon?.stop(); // last fire() will have starting perfmon, stop it before starting the next dispatch
 		}
 
@@ -1102,11 +1102,11 @@ export class Emitter<T> {
 		if (!this._listeners) {
 			// no-op
 		} else if (this._listeners instanceof UniqueContainer) {
-			this.deliver(this._listeners, event);
+			this._deliver(this._listeners, event);
 		} else {
 			const dq = this._deliveryQueue!;
 			dq.enqueue(this, event, this._listeners.length);
-			this.deliverQueue(dq);
+			this._deliverQueue(dq);
 		}
 
 		this._perfMon?.stop();
