@@ -12,6 +12,7 @@ suite('extractRangeFromFilter', () => {
 		assert.ok(!extractRangeFromFilter(''));
 		assert.ok(!extractRangeFromFilter('/some/path'));
 		assert.ok(!extractRangeFromFilter('/some/path/file.txt'));
+		assert.ok(!extractRangeFromFilter('/some/@path'), 'paths like as /node_modules/@types/ should be supported');
 
 		for (const lineSep of [':', '#', '(', ':line ']) {
 			for (const colSep of [':', '#', ',']) {
@@ -44,7 +45,7 @@ suite('extractRangeFromFilter', () => {
 	});
 
 	test('unless', async function () {
-		const res = extractRangeFromFilter('/some/path/file.txt@ (19,20)', ['@']);
+		const res = extractRangeFromFilter('@/some/path/file.txt (19,20)', ['@']);
 
 		assert.ok(!res);
 	});
