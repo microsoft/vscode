@@ -1974,46 +1974,48 @@ export class SearchModel extends Disposable {
 	get searchResult(): SearchResult {
 		return this._searchResult;
 	}
+
+	private async runFileQueries(includes: (string)[], token: CancellationToken, textQuery: ITextQuery): Promise<URI[]> {
+		const promises = includes.map(include => {
+			const query: IFileQuery = {
+				type: QueryType.File,
+				filePattern: include,
+				folderQueries: textQuery.folderQueries
+			};
+			return this.searchService.fileSearch(
+				query,
+				token
+			);
+		});
+		const result = (await Promise.all(promises)).map(sc => sc.results.map(fm => fm.resource)).flat();
+		const uris = new ResourceSet(result, uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+		return Array.from(uris.keys());
+	}
 	private async getClosedNotebookResults(textQuery: ITextQuery, scannedFiles: ResourceSet, token: CancellationToken): Promise<{ results: ResourceMap<IFileMatchWithCells | null>; limitHit: boolean }> {
 		const infoProviders = this.notebookService.getContributedNotebookTypes();
 		const includes = infoProviders.flatMap(
 			(provider) => {
 				return provider.selectors.map((selector) => {
 					const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as IRelativePattern | string;
-					return globPattern;
+					return globPattern.toString();
 				}
 				);
 			}
-		).join(',');
-
-		const notebookMatchGlob = '**/{' +
-			includes
-			+ '}';
+		);
 
 		const results = new ResourceMap<IFileMatchWithCells | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 
-		const query: IFileQuery = {
-			type: QueryType.File,
-			filePattern: notebookMatchGlob,
-			folderQueries: textQuery.folderQueries
-		};
-
 		const start = Date.now();
 
-		const searchComplete = await this.searchService.fileSearch(
-			query,
-			token
-		);
-
+		const filesToScan = await this.runFileQueries(includes, token, textQuery);
 		const deserializedNotebooks = new ResourceMap<NotebookTextModel>();
 		const textModels = this.notebookService.getNotebookTextModels();
 		for (const notebook of textModels) {
 			deserializedNotebooks.set(notebook.uri, notebook);
 		}
 
-		const promises = searchComplete.results.map(async (fm) => {
+		const promises = filesToScan.map(async (uri) => {
 			const cellMatches: ICellMatch[] = [];
-			const uri = fm.resource;
 			if (scannedFiles.has(uri)) {
 				return;
 			}
