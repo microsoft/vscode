@@ -64,7 +64,7 @@ export class ElectronRemoteResourceLoader extends Disposable {
 
 	public getResourceUriProvider() {
 		return (uri: URI) => uri.with({
-			scheme: Schemas.vscodeRemoteResource,
+			scheme: Schemas.vscodeManagedRemoteResource,
 			authority: `window:${this.windowId}`,
 			query: new URLSearchParams({ authority: uri.authority, scheme: uri.scheme }).toString(),
 		});
