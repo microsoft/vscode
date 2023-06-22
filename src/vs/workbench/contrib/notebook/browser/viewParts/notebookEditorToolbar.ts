@@ -88,7 +88,11 @@ class WorkbenchAlwaysLabelStrategy implements IActionLayoutStrategy {
 		const initialPrimaryActions = this.editorToolbar.primaryActions;
 		const initialSecondaryActions = this.editorToolbar.secondaryActions;
 
-		return workbenchCalculateActions(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth);
+		const actionOutput = workbenchCalculateActions(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth);
+		return {
+			primaryActions: actionOutput.primaryActions.map(a => a.action),
+			secondaryActions: actionOutput.secondaryActions
+		};
 	}
 }
 
@@ -111,7 +115,11 @@ class WorkbenchNeverLabelStrategy implements IActionLayoutStrategy {
 		const initialPrimaryActions = this.editorToolbar.primaryActions;
 		const initialSecondaryActions = this.editorToolbar.secondaryActions;
 
-		return workbenchCalculateActions(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth);
+		const actionOutput = workbenchCalculateActions(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth);
+		return {
+			primaryActions: actionOutput.primaryActions.map(a => a.action),
+			secondaryActions: actionOutput.secondaryActions
+		};
 	}
 }
 
@@ -139,7 +147,11 @@ class WorkbenchDynamicLabelStrategy implements IActionLayoutStrategy {
 		const initialPrimaryActions = this.editorToolbar.primaryActions;
 		const initialSecondaryActions = this.editorToolbar.secondaryActions;
 
-		return workbenchDynamicCalculateActions(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth);
+		const actionOutput = workbenchDynamicCalculateActions(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth);
+		return {
+			primaryActions: actionOutput.primaryActions.map(a => a.action),
+			secondaryActions: actionOutput.secondaryActions
+		};
 	}
 }
 
@@ -523,11 +535,11 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 	}
 }
 
-export function workbenchCalculateActions(initialPrimaryActions: IActionModel[], initialSecondaryActions: IAction[], leftToolbarContainerMaxWidth: number): { primaryActions: IAction[]; secondaryActions: IAction[] } {
+export function workbenchCalculateActions(initialPrimaryActions: IActionModel[], initialSecondaryActions: IAction[], leftToolbarContainerMaxWidth: number): { primaryActions: IActionModel[]; secondaryActions: IAction[] } {
 	return actionOverflowHelper(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth, false);
 }
 
-export function workbenchDynamicCalculateActions(initialPrimaryActions: IActionModel[], initialSecondaryActions: IAction[], leftToolbarContainerMaxWidth: number): { primaryActions: IAction[]; secondaryActions: IAction[] } {
+export function workbenchDynamicCalculateActions(initialPrimaryActions: IActionModel[], initialSecondaryActions: IAction[], leftToolbarContainerMaxWidth: number): { primaryActions: IActionModel[]; secondaryActions: IAction[] } {
 
 	if (initialPrimaryActions.length === 0) {
 		return { primaryActions: [], secondaryActions: initialSecondaryActions };
@@ -542,10 +554,7 @@ export function workbenchDynamicCalculateActions(initialPrimaryActions: IActionM
 		initialPrimaryActions.forEach(action => {
 			action.renderLabel = true;
 		});
-		return {
-			primaryActions: initialPrimaryActions.map(action => action.action),
-			secondaryActions: initialSecondaryActions
-		};
+		return actionOverflowHelper(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth, false);
 	}
 
 	// step 2: check if they fit without labels
@@ -562,7 +571,7 @@ export function workbenchDynamicCalculateActions(initialPrimaryActions: IActionM
 
 		if (initialPrimaryActions[i].action instanceof Separator) {
 			// find group separator
-			const remainingItems = initialPrimaryActions.slice(i + 1);
+			const remainingItems = initialPrimaryActions.slice(i + 1).filter(action => action.size !== 0); // todo: need to exclude size 0 items from this
 			const newTotalSum = sum + (remainingItems.length === 0 ? 0 : (remainingItems.length * ICON_ONLY_ACTION_WIDTH + (remainingItems.length - 1) * ACTION_PADDING));
 			if (newTotalSum <= leftToolbarContainerMaxWidth) {
 				lastActionWithLabel = i;
@@ -582,12 +591,12 @@ export function workbenchDynamicCalculateActions(initialPrimaryActions: IActionM
 	initialPrimaryActions.slice(0, lastActionWithLabel + 1).forEach(action => { action.renderLabel = true; });
 	initialPrimaryActions.slice(lastActionWithLabel + 1).forEach(action => { action.renderLabel = false; });
 	return {
-		primaryActions: initialPrimaryActions.map(action => action.action),
+		primaryActions: initialPrimaryActions,
 		secondaryActions: initialSecondaryActions
 	};
 }
 
-function actionOverflowHelper(initialPrimaryActions: IActionModel[], initialSecondaryActions: IAction[], leftToolbarContainerMaxWidth: number, iconOnly: boolean): { primaryActions: IAction[]; secondaryActions: IAction[] } {
+function actionOverflowHelper(initialPrimaryActions: IActionModel[], initialSecondaryActions: IAction[], leftToolbarContainerMaxWidth: number, iconOnly: boolean): { primaryActions: IActionModel[]; secondaryActions: IAction[] } {
 	const renderActions: IActionModel[] = [];
 	const overflow: IAction[] = [];
 
@@ -665,7 +674,7 @@ function actionOverflowHelper(initialPrimaryActions: IActionModel[], initialSeco
 	}
 
 	return {
-		primaryActions: renderActions.map(action => action.action),
+		primaryActions: renderActions,
 		secondaryActions: [...overflow, ...initialSecondaryActions]
 	};
 }

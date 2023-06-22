@@ -179,6 +179,10 @@ export class Session {
 		this._teldata.rounds += `${newLen}|`;
 	}
 
+	get exchanges(): Iterable<SessionExchange> {
+		return this._exchange;
+	}
+
 	get lastExchange(): SessionExchange | undefined {
 		return this._exchange[this._exchange.length - 1];
 	}

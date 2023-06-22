@@ -12,9 +12,10 @@ import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuS
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILogService, ILoggerService, NullLogService } from 'vs/platform/log/common/log';
+import { ILoggerService, NullLogService } from 'vs/platform/log/common/log';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -55,7 +56,7 @@ suite('Buffer Content Tracker', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IThemeService, themeService);
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(ILoggerService, new TestLoggerService());
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
