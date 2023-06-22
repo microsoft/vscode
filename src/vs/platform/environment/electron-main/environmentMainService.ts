@@ -5,7 +5,7 @@
 
 import { memoize } from 'vs/base/common/decorators';
 import { join } from 'vs/base/common/path';
-import { isLinuxSnap } from 'vs/base/common/platform';
+import { isLinux } from 'vs/base/common/platform';
 import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -72,12 +72,15 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get useCodeCache(): boolean { return !!this.codeCachePath; }
 
 	unsetSnapExportedVariables() {
-		if (!isLinuxSnap) {
+		if (!isLinux) {
 			return;
 		}
 		for (const key in process.env) {
 			if (key.endsWith('_VSCODE_SNAP_ORIG')) {
-				const originalKey = key.slice(0, -10); // Remove the _VSCODE_SNAP_ORIG suffix
+				const originalKey = key.slice(0, -17); // Remove the _VSCODE_SNAP_ORIG suffix
+				if (this._snapEnv[originalKey]) {
+					continue;
+				}
 				// Preserve the original value in case the snap env is re-entered
 				if (process.env[originalKey]) {
 					this._snapEnv[originalKey] = process.env[originalKey]!;
@@ -94,11 +97,12 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	}
 
 	restoreSnapExportedVariables() {
-		if (!isLinuxSnap) {
+		if (!isLinux) {
 			return;
 		}
 		for (const key in this._snapEnv) {
 			process.env[key] = this._snapEnv[key];
+			delete this._snapEnv[key];
 		}
 	}
 }
