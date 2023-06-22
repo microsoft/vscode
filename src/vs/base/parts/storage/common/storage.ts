@@ -286,7 +286,7 @@ export class Storage extends Disposable implements IStorage {
 		return this.doFlush();
 	}
 
-	async delete(key: string, external?: boolean): Promise<void> {
+	async delete(key: string, external = false): Promise<void> {
 		if (this.state === StorageState.Closed) {
 			return; // Return early if we are already closed
 		}
