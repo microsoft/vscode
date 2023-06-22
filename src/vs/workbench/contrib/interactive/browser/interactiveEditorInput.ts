@@ -219,6 +219,10 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		return basename.substr(0, basename.length - paths.extname(p).length);
 	}
 
+	override isModified() {
+		return this._editorModelReference?.isModified() ?? false;
+	}
+
 	override dispose() {
 		// we support closing the interactive window without prompt, so the editor model should not be dirty
 		this._editorModelReference?.revert({ soft: true });

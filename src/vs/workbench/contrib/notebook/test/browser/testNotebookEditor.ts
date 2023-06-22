@@ -135,6 +135,10 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		return this._dirty;
 	}
 
+	isModified(): boolean {
+		return this._dirty;
+	}
+
 	getNotebook(): NotebookTextModel {
 		return this._notebook;
 	}
