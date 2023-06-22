@@ -101,6 +101,16 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		strictEqual(storageService.getNumber('test.getNumberDefault', scope, 5), 5);
 		strictEqual(storageService.getBoolean('test.getBooleanDefault', scope, true), true);
 		deepStrictEqual(storageService.getObject('test.getObjectDefault', scope, { 'foo': 42 }), { 'foo': 42 });
+
+		storageService.storeAll([
+			{ key: 'test.storeAll1', value: 'foobar', scope, target: StorageTarget.MACHINE },
+			{ key: 'test.storeAll2', value: 4, scope, target: StorageTarget.MACHINE },
+			{ key: 'test.storeAll3', value: null, scope, target: StorageTarget.MACHINE }
+		], false);
+
+		strictEqual(storageService.get('test.storeAll1', scope, 'foobar'), 'foobar');
+		strictEqual(storageService.get('test.storeAll2', scope, '4'), '4');
+		strictEqual(storageService.get('test.storeAll3', scope, 'null'), 'null');
 	}
 
 	test('Remove Data (application)', () => {
