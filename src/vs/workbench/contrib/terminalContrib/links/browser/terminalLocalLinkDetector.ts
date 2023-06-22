@@ -11,9 +11,9 @@ import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, Reso
 import { convertLinkRangeToBuffer, getXtermLineContent, getXtermRangesByAttr, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IBufferLine, IBufferRange, Terminal } from 'xterm';
-import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { detectLinks } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
-import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
+import { ITerminalBackend, ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 
 const enum Constants {
 	/**

@@ -78,7 +78,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		logDirectoryProvider: noopLogDirectoryProvider,
 		cancellerFactory: noopRequestCancellerFactory,
 		versionProvider,
-		processFactory: new WorkerServerProcessFactory(context.extensionUri),
+		processFactory: new WorkerServerProcessFactory(context.extensionUri, logger),
 		activeJsTsEditorTracker,
 		serviceConfigurationProvider: new BrowserServiceConfigurationProvider(),
 		experimentTelemetryReporter,
@@ -108,19 +108,17 @@ async function preload(logger: Logger): Promise<void> {
 	}
 
 	const workspaceUri = vscode.workspace.workspaceFolders?.[0].uri;
-	if (!workspaceUri || workspaceUri.scheme !== 'vscode-vfs' || workspaceUri.authority !== 'github') {
-		return undefined;
+	if (!workspaceUri || workspaceUri.scheme !== 'vscode-vfs' || !workspaceUri.authority.startsWith('github')) {
+		logger.info(`Skipped loading workspace contents for repository ${workspaceUri?.toString()}`);
+		return;
 	}
 
 	try {
 		const remoteHubApi = await RemoteRepositories.getApi();
-		if (remoteHubApi.loadWorkspaceContents !== undefined) {
-			if (await remoteHubApi.loadWorkspaceContents(workspaceUri)) {
-				logger.info(`Successfully loaded workspace content for repository ${workspaceUri.toString()}`);
-			} else {
-				logger.info(`Failed to load workspace content for repository ${workspaceUri.toString()}`);
-			}
-
+		if (await remoteHubApi.loadWorkspaceContents?.(workspaceUri)) {
+			logger.info(`Successfully loaded workspace content for repository ${workspaceUri.toString()}`);
+		} else {
+			logger.info(`Failed to load workspace content for repository ${workspaceUri.toString()}`);
 		}
 	} catch (error) {
 		logger.info(`Loading workspace content for repository ${workspaceUri.toString()} failed: ${error instanceof Error ? error.toString() : 'Unknown reason'}`);

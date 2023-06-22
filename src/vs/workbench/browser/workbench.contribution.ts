@@ -169,9 +169,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.splitSizing': {
 				'type': 'string',
-				'enum': ['distribute', 'split'],
-				'default': 'distribute',
+				'enum': ['auto', 'distribute', 'split'],
+				'default': 'auto',
 				'enumDescriptions': [
+					localize('workbench.editor.splitSizingAuto', "Splits all the editor groups to equal parts unless a part has been changed in size."),
 					localize('workbench.editor.splitSizingDistribute', "Splits all the editor groups to equal parts."),
 					localize('workbench.editor.splitSizingSplit', "Splits the active editor group to equal parts.")
 				],
@@ -327,7 +328,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'patternProperties': {
 					'.*': { 'type': 'boolean' }
 				},
-				'markdownDescription': localize('exclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files from the local file history. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths. Changing this setting has no effect on existing local file history entries."),
+				'markdownDescription': localize('exclude', "Configure paths or [glob patterns](https://aka.ms/vscode-glob-patterns) for excluding files from the local file history. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths. Changing this setting has no effect on existing local file history entries."),
 				'scope': ConfigurationScope.RESOURCE
 			},
 			'workbench.localHistory.mergeWindow': {

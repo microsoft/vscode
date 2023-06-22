@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { status } from 'vs/base/browser/ui/aria/aria';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -380,6 +381,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.reveal(item);
 	}
 
+	focus(item: ChatTreeItem): void {
+		const items = this.tree.getNode(null).children;
+		const node = items.find(i => i.element?.id === item.id);
+		if (!node) {
+			return;
+		}
+
+		this.tree.setFocus([node.element]);
+		this.tree.domFocus();
+	}
+
 	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
 		if (this.viewModel) {
 			const editorValue = this.inputPart.inputEditor.getValue();
@@ -397,11 +409,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (result) {
 				this.inputPart.acceptInput(query);
 				result.responseCompletePromise.then(async () => {
-
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
 					this._chatAccessibilityService.acceptResponse(lastResponse);
 				});
+			} else {
+				this._chatAccessibilityService.acceptResponse();
 			}
 		}
 	}
@@ -508,21 +521,27 @@ export class ChatWidgetService implements IChatWidgetService {
 }
 
 
-const CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS = 7000;
+const CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS = 5000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private _responsePendingAudioCue: IDisposable | undefined;
+	private _hasReceivedRequest: boolean = false;
 
 	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
 	}
 	acceptRequest(): void {
 		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
-		this._responsePendingAudioCue = this._audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
+		this._register(disposableTimeout(() => {
+			if (!this._hasReceivedRequest) {
+				this._responsePendingAudioCue = this._audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
+			}
+		}, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS));
 	}
 	acceptResponse(response?: IChatResponseViewModel): void {
+		this._hasReceivedRequest = true;
 		this._responsePendingAudioCue?.dispose();
 		this._audioCueService.playRandomAudioCue(AudioCueGroupId.chatResponseReceived, true);
 		if (!response) {
@@ -530,6 +549,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		}
 		const errorDetails = response.errorDetails ? ` ${response.errorDetails.message}` : '';
 		status(response.response.value + errorDetails);
+		this._hasReceivedRequest = false;
 	}
 }
 

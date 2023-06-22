@@ -5,9 +5,9 @@
 
 import { IDimension } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ISettableObservable, autorun, autorunHandleChanges, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -169,4 +169,201 @@ export function animatedObservable(base: IObservable<number, boolean>, store: Di
 
 function easeOutExpo(t: number, b: number, c: number, d: number): number {
 	return t === d ? b + c : c * (-Math.pow(2, -10 * t / d) + 1) + b;
+}
+
+export function deepMerge<T extends {}>(source1: T, source2: Partial<T>): T {
+	const result = {} as T;
+	for (const key in source1) {
+		result[key] = source1[key];
+	}
+	for (const key in source2) {
+		const source2Value = source2[key];
+		if (typeof result[key] === 'object' && source2Value && typeof source2Value === 'object') {
+			result[key] = deepMerge<any>(result[key], source2Value);
+		} else {
+			result[key] = source2Value as any;
+		}
+	}
+	return result;
+}
+
+export abstract class ViewZoneOverlayWidget extends Disposable {
+	constructor(
+		editor: ICodeEditor,
+		viewZone: PlaceholderViewZone,
+		htmlElement: HTMLElement,
+	) {
+		super();
+
+		this._register(new ManagedOverlayWidget(editor, htmlElement));
+		this._register(applyStyle(htmlElement, {
+			height: viewZone.actualHeight,
+			top: viewZone.actualTop,
+		}));
+	}
+}
+
+export interface IObservableViewZone extends IViewZone {
+	onChange?: IObservable<unknown>;
+}
+
+export class PlaceholderViewZone implements IObservableViewZone {
+	public readonly domNode = document.createElement('div');
+
+	private readonly _actualTop = observableValue<number | undefined>('actualTop', undefined);
+	private readonly _actualHeight = observableValue<number | undefined>('actualHeight', undefined);
+
+	public readonly actualTop: IObservable<number | undefined> = this._actualTop;
+	public readonly actualHeight: IObservable<number | undefined> = this._actualHeight;
+
+	public readonly showInHiddenAreas = true;
+
+	public get afterLineNumber(): number { return this._afterLineNumber.get(); }
+
+	public readonly onChange?: IObservable<unknown> = this._afterLineNumber;
+
+	constructor(
+		private readonly _afterLineNumber: IObservable<number>,
+		public readonly heightInPx: number,
+	) {
+	}
+
+	onDomNodeTop = (top: number) => {
+		this._actualTop.set(top, undefined);
+	};
+
+	onComputedHeight = (height: number) => {
+		this._actualHeight.set(height, undefined);
+	};
+}
+
+
+export class ManagedOverlayWidget implements IDisposable {
+	private static _counter = 0;
+	private readonly _overlayWidgetId = `managedOverlayWidget-${ManagedOverlayWidget._counter++}`;
+
+	private readonly _overlayWidget: IOverlayWidget = {
+		getId: () => this._overlayWidgetId,
+		getDomNode: () => this._domElement,
+		getPosition: () => null
+	};
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		private readonly _domElement: HTMLElement,
+	) {
+		this._editor.addOverlayWidget(this._overlayWidget);
+	}
+
+	dispose(): void {
+		this._editor.removeOverlayWidget(this._overlayWidget);
+	}
+}
+
+export interface CSSStyle {
+	height: number | string;
+	width: number | string;
+	top: number | string;
+	visibility: 'visible' | 'hidden' | 'collapse';
+	display: 'block' | 'inline' | 'inline-block' | 'flex' | 'none';
+}
+
+export function applyStyle(domNode: HTMLElement, style: Partial<{ [TKey in keyof CSSStyle]: CSSStyle[TKey] | IObservable<CSSStyle[TKey] | undefined> | undefined }>) {
+	return autorun('applyStyle', (reader) => {
+		for (let [key, val] of Object.entries(style)) {
+			if (val && typeof val === 'object' && 'read' in val) {
+				val = val.read(reader) as any;
+			}
+			if (typeof val === 'number') {
+				val = `${val}px`;
+			}
+			domNode.style[key as any] = val as any;
+		}
+	});
+}
+
+export function readHotReloadableExport<T>(value: T, reader: IReader | undefined): T {
+	observeHotReloadableExports([value], reader);
+	return value;
+}
+
+export function observeHotReloadableExports(values: any[], reader: IReader | undefined): void {
+	const hotReload_deprecateExports = (globalThis as unknown as {
+		// This property it defined by the monaco editor playground server
+		$hotReload_deprecateExports: Set<(oldExports: Record<string, unknown>, newExports: Record<string, unknown>) => boolean>;
+	}).$hotReload_deprecateExports;
+	if (!hotReload_deprecateExports) {
+		return;
+	}
+
+	const o = observableSignalFromEvent('reload', e => {
+		function handleExports(oldExports: Record<string, unknown>, _newExports: Record<string, unknown>) {
+			if ([...Object.values(oldExports)].some(v => values.includes(v))) {
+				e(undefined);
+				return true;
+			}
+			return false;
+		}
+		hotReload_deprecateExports.add(handleExports);
+		return {
+			dispose() { hotReload_deprecateExports.delete(handleExports); }
+		};
+	});
+	o.read(reader);
+}
+
+export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObservableViewZone[]>, setIsUpdating?: (isUpdatingViewZones: boolean) => void): IDisposable {
+	const store = new DisposableStore();
+	const lastViewZoneIds: string[] = [];
+
+	store.add(autorun('applyViewZones', (reader) => {
+		const curViewZones = viewZones.read(reader);
+
+		const viewZonIdsPerViewZone = new Map<IObservableViewZone, string>();
+		const viewZoneIdPerOnChangeObservable = new Map<IObservable<unknown>, string>();
+
+		if (setIsUpdating) { setIsUpdating(true); }
+		editor.changeViewZones(a => {
+			for (const id of lastViewZoneIds) { a.removeZone(id); }
+			lastViewZoneIds.length = 0;
+
+			for (const z of curViewZones) {
+				const id = a.addZone(z);
+				lastViewZoneIds.push(id);
+				viewZonIdsPerViewZone.set(z, id);
+			}
+		});
+		if (setIsUpdating) { setIsUpdating(false); }
+
+		store.add(autorunHandleChanges('layoutZone on change', {
+			createEmptyChangeSummary() {
+				return [] as string[];
+			},
+			handleChange(context, changeSummary) {
+				const id = viewZoneIdPerOnChangeObservable.get(context.changedObservable);
+				if (id !== undefined) { changeSummary.push(id); }
+				return true;
+			},
+		}, (reader, changeSummary) => {
+			for (const vz of curViewZones) {
+				if (vz.onChange) {
+					viewZoneIdPerOnChangeObservable.set(vz.onChange, viewZonIdsPerViewZone.get(vz)!);
+					vz.onChange.read(reader);
+				}
+			}
+			if (setIsUpdating) { setIsUpdating(true); }
+			editor.changeViewZones(a => { for (const id of changeSummary) { a.layoutZone(id); } });
+			if (setIsUpdating) { setIsUpdating(false); }
+		}));
+	}));
+
+	store.add({
+		dispose() {
+			if (setIsUpdating) { setIsUpdating(true); }
+			editor.changeViewZones(a => { for (const id of lastViewZoneIds) { a.removeZone(id); } });
+			if (setIsUpdating) { setIsUpdating(false); }
+		}
+	});
+
+	return store;
 }

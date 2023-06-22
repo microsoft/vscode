@@ -103,6 +103,7 @@ suite('Suggest Widget Model', () => {
 });
 
 const provider: CompletionItemProvider = {
+	_debugDisplayName: 'test',
 	triggerCharacters: ['.'],
 	async provideCompletionItems(model, pos) {
 		const word = model.getWordAtPosition(pos);

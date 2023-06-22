@@ -619,12 +619,12 @@ export class ContractMessageAction extends AbstractInlineChatAction {
 export class InlineAccessibilityHelpContribution extends Disposable {
 	constructor() {
 		super();
-		this._register(AccessibilityHelpAction.addImplementation(106, 'inline-chat', async accessor => {
+		this._register(AccessibilityHelpAction.addImplementation(106, 'inlineChat', async accessor => {
 			const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
 			if (!codeEditor) {
 				return;
 			}
-			runAccessibilityHelpAction(accessor, codeEditor, 'inline');
+			runAccessibilityHelpAction(accessor, codeEditor, 'inlineChat');
 		}, CTX_INLINE_CHAT_FOCUSED));
 	}
 }

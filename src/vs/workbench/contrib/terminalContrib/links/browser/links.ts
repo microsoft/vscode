@@ -7,11 +7,12 @@ import { IBufferLine, IBufferRange, Terminal } from 'xterm';
 import { URI } from 'vs/base/common/uri';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IParsedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Event } from 'vs/base/common/event';
+import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
 
 export const ITerminalLinkProviderService = createDecorator<ITerminalLinkProviderService>('terminalLinkProviderService');
 export interface ITerminalLinkProviderService {

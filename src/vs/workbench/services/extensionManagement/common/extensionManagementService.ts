@@ -448,7 +448,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		if (this.extensionManagementServerService.webExtensionManagementServer) {
 			return this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.getExtensionsControlManifest();
 		}
-		return Promise.resolve({ malicious: [], deprecated: {} });
+		return Promise.resolve({ malicious: [], deprecated: {}, search: [] });
 	}
 
 	private getServer(extension: ILocalExtension): IExtensionManagementServer | null {
