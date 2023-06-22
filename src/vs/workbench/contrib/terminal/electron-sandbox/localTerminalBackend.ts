@@ -13,12 +13,12 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ILocalPtyService, IProcessPropertyMap, IPtyService, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ILocalPtyService, IProcessPropertyMap, IPtyService, IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalBackend, ITerminalBackendRegistry, ITerminalConfiguration, ITerminalProfileResolverService, TerminalExtensions, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalProfileResolverService, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -32,10 +32,11 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
 import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { mark } from 'vs/base/common/performance';
+import { mark, PerformanceMark } from 'vs/base/common/performance';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { DeferredPromise } from 'vs/base/common/async';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { memoize } from 'vs/base/common/decorators';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
@@ -53,8 +54,11 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	private readonly _proxy: IPtyService;
 	private readonly _clientEventually: DeferredPromise<MessagePortClient> = new DeferredPromise();
-
 	private readonly _ptys: Map<number, LocalPty> = new Map();
+
+	private readonly _whenConnected = new DeferredPromise<void>();
+	get whenConnected(): Promise<void> { return this._whenConnected.p; }
+	setConnected(): void { this._whenConnected.complete(); }
 
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
@@ -216,6 +220,10 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return this._proxy.listProcesses();
 	}
 
+	async getPerformanceMarks(): Promise<PerformanceMark[]> {
+		return this._proxy.getPerformanceMarks();
+	}
+
 	async reduceConnectionGraceTime(): Promise<void> {
 		this._proxy.reduceConnectionGraceTime();
 	}
@@ -229,6 +237,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return this._localPtyService.getProfiles?.(this._workspaceContextService.getWorkspace().id, profiles, defaultProfile, includeDetectedProfiles) || [];
 	}
 
+	@memoize
 	async getEnvironment(): Promise<IProcessEnvironment> {
 		return this._proxy.getEnvironment();
 	}

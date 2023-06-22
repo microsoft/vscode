@@ -10,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as DOM from 'vs/base/browser/dom';
-import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, PROFILES_TITLE, defaultUserDataProfileIcon, IUserDataProfileService, IProfileResourceTreeItem, IProfileResourceChildTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, ProfileResourceType, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ISaveProfileResult, IProfileImportOptions, PROFILE_URL_AUTHORITY, toUserDataProfileUri } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, PROFILES_TITLE, defaultUserDataProfileIcon, IUserDataProfileService, IProfileResourceTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, ProfileResourceType, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ISaveProfileResult, IProfileImportOptions, PROFILE_URL_AUTHORITY, toUserDataProfileUri } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IDialogService, IFileDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -767,10 +767,7 @@ class UserDataProfilePreviewViewPane extends TreeViewPane {
 		super.renderTreeView(DOM.append(container, DOM.$('.profile-view-tree-container')));
 		this.messageContainer = DOM.append(container, DOM.$('.profile-view-message-container.hide'));
 		this.createButtons(container);
-		this._register(this.treeView.onDidChangeCheckboxState(items => {
-			this.treeView.refresh(this.userDataProfileData.onDidChangeCheckboxState(items));
-			this.updateConfirmButtonEnablement();
-		}));
+		this._register(this.treeView.onDidChangeCheckboxState(() => this.updateConfirmButtonEnablement()));
 		this.computeAndLayout();
 		this._register(Event.any(this.userDataProfileData.onDidChangeRoots, this.treeView.onDidCollapseItem, this.treeView.onDidExpandItem)(() => this.computeAndLayout()));
 	}
@@ -895,27 +892,6 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 		} else {
 			this.descriptions.delete(type);
 		}
-	}
-
-	onDidChangeCheckboxState(items: readonly ITreeItem[]): readonly ITreeItem[] {
-		const toRefresh: ITreeItem[] = [];
-		for (const item of items) {
-			if (item.children) {
-				for (const child of item.children) {
-					if (child.checkbox) {
-						child.checkbox.isChecked = !!item.checkbox?.isChecked;
-					}
-				}
-				toRefresh.push(item);
-			} else {
-				const parent = (<IProfileResourceChildTreeItem>item).parent;
-				if (item.checkbox?.isChecked && parent?.checkbox) {
-					parent.checkbox.isChecked = true;
-					toRefresh.push(parent);
-				}
-			}
-		}
-		return items;
 	}
 
 	async getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined> {

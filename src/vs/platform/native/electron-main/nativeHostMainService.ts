@@ -521,6 +521,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		});
 	}
 
+	async isRunningUnderARM64Translation(): Promise<boolean> {
+		if (isLinux) {
+			return false;
+		}
+		return app.runningUnderARM64Translation;
+	}
+
 	@memoize
 	private get cliPath(): string {
 

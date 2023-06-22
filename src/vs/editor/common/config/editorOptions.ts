@@ -16,6 +16,7 @@ import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 //#region typed options
 
@@ -151,6 +152,10 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	readOnly?: boolean;
+	/**
+	 * The message to display when the editor is readonly.
+	 */
+	readOnlyMessage?: IMarkdownString;
 	/**
 	 * Should the textarea used for input use the DOM `readonly` attribute.
 	 * Defaults to false.
@@ -3459,6 +3464,30 @@ class EditorRulers extends BaseEditorOption<EditorOption.rulers, (number | IRule
 
 //#endregion
 
+//#region readonly
+
+/**
+ * Configuration options for readonly message
+ */
+class ReadonlyMessage extends BaseEditorOption<EditorOption.readOnlyMessage, IMarkdownString | undefined, IMarkdownString | undefined> {
+	constructor() {
+		const defaults = undefined;
+
+		super(
+			EditorOption.readOnlyMessage, 'readOnlyMessage', defaults
+		);
+	}
+
+	public validate(_input: any): IMarkdownString | undefined {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		return _input as IMarkdownString;
+	}
+}
+
+//#endregion
+
 //#region scrollbar
 
 /**
@@ -4629,6 +4658,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 
 export interface ISmartSelectOptions {
 	selectLeadingAndTrailingWhitespace?: boolean;
+	selectSubwords?: boolean;
 }
 
 /**
@@ -4642,11 +4672,17 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 		super(
 			EditorOption.smartSelect, 'smartSelect',
 			{
-				selectLeadingAndTrailingWhitespace: true
+				selectLeadingAndTrailingWhitespace: true,
+				selectSubwords: true,
 			},
 			{
 				'editor.smartSelect.selectLeadingAndTrailingWhitespace': {
 					description: nls.localize('selectLeadingAndTrailingWhitespace', "Whether leading and trailing whitespace should always be selected."),
+					default: true,
+					type: 'boolean'
+				},
+				'editor.smartSelect.selectSubwords': {
+					description: nls.localize('selectSubwords', "Whether subwords (like 'foo' in 'fooBar' or 'foo_bar') should be selected."),
 					default: true,
 					type: 'boolean'
 				}
@@ -4659,7 +4695,8 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 			return this.defaultValue;
 		}
 		return {
-			selectLeadingAndTrailingWhitespace: boolean((input as ISmartSelectOptions).selectLeadingAndTrailingWhitespace, this.defaultValue.selectLeadingAndTrailingWhitespace)
+			selectLeadingAndTrailingWhitespace: boolean((input as ISmartSelectOptions).selectLeadingAndTrailingWhitespace, this.defaultValue.selectLeadingAndTrailingWhitespace),
+			selectSubwords: boolean((input as ISmartSelectOptions).selectSubwords, this.defaultValue.selectSubwords),
 		};
 	}
 }
@@ -5016,6 +5053,7 @@ export const enum EditorOption {
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
+	readOnlyMessage,
 	renameOnType,
 	renderControlCharacters,
 	renderFinalNewline,
@@ -5522,6 +5560,7 @@ export const EditorOptions = {
 	readOnly: register(new EditorBooleanOption(
 		EditorOption.readOnly, 'readOnly', false,
 	)),
+	readOnlyMessage: register(new ReadonlyMessage()),
 	renameOnType: register(new EditorBooleanOption(
 		EditorOption.renameOnType, 'renameOnType', false,
 		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type."), markdownDeprecationMessage: nls.localize('renameOnTypeDeprecate', "Deprecated, use `editor.linkedEditing` instead.") }

@@ -10,16 +10,16 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 
 
 const inputBox = localize('chat.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter or the submit button to run a new request.');
 
-export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat' | 'inline'): string {
+export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'panelChat' | 'inlineChat'): string {
 	const keybindingService = accessor.get(IKeybindingService);
 	const content = [];
-	if (type === 'chat') {
+	if (type === 'panelChat') {
 		content.push(localize('chat.overview', 'The chat view is comprised of an input box and a request/response list. The input box is used to make requests and the list is used to display responses.'));
 		content.push(inputBox);
 		content.push(localize('chat.announcement', 'Chat responses will be announced as they come in. A response will indicate the number of code blocks, if any, and then the rest of the response.'));
@@ -50,10 +50,10 @@ function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, 
 	return format(noKbMsg, commandId);
 }
 
-export async function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor, type: 'chat' | 'inline'): Promise<void> {
+export async function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor, type: 'panelChat' | 'inlineChat'): Promise<void> {
 	const widgetService = accessor.get(IChatWidgetService);
 	const accessibleViewService = accessor.get(IAccessibleViewService);
-	const inputEditor: ICodeEditor | undefined = type === 'chat' ? widgetService.lastFocusedWidget?.inputEditor : editor;
+	const inputEditor: ICodeEditor | undefined = type === 'panelChat' ? widgetService.lastFocusedWidget?.inputEditor : editor;
 	const editorUri = editor.getModel()?.uri;
 
 	if (!inputEditor || !editorUri) {
@@ -71,15 +71,15 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 		id: type,
 		provideContent: () => helpText,
 		onClose: () => {
-			if (type === 'chat' && cachedPosition) {
+			if (type === 'panelChat' && cachedPosition) {
 				inputEditor.setPosition(cachedPosition);
 				inputEditor.focus();
-			} else if (type === 'inline') {
+			} else if (type === 'inlineChat') {
 				InlineChatController.get(editor)?.focus();
 			}
 			provider.dispose();
 		},
-		options: { ariaLabel: type === 'chat' ? localize('chat-help-label', "Chat accessibility help") : localize('inline-chat-label', "Inline chat accessibility help") }
+		options: { type: AccessibleViewType.HelpMenu, ariaLabel: type === 'panelChat' ? localize('chat-help-label', "Chat accessibility help") : localize('inline-chat-label', "Inline chat accessibility help") }
 	});
 	accessibleViewService.show(type);
 }

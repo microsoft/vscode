@@ -14,22 +14,8 @@ import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/commo
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class RemotePty extends Disposable implements ITerminalChildProcess {
-	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
-	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
-	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
-	readonly onDidChangeProperty = this._onDidChangeProperty.event;
-	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
-	readonly onProcessExit = this._onProcessExit.event;
-	private readonly _onRestoreCommands = this._register(new Emitter<ISerializedCommandDetectionCapability>());
-	readonly onRestoreCommands = this._onRestoreCommands.event;
-
-	private _startBarrier: Barrier;
-
-	private _inReplay = false;
-
-	private _properties: IProcessPropertyMap = {
+	private readonly _startBarrier: Barrier;
+	private readonly _properties: IProcessPropertyMap = {
 		cwd: '',
 		initialCwd: '',
 		fixedDimensions: { cols: undefined, rows: undefined },
@@ -41,15 +27,27 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		failedShellIntegrationActivation: false,
 		usedShellIntegrationInjection: undefined
 	};
+	private readonly _lastDimensions: { cols: number; rows: number } = { cols: -1, rows: -1 };
 
-	get id(): number { return this._id; }
+	private _inReplay = false;
+
+	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
+	readonly onProcessData = this._onProcessData.event;
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	readonly onProcessReady = this._onProcessReady.event;
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
+	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
+	readonly onProcessExit = this._onProcessExit.event;
+	private readonly _onRestoreCommands = this._register(new Emitter<ISerializedCommandDetectionCapability>());
+	readonly onRestoreCommands = this._onRestoreCommands.event;
 
 	constructor(
-		private _id: number,
+		readonly id: number,
 		readonly shouldPersist: boolean,
 		private readonly _remoteTerminalChannel: RemoteTerminalChannelClient,
-		private readonly _remoteAgentService: IRemoteAgentService,
-		private readonly _logService: ILogService
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		this._startBarrier = new Barrier();
@@ -63,9 +61,9 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 			throw new Error('Could not fetch remote environment');
 		}
 
-		this._logService.trace('Spawning remote agent process', { terminalId: this._id });
+		this._logService.trace('Spawning remote agent process', { terminalId: this.id });
 
-		const startResult = await this._remoteTerminalChannel.start(this._id);
+		const startResult = await this._remoteTerminalChannel.start(this.id);
 
 		if (startResult && 'message' in startResult) {
 			// An error occurred
@@ -83,7 +81,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 
 	shutdown(immediate: boolean): void {
 		this._startBarrier.wait().then(_ => {
-			this._remoteTerminalChannel.shutdown(this._id, immediate);
+			this._remoteTerminalChannel.shutdown(this.id, immediate);
 		});
 	}
 
@@ -93,17 +91,18 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		}
 
 		this._startBarrier.wait().then(_ => {
-			this._remoteTerminalChannel.input(this._id, data);
+			this._remoteTerminalChannel.input(this.id, data);
 		});
 	}
 
 	resize(cols: number, rows: number): void {
-		if (this._inReplay) {
+		if (this._inReplay || this._lastDimensions.cols === cols && this._lastDimensions.rows === rows) {
 			return;
 		}
 		this._startBarrier.wait().then(_ => {
-
-			this._remoteTerminalChannel.resize(this._id, cols, rows);
+			this._lastDimensions.cols = cols;
+			this._lastDimensions.rows = rows;
+			this._remoteTerminalChannel.resize(this.id, cols, rows);
 		});
 	}
 
@@ -125,12 +124,12 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		}
 
 		this._startBarrier.wait().then(_ => {
-			this._remoteTerminalChannel.acknowledgeDataEvent(this._id, charCount);
+			this._remoteTerminalChannel.acknowledgeDataEvent(this.id, charCount);
 		});
 	}
 
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
-		return this._remoteTerminalChannel.setUnicodeVersion(this._id, version);
+		return this._remoteTerminalChannel.setUnicodeVersion(this.id, version);
 	}
 
 	async getInitialCwd(): Promise<string> {
@@ -142,11 +141,11 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	}
 
 	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
-		return this._remoteTerminalChannel.refreshProperty(this._id, type);
+		return this._remoteTerminalChannel.refreshProperty(this.id, type);
 	}
 
 	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
-		return this._remoteTerminalChannel.updateProperty(this._id, type, value);
+		return this._remoteTerminalChannel.updateProperty(this.id, type, value);
 	}
 
 	handleData(e: string | IProcessDataEvent) {
@@ -156,7 +155,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		this._onProcessExit.fire(e);
 	}
 	processBinary(e: string): Promise<void> {
-		return this._remoteTerminalChannel.processBinary(this._id, e);
+		return this._remoteTerminalChannel.processBinary(this.id, e);
 	}
 	handleReady(e: IProcessReadyEvent) {
 		this._onProcessReady.fire(e);
@@ -202,7 +201,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	}
 
 	handleOrphanQuestion() {
-		this._remoteTerminalChannel.orphanQuestionReply(this._id);
+		this._remoteTerminalChannel.orphanQuestionReply(this.id);
 	}
 
 	async getLatency(): Promise<number> {

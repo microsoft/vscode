@@ -213,6 +213,7 @@ export class ViewZoneManager extends Disposable {
 									afterLineNumber: a.originalRange.startLineNumber + i,
 									domNode: createFakeLinesDiv(),
 									heightInPx: (count - 1) * modLineHeight,
+									showInHiddenAreas: true,
 								});
 							}
 						}
@@ -224,6 +225,7 @@ export class ViewZoneManager extends Disposable {
 							minWidthInPx: result.minWidthInPx,
 							marginDomNode,
 							setZoneId(id) { zoneId = id; },
+							showInHiddenAreas: true,
 						});
 					}
 
@@ -290,12 +292,14 @@ export class ViewZoneManager extends Disposable {
 						afterLineNumber: a.originalRange.endLineNumberExclusive - 1,
 						domNode: createFakeLinesDiv(),
 						heightInPx: delta,
+						showInHiddenAreas: true,
 					});
 				} else {
 					modViewZones.push({
 						afterLineNumber: a.modifiedRange.endLineNumberExclusive - 1,
 						domNode: createFakeLinesDiv(),
 						heightInPx: -delta,
+						showInHiddenAreas: true,
 					});
 				}
 			}
@@ -547,7 +551,7 @@ function getAdditionalLineHeights(editor: CodeEditorWidget, viewZonesToIgnore: R
 		if (viewZonesToIgnore.has(w.id)) {
 			continue;
 		}
-		const modelLineNumber = coordinatesConverter.convertViewPositionToModelPosition(
+		const modelLineNumber = w.afterLineNumber === 0 ? 0 : coordinatesConverter.convertViewPositionToModelPosition(
 			new Position(w.afterLineNumber, 1)
 		).lineNumber;
 		viewZoneHeights.push({ lineNumber: modelLineNumber, heightInPx: w.height });

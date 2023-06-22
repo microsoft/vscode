@@ -1298,6 +1298,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get onDidPerformUserAction() {
 				checkProposedApiEnabled(extension, 'interactiveUserActions');
 				return extHostChat.onDidPerformUserAction;
+			},
+			transferChatSession(session: vscode.InteractiveSession, toWorkspace: vscode.Uri) {
+				checkProposedApiEnabled(extension, 'interactive');
+				return extHostChat.transferChatSession(session, toWorkspace);
 			}
 		};
 

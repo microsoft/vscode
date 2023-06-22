@@ -5,68 +5,69 @@
 
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import * as DOM from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Toggle, unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
+import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { Toggle, unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
+import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose, isDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, getLanguageTagSettingPlainKey, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService, getLanguageTagSettingPlainKey } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { inspectSetting, ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, ObjectSettingDropdownWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, ObjectSettingCheckboxWidget, IncludeSettingWidget } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
-import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
-import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
-import { Codicon } from 'vs/base/common/codicons';
-import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IListService, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
-import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
-import { getIndicatorsLabelAriaLabel, ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel } from 'vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { defaultButtonStyles, getInputBoxStyle, getListStyles, getSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { defaultButtonStyles, getInputBoxStyle, getListStyles, getSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
+import { IUserDataSyncEnablementService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
+import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
+import { ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel, getIndicatorsLabelAriaLabel } from 'vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators';
+import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
+import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, inspectSetting, settingKeyToDisplayFormat } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
+import { ExcludeSettingWidget, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, ISettingListChangeEvent, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
+import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
+import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
 
 const $ = DOM.$;
 
@@ -2074,7 +2075,7 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 			template.validationErrorMessageElement.innerText = errMsg;
 			const validationError = localize('validationError', "Validation Error.");
 			template.inputBox.inputElement.parentElement!.setAttribute('aria-label', [validationError, errMsg].join(' '));
-			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
+			if (!calledOnStartup) { aria.status(validationError + ' ' + errMsg); }
 			return true;
 		} else {
 			template.inputBox.inputElement.parentElement!.removeAttribute('aria-label');
@@ -2101,7 +2102,7 @@ function renderArrayValidations(
 			template.validationErrorMessageElement.innerText = errMsg;
 			const validationError = localize('validationError', "Validation Error.");
 			template.containerElement.setAttribute('aria-label', [dataElement.setting.key, validationError, errMsg].join(' '));
-			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
+			if (!calledOnStartup) { aria.status(validationError + ' ' + errMsg); }
 			return true;
 		} else {
 			template.containerElement.setAttribute('aria-label', dataElement.setting.key);
@@ -2312,7 +2313,7 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 				ariaLabelSections.push(`${indicatorsLabelAriaLabel}.`);
 			}
 
-			const descriptionWithoutSettingLinks = fixSettingLinks(element.description, false);
+			const descriptionWithoutSettingLinks = renderMarkdownAsPlaintext({ value: fixSettingLinks(element.description, false) });
 			if (descriptionWithoutSettingLinks.length) {
 				ariaLabelSections.push(descriptionWithoutSettingLinks);
 			}

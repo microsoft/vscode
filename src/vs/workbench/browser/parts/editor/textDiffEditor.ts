@@ -9,7 +9,7 @@ import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/t
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { AbstractTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, EditorInputCapabilities, isEditorInput, isTextEditorViewState, createTooLargeFileError } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, isEditorInput, isTextEditorViewState, createTooLargeFileError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -160,7 +160,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			// a resolved model might have more specific information about being
 			// readonly or not that the input did not have.
 			control.updateOptions({
-				readOnly: resolvedDiffEditorModel.modifiedModel?.isReadonly(),
+				...this.getReadonlyConfiguration(resolvedDiffEditorModel.modifiedModel?.isReadonly()),
 				originalEditable: !resolvedDiffEditorModel.originalModel?.isReadonly()
 			});
 
@@ -280,12 +280,10 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	protected override getConfigurationOverrides(): IDiffEditorOptions {
-		const readOnly = this.input instanceof DiffEditorInput && this.input.modified.hasCapability(EditorInputCapabilities.Readonly);
-
 		return {
 			...super.getConfigurationOverrides(),
-			readOnly,
-			originalEditable: this.input instanceof DiffEditorInput && !this.input.original.hasCapability(EditorInputCapabilities.Readonly),
+			...this.getReadonlyConfiguration(this.input?.isReadonly()),
+			originalEditable: this.input instanceof DiffEditorInput && !this.input.original.isReadonly(),
 			lineDecorationsWidth: '2ch'
 		};
 	}
@@ -293,8 +291,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	protected override updateReadonly(input: EditorInput): void {
 		if (input instanceof DiffEditorInput) {
 			this.diffEditorControl?.updateOptions({
-				readOnly: input.hasCapability(EditorInputCapabilities.Readonly),
-				originalEditable: !input.original.hasCapability(EditorInputCapabilities.Readonly),
+				...this.getReadonlyConfiguration(input.isReadonly()),
+				originalEditable: !input.original.isReadonly(),
 			});
 		} else {
 			super.updateReadonly(input);

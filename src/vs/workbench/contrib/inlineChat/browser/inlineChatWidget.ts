@@ -621,7 +621,7 @@ export class InlineChatWidget {
 		const selector: LanguageSelector = { scheme: this._inputModel.uri.scheme, pattern: this._inputModel.uri.path, language: this._inputModel.getLanguageId() };
 		this._slashCommands.add(this._languageFeaturesService.completionProvider.register(selector, new class implements CompletionItemProvider {
 
-			_debugDisplayName?: string = 'InlineChatSlashCommandProvider';
+			_debugDisplayName: string = 'InlineChatSlashCommandProvider';
 
 			readonly triggerCharacters?: string[] = ['/'];
 
