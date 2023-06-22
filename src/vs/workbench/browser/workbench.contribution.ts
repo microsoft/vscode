@@ -169,9 +169,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.splitSizing': {
 				'type': 'string',
-				'enum': ['distribute', 'split'],
-				'default': 'distribute',
+				'enum': ['auto', 'distribute', 'split'],
+				'default': 'auto',
 				'enumDescriptions': [
+					localize('workbench.editor.splitSizingAuto', "Splits all the editor groups to equal parts unless a part has been changed in size."),
 					localize('workbench.editor.splitSizingDistribute', "Splits all the editor groups to equal parts."),
 					localize('workbench.editor.splitSizingSplit', "Splits the active editor group to equal parts.")
 				],

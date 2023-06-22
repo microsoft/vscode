@@ -11,12 +11,11 @@ import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ISerializedTerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -63,7 +62,8 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		readonly remoteAuthority: string | undefined,
 		private readonly _remoteTerminalChannel: RemoteTerminalChannelClient,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@ILogService logService: ILogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalLogService logService: ITerminalLogService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
@@ -221,7 +221,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			rows,
 			unicodeVersion
 		);
-		const pty = new RemotePty(result.persistentTerminalId, shouldPersist, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
+		const pty = this._instantiationService.createInstance(RemotePty, result.persistentTerminalId, shouldPersist, this._remoteTerminalChannel);
 		this._ptys.set(result.persistentTerminalId, pty);
 		return pty;
 	}
@@ -233,7 +233,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 		try {
 			await this._remoteTerminalChannel.attachToProcess(id);
-			const pty = new RemotePty(id, true, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
+			const pty = this._instantiationService.createInstance(RemotePty, id, true, this._remoteTerminalChannel);
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {

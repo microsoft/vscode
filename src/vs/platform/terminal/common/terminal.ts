@@ -15,6 +15,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/registry/common/platform';
 import type * as performance from 'vs/base/common/performance';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
@@ -1057,3 +1058,13 @@ export const ILocalPtyService = createDecorator<ILocalPtyService>('localPtyServi
  * **This service should only be used within the terminal component.**
  */
 export interface ILocalPtyService extends IPtyService { }
+
+export const ITerminalLogService = createDecorator<ITerminalLogService>('terminalLogService');
+export interface ITerminalLogService extends ILogService {
+	/**
+	 * Similar to _serviceBrand but used to differentiate this service at compile time from
+	 * ILogService; ITerminalLogService is an ILogService, but ILogService is not an
+	 * ITerminalLogService.
+	 */
+	readonly _logBrand: undefined;
+}

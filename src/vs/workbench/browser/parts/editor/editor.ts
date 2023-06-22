@@ -39,7 +39,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	openSideBySideDirection: 'right',
 	closeEmptyGroups: true,
 	labelFormat: 'default',
-	splitSizing: 'distribute',
+	splitSizing: 'auto',
 	splitOnDragAndDrop: true,
 	centeredLayoutFixedWidth: false,
 };

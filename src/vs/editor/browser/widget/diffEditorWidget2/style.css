@@ -88,3 +88,12 @@
 	stroke: var(--vscode-diffEditor-move-border);
 	stroke-width: 2;
 }
+
+.char-delete.diff-range-empty {
+	margin-left: -1px;
+	border-left: solid var(--vscode-diffEditor-removedTextBackground) 3px;
+}
+
+.char-insert.diff-range-empty {
+	border-left: solid var(--vscode-diffEditor-insertedTextBackground) 3px;
+}

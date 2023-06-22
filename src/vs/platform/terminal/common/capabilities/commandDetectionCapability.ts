@@ -112,7 +112,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	constructor(
 		private readonly _terminal: Terminal,
-		@ILogService private readonly _logService: ILogService
+		private readonly _logService: ILogService
 	) {
 		this._dimensions = {
 			cols: this._terminal.cols,

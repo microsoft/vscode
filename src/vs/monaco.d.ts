@@ -36,7 +36,7 @@ declare namespace monaco {
 		/**
 		 * Create a trusted types policy (same API as window.trustedTypes.createPolicy)
 		 */
-		createTrustedTypesPolicy(
+		createTrustedTypesPolicy?(
 			policyName: string,
 			policyOptions?: ITrustedTypePolicyOptions,
 		): undefined | ITrustedTypePolicy;
@@ -1649,6 +1649,10 @@ declare namespace monaco.editor {
 		 * CSS class name describing the decoration.
 		 */
 		className?: string | null;
+		/**
+		 * Indicates whether the decoration should span across the entire line when it continues onto the next line.
+		 */
+		shouldFillLineOnLineBreak?: boolean | null;
 		blockClassName?: string | null;
 		/**
 		 * Indicates if this block should be rendered after the last line.
