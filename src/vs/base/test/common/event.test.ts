@@ -167,7 +167,7 @@ suite('Event', function () {
 	test('Emitter, dispose emitter during emission', () => {
 		const emitter = new Emitter<void>();
 		const calls: number[] = [];
-		Array.from({ length: 25 }, (_, n) => emitter.event(() => {
+		const disposables = Array.from({ length: 25 }, (_, n) => emitter.event(() => {
 			if (n === 10) {
 				emitter.dispose();
 			}
@@ -175,6 +175,7 @@ suite('Event', function () {
 		}));
 
 		emitter.fire();
+		disposables.forEach(d => d.dispose());
 		assert.deepStrictEqual(calls, Array.from({ length: 11 }, (_, n) => n));
 	});
 
