@@ -7,10 +7,11 @@ import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { findLast } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { deepClone } from 'vs/base/common/objects';
 import { IObservable, ISettableObservable, autorun, derived, keepAlive, observableValue } from 'vs/base/common/observable';
+import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
 import { disposableObservableValue, transaction } from 'vs/base/common/observableImpl/base';
 import { derivedWithStore } from 'vs/base/common/observableImpl/derived';
-import { isDefined } from 'vs/base/common/types';
 import { Constants } from 'vs/base/common/uint';
 import 'vs/css!./style';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
@@ -19,32 +20,27 @@ import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditorWidget';
-import { arrowRevertChange, diffAddDecoration, diffDeleteDecoration, diffFullLineAddDecoration, diffFullLineDeleteDecoration } from 'vs/editor/browser/widget/diffEditorWidget2/decorations';
+import { DiffEditorDecorations } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorDecorations';
 import { DiffEditorSash } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorSash';
+import { DiffReview2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffReview';
 import { ViewZoneManager } from 'vs/editor/browser/widget/diffEditorWidget2/lineAlignment';
 import { MovedBlocksLinesPart } from 'vs/editor/browser/widget/diffEditorWidget2/movedBlocksLines';
 import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditorWidget2/overviewRulerPart';
 import { UnchangedRangesFeature } from 'vs/editor/browser/widget/diffEditorWidget2/unchangedRanges';
-import { ObservableElementSizeObserver, applyObservableDecorations, applyStyle, deepMerge, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
+import { ObservableElementSizeObserver, applyStyle, deepMerge, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
 import { EditorOptions, IDiffEditorOptions, IEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
-import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
+import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { EditorType, IContentSizeChangedEvent, IDiffEditorModel, IDiffEditorViewModel, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffMapping, DiffModel } from './diffModel';
-import { Range } from 'vs/editor/common/core/range';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { deepClone } from 'vs/base/common/objects';
-import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
-import { DiffReview2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffReview';
 
 const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
 	enableSplitViewResizing: true,
@@ -125,9 +121,6 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._originalEditor = this._createLeftHandSideEditor(options, codeEditorWidgetOptions.originalEditor || {});
 		this._modifiedEditor = this._createRightHandSideEditor(options, codeEditorWidgetOptions.modifiedEditor || {});
 
-		this._register(applyObservableDecorations(this._originalEditor, this._decorations.map(d => d?.originalDecorations || [])));
-		this._register(applyObservableDecorations(this._modifiedEditor, this._decorations.map(d => d?.modifiedDecorations || [])));
-
 		this._sash = derivedWithStore('sash', (reader, store) => {
 			const showSash = this._options.read(reader).renderSideBySide;
 			this.elements.root.classList.toggle('side-by-side', showSash);
@@ -155,6 +148,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(autorunWithStore2('unchangedRangesFeature', (reader, store) => {
 			this.unchangedRangesFeature = store.add(new (readHotReloadableExport(UnchangedRangesFeature, reader))(
+				this._originalEditor, this._modifiedEditor, this._diffModel, this._renderSideBySide,
+			));
+		}));
+
+		this._register(autorunWithStore2('decorations', (reader, store) => {
+			store.add(new (readHotReloadableExport(DiffEditorDecorations, reader))(
 				this._originalEditor, this._modifiedEditor, this._diffModel, this._renderSideBySide,
 			));
 		}));
@@ -231,83 +230,6 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			modifiedEditor: this._modifiedEditor.getLayoutInfo(),
 			originalEditor: this._originalEditor.getLayoutInfo(),
 		};
-	});
-
-	private readonly _decorations = derived('decorations', (reader) => {
-		const diff = this._diffModel.read(reader)?.diff.read(reader);
-		if (!diff) {
-			return null;
-		}
-
-		const currentMove = this._diffModel.read(reader)!.syncedMovedTexts.read(reader);
-
-		const originalDecorations: IModelDeltaDecoration[] = [];
-		const modifiedDecorations: IModelDeltaDecoration[] = [];
-		for (const m of diff.mappings) {
-			const fullRangeOriginal = LineRange.subtract(m.lineRangeMapping.originalRange, currentMove?.lineRangeMapping.originalRange)
-				.map(i => i.toInclusiveRange()).filter(isDefined);
-			for (const range of fullRangeOriginal) {
-				originalDecorations.push({ range, options: diffFullLineDeleteDecoration });
-			}
-
-			const fullRangeModified = LineRange.subtract(m.lineRangeMapping.modifiedRange, currentMove?.lineRangeMapping.modifiedRange)
-				.map(i => i.toInclusiveRange()).filter(isDefined);
-			for (const range of fullRangeModified) {
-				modifiedDecorations.push({ range, options: diffFullLineAddDecoration });
-			}
-
-			for (const i of m.lineRangeMapping.innerChanges || []) {
-				if (currentMove
-					&& (currentMove.lineRangeMapping.originalRange.intersect(new LineRange(i.originalRange.startLineNumber, i.originalRange.endLineNumber))
-						|| currentMove.lineRangeMapping.modifiedRange.intersect(new LineRange(i.modifiedRange.startLineNumber, i.modifiedRange.endLineNumber)))) {
-					continue;
-				}
-				originalDecorations.push({ range: i.originalRange, options: diffDeleteDecoration });
-				modifiedDecorations.push({ range: i.modifiedRange, options: diffAddDecoration });
-			}
-
-			if (!m.lineRangeMapping.modifiedRange.isEmpty && this._renderSideBySide.read(reader) && !currentMove) {
-				modifiedDecorations.push({ range: Range.fromPositions(new Position(m.lineRangeMapping.modifiedRange.startLineNumber, 1)), options: arrowRevertChange });
-			}
-		}
-
-		if (currentMove) {
-			for (const m of currentMove.changes) {
-				const fullRangeOriginal = m.originalRange.toInclusiveRange();
-				if (fullRangeOriginal) {
-					originalDecorations.push({ range: fullRangeOriginal, options: diffFullLineDeleteDecoration });
-				}
-				const fullRangeModified = m.modifiedRange.toInclusiveRange();
-				if (fullRangeModified) {
-					modifiedDecorations.push({ range: fullRangeModified, options: diffFullLineAddDecoration });
-				}
-
-				for (const i of m.innerChanges || []) {
-					originalDecorations.push({ range: i.originalRange, options: diffDeleteDecoration });
-					modifiedDecorations.push({ range: i.modifiedRange, options: diffAddDecoration });
-				}
-			}
-		}
-
-		for (const m of diff.movedTexts) {
-			originalDecorations.push({
-				range: m.lineRangeMapping.originalRange.toInclusiveRange()!, options: {
-					description: 'moved',
-					blockClassName: 'movedOriginal',
-					blockPadding: [MovedBlocksLinesPart.movedCodeBlockPadding, 0, MovedBlocksLinesPart.movedCodeBlockPadding, MovedBlocksLinesPart.movedCodeBlockPadding],
-				}
-			});
-
-			modifiedDecorations.push({
-				range: m.lineRangeMapping.modifiedRange.toInclusiveRange()!, options: {
-					description: 'moved',
-					blockClassName: 'movedModified',
-					blockPadding: [4, 0, 4, 4],
-				}
-			});
-		}
-
-		return { originalDecorations, modifiedDecorations };
 	});
 
 	private _createDiffEditorContributions() {
