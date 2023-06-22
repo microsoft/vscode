@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -31,7 +31,7 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService private readonly _environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly _logService: ILogService
 	) {
@@ -43,7 +43,7 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 	start(lastPtyId: number): IPtyHostConnection {
 		this.utilityProcess = new UtilityProcess(this._logService, NullTelemetryService, this._lifecycleMainService);
 
-		const inspectParams = parsePtyHostDebugPort(this._environmentService.args, this._environmentService.isBuilt);
+		const inspectParams = parsePtyHostDebugPort(this._environmentMainService.args, this._environmentMainService.isBuilt);
 		const execArgv = inspectParams.port ? [
 			'--nolazy',
 			`--inspect${inspectParams.break ? '-brk' : ''}=${inspectParams.port}`
@@ -75,6 +75,7 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 	}
 
 	private _createPtyHostConfiguration(lastPtyId: number) {
+		this._environmentMainService.unsetSnapExportedVariables();
 		const config: { [key: string]: string } = {
 			...deepClone(process.env),
 			VSCODE_LAST_PTY_ID: String(lastPtyId),
@@ -93,6 +94,7 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 		if (startupDelay && typeof startupDelay === 'number') {
 			config.VSCODE_STARTUP_DELAY = String(startupDelay);
 		}
+		this._environmentMainService.restoreSnapExportedVariables();
 		return config;
 	}
 
