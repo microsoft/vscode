@@ -11,6 +11,7 @@ import { compareFileExtensions, compareFileNames, comparePaths } from 'vs/base/c
 import { memoize } from 'vs/base/common/decorators';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
+import { IRelativePattern } from 'vs/base/common/glob';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
@@ -39,10 +40,11 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExclusiveDocumentFilter, NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { CellSearchModel, ICellMatch, IFileMatchWithCells, contentMatchesToTextSearchMatches, isIFileMatchWithCells, rawCellPrefix, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { IEditorResolverService, priorityToRank } from 'vs/workbench/services/editor/common/editorResolverService';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IFileQuery, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
@@ -1969,11 +1971,26 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 	private async getClosedNotebookResults(textQuery: ITextQuery, scannedFiles: ResourceSet, token: CancellationToken): Promise<{ results: ResourceMap<IFileMatchWithCells | null>; limitHit: boolean }> {
+		const infoProviders = this.notebookService.getContributedNotebookTypes();
+		const includes = infoProviders.flatMap(
+			(provider) => {
+				return provider.selectors.map((selector) => {
+					const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as IRelativePattern | string;
+					return globPattern;
+				}
+				);
+			}
+		).join(',');
+
+		const notebookMatchGlob = '**/{' +
+			includes
+			+ '}';
+
 		const results = new ResourceMap<IFileMatchWithCells | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
-		// TODO: support more than just ipynb
+
 		const query: IFileQuery = {
 			type: QueryType.File,
-			filePattern: '**/*.ipynb',
+			filePattern: notebookMatchGlob,
 			folderQueries: textQuery.folderQueries
 		};
 
@@ -2398,24 +2415,27 @@ interface INotebookDataEditInfo {
 }
 class NotebookDataCache {
 	private _entries: ResourceMap<INotebookDataEditInfo>;
-	private _serializer: INotebookSerializer | undefined;
+	// private _serializer: INotebookSerializer | undefined;
 
 	constructor(
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IFileService private readonly fileService: IFileService,
 		@INotebookService private readonly notebookService: INotebookService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 	) {
 		this._entries = new ResourceMap<INotebookDataEditInfo>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
-		this.initSerializer();
 	}
 
-	async initSerializer() {
-		const info = await this.notebookService.withNotebookDataProvider('jupyter-notebook');
+	async getSerializer(notebookUri: URI): Promise<INotebookSerializer | undefined> {
+		const registeredEditorInfo = this.editorResolverService.getEditors(notebookUri);
+		const priorityEditorInfo = registeredEditorInfo.reduce((acc, val) =>
+			priorityToRank(acc.priority) > priorityToRank(val.priority) ? acc : val
+		);
+		const info = await this.notebookService.withNotebookDataProvider(priorityEditorInfo.id);
 		if (!(info instanceof SimpleNotebookProviderInfo)) {
-			throw new Error('CANNOT open file notebook with this provider');
+			return undefined;
 		}
-		this._serializer = info.serializer;
-
+		return info.serializer;
 	}
 
 	async getNotebookData(notebookUri: URI): Promise<NotebookData> {
@@ -2439,11 +2459,12 @@ class NotebookDataCache {
 
 			const content = await this.fileService.readFileStream(notebookUri);
 			const bytes = await streamToBuffer(content.value);
-			if (!this._serializer) {
+			const serializer = await this.getSerializer(notebookUri);
+			if (!serializer) {
 				//unsupported
 				throw new Error(`serializer not initialized`);
 			}
-			_data = await this._serializer.dataToNotebook(bytes);
+			_data = await serializer.dataToNotebook(bytes);
 			this._entries.set(notebookUri, { notebookData: _data, mTime });
 			return _data;
 		}
