@@ -136,15 +136,15 @@ export class InlineChatWidget {
 			h('div.previewDiff.hidden@previewDiff'),
 			h('div.previewCreateTitle.show-file-icons@previewCreateTitle'),
 			h('div.previewCreate.hidden@previewCreate'),
+			h('div.markdownMessage.hidden@markdownMessage', [
+				h('div.message@message'),
+				h('div.messageActions@messageActions')
+			]),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
 				h('div.actions.hidden@statusToolbar'),
 				h('div.label.status.hidden@statusLabel'),
 				h('div.actions.hidden@feedbackToolbar'),
-			]),
-			h('div.markdownMessage.hidden@markdownMessage', [
-				h('div.message@message'),
-				h('div.messageActions@messageActions')
 			]),
 		]
 	);
