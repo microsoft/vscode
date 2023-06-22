@@ -15,15 +15,14 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { isWeb } from 'vs/base/common/platform';
 
 export const showStartEntryInWeb = new RawContextKey<boolean>('showRemoteStartEntryInWeb', false);
 export class RemoteStartEntry extends Disposable implements IWorkbenchContribution {
 
 	private static readonly REMOTE_WEB_START_ENTRY_ACTIONS_COMMAND_ID = 'workbench.action.remote.showWebStartEntryActions';
 
-	private readonly remoteExtensionId!: string;
-	private readonly startCommand!: string;
+	private readonly remoteExtensionId: string;
+	private readonly startCommand: string;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -34,16 +33,10 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 		@IContextKeyService private readonly contextKeyService: IContextKeyService) {
 
 		super();
-		if (!isWeb) {
-			return;
-		}
 
 		const remoteExtensionTips = this.productService.remoteExtensionTips?.['tunnel'];
-		if (!remoteExtensionTips) {
-			return;
-		}
-		this.startCommand = remoteExtensionTips.startEntry?.startCommand ?? '';
-		this.remoteExtensionId = remoteExtensionTips.extensionId;
+		this.startCommand = remoteExtensionTips?.startEntry?.startCommand ?? '';
+		this.remoteExtensionId = remoteExtensionTips?.extensionId ?? '';
 
 		this._init();
 		this.registerActions();
