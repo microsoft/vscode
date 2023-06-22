@@ -259,7 +259,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		return input.resource;
 	}
 
-	private updateEditorConfiguration(resource = this.getActiveResource()): void {
+	protected updateEditorConfiguration(resource = this.getActiveResource()): void {
 		let configuration: IEditorConfiguration | undefined = undefined;
 		if (resource) {
 			configuration = this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource);

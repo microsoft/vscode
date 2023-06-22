@@ -3,40 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { Dimension, multibyteAwareBtoa } from 'vs/base/browser/dom';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
-import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
+import { isEqual } from 'vs/base/common/resources';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { assertIsDefined, isObject, withNullAsUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
+import { IEditorOptions as ICodeEditorOptions, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorModel, IDiffEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { localize } from 'vs/nls';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLargeFileOperationError } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { AbstractTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, isEditorInput, isTextEditorViewState, createTooLargeFileError } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorFactoryRegistry, IEditorOpenContext, ITextDiffEditorPane, TEXT_DIFF_EDITOR_ID, createTooLargeFileError, isEditorInput, isTextEditorViewState } from 'vs/workbench/common/editor';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { URI } from 'vs/base/common/uri';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isEqual } from 'vs/base/common/resources';
-import { Dimension, multibyteAwareBtoa } from 'vs/base/browser/dom';
-import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLargeFileOperationError } from 'vs/platform/files/common/files';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
+import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -134,6 +134,10 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			const control = assertIsDefined(this.diffEditorControl);
 			const resolvedDiffEditorModel = resolvedModel as TextDiffEditorModel;
 
+			if (resolvedDiffEditorModel) {
+				// Update the settings before creating the view model, as `waitForDiff` depends on the configuration
+				this.updateEditorConfiguration(resolvedDiffEditorModel.textDiffEditorModel!.modified.uri);
+			}
 			const vm = resolvedDiffEditorModel.textDiffEditorModel ? control.createViewModel(resolvedDiffEditorModel.textDiffEditorModel) : null;
 			await vm?.waitForDiff();
 			control.setModel(vm);
@@ -258,7 +262,11 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return e.affectsConfiguration(resource, 'diffEditor');
 	}
 
+	/**
+	 * @param configuration the entire VS Code configuration, resolved for the current resource.
+	 */
 	protected override computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {
+		/** represents configuration.editor + some overrides */
 		const editorConfiguration = super.computeConfiguration(configuration);
 
 		// Handle diff editor specially by merging in diffEditor configuration
