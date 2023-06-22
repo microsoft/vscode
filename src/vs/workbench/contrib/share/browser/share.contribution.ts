@@ -30,6 +30,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 const targetMenus = [
 	MenuId.EditorContextShare,
@@ -128,3 +130,16 @@ class ShareWorkbenchContribution {
 registerSingleton(IShareService, ShareService, InstantiationType.Delayed);
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(ShareWorkbenchContribution, LifecyclePhase.Eventually);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	...workbenchConfigurationNodeBase,
+	properties: {
+		'workbench.experimental.share.enabled': {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			markdownDescription: localize('experimental.share.enabled', "Controls whether to render the Share action next to the command center when {0} is {1}.", '`#window.commandCenter#`', '`true`'),
+			restricted: false,
+		}
+	}
+});
