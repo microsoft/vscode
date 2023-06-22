@@ -16,7 +16,7 @@ import { overviewRulerRangeHighlight } from 'vs/editor/common/core/editorColorRe
 import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
 import { IKeyMods, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import { status } from 'vs/base/browser/ui/aria/aria';
 
 interface IEditorLineDecoration {
 	readonly rangeHighlightId: string;
@@ -149,7 +149,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 		}
 		const model = editor.getModel();
 		if (model && 'getLineContent' in model) {
-			alert(`${model.getLineContent(options.range.startLineNumber)}`);
+			status(`${model.getLineContent(options.range.startLineNumber)}`);
 		}
 	}
 

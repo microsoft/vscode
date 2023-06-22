@@ -13,13 +13,12 @@ import type { Event } from 'vs/base/common/event';
 import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import type { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import type { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { ITranslations } from 'vs/platform/extensionManagement/common/extensionNls';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -213,8 +212,14 @@ export interface IWorkbenchConstructionOptions {
 
 	/**
 	 * The credentials provider to store and retrieve secrets.
+	 * TODO: Remove this in favor of the secret storage provider.
 	 */
 	readonly credentialsProvider?: ICredentialsProvider;
+
+	/**
+	 * The secret storage provider to store and retrieve secrets.
+	 */
+	readonly secretStorageProvider?: ISecretStorageProvider;
 
 	/**
 	 * Additional builtin extensions those cannot be uninstalled but only be disabled.
@@ -222,7 +227,7 @@ export interface IWorkbenchConstructionOptions {
 	 * 	- an extension in the Marketplace
 	 * 	- location of the extension where it is hosted.
 	 */
-	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents | HostedExtension)[];
+	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents)[];
 
 	/**
 	 * List of extensions to be enabled if they are installed.
@@ -343,7 +348,7 @@ export interface IWorkbenchConstructionOptions {
 	readonly initialColorTheme?: IInitialColorTheme;
 
 	/**
-	 *  Welcome view dialog on first launch. Can be dismissed by the user.
+	 *  Welcome dialog. Can be dismissed by the user.
 	 */
 	readonly welcomeDialog?: IWelcomeDialog;
 
@@ -375,15 +380,6 @@ export interface IResourceUriProvider {
 export type ExtensionId = string;
 
 export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId; preRelease?: boolean; migrateStorageFrom?: ExtensionId };
-export interface HostedExtension {
-	readonly location: UriComponents;
-	readonly preRelease?: boolean;
-	readonly packageJSON?: IExtensionManifest;
-	readonly defaultPackageTranslations?: ITranslations | null;
-	readonly packageNLSUris?: Map<string, UriComponents>;
-	readonly readmeUri?: UriComponents;
-	readonly changelogUri?: UriComponents;
-}
 
 export interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
@@ -639,14 +635,19 @@ export interface IWelcomeDialog {
 	buttonText: string;
 
 	/**
-	 * Message text and icon for the welcome dialog.
+	 * Button command to execute from the welcome dialog.
 	 */
-	messages: { message: string; icon: string }[];
+	buttonCommand: string;
 
 	/**
-	 * Optional action to appear as links at the bottom of the welcome dialog.
+	 * Message text for the welcome dialog.
 	 */
-	action?: IWelcomeLinkAction;
+	message: string;
+
+	/**
+	 * Media to include in the welcome dialog.
+	 */
+	media: { altText: string; path: string };
 }
 
 export interface IDefaultView {
@@ -825,5 +826,5 @@ export interface IRemoteResourceRequest {
 	/**
 	 * A method called by the editor to issue a response to the request.
 	 */
-	respondWith(statusCode: number, body: Uint8Array): void;
+	respondWith(statusCode: number, body: Uint8Array, headers: Record<string, string>): void;
 }

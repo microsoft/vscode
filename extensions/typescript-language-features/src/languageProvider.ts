@@ -46,7 +46,7 @@ export default class LanguageProvider extends Disposable {
 		const syntax: vscode.DocumentFilter[] = [];
 		for (const language of this.description.languageIds) {
 			syntax.push({ language });
-			for (const scheme of fileSchemes.semanticSupportedSchemes) {
+			for (const scheme of fileSchemes.getSemanticSupportedSchemes()) {
 				semantic.push({ language, scheme });
 			}
 		}

@@ -95,13 +95,15 @@ export class WorkbenchToolBar extends ToolBar {
 			..._options,
 			// mandatory (overide options)
 			allowContextMenu: true,
+			skipTelemetry: typeof _options?.telemetrySource === 'string',
 		});
 
 		// telemetry logic
-		if (_options?.telemetrySource) {
+		const telemetrySource = _options?.telemetrySource;
+		if (telemetrySource) {
 			this._store.add(this.actionBar.onDidRun(e => telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
 				'workbenchActionExecuted',
-				{ id: e.action.id, from: _options!.telemetrySource! })
+				{ id: e.action.id, from: telemetrySource })
 			));
 		}
 	}
@@ -235,6 +237,7 @@ export class WorkbenchToolBar extends ToolBar {
 					// add context menu actions (iff appicable)
 					menuId: this._options?.contextMenu,
 					menuActionOptions: { renderShortTitle: true, ...this._options?.menuOptions },
+					skipTelemetry: typeof this._options?.telemetrySource === 'string',
 					contextKeyService: this._contextKeyService,
 				});
 			}));

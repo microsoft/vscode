@@ -30,12 +30,14 @@
 	"linuxIconName": "code-oss",
 	"licenseFileName": "LICENSE.txt",
 	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
+	"nodejsRepository": "https://nodejs.org",
 	"urlProtocol": "code-oss",
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"builtInExtensions": [
 		{
 			"name": "ms-vscode.js-debug-companion",
-			"version": "1.0.18",
+			"version": "1.1.1",
+			"sha256": "095dc6d5d45490966dfa74d24add92036b42bf02a37d88c4b0f510dc91deeee6",
 			"repo": "https://github.com/microsoft/vscode-js-debug-companion",
 			"metadata": {
 				"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",
@@ -51,6 +53,7 @@
 		{
 			"name": "ms-vscode.js-debug",
 			"version": "1.78.0",
+			"sha256": "9fbf0c15394fb436a4079b5f704d2718d305828be178b1219db85a9287e24870",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",
@@ -66,6 +69,7 @@
 		{
 			"name": "ms-vscode.vscode-js-profile-table",
 			"version": "1.0.3",
+			"sha256": "b9dab017506d9e6a469a0f82b392e4cb1d7a25a4843f1db8ba396cbee209cfc5",
 			"repo": "https://github.com/microsoft/vscode-js-profile-visualizer",
 			"metadata": {
 				"id": "7e52b41b-71ad-457b-ab7e-0620f1fc4feb",

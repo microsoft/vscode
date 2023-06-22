@@ -471,9 +471,17 @@ impl DevTunnels {
 						continue;
 					}
 
+					if let Some(d) = e.get_details() {
+						let detail = d.detail.unwrap_or_else(|| "unknown".to_string());
+						return Err(AnyError::from(TunnelCreationFailed(
+							name.to_string(),
+							detail,
+						)));
+					}
+
 					return Err(AnyError::from(TunnelCreationFailed(
 						name.to_string(),
-						"You've exceeded the 10 machine limit for the port fowarding service. Please remove other machines before trying to add this machine.".to_string(),
+						"You have exceeded a limit for the port fowarding service. Please remove other machines before trying to add this machine.".to_string(),
 					)));
 				}
 				Err(e) => {

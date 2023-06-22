@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-mssql/commit/3929516cce0a570e91ee1be74b09ed886cb360f4",
+	"version": "https://github.com/microsoft/vscode-mssql/commit/cb5940297a8cef76daaf4a6b63c4968c9a12d17a",
 	"name": "SQL",
 	"scopeName": "source.sql",
 	"patterns": [
@@ -424,14 +424,22 @@
 					"patterns": []
 				},
 				{
-					"begin": "/\\*",
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.comment.sql"
-						}
-					},
-					"end": "\\*/",
-					"name": "comment.block.c"
+					"include": "#comment-block"
+				}
+			]
+		},
+		"comment-block": {
+			"begin": "/\\*",
+			"captures": {
+				"0": {
+					"name": "punctuation.definition.comment.sql"
+				}
+			},
+			"end": "\\*/",
+			"name": "comment.block",
+			"patterns": [
+				{
+					"include": "#comment-block"
 				}
 			]
 		},

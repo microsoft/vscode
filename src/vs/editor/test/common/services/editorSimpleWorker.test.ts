@@ -149,7 +149,7 @@ suite('EditorSimpleWorker', () => {
 		const smallerEdits = await worker.computeHumanReadableDiff(
 			model.uri.toString(),
 			edits,
-			{ ignoreTrimWhitespace: false, maxComputationTimeMs: 0 }
+			{ ignoreTrimWhitespace: false, maxComputationTimeMs: 0, computeMoves: false }
 		);
 
 		const t1 = applyEdits(model.getValue(), edits);

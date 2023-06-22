@@ -53,6 +53,7 @@ steps:
           compile-extension:github-authentication `
           compile-extension:html-language-features-server `
           compile-extension:ipynb `
+          compile-extension:notebook-renderers `
           compile-extension:json-language-features-server `
           compile-extension:markdown-language-features-server `
           compile-extension:markdown-language-features `

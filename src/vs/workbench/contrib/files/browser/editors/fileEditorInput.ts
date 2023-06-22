@@ -24,6 +24,8 @@ import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { isConfigured } from 'vs/platform/configuration/common/configuration';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 const enum ForceOpenAs {
 	None,
@@ -189,6 +191,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	getPreferredName(): string | undefined {
 		return this.preferredName;
+	}
+
+	override isReadonly(): boolean | IMarkdownString {
+		return this.model ? this.model.isReadonly() : this.filesConfigurationService.isReadonly(this.resource);
 	}
 
 	override getDescription(verbosity?: Verbosity): string | undefined {
@@ -372,16 +378,21 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			return options.limits; // respect passed in limits if any
 		}
 
+		// We want to determine the large file configuration based on the best defaults
+		// for the resource but also respecting user settings. We only apply user settings
+		// if explicitly configured by the user. Otherwise we pick the best limit for the
+		// resource scheme.
+
 		const defaultSizeLimit = getLargeFileConfirmationLimit(this.resource);
 		let configuredSizeLimit: number | undefined = undefined;
 
-		const configuredSizeLimitMb = this.textResourceConfigurationService.getValue<number>(this.resource, 'workbench.editorLargeFileConfirmation');
-		if (typeof configuredSizeLimitMb === 'number') {
-			configuredSizeLimit = configuredSizeLimitMb * ByteSize.MB; // normalize to MB
+		const configuredSizeLimitMb = this.textResourceConfigurationService.inspect<number>(this.resource, null, 'workbench.editorLargeFileConfirmation');
+		if (isConfigured(configuredSizeLimitMb)) {
+			configuredSizeLimit = configuredSizeLimitMb.value * ByteSize.MB; // normalize to MB
 		}
 
 		return {
-			size: Math.max(defaultSizeLimit, configuredSizeLimit ?? defaultSizeLimit) // pick the highest limit
+			size: configuredSizeLimit ?? defaultSizeLimit
 		};
 	}
 

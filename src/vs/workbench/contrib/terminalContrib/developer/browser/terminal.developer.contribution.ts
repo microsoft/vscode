@@ -11,6 +11,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInternalXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
@@ -81,5 +82,23 @@ registerTerminalAction({
 		}
 		const xterm = instance.xterm as any as IInternalXtermTerminal;
 		xterm._writeText(escapedData);
+	}
+});
+
+
+registerTerminalAction({
+	id: TerminalCommandId.RestartPtyHost,
+	title: { value: localize('workbench.action.terminal.restartPtyHost', "Restart Pty Host"), original: 'Restart Pty Host' },
+	category: Categories.Developer,
+	run: async (c, accessor) => {
+		const logService = accessor.get(ITerminalLogService);
+		const backends = Array.from(c.instanceService.getRegisteredBackends());
+		const unresponsiveBackends = backends.filter(e => !e.isResponsive);
+		// Restart only unresponsive backends if there are any
+		const restartCandidates = unresponsiveBackends.length > 0 ? unresponsiveBackends : backends;
+		for (const backend of restartCandidates) {
+			logService.warn(`Restarting pty host for authority "${backend.remoteAuthority}"`);
+			backend.restartPtyHost();
+		}
 	}
 });

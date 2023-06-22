@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=https://aka.ms/configuration-dsc-schema/0.2
+# Reference: https://github.com/microsoft/vscode/wiki/How-to-Contribute
+properties:
+  resources:
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      directives:
+        description: Install Git
+        allowPrerelease: true
+      settings:
+        id: Git.Git
+        source: winget
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: npm
+      directives:
+        description: Install NodeJS version >=16.17.x and <17
+        allowPrerelease: true
+      settings:
+        id: OpenJS.NodeJS.LTS
+        version: "16.20.0"
+        source: winget
+    - resource: NpmDsc/NpmPackage
+      id: yarn
+      dependsOn:
+        - npm
+      directives:
+        description: Install Yarn
+        allowPrerelease: true
+      settings:
+        Name: 'yarn'
+        Global: true
+        PackageDirectory: '${WinGetConfigRoot}\..\'
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      directives:
+        description: Install Python 3.10
+        allowPrerelease: true
+      settings:
+        id: Python.Python.3.10
+        source: winget
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: vsPackage
+      directives:
+        description: Install Visual Studio 2022 (any edition is OK)
+        allowPrerelease: true
+      settings:
+        id: Microsoft.VisualStudio.2022.BuildTools
+        source: winget
+    - resource: Microsoft.VisualStudio.DSC/VSComponents
+      dependsOn:
+        - vsPackage
+      directives:
+        description: Install required VS workloads
+        allowPrerelease: true
+      settings:
+        productId: Microsoft.VisualStudio.Product.BuildTools
+        channelId: VisualStudio.17.Release
+        includeRecommended: true
+        components:
+          - Microsoft.VisualStudio.Workload.VCTools
+    - resource: YarnDsc/YarnInstall
+      dependsOn:
+        - npm
+      directives:
+        description: Install dependencies
+        allowPrerelease: true
+      settings:
+        PackageDirectory: '${WinGetConfigRoot}\..\'
+  configurationVersion: 0.2.0
