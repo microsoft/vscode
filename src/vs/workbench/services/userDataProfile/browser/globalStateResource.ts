@@ -5,11 +5,10 @@
 
 import { IStringDictionary } from 'vs/base/common/collections';
 import { URI } from 'vs/base/common/uri';
-import { StorageValue } from 'vs/base/parts/storage/common/storage';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -29,7 +28,7 @@ export class GlobalStateResourceInitializer implements IProfileResourceInitializ
 		const globalState: IGlobalState = JSON.parse(content);
 		const storageKeys = Object.keys(globalState.storage);
 		if (storageKeys.length) {
-			const storageValues: Array<{ key: string; value: StorageValue; scope: StorageScope; target: StorageTarget }> = [];
+			const storageValues: Array<IStorageEntry> = [];
 			for (const key of storageKeys) {
 				storageValues.push({ key, value: globalState.storage[key], scope: StorageScope.PROFILE, target: StorageTarget.USER });
 			}

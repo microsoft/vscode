@@ -19,7 +19,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { AbstractInitializer, AbstractSynchroniser, getSyncResourceLogLabel, IAcceptResult, IMergeResult, IResourcePreview, isSyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
@@ -30,7 +30,6 @@ import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDat
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { StorageValue } from 'vs/base/parts/storage/common/storage';
 
 const argvStoragePrefx = 'globalState.argv.';
 const argvProperties: string[] = ['locale'];
@@ -441,7 +440,7 @@ export class GlobalStateInitializer extends AbstractInitializer {
 		}
 
 		if (Object.keys(storage).length) {
-			const storageValues: Array<{ key: string; value: StorageValue; scope: StorageScope; target: StorageTarget }> = [];
+			const storageValues: Array<IStorageEntry> = [];
 			for (const key of Object.keys(storage)) {
 				storageValues.push({ key, value: storage[key], scope: StorageScope.PROFILE, target: StorageTarget.USER });
 			}

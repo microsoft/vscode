@@ -35,6 +35,13 @@ export interface IWillSaveStateEvent {
 	readonly reason: WillSaveStateReason;
 }
 
+export interface IStorageEntry {
+	readonly key: string;
+	readonly value: StorageValue;
+	readonly scope: StorageScope;
+	readonly target: StorageTarget;
+}
+
 export interface IStorageService {
 
 	readonly _serviceBrand: undefined;
@@ -128,7 +135,7 @@ export interface IStorageService {
 	 * @param external a hint to indicate the source of the operation is external,
 	 * such as settings sync or profile changes.
 	 */
-	storeAll(entries: Array<{ key: string; value: StorageValue; scope: StorageScope; target: StorageTarget }>, external: boolean): void;
+	storeAll(entries: Array<IStorageEntry>, external: boolean): void;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
@@ -405,7 +412,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.getStorage(scope)?.getObject(key, fallbackValue);
 	}
 
-	storeAll(entries: Array<{ key: string; value: StorageValue; scope: StorageScope; target: StorageTarget }>, external: boolean): void {
+	storeAll(entries: Array<IStorageEntry>, external: boolean): void {
 		this.withPausedEmitters(() => {
 			for (const entry of entries) {
 				this.store(entry.key, entry.value, entry.scope, entry.target, external);

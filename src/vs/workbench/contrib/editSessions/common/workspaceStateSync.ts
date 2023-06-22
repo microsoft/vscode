@@ -8,11 +8,10 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
-import { StorageValue } from 'vs/base/parts/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -130,7 +129,7 @@ export class WorkspaceStateSynchroniser extends AbstractSynchroniser implements 
 
 		if (Object.keys(storage).length) {
 			// Initialize storage with remote storage
-			const storageValues: Array<{ key: string; value: StorageValue; scope: StorageScope; target: StorageTarget }> = [];
+			const storageValues: Array<IStorageEntry> = [];
 			for (const key of Object.keys(storage)) {
 				// Deserialize the stored state
 				try {
