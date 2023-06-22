@@ -613,7 +613,7 @@ export class InlineChatController implements IEditorContribution {
 		} else if (response instanceof ErrorResponse) {
 			// show error
 			if (!response.isCancellation) {
-				status = localize('errorResponseMessage', "{0}", response.message);
+				status = response.message;
 				this._zone.value.widget.updateStatus(status, { classes: ['error'] });
 			}
 
@@ -623,7 +623,7 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.widget.updateStatus('');
 			this._zone.value.widget.updateMarkdownMessage(renderedMarkdown.element);
 			this._zone.value.widget.updateToolbar(true);
-			const content = renderedMarkdown.element?.textContent;
+			const content = renderedMarkdown.element.textContent;
 			if (content) {
 				status = localize('markdownResponseMessage', "{0}", content);
 			}
