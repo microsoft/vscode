@@ -15,22 +15,16 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, registerEditorContribution, registerEditorCommand, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
@@ -277,57 +271,6 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._domNode.setHeight(height);
 	}
 }
-
-// Show Accessibility Help is a workench command so it can also be shown when there is no editor open #108850
-class ShowAccessibilityHelpAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'editor.action.showAccessibilityHelp',
-			title: { value: nls.localize('ShowAccessibilityHelpAction', "Show Accessibility Help"), original: 'Show Accessibility Help' },
-			f1: true,
-			keybinding: {
-				primary: KeyMod.Alt | KeyCode.F1,
-				weight: KeybindingWeight.EditorContrib,
-				linux: {
-					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
-					secondary: [KeyMod.Alt | KeyCode.F1]
-				}
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-		const editorService = accessor.get(ICodeEditorService);
-		let activeEditor = editorService.getActiveCodeEditor();
-		if (!activeEditor) {
-			await commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
-		}
-		activeEditor = editorService.getActiveCodeEditor();
-
-		if (activeEditor) {
-			const controller = AccessibilityHelpController.get(activeEditor);
-			controller?.show();
-		}
-	}
-}
-
-registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController, EditorContributionInstantiation.Lazy);
-registerAction2(ShowAccessibilityHelpAction);
-
-const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
-
-registerEditorCommand(new AccessibilityHelpCommand({
-	id: 'closeAccessibilityHelp',
-	precondition: CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE,
-	handler: x => x.hide(),
-	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 100,
-		kbExpr: EditorContextKeys.focus,
-		primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]
-	}
-}));
 
 class ToggleScreenReaderMode extends Action2 {
 

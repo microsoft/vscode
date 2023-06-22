@@ -73,7 +73,7 @@ function findSpecificGit(path: string, onValidate: (path: string) => boolean): P
 		const child = cp.spawn(path, ['--version']);
 		child.stdout.on('data', (b: Buffer) => buffers.push(b));
 		child.on('error', cpErrorHandler(e));
-		child.on('exit', code => code ? e(new Error('Not found')) : c({ path, version: parseVersion(Buffer.concat(buffers).toString('utf8').trim()) }));
+		child.on('close', code => code ? e(new Error('Not found')) : c({ path, version: parseVersion(Buffer.concat(buffers).toString('utf8').trim()) }));
 	});
 }
 
@@ -404,7 +404,7 @@ export class Git {
 	async init(repository: string, options: InitOptions = {}): Promise<void> {
 		const args = ['init'];
 
-		if (options.defaultBranch && options.defaultBranch !== '') {
+		if (options.defaultBranch && options.defaultBranch !== '' && this.compareGitVersionTo('2.28.0') !== -1) {
 			args.push('-b', options.defaultBranch);
 		}
 
@@ -2021,7 +2021,7 @@ export class Repository {
 		}
 
 		// --find-renames option is only available starting with git 2.18.0
-		if (opts?.similarityThreshold && this._git.compareGitVersionTo('2.18.0') !== -1) {
+		if (opts?.similarityThreshold && opts.similarityThreshold !== 50 && this._git.compareGitVersionTo('2.18.0') !== -1) {
 			args.push(`--find-renames=${opts.similarityThreshold}%`);
 		}
 

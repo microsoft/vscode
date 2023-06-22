@@ -383,6 +383,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/filesConfiguration",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/history",
 			"project": "vscode-workbench"
 		},
@@ -520,6 +524,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/accessibility",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/issue",
 			"project": "vscode-workbench"
 		}
 	]

@@ -20,6 +20,8 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 	private diffAlgorithm: DiffAlgorithmName | IDocumentDiffProvider = 'advanced';
 	private diffAlgorithmOnDidChangeSubscription: IDisposable | undefined = undefined;
 
+	private static readonly diffCache = new Map<string, { result: IDocumentDiff; context: string }>();
+
 	constructor(
 		options: IWorkerBasedDocumentDiffProviderOptions,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
@@ -58,7 +60,14 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 			};
 		}
 
-		const sw = StopWatch.create(true);
+		const uriKey = JSON.stringify([original.uri.toString(), modified.uri.toString()]);
+		const context = JSON.stringify([original.id, modified.id, original.getAlternativeVersionId(), modified.getAlternativeVersionId(), JSON.stringify(options)]);
+		const c = WorkerBasedDocumentDiffProvider.diffCache.get(uriKey);
+		if (c && c.context === context) {
+			return c.result;
+		}
+
+		const sw = StopWatch.create();
 		const result = await this.editorWorkerService.computeDiff(original.uri, modified.uri, options, this.diffAlgorithm);
 		const timeMs = sw.elapsed();
 
@@ -81,6 +90,12 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 			throw new Error('no diff result available');
 		}
 
+		// max 10 items in cache
+		if (WorkerBasedDocumentDiffProvider.diffCache.size > 10) {
+			WorkerBasedDocumentDiffProvider.diffCache.delete(WorkerBasedDocumentDiffProvider.diffCache.keys().next().value);
+		}
+
+		WorkerBasedDocumentDiffProvider.diffCache.set(uriKey, { result, context });
 		return result;
 	}
 

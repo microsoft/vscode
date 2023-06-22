@@ -13,7 +13,6 @@ import { URI } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
-import { ILogService } from 'vs/platform/log/common/log';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IPtyService, IShellLaunchConfig, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
@@ -32,6 +31,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(
@@ -117,6 +117,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$detachFromProcess': return this._ptyService.detachFromProcess.apply(this._ptyService, args);
 
 			case '$listProcesses': return this._ptyService.listProcesses.apply(this._ptyService, args);
+			case '$getPerformanceMarks': return this._ptyService.getPerformanceMarks.apply(this._ptyService, args);
 			case '$orphanQuestionReply': return this._ptyService.orphanQuestionReply.apply(this._ptyService, args);
 			case '$acceptPtyHostResolvedVariables': return this._ptyService.acceptPtyHostResolvedVariables?.apply(this._ptyService, args);
 

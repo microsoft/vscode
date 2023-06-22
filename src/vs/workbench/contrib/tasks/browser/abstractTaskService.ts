@@ -723,7 +723,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	public async getTask(folder: IWorkspace | IWorkspaceFolder | string, identifier: string | ITaskIdentifier, compareId: boolean = false, type: string | undefined = undefined): Promise<Task | undefined> {
+	public async getTask(folder: IWorkspace | IWorkspaceFolder | string, identifier: string | ITaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {
 		if (!(await this._trust())) {
 			return;
 		}
@@ -760,7 +760,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		// We didn't find the task, so we need to ask all resolvers about it
-		const map = await this._getGroupedTasks({ type });
+		const map = await this._getGroupedTasks();
 		let values = map.get(folder);
 		values = values.concat(map.get(USER_TASKS_GROUP_KEY));
 
@@ -1834,12 +1834,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			await this._updateWorkspaceTasks();
 			const taskFolder = task.getWorkspaceFolder();
 			const taskIdentifier = task.configurationProperties.identifier;
-			const taskType = CustomTask.is(task) ? task.customizes()?.type : (ContributedTask.is(task) ? task.type : undefined);
 			// Since we save before running tasks, the task may have changed as part of the save.
 			// However, if the TaskRunSource is not User, then we shouldn't try to fetch the task again
 			// since this can cause a new'd task to get overwritten with a provided task.
 			taskToRun = ((taskFolder && taskIdentifier && (runSource === TaskRunSource.User))
-				? await this.getTask(taskFolder, taskIdentifier, false, taskType) : task) ?? task;
+				? await this.getTask(taskFolder, taskIdentifier) : task) ?? task;
 		}
 		await ProblemMatcherRegistry.onReady();
 		const executeResult = runSource === TaskRunSource.Reconnect ? this._getTaskSystem().reconnect(taskToRun, resolver) : this._getTaskSystem().run(taskToRun, resolver);
@@ -1921,8 +1920,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._modelService, this._configurationResolverService,
 			this._contextService, this._environmentService,
 			AbstractTaskService.OutputChannelId, this._fileService, this._terminalProfileResolverService,
-			this._pathService, this._viewDescriptorService, this._logService, this._configurationService, this._notificationService,
-			this, this._instantiationService,
+			this._pathService, this._viewDescriptorService, this._logService, this._notificationService,
+			this._instantiationService,
 			(workspaceFolder: IWorkspaceFolder | undefined) => {
 				if (workspaceFolder) {
 					return this._getTaskSystemInfo(workspaceFolder.uri.scheme);

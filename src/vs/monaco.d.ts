@@ -36,7 +36,7 @@ declare namespace monaco {
 		/**
 		 * Create a trusted types policy (same API as window.trustedTypes.createPolicy)
 		 */
-		createTrustedTypesPolicy(
+		createTrustedTypesPolicy?(
 			policyName: string,
 			policyOptions?: ITrustedTypePolicyOptions,
 		): undefined | ITrustedTypePolicy;
@@ -1649,6 +1649,10 @@ declare namespace monaco.editor {
 		 * CSS class name describing the decoration.
 		 */
 		className?: string | null;
+		/**
+		 * Indicates whether the decoration should span across the entire line when it continues onto the next line.
+		 */
+		shouldFillLineOnLineBreak?: boolean | null;
 		blockClassName?: string | null;
 		/**
 		 * Indicates if this block should be rendered after the last line.
@@ -2475,6 +2479,7 @@ declare namespace monaco.editor {
 		equals(b: LineRange): boolean;
 		toInclusiveRange(): Range | null;
 		toExclusiveRange(): Range;
+		mapToLineArray<T>(f: (lineNumber: number) => T): T[];
 	}
 
 	/**
@@ -2500,6 +2505,7 @@ declare namespace monaco.editor {
 		constructor(originalRange: LineRange, modifiedRange: LineRange, innerChanges: RangeMapping[] | undefined);
 		toString(): string;
 		get changedLineCount(): any;
+		flip(): LineRangeMapping;
 	}
 
 	/**
@@ -2516,6 +2522,7 @@ declare namespace monaco.editor {
 		readonly modifiedRange: Range;
 		constructor(originalRange: Range, modifiedRange: Range);
 		toString(): string;
+		flip(): RangeMapping;
 	}
 
 	export class MovedText {
@@ -2527,6 +2534,7 @@ declare namespace monaco.editor {
 		 */
 		readonly changes: readonly LineRangeMapping[];
 		constructor(lineRangeMapping: SimpleLineRangeMapping, changes: readonly LineRangeMapping[]);
+		flip(): MovedText;
 	}
 
 	export class SimpleLineRangeMapping {
@@ -2534,6 +2542,7 @@ declare namespace monaco.editor {
 		readonly modifiedRange: LineRange;
 		constructor(originalRange: LineRange, modifiedRange: LineRange);
 		toString(): string;
+		flip(): SimpleLineRangeMapping;
 	}
 	export interface IDimension {
 		width: number;
@@ -2618,6 +2627,11 @@ declare namespace monaco.editor {
 		modified: ITextModel;
 	}
 
+	export interface IDiffEditorViewModel {
+		readonly model: IDiffEditorModel;
+		waitForDiff(): Promise<void>;
+	}
+
 	/**
 	 * An event describing that an editor has had its model reset (i.e. `editor.setModel()`).
 	 */
@@ -2652,7 +2666,7 @@ declare namespace monaco.editor {
 		run(args?: unknown): Promise<void>;
 	}
 
-	export type IEditorModel = ITextModel | IDiffEditorModel;
+	export type IEditorModel = ITextModel | IDiffEditorModel | IDiffEditorViewModel;
 
 	/**
 	 * A (serializable) state of the cursors.
@@ -3299,6 +3313,10 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		readOnly?: boolean;
+		/**
+		 * The message to display when the editor is readonly.
+		 */
+		readOnlyMessage?: IMarkdownString;
 		/**
 		 * Should the textarea used for input use the DOM `readonly` attribute.
 		 * Defaults to false.
@@ -4770,6 +4788,7 @@ declare namespace monaco.editor {
 
 	export interface ISmartSelectOptions {
 		selectLeadingAndTrailingWhitespace?: boolean;
+		selectSubwords?: boolean;
 	}
 
 	/**
@@ -4923,61 +4942,62 @@ declare namespace monaco.editor {
 		quickSuggestions = 86,
 		quickSuggestionsDelay = 87,
 		readOnly = 88,
-		renameOnType = 89,
-		renderControlCharacters = 90,
-		renderFinalNewline = 91,
-		renderLineHighlight = 92,
-		renderLineHighlightOnlyWhenFocus = 93,
-		renderValidationDecorations = 94,
-		renderWhitespace = 95,
-		revealHorizontalRightPadding = 96,
-		roundedSelection = 97,
-		rulers = 98,
-		scrollbar = 99,
-		scrollBeyondLastColumn = 100,
-		scrollBeyondLastLine = 101,
-		scrollPredominantAxis = 102,
-		selectionClipboard = 103,
-		selectionHighlight = 104,
-		selectOnLineNumbers = 105,
-		showFoldingControls = 106,
-		showUnused = 107,
-		snippetSuggestions = 108,
-		smartSelect = 109,
-		smoothScrolling = 110,
-		stickyScroll = 111,
-		stickyTabStops = 112,
-		stopRenderingLineAfter = 113,
-		suggest = 114,
-		suggestFontSize = 115,
-		suggestLineHeight = 116,
-		suggestOnTriggerCharacters = 117,
-		suggestSelection = 118,
-		tabCompletion = 119,
-		tabIndex = 120,
-		unicodeHighlighting = 121,
-		unusualLineTerminators = 122,
-		useShadowDOM = 123,
-		useTabStops = 124,
-		wordBreak = 125,
-		wordSeparators = 126,
-		wordWrap = 127,
-		wordWrapBreakAfterCharacters = 128,
-		wordWrapBreakBeforeCharacters = 129,
-		wordWrapColumn = 130,
-		wordWrapOverride1 = 131,
-		wordWrapOverride2 = 132,
-		wrappingIndent = 133,
-		wrappingStrategy = 134,
-		showDeprecated = 135,
-		inlayHints = 136,
-		editorClassName = 137,
-		pixelRatio = 138,
-		tabFocusMode = 139,
-		layoutInfo = 140,
-		wrappingInfo = 141,
-		defaultColorDecorators = 142,
-		colorDecoratorsActivatedOn = 143
+		readOnlyMessage = 89,
+		renameOnType = 90,
+		renderControlCharacters = 91,
+		renderFinalNewline = 92,
+		renderLineHighlight = 93,
+		renderLineHighlightOnlyWhenFocus = 94,
+		renderValidationDecorations = 95,
+		renderWhitespace = 96,
+		revealHorizontalRightPadding = 97,
+		roundedSelection = 98,
+		rulers = 99,
+		scrollbar = 100,
+		scrollBeyondLastColumn = 101,
+		scrollBeyondLastLine = 102,
+		scrollPredominantAxis = 103,
+		selectionClipboard = 104,
+		selectionHighlight = 105,
+		selectOnLineNumbers = 106,
+		showFoldingControls = 107,
+		showUnused = 108,
+		snippetSuggestions = 109,
+		smartSelect = 110,
+		smoothScrolling = 111,
+		stickyScroll = 112,
+		stickyTabStops = 113,
+		stopRenderingLineAfter = 114,
+		suggest = 115,
+		suggestFontSize = 116,
+		suggestLineHeight = 117,
+		suggestOnTriggerCharacters = 118,
+		suggestSelection = 119,
+		tabCompletion = 120,
+		tabIndex = 121,
+		unicodeHighlighting = 122,
+		unusualLineTerminators = 123,
+		useShadowDOM = 124,
+		useTabStops = 125,
+		wordBreak = 126,
+		wordSeparators = 127,
+		wordWrap = 128,
+		wordWrapBreakAfterCharacters = 129,
+		wordWrapBreakBeforeCharacters = 130,
+		wordWrapColumn = 131,
+		wordWrapOverride1 = 132,
+		wordWrapOverride2 = 133,
+		wrappingIndent = 134,
+		wrappingStrategy = 135,
+		showDeprecated = 136,
+		inlayHints = 137,
+		editorClassName = 138,
+		pixelRatio = 139,
+		tabFocusMode = 140,
+		layoutInfo = 141,
+		wrappingInfo = 142,
+		defaultColorDecorators = 143,
+		colorDecoratorsActivatedOn = 144
 	}
 
 	export const EditorOptions: {
@@ -5072,6 +5092,7 @@ declare namespace monaco.editor {
 		quickSuggestions: IEditorOption<EditorOption.quickSuggestions, InternalQuickSuggestionsOptions>;
 		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;
+		readOnlyMessage: IEditorOption<EditorOption.readOnlyMessage, any>;
 		renameOnType: IEditorOption<EditorOption.renameOnType, boolean>;
 		renderControlCharacters: IEditorOption<EditorOption.renderControlCharacters, boolean>;
 		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, 'on' | 'off' | 'dimmed'>;
@@ -5377,6 +5398,43 @@ declare namespace monaco.editor {
 		 * If null is returned, the overlay widget is responsible to place itself.
 		 */
 		getPosition(): IOverlayWidgetPosition | null;
+	}
+
+	/**
+	 * A glyph margin widget renders in the editor glyph margin.
+	 */
+	export interface IGlyphMarginWidget {
+		/**
+		 * Get a unique identifier of the glyph widget.
+		 */
+		getId(): string;
+		/**
+		 * Get the dom node of the glyph widget.
+		 */
+		getDomNode(): HTMLElement;
+		/**
+		 * Get the placement of the glyph widget.
+		 */
+		getPosition(): IGlyphMarginWidgetPosition;
+	}
+
+	/**
+	 * A position for rendering glyph margin widgets.
+	 */
+	export interface IGlyphMarginWidgetPosition {
+		/**
+		 * The glyph margin lane where the widget should be shown.
+		 */
+		lane: GlyphMarginLane;
+		/**
+		 * The priority order of the widget, used for determining which widget
+		 * to render when there are multiple.
+		 */
+		zIndex: number;
+		/**
+		 * The editor range that this widget applies to.
+		 */
+		range: IRange;
 	}
 
 	/**
@@ -5952,6 +6010,19 @@ declare namespace monaco.editor {
 		 */
 		removeOverlayWidget(widget: IOverlayWidget): void;
 		/**
+		 * Add a glyph margin widget. Widgets must have unique ids, otherwise they will be overwritten.
+		 */
+		addGlyphMarginWidget(widget: IGlyphMarginWidget): void;
+		/**
+		 * Layout/Reposition a glyph margin widget. This is a ping to the editor to call widget.getPosition()
+		 * and update appropriately.
+		 */
+		layoutGlyphMarginWidget(widget: IGlyphMarginWidget): void;
+		/**
+		 * Remove a glyph margin widget.
+		 */
+		removeGlyphMarginWidget(widget: IGlyphMarginWidget): void;
+		/**
 		 * Change the view zones. View zones are lost when a new model is attached to the editor.
 		 */
 		changeViewZones(callback: (accessor: IViewZoneChangeAccessor) => void): void;
@@ -5992,13 +6063,6 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * Information about a line in the diff editor
-	 */
-	export interface IDiffLineInformation {
-		readonly equivalentLineNumber: number;
-	}
-
-	/**
 	 * A rich diff editor.
 	 */
 	export interface IDiffEditor extends IEditor {
@@ -6028,6 +6092,7 @@ declare namespace monaco.editor {
 		 * Type the getModel() of IEditor.
 		 */
 		getModel(): IDiffEditorModel | null;
+		createViewModel(model: IDiffEditorModel): IDiffEditorViewModel;
 		/**
 		 * Sets the current model attached to this editor.
 		 * If the previous model was created by the editor via the value key in the options
@@ -6036,7 +6101,7 @@ declare namespace monaco.editor {
 		 * will not be destroyed.
 		 * It is safe to call setModel(null) to simply detach the current model from the editor.
 		 */
-		setModel(model: IDiffEditorModel | null): void;
+		setModel(model: IDiffEditorModel | IDiffEditorViewModel | null): void;
 		/**
 		 * Get the `original` editor.
 		 */
@@ -6050,19 +6115,11 @@ declare namespace monaco.editor {
 		 */
 		getLineChanges(): ILineChange[] | null;
 		/**
-		 * Get information based on computed diff about a line number from the original model.
-		 * If the diff computation is not finished or the model is missing, will return null.
-		 */
-		getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation | null;
-		/**
-		 * Get information based on computed diff about a line number from the modified model.
-		 * If the diff computation is not finished or the model is missing, will return null.
-		 */
-		getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation | null;
-		/**
 		 * Update the editor's options after the editor has been created.
 		 */
 		updateOptions(newOptions: IDiffEditorOptions): void;
+		diffReviewNext(): void;
+		diffReviewPrev(): void;
 	}
 
 	export class FontInfo extends BareFontInfo {

@@ -23,7 +23,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
@@ -77,22 +76,18 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 					const scheduler = new RunOnceScheduler(() => {
 						if (codeEditor === codeEditorService.getActiveCodeEditor()) {
 							this.isRendered = true;
-							const detailsRenderer = new GettingStartedDetailsRenderer(fileService, notificationService, extensionService, languageService);
 
 							const welcomeWidget = new WelcomeWidget(
 								codeEditor,
 								instantiationService,
 								commandService,
 								telemetryService,
-								openerService,
-								webviewService,
-								detailsRenderer);
+								openerService);
 
 							welcomeWidget.render(welcomeDialog.title,
 								welcomeDialog.message,
 								welcomeDialog.buttonText,
-								welcomeDialog.buttonCommand,
-								welcomeDialog.media);
+								welcomeDialog.buttonCommand);
 						}
 					}, 3000);
 

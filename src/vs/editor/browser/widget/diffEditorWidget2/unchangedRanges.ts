@@ -3,222 +3,252 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, h, reset } from 'vs/base/browser/dom';
+import { $, addDisposableListener, h, reset } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, transaction, constObservable } from 'vs/base/common/observable';
+import { IObservable, observableFromEvent, transaction } from 'vs/base/common/observable';
 import { autorun, autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
+import { derived, derivedWithStore } from 'vs/base/common/observableImpl/derived';
 import { isDefined } from 'vs/base/common/types';
-import { ICodeEditor, IOverlayWidget, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffModel';
+import { DiffModel, UnchangedRegion } from 'vs/editor/browser/widget/diffEditorWidget2/diffModel';
+import { PlaceholderViewZone, ViewZoneOverlayWidget, applyObservableDecorations, applyStyle, applyViewZones } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
+import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export class UnchangedRangesFeature extends Disposable {
+	private _isUpdatingViewZones = false;
+	public get isUpdatingViewZones(): boolean { return this._isUpdatingViewZones; }
+
 	constructor(
 		private readonly _originalEditor: CodeEditorWidget,
 		private readonly _modifiedEditor: CodeEditorWidget,
 		private readonly _diffModel: IObservable<DiffModel | undefined>,
+		private readonly _sideBySide: IObservable<boolean>,
 	) {
 		super();
 
-		const unchangedRegionViewZoneIdsOrig: string[] = [];
-		const unchangedRegionViewZoneIdsMod: string[] = [];
-
 		this._register(this._originalEditor.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
-			transaction(tx => {
-				for (const s of this._originalEditor.getSelections() || []) {
-					m?.revealOriginalLine(s.getStartPosition().lineNumber, tx);
-					m?.revealOriginalLine(s.getEndPosition().lineNumber, tx);
-				}
-			});
+			if (e.reason === CursorChangeReason.Explicit) {
+				const m = this._diffModel.get();
+				transaction(tx => {
+					for (const s of this._originalEditor.getSelections() || []) {
+						m?.ensureOriginalLineIsVisible(s.getStartPosition().lineNumber, tx);
+						m?.ensureOriginalLineIsVisible(s.getEndPosition().lineNumber, tx);
+					}
+				});
+			}
 		}));
 
 		this._register(this._modifiedEditor.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
-			transaction(tx => {
-				for (const s of this._modifiedEditor.getSelections() || []) {
-					m?.revealModifiedLine(s.getStartPosition().lineNumber, tx);
-					m?.revealModifiedLine(s.getEndPosition().lineNumber, tx);
-				}
-			});
-		}));
-
-		this._register(autorunWithStore2('update folded unchanged regions', (reader, store) => {
-			const unchangedRegions = this._diffModel.read(reader)?.unchangedRegions.read(reader);
-			if (!unchangedRegions) {
-				return;
-			}
-
-			// TODO@hediet This might cause unnecessary updates of alignment viewzones if this runs too late
-			this._originalEditor.changeViewZones((aOrig) => {
-				this._modifiedEditor.changeViewZones(aMod => {
-
-					for (const id of unchangedRegionViewZoneIdsOrig) {
-						aOrig.removeZone(id);
-					}
-					unchangedRegionViewZoneIdsOrig.length = 0;
-
-					for (const id of unchangedRegionViewZoneIdsMod) {
-						aMod.removeZone(id);
-					}
-					unchangedRegionViewZoneIdsMod.length = 0;
-
-					for (const r of unchangedRegions) {
-						const atTop = r.modifiedLineNumber !== 1;
-						const atBottom = r.modifiedRange.endLineNumberExclusive !== this._modifiedEditor.getModel()!.getLineCount() + 1;
-
-						const hiddenOriginalRange = r.getHiddenOriginalRange(reader);
-						const hiddenModifiedRange = r.getHiddenModifiedRange(reader);
-
-						if (hiddenOriginalRange.isEmpty) {
-							continue;
-						}
-
-						store.add(new CollapsedCodeActionsContentWidget(this._originalEditor, aOrig, hiddenOriginalRange.startLineNumber - 1, 30, constObservable<IContentWidgetAction[]>([
-							{
-								text: `${hiddenOriginalRange.length} Lines Hidden`
-							},
-							{
-								text: '$(chevron-up) Show More',
-								async action() { r.showMoreAbove(undefined); },
-							},
-							{
-								text: '$(chevron-down) Show More',
-								async action() { r.showMoreBelow(undefined); },
-							},
-							{
-								text: '$(close) Show All',
-								async action() { r.showAll(undefined); },
-							}
-						]), unchangedRegionViewZoneIdsOrig, atTop, atBottom));
-
-						store.add(new CollapsedCodeActionsContentWidget(this._modifiedEditor, aMod, hiddenModifiedRange.startLineNumber - 1, 30, constObservable<IContentWidgetAction[]>([
-							{
-								text: '$(chevron-up) Show More',
-								async action() { r.showMoreAbove(undefined); },
-							},
-							{
-								text: '$(chevron-down) Show More',
-								async action() { r.showMoreBelow(undefined); },
-							},
-							{
-								text: '$(close) Show All',
-								async action() { r.showAll(undefined); },
-							}
-						]), unchangedRegionViewZoneIdsMod, atTop, atBottom));
+			if (e.reason === CursorChangeReason.Explicit) {
+				const m = this._diffModel.get();
+				transaction(tx => {
+					for (const s of this._modifiedEditor.getSelections() || []) {
+						m?.ensureModifiedLineIsVisible(s.getStartPosition().lineNumber, tx);
+						m?.ensureModifiedLineIsVisible(s.getEndPosition().lineNumber, tx);
 					}
 				});
-			});
-
-			this._originalEditor.setHiddenAreas(unchangedRegions.map(r => r.getHiddenOriginalRange(reader).toInclusiveRange()).filter(isDefined));
-			this._modifiedEditor.setHiddenAreas(unchangedRegions.map(r => r.getHiddenModifiedRange(reader).toInclusiveRange()).filter(isDefined));
+			}
 		}));
 
+		const unchangedRegions = this._diffModel.map((m, reader) => m?.diff.read(reader)?.mappings.length === 0 ? [] : m?.unchangedRegions.read(reader) ?? []);
+
+		const viewZones = derivedWithStore('view zones', (reader, store) => {
+			const origViewZones: IViewZone[] = [];
+			const modViewZones: IViewZone[] = [];
+			const sideBySide = this._sideBySide.read(reader);
+
+			const curUnchangedRegions = unchangedRegions.read(reader);
+			for (const r of curUnchangedRegions) {
+				if (r.shouldHideControls(reader)) {
+					continue;
+				}
+
+				{
+					const d = derived('hiddenOriginalRangeStart', reader => r.getHiddenOriginalRange(reader).startLineNumber - 1);
+					const origVz = new PlaceholderViewZone(d, 24);
+					origViewZones.push(origVz);
+					store.add(new CollapsedCodeOverlayWidget(this._originalEditor, origVz, r, !sideBySide));
+				}
+				{
+					const d = derived('hiddenModifiedRangeStart', reader => r.getHiddenModifiedRange(reader).startLineNumber - 1);
+					const modViewZone = new PlaceholderViewZone(d, 24);
+					modViewZones.push(modViewZone);
+					store.add(new CollapsedCodeOverlayWidget(this._modifiedEditor, modViewZone, r, false));
+				}
+			}
+
+			return { origViewZones, modViewZones, };
+		});
+
+
+		const unchangedLinesDecoration: IModelDecorationOptions = {
+			description: 'unchanged lines',
+			className: 'diff-unchanged-lines',
+			isWholeLine: true,
+		};
+
+		this._register(applyObservableDecorations(this._originalEditor, derived('decorations', (reader) => {
+			const curUnchangedRegions = unchangedRegions.read(reader);
+			return curUnchangedRegions.map<IModelDeltaDecoration>(r => ({
+				range: r.originalRange.toInclusiveRange()!,
+				options: unchangedLinesDecoration,
+			}));
+		})));
+
+		this._register(applyObservableDecorations(this._modifiedEditor, derived('decorations', (reader) => {
+			const curUnchangedRegions = unchangedRegions.read(reader);
+			return curUnchangedRegions.map<IModelDeltaDecoration>(r => ({
+				range: r.modifiedRange.toInclusiveRange()!,
+				options: unchangedLinesDecoration,
+			}));
+		})));
+
+		this._register(applyViewZones(this._originalEditor, viewZones.map(v => v.origViewZones), v => this._isUpdatingViewZones = v));
+		this._register(applyViewZones(this._modifiedEditor, viewZones.map(v => v.modViewZones), v => this._isUpdatingViewZones = v));
+
+		this._register(autorunWithStore2('update folded unchanged regions', (reader, store) => {
+			const curUnchangedRegions = unchangedRegions.read(reader);
+			this._originalEditor.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenOriginalRange(reader).toInclusiveRange()).filter(isDefined));
+			this._modifiedEditor.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenModifiedRange(reader).toInclusiveRange()).filter(isDefined));
+		}));
 	}
 }
 
-// TODO@hediet avoid code duplication with FixedZoneWidget in merge editor
-abstract class FixedZoneWidget extends Disposable {
-	private static counter = 0;
-	private readonly overlayWidgetId = `fixedZoneWidget-${FixedZoneWidget.counter++}`;
-	private readonly viewZoneId: string;
-
-	protected readonly widgetDomNode = h('div.fixed-zone-widget').root;
-	private readonly overlayWidget: IOverlayWidget = {
-		getId: () => this.overlayWidgetId,
-		getDomNode: () => this.widgetDomNode,
-		getPosition: () => null
-	};
-
-	constructor(
-		private readonly editor: ICodeEditor,
-		viewZoneAccessor: IViewZoneChangeAccessor,
-		afterLineNumber: number,
-		height: number,
-		viewZoneIdsToCleanUp: string[],
-	) {
-		super();
-
-		this.viewZoneId = viewZoneAccessor.addZone({
-			domNode: document.createElement('div'),
-			afterLineNumber: afterLineNumber,
-			heightInPx: height,
-			onComputedHeight: (height) => {
-				this.widgetDomNode.style.height = `${height}px`;
-			},
-			onDomNodeTop: (top) => {
-				this.widgetDomNode.style.top = `${top}px`;
-			},
-			showInHiddenAreas: true,
-		});
-		viewZoneIdsToCleanUp.push(this.viewZoneId);
-
-		this.widgetDomNode.style.left = this.editor.getLayoutInfo().contentLeft + 'px';
-
-		this.editor.addOverlayWidget(this.overlayWidget);
-
-		this._register({
-			dispose: () => {
-				this.editor.removeOverlayWidget(this.overlayWidget);
-			},
-		});
-	}
-}
-
-class CollapsedCodeActionsContentWidget extends FixedZoneWidget {
-	private readonly _domNode = h('div.diff-hidden-lines', { className: [this.showTopZigZag ? 'showTop' : '', this.showBottomZigZag ? 'showBottom' : ''].join(' ') }, [
-		h('div.top'),
-		h('div.center@content'),
-		h('div.bottom'),
+class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
+	private readonly _nodes = h('div.diff-hidden-lines', [
+		h('div.top@top', { title: 'Click or drag to show more above' }),
+		h('div.center@content', { style: { display: 'flex' } }, [
+			h('div@first', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center' } },
+				[$('a', { title: 'Show all', role: 'button', onclick: () => { this._unchangedRegion.showAll(undefined); } }, ...renderLabelWithIcons('$(unfold)'))]
+			),
+			h('div@others', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center' } }),
+		]),
+		h('div.bottom@bottom', { title: 'Click or drag to show more below', role: 'button' }),
 	]);
 
 	constructor(
-		editor: ICodeEditor,
-		viewZoneAccessor: IViewZoneChangeAccessor,
-		afterLineNumber: number,
-		height: number,
-
-		items: IObservable<IContentWidgetAction[]>,
-		viewZoneIdsToCleanUp: string[],
-		public readonly showTopZigZag: boolean,
-		public readonly showBottomZigZag: boolean,
+		private readonly _editor: ICodeEditor,
+		_viewZone: PlaceholderViewZone,
+		private readonly _unchangedRegion: UnchangedRegion,
+		private readonly hide: boolean,
 	) {
-		super(editor, viewZoneAccessor, afterLineNumber, height, viewZoneIdsToCleanUp);
+		const root = h('div.diff-hidden-lines-widget');
+		super(_editor, _viewZone, root.root);
+		root.root.appendChild(this._nodes.root);
 
-		this.widgetDomNode.appendChild(this._domNode.root);
+		const layoutInfo = observableFromEvent(this._editor.onDidLayoutChange, () =>
+			this._editor.getLayoutInfo()
+		);
 
-
-		this._register(autorun('update commands', (reader) => {
-			const i = items.read(reader);
-			this.setState(i);
-		}));
-	}
-
-	private setState(items: IContentWidgetAction[]) {
-		const children: HTMLElement[] = [];
-		let isFirst = true;
-		for (const item of items) {
-			if (isFirst) {
-				isFirst = false;
-			} else {
-				children.push($('span', undefined, '\u00a0|\u00a0'));
-			}
-			const title = renderLabelWithIcons(item.text);
-
-			if (item.action) {
-				children.push($('a', { title: item.tooltip, role: 'button', onclick: () => item.action!() }, ...title));
-			} else {
-				children.push($('span', { title: item.tooltip }, ...title));
-			}
+		if (!this.hide) {
+			this._register(applyStyle(this._nodes.first, { width: layoutInfo.map((l) => l.contentLeft) }));
+		} else {
+			reset(this._nodes.first);
 		}
 
-		reset(this._domNode.content, ...children);
-	}
-}
+		const editor = this._editor;
 
-interface IContentWidgetAction {
-	text: string;
-	tooltip?: string;
-	action?: () => Promise<void>;
+		this._register(addDisposableListener(this._nodes.top, 'mousedown', e => {
+			if (e.button !== 0) {
+				return;
+			}
+			this._nodes.top.classList.toggle('dragging', true);
+			this._nodes.root.classList.toggle('dragging', true);
+			e.preventDefault();
+			const startTop = e.clientY;
+			let didMove = false;
+			const cur = this._unchangedRegion.visibleLineCountTop.get();
+			this._unchangedRegion.isDragged.set(true, undefined);
+
+
+			const mouseMoveListener = addDisposableListener(document.body, 'mousemove', e => {
+				const currentTop = e.clientY;
+				const delta = currentTop - startTop;
+				didMove = didMove || Math.abs(delta) > 2;
+				const lineDelta = Math.round(delta / editor.getOption(EditorOption.lineHeight));
+				const newVal = Math.max(0, Math.min(cur + lineDelta, this._unchangedRegion.getMaxVisibleLineCountTop()));
+				this._unchangedRegion.visibleLineCountTop.set(newVal, undefined);
+			});
+
+			const mouseUpListener = addDisposableListener(document.body, 'mouseup', e => {
+				if (!didMove) {
+					this._unchangedRegion.showMoreAbove(20, undefined);
+				}
+				this._nodes.top.classList.toggle('dragging', false);
+				this._nodes.root.classList.toggle('dragging', false);
+				this._unchangedRegion.isDragged.set(false, undefined);
+				mouseMoveListener.dispose();
+				mouseUpListener.dispose();
+			});
+		}));
+
+		this._register(addDisposableListener(this._nodes.bottom, 'mousedown', e => {
+			if (e.button !== 0) {
+				return;
+			}
+			this._nodes.bottom.classList.toggle('dragging', true);
+			this._nodes.root.classList.toggle('dragging', true);
+			e.preventDefault();
+			const startTop = e.clientY;
+			let didMove = false;
+			const cur = this._unchangedRegion.visibleLineCountBottom.get();
+			this._unchangedRegion.isDragged.set(true, undefined);
+
+			const mouseMoveListener = addDisposableListener(document.body, 'mousemove', e => {
+				const currentTop = e.clientY;
+				const delta = currentTop - startTop;
+				didMove = didMove || Math.abs(delta) > 2;
+				const lineDelta = Math.round(delta / editor.getOption(EditorOption.lineHeight));
+				const newVal = Math.max(0, Math.min(cur - lineDelta, this._unchangedRegion.getMaxVisibleLineCountBottom()));
+				const top = editor.getTopForLineNumber(this._unchangedRegion.modifiedRange.endLineNumberExclusive);
+				this._unchangedRegion.visibleLineCountBottom.set(newVal, undefined);
+				const top2 = editor.getTopForLineNumber(this._unchangedRegion.modifiedRange.endLineNumberExclusive);
+				editor.setScrollTop(editor.getScrollTop() + (top2 - top));
+			});
+
+			const mouseUpListener = addDisposableListener(document.body, 'mouseup', e => {
+				this._unchangedRegion.isDragged.set(false, undefined);
+
+				if (!didMove) {
+					const top = editor.getTopForLineNumber(this._unchangedRegion.modifiedRange.endLineNumberExclusive);
+
+					this._unchangedRegion.showMoreBelow(20, undefined);
+					const top2 = editor.getTopForLineNumber(this._unchangedRegion.modifiedRange.endLineNumberExclusive);
+					editor.setScrollTop(editor.getScrollTop() + (top2 - top));
+				}
+				this._nodes.bottom.classList.toggle('dragging', false);
+				this._nodes.root.classList.toggle('dragging', false);
+				mouseMoveListener.dispose();
+				mouseUpListener.dispose();
+			});
+		}));
+
+		this._register(autorun('update labels', (reader) => {
+
+			const children: HTMLElement[] = [];
+			if (!this.hide && true) {
+				const lineCount = _unchangedRegion.getHiddenModifiedRange(reader).length;
+				const linesHiddenText = `${lineCount} Hidden Lines`;
+				children.push($('span', { title: linesHiddenText }, linesHiddenText));
+			}
+
+			// TODO@hediet implement breadcrumbs for collapsed regions
+			/*
+			if (_unchangedRegion.originalLineNumber === 48) {
+				children.push($('span', undefined, '\u00a0|\u00a0'));
+				children.push($('span', { title: 'test' }, ...renderLabelWithIcons('$(symbol-class) DiffEditorWidget2')));
+			} else if (_unchangedRegion.originalLineNumber === 88) {
+				children.push($('span', undefined, '\u00a0|\u00a0'));
+				children.push($('span', { title: 'test' }, ...renderLabelWithIcons('$(symbol-constructor) constructor')));
+			}
+			*/
+
+			reset(this._nodes.others, ...children);
+
+		}));
+	}
 }
