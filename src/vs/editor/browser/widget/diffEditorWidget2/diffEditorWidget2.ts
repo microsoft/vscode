@@ -29,7 +29,7 @@ import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditorWidget2/ov
 import { UnchangedRangesFeature } from 'vs/editor/browser/widget/diffEditorWidget2/unchangedRanges';
 import { ObservableElementSizeObserver, applyStyle, deepMerge, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
-import { EditorOptions, IDiffEditorOptions, IEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, EditorOptions, IDiffEditorOptions, IEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { Position } from 'vs/editor/common/core/position';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
@@ -87,7 +87,19 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly _boundarySashes = observableValue<IBoundarySashes | undefined>('boundarySashes', undefined);
 	private readonly _renderOverviewRuler = derived('renderOverviewRuler', reader => this._options.read(reader).renderOverviewRuler);
 	private readonly _renderSideBySide = derived('renderSideBySide', reader => this._options.read(reader).renderSideBySide);
-
+	private readonly _shouldRenderRevertArrows = derived('shouldRenderRevertArrows', (reader) => {
+		if (!this._options.read(reader).renderMarginRevertIcon) {
+			return false;
+		}
+		if (!this._renderSideBySide.read(reader)) {
+			return false;
+		}
+		this._options.read(reader); // TODO@hediet editor options should be revisited. _options might just get partial updates.
+		if (this._modifiedEditor.getOption(EditorOption.readOnly)) {
+			return false;
+		}
+		return true;
+	});
 	private unchangedRangesFeature!: UnchangedRangesFeature;
 
 	private readonly _reviewPane: DiffReview2;
@@ -154,7 +166,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(autorunWithStore2('decorations', (reader, store) => {
 			store.add(new (readHotReloadableExport(DiffEditorDecorations, reader))(
-				this._originalEditor, this._modifiedEditor, this._diffModel, this._renderSideBySide,
+				this._originalEditor, this._modifiedEditor, this._diffModel, this._shouldRenderRevertArrows,
 			));
 		}));
 
@@ -164,6 +176,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			this._modifiedEditor,
 			this._diffModel,
 			this._renderSideBySide,
+			this._shouldRenderRevertArrows,
 			this,
 			() => this.unchangedRangesFeature.isUpdatingViewZones,
 		));

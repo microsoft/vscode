@@ -52,6 +52,7 @@ export class ViewZoneManager extends Disposable {
 		private readonly _modifiedEditor: CodeEditorWidget,
 		private readonly _diffModel: IObservable<DiffModel | undefined>,
 		private readonly _renderSideBySide: IObservable<boolean>,
+		private readonly _shouldRenderRevertArrows: IObservable<boolean>,
 		private readonly _diffEditorWidget: DiffEditorWidget2,
 		private readonly _canIgnoreViewZoneUpdateEvent: () => boolean,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
@@ -264,7 +265,7 @@ export class ViewZoneManager extends Disposable {
 						}
 
 						let marginDomNode: HTMLElement | undefined = undefined;
-						if (a.diff && a.diff.modifiedRange.isEmpty && this._renderSideBySide.read(reader)) {
+						if (a.diff && a.diff.modifiedRange.isEmpty && this._shouldRenderRevertArrows.read(reader)) {
 							marginDomNode = createViewZoneMarginArrow();
 						}
 

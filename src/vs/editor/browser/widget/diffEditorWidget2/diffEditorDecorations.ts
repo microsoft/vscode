@@ -21,7 +21,7 @@ export class DiffEditorDecorations extends Disposable {
 		private readonly _originalEditor: CodeEditorWidget,
 		private readonly _modifiedEditor: CodeEditorWidget,
 		private readonly _diffModel: IObservable<DiffModel | undefined>,
-		private readonly _renderSideBySide: IObservable<boolean>,
+		private readonly _shouldRenderRevertArrows: IObservable<boolean>,
 	) {
 		super();
 
@@ -64,7 +64,7 @@ export class DiffEditorDecorations extends Disposable {
 				modifiedDecorations.push({ range: i.modifiedRange, options: i.modifiedRange.isEmpty() ? diffAddDecorationEmpty : diffAddDecoration });
 			}
 
-			if (!m.lineRangeMapping.modifiedRange.isEmpty && this._renderSideBySide.read(reader) && !currentMove) {
+			if (!m.lineRangeMapping.modifiedRange.isEmpty && this._shouldRenderRevertArrows.read(reader) && !currentMove) {
 				modifiedDecorations.push({ range: Range.fromPositions(new Position(m.lineRangeMapping.modifiedRange.startLineNumber, 1)), options: arrowRevertChange });
 			}
 		}
