@@ -16,7 +16,7 @@ declare module 'vscode' {
 		 */
 		Notify = 1,
 		/**
-		 * Once the port is forwarded, open the browser to the forwarded port.
+		 * Once the port is forwarded, open the user's web browser to the forwarded port.
 		 */
 		OpenBrowser = 2,
 		/**
@@ -30,11 +30,7 @@ declare module 'vscode' {
 		/**
 		 * Do not forward the port.
 		 */
-		Ignore = 5,
-		/**
-		 * Once the port is forwarded, open the browser to the forwarded port. Only open the browser the first time the port is forwarded in a session.
-		 */
-		OpenBrowserOnce = 6
+		Ignore = 5
 	}
 
 	/**
@@ -62,6 +58,10 @@ declare module 'vscode' {
 		 * Provides attributes for the given port. For ports that your extension doesn't know about, simply
 		 * return undefined. For example, if `providePortAttributes` is called with ports 3000 but your
 		 * extension doesn't know anything about 3000 you should return undefined.
+		 * @param port The port number of the port that attributes are being requested for.
+		 * @param pid The pid of the process that is listening on the port. If the pid is unknown, undefined will be passed.
+		 * @param commandLine The command line of the process that is listening on the port. If the command line is unknown, undefined will be passed.
+		 * @param token A cancellation token that indicates the result is no longer needed.
 		 */
 		providePortAttributes(port: number, pid: number | undefined, commandLine: string | undefined, token: CancellationToken): ProviderResult<PortAttributes>;
 	}
