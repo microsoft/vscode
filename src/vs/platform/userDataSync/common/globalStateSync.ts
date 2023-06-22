@@ -440,11 +440,11 @@ export class GlobalStateInitializer extends AbstractInitializer {
 		}
 
 		if (Object.keys(storage).length) {
-			const storageValues: Array<IStorageEntry> = [];
+			const storageEntries: Array<IStorageEntry> = [];
 			for (const key of Object.keys(storage)) {
-				storageValues.push({ key, value: storage[key], scope: StorageScope.PROFILE, target: StorageTarget.USER });
+				storageEntries.push({ key, value: storage[key], scope: StorageScope.PROFILE, target: StorageTarget.USER });
 			}
-			this.storageService.storeAll(storageValues, true);
+			this.storageService.storeAll(storageEntries, true);
 		}
 	}
 

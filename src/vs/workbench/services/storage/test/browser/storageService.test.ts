@@ -285,5 +285,13 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 		storage.set('isExternal', 42, true);
 		storageValueChangeEvent = storageChangeEvents.find(e => e.key === 'isExternal');
 		strictEqual(storageValueChangeEvent?.external, true);
+
+		storage.delete('notExternal');
+		storageValueChangeEvent = storageChangeEvents.find(e => e.key === 'notExternal');
+		strictEqual(storageValueChangeEvent?.external, false);
+
+		storage.delete('isExternal', true);
+		storageValueChangeEvent = storageChangeEvents.find(e => e.key === 'isExternal');
+		strictEqual(storageValueChangeEvent?.external, true);
 	});
 });

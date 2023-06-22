@@ -40,6 +40,10 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		strictEqual(storageValueChangeEvent?.external, true);
 
 		// Default source
+		storageService.storeAll([{ key: 'testChange', value: 'barfoo', scope: StorageScope.WORKSPACE, target: StorageTarget.MACHINE }], false);
+		storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'testChange');
+		strictEqual(storageValueChangeEvent?.external, false);
+
 		storageService.store('testChange', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'testChange');
 		strictEqual(storageValueChangeEvent?.external, false);
