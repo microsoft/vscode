@@ -9,7 +9,10 @@ import { ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { BrowserTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/browser/terminalProfileResolverService';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { TerminalLogService } from 'vs/platform/terminal/common/terminalLogService';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 
+registerSingleton(ITerminalLogService, TerminalLogService, InstantiationType.Delayed);
 registerSingleton(ITerminalProfileResolverService, BrowserTerminalProfileResolverService, InstantiationType.Delayed);
 
 // Register standard external terminal keybinding as integrated terminal when in web as the
