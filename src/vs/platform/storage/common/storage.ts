@@ -475,14 +475,14 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return keys;
 	}
 
-	private updateKeyTarget(key: string, scope: StorageScope, target: StorageTarget | undefined): void {
+	private updateKeyTarget(key: string, scope: StorageScope, target: StorageTarget | undefined, external = false): void {
 
 		// Add
 		const keyTargets = this.getKeyTargets(scope);
 		if (typeof target === 'number') {
 			if (keyTargets[key] !== target) {
 				keyTargets[key] = target;
-				this.getStorage(scope)?.set(TARGET_KEY, JSON.stringify(keyTargets));
+				this.getStorage(scope)?.set(TARGET_KEY, JSON.stringify(keyTargets), external);
 			}
 		}
 
@@ -490,7 +490,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		else {
 			if (typeof keyTargets[key] === 'number') {
 				delete keyTargets[key];
-				this.getStorage(scope)?.set(TARGET_KEY, JSON.stringify(keyTargets));
+				this.getStorage(scope)?.set(TARGET_KEY, JSON.stringify(keyTargets), external);
 			}
 		}
 	}
@@ -620,7 +620,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 			// Copy over previous keys if `preserveData`
 			if (preserveData) {
 				for (const [key, value] of oldStorage) {
-					newStorage.set(key, value);
+					newStorage.set(key, value, true);
 				}
 			}
 
