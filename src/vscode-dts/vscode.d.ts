@@ -10400,7 +10400,7 @@ declare module 'vscode' {
 		 *
 		 * Examples where {@link TreeViewOptions.manageCheckboxStateManually} is false, the default behavior:
 		 *
-		 * 1. A tree item is checked, then its children are fetched. The children will be checked. TODO @alexr00 there's a bug here
+		 * 1. A tree item is checked, then its children are fetched. The children will be checked.
 		 *
 		 * 2. A tree item's parent is checked. The tree item and all of it's siblings will be checked.
 		 *   - [ ] Parent
@@ -10420,7 +10420,7 @@ declare module 'vscode' {
 		 *     - [x] Child 1
 		 *     - [x] Child 2
 		 *
-		 * 4. A tree item is unchecked. The parent will be unchecked. TODO @alexr00 there's a bug here
+		 * 4. A tree item is unchecked. The parent will be unchecked.
 		 *   - [x] Parent
 		 *     - [x] Child 1
 		 *     - [x] Child 2
