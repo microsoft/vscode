@@ -31,7 +31,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { EditResponse, EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, MarkdownResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, InlineChateResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
@@ -90,6 +90,7 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
 	private readonly _ctxLastResponseType: IContextKey<undefined | InlineChatResponseType>;
+	private readonly _ctxResponseTypes: IContextKey<undefined | InlineChateResponseTypes>;
 	private readonly _ctxDidEdit: IContextKey<boolean>;
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
 
@@ -117,6 +118,7 @@ export class InlineChatController implements IEditorContribution {
 	) {
 		this._ctxHasActiveRequest = CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxDidEdit = CTX_INLINE_CHAT_DID_EDIT.bindTo(contextKeyService);
+		this._ctxResponseTypes = CTX_INLINE_CHAT_RESPONSE_TYPES.bindTo(contextKeyService);
 		this._ctxLastResponseType = CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INLINE_CHAT_LAST_FEEDBACK.bindTo(contextKeyService);
 		this._zone = new Lazy(() => this._store.add(_instaService.createInstance(InlineChatZoneWidget, this._editor)));
@@ -597,6 +599,22 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxLastResponseType.set(response instanceof EditResponse || response instanceof MarkdownResponse
 			? response.raw.type
 			: undefined);
+
+		let responseTypes: InlineChateResponseTypes | undefined;
+		for (const { response } of this._activeSession.exchanges) {
+
+			const thisType = response instanceof MarkdownResponse
+				? InlineChateResponseTypes.OnlyMessages : response instanceof EditResponse
+					? InlineChateResponseTypes.OnlyEdits : undefined;
+
+			if (responseTypes === undefined) {
+				responseTypes = thisType;
+			} else if (responseTypes !== thisType) {
+				responseTypes = InlineChateResponseTypes.Mixed;
+				break;
+			}
+		}
+		this._ctxResponseTypes.set(responseTypes);
 
 		if (response instanceof EmptyResponse) {
 			// show status message
