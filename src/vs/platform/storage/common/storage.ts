@@ -242,7 +242,7 @@ export interface IStorageValueChangeEvent {
 	/**
 	 * Whether the storage value was modified because the
 	 * storage service was updated in bulk from an external
-	 * data source.
+	 * data source such as settings sync or profile changes.
 	 */
 	readonly external?: boolean;
 }
@@ -417,7 +417,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 		// We remove the key for undefined/null values
 		if (isUndefinedOrNull(value)) {
-			this.remove(key, scope);
+			this.remove(key, scope, external);
 			return;
 		}
 

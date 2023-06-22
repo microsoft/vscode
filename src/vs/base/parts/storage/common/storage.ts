@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { isObject, isUndefinedOrNull } from 'vs/base/common/types';
@@ -63,7 +63,7 @@ export interface IStorageChangeEvent {
 	/**
 	 * Whether the storage value was modified because the
 	 * storage service was updated in bulk from an external
-	 * data source.
+	 * data source such as settings sync or profile changes.
 	 */
 	readonly external?: boolean;
 }
@@ -110,7 +110,7 @@ export class Storage extends Disposable implements IStorage {
 
 	private static readonly DEFAULT_FLUSH_DELAY = 100;
 
-	private readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
+	private readonly _onDidChangeStorage = this._register(new PauseableEmitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
 	private state = StorageState.None;
@@ -140,14 +140,22 @@ export class Storage extends Disposable implements IStorage {
 	}
 
 	private onDidChangeItemsExternal(e: IStorageItemsChangeEvent): void {
-		// items that change external require us to update our
-		// caches with the values. we just accept the value and
-		// emit an event if there is a change.
-		e.changed?.forEach((value, key) => this.accept(key, value, true));
-		e.deleted?.forEach(key => this.accept(key, undefined, true));
+		this._onDidChangeStorage.pause();
+
+		try {
+			// items that change external require us to update our
+			// caches with the values. we just accept the value and
+			// emit an event if there is a change.
+
+			e.changed?.forEach((value, key) => this.acceptExternal(key, value));
+			e.deleted?.forEach(key => this.acceptExternal(key, undefined));
+
+		} finally {
+			this._onDidChangeStorage.resume();
+		}
 	}
 
-	private accept(key: string, value: string | undefined, external: boolean): void {
+	private acceptExternal(key: string, value: string | undefined): void {
 		if (this.state === StorageState.Closed) {
 			return; // Return early if we are already closed
 		}
@@ -170,7 +178,7 @@ export class Storage extends Disposable implements IStorage {
 
 		// Signal to outside listeners
 		if (changed) {
-			this._onDidChangeStorage.fire({ key, external });
+			this._onDidChangeStorage.fire({ key, external: true });
 		}
 	}
 
