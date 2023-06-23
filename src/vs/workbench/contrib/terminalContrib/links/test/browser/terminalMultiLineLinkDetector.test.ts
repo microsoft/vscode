@@ -86,8 +86,9 @@ interface LinkFormatInfo {
 const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0}\r\n{1}:foo', line: '5' },
 	{ urlFormat: '{0}\r\n{1}: foo', line: '5' },
-	{ urlFormat: '{0}\r\n{1}:{2} foo', line: '5', column: '3' },
+	{ urlFormat: '{0}\r\n5:another link\r\n{1}:{2} foo', line: '5', column: '3' },
 	{ urlFormat: '{0}\r\n  {1}:{2} foo', line: '5', column: '3' },
+	{ urlFormat: '{0}\r\n  5:6  error  another one\r\n  {1}:{2}  error', line: '5', column: '3' },
 ];
 
 suite('Workbench - TerminalMultiLineLinkDetector', () => {
