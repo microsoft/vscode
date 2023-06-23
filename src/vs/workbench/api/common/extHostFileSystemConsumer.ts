@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MainContext, MainThreadFileSystemShape } from './extHost.protocol';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as files from 'vs/platform/files/common/files';
 import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -164,7 +164,7 @@ export class ExtHostConsumerFileSystem {
 		while (!providerExtUri.isEqual(directory, providerExtUri.dirname(directory))) {
 			try {
 				const stat = await provider.stat(directory);
-				if ((stat.type & vscode.FileType.Directory) === 0) {
+				if ((stat.type & files.FileType.Directory) === 0) {
 					throw FileSystemError.FileExists(`Unable to create folder '${directory.scheme === Schemas.file ? directory.fsPath : directory.toString(true)}' that already exists but is not a directory`);
 				}
 
