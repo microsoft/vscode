@@ -13,7 +13,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 export const diffInsertIcon = registerIcon('diff-insert', Codicon.add, localize('diffInsertIcon', 'Line decoration for inserts in the diff editor.'));
 export const diffRemoveIcon = registerIcon('diff-remove', Codicon.remove, localize('diffRemoveIcon', 'Line decoration for removals in the diff editor.'));
 
-export const diffLineAddDecorationBackground = ModelDecorationOptions.register({
+export const diffLineAddDecorationBackgroundWithIndicator = ModelDecorationOptions.register({
 	className: 'line-insert',
 	description: 'line-insert',
 	isWholeLine: true,
@@ -21,11 +21,25 @@ export const diffLineAddDecorationBackground = ModelDecorationOptions.register({
 	marginClassName: 'gutter-insert',
 });
 
-export const diffLineDeleteDecorationBackground = ModelDecorationOptions.register({
+export const diffLineDeleteDecorationBackgroundWithIndicator = ModelDecorationOptions.register({
 	className: 'line-delete',
 	description: 'line-delete',
 	isWholeLine: true,
 	linesDecorationsClassName: 'delete-sign ' + ThemeIcon.asClassName(diffRemoveIcon),
+	marginClassName: 'gutter-delete',
+});
+
+export const diffLineAddDecorationBackground = ModelDecorationOptions.register({
+	className: 'line-insert',
+	description: 'line-insert',
+	isWholeLine: true,
+	marginClassName: 'gutter-insert',
+});
+
+export const diffLineDeleteDecorationBackground = ModelDecorationOptions.register({
+	className: 'line-delete',
+	description: 'line-delete',
+	isWholeLine: true,
 	marginClassName: 'gutter-delete',
 });
 

@@ -290,7 +290,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation/execute',
-					order: 0
+					order: 10
 				}
 			],
 			icon: icons.clearIcon

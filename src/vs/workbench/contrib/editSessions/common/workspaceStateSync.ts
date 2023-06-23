@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -129,18 +129,19 @@ export class WorkspaceStateSynchroniser extends AbstractSynchroniser implements 
 
 		if (Object.keys(storage).length) {
 			// Initialize storage with remote storage
+			const storageEntries: Array<IStorageEntry> = [];
 			for (const key of Object.keys(storage)) {
 				// Deserialize the stored state
 				try {
 					const value = parse(storage[key]);
 					// Run URI conversion on the stored state
 					replaceUris(value);
-					// Write the stored state to the storage service
-					this.storageService.store(key, value, StorageScope.WORKSPACE, StorageTarget.USER);
+					storageEntries.push({ key, value, scope: StorageScope.WORKSPACE, target: StorageTarget.USER });
 				} catch {
-					this.storageService.store(key, storage[key], StorageScope.WORKSPACE, StorageTarget.USER);
+					storageEntries.push({ key, value: storage[key], scope: StorageScope.WORKSPACE, target: StorageTarget.USER });
 				}
 			}
+			this.storageService.storeAll(storageEntries, true);
 		}
 		return null;
 	}

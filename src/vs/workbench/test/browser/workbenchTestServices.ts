@@ -1600,6 +1600,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	gotSavedAs = false;
 	gotReverted = false;
 	dirty = false;
+	modified: boolean | undefined;
 	private fails = false;
 
 	disableToUntyped = false;
@@ -1666,6 +1667,10 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 			return undefined;
 		}
 		return { resource: this.resource };
+	}
+	setModified(): void { this.modified = true; }
+	override isModified(): boolean {
+		return this.modified === undefined ? this.dirty : this.modified;
 	}
 	setDirty(): void { this.dirty = true; }
 	override isDirty(): boolean {

@@ -1020,7 +1020,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerFileSystemProvider(scheme, provider, options) {
 				return combinedDisposable(
 					extHostFileSystem.registerFileSystemProvider(extension, scheme, provider, options),
-					extHostConsumerFileSystem.addFileSystemProvider(scheme, provider)
+					extHostConsumerFileSystem.addFileSystemProvider(scheme, provider, options)
 				);
 			},
 			get fs() {

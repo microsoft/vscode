@@ -40,7 +40,9 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		if (!selection) {
 			selection = linkSuffix?.row === undefined ? undefined : {
 				startLineNumber: linkSuffix.row ?? 1,
-				startColumn: linkSuffix.col ?? 1
+				startColumn: linkSuffix.col ?? 1,
+				endLineNumber: linkSuffix.rowEnd,
+				endColumn: linkSuffix.colEnd
 			};
 		}
 		await this._editorService.openEditor({

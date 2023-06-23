@@ -798,6 +798,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly notebook: INotebookTextModel | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
+	isModified(): boolean;
 	isReadonly(): boolean | IMarkdownString;
 	isOrphaned(): boolean;
 	hasAssociatedFilePath(): boolean;

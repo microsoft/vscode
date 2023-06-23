@@ -12,7 +12,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, EmitterOptions, Event, EventDeliveryQueue } from 'vs/base/common/event';
+import { Emitter, EmitterOptions, Event, EventDeliveryQueue, createEventDeliveryQueue } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -114,7 +114,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	//#region Eventing
 
-	private readonly _deliveryQueue = new EventDeliveryQueue();
+	private readonly _deliveryQueue = createEventDeliveryQueue();
 	protected readonly _contributions: CodeEditorContributions = this._register(new CodeEditorContributions());
 
 	private readonly _onDidDispose: Emitter<void> = this._register(new Emitter<void>());
