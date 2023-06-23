@@ -187,7 +187,6 @@ suite('vscode API - workspace-fs', () => {
 
 	test('vscode.workspace.fs error reporting is weird #132981', async function () {
 
-
 		const uri = await createRandomFile();
 
 		const source = vscode.Uri.joinPath(uri, `./${Math.random().toString(16).slice(2, 8)}`);
@@ -216,5 +215,30 @@ suite('vscode API - workspace-fs', () => {
 			assert.strictEqual(err.code, vscode.FileSystemError.FileNotFound().code);
 			assert.strictEqual(err.code, 'FileNotFound');
 		}
+	});
+
+	test('fs.createFolder creates recursively', async function () {
+
+		const folder = root.with({ path: posix.join(root.path, 'deeply', 'nested', 'folder') });
+
+		await vscode.workspace.fs.createDirectory(folder);
+
+		const stat = await vscode.workspace.fs.stat(folder);
+		assert.strictEqual(stat.type, vscode.FileType.Directory);
+
+		await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
+	});
+
+	test('fs.writeFile creates parents recursively', async function () {
+
+		const folder = root.with({ path: posix.join(root.path, 'other-deeply', 'nested', 'folder') });
+		const file = root.with({ path: posix.join(folder.path, 'file.txt') });
+
+		await vscode.workspace.fs.writeFile(file, Buffer.from('Hello World'));
+
+		const stat = await vscode.workspace.fs.stat(file);
+		assert.strictEqual(stat.type, vscode.FileType.File);
+
+		await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
 	});
 });
