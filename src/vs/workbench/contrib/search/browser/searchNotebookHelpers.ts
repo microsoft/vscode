@@ -80,10 +80,8 @@ export function webviewMatchesToTextSearchMatches(webviewMatches: CellWebviewFin
 // experimental
 
 export const rawCellPrefix = 'rawCell#';
-
 export class CellSearchModel extends Disposable {
 	constructor(readonly _source: string, private _textBuffer: IReadonlyTextBuffer | undefined, private _uri: URI, private _cellIndex: number) {
-		// need cell index
 		super();
 	}
 

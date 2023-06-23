@@ -1843,7 +1843,6 @@ export class SearchView extends ViewPane {
 			pinned,
 			selection,
 			revealIfVisible: true,
-			// TODO: find a way to open at the correct cell index
 			indexedCellOptions: element instanceof MatchInNotebook ? { cellIndex: element.cellIndex, selection: element.range } : undefined,
 		};
 
