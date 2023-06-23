@@ -18,7 +18,8 @@ import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatC
 import { IChatProgress, IChatProvider, IChatRequest, IChatResponse, IChat, ISlashCommand, IPersistedChatState } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 class SimpleTestProvider extends Disposable implements IChatProvider {
 	private static sessionId = 0;
@@ -67,6 +68,7 @@ suite('Chat', () => {
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IViewsService, new TestExtensionService());
 		instantiationService.stub(IChatContributionService, new TestExtensionService());
+		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 	});
 
 	teardown(() => {

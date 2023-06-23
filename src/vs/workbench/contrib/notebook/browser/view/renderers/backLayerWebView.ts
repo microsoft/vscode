@@ -13,7 +13,7 @@ import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { equals } from 'vs/base/common/objects';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { dirname, isEqual, joinPath } from 'vs/base/common/resources';
+import { dirname, extname, isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
@@ -515,7 +515,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	private getNotebookBaseUri() {
-		if (this.documentUri.scheme === Schemas.untitled || this.documentUri.scheme === Schemas.vscodeInteractive) {
+		if (this.documentUri.scheme === Schemas.untitled) {
 			const folder = this.workspaceContextService.getWorkspaceFolder(this.documentUri);
 			if (folder) {
 				return folder.uri;
@@ -1033,7 +1033,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			return;
 		}
 
-		const defaultDir = this.documentUri.scheme === Schemas.vscodeInteractive ?
+		const defaultDir = extname(this.documentUri) === '.interactive' ?
 			this.workspaceContextService.getWorkspace().folders[0]?.uri ?? await this.fileDialogService.defaultFilePath() :
 			dirname(this.documentUri);
 		let defaultName: string;

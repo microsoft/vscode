@@ -882,8 +882,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
 
 	const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
-		createHTML: value => value,
-		createScript: value => value,
+		createHTML: value => value, // CodeQL [SM03712] The rendered content is provided by renderer extensions, which are responsible for sanitizing their content themselves. The notebook webview is also sandboxed.
+		createScript: value => value, // CodeQL [SM03712] The rendered content is provided by renderer extensions, which are responsible for sanitizing their content themselves. The notebook webview is also sandboxed.
 	});
 
 	window.addEventListener('wheel', handleWheel);

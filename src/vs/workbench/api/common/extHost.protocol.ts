@@ -1167,6 +1167,7 @@ export interface MainThreadChatShape extends IDisposable {
 	$sendRequestToProvider(providerId: string, message: IChatDynamicRequest): void;
 	$unregisterChatProvider(handle: number): Promise<void>;
 	$acceptResponseProgress(handle: number, sessionId: number, progress: IChatProgress): void;
+	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void;
 
 	$registerSlashCommandProvider(handle: number, chatProviderId: string): Promise<void>;
 	$unregisterSlashCommandProvider(handle: number): Promise<void>;
@@ -1236,7 +1237,7 @@ export interface IFileChangeDto {
 }
 
 export interface MainThreadFileSystemShape extends IDisposable {
-	$registerFileSystemProvider(handle: number, scheme: string, capabilities: files.FileSystemProviderCapabilities): Promise<void>;
+	$registerFileSystemProvider(handle: number, scheme: string, capabilities: files.FileSystemProviderCapabilities, readonlyMessage?: IMarkdownString): Promise<void>;
 	$unregisterProvider(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 

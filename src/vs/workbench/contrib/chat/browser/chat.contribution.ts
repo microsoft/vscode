@@ -26,7 +26,7 @@ import { ChatTreeItem, IChatAccessibilityService, IChatWidget, IChatWidgetServic
 import { ChatContributionService } from 'vs/workbench/contrib/chat/browser/chatContributionServiceImpl';
 import { ChatEditor, IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput, ChatEditorInputSerializer } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { ChatAccessibilityService, ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorContrib';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -41,6 +41,8 @@ import { AccessibilityViewAction } from 'vs/workbench/contrib/accessibility/brow
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -150,14 +152,14 @@ class ChatAccessibleViewContribution extends Disposable {
 				id: 'panelChat',
 				provideContent(): string { return responseContent; },
 				onClose() {
-					widget.reveal(focusedItem, true);
+					widget.focus(focusedItem);
 					provider.dispose();
 				},
 				options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript', type: AccessibleViewType.View }
 			});
 			accessibleViewService.show('panelChat');
 			return true;
-		}));
+		}, CONTEXT_IN_CHAT_SESSION));
 	}
 }
 

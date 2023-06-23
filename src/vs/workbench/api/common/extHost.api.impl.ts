@@ -1020,7 +1020,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerFileSystemProvider(scheme, provider, options) {
 				return combinedDisposable(
 					extHostFileSystem.registerFileSystemProvider(extension, scheme, provider, options),
-					extHostConsumerFileSystem.addFileSystemProvider(scheme, provider)
+					extHostConsumerFileSystem.addFileSystemProvider(scheme, provider, options)
 				);
 			},
 			get fs() {
@@ -1298,6 +1298,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get onDidPerformUserAction() {
 				checkProposedApiEnabled(extension, 'interactiveUserActions');
 				return extHostChat.onDidPerformUserAction;
+			},
+			transferChatSession(session: vscode.InteractiveSession, toWorkspace: vscode.Uri) {
+				checkProposedApiEnabled(extension, 'interactive');
+				return extHostChat.transferChatSession(session, toWorkspace);
 			}
 		};
 
@@ -1458,7 +1462,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ThemeColor: extHostTypes.ThemeColor,
 			ThemeIcon: extHostTypes.ThemeIcon,
 			TreeItem: extHostTypes.TreeItem,
-			TreeItem2: extHostTypes.TreeItem,
 			TreeItemCheckboxState: extHostTypes.TreeItemCheckboxState,
 			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
 			TypeHierarchyItem: extHostTypes.TypeHierarchyItem,

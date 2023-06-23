@@ -23,7 +23,7 @@ import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	constructor(
@@ -37,8 +37,10 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		}
 		const linkSuffix = link.parsedLink ? link.parsedLink.suffix : getLinkSuffix(link.text);
 		const selection: ITextEditorSelection | undefined = linkSuffix?.row === undefined ? undefined : {
-			startLineNumber: linkSuffix?.row ?? 1,
-			startColumn: linkSuffix?.col ?? 1
+			startLineNumber: linkSuffix.row ?? 1,
+			startColumn: linkSuffix.col ?? 1,
+			endLineNumber: linkSuffix.rowEnd,
+			endColumn: linkSuffix.colEnd
 		};
 		await this._editorService.openEditor({
 			resource: link.uri,
@@ -82,7 +84,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		private readonly _getOS: () => OperatingSystem,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILogService private readonly _logService: ILogService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,

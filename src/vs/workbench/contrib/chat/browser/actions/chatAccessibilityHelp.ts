@@ -39,6 +39,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'pane
 		content.push(localize('inlineChat.explain', "When a request is prefixed with /explain, a response will explain the code in the current selection and the chat view will be focused."));
 		content.push(localize('inlineChat.toolbar', "Use tab to reach conditional parts like commands, status, message responses and more."));
 	}
+	content.push(localize('chat.audioCues', "Audio cues can be changed via settings with a prefix of audioCues.chat."));
 	return content.join('\n');
 }
 

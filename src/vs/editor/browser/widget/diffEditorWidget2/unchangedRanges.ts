@@ -12,7 +12,7 @@ import { derived, derivedWithStore } from 'vs/base/common/observableImpl/derived
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffModel, UnchangedRegion } from 'vs/editor/browser/widget/diffEditorWidget2/diffModel';
+import { DiffEditorViewModel, UnchangedRegion } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { PlaceholderViewZone, ViewZoneOverlayWidget, applyObservableDecorations, applyStyle, applyViewZones } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
@@ -25,7 +25,7 @@ export class UnchangedRangesFeature extends Disposable {
 	constructor(
 		private readonly _originalEditor: CodeEditorWidget,
 		private readonly _modifiedEditor: CodeEditorWidget,
-		private readonly _diffModel: IObservable<DiffModel | undefined>,
+		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
 		private readonly _sideBySide: IObservable<boolean>,
 	) {
 		super();
