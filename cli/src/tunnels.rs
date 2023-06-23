@@ -12,6 +12,7 @@ pub mod shutdown_signal;
 pub mod singleton_client;
 pub mod singleton_server;
 
+mod wsl_detect;
 mod challenge;
 mod control_server;
 mod nosleep;
