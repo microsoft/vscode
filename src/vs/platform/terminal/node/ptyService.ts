@@ -506,7 +506,6 @@ export class PtyService extends Disposable implements IPtyService {
 		if (layout) {
 			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
 			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
-			this._logService.trace('PtyService.getTerminalLayoutInfo result', tabs);
 			performance.mark('code/didGetTerminalLayoutInfo');
 			return { tabs };
 		}
