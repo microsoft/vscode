@@ -2995,7 +2995,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 			// If no globs are found or matched fallback to checking for default tasks of the task group
 			if (!taskGroupTasks.length) {
-				taskGroupTasks = await this._findWorkspaceTasksInGroup(taskGroup, true);
+				taskGroupTasks = await this._findWorkspaceTasksInGroup(taskGroup, false);
 			}
 
 			// A single default task was returned, just run it directly
