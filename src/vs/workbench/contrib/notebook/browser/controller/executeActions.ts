@@ -156,7 +156,11 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
 						executeNotebookCondition,
-						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated()),
+						ContextKeyExpr.or(
+							NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(),
+							NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated(),
+						),
+						ContextKeyExpr.and(NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated())?.negate(),
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					)
 				}
