@@ -14,6 +14,7 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import * as files from 'vs/platform/files/common/files';
 import { Cache } from 'vs/workbench/api/common/cache';
 import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape, NotebookDataDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -27,6 +28,9 @@ import type * as vscode from 'vscode';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
+// import { filter } from 'vs/base/common/objects';
+// import { ExtHostFileSystem } from 'vs/workbench/api/common/extHostFileSystem';
 
 
 
@@ -69,6 +73,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		commands: ExtHostCommands,
 		private _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private _textDocuments: ExtHostDocuments,
+		private _extHostFileSystem: IExtHostConsumerFileSystem
 	) {
 		this._notebookProxy = mainContext.getProxy(MainContext.MainThreadNotebook);
 		this._notebookDocumentsProxy = mainContext.getProxy(MainContext.MainThreadNotebookDocuments);
@@ -301,6 +306,50 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return VSBuffer.wrap(bytes);
 	}
 
+	async $saveNotebook(handle: number, uriComponents: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<files.IStat> {
+		const uri = URI.revive(uriComponents);
+		const serializer = this._notebookSerializer.get(handle);
+		if (!serializer) {
+			throw new Error('NO serializer found');
+		}
+
+		const document = this._documents.get(uri);
+		if (!document) {
+			throw new Error('Document NOT found');
+		}
+
+		if (document.versionId !== versionId) {
+			throw new Error('Document version mismatch');
+		}
+
+		const data: vscode.NotebookData = {
+			metadata: document.apiNotebook.metadata, // filter(document.apiNotebook.metadata, key => !serializer.options.transientDocumentMetadata[key]),
+			cells: [],
+		};
+
+		for (const cell of document.apiNotebook.getCells()) {
+			const cellData = new extHostTypes.NotebookCellData(
+				cell.kind,
+				cell.document.getText(),
+				cell.document.languageId,
+				cell.mime,
+				[...cell.outputs],
+				cell.metadata,
+				cell.executionSummary
+			);
+
+			// cellData.outputs = !serializer.options.transientOutputs ? cell.outputs : [];
+			// cellData.metadata = filter(cell.metadata, key => !serializer.options.transientCellMetadata[key]);
+
+			data.cells.push(cellData);
+		}
+
+		const bytes = await serializer.serializeNotebook(data, token);
+		await this._extHostFileSystem.value.writeFile(uri, bytes);
+
+		const stats = await this._extHostFileSystem.value.stat(uri);
+		return stats;
+	}
 	// --- open, save, saveAs, backup
 
 

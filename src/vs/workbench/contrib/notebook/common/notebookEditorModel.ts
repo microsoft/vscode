@@ -11,8 +11,10 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { filter } from 'vs/base/common/objects';
+import { basename } from 'vs/base/common/resources';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { IWriteFileOptions, IFileStatWithMetadata, FileType, FilePermission, etag } from 'vs/platform/files/common/files';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -250,6 +252,38 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 			throw new CancellationError();
 		}
 		return bufferToStream(bytes);
+	}
+
+	async save(options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata> {
+		const serializer = await this.getNotebookSerializer();
+
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		// const stat = await this.validateWriteFile(provider, resource, options);
+		// const handle = await provider.open(resource, { create: true, unlock: options?.unlock ?? false });
+
+
+		const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
+		const fileStat: IFileStatWithMetadata = {
+			resource: this._notebookModel.uri,
+			// name: providerExtUri.basename(resource),
+			name: basename(this._notebookModel.uri),
+			isFile: (stat.type & FileType.File) !== 0,
+			isDirectory: (stat.type & FileType.Directory) !== 0,
+			isSymbolicLink: (stat.type & FileType.SymbolicLink) !== 0,
+			mtime: stat.mtime,
+			ctime: stat.ctime,
+			size: stat.size,
+			readonly: Boolean((stat.permissions ?? 0) & FilePermission.Readonly), // || Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly),
+			// readonly: Boolean((stat.permissions ?? 0) & FilePermission.Readonly) || Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly),
+			locked: Boolean((stat.permissions ?? 0) & FilePermission.Locked),
+			etag: etag({ mtime: stat.mtime, size: stat.size }),
+			children: undefined
+		};
+
+		return fileStat;
 	}
 
 	async update(stream: VSBufferReadableStream, token: CancellationToken): Promise<void> {
