@@ -31,7 +31,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { StartupPageContribution, } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { RemoteStartEntry } from 'vs/workbench/contrib/remote/browser/remoteStartEntry';
 
 export * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
 
@@ -297,7 +296,6 @@ class WorkspacePlatformContribution {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WorkspacePlatformContribution, LifecyclePhase.Restored);
 
-
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	...workbenchConfigurationNodeBase,
@@ -332,9 +330,5 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StartupPageContribution, LifecyclePhase.Restored);
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(RemoteStartEntry, LifecyclePhase.Restored);

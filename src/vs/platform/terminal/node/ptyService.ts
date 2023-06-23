@@ -31,6 +31,7 @@ import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabili
 import { IProductService } from 'vs/platform/product/common/productService';
 import { join } from 'path';
 import { memoize } from 'vs/base/common/decorators';
+import * as performance from 'vs/base/common/performance';
 
 export function traceRpc(_target: any, key: string, descriptor: any) {
 	if (typeof descriptor.value !== 'function') {
@@ -345,6 +346,11 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	@traceRpc
+	async getPerformanceMarks(): Promise<performance.PerformanceMark[]> {
+		return performance.getMarks();
+	}
+
+	@traceRpc
 	async start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		const pty = this._ptys.get(id);
 		return pty ? pty.start() : { message: `Could not find pty with id "${id}"` };
@@ -495,13 +501,16 @@ export class PtyService extends Disposable implements IPtyService {
 
 	@traceRpc
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+		performance.mark('code/willGetTerminalLayoutInfo');
 		const layout = this._workspaceLayoutInfos.get(args.workspaceId);
 		if (layout) {
 			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
 			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
 			this._logService.trace('PtyService.getTerminalLayoutInfo result', tabs);
+			performance.mark('code/didGetTerminalLayoutInfo');
 			return { tabs };
 		}
+		performance.mark('code/didGetTerminalLayoutInfo');
 		return undefined;
 	}
 
@@ -537,10 +546,11 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	private async _buildProcessDetails(id: number, persistentProcess: PersistentTerminalProcess, wasRevived: boolean = false): Promise<IProcessDetails> {
+		performance.mark(`code/willBuildProcessDetails/${id}`);
 		// If the process was just revived, don't do the orphan check as it will
 		// take some time
 		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), wasRevived ? true : persistentProcess.isOrphaned()]);
-		return {
+		const result = {
 			id,
 			title: persistentProcess.title,
 			titleSource: persistentProcess.titleSource,
@@ -561,6 +571,8 @@ export class PtyService extends Disposable implements IPtyService {
 			hasChildProcesses: persistentProcess.hasChildProcesses,
 			shellIntegrationNonce: persistentProcess.processLaunchOptions.options.shellIntegration.nonce
 		};
+		performance.mark(`code/didBuildProcessDetails/${id}`);
+		return result;
 	}
 
 	private _throwIfNoPty(id: number): PersistentTerminalProcess {

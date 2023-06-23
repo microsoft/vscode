@@ -43,6 +43,12 @@ async function startPtyHost() {
 	delete process.env.VSCODE_STARTUP_DELAY;
 	delete process.env.VSCODE_LAST_PTY_ID;
 
+	// Delay startup if needed, this must occur before RPC is setup to avoid the channel from timing
+	// out.
+	if (startupDelay) {
+		await timeout(startupDelay);
+	}
+
 	// Setup RPC
 	const _isUtilityProcess = isUtilityProcess(process);
 	let server: ChildProcessServer<string> | UtilityProcessServer;
@@ -60,10 +66,9 @@ async function startPtyHost() {
 	const logger = loggerService.createLogger('ptyhost', { name: localize('ptyHost', "Pty Host") });
 	const logService = new LogService(logger, [new ConsoleLogger()]);
 
-	// Log and apply developer config
+	// Log developer config
 	if (startupDelay) {
 		logService.warn(`Pty Host startup is delayed ${startupDelay}ms`);
-		await timeout(startupDelay);
 	}
 	if (simulatedLatency) {
 		logService.warn(`Pty host is simulating ${simulatedLatency}ms latency`);

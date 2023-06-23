@@ -19,7 +19,8 @@ import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links
 import { IFileService } from 'vs/platform/files/common/files';
 import { createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 
 const unixLinks: (string | { link: string; resource: URI })[] = [
 	// Absolute
@@ -182,7 +183,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 				return createFileStat(resource);
 			}
 		});
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		resolver = instantiationService.createInstance(TerminalLinkResolver);
 		validResources = [];
 

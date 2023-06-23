@@ -8,8 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ICrossVersionSerializedTerminalState, IPtyHostController, ISerializedTerminalState } from 'vs/platform/terminal/common/terminal';
+import { ICrossVersionSerializedTerminalState, IPtyHostController, ISerializedTerminalState, ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
@@ -32,7 +31,7 @@ export abstract class BaseTerminalBackend extends Disposable {
 
 	constructor(
 		private readonly _ptyHostController: IPtyHostController,
-		protected readonly _logService: ILogService,
+		protected readonly _logService: ITerminalLogService,
 		historyService: IHistoryService,
 		configurationResolverService: IConfigurationResolverService,
 		statusBarService: IStatusbarService,

@@ -16,8 +16,8 @@ import { IViewZone } from 'vs/editor/browser/editorBrowser';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { diffDeleteDecoration, diffRemoveIcon } from 'vs/editor/browser/widget/diffEditorWidget2/decorations';
+import { DiffEditorViewModel, DiffMapping } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
-import { DiffMapping, DiffModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffModel';
 import { InlineDiffDeletedCodeMargin } from 'vs/editor/browser/widget/diffEditorWidget2/inlineDiffDeletedCodeMargin';
 import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditorWidget2/renderLines';
 import { animatedObservable, joinCombine } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
@@ -30,6 +30,7 @@ import { BackgroundTokenizationState } from 'vs/editor/common/tokenizationTextMo
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { DiffEditorOptions } from './diffEditorOptions';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.
@@ -50,8 +51,8 @@ export class ViewZoneManager extends Disposable {
 	constructor(
 		private readonly _originalEditor: CodeEditorWidget,
 		private readonly _modifiedEditor: CodeEditorWidget,
-		private readonly _diffModel: IObservable<DiffModel | undefined>,
-		private readonly _renderSideBySide: IObservable<boolean>,
+		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
+		private readonly _options: DiffEditorOptions,
 		private readonly _diffEditorWidget: DiffEditorWidget2,
 		private readonly _canIgnoreViewZoneUpdateEvent: () => boolean,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
@@ -130,7 +131,7 @@ export class ViewZoneManager extends Disposable {
 				});
 			}
 
-			const renderSideBySide = this._renderSideBySide.read(reader);
+			const renderSideBySide = this._options.renderSideBySide.read(reader);
 
 			const deletedCodeLineBreaksComputer = !renderSideBySide ? this._modifiedEditor._getViewModel()?.createLineBreaksComputer() : undefined;
 			if (deletedCodeLineBreaksComputer) {
@@ -181,14 +182,14 @@ export class ViewZoneManager extends Disposable {
 						marginDomNode.className = 'inline-deleted-margin-view-zone';
 						applyFontInfo(marginDomNode, renderOptions.fontInfo);
 
-						//if (this._renderIndicators) {
-						for (let i = 0; i < result.heightInLines; i++) {
-							const marginElement = document.createElement('div');
-							marginElement.className = `delete-sign ${ThemeIcon.asClassName(diffRemoveIcon)}`;
-							marginElement.setAttribute('style', `position:absolute;top:${i * modLineHeight}px;width:${renderOptions.lineDecorationsWidth}px;height:${modLineHeight}px;right:0;`);
-							marginDomNode.appendChild(marginElement);
+						if (this._options.renderIndicators.read(reader)) {
+							for (let i = 0; i < result.heightInLines; i++) {
+								const marginElement = document.createElement('div');
+								marginElement.className = `delete-sign ${ThemeIcon.asClassName(diffRemoveIcon)}`;
+								marginElement.setAttribute('style', `position:absolute;top:${i * modLineHeight}px;width:${renderOptions.lineDecorationsWidth}px;height:${modLineHeight}px;right:0;`);
+								marginDomNode.appendChild(marginElement);
+							}
 						}
-						//}
 
 						let zoneId: string | undefined = undefined;
 						alignmentViewZonesDisposables.add(
@@ -264,7 +265,7 @@ export class ViewZoneManager extends Disposable {
 						}
 
 						let marginDomNode: HTMLElement | undefined = undefined;
-						if (a.diff && a.diff.modifiedRange.isEmpty && this._renderSideBySide.read(reader)) {
+						if (a.diff && a.diff.modifiedRange.isEmpty && this._options.shouldRenderRevertArrows.read(reader)) {
 							marginDomNode = createViewZoneMarginArrow();
 						}
 
