@@ -282,6 +282,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('centeredLayoutDynamicWidth', "Controls whether the centered layout tries to maintain constant width when the window is resized.")
 			},
+			'workbench.editor.doubleClickTabToToggleEditorGroupSizes': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('doubleClickTabToToggleEditorGroupSizes', 'Controls whether to maximize/restore the size of current editor group when double clicking on a tab\' title.'),
+			},
 			'workbench.editor.limit.enabled': {
 				'type': 'boolean',
 				'default': false,

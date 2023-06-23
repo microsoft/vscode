@@ -956,7 +956,9 @@ export class TabsTitleControl extends TitleControl {
 
 				const editor = this.group.getEditorByIndex(index);
 				if (editor && this.group.isPinned(editor)) {
-					this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, this.group);
+					if (this.accessor.partOptions.doubleClickTabToToggleEditorGroupSizes) {
+						this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, this.group);
+					}
 				} else {
 					this.group.pinEditor(editor);
 				}
