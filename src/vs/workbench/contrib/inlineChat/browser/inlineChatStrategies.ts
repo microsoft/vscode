@@ -366,7 +366,7 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	override needsMargin(): boolean {
-		return Boolean(this._session.lastTextModelChanges.length);
+		return !Boolean(this._session.lastTextModelChanges.length);
 	}
 
 	hasFocus(): boolean {

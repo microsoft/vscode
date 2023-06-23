@@ -307,7 +307,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 		});
 
-		this._showWidget(false);
+		this._showWidget(true);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange
