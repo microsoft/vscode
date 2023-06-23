@@ -62,7 +62,6 @@ export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
 			return [];
 		}
 
-
 		this._logService.trace('terminalMultiLineLinkDetector#detect text', text);
 
 		// Match against the fallback matchers which are mainly designed to catch paths with spaces
@@ -85,12 +84,12 @@ export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
 				continue;
 			}
 
-			this._logService.trace('terminalMultiLineLinkDetector#detect candidates', link);
+			this._logService.trace('terminalMultiLineLinkDetector#detect candidate', link);
 
 			// Scan up looking for the first line that could be a path
 			let possiblePath: string | undefined;
-			for (let index = startLine - 1; index > 0; index--) {
-				// TODO: Skip wrapped lines
+			for (let index = startLine - 1; index >= 0; index--) {
+				// TODO: This does not currently skip wrapped lines
 				const text = getXtermLineContent(this.xterm.buffer.active, index, index, this.xterm.cols);
 				if (!text.match(/^\s*\d/)) {
 					possiblePath = text;

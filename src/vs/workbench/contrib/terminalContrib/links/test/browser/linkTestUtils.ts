@@ -25,7 +25,8 @@ export async function assertLinkHelper(
 		lines.push(detector.xterm.buffer.active.getLine(i)!);
 	}
 
-	const actualLinks = (await detector.detect(lines, 0, detector.xterm.buffer.active.cursorY)).map(e => {
+	// Detect links always on the last line with content
+	const actualLinks = (await detector.detect(lines, detector.xterm.buffer.active.cursorY, detector.xterm.buffer.active.cursorY)).map(e => {
 		return {
 			link: e.uri?.toString() ?? e.text,
 			type: expectedType,
