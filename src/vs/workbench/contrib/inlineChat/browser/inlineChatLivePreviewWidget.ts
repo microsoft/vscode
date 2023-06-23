@@ -359,11 +359,14 @@ function isInlineDiffFriendly(mapping: LineRangeMapping): boolean {
 export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 
 	private readonly _elements = h('div.inline-chat-newfile-widget@domNode', [
-		h('div.title.show-file-icons@title'),
+		h('div.title@title', [
+			h('span.name.show-file-icons@name'),
+			h('span.detail@detail'),
+		]),
 		h('div.editor@editor'),
 	]);
 
-	private readonly _title: ResourceLabel;
+	private readonly _name: ResourceLabel;
 	private readonly _previewEditor: ICodeEditor;
 	private readonly _previewModel = new MutableDisposable();
 	private _dim: Dimension | undefined;
@@ -379,7 +382,7 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 		super(parentEditor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, showInHiddenAreas: true, ordinal: 10000 + 2 });
 		super.create();
 
-		this._title = instaService.createInstance(ResourceLabel, this._elements.title, { supportIcons: true });
+		this._name = instaService.createInstance(ResourceLabel, this._elements.name, { supportIcons: true });
 
 		const contributions = EditorExtensionsRegistry
 			.getEditorContributions()
@@ -412,7 +415,7 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 	}
 
 	override dispose(): void {
-		this._title.dispose();
+		this._name.dispose();
 		this._previewEditor.dispose();
 		this._previewModel.dispose();
 		super.dispose();
@@ -428,15 +431,20 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 
 	showCreation(where: Range, uri: URI, edits: TextEdit[]): void {
 
-		this._title.element.setFile(uri, { fileKind: FileKind.FILE });
+		this._name.element.setFile(uri, { fileKind: FileKind.FILE });
+
 		const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
 		const model = this._modelService.createModel('', langSelection, undefined, true);
 		model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 		this._previewModel.value = model;
 		this._previewEditor.setModel(model);
 
-		const lines = Math.min(7, model.getLineCount());
-		const lineHeightPadding = (this.editor.getOption(EditorOption.lineHeight) / 12) /* padding-top/bottom*/;
+		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+		this._elements.title.style.height = `${lineHeight}px`;
+		const maxLines = Math.max(4, Math.floor((this.editor.getLayoutInfo().height / lineHeight) / .33));
+
+		const lines = Math.min(maxLines, model.getLineCount());
+		const lineHeightPadding = (lineHeight / 12) /* padding-top/bottom*/;
 
 
 		super.show(where, lines + 1 + lineHeightPadding);
