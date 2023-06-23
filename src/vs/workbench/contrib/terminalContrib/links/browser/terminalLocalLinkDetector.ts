@@ -90,8 +90,8 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 		const os = this._processManager.os || OS;
 		const parsedLinks = detectLinks(text, os);
-		this._logService.trace('terminalLocaLinkDetector#detect text', text);
-		this._logService.trace('terminalLocaLinkDetector#detect parsedLinks', parsedLinks);
+		this._logService.trace('terminalLocalLinkDetector#detect text', text);
+		this._logService.trace('terminalLocalLinkDetector#detect parsedLinks', parsedLinks);
 		for (const parsedLink of parsedLinks) {
 
 			// Don't try resolve any links of excessive length
@@ -153,7 +153,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				}
 			}
 			linkCandidates.push(...specialEndLinkCandidates);
-			this._logService.trace('terminalLocaLinkDetector#detect linkCandidates', linkCandidates);
+			this._logService.trace('terminalLocalLinkDetector#detect linkCandidates', linkCandidates);
 
 			// Validate the path and convert to the outgoing type
 			const simpleLink = await this._validateAndGetLink(undefined, bufferRange, linkCandidates, trimRangeMap);
@@ -163,7 +163,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					parsedLink.prefix?.index ?? parsedLink.path.index,
 					parsedLink.suffix ? parsedLink.suffix.suffix.index + parsedLink.suffix.suffix.text.length : parsedLink.path.index + parsedLink.path.text.length
 				);
-				this._logService.trace('terminalLocaLinkDetector#detect verified link', simpleLink);
+				this._logService.trace('terminalLocalLinkDetector#detect verified link', simpleLink);
 				links.push(simpleLink);
 			}
 
