@@ -113,7 +113,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private loggedInvalidGroupNames: { [group: string]: boolean } = Object.create(null);
 	private readonly remoteExtensionMetadata: RemoteExtensionMetadata[];
-	private _isInitialized: boolean = false;
+	private remoteMetadataInitialized: boolean = false;
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
@@ -167,7 +167,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		this.updateWhenInstalledExtensionsRegistered();
 		this.updateRemoteStatusIndicator();
-		this.initializeRemoteMetadata();
 	}
 
 	private registerActions(): void {
@@ -314,7 +313,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private async initializeRemoteMetadata(): Promise<void> {
 
-		if (this._isInitialized) {
+		if (this.remoteMetadataInitialized) {
 			return;
 		}
 
@@ -340,7 +339,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			this.remoteExtensionMetadata[i].installed = (await this.extensionManagementService.getInstalled()).find(value => ExtensionIdentifier.equals(value.identifier.id, extensionId)) ? true : false;
 		}
 
-		this._isInitialized = true;
+		this.remoteMetadataInitialized = true;
 	}
 
 	private updateVirtualWorkspaceLocation() {
@@ -367,6 +366,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 
 		this.updateRemoteStatusIndicator();
+		this.initializeRemoteMetadata();
 	}
 
 	private setConnectionState(newState: 'disconnected' | 'connected' | 'reconnecting'): void {
@@ -760,7 +760,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				items.pop(); // remove the separator again
 			}
 
-			if (this.extensionGalleryService.isEnabled()) {
+			if (this.extensionGalleryService.isEnabled() && this.remoteMetadataInitialized) {
 
 				const notInstalledItems: QuickPickItem[] = [];
 				for (const metadata of this.remoteExtensionMetadata) {
@@ -798,7 +798,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					quickPick.items = [];
 					quickPick.busy = true;
 					quickPick.placeholder = nls.localize('remote.startActions.installingExtension', 'Installing extension... ');
-					quickPick.hide();
 					await this.installAndRunStartCommand(remoteExtension);
 				}
 				else {
