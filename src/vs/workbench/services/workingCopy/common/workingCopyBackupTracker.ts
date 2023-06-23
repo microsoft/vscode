@@ -87,7 +87,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	// have different scheduling delays based on auto save. This helps to
 	// avoid a (not critical but also not really wanted) race between saving
 	// (after 1s per default) and making a backup of the working copy.
-	private static readonly BACKUP_SCHEDULE_DELAYS = {
+	private static readonly DEFAULT_BACKUP_SCHEDULE_DELAYS = {
 		[AutoSaveMode.OFF]: 1000,
 		[AutoSaveMode.ON_FOCUS_CHANGE]: 1000,
 		[AutoSaveMode.ON_WINDOW_CHANGE]: 1000,
@@ -220,12 +220,16 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	}
 
 	protected getBackupScheduleDelay(workingCopy: IWorkingCopy): number {
+		if (typeof workingCopy.backupDelay === 'number') {
+			return workingCopy.backupDelay; // respect working copy override
+		}
+
 		let autoSaveMode = this.filesConfigurationService.getAutoSaveMode();
 		if (workingCopy.capabilities & WorkingCopyCapabilities.Untitled) {
 			autoSaveMode = AutoSaveMode.OFF; // auto-save is never on for untitled working copies
 		}
 
-		return WorkingCopyBackupTracker.BACKUP_SCHEDULE_DELAYS[autoSaveMode];
+		return WorkingCopyBackupTracker.DEFAULT_BACKUP_SCHEDULE_DELAYS[autoSaveMode];
 	}
 
 	protected getContentVersion(workingCopy: IWorkingCopy): number {
