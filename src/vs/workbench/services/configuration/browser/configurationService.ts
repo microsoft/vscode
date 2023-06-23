@@ -25,7 +25,7 @@ import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, U
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { mark } from 'vs/base/common/performance';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -42,8 +42,6 @@ import { localize } from 'vs/nls';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
@@ -709,12 +707,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private onUserDataProfileChanged(e: DidChangeUserDataProfileEvent): void {
 		e.join((async () => {
-			if (e.preserveData) {
-				await Promise.all([
-					this.copyProfileSettings(e.previous.settingsResource, e.profile.settingsResource),
-					this.copyProfileTasks(e.previous.tasksResource, e.profile.tasksResource)
-				]);
-			}
 			const promises: Promise<ConfigurationModel>[] = [];
 			promises.push(this.localUserConfiguration.reset(e.profile.settingsResource, e.profile.tasksResource, getLocalUserConfigurationScopes(e.profile, !!this.remoteUserConfiguration)));
 			if (e.previous.isDefault !== e.profile.isDefault) {
@@ -726,30 +718,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			const [localUser, application] = await Promise.all(promises);
 			await this.loadConfiguration(application ?? this._configuration.applicationConfiguration, localUser, this._configuration.remoteUserConfiguration, true);
 		})());
-	}
-
-	private async copyProfileSettings(from: URI, to: URI): Promise<void> {
-		let fromContent: string | undefined;
-		try {
-			fromContent = (await this.fileService.readFile(from)).value.toString();
-		} catch (error) {
-			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-				throw error;
-			}
-		}
-		if (!fromContent) {
-			return;
-		}
-		const allSettings = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		const applicationSettings = Object.keys(allSettings).filter(key => allSettings[key]?.scope === ConfigurationScope.APPLICATION);
-		const toContent = updateIgnoredSettings(fromContent, '{}', applicationSettings, {});
-		await this.fileService.writeFile(to, VSBuffer.fromString(toContent));
-	}
-
-	private async copyProfileTasks(from: URI, to: URI): Promise<void> {
-		if (await this.fileService.exists(from)) {
-			await this.fileService.copy(from, to);
-		}
 	}
 
 	private onDefaultConfigurationChanged(configurationModel: ConfigurationModel, properties?: string[]): void {
