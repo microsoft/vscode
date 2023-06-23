@@ -9,7 +9,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { DefaultURITransformer, IURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionIdentifier, IExtensionTipsService, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, isTargetPlatformCompatible, InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentifier, IExtensionTipsService, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, isTargetPlatformCompatible, InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, InstallOperation, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI;
@@ -127,6 +127,10 @@ export class ExtensionManagementChannel implements IServerChannel {
 			}
 			case 'installFromGallery': {
 				return this.service.installFromGallery(args[0], transformIncomingOptions(args[1], uriTransformer));
+			}
+			case 'installGalleryExtensions': {
+				const arg: InstallExtensionInfo[] = args[0];
+				return this.service.installGalleryExtensions(arg.map(({ extension, options }) => ({ extension, options: transformIncomingOptions(options, uriTransformer) ?? {} })));
 			}
 			case 'uninstall': {
 				return this.service.uninstall(transformIncomingExtension(args[0], uriTransformer), transformIncomingOptions(args[1], uriTransformer));
@@ -248,6 +252,11 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 
 	installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
 		return Promise.resolve(this.channel.call<ILocalExtension>('installFromGallery', [extension, installOptions])).then(local => transformIncomingExtension(local, null));
+	}
+
+	async installGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<InstallExtensionResult[]> {
+		const results = await this.channel.call<InstallExtensionResult[]>('installGalleryExtensions', [extensions]);
+		return results.map(e => ({ ...e, local: e.local ? transformIncomingExtension(e.local, null) : e.local, source: this.isUriComponents(e.source) ? URI.revive(e.source) : e.source, profileLocation: URI.revive(e.profileLocation) }));
 	}
 
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {

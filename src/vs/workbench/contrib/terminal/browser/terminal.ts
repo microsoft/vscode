@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import { IDimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
@@ -13,7 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalBackend, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -21,7 +22,7 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import { IMarker, Terminal as RawXtermTerminal } from 'xterm';
@@ -77,6 +78,7 @@ export interface ITerminalInstanceService {
 	 */
 	getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined>;
 
+	getRegisteredBackends(): IterableIterator<ITerminalBackend>;
 	didRegisterBackend(remoteAuthority?: string): void;
 }
 
@@ -138,14 +140,25 @@ export const enum TerminalConnectionState {
 	Connected
 }
 
+export interface IDetachedXTermOptions {
+	cols: number;
+	rows: number;
+	colorProvider: IXtermColorProvider;
+	capabilities?: ITerminalCapabilityStore;
+	readonly?: boolean;
+}
+
 export interface ITerminalService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
 	/** Gets all terminal instances, including editor and terminal view (group) instances. */
 	readonly instances: readonly ITerminalInstance[];
+	/** Gets detached terminal instances created via {@link createDetachedXterm}. */
+	readonly detachedXterms: Iterable<IXtermTerminal>;
 	configHelper: ITerminalConfigHelper;
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
+	readonly whenConnected: Promise<void>;
 	readonly defaultLocation: TerminalLocation;
 
 	onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
@@ -169,6 +182,13 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * profile will be used at the default target.
 	 */
 	createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance>;
+
+	/**
+	 * Creates a detached xterm instance which is not attached to the DOM or
+	 * tracked as a terminal instance.
+	 * @params options The options to create the terminal with
+	 */
+	createDetachedXterm(options: IDetachedXTermOptions): Promise<IDetachedXtermTerminal>;
 
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
@@ -212,7 +232,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined;
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
-	toggleEscapeSequenceLogging(): Promise<void>;
 
 	getEditingTerminal(): ITerminalInstance | undefined;
 	setEditingTerminal(instance: ITerminalInstance | undefined): void;
@@ -222,8 +241,6 @@ export class TerminalLinkQuickPickEvent extends MouseEvent {
 }
 export interface ITerminalServiceNativeDelegate {
 	getWindowCount(): Promise<number>;
-	openDevTools(): Promise<void>;
-	toggleDevTools(): Promise<void>;
 }
 
 /**
@@ -708,11 +725,6 @@ export interface ITerminalInstance {
 	resetFocusContextKey(): void;
 
 	/**
-	 * Select all text in the terminal.
-	 */
-	selectAll(): void;
-
-	/**
 	 * Focuses the terminal instance if it's able to (the xterm.js instance must exist).
 	 *
 	 * @param force Force focus even if there is a selection.
@@ -845,16 +857,6 @@ export interface ITerminalInstance {
 	toggleSizeToContentWidth(): Promise<void>;
 
 	/**
-	 * Toggles escape sequence logging in the devtools console.
-	 */
-	toggleEscapeSequenceLogging(): Promise<boolean>;
-
-	/**
-	 * Sets whether escape seqeunce logging is enabled in the devtools console.
-	 */
-	setEscapeSequenceLogging(enable: boolean): void;
-
-	/**
 	 * Gets the initial current working directory, fetching it from the backend if required.
 	 */
 	getInitialCwd(): Promise<string>;
@@ -946,7 +948,14 @@ export const enum XtermTerminalConstants {
 	SearchHighlightLimit = 1000
 }
 
-export interface IXtermTerminal {
+export interface IXtermAttachToElementOptions {
+	/**
+	 * Whether GPU rendering should be enabled for this element, defaults to true.
+	 */
+	enableGpu: boolean;
+}
+
+export interface IXtermTerminal extends IDisposable {
 	/**
 	 * An object that tracks when commands are run and enables navigating and selecting between
 	 * them.
@@ -962,6 +971,11 @@ export interface IXtermTerminal {
 	readonly onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number }>;
 
 	/**
+	 * Event fired when focus enters (fires with true) or leaves (false) the terminal.
+	 */
+	readonly onDidChangeFocus: Event<boolean>;
+
+	/**
 	 * Gets a view of the current texture atlas used by the renderers.
 	 */
 	readonly textureAtlas: Promise<ImageBitmap> | undefined;
@@ -970,6 +984,18 @@ export interface IXtermTerminal {
 	 * Whether the `disableStdin` option in xterm.js is set.
 	 */
 	readonly isStdinDisabled: boolean;
+
+	/**
+	 * Whether the terminal is currently focused.
+	 */
+	readonly isFocused: boolean;
+
+	/**
+	 * Attached the terminal to the given element
+	 * @param container Container the terminal will be rendered in
+	 * @param options Additional options for mounting the terminal in an element
+	 */
+	attachToElement(container: HTMLElement, options?: Partial<IXtermAttachToElementOptions>): void;
 
 	findResult?: { resultIndex: number; resultCount: number };
 
@@ -992,6 +1018,34 @@ export interface IXtermTerminal {
 	 * Gets the font metrics of this xterm.js instance.
 	 */
 	getFont(): ITerminalFont;
+
+	/**
+	 * Gets whether there's any terminal selection.
+	 */
+	hasSelection(): boolean;
+
+	/**
+	 * Clears any terminal selection.
+	 */
+	clearSelection(): void;
+
+	/**
+	 * Selects all terminal contents/
+	 */
+	selectAll(): void;
+
+	/**
+	 * Copies the terminal selection.
+	 * @param {boolean} copyAsHtml Whether to copy selection as HTML, defaults to false.
+	 */
+	copySelection(copyAsHtml?: boolean): void;
+
+	/**
+	 * Focuses the terminal. Warning: {@link ITerminalInstance.focus} should be
+	 * preferred when dealing with terminal instances in order to get
+	 * accessibility triggers.
+	 */
+	focus(): void;
 
 	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;
@@ -1022,9 +1076,27 @@ export interface IXtermTerminal {
 	getBufferReverseIterator(): IterableIterator<string>;
 
 	/**
+	 * Gets the buffer contents as HTML.
+	 */
+	getContentsAsHtml(): Promise<string>;
+
+	/**
 	 * Refreshes the terminal after it has been moved.
 	 */
 	refresh(): void;
+}
+
+export interface IDetachedXtermTerminal extends IXtermTerminal {
+
+	/**
+	 * Writes data to the terminal.
+	 */
+	write(data: string | Uint8Array): void;
+
+	/**
+	 * Resizes the terminal.
+	 */
+	resize(columns: number, rows: number): void;
 }
 
 export interface IInternalXtermTerminal {

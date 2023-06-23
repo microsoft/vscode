@@ -6,7 +6,7 @@
 import { MainThreadStatusBarShape, MainContext, ExtHostContext, StatusBarItemDto } from '../common/extHost.protocol';
 import { ThemeColor } from 'vs/base/common/themables';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { DisposableMap } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/languages';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -16,7 +16,7 @@ import { IStatusbarEntry, StatusbarAlignment } from 'vs/workbench/services/statu
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
-	private readonly entries = new DisposableMap<string>();
+	private readonly _store = new DisposableStore();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -32,36 +32,35 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 		proxy.$acceptStaticEntries(entries);
 
-		statusbarService.onDidChange(e => {
+		this._store.add(statusbarService.onDidChange(e => {
 			if (e.added) {
 				proxy.$acceptStaticEntries([asDto(e.added[0], e.added[1])]);
 			}
-		});
+		}));
 
 		function asDto(entryId: string, item: { entry: IStatusbarEntry; alignment: StatusbarAlignment; priority: number }): StatusBarItemDto {
 			return {
 				entryId,
 				name: item.entry.name,
 				text: item.entry.text,
+				tooltip: item.entry.tooltip as string | undefined,
 				command: typeof item.entry.command === 'string' ? item.entry.command : typeof item.entry.command === 'object' ? item.entry.command.id : undefined,
 				priority: item.priority,
-				alignLeft: item.alignment === StatusbarAlignment.LEFT
+				alignLeft: item.alignment === StatusbarAlignment.LEFT,
+				accessibilityInformation: item.entry.ariaLabel ? { label: item.entry.ariaLabel, role: item.entry.role } : undefined
 			};
 		}
 	}
 
 	dispose(): void {
-		this.entries.dispose();
+		this._store.dispose();
 	}
 
 	$setEntry(entryId: string, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void {
-		const dispo = this.statusbarService.setOrUpdateEntry(entryId, id, extensionId, name, text, tooltip, command, color, backgroundColor, alignLeft, priority, accessibilityInformation);
-		if (!this.entries.has(entryId)) {
-			this.entries.set(entryId, dispo);
-		}
+		this.statusbarService.setOrUpdateEntry(entryId, id, extensionId, name, text, tooltip, command, color, backgroundColor, alignLeft, priority, accessibilityInformation);
 	}
 
 	$disposeEntry(entryId: string) {
-		this.entries.deleteAndDispose(entryId);
+		this.statusbarService.unsetEntry(entryId);
 	}
 }

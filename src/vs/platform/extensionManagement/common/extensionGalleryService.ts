@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
@@ -574,6 +574,7 @@ interface IRawExtensionsControlManifest {
 		settings?: string[];
 		additionalInfo?: string;
 	}>;
+	search?: ISearchPrefferedResults[];
 }
 
 abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
@@ -1206,7 +1207,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 
 		if (!this.extensionsControlUrl) {
-			return { malicious: [], deprecated: {} };
+			return { malicious: [], deprecated: {}, search: [] };
 		}
 
 		const context = await this.requestService.request({ type: 'GET', url: this.extensionsControlUrl }, CancellationToken.None);
@@ -1217,6 +1218,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const result = await asJson<IRawExtensionsControlManifest>(context);
 		const malicious: IExtensionIdentifier[] = [];
 		const deprecated: IStringDictionary<IDeprecationInfo> = {};
+		const search: ISearchPrefferedResults[] = [];
 		if (result) {
 			for (const id of result.malicious) {
 				malicious.push({ id });
@@ -1243,9 +1245,14 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 					}
 				}
 			}
+			if (result.search) {
+				for (const s of result.search) {
+					search.push(s);
+				}
+			}
 		}
 
-		return { malicious, deprecated };
+		return { malicious, deprecated, search };
 	}
 }
 

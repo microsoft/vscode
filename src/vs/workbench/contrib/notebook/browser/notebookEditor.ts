@@ -24,7 +24,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions, INotebookEditorPane, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -111,7 +111,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 	}
 
 	private _updateReadonly(input: NotebookEditorInput): void {
-		this._widget.value?.setOptions({ isReadOnly: input.hasCapability(EditorInputCapabilities.Readonly) });
+		this._widget.value?.setOptions({ isReadOnly: !!input.isReadonly() });
 	}
 
 	get textModel(): NotebookTextModel | undefined {
@@ -301,7 +301,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			this._widget.value!.setEditorProgressService(this._editorProgressService);
 
 			await this._widget.value!.setModel(model.notebook, viewState, perf);
-			const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
+			const isReadOnly = !!input.isReadonly();
 			await this._widget.value!.setOptions({ ...options, isReadOnly });
 			this._widgetDisposableStore.add(this._widget.value!.onDidFocusWidget(() => this._onDidFocusWidget.fire()));
 			this._widgetDisposableStore.add(this._widget.value!.onDidBlurWidget(() => this._onDidBlurWidget.fire()));

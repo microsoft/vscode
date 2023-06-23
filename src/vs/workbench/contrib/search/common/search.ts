@@ -157,7 +157,7 @@ export interface IFilterAndRange {
 }
 
 export function extractRangeFromFilter(filter: string, unless?: string[]): IFilterAndRange | undefined {
-	if (!filter || unless?.some(value => filter.indexOf(value) !== -1)) {
+	if (!filter || unless?.some(value => filter.indexOf(value) === 0)) {
 		return undefined;
 	}
 

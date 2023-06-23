@@ -11,13 +11,14 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, derived, observableFromEvent } from 'vs/base/common/observable';
 import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffModel';
+import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { appendRemoveOnDispose } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
 import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { DiffEditorOptions } from './diffEditorOptions';
 
 export class OverviewRulerPart extends Disposable {
 	public static readonly ONE_OVERVIEW_WIDTH = 15;
@@ -27,11 +28,11 @@ export class OverviewRulerPart extends Disposable {
 		private readonly _originalEditor: CodeEditorWidget,
 		private readonly _modifiedEditor: CodeEditorWidget,
 		private readonly _rootElement: HTMLElement,
-		private readonly _diffModel: IObservable<DiffModel | null>,
+		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
 		private readonly _rootWidth: IObservable<number>,
 		private readonly _rootHeight: IObservable<number>,
 		private readonly _modifiedEditorLayoutInfo: IObservable<EditorLayoutInfo | null>,
-		public readonly renderOverviewRuler: IObservable<boolean>,
+		public readonly _options: DiffEditorOptions,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
@@ -50,7 +51,7 @@ export class OverviewRulerPart extends Disposable {
 
 		// overview ruler
 		this._register(autorunWithStore2('create diff editor overview ruler if enabled', (reader, store) => {
-			if (!this.renderOverviewRuler.read(reader)) {
+			if (!this._options.renderOverviewRuler.read(reader)) {
 				return;
 			}
 
@@ -92,7 +93,7 @@ export class OverviewRulerPart extends Disposable {
 
 				store.add(autorun('set overview ruler zones', (reader) => {
 					const colors = currentColors.read(reader);
-					const diff = m?.diff.read(reader)?.changes;
+					const diff = m?.diff.read(reader)?.mappings;
 
 					function createZones(ranges: LineRange[], color: Color) {
 						return ranges
@@ -100,8 +101,8 @@ export class OverviewRulerPart extends Disposable {
 							.map(r => new OverviewRulerZone(r.startLineNumber, r.endLineNumberExclusive, r.length, color.toString()));
 					}
 
-					originalOverviewRuler?.setZones(createZones((diff || []).map(d => d.originalRange), colors.removeColor));
-					modifiedOverviewRuler?.setZones(createZones((diff || []).map(d => d.modifiedRange), colors.insertColor));
+					originalOverviewRuler?.setZones(createZones((diff || []).map(d => d.lineRangeMapping.originalRange), colors.removeColor));
+					modifiedOverviewRuler?.setZones(createZones((diff || []).map(d => d.lineRangeMapping.modifiedRange), colors.insertColor));
 				}));
 
 				store.add(autorun('layout overview ruler', (reader) => {

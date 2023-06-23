@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { commands, Disposable, ExtensionContext, extensions, l10n, LogLevel, LogOutputChannel, window } from 'vscode';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { GithubRemoteSourceProvider } from './remoteSourceProvider';
 import { API, GitExtension } from './typings/git';
 import { registerCommands } from './commands';
@@ -29,8 +30,12 @@ export function activate(context: ExtensionContext): void {
 	disposables.push(logger.onDidChangeLogLevel(onDidChangeLogLevel));
 	onDidChangeLogLevel(logger.logLevel);
 
+	const { aiKey } = require('../package.json') as { aiKey: string };
+	const telemetryReporter = new TelemetryReporter(aiKey);
+	disposables.push(telemetryReporter);
+
 	disposables.push(initializeGitBaseExtension());
-	disposables.push(initializeGitExtension(context, logger));
+	disposables.push(initializeGitExtension(context, telemetryReporter, logger));
 }
 
 function initializeGitBaseExtension(): Disposable {
@@ -78,7 +83,7 @@ function setGitHubContext(gitAPI: API, disposables: DisposableStore) {
 	}
 }
 
-function initializeGitExtension(context: ExtensionContext, logger: LogOutputChannel): Disposable {
+function initializeGitExtension(context: ExtensionContext, telemetryReporter: TelemetryReporter, logger: LogOutputChannel): Disposable {
 	const disposables = new DisposableStore();
 
 	let gitExtension = extensions.getExtension<GitExtension>('vscode.git');
@@ -93,7 +98,7 @@ function initializeGitExtension(context: ExtensionContext, logger: LogOutputChan
 						disposables.add(registerCommands(gitAPI));
 						disposables.add(new GithubCredentialProviderManager(gitAPI));
 						disposables.add(new GithubBranchProtectionProviderManager(gitAPI, context.globalState, logger));
-						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler()));
+						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler(telemetryReporter)));
 						disposables.add(gitAPI.registerRemoteSourcePublisher(new GithubRemoteSourcePublisher(gitAPI)));
 						disposables.add(new GitHubCanonicalUriProvider(gitAPI));
 						disposables.add(new VscodeDevShareProvider(gitAPI));

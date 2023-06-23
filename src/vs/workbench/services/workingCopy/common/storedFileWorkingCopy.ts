@@ -28,6 +28,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
  * Stored file specific working copy model factory.
@@ -145,7 +146,7 @@ export interface IStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> e
 	/**
 	 * Whether the stored file working copy is readonly or not.
 	 */
-	isReadonly(): boolean;
+	isReadonly(): boolean | IMarkdownString;
 }
 
 export interface IResolvedStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extends IStoredFileWorkingCopy<M> {
@@ -1110,10 +1111,13 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			primaryActions.push(toAction({
 				id: 'fileWorkingCopy.saveAs',
 				label: localize('saveAs', "Save As..."),
-				run: () => {
+				run: async () => {
 					const editor = this.workingCopyEditorService.findEditor(this);
 					if (editor) {
-						this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
+						const result = await this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
+						if (!result.success) {
+							this.doHandleSaveError(error); // show error again given the operation failed
+						}
 					}
 				}
 			}));
@@ -1244,7 +1248,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 	//#region Utilities
 
-	isReadonly(): boolean {
+	isReadonly(): boolean | IMarkdownString {
 		return this.filesConfigurationService.isReadonly(this.resource, this.lastResolvedFileStat);
 	}
 

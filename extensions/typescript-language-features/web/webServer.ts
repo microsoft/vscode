@@ -46,24 +46,34 @@ function fromResource(extensionUri: URI, uri: URI) {
 	}
 	return `/${uri.scheme}/${uri.authority}${uri.path}`;
 }
+
 function updateWatch(event: 'create' | 'change' | 'delete', uri: URI, extensionUri: URI) {
-	const kind = event === 'create' ? ts.FileWatcherEventKind.Created
-		: event === 'change' ? ts.FileWatcherEventKind.Changed
-			: event === 'delete' ? ts.FileWatcherEventKind.Deleted
-				: ts.FileWatcherEventKind.Changed;
+	const kind = toTsWatcherKind(event);
 	const path = fromResource(extensionUri, uri);
-	if (watchFiles.has(path)) {
-		watchFiles.get(path)!.callback(path, kind);
+
+	const fileWatcher = watchFiles.get(path);
+	if (fileWatcher) {
+		fileWatcher.callback(path, kind);
 		return;
 	}
-	let found = false;
+
 	for (const watch of Array.from(watchDirectories.keys()).filter(dir => path.startsWith(dir))) {
 		watchDirectories.get(watch)!.callback(path);
-		found = true;
+		return;
 	}
-	if (!found) {
-		console.error(`no watcher found for ${path}`);
+
+	console.error(`no watcher found for ${path}`);
+}
+
+function toTsWatcherKind(event: 'create' | 'change' | 'delete') {
+	if (event === 'create') {
+		return ts.FileWatcherEventKind.Created;
+	} else if (event === 'change') {
+		return ts.FileWatcherEventKind.Changed;
+	} else if (event === 'delete') {
+		return ts.FileWatcherEventKind.Deleted;
 	}
+	throw new Error(`Unknown event: ${event}`);
 }
 
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
@@ -306,9 +316,13 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			return currentDirectory;
 		},
 		getDirectories(path: string): string[] {
+			logVerbose('fs.getDirectories', { path });
+
 			return getAccessibleFileSystemEntries(path).directories.slice();
 		},
 		readDirectory(path: string, extensions?: readonly string[], excludes?: readonly string[], includes?: readonly string[], depth?: number): string[] {
+			logVerbose('fs.readDirectory', { path });
+
 			return matchFiles(path, extensions, excludes, includes, /*useCaseSensitiveFileNames*/ true, currentDirectory, depth, getAccessibleFileSystemEntries, realpath);
 		},
 		getModifiedTime(path: string): Date | undefined {

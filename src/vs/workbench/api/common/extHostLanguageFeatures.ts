@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
 import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem, CodeActionTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import * as languages from 'vs/editor/common/languages';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -376,6 +376,7 @@ class CodeActionAdapter {
 
 	private readonly _cache = new Cache<vscode.CodeAction | vscode.Command>('CodeAction');
 	private readonly _disposables = new Map<number, DisposableStore>();
+	private readonly nbKind = new CodeActionKind('notebook');
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -414,6 +415,7 @@ class CodeActionAdapter {
 		if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested) {
 			return undefined;
 		}
+
 		const cacheId = this._cache.add(commandsOrActions);
 		const disposables = new DisposableStore();
 		this._disposables.set(cacheId, disposables);
@@ -434,6 +436,10 @@ class CodeActionAdapter {
 					command: this._commands.toInternal(candidate, disposables),
 				});
 			} else {
+				if (codeActionContext.triggerKind !== CodeActionTriggerKind.Invoke && candidate.kind && this.nbKind.contains(candidate.kind)) {
+					continue;
+				}
+
 				if (codeActionContext.only) {
 					if (!candidate.kind) {
 						this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
@@ -976,7 +982,7 @@ class CompletionsAdapter {
 		const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
 		const insertRange = replaceRange.with({ end: pos });
 
-		const sw = new StopWatch(true);
+		const sw = new StopWatch();
 		const itemsOrList = await this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context));
 
 		if (!itemsOrList) {
@@ -1040,12 +1046,20 @@ class CompletionsAdapter {
 			additionalTextEdits: resolvedItem.additionalTextEdits
 		};
 
-		if (item.insertText !== resolvedItem.insertText) {
+		if (CompletionsAdapter._insertTextIdent(item.insertText) !== CompletionsAdapter._insertTextIdent(resolvedItem.insertText)) {
 			this._apiDeprecation.report('CompletionItem.insertText', this._extension, 'extension MAY NOT change \'insertText\' of a CompletionItem during resolve');
 			enforcedResolvedItem.insertText = resolvedItem.insertText;
 		}
 
 		return this._convertCompletionItem(enforcedResolvedItem, id);
+	}
+
+	private static _insertTextIdent(insertText: string | vscode.SnippetString | undefined) {
+		switch (typeof insertText) {
+			case 'string': return insertText;
+			case 'undefined': return undefined;
+			case 'object': return insertText.value;
+		}
 	}
 
 	releaseCompletionItems(id: number): any {
@@ -2206,7 +2220,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._addNewAdapter(new CompletionsAdapter(this._documents, this._commands.converter, provider, this._apiDeprecation, extension), extension);
-		this._proxy.$registerCompletionsProvider(handle, this._transformDocumentSelector(selector, extension), triggerCharacters, CompletionsAdapter.supportsResolving(provider), `${extension.identifier.value}(${triggerCharacters.join('')})`);
+		this._proxy.$registerCompletionsProvider(handle, this._transformDocumentSelector(selector, extension), triggerCharacters, CompletionsAdapter.supportsResolving(provider), extension.identifier);
 		return this._createDisposable(handle);
 	}
 

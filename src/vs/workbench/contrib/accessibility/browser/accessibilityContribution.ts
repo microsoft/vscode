@@ -6,12 +6,15 @@
 import { localize } from 'vs/nls';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { Command, MultiCommand } from 'vs/editor/browser/editorExtensions';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
-	Chat = 'accessibility.verbosity.chat',
-	InteractiveEditor = 'accessibility.verbosity.interactiveEditor',
+	Chat = 'accessibility.verbosity.panelChat',
+	InlineChat = 'accessibility.verbosity.inlineChat',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
 	Notebook = 'accessibility.verbosity.notebook'
 }
@@ -39,8 +42,8 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.chat.description', 'Provide information about how to access the chat help menu when the chat input is focused'),
 			...baseProperty
 		},
-		[AccessibilityVerbositySettingId.InteractiveEditor]: {
-			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the interactive editor accessibility help menu when the interactive editor input is focused'),
+		[AccessibilityVerbositySettingId.InlineChat]: {
+			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu when the input is focused'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
@@ -58,3 +61,35 @@ export function registerAccessibilityConfiguration() {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration(configuration);
 }
+
+function registerCommand<T extends Command>(command: T): T {
+	command.register();
+	return command;
+}
+
+export const AccessibilityHelpAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibilityHelp',
+	precondition: undefined,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.F1,
+		weight: KeybindingWeight.WorkbenchContrib,
+		linux: {
+			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
+			secondary: [KeyMod.Alt | KeyCode.F1]
+		}
+	}
+}));
+
+
+export const AccessibilityViewAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibilityView',
+	precondition: undefined,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.F2,
+		weight: KeybindingWeight.WorkbenchContrib,
+		linux: {
+			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
+			secondary: [KeyMod.Alt | KeyCode.F1]
+		}
+	}
+}));

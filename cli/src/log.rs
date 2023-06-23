@@ -159,9 +159,21 @@ pub struct FileLogSink {
 	file: Arc<std::sync::Mutex<std::fs::File>>,
 }
 
+const FILE_LOG_SIZE_LIMIT: u64 = 1024 * 1024 * 10; // 10MB
+
 impl FileLogSink {
 	pub fn new(level: Level, path: &Path) -> std::io::Result<Self> {
-		let file = std::fs::File::create(path)?;
+		// Truncate the service log occasionally to avoid growing infinitely
+		if matches!(path.metadata(), Ok(m) if m.len() > FILE_LOG_SIZE_LIMIT) {
+			// ignore errors, can happen if another process is writing right now
+			let _ = std::fs::remove_file(path);
+		}
+
+		let file = std::fs::OpenOptions::new()
+			.append(true)
+			.create(true)
+			.open(path)?;
+
 		Ok(Self {
 			level,
 			file: Arc::new(std::sync::Mutex::new(file)),

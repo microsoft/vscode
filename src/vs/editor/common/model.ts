@@ -7,6 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
+import { ThemeColor } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -16,13 +17,12 @@ import { TextChange } from 'vs/editor/common/core/textChange';
 import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { FormattingOptions } from 'vs/editor/common/languages';
+import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
-import { ThemeColor } from 'vs/base/common/themables';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -108,6 +108,10 @@ export interface IModelDecorationOptions {
 	 * CSS class name describing the decoration.
 	 */
 	className?: string | null;
+	/**
+	 * Indicates whether the decoration should span across the entire line when it continues onto the next line.
+	 */
+	shouldFillLineOnLineBreak?: boolean | null;
 	blockClassName?: string | null;
 	/**
 	 * Indicates if this block should be rendered after the last line.
