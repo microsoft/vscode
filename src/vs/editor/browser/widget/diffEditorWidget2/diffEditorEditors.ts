@@ -39,10 +39,10 @@ export class DiffEditorEditors extends Disposable {
 		this.modified = this._createRightHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.modifiedEditor || {});
 
 		this._register(autorunHandleChanges('update editor options', {
-			createEmptyChangeSummary: () => ({}),
+			createEmptyChangeSummary: () => ({} as IDiffEditorConstructionOptions),
 			handleChange: (ctx, changeSummary) => {
 				if (ctx.didChange(_options.editorOptions)) {
-					Object.assign(changeSummary, ctx.change);
+					Object.assign(changeSummary, ctx.change.changedOptions);
 				}
 				return true;
 			}
