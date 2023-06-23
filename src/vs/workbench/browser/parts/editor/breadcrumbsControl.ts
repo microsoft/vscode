@@ -46,7 +46,7 @@ class OutlineItem extends BreadcrumbsItem {
 
 	constructor(
 		readonly model: BreadcrumbsModel,
-		readonly element: OutlineElement2,
+		override readonly element: OutlineElement2,
 		readonly options: IBreadcrumbsControlOptions
 	) {
 		super();
@@ -105,7 +105,7 @@ class FileItem extends BreadcrumbsItem {
 
 	constructor(
 		readonly model: BreadcrumbsModel,
-		readonly element: FileElement,
+		override readonly element: FileElement,
 		readonly options: IBreadcrumbsControlOptions,
 		private readonly _labels: ResourceLabels
 	) {

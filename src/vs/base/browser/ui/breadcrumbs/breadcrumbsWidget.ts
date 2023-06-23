@@ -5,6 +5,7 @@
 
 import 'vs/css!./breadcrumbsWidget';
 import * as dom from 'vs/base/browser/dom';
+import { DataTransfers } from 'vs/base/browser/dnd';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { commonPrefixLength } from 'vs/base/common/arrays';
@@ -12,8 +13,11 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { FileKind } from 'vs/platform/files/common/files';
+import { FileElement, OutlineElement2 } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 
 export abstract class BreadcrumbsItem {
+	readonly element: FileElement | OutlineElement2 | undefined;
 	dispose(): void { }
 	abstract equals(other: BreadcrumbsItem): boolean;
 	abstract render(container: HTMLElement): void;
@@ -340,9 +344,14 @@ export class BreadcrumbsWidget {
 		container.tabIndex = -1;
 		container.setAttribute('role', 'listitem');
 		container.classList.add('monaco-breadcrumb-item');
+		if (item.element instanceof FileElement) {
+			container.draggable = true;
+			this._disposables.add(dom.addStandardDisposableListener(container, 'dragstart', e => this._onCrumbDrag(e)));
+		}
 		const iconContainer = dom.$(ThemeIcon.asCSSSelector(this._separatorIcon));
 		container.appendChild(iconContainer);
 	}
+
 
 	private _onClick(event: IMouseEvent): void {
 		if (!this._enabled) {
@@ -354,6 +363,29 @@ export class BreadcrumbsWidget {
 				this._focus(idx, event);
 				this._select(idx, event);
 				break;
+			}
+		}
+	}
+
+	private _onCrumbDrag(event: DragEvent): void {
+		if (!this._enabled) {
+			return;
+		}
+		if (!event.target || event.target instanceof HTMLDivElement === false) {
+			return;
+		}
+
+		if (event.dataTransfer) {
+			event.dataTransfer.effectAllowed = 'copyMove';
+		}
+
+		const index = this._nodes.indexOf(event.target as HTMLDivElement);
+		if (index >= 0 && this._items[index].element instanceof FileElement) {
+			const element = this._items[index].element as FileElement;
+			event.dataTransfer?.setData(DataTransfers.TEXT, element.uri.fsPath);
+			// If it is a file, allow dragging and dropping to the editor and opening it
+			if ( element.kind == FileKind.FILE ) {
+				event.dataTransfer?.setData(DataTransfers.RESOURCES, element.uri.toString());
 			}
 		}
 	}
