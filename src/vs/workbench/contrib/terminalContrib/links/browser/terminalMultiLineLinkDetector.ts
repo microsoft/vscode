@@ -19,12 +19,6 @@ const enum Constants {
 	MaxLineLength = 2000,
 
 	/**
-	 * The maximum number of links in a line to resolve against the file system. This limit is put
-	 * in place to avoid sending excessive data when remote connections are in place.
-	 */
-	MaxResolvedLinksInLine = 10,
-
-	/**
 	 * The maximum length of a link to resolve against the file system. This limit is put in place
 	 * to avoid sending excessive data when remote connections are in place.
 	 */
@@ -68,7 +62,6 @@ export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
 			return [];
 		}
 
-		let stringIndex = -1;
 
 		this._logService.trace('terminalMultiLineLinkDetector#detect text', text);
 
@@ -92,7 +85,6 @@ export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
 				continue;
 			}
 
-			// TODO: Log more info?
 			this._logService.trace('terminalMultiLineLinkDetector#detect candidates', link);
 
 			// Scan up looking for the first line that could be a path
@@ -124,11 +116,10 @@ export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
 				}
 
 				// Convert the entire line's text string index into a wrapped buffer range
-				stringIndex = text.indexOf(link);
 				const bufferRange = convertLinkRangeToBuffer(lines, this.xterm.cols, {
-					startColumn: stringIndex + 1,
+					startColumn: 1,
 					startLineNumber: 1,
-					endColumn: stringIndex + 1 + text.length + 1,
+					endColumn: 1 + text.length,
 					endLineNumber: 1
 				}, startLine);
 
@@ -139,6 +130,7 @@ export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
 						startLineNumber: parseInt(line),
 						startColumn: col ? parseInt(col) : 0
 					},
+					disableTrimColon: true,
 					bufferRange: bufferRange,
 					type
 				};

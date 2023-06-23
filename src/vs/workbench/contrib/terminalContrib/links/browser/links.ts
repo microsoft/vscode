@@ -83,11 +83,15 @@ export interface ITerminalSimpleLink {
 	 */
 	uri?: URI;
 
-	// TODO: This is similar to parsedLink, combine into a single prop?
 	/**
 	 * The location or selection range of the link.
 	 */
 	selection?: ITextEditorSelection;
+
+	/**
+	 * Whether to trim a trailing colon at the end of a path.
+	 */
+	disableTrimColon?: boolean;
 
 	/**
 	 * A hover label to override the default for the type.
