@@ -757,6 +757,10 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 	//#region Backup
 
+	get backupDelay(): number | undefined {
+		return this.model?.configuration?.backupDelay;
+	}
+
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 
 		// Fill in metadata if we are resolved
