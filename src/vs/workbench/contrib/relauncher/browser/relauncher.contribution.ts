@@ -172,6 +172,13 @@ class ChangeObserver<T> {
 	private lastValue: T | undefined = undefined;
 
 	/**
+	 * Set default value to compare against
+	 */
+	reset(value: T | undefined): void {
+		this.lastValue = value;
+	}
+
+	/**
 	 * Returns if there was a change compared to the last value
 	 */
 	handleChange(value: T | undefined): boolean {
@@ -264,6 +271,9 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 export class RuntimeArgumentsChangeRelauncher extends Disposable implements IWorkbenchContribution {
 
 	private readonly disableChromiumSandbox = new ChangeObserver('boolean');
+	private readonly disableHardwareAcceleration = new ChangeObserver('boolean');
+	private readonly enableCrashReporter = new ChangeObserver('boolean');
+	private readonly locale = new ChangeObserver('string');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -274,7 +284,12 @@ export class RuntimeArgumentsChangeRelauncher extends Disposable implements IWor
 	) {
 		super();
 
-		this._register(this.fileService.watch(this.environmentService.argvResource));
+		// Set default values.
+		this.disableChromiumSandbox.reset(false);
+		this.disableHardwareAcceleration.reset(false);
+		this.enableCrashReporter.reset(true);
+		this.locale.reset('en');
+
 		this._register(this.fileService.onDidRunOperation((e) => {
 			if (e.isOperation(FileOperation.WRITE) && e.resource.toString() === this.environmentService.argvResource.toString()) {
 				this.onRuntimeArgumentFileEdited();
@@ -287,7 +302,13 @@ export class RuntimeArgumentsChangeRelauncher extends Disposable implements IWor
 		const argvString = argvContent.value.toString();
 		const argvJSON = JSON.parse(stripComments(argvString));
 		// Chromium sandbox
-		const changed = this.disableChromiumSandbox.handleChange(argvJSON['disable-chromium-sandbox']);
+		let changed = this.disableChromiumSandbox.handleChange(argvJSON['disable-chromium-sandbox']);
+		// GPU rendering
+		changed ||= this.disableHardwareAcceleration.handleChange(argvJSON['disable-hardware-acceleration']);
+		// Crash reporter
+		changed ||= this.enableCrashReporter.handleChange(argvJSON['enable-crash-reporter']);
+		// Langugage packs
+		changed ||= this.locale.handleChange(argvJSON['locale']);
 
 		// Notify only when changed from an event and the change
 		// was not triggerd programmatically (e.g. from experiments)
