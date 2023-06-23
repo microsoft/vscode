@@ -2135,7 +2135,7 @@ export class SearchModel extends Disposable {
 		const localResults = await this.getLocalNotebookResults(query, token);
 		const searchLocalEnd = Date.now();
 
-		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.closedNotebookRichContentResults;
+		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental?.closedNotebookRichContentResults ?? false;
 
 		let closedResults = undefined;
 		if (experimentalNotebooksEnabled) {
