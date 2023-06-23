@@ -304,5 +304,8 @@
 }
 
 .monaco-editor .inline-chat-newfile-widget .title {
-	padding: 3px 0;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 3px 6px 3px 0;
 }

@@ -93,31 +93,26 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 			return;
 		}
 
-		const eventData = await this.switchExtensionsProfile(previousProfileLocation, currentProfileLocation, e.preserveData);
+		const eventData = await this.switchExtensionsProfile(previousProfileLocation, currentProfileLocation);
 		this._onDidChangeProfile.fire(eventData);
 	}
 
-	protected async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserve: boolean | ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
-		if (preserve === true) {
-			await this.copyExtensions(previousProfileLocation, currentProfileLocation);
-			return { added: [], removed: [] };
-		} else {
-			const oldExtensions = await this.getInstalled(ExtensionType.User, previousProfileLocation);
-			const newExtensions = await this.getInstalled(ExtensionType.User, currentProfileLocation);
-			if (Array.isArray(preserve)) {
-				const extensionsToInstall: IExtensionIdentifier[] = [];
-				for (const extension of oldExtensions) {
-					if (preserve.some(id => ExtensionIdentifier.equals(extension.identifier.id, id)) &&
-						!newExtensions.some(e => ExtensionIdentifier.equals(e.identifier.id, extension.identifier.id))) {
-						extensionsToInstall.push(extension.identifier);
-					}
-				}
-				if (extensionsToInstall.length) {
-					await this.installExtensionsFromProfile(extensionsToInstall, previousProfileLocation, currentProfileLocation);
+	protected async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserveExtensions?: ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
+		const oldExtensions = await this.getInstalled(ExtensionType.User, previousProfileLocation);
+		const newExtensions = await this.getInstalled(ExtensionType.User, currentProfileLocation);
+		if (preserveExtensions?.length) {
+			const extensionsToInstall: IExtensionIdentifier[] = [];
+			for (const extension of oldExtensions) {
+				if (preserveExtensions.some(id => ExtensionIdentifier.equals(extension.identifier.id, id)) &&
+					!newExtensions.some(e => ExtensionIdentifier.equals(e.identifier.id, extension.identifier.id))) {
+					extensionsToInstall.push(extension.identifier);
 				}
 			}
-			return delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
+			if (extensionsToInstall.length) {
+				await this.installExtensionsFromProfile(extensionsToInstall, previousProfileLocation, currentProfileLocation);
+			}
 		}
+		return delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
 	}
 
 	protected getProfileLocation(profileLocation: URI): Promise<URI>;

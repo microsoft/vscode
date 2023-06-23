@@ -623,32 +623,22 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return true;
 	}
 
-	protected switchData(oldStorage: Map<string, string>, newStorage: IStorage, scope: StorageScope, preserveData: boolean): void {
+	protected switchData(oldStorage: Map<string, string>, newStorage: IStorage, scope: StorageScope): void {
 		this.withPausedEmitters(() => {
+			// Signal storage keys that have changed
+			const handledkeys = new Set<string>();
+			for (const [key, oldValue] of oldStorage) {
+				handledkeys.add(key);
 
-			// Copy over previous keys if `preserveData`
-			if (preserveData) {
-				for (const [key, value] of oldStorage) {
-					newStorage.set(key, value, true);
+				const newValue = newStorage.get(key);
+				if (newValue !== oldValue) {
+					this.emitDidChangeValue(scope, { key, external: true });
 				}
 			}
 
-			// Otherwise signal storage keys that have changed
-			else {
-				const handledkeys = new Set<string>();
-				for (const [key, oldValue] of oldStorage) {
-					handledkeys.add(key);
-
-					const newValue = newStorage.get(key);
-					if (newValue !== oldValue) {
-						this.emitDidChangeValue(scope, { key, external: true });
-					}
-				}
-
-				for (const [key] of newStorage.items) {
-					if (!handledkeys.has(key)) {
-						this.emitDidChangeValue(scope, { key, external: true });
-					}
+			for (const [key] of newStorage.items) {
+				if (!handledkeys.has(key)) {
+					this.emitDidChangeValue(scope, { key, external: true });
 				}
 			}
 		});

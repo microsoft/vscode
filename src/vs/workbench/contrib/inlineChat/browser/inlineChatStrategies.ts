@@ -435,6 +435,13 @@ export class LivePreviewStrategy extends LiveStrategy {
 	override hasFocus(): boolean {
 		return super.hasFocus() || this._diffZone.value.hasFocus() || this._previewZone.value.hasFocus();
 	}
+
+	override getWidgetPosition(): Position | undefined {
+		if (this._session.lastTextModelChanges.length) {
+			return this._session.wholeRange.value.getEndPosition();
+		}
+		return;
+	}
 }
 
 function showSingleCreateFile(accessor: ServicesAccessor, edit: EditResponse) {
