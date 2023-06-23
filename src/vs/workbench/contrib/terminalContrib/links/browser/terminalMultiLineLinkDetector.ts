@@ -27,8 +27,8 @@ const enum Constants {
 
 const candidateMatchers = [
 	// Ripgrep:
-	//   16:console.log(...)
-	//   16:    console.log(...)
+	//   16:searchresult
+	//   16:    searchresult
 	// Eslint:
 	//   16:5  error ...
 	/\s*(?<link>(?<line>\d+):(?<col>\d+)?)/
@@ -89,7 +89,10 @@ export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
 			// Scan up looking for the first line that could be a path
 			let possiblePath: string | undefined;
 			for (let index = startLine - 1; index >= 0; index--) {
-				// TODO: This does not currently skip wrapped lines
+				// Ignore lines that aren't at the beginning of a wrapped line
+				if (this.xterm.buffer.active.getLine(index)!.isWrapped) {
+					continue;
+				}
 				const text = getXtermLineContent(this.xterm.buffer.active, index, index, this.xterm.cols);
 				if (!text.match(/^\s*\d/)) {
 					possiblePath = text;

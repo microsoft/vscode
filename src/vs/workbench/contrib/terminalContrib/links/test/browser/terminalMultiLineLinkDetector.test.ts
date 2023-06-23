@@ -89,6 +89,7 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0}\r\n5:another link\r\n{1}:{2} foo', line: '5', column: '3' },
 	{ urlFormat: '{0}\r\n  {1}:{2} foo', line: '5', column: '3' },
 	{ urlFormat: '{0}\r\n  5:6  error  another one\r\n  {1}:{2}  error', line: '5', column: '3' },
+	{ urlFormat: `{0}\r\n  5:6  error  ${'a'.repeat(80)}\r\n  {1}:{2}  error`, line: '5', column: '3' },
 ];
 
 suite('Workbench - TerminalMultiLineLinkDetector', () => {
@@ -115,7 +116,12 @@ suite('Workbench - TerminalMultiLineLinkDetector', () => {
 		const uri = resource ?? URI.file(link);
 		const lines = link.split('\r\n');
 		const lastLine = lines.at(-1)!;
-		await assertLinks(TerminalBuiltinLinkType.LocalFile, link, [{ uri, range: [[1, lines.length], [lastLine.length, lines.length]] }]);
+		// Count lines, accounting for wrapping
+		let lineCount = 0;
+		for (const line of lines) {
+			lineCount += Math.max(Math.ceil(line.length / 80), 1);
+		}
+		await assertLinks(TerminalBuiltinLinkType.LocalFile, link, [{ uri, range: [[1, lineCount], [lastLine.length, lineCount]] }]);
 	}
 
 	setup(() => {

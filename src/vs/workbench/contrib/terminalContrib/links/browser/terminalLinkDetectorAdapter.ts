@@ -97,7 +97,6 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			}));
 		}
 
-		console.log('provided links', links);
 		return links;
 	}
 
