@@ -27,6 +27,7 @@ import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
 import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestItem, ITestItemContext, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 interface ControllerInfo {
@@ -136,6 +137,13 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			},
 			createTestRun: (request, name, persist = true) => {
 				return this.runTracker.createTestRun(controllerId, collection, request, name, persist);
+			},
+			invalidateTestResults: items => {
+				checkProposedApiEnabled(extension, 'testInvalidateResults');
+				for (const item of items instanceof Array ? items : [items]) {
+					const id = item ? TestId.fromExtHostTestItem(item, controllerId).toString() : controllerId;
+					this.proxy.$markTestRetired(id);
+				}
 			},
 			set resolveHandler(fn) {
 				collection.resolveHandler = fn;

@@ -10,8 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./gridview';
 import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing } from './gridview';
 import type { GridLocation } from 'vs/base/browser/ui/grid/gridview';
-///@ts-ignore
-import type { SplitView } from 'vs/base/browser/ui/splitview/splitview';
+import type { SplitView, AutoSizing as SplitViewAutoSizing } from 'vs/base/browser/ui/splitview/splitview';
 
 export { IViewSize, LayoutPriority, Orientation, orthogonal } from './gridview';
 
@@ -197,12 +196,14 @@ function getGridLocation(element: HTMLElement): GridLocation {
 
 export type DistributeSizing = { type: 'distribute' };
 export type SplitSizing = { type: 'split' };
+export type AutoSizing = { type: 'auto' };
 export type InvisibleSizing = { type: 'invisible'; cachedVisibleSize: number };
-export type Sizing = DistributeSizing | SplitSizing | InvisibleSizing;
+export type Sizing = DistributeSizing | SplitSizing | AutoSizing | InvisibleSizing;
 
 export namespace Sizing {
 	export const Distribute: DistributeSizing = { type: 'distribute' };
 	export const Split: SplitSizing = { type: 'split' };
+	export const Auto: AutoSizing = { type: 'auto' };
 	export function Invisible(cachedVisibleSize: number): InvisibleSizing { return { type: 'invisible', cachedVisibleSize }; }
 }
 
@@ -403,6 +404,9 @@ export class Grid<T extends IView = IView> extends Disposable {
 			viewSize = GridViewSizing.Split(index);
 		} else if (size.type === 'distribute') {
 			viewSize = GridViewSizing.Distribute;
+		} else if (size.type === 'auto') {
+			const [, index] = tail(referenceLocation);
+			viewSize = GridViewSizing.Auto(index);
 		} else {
 			viewSize = size;
 		}
@@ -445,7 +449,16 @@ export class Grid<T extends IView = IView> extends Disposable {
 		}
 
 		const location = this.getViewLocation(view);
-		this.gridview.removeView(location, (sizing && sizing.type === 'distribute') ? GridViewSizing.Distribute : undefined);
+
+		let gridViewSizing: DistributeSizing | SplitViewAutoSizing | undefined;
+
+		if (sizing?.type === 'distribute') {
+			gridViewSizing = GridViewSizing.Distribute;
+		} else if (sizing?.type === 'auto') {
+			gridViewSizing = GridViewSizing.Auto(0);
+		}
+
+		this.gridview.removeView(location, gridViewSizing);
 		this.views.delete(view);
 	}
 

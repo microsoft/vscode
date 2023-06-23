@@ -186,8 +186,8 @@
 	border-bottom-width: 2px;
 }
 
-.monaco-editor .zone-widget.test-output-peek .test-output-peek-message-container,
-.monaco-editor .zone-widget.test-output-peek .test-output-peek-tree {
+.test-output-peek-message-container,
+.test-output-peek-tree {
 	height: 100%;
 }
 
@@ -248,7 +248,7 @@
 	position: absolute;
 	top: 0;
 	bottom: 0;
-	right: 0;
+	right: 3px;
 	display: flex;
 	align-items: center;
 }

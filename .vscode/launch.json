@@ -242,6 +242,7 @@
 				"--crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes",
 				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
 				"--disable-features=CalculateNativeWinOcclusion",
+				"--disable-extension=vscode.vscode-api-tests"
 			],
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [

@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { LineInjectedText } from 'vs/editor/common/textModelEvents';
+import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { InjectedTextOptions } from 'vs/editor/common/model';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
+import { LineInjectedText } from 'vs/editor/common/textModelEvents';
 
-const ttPolicy = window.trustedTypes?.createPolicy('domLineBreaksComputer', { createHTML: value => value });
+const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
 export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 

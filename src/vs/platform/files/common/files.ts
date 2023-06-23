@@ -18,6 +18,7 @@ import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isWeb } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 //#region file service & providers
 
@@ -283,7 +284,44 @@ export interface IFileAtomicReadOptions {
 	 * to from a different process. If you need such atomic
 	 * operations, you better use a real database as storage.
 	 */
-	readonly atomic: true;
+	readonly atomic: boolean;
+}
+
+export interface IFileAtomicOptions {
+
+	/**
+	 * The postfix is used to create a temporary file based
+	 * on the original resource. The resulting temporary
+	 * file will be in the same folder as the resource and
+	 * have `postfix` appended to the resource name.
+	 *
+	 * Example: given a file resource `file:///some/path/foo.txt`
+	 * and a postfix `.vsctmp`, the temporary file will be
+	 * created as `file:///some/path/foo.txt.vsctmp`.
+	 */
+	readonly postfix: string;
+}
+
+export interface IFileAtomicWriteOptions {
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `writeFile` method updates the target file atomically
+	 * by first writing to a temporary file in the same folder
+	 * and then renaming it over the target.
+	 */
+	readonly atomic: IFileAtomicOptions | false;
+}
+
+export interface IFileAtomicDeleteOptions {
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `delete` method deletes the target atomically by
+	 * first renaming it to a temporary resource in the same
+	 * folder and then deleting it.
+	 */
+	readonly atomic: IFileAtomicOptions | false;
 }
 
 export interface IFileReadLimits {
@@ -316,7 +354,7 @@ export interface IFileReadStreamOptions {
 	readonly limits?: IFileReadLimits;
 }
 
-export interface IFileWriteOptions extends IFileOverwriteOptions, IFileUnlockOptions {
+export interface IFileWriteOptions extends IFileOverwriteOptions, IFileUnlockOptions, IFileAtomicWriteOptions {
 
 	/**
 	 * Set to `true` to create a file when it does not exist. Will
@@ -358,10 +396,21 @@ export interface IFileDeleteOptions {
 
 	/**
 	 * Set to `true` to attempt to move the file to trash
-	 * instead of deleting it permanently from disk. This
-	 * option maybe not be supported on all providers.
+	 * instead of deleting it permanently from disk.
+	 *
+	 * This option maybe not be supported on all providers.
 	 */
 	readonly useTrash: boolean;
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `delete` method deletes the target atomically by
+	 * first renaming it to a temporary resource in the same
+	 * folder and then deleting it.
+	 *
+	 * This option maybe not be supported on all providers.
+	 */
+	readonly atomic: IFileAtomicOptions | false;
 }
 
 export enum FileType {
@@ -516,9 +565,20 @@ export const enum FileSystemProviderCapabilities {
 	FileAtomicRead = 1 << 14,
 
 	/**
+	 * Provider support to write files atomically. This implies the
+	 * provider provides the `FileReadWrite` capability too.
+	 */
+	FileAtomicWrite = 1 << 15,
+
+	/**
+	 * Provider support to delete atomically.
+	 */
+	FileAtomicDelete = 1 << 16,
+
+	/**
 	 * Provider support to clone files atomically.
 	 */
-	FileClone = 1 << 15
+	FileClone = 1 << 17
 }
 
 export interface IFileSystemProvider {
@@ -605,6 +665,40 @@ export function hasFileAtomicReadCapability(provider: IFileSystemProvider): prov
 	}
 
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicRead);
+}
+
+export interface IFileSystemProviderWithFileAtomicWriteCapability extends IFileSystemProvider {
+	writeFile(resource: URI, contents: Uint8Array, opts?: IFileAtomicWriteOptions): Promise<void>;
+}
+
+export function hasFileAtomicWriteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicWriteCapability {
+	if (!hasReadWriteCapability(provider)) {
+		return false; // we require the `FileReadWrite` capability too
+	}
+
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicWrite);
+}
+
+export interface IFileSystemProviderWithFileAtomicDeleteCapability extends IFileSystemProvider {
+	delete(resource: URI, opts: IFileAtomicDeleteOptions): Promise<void>;
+}
+
+export function hasFileAtomicDeleteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicDeleteCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicDelete);
+}
+
+export interface IFileSystemProviderWithReadonlyCapability extends IFileSystemProvider {
+
+	readonly capabilities: FileSystemProviderCapabilities.Readonly & FileSystemProviderCapabilities;
+
+	/**
+	 * An optional message to show in the UI to explain why the file system is readonly.
+	 */
+	readonly readOnlyMessage?: IMarkdownString;
+}
+
+export function hasReadonlyCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithReadonlyCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.Readonly);
 }
 
 export enum FileSystemProviderErrorCode {
@@ -1146,6 +1240,14 @@ export interface IWriteFileOptions {
 	 * Whether to attempt to unlock a file before writing.
 	 */
 	readonly unlock?: boolean;
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `writeFile` method updates the target file atomically
+	 * by first writing to a temporary file in the same folder
+	 * and then renaming it over the target.
+	 */
+	readonly atomic?: IFileAtomicOptions | false;
 }
 
 export interface IResolveFileOptions {
@@ -1185,7 +1287,7 @@ export class FileOperationError extends Error {
 	constructor(
 		message: string,
 		readonly fileOperationResult: FileOperationResult,
-		readonly options?: IReadFileOptions & IWriteFileOptions & ICreateFileOptions
+		readonly options?: IReadFileOptions | IWriteFileOptions | ICreateFileOptions
 	) {
 		super(message);
 	}

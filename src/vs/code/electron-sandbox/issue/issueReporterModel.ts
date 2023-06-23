@@ -185,7 +185,7 @@ ${this.getInfos()}
 
 |Item|Value|
 |---|---|
-|Remote|${remote.hostName}|
+|Remote|${remote.latency ? `${remote.hostName} (latency: ${remote.latency.current.toFixed(2)}ms last, ${remote.latency.average.toFixed(2)}ms average)` : remote.hostName}|
 |OS|${remote.machineInfo.os}|
 |CPUs|${remote.machineInfo.cpus}|
 |Memory (System)|${remote.machineInfo.memory}|

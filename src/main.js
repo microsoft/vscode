@@ -27,17 +27,19 @@ const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
 const product = require('../product.json');
 const { app, protocol, crashReporter, Menu } = require('electron');
 
-// Enable sandbox globally
-app.enableSandbox();
-
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
 
 // Enable ASAR support
 bootstrap.enableASARSupport();
 
-// Set userData path before app 'ready' event
+// Enable sandbox globally unless disabled via `--no-sandbox` argument
 const args = parseCLIArgs();
+if (args['sandbox']) {
+	app.enableSandbox();
+}
+
+// Set userData path before app 'ready' event
 const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
 if (process.platform === 'win32') {
 	const userDataUNCHost = getUNCHost(userDataPath);
@@ -464,7 +466,13 @@ function parseCLIArgs() {
 			'locale',
 			'js-flags',
 			'crash-reporter-directory'
-		]
+		],
+		default: {
+			'sandbox': true
+		},
+		alias: {
+			'no-sandbox': 'sandbox'
+		}
 	});
 }
 

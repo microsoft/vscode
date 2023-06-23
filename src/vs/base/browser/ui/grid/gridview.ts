@@ -5,7 +5,7 @@
 
 import { $ } from 'vs/base/browser/dom';
 import { IBoundarySashes, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
-import { DistributeSizing, ISplitViewStyles, IView as ISplitView, LayoutPriority, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
+import { DistributeSizing, ISplitViewStyles, IView as ISplitView, LayoutPriority, Sizing, AutoSizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { equals as arrayEquals, tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event, Relay } from 'vs/base/common/event';
@@ -1227,7 +1227,7 @@ export class GridView implements IDisposable {
 	 * @param location The {@link GridLocation location} of the {@link IView view}.
 	 * @param sizing Whether to distribute other {@link IView view}'s sizes.
 	 */
-	removeView(location: GridLocation, sizing?: DistributeSizing): IView {
+	removeView(location: GridLocation, sizing?: DistributeSizing | AutoSizing): IView {
 		this.disposable2x2.dispose();
 		this.disposable2x2 = Disposable.None;
 

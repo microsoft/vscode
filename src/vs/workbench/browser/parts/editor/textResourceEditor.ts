@@ -92,7 +92,7 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 		// was already asked for being readonly or not. The rationale is that
 		// a resolved model might have more specific information about being
 		// readonly or not that the input did not have.
-		control.updateOptions({ readOnly: resolvedModel.isReadonly() });
+		control.updateOptions(this.getReadonlyConfiguration(resolvedModel.isReadonly()));
 	}
 
 	/**
