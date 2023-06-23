@@ -32,7 +32,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { EditResponse, EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, MarkdownResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, InlineChateResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, InlineChateResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_USER_DID_EDIT } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
@@ -93,6 +93,7 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _ctxLastResponseType: IContextKey<undefined | InlineChatResponseType>;
 	private readonly _ctxResponseTypes: IContextKey<undefined | InlineChateResponseTypes>;
 	private readonly _ctxDidEdit: IContextKey<boolean>;
+	private readonly _ctxUserDidEdit: IContextKey<boolean>;
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
 
 	private _messages = this._store.add(new Emitter<Message>());
@@ -120,6 +121,7 @@ export class InlineChatController implements IEditorContribution {
 	) {
 		this._ctxHasActiveRequest = CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxDidEdit = CTX_INLINE_CHAT_DID_EDIT.bindTo(contextKeyService);
+		this._ctxUserDidEdit = CTX_INLINE_CHAT_USER_DID_EDIT.bindTo(contextKeyService);
 		this._ctxResponseTypes = CTX_INLINE_CHAT_RESPONSE_TYPES.bindTo(contextKeyService);
 		this._ctxLastResponseType = CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INLINE_CHAT_LAST_FEEDBACK.bindTo(contextKeyService);
@@ -334,6 +336,11 @@ export class InlineChatController implements IEditorContribution {
 		}));
 
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
+
+			if (!this._ignoreModelContentChanged && this._strategy?.hasFocus()) {
+				this._ctxUserDidEdit.set(true);
+			}
+
 			if (this._ignoreModelContentChanged || this._strategy?.hasFocus()) {
 				return;
 			}
@@ -667,6 +674,7 @@ export class InlineChatController implements IEditorContribution {
 	private async [State.PAUSE]() {
 
 		this._ctxDidEdit.reset();
+		this._ctxUserDidEdit.reset();
 		this._ctxLastResponseType.reset();
 		this._ctxLastFeedbackKind.reset();
 
@@ -677,7 +685,6 @@ export class InlineChatController implements IEditorContribution {
 			this._editor.focus();
 		}
 
-		this._sessionStore.clear();
 
 		this._strategy?.dispose();
 		this._strategy = undefined;
@@ -687,6 +694,7 @@ export class InlineChatController implements IEditorContribution {
 	private async [State.ACCEPT]() {
 		assertType(this._activeSession);
 		assertType(this._strategy);
+		this._sessionStore.clear();
 
 		try {
 			await this._strategy.apply();
@@ -704,6 +712,7 @@ export class InlineChatController implements IEditorContribution {
 	private async [State.CANCEL]() {
 		assertType(this._activeSession);
 		assertType(this._strategy);
+		this._sessionStore.clear();
 
 		const mySession = this._activeSession;
 
