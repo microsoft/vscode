@@ -41,7 +41,6 @@ import 'vs/workbench/contrib/search/browser/searchActionsNav';
 import 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
 import 'vs/workbench/contrib/search/browser/searchActionsSymbol';
 import 'vs/workbench/contrib/search/browser/searchActionsTopBar';
-import 'vs/workbench/contrib/search/browser/searchActionsNotebook';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
