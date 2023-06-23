@@ -344,7 +344,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}));
 		}
-		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
 		this._upgrade();
 	}
 
