@@ -227,6 +227,8 @@ suite('vscode API - workspace-fs', () => {
 		assert.strictEqual(stat.type, vscode.FileType.Directory);
 
 		await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
+
+		await vscode.workspace.fs.createDirectory(folder); // calling on existing folder is also ok!
 	});
 
 	test('fs.writeFile creates parents recursively', async function () {
