@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffModel';
+import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 
@@ -16,7 +16,7 @@ export class MovedBlocksLinesPart extends Disposable {
 
 	constructor(
 		private readonly _rootElement: HTMLElement,
-		private readonly _diffModel: IObservable<DiffModel | undefined>,
+		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
 		private readonly _originalEditorLayoutInfo: IObservable<EditorLayoutInfo | null>,
 		private readonly _modifiedEditorLayoutInfo: IObservable<EditorLayoutInfo | null>,
 		private readonly _originalEditor: CodeEditorWidget,
