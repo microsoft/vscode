@@ -26,7 +26,7 @@ export class ExtHostConsumerFileSystem {
 	private readonly _proxy: MainThreadFileSystemShape;
 	private readonly _fileSystemProvider = new Map<string, { impl: vscode.FileSystemProvider; extUri: IExtUri; isReadonly: boolean }>();
 
-	private readonly writeQueue = new ResourceQueue();
+	private readonly _writeQueue = new ResourceQueue();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -110,7 +110,7 @@ export class ExtHostConsumerFileSystem {
 						// use shortcut
 						await that._proxy.$ensureActivation(uri.scheme);
 						await that.mkdirp(provider.impl, provider.extUri, provider.extUri.dirname(uri));
-						return await that.writeQueue.queueFor(uri).queue(() => Promise.resolve(provider.impl.writeFile(uri, content, { create: true, overwrite: true })));
+						return await that._writeQueue.queueFor(uri).queue(() => Promise.resolve(provider.impl.writeFile(uri, content, { create: true, overwrite: true })));
 					} else {
 						return await that._proxy.$writeFile(uri, VSBuffer.wrap(content));
 					}
