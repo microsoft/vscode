@@ -9665,10 +9665,10 @@ ts-node@^10.9.1:
     v8-compile-cache-lib "^3.0.1"
     yn "3.1.1"
 
-tsec@0.1.11:
-  version "0.1.11"
-  resolved "https://registry.yarnpkg.com/tsec/-/tsec-0.1.11.tgz#d24d0b36bfd73c83bf39db4211d29a0469457da4"
-  integrity sha512-GzUW2kyV8UgmEp0NPkcxsnlXimJj02kchmVde6FnzUfvpAp+l36MKT2swcCd0aS8QWfqaXNckXrFtjZhIGJWkw==
+tsec@0.2.7:
+  version "0.2.7"
+  resolved "https://registry.yarnpkg.com/tsec/-/tsec-0.2.7.tgz#be530025907037ed57f37fc7625b6a7e3658fe43"
+  integrity sha512-Pj9DuBBWLEo8p7QsbrEdXzW/u6QJBcib0ZGOTXkeSDx+PLXFY7hwyZE9Tfhp3TA3LQNpYouyT0WmzXRyUW4otQ==
   dependencies:
     glob "^7.1.1"
     minimatch "^3.0.3"
