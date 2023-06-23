@@ -125,13 +125,12 @@ export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
 					type = TerminalBuiltinLinkType.LocalFile;
 				}
 
-				// TODO: Extend link to whole line
-				// Convert the link text's string index into a wrapped buffer range
+				// Convert the entire line's text string index into a wrapped buffer range
 				stringIndex = text.indexOf(link);
 				const bufferRange = convertLinkRangeToBuffer(lines, this.xterm.cols, {
 					startColumn: stringIndex + 1,
 					startLineNumber: 1,
-					endColumn: stringIndex + link.length + 1,
+					endColumn: stringIndex + 1 + text.length + 1,
 					endLineNumber: 1
 				}, startLine);
 
