@@ -53,7 +53,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	private registerListeners(): void {
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.switchToProfile(e.profile, e.preserveData))));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.switchToProfile(e.profile))));
 	}
 
 	protected async doInitialize(): Promise<void> {
@@ -160,7 +160,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		}
 	}
 
-	protected async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
+	protected async switchToProfile(toProfile: IUserDataProfile): Promise<void> {
 		if (!this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
 			return;
 		}
@@ -178,7 +178,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		await this.createProfileStorage(toProfile);
 
 		// Handle data switch and eventing
-		this.switchData(oldItems, assertIsDefined(this.profileStorage), StorageScope.PROFILE, preserveData);
+		this.switchData(oldItems, assertIsDefined(this.profileStorage), StorageScope.PROFILE);
 	}
 
 	protected async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
