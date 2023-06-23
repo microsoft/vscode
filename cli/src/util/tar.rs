@@ -6,7 +6,7 @@ use crate::util::errors::{wrap, WrappedError};
 
 use flate2::read::GzDecoder;
 use std::fs;
-use std::io::{Seek, SeekFrom};
+use std::io::Seek;
 use std::path::{Path, PathBuf};
 use tar::Archive;
 
@@ -65,7 +65,7 @@ where
 
 	// reset since skip logic read the tar already:
 	tar_gz
-		.seek(SeekFrom::Start(0))
+		.rewind()
 		.map_err(|e| wrap(e, "error resetting seek position"))?;
 
 	let tar = GzDecoder::new(tar_gz);

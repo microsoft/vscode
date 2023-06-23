@@ -25,7 +25,7 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { Terminal } from 'xterm';
 import { IFileQuery, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
-import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
+import { ITerminalLogService, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
@@ -83,6 +83,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.set(ISearchService, searchService);
 		instantiationService.set(IWorkspaceContextService, new TestContextService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IWorkbenchEnvironmentService, {
 			remoteAuthority: undefined
 		} as Partial<IWorkbenchEnvironmentService>);

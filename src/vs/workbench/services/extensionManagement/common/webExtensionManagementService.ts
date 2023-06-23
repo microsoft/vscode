@@ -192,15 +192,10 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		if (!previousProfileLocation || !currentProfileLocation) {
 			throw new Error('This should not happen');
 		}
-		if (e.preserveData) {
-			await this.copyExtensions(previousProfileLocation, currentProfileLocation);
-			this._onDidChangeProfile.fire({ added: [], removed: [] });
-		} else {
-			const oldExtensions = await this.webExtensionsScannerService.scanUserExtensions(previousProfileLocation);
-			const newExtensions = await this.webExtensionsScannerService.scanUserExtensions(currentProfileLocation);
-			const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
-			this._onDidChangeProfile.fire({ added: added.map(e => toLocalExtension(e)), removed: removed.map(e => toLocalExtension(e)) });
-		}
+		const oldExtensions = await this.webExtensionsScannerService.scanUserExtensions(previousProfileLocation);
+		const newExtensions = await this.webExtensionsScannerService.scanUserExtensions(currentProfileLocation);
+		const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
+		this._onDidChangeProfile.fire({ added: added.map(e => toLocalExtension(e)), removed: removed.map(e => toLocalExtension(e)) });
 	}
 }
 

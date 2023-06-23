@@ -155,11 +155,9 @@ export class SuggestEnabledInput extends Widget {
 		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', undefined, options.placeholderText || ''));
 
 		const editorOptions: IEditorConstructionOptions = mixin(
-			getSimpleEditorOptions(),
+			getSimpleEditorOptions(configurationService),
 			getSuggestEnabledInputOptions(ariaLabel));
 		editorOptions.overflowWidgetsDomNode = options.overflowWidgetsDomNode;
-		editorOptions.accessibilitySupport = configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
-		editorOptions.cursorBlinking = configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 
 		const scopedContextKeyService = this.getScopedContextKeyService(contextKeyService);
 
@@ -238,6 +236,7 @@ export class SuggestEnabledInput extends Widget {
 		this.setValue(options.value || '');
 
 		this._register(languageFeaturesService.completionProvider.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
+			_debugDisplayName: `suggestEnabledInput/${id}`,
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
 			provideCompletionItems: (model: ITextModel, position: Position, _context: languages.CompletionContext) => {
 				const query = model.getValue();

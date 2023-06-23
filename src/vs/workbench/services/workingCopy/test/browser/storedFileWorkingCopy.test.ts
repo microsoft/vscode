@@ -390,7 +390,7 @@ suite('StoredFileWorkingCopy', function () {
 			accessor.fileService.readShouldThrowError = undefined;
 		}
 
-		assert.strictEqual(workingCopy.isReadonly(), true);
+		assert.strictEqual(!!workingCopy.isReadonly(), true);
 		assert.strictEqual(readonlyChangeCounter, 1);
 
 		try {
@@ -914,7 +914,7 @@ suite('StoredFileWorkingCopy', function () {
 
 		await workingCopy.resolve();
 
-		assert.strictEqual(workingCopy.isReadonly(), true);
+		assert.strictEqual(!!workingCopy.isReadonly(), true);
 
 		accessor.fileService.readonly = false;
 

@@ -162,6 +162,25 @@ export class FindModel extends Disposable {
 		};
 
 
+		if (e.isReplaceRevealed && !this._state.isReplaceRevealed) {
+			// replace is hidden, we need to switch all markdown cells to preview mode
+			const viewModel = this._notebookEditor._getViewModel() as NotebookViewModel | undefined;
+			if (!viewModel) {
+				return;
+			}
+
+			for (let i = 0; i < viewModel.length; i++) {
+				const cell = viewModel.cellAt(i);
+				if (cell && cell.cellKind === CellKind.Markup) {
+					if (cell.getEditState() === CellEditState.Editing && cell.editStateSource === 'find') {
+						cell.updateEditState(CellEditState.Preview, 'find');
+					}
+				}
+			}
+
+			return;
+		}
+
 		if (e.isReplaceRevealed) {
 			updateEditingState();
 		} else if ((e.filters || e.isRevealed || e.searchString || e.replaceString) && this._state.isRevealed && this._state.isReplaceRevealed) {

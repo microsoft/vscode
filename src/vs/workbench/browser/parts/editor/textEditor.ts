@@ -10,7 +10,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined } from 'vs/base/common/types';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOpenContext, EditorInputCapabilities, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
@@ -28,6 +28,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorOptions, ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -139,18 +140,22 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected updateReadonly(input: EditorInput): void {
-		const readOnly = input.hasCapability(EditorInputCapabilities.Readonly);
-		this.updateEditorControlOptions({ readOnly });
+		this.updateEditorControlOptions({ ...this.getReadonlyConfiguration(input.isReadonly()) });
+	}
+
+	protected getReadonlyConfiguration(isReadonly: boolean | IMarkdownString | undefined): { readOnly: boolean; readOnlyMessage: IMarkdownString | undefined } {
+		return {
+			readOnly: !!isReadonly,
+			readOnlyMessage: typeof isReadonly !== 'boolean' ? isReadonly : undefined
+		};
 	}
 
 	protected getConfigurationOverrides(): ICodeEditorOptions {
-		const readOnly = this.input?.hasCapability(EditorInputCapabilities.Readonly);
-
 		return {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
-			readOnly,
+			...this.getReadonlyConfiguration(this.input?.isReadonly()),
 			renderValidationDecorations: 'on' // render problems even in readonly editors (https://github.com/microsoft/vscode/issues/89057)
 		};
 	}

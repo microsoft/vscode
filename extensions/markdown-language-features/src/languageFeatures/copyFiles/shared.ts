@@ -261,7 +261,7 @@ function escapeHtmlAttribute(attr: string): string {
 
 function escapeMarkdownLinkPath(mdPath: string): string {
 	if (needsBracketLink(mdPath)) {
-		return '<' + mdPath.replace('<', '\\<').replace('>', '\\>') + '>';
+		return '<' + mdPath.replaceAll('<', '\\<').replaceAll('>', '\\>') + '>';
 	}
 
 	return encodeURI(mdPath);

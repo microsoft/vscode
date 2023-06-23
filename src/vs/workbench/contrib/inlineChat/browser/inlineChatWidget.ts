@@ -6,13 +6,13 @@
 import 'vs/css!./inlineChat';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
+import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, IInlineChatSlashCommand, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_REGENERATE_RESPONSE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, IInlineChatSlashCommand, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getActiveElement, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -136,15 +136,15 @@ export class InlineChatWidget {
 			h('div.previewDiff.hidden@previewDiff'),
 			h('div.previewCreateTitle.show-file-icons@previewCreateTitle'),
 			h('div.previewCreate.hidden@previewCreate'),
+			h('div.markdownMessage.hidden@markdownMessage', [
+				h('div.message@message'),
+				h('div.messageActions@messageActions')
+			]),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
 				h('div.actions.hidden@statusToolbar'),
 				h('div.label.status.hidden@statusLabel'),
 				h('div.actions.hidden@feedbackToolbar'),
-			]),
-			h('div.markdownMessage.hidden@markdownMessage', [
-				h('div.message@message'),
-				h('div.messageActions@messageActions')
 			]),
 		]
 	);
@@ -294,6 +294,8 @@ export class InlineChatWidget {
 			buttonConfigProvider: action => {
 				if (action.id === ACTION_REGENERATE_RESPONSE) {
 					return { showIcon: true, showLabel: false };
+				} else if (action.id === ACTION_VIEW_IN_CHAT) {
+					return { isSecondary: false };
 				}
 				return undefined;
 			}
@@ -621,7 +623,7 @@ export class InlineChatWidget {
 		const selector: LanguageSelector = { scheme: this._inputModel.uri.scheme, pattern: this._inputModel.uri.path, language: this._inputModel.getLanguageId() };
 		this._slashCommands.add(this._languageFeaturesService.completionProvider.register(selector, new class implements CompletionItemProvider {
 
-			_debugDisplayName?: string = 'InlineChatSlashCommandProvider';
+			_debugDisplayName: string = 'InlineChatSlashCommandProvider';
 
 			readonly triggerCharacters?: string[] = ['/'];
 
@@ -744,15 +746,15 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	protected override _doLayout(heightInPixel: number): void {
 
 		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
-		const width = Math.min(maxWidth, this._availableSpaceGivenIndentation());
+		const width = Math.min(maxWidth, this._availableSpaceGivenIndentation(this._indentationWidth));
 		this._dimension = new Dimension(width, heightInPixel);
 		this.widget.domNode.style.width = `${width}px`;
 		this.widget.layout(this._dimension);
 	}
 
-	private _availableSpaceGivenIndentation(): number {
+	private _availableSpaceGivenIndentation(indentationWidth: number | undefined): number {
 		const info = this.editor.getLayoutInfo();
-		return info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth + (this._indentationWidth ?? 0));
+		return info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth + (indentationWidth ?? 0));
 	}
 
 	private _computeHeightInLines(): number {
@@ -771,6 +773,18 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		super.show(position, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
+	}
+
+	protected override _getWidth(info: EditorLayoutInfo): number {
+		return info.width - info.minimap.minimapWidth;
+	}
+
+	updateBackgroundColor(position: Position, selection: IRange) {
+		if (!this.container) {
+			return;
+		}
+		const widgetLineNumber = position.lineNumber;
+		this.container.classList.toggle('inside-selection', widgetLineNumber >= selection.startLineNumber && widgetLineNumber < selection.endLineNumber);
 	}
 
 	private _calculateIndentationWidth(position: Position): number {
@@ -794,29 +808,33 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		return this.editor.getOffsetForColumn(indentationLineNumber ?? positionLine, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLine));
 	}
 
-	setMargins(position: Position, indentationWidth?: number): void {
+	setContainerMargins(): void {
+		if (!this.container) {
+			return;
+		}
+		const info = this.editor.getLayoutInfo();
+		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
+		this.container.style.marginLeft = `${marginWithoutIndentation}px`;
+	}
+
+	setWidgetMargins(position: Position, indentationWidth?: number): void {
 		if (indentationWidth === undefined) {
 			indentationWidth = this._calculateIndentationWidth(position);
 		}
 		if (this._indentationWidth === indentationWidth) {
 			return;
 		}
-		this._indentationWidth = indentationWidth;
-		const info = this.editor.getLayoutInfo();
-		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
-		const marginWithIndentation = marginWithoutIndentation + this._indentationWidth;
-		const isEnoughAvailableSpaceWithIndentation = this._availableSpaceGivenIndentation() > 400;
-		this._indentationWidth = isEnoughAvailableSpaceWithIndentation ? this._indentationWidth : 0;
-		const spaceLeft = isEnoughAvailableSpaceWithIndentation ? marginWithIndentation : marginWithoutIndentation;
-		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
-		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
-		this.widget.domNode.style.marginRight = `${spaceRight}px`;
+		this._indentationWidth = this._availableSpaceGivenIndentation(indentationWidth) > 400 ? indentationWidth : 0;
+		this.widget.domNode.style.marginLeft = `${this._indentationWidth}px`;
+		this.widget.domNode.style.marginRight = `${this.editor.getLayoutInfo().minimap.minimapWidth}px`;
 	}
 
 	override hide(): void {
+		this.container!.classList.remove('inside-selection');
 		this._ctxVisible.reset();
 		this._ctxCursorPosition.reset();
 		this.widget.reset();
 		super.hide();
+		aria.status(localize('inlineChatClosed', 'Closed inline chat widget'));
 	}
 }

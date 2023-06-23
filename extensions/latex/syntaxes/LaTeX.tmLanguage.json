@@ -102,7 +102,7 @@
 					"name": "punctuation.definition.arguments.begin.latex"
 				}
 			},
-			"comment": "this works OK with all kinds of crazy stuff as long as section is one line",
+			"comment": "this works OK with all kinds of stuff as long as the section is one line",
 			"contentName": "entity.name.section.latex",
 			"end": "\\}",
 			"endCaptures": {

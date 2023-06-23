@@ -34,6 +34,7 @@ import 'vs/css!./testingOutputPeek';
 import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -75,7 +76,6 @@ import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { testingPeekBorder, testingPeekHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
@@ -730,7 +730,8 @@ class TestResultsViewContent extends Disposable {
 		this.contentProviders = [
 			this._register(this.instantiationService.createInstance(DiffContentProvider, this.editor, messageContainer)),
 			this._register(this.instantiationService.createInstance(MarkdownTestMessagePeek, messageContainer)),
-			this._register(this.instantiationService.createInstance(PlainTextMessagePeek, messageContainer, isInPeekView)),
+			this._register(this.instantiationService.createInstance(TerminalMessagePeek, messageContainer, isInPeekView)),
+			this._register(this.instantiationService.createInstance(PlainTextMessagePeek, this.editor, messageContainer)),
 		];
 
 		const treeContainer = dom.append(containerElement, dom.$('.test-output-peek-tree'));
@@ -945,6 +946,18 @@ export class TestResultsView extends ViewPane {
 		return this.content.current;
 	}
 
+	public showLatestRun(preserveFocus = false) {
+		const result = this.resultService.results.find(r => r.tasks.length);
+		if (!result) {
+			return;
+		}
+
+		this.content.reveal({
+			preserveFocus,
+			subject: new TaskSubject(result.id, 0),
+		});
+	}
+
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 		this.content.fillBody(container);
@@ -1146,8 +1159,67 @@ class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer 
 	}
 }
 
-
 class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
+	private readonly widget = this._register(new MutableDisposable<CodeEditorWidget>());
+	private readonly model = this._register(new MutableDisposable());
+	private dimension?: dom.IDimension;
+
+	constructor(
+		private readonly editor: ICodeEditor | undefined,
+		private readonly container: HTMLElement,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextModelService private readonly modelService: ITextModelService,
+	) {
+		super();
+	}
+
+	public async update(subject: InspectSubject) {
+		if (!(subject instanceof MessageSubject)) {
+			return this.clear();
+		}
+
+		const message = subject.messages[subject.messageIndex];
+		if (isDiffable(message) || typeof message.message !== 'string') {
+			return this.clear();
+		}
+
+
+		const modelRef = this.model.value = await this.modelService.createModelReference(subject.messageUri);
+		if (!this.widget.value) {
+			this.widget.value = this.editor ? this.instantiationService.createInstance(
+				EmbeddedCodeEditorWidget,
+				this.container,
+				commonEditorOptions,
+				{},
+				this.editor,
+			) : this.instantiationService.createInstance(
+				CodeEditorWidget,
+				this.container,
+				commonEditorOptions,
+				{ isSimpleWidget: true }
+			);
+
+			if (this.dimension) {
+				this.widget.value.layout(this.dimension);
+			}
+		}
+
+		this.widget.value.setModel(modelRef.object.textEditorModel);
+		this.widget.value.updateOptions(commonEditorOptions);
+	}
+
+	private clear() {
+		this.model.clear();
+		this.widget.clear();
+	}
+
+	public layout(dimensions: dom.IDimension) {
+		this.dimension = dimensions;
+		this.widget.value?.layout(dimensions);
+	}
+}
+
+class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	private dimensions?: dom.IDimension;
 	private readonly terminalCwd = this._register(new MutableObservableValue<string>(''));
 
@@ -1213,46 +1285,36 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 
 	public async update(subject: InspectSubject) {
 		this.outputDataListener.clear();
-
-		if (subject instanceof MessageSubject) {
-			const message = subject.messages[subject.messageIndex];
-			if (isDiffable(message) || typeof message.message !== 'string') {
-				return this.clear();
-			}
-
-			this.updateCwd(subject.test.uri);
-			const terminal = await this.makeTerminal();
-			terminal.write(message.message);
-			this.layoutTerminal(terminal);
-			this.attachTerminalToDom(terminal);
-		} else {
-			const result = this.resultService.getResult(subject.resultId);
-			const task = result?.tasks[subject.taskIndex];
-			if (!task) {
-				return this.clear();
-			}
-
-			// Update the cwd and use the first test to try to hint at the correct cwd,
-			// but often this will fall back to the first workspace folder.
-			this.updateCwd(Iterable.find(result.tests, t => !!t.item.uri)?.item.uri);
-
-			const terminal = await this.makeTerminal();
-			if (result instanceof LiveTestResult) {
-				let hadData = false;
-				for (const buffer of task.output.buffers) {
-					hadData ||= buffer.byteLength > 0;
-					terminal.write(buffer.buffer);
-				}
-				if (!hadData && !task.running) {
-					this.writeNotice(terminal, localize('runNoOutout', 'The test run did not record any output.'));
-				}
-			} else {
-				this.writeNotice(terminal, localize('runNoOutputForPast', 'Test output is only available for new test runs.'));
-			}
-
-			this.attachTerminalToDom(terminal);
-			this.outputDataListener.value = task.output.onDidWriteData(e => terminal.write(e.buffer));
+		if (!(subject instanceof TaskSubject)) {
+			return this.clear();
 		}
+
+		const result = this.resultService.getResult(subject.resultId);
+		const task = result?.tasks[subject.taskIndex];
+		if (!task) {
+			return this.clear();
+		}
+
+		// Update the cwd and use the first test to try to hint at the correct cwd,
+		// but often this will fall back to the first workspace folder.
+		this.updateCwd(Iterable.find(result.tests, t => !!t.item.uri)?.item.uri);
+
+		const terminal = await this.makeTerminal();
+		if (result instanceof LiveTestResult) {
+			let hadData = false;
+			for (const buffer of task.output.buffers) {
+				hadData ||= buffer.byteLength > 0;
+				terminal.write(buffer.buffer);
+			}
+			if (!hadData && !task.running) {
+				this.writeNotice(terminal, localize('runNoOutout', 'The test run did not record any output.'));
+			}
+		} else {
+			this.writeNotice(terminal, localize('runNoOutputForPast', 'Test output is only available for new test runs.'));
+		}
+
+		this.attachTerminalToDom(terminal);
+		this.outputDataListener.value = task.output.onDidWriteData(e => terminal.write(e.buffer));
 	}
 
 	private updateCwd(testUri?: URI) {
@@ -1517,7 +1579,7 @@ class OutputPeekTree extends Disposable {
 	) {
 		super();
 
-		this.treeActions = instantiationService.createInstance(TreeActionsProvider, options.showRevealLocationOnMessages);
+		this.treeActions = instantiationService.createInstance(TreeActionsProvider, options.showRevealLocationOnMessages, this.requestReveal,);
 		const diffIdentityProvider: IIdentityProvider<TreeElement> = {
 			getId(e: TreeElement) {
 				return e.id;
@@ -1718,9 +1780,7 @@ class OutputPeekTree extends Disposable {
 		}));
 
 		this._register(this.tree.onDidOpen(async e => {
-			if (e.element instanceof TaskElement) {
-				this.requestReveal.fire(new TaskSubject(e.element.results.id, e.element.index));
-			} else if (e.element instanceof TestMessageElement) {
+			if (e.element instanceof TestMessageElement) {
 				this.requestReveal.fire(new MessageSubject(e.element.result.id, e.element.test, e.element.taskIndex, e.element.messageIndex));
 			}
 		}));
@@ -1852,8 +1912,8 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 class TreeActionsProvider {
 	constructor(
 		private readonly showRevealLocationOnMessages: boolean,
+		private readonly requestReveal: Emitter<InspectSubject>,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ITestingOutputTerminalService private readonly testTerminalService: ITestingOutputTerminalService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
@@ -1880,7 +1940,7 @@ class TreeActionsProvider {
 					localize('testing.showResultOutput', "Show Result Output"),
 					ThemeIcon.asClassName(Codicon.terminal),
 					undefined,
-					() => this.testTerminalService.open(element.results, element.index)
+					() => this.requestReveal.fire(new TaskSubject(element.results.id, element.index)),
 				));
 			}
 
@@ -1892,7 +1952,7 @@ class TreeActionsProvider {
 						localize('testing.showResultOutput', "Show Result Output"),
 						ThemeIcon.asClassName(Codicon.terminal),
 						undefined,
-						() => this.testTerminalService.open(element.value, 0)
+						() => this.requestReveal.fire(new TaskSubject(element.value.id, 0)),
 					));
 				}
 
@@ -1968,15 +2028,6 @@ class TreeActionsProvider {
 								preserveFocus: true,
 							}
 						}),
-					));
-				}
-				if (element.marker !== undefined) {
-					primary.push(new Action(
-						'testing.outputPeek.showMessageInTerminal',
-						localize('testing.showMessageInTerminal', "Show Output in Terminal"),
-						ThemeIcon.asClassName(Codicon.terminal),
-						undefined,
-						() => this.testTerminalService.open(element.result, element.taskIndex, element.marker),
 					));
 				}
 			}
