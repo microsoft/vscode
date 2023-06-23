@@ -298,6 +298,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
+		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
 		ServerlessWebContext.bindTo(this._contextKeyService).set(Platform.isWeb && !remoteAgentService.getConnection()?.remoteAuthority);
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
 			let tasks = await this._getTasksForGroup(TaskGroup.Build);
@@ -335,7 +336,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
 
-		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
 		if (this._terminalService.getReconnectedTerminals('Task')?.length) {
 			this._attemptTaskReconnection();
 		} else {
