@@ -33,9 +33,12 @@ const portable = bootstrapNode.configurePortable(product);
 // Enable ASAR support
 bootstrap.enableASARSupport();
 
-// Enable sandbox globally unless disabled via `--no-sandbox` argument
 const args = parseCLIArgs();
-if (args['sandbox']) {
+// Configure static command line arguments
+const argvConfig = configureCommandlineSwitchesSync(args);
+// Enable sandbox globally unless disabled via `--no-sandbox` argument
+// or if `disable-chromium-sandbox: true` is set in argv.json.
+if (args['sandbox'] && !argvConfig['disable-chromium-sandbox']) {
 	app.enableSandbox();
 }
 
@@ -51,9 +54,6 @@ app.setPath('userData', userDataPath);
 
 // Resolve code cache path
 const codeCachePath = getCodeCachePath();
-
-// Configure static command line arguments
-const argvConfig = configureCommandlineSwitchesSync(args);
 
 // Disable default menu (https://github.com/electron/electron/issues/35512)
 Menu.setApplicationMenu(null);
@@ -190,7 +190,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'disable-hardware-acceleration',
 
 		// override for the color profile to use
-		'force-color-profile'
+		'force-color-profile',
+
+		// disable chromium sandbox
+		'disable-chromium-sandbox',
 	];
 
 	if (process.platform === 'linux') {
@@ -228,6 +231,9 @@ function configureCommandlineSwitchesSync(cliArgs) {
 			else if (argvValue === true || argvValue === 'true') {
 				if (argvKey === 'disable-hardware-acceleration') {
 					app.disableHardwareAcceleration(); // needs to be called explicitly
+				} else if (argvKey === 'disable-chromium-sandbox') {
+					app.commandLine.appendSwitch('no-sandbox');
+					app.commandLine.appendSwitch('disable-gpu-sandbox');
 				} else {
 					app.commandLine.appendSwitch(argvKey);
 				}

@@ -20,6 +20,9 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IFileService, FileOperation } from 'vs/platform/files/common/files';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { stripComments } from 'vs/base/common/json';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update?: { mode?: string };
@@ -258,6 +261,50 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 	}
 }
 
+export class RuntimeArgumentsChangeRelauncher extends Disposable implements IWorkbenchContribution {
+
+	private readonly disableChromiumSandbox = new ChangeObserver('boolean');
+
+	constructor(
+		@IHostService private readonly hostService: IHostService,
+		@IFileService private readonly fileService: IFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IProductService private readonly productService: IProductService,
+		@IDialogService private readonly dialogService: IDialogService
+	) {
+		super();
+
+		this._register(this.fileService.watch(this.environmentService.argvResource));
+		this._register(this.fileService.onDidRunOperation((e) => {
+			if (e.isOperation(FileOperation.WRITE) && e.resource.toString() === this.environmentService.argvResource.toString()) {
+				this.onRuntimeArgumentFileEdited();
+			}
+		}));
+	}
+
+	private async onRuntimeArgumentFileEdited(): Promise<void> {
+		const argvContent = await this.fileService.readFile(this.environmentService.argvResource);
+		const argvString = argvContent.value.toString();
+		const argvJSON = JSON.parse(stripComments(argvString));
+		// Chromium sandbox
+		const changed = this.disableChromiumSandbox.handleChange(argvJSON['disable-chromium-sandbox']);
+
+		// Notify only when changed from an event and the change
+		// was not triggerd programmatically (e.g. from experiments)
+		if (changed && this.hostService.hasFocus) {
+			const { confirmed } = await this.dialogService.confirm({
+				message: localize('relaunchRuntimeArgumentsMessage', "A runtime argument has changed that requires a restart to take effect."),
+				detail: localize('relaunchRuntimeArgumentsDetail', "Press the restart button to restart {0} and apply the runtime argument change.", this.productService.nameLong),
+				primaryButton: localize({ key: 'restart', comment: ['&& denotes a mnemonic'] }, "&&Restart")
+			});
+			if (confirmed) {
+				this.hostService.restart();
+			}
+		}
+	}
+}
+
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(WorkspaceChangeExtHostRelauncher, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(RuntimeArgumentsChangeRelauncher, LifecyclePhase.Restored);
