@@ -2061,11 +2061,10 @@ export class SearchModel extends Disposable {
 		});
 
 		await Promise.all(promises);
-
 		const end = Date.now();
 
-		this.logService.info(`query: ${textQuery.contentPattern.pattern}`);
-		this.logService.info(`closed notebook search time | ${end - start}ms`);
+		this.logService.trace(`query: ${textQuery.contentPattern.pattern}`);
+		this.logService.trace(`closed notebook search time | ${end - start}ms`);
 		return {
 			results: results,
 			limitHit: false
@@ -2145,7 +2144,7 @@ export class SearchModel extends Disposable {
 		if (onProgress) {
 			arrays.coalesce([...localResults.results.values(), ...closedResults?.results.values() ?? []]).forEach(onProgress);
 		}
-		this.logService.info(`local notebook search time | ${searchLocalEnd - searchStart}ms`);
+		this.logService.trace(`local notebook search time | ${searchLocalEnd - searchStart}ms`);
 		return {
 			completeData: {
 				messages: [],
@@ -2173,8 +2172,7 @@ export class SearchModel extends Disposable {
 		);
 		tokenSource.dispose();
 		const searchLength = Date.now() - searchStart;
-		this.logService.info(`whole search time | ${searchLength}ms`);
-		this.logService.info(`-------`);
+		this.logService.trace(`whole search time | ${searchLength}ms`);
 		return notebookResult ? { ...currentResult, ...notebookResult.completeData } : currentResult;
 	}
 
