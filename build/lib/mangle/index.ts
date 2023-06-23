@@ -428,6 +428,10 @@ export class Mangler {
 		// - Find exported symbols.
 
 		const visit = (node: ts.Node): void => {
+			if (node as any) {
+				return;
+			}
+
 			if (this.config.manglePrivateFields) {
 				if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
 					const anchor = node.name ?? node;
