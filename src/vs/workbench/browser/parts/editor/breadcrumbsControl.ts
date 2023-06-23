@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { DataTransfers } from 'vs/base/browser/dnd';
 import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent, IBreadcrumbsWidgetStyles } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
 import { tail } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
@@ -97,6 +98,9 @@ class OutlineItem extends BreadcrumbsItem {
 		this._disposables.add(toDisposable(() => { renderer.disposeTemplate(template); }));
 	}
 
+	supportDrag(): boolean {
+		return false;
+	}
 }
 
 class FileItem extends BreadcrumbsItem {
@@ -137,6 +141,10 @@ class FileItem extends BreadcrumbsItem {
 		});
 		container.classList.add(FileKind[this.element.kind].toLowerCase());
 		this._disposables.add(label);
+	}
+
+	supportDrag(): boolean {
+		return true;
 	}
 }
 
@@ -214,6 +222,7 @@ export class BreadcrumbsControl {
 		this._widget = new BreadcrumbsWidget(this.domNode, BreadcrumbsControl.SCROLLBAR_SIZES[sizing], separatorIcon, styles);
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
+		this._widget.onWillStartDrag(this._willStartDragEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
 
 		this._ckBreadcrumbsPossible = BreadcrumbsControl.CK_BreadcrumbsPossible.bindTo(this._contextKeyService);
@@ -310,6 +319,9 @@ export class BreadcrumbsControl {
 					}
 					equals(other: BreadcrumbsItem): boolean {
 						return other === this;
+					}
+					supportDrag(): boolean {
+						return false;
 					}
 				}]);
 			} else {
@@ -466,6 +478,27 @@ export class BreadcrumbsControl {
 				picker.dispose();
 			}
 		});
+	}
+
+	private _willStartDragEvent(event: IBreadcrumbsItemEvent): void {
+		if (event.item instanceof FileItem == false) {
+			return;
+		}
+		if (event.payload instanceof DragEvent == false) {
+			return;
+		}
+
+		const dragEvent = event.payload;
+		if (dragEvent.dataTransfer) {
+			dragEvent.dataTransfer.effectAllowed = 'copyMove';
+		}
+		const item = event.item as FileItem;
+		const element = item.element as FileElement;
+		dragEvent.dataTransfer?.setData(DataTransfers.TEXT, element.uri.fsPath);
+		// If it is a file, allow dragging and dropping to the editor and opening it
+		if (element.kind == FileKind.FILE) {
+			dragEvent.dataTransfer?.setData(DataTransfers.RESOURCES, element.uri.toString());
+		}
 	}
 
 	private _updateCkBreadcrumbsActive(): void {
