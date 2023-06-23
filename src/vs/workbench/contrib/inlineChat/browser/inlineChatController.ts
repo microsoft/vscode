@@ -10,7 +10,6 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -35,8 +34,6 @@ import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/in
 import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, InlineChateResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Lazy } from 'vs/base/common/lazy';
 
@@ -111,7 +108,6 @@ export class InlineChatController implements IEditorContribution {
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IModelService private readonly _modelService: IModelService,
-		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
@@ -144,7 +140,7 @@ export class InlineChatController implements IEditorContribution {
 
 	dispose(): void {
 		this._stashedSession.clear();
-		this._finishExistingSession();
+		this.finishExistingSession();
 		this._store.dispose();
 		this._log('controller disposed');
 	}
@@ -177,23 +173,11 @@ export class InlineChatController implements IEditorContribution {
 
 	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
 		this._log('session starting');
-		await this._finishExistingSession();
+		await this.finishExistingSession();
 		this._stashedSession.clear();
 
 		await this._nextState(State.CREATE_SESSION, options);
 		this._log('session done or paused');
-	}
-
-	private async _finishExistingSession(): Promise<void> {
-		if (this._activeSession) {
-			if (this._activeSession.editMode === EditMode.Preview) {
-				this._log('finishing existing session, using CANCEL', this._activeSession.editMode);
-				this.cancelSession();
-			} else {
-				this._log('finishing existing session, using APPLY', this._activeSession.editMode);
-				this.acceptSession();
-			}
-		}
 	}
 
 	// ---- state machine
@@ -296,8 +280,6 @@ export class InlineChatController implements IEditorContribution {
 		// hide/cancel inline completions when invoking IE
 		InlineCompletionsController.get(this._editor)?.hide();
 
-		this._cancelNotebookSiblingEditors();
-
 		this._sessionStore.clear();
 
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
@@ -348,7 +330,7 @@ export class InlineChatController implements IEditorContribution {
 
 			if (editIsOutsideOfWholeRange) {
 				this._log('text changed outside of whole range, FINISH session');
-				this._finishExistingSession();
+				this.finishExistingSession();
 			}
 		}));
 
@@ -375,35 +357,6 @@ export class InlineChatController implements IEditorContribution {
 		return result;
 	}
 
-	private _cancelNotebookSiblingEditors(): void {
-		if (!this._editor.hasModel()) {
-			return;
-		}
-		const candidate = CellUri.parse(this._editor.getModel().uri);
-		if (!candidate) {
-			return;
-		}
-		for (const editor of this._notebookEditorService.listNotebookEditors()) {
-			if (isEqual(editor.textModel?.uri, candidate.notebook)) {
-				let found = false;
-				const editors: ICodeEditor[] = [];
-				for (const [, codeEditor] of editor.codeEditors) {
-					editors.push(codeEditor);
-					found = codeEditor === this._editor || found;
-				}
-				if (found) {
-					// found the this editor in the outer notebook editor -> make sure to
-					// cancel all sibling sessions
-					for (const editor of editors) {
-						if (editor !== this._editor) {
-							InlineChatController.get(editor)?._finishExistingSession();
-						}
-					}
-					break;
-				}
-			}
-		}
-	}
 
 	private async [State.WAIT_FOR_INPUT](options: InlineChatRunOptions): Promise<State.ACCEPT | State.CANCEL | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
 		assertType(this._activeSession);
@@ -816,6 +769,18 @@ export class InlineChatController implements IEditorContribution {
 		}
 		this._messages.fire(Message.CANCEL_SESSION);
 		return result;
+	}
+
+	async finishExistingSession(): Promise<void> {
+		if (this._activeSession) {
+			if (this._activeSession.editMode === EditMode.Preview) {
+				this._log('finishing existing session, using CANCEL', this._activeSession.editMode);
+				this.cancelSession();
+			} else {
+				this._log('finishing existing session, using APPLY', this._activeSession.editMode);
+				this.acceptSession();
+			}
+		}
 	}
 
 	unstashLastSession(): Session | undefined {
