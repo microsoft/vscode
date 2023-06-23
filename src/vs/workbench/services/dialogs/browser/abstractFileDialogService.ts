@@ -93,7 +93,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	private async preferredHome(schemeFilter: string): Promise<URI> {
-		const dialogHomePath = this.configurationService.getValue<string>('workbench.fileDialog.homePath');
+		const dialogHomePath = this.configurationService.getValue<string>('files.dialog.homePath');
 		const userHomePromise = this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
 		if (!dialogHomePath) {
 			return userHomePromise;
