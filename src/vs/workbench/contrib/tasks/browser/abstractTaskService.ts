@@ -345,7 +345,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}));
 		}
-		this.getSavedTasks('historical').then(() => (this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true))));
+		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
 		this._upgrade();
 	}
 
@@ -2907,7 +2907,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: strings.fetching
 		};
 		const promise = (async () => {
-
+			await this.getWorkspaceTasks();
 			let taskGroupTasks: (Task | ConfiguringTask)[] = [];
 
 			async function runSingleTask(task: Task | undefined, problemMatcherOptions: IProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
