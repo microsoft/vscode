@@ -350,6 +350,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('scm.defaultViewMode.list', "Shows search results as a list.")
 			],
 			'description': nls.localize('search.defaultViewMode', "Controls the default search result view mode.")
+		},
+		'search.experimental.closedNotebookRichContentResults': {
+			type: 'boolean',
+			description: nls.localize('search.experimental.closedNotebookResults', "Show notebook editor results for closed notebooks. Please refresh your search results after changing this setting."),
+			default: false
 		}
 	}
 });

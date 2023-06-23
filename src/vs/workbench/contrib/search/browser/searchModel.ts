@@ -2134,19 +2134,25 @@ export class SearchModel extends Disposable {
 		const searchStart = Date.now();
 		const localResults = await this.getLocalNotebookResults(query, token);
 		const searchLocalEnd = Date.now();
-		const locallyScannedNotebookFiles = new ResourceSet([...localResults.results.keys()], uri => this.uriIdentityService.extUri.getComparisonKey(uri));
-		const closedResults = await this.getClosedNotebookResults(query, locallyScannedNotebookFiles, token);
+
+		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.closedNotebookRichContentResults;
+
+		let closedResults = undefined;
+		if (experimentalNotebooksEnabled) {
+			const locallyScannedNotebookFiles = new ResourceSet([...localResults.results.keys()], uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+			closedResults = await this.getClosedNotebookResults(query, locallyScannedNotebookFiles, token);
+		}
 		if (onProgress) {
-			arrays.coalesce([...localResults.results.values(), ...closedResults.results.values()]).forEach(onProgress);
+			arrays.coalesce([...localResults.results.values(), ...closedResults?.results.values() ?? []]).forEach(onProgress);
 		}
 		this.logService.info(`local notebook search time | ${searchLocalEnd - searchStart}ms`);
 		return {
 			completeData: {
 				messages: [],
 				limitHit: localResults.limitHit,
-				results: arrays.coalesce([...localResults.results.values(), ...closedResults.results.values()]),
+				results: arrays.coalesce([...localResults.results.values(), ...closedResults?.results.values() ?? []]),
 			},
-			scannedFiles: new ResourceSet([...localResults.results.keys(), ...closedResults.results.keys()], uri => this.uriIdentityService.extUri.getComparisonKey(uri))
+			scannedFiles: new ResourceSet([...localResults.results.keys(), ...closedResults?.results.keys() ?? []], uri => this.uriIdentityService.extUri.getComparisonKey(uri))
 		};
 	}
 
