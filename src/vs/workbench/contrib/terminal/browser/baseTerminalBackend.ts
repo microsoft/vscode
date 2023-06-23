@@ -41,6 +41,7 @@ export abstract class BaseTerminalBackend extends Disposable {
 
 		let unresponsiveStatusBarEntry: IStatusbarEntry;
 		let statusBarAccessor: IStatusbarEntryAccessor;
+		let hasStarted = false;
 
 		// Attach pty host listeners
 		if (this._ptyHostController.onPtyHostExit) {
@@ -50,7 +51,12 @@ export abstract class BaseTerminalBackend extends Disposable {
 		}
 		if (this._ptyHostController.onPtyHostStart) {
 			this._register(this._ptyHostController.onPtyHostStart(() => {
-				this._onPtyHostRestart.fire();
+				this._logService.debug(`The terminal's pty host process is starting`);
+				// Only fire the event on the 2nd
+				if (hasStarted) {
+					this._onPtyHostRestart.fire();
+				}
+				hasStarted = true;
 				statusBarAccessor?.dispose();
 				this._isPtyHostUnresponsive = false;
 			}));
