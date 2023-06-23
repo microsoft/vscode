@@ -220,15 +220,32 @@ suite('vscode API - workspace-fs', () => {
 	test('fs.createFolder creates recursively', async function () {
 
 		const folder = root.with({ path: posix.join(root.path, 'deeply', 'nested', 'folder') });
-
 		await vscode.workspace.fs.createDirectory(folder);
 
-		const stat = await vscode.workspace.fs.stat(folder);
+		let stat = await vscode.workspace.fs.stat(folder);
 		assert.strictEqual(stat.type, vscode.FileType.Directory);
 
 		await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
 
 		await vscode.workspace.fs.createDirectory(folder); // calling on existing folder is also ok!
+
+		const file = root.with({ path: posix.join(folder.path, 'file.txt') });
+		await vscode.workspace.fs.writeFile(file, Buffer.from('Hello World'));
+		const folder2 = root.with({ path: posix.join(file.path, 'invalid') });
+		let e;
+		try {
+			await vscode.workspace.fs.createDirectory(folder2); // cannot create folder on file path
+		} catch (error) {
+			e = error;
+		}
+		assert.ok(e);
+
+		const folder3 = root.with({ path: posix.join(root.path, 'DEEPLY', 'NESTED', 'FOLDER') });
+		await vscode.workspace.fs.createDirectory(folder3); // calling on different cased folder is ok!
+		stat = await vscode.workspace.fs.stat(folder3);
+		assert.strictEqual(stat.type, vscode.FileType.Directory);
+
+		await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
 	});
 
 	test('fs.writeFile creates parents recursively', async function () {
