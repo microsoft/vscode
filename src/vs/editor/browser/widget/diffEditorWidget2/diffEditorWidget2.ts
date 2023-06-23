@@ -80,11 +80,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		codeEditorService.willCreateDiffEditor();
 
-		EditorContextKeys.inDiffEditor.bindTo(this._contextKeyService).set(true);
+		this._contextKeyService.createKey(EditorContextKeys.inDiffEditor.key, true);
 		this._contextKeyService.createKey('diffEditorVersion', 2);
 
 		this._options = new DiffEditorOptions(options);
 
+		this._contextKeyService.createKey(EditorContextKeys.isEmbeddedDiffEditor.key, false);
 		const isEmbeddedDiffEditorKey = EditorContextKeys.isEmbeddedDiffEditor.bindTo(this._contextKeyService);
 		this._register(autorun('update isEmbeddedDiffEditorKey', reader => {
 			isEmbeddedDiffEditorKey.set(this._options.isInEmbeddedEditor.read(reader));
