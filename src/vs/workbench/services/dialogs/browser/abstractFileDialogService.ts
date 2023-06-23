@@ -92,7 +92,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return resources.dirname(candidate);
 	}
 
-	private async preferredHome(schemeFilter: string): Promise<URI> {
+	async preferredHome(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
 		const dialogHomePath = this.configurationService.getValue<string>('files.dialog.homePath');
 		const userHomePromise = this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
 		if (!dialogHomePath) {

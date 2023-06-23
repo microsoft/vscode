@@ -249,7 +249,7 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 	}
 
 	protected getUserHome(): Promise<URI> {
-		return this.pathService.userHome({ preferLocal: this.scheme === Schemas.file });
+		return this.fileDialogService.preferredHome(this.scheme);
 	}
 
 	private async pickResource(isSave: boolean = false): Promise<URI | undefined> {
