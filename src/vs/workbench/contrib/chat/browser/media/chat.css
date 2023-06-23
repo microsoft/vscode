@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-session {
-	max-width: 600px;
+	max-width: 850px;
 	margin: auto;
 }
 
@@ -82,8 +82,8 @@
 	padding: 2px;
 }
 
-.interactive-item-container .header .monaco-toolbar .checked .action-label,
-.interactive-item-container .header .monaco-toolbar .checked .action-label:hover {
+.interactive-item-container .header .monaco-toolbar .checked.action-label,
+.interactive-item-container .header .monaco-toolbar .checked.action-label:hover {
 	color: var(--vscode-inputOption-activeForeground) !important;
 	border-color: var(--vscode-inputOption-activeBorder);
 	background-color: var(--vscode-inputOption-activeBackground);
@@ -107,7 +107,8 @@
 	padding: 4px 6px;
 }
 
-.interactive-item-container .value a {
+.interactive-item-container .value a,
+.interactive-item-container .value a code {
 	color: var(--vscode-textLink-foreground);
 }
 

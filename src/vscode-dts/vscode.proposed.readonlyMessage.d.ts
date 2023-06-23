@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonEncryptionService } from 'vs/platform/encryption/common/encryptionService';
+// https://github.com/microsoft/vscode/issues/166971
 
-export const IEncryptionService = createDecorator<IEncryptionService>('encryptionService');
+declare module 'vscode' {
 
-export interface IEncryptionService extends ICommonEncryptionService { }
+	export namespace workspace {
+
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { readonly isCaseSensitive?: boolean; readonly isReadonly?: boolean | MarkdownString }): Disposable;
+	}
+}

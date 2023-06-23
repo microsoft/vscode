@@ -8,8 +8,7 @@ import { strictEqual, deepStrictEqual, deepEqual } from 'assert';
 import * as sinon from 'sinon';
 import { parseKeyValueAssignment, parseMarkSequence, deserializeMessage, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 
 class TestShellIntegrationAddon extends ShellIntegrationAddon {
@@ -32,9 +31,7 @@ suite('ShellIntegrationAddon', () => {
 
 	setup(() => {
 		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
-		const instantiationService = new TestInstantiationService();
-		instantiationService.stub(ILogService, NullLogService);
-		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon, '', true, undefined);
+		shellIntegrationAddon = new TestShellIntegrationAddon('', true, undefined, new NullLogService());
 		xterm.loadAddon(shellIntegrationAddon);
 		capabilities = shellIntegrationAddon.capabilities;
 	});

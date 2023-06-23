@@ -707,14 +707,15 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 				hasEdits = true;
 
-				const contents = encodeBase64((await this.fileService.readFile(uri)).value);
-				editSessionSize += contents.length;
-				if (editSessionSize > this.editSessionsStorageService.SIZE_LIMIT) {
-					this.notificationService.error(localize('payload too large', 'Your working changes exceed the size limit and cannot be stored.'));
-					return undefined;
-				}
 
 				if (await this.fileService.exists(uri)) {
+					const contents = encodeBase64((await this.fileService.readFile(uri)).value);
+					editSessionSize += contents.length;
+					if (editSessionSize > this.editSessionsStorageService.SIZE_LIMIT) {
+						this.notificationService.error(localize('payload too large', 'Your working changes exceed the size limit and cannot be stored.'));
+						return undefined;
+					}
+
 					workingChanges.push({ type: ChangeType.Addition, fileType: FileType.File, contents: contents, relativeFilePath: relativeFilePath });
 				} else {
 					// Assume it's a deletion

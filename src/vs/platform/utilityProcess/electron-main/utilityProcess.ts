@@ -17,7 +17,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { deepClone } from 'vs/base/common/objects';
 import { isWindows } from 'vs/base/common/platform';
-import { getUNCHostAllowlist } from 'vs/base/node/unc';
+import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from 'vs/base/node/unc';
 
 export interface IUtilityProcessConfiguration {
 
@@ -259,7 +259,11 @@ export class UtilityProcess extends Disposable {
 		}
 		env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'] = configuration.type;
 		if (isWindows) {
-			env['NODE_UNC_HOST_ALLOWLIST'] = getUNCHostAllowlist().join('\\');
+			if (isUNCAccessRestrictionsDisabled()) {
+				env['NODE_DISABLE_UNC_ACCESS_CHECKS'] = '1';
+			} else {
+				env['NODE_UNC_HOST_ALLOWLIST'] = getUNCHostAllowlist().join('\\');
+			}
 		}
 
 		// Remove any environment variables that are not allowed

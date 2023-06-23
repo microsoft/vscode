@@ -99,7 +99,7 @@ function setupTest() {
 		onDidChangeProfile: Event.None,
 		onDidUpdateExtensionMetadata: Event.None,
 		async getInstalled() { return []; },
-		async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
+		async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
 		async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
 			local.identifier.uuid = metadata.id;
 			local.publisherDisplayName = metadata.publisherDisplayName!;
@@ -2641,7 +2641,7 @@ function createExtensionManagementService(installed: ILocalExtension[] = []): IP
 			return local;
 		},
 		async getTargetPlatform() { return getTargetPlatform(platform, arch); },
-		async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {} }; },
+		async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {}, search: [] }; },
 	};
 }
 

@@ -391,7 +391,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		const COUNT = 2;
 		let sum = 0;
 		for (let i = 0; i < COUNT; i++) {
-			const sw = StopWatch.create(true);
+			const sw = StopWatch.create();
 			await this._proxy.$acceptProcessRequestLatency(terminalId);
 			sw.stop();
 			sum += sw.elapsed();

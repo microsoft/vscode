@@ -249,6 +249,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.themeService.onDidColorThemeChange(() => setDecorations());
 
 		this.toDispose.push(this.languageFeaturesService.completionProvider.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'breakpointWidget',
 			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				let suggestionsPromise: Promise<CompletionList>;
 				const underlyingModel = this.editor.getModel();
@@ -291,7 +292,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	private createEditorOptions(): IEditorOptions {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
-		const options = getSimpleEditorOptions();
+		const options = getSimpleEditorOptions(this._configurationService);
 		options.fontSize = editorConfig.fontSize;
 		options.fontFamily = editorConfig.fontFamily;
 		options.lineHeight = editorConfig.lineHeight;
