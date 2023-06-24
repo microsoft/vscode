@@ -34,6 +34,7 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 			await this.initialized;
 
 			if (this.type !== 'persisted') {
+				this._logService.trace('[NativeSecretStorageService] Notifying user that secrets are not being stored on disk.');
 				await this.notifyOfNoEncryptionOnce();
 			}
 

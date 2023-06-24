@@ -40,7 +40,7 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 	constructor(
 		@IStorageService private _storageService: IStorageService,
 		@IEncryptionService protected _encryptionService: IEncryptionService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService protected readonly _logService: ILogService
 	) {
 		this._storageService.onDidChangeValue(e => this.onDidChangeValue(e.key));
 	}
@@ -70,13 +70,18 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 			await this.initialized;
 
 			const fullKey = this.getKey(key);
+			this._logService.trace('[secrets] getting secret for key:', fullKey);
 			const encrypted = this._storageService.get(fullKey, StorageScope.APPLICATION);
 			if (!encrypted) {
+				this._logService.trace('[secrets] no secret found for key:', fullKey);
 				return undefined;
 			}
 
 			try {
-				return await this._encryptionService.decrypt(encrypted);
+				this._logService.trace('[secrets] decrypting gotten secret for key:', fullKey);
+				const result = await this._encryptionService.decrypt(encrypted);
+				this._logService.trace('[secrets] decrypted secret for key:', fullKey);
+				return result;
 			} catch (e) {
 				this._logService.error(e);
 				this.delete(key);
@@ -89,14 +94,23 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 		return this._sequencer.queue(key, async () => {
 			await this.initialized;
 
-			const encrypted = await this._encryptionService.encrypt(value);
+			this._logService.trace('[secrets] encrypting secret for key:', key);
+			let encrypted;
+			try {
+				encrypted = await this._encryptionService.encrypt(value);
+			} catch (e) {
+				this._logService.error(e);
+				throw e;
+			}
 			const fullKey = this.getKey(key);
 			try {
 				this._onDidChangeSecret.pause();
+				this._logService.trace('[secrets] storing encrypted secret for key:', fullKey);
 				this._storageService.store(fullKey, encrypted, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			} finally {
 				this._onDidChangeSecret.resume();
 			}
+			this._logService.trace('[secrets] stored encrypted secret for key:', fullKey);
 		});
 	}
 
@@ -107,10 +121,12 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 			const fullKey = this.getKey(key);
 			try {
 				this._onDidChangeSecret.pause();
+				this._logService.trace('[secrets] deleting secret for key:', fullKey);
 				this._storageService.remove(fullKey, StorageScope.APPLICATION);
 			} finally {
 				this._onDidChangeSecret.resume();
 			}
+			this._logService.trace('[secrets] deleted secret for key:', fullKey);
 		});
 	}
 
