@@ -101,16 +101,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			return userHomePromise;
 		}
 
-		// userHomePromise will resolve to a URI whose scheme is either the local one ('file') or a remote one (e.g. 'vscode-remote').
-		// dialogHomePath contains an override path value to apply to that URI.
-		// When entering the setting the user will express it in native terms (e.g. c:\foo\bar if Windows)
-
-		// Convert the setting string into one suitable for replacing the path element of the URI we would have returned
-		// if no override setting had existed.
-		const path = (await this.pathService.fileURI(dialogHomePath)).path;
-
-		// Then resolve that original URI, make the path substitution, and return it
-		return (await userHomePromise).with({ path });
+		const resource = await this.pathService.fileURI(dialogHomePath);
+		return resources.toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
 	}
 
 	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
