@@ -25,13 +25,22 @@ const enum Constants {
 	MaxResolvedLinkLength = 1024,
 }
 
-const candidateMatchers = [
+const lineNumberPrefixMatchers = [
 	// Ripgrep:
+	//   /some/file
 	//   16:searchresult
 	//   16:    searchresult
 	// Eslint:
-	//   16:5  error ...
-	/\s*(?<link>(?<line>\d+):(?<col>\d+)?)/
+	//   /some/file
+	//     16:5  error ...
+	/ *(?<link>(?<line>\d+):(?<col>\d+)?)/
+];
+
+const gitDiffMatchers = [
+	// --- a/some/file
+	// +++ b/some/file
+	// @@ -8,11 +8,11 @@ file content...
+	/^(?<link>@@ .+ \+(?<toFileLine>\d+),(?<toFileCount>\d+) @@)/
 ];
 
 export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
@@ -66,7 +75,7 @@ export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
 
 		// Match against the fallback matchers which are mainly designed to catch paths with spaces
 		// that aren't possible using the regular mechanism.
-		for (const matcher of candidateMatchers) {
+		for (const matcher of lineNumberPrefixMatchers) {
 			const match = text.match(matcher);
 			const group = match?.groups;
 			if (!group) {
@@ -130,7 +139,7 @@ export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
 					uri: linkStat.uri,
 					selection: {
 						startLineNumber: parseInt(line),
-						startColumn: col ? parseInt(col) : 0
+						startColumn: col ? parseInt(col) : 1
 					},
 					disableTrimColon: true,
 					bufferRange: bufferRange,
@@ -141,6 +150,88 @@ export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
 
 				// Break on the first match
 				break;
+			}
+		}
+
+		if (links.length === 0) {
+			for (const matcher of gitDiffMatchers) {
+				const match = text.match(matcher);
+				const group = match?.groups;
+				if (!group) {
+					continue;
+				}
+				const link = group?.link;
+				const toFileLine = group?.toFileLine;
+				const toFileCount = group?.toFileCount;
+				if (!link || toFileLine === undefined) {
+					continue;
+				}
+
+				// Don't try resolve any links of excessive length
+				if (link.length > Constants.MaxResolvedLinkLength) {
+					continue;
+				}
+
+				this._logService.trace('terminalMultiLineLinkDetector#detect candidate', link);
+
+
+				// Scan up looking for the first line that could be a path
+				let possiblePath: string | undefined;
+				for (let index = startLine - 1; index >= 0; index--) {
+					// Ignore lines that aren't at the beginning of a wrapped line
+					if (this.xterm.buffer.active.getLine(index)!.isWrapped) {
+						continue;
+					}
+					const text = getXtermLineContent(this.xterm.buffer.active, index, index, this.xterm.cols);
+					const match = text.match(/\+\+\+ b\/(?<path>.+)/);
+					if (match) {
+						possiblePath = match.groups?.path;
+						break;
+					}
+				}
+				if (!possiblePath) {
+					continue;
+				}
+
+				// Check if the first non-matching line is an absolute or relative link
+				const linkStat = await this._linkResolver.resolveLink(this._processManager, possiblePath);
+				if (linkStat) {
+					let type: TerminalBuiltinLinkType;
+					if (linkStat.isDirectory) {
+						if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
+							type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
+						} else {
+							type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
+						}
+					} else {
+						type = TerminalBuiltinLinkType.LocalFile;
+					}
+
+					// Convert the link to the buffer range
+					const bufferRange = convertLinkRangeToBuffer(lines, this.xterm.cols, {
+						startColumn: 1,
+						startLineNumber: 1,
+						endColumn: 1 + link.length,
+						endLineNumber: 1
+					}, startLine);
+
+					const simpleLink: ITerminalSimpleLink = {
+						text: link,
+						uri: linkStat.uri,
+						selection: {
+							startLineNumber: parseInt(toFileLine),
+							startColumn: 1,
+							endLineNumber: parseInt(toFileLine) + parseInt(toFileCount)
+						},
+						bufferRange: bufferRange,
+						type
+					};
+					this._logService.trace('terminalMultiLineLinkDetector#detect verified link', simpleLink);
+					links.push(simpleLink);
+
+					// Break on the first match
+					break;
+				}
 			}
 		}
 
