@@ -228,9 +228,9 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
 
 	getDefaultInstanceHost(): ITerminalInstanceHost;
-	getInstanceHost(target: ITerminalLocationOptions | undefined): ITerminalInstanceHost;
+	getInstanceHost(target: ITerminalLocationOptions | undefined): Promise<ITerminalInstanceHost>;
 
-	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined;
+	resolveLocation(location?: ITerminalLocationOptions): Promise<TerminalLocation | undefined>;
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
 
 	getEditingTerminal(): ITerminalInstance | undefined;
@@ -286,7 +286,7 @@ export interface ISerializedTerminalEditorInput extends ITerminalEditorInputObje
 export interface IDeserializedTerminalEditorInput extends ITerminalEditorInputObject {
 }
 
-export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean };
+export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: Promise<ITerminalInstance> | ITerminalInstance } | { splitActiveTerminal: boolean };
 
 export interface ICreateTerminalOptions {
 	/**

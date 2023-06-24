@@ -19,7 +19,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
@@ -457,53 +457,59 @@ export class TerminalService implements ITerminalService {
 
 	private async _recreateTerminalGroups(layoutInfo?: ITerminalsLayoutInfo): Promise<number> {
 		let reconnectCounter = 0;
-		let activeGroup: ITerminalGroup | undefined;
+		let activeGroup: Promise<ITerminalGroup | undefined> | undefined;
 		if (layoutInfo) {
-			for (const groupLayout of layoutInfo.tabs) {
-				const terminalLayouts = groupLayout.terminals.filter(t => t.terminal && t.terminal.isOrphan);
+			const tabPromises: Promise<ITerminalGroup | undefined>[] = [];
+			for (const tabLayout of layoutInfo.tabs) {
+				const terminalLayouts = tabLayout.terminals.filter(t => t.terminal && t.terminal.isOrphan);
 				if (terminalLayouts.length) {
 					reconnectCounter += terminalLayouts.length;
-					let terminalInstance: ITerminalInstance | undefined;
-					let group: ITerminalGroup | undefined;
-					for (const terminalLayout of terminalLayouts) {
-						const attachPersistentProcess = terminalLayout.terminal!;
-						if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow && attachPersistentProcess.type === 'Task') {
-							continue;
-						}
-						mark(`code/terminal/willRecreateTerminal/${attachPersistentProcess.id}-${attachPersistentProcess.pid}`);
-						if (!terminalInstance) {
-							// create group and terminal
-							terminalInstance = await this.createTerminal({
-								config: { attachPersistentProcess },
-								location: TerminalLocation.Panel
-							});
-							group = this._terminalGroupService.getGroupForInstance(terminalInstance);
-							if (groupLayout.isActive) {
-								activeGroup = group;
-							}
-						} else {
-							// add split terminals to this group
-							terminalInstance = await this.createTerminal({
-								config: { attachPersistentProcess },
-								location: { parentTerminal: terminalInstance }
-							});
-						}
-						mark(`code/terminal/didRecreateTerminal/${attachPersistentProcess.id}-${attachPersistentProcess.pid}`);
+					const promise = this._recreateTerminalGroup(tabLayout, terminalLayouts);
+					tabPromises.push(promise);
+					if (tabLayout.isActive) {
+						activeGroup = promise;
 					}
-					const activeInstance = this.instances.find(t => {
-						return t.shellLaunchConfig.attachPersistentProcess?.id === groupLayout.activePersistentProcessId;
-					});
+					const activeInstance = this.instances.find(t => t.shellLaunchConfig.attachPersistentProcess?.id === tabLayout.activePersistentProcessId);
 					if (activeInstance) {
 						this.setActiveInstance(activeInstance);
 					}
-					group?.resizePanes(groupLayout.terminals.map(terminal => terminal.relativeSize));
 				}
 			}
 			if (layoutInfo.tabs.length) {
-				this._terminalGroupService.activeGroup = activeGroup;
+				activeGroup?.then(group => this._terminalGroupService.activeGroup = group);
 			}
 		}
 		return reconnectCounter;
+	}
+
+	private async _recreateTerminalGroup(tabLayout: IRawTerminalTabLayoutInfo<IPtyHostAttachTarget | null>, terminalLayouts: IRawTerminalInstanceLayoutInfo<IPtyHostAttachTarget | null>[]): Promise<ITerminalGroup | undefined> {
+		let lastInstance: Promise<ITerminalInstance> | undefined;
+		let group: Promise<ITerminalGroup | undefined> | undefined;
+		for (const terminalLayout of terminalLayouts) {
+			const attachPersistentProcess = terminalLayout.terminal!;
+			if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow && attachPersistentProcess.type === 'Task') {
+				continue;
+			}
+			mark(`code/terminal/willRecreateTerminal/${attachPersistentProcess.id}-${attachPersistentProcess.pid}`);
+			if (!lastInstance) {
+				// create group and terminal
+				lastInstance = this.createTerminal({
+					config: { attachPersistentProcess },
+					location: TerminalLocation.Panel
+				});
+				group = lastInstance.then(instance => this._terminalGroupService.getGroupForInstance(instance));
+			} else {
+				// TODO: Make parentInstance a promise?
+				// add split terminals to this group
+				lastInstance = this.createTerminal({
+					config: { attachPersistentProcess },
+					location: { parentTerminal: lastInstance }
+				});
+			}
+			mark(`code/terminal/didRecreateTerminal/${attachPersistentProcess.id}-${attachPersistentProcess.pid}`);
+		}
+		group?.then(g => g?.resizePanes(tabLayout.terminals.map(terminal => terminal.relativeSize)));
+		return group;
 	}
 
 	private _attachProcessLayoutListeners(): void {
@@ -902,7 +908,7 @@ export class TerminalService implements ITerminalService {
 		return this._terminalGroupService;
 	}
 
-	getInstanceHost(location: ITerminalLocationOptions | undefined): ITerminalInstanceHost {
+	async getInstanceHost(location: ITerminalLocationOptions | undefined): Promise<ITerminalInstanceHost> {
 		if (location) {
 			if (location === TerminalLocation.Editor) {
 				return this._terminalEditorService;
@@ -910,7 +916,7 @@ export class TerminalService implements ITerminalService {
 				if ('viewColumn' in location) {
 					return this._terminalEditorService;
 				} else if ('parentTerminal' in location) {
-					return location.parentTerminal.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
+					return (await location.parentTerminal).target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 				}
 			} else {
 				return this._terminalGroupService;
@@ -954,7 +960,7 @@ export class TerminalService implements ITerminalService {
 
 		// Launch the contributed profile
 		if (contributedProfile) {
-			const resolvedLocation = this.resolveLocation(options?.location);
+			const resolvedLocation = await this.resolveLocation(options?.location);
 			let location: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean } | undefined;
 			if (splitActiveTerminal) {
 				location = resolvedLocation === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
@@ -987,8 +993,8 @@ export class TerminalService implements ITerminalService {
 		}
 
 		this._evaluateLocalCwd(shellLaunchConfig);
-		const location = this.resolveLocation(options?.location) || this.defaultLocation;
-		const parent = this._getSplitParent(options?.location);
+		const location = await this.resolveLocation(options?.location) || this.defaultLocation;
+		const parent = await this._getSplitParent(options?.location);
 		this._terminalHasBeenCreated.set(true);
 		if (parent) {
 			return this._splitTerminal(shellLaunchConfig, location, parent);
@@ -1029,7 +1035,7 @@ export class TerminalService implements ITerminalService {
 			} else if (splitActiveTerminal && options?.location) {
 				let parent = this.activeInstance;
 				if (typeof options.location === 'object' && 'parentTerminal' in options.location) {
-					parent = options.location.parentTerminal;
+					parent = await options.location.parentTerminal;
 				}
 				if (!parent) {
 					throw new Error('Cannot split without an active instance');
@@ -1090,11 +1096,12 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined {
+	async resolveLocation(location?: ITerminalLocationOptions): Promise<TerminalLocation | undefined> {
 		if (location && typeof location === 'object') {
 			if ('parentTerminal' in location) {
 				// since we don't set the target unless it's an editor terminal, this is necessary
-				return !location.parentTerminal.target ? TerminalLocation.Panel : location.parentTerminal.target;
+				const parentTerminal = await location.parentTerminal;
+				return !parentTerminal.target ? TerminalLocation.Panel : parentTerminal.target;
 			} else if ('viewColumn' in location) {
 				return TerminalLocation.Editor;
 			} else if ('splitActiveTerminal' in location) {
@@ -1105,7 +1112,7 @@ export class TerminalService implements ITerminalService {
 		return location;
 	}
 
-	private _getSplitParent(location?: ITerminalLocationOptions): ITerminalInstance | undefined {
+	private async _getSplitParent(location?: ITerminalLocationOptions): Promise<ITerminalInstance | undefined> {
 		if (location && typeof location === 'object' && 'parentTerminal' in location) {
 			return location.parentTerminal;
 		} else if (location && typeof location === 'object' && 'splitActiveTerminal' in location) {
