@@ -296,10 +296,7 @@ export class TerminalService implements ITerminalService {
 			mark('code/terminal/didReconnect');
 			mark('code/terminal/willReplay');
 			const instances = await this._reconnectedTerminalGroups?.then(groups => groups.map(e => e.terminalInstances).flat()) ?? [];
-			await Promise.all(instances.map(e => new Promise<void>(r => Event.once(e.onProcessReplayComplete)(() => {
-				mark(`code/terminal/replay/${e.shellLaunchConfig.attachPersistentProcess?.id}`);
-				r();
-			}))));
+			await Promise.all(instances.map(e => new Promise<void>(r => Event.once(e.onProcessReplayComplete)(r))));
 			mark('code/terminal/didReplay');
 			for (const backend of this._terminalInstanceService.getRegisteredBackends()) {
 				mark('code/terminal/willGetPerformanceMarks');
@@ -469,13 +466,12 @@ export class TerminalService implements ITerminalService {
 
 	private _recreateTerminalGroups(layoutInfo?: ITerminalsLayoutInfo): Promise<ITerminalGroup[]> {
 		const groupPromises: Promise<ITerminalGroup | undefined>[] = [];
-		let reconnectCounter = 0;
 		let activeGroup: Promise<ITerminalGroup | undefined> | undefined;
 		if (layoutInfo) {
 			for (const tabLayout of layoutInfo.tabs) {
 				const terminalLayouts = tabLayout.terminals.filter(t => t.terminal && t.terminal.isOrphan);
 				if (terminalLayouts.length) {
-					reconnectCounter += terminalLayouts.length;
+					this._restoredGroupCount += terminalLayouts.length;
 					const promise = this._recreateTerminalGroup(tabLayout, terminalLayouts);
 					groupPromises.push(promise);
 					if (tabLayout.isActive) {

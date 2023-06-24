@@ -8,6 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, IProcessReadyEvent, ILocalPtyService } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { mark } from 'vs/base/common/performance';
 
 /**
  * Responsible for establishing and maintaining a connection with an existing terminal process
@@ -141,6 +142,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	}
 
 	async handleReplay(e: IPtyHostProcessReplayEvent) {
+		mark(`code/terminal/willHandleReplay/${this.id}`);
 		try {
 			this._inReplay = true;
 			for (const innerEvent of e.events) {
@@ -163,6 +165,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		// remove size override
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.OverrideDimensions, value: undefined });
 
+		mark(`code/terminal/didHandleReplay/${this.id}`);
 		this._onProcessReplayComplete.fire();
 	}
 
