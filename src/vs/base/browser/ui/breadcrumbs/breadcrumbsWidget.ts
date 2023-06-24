@@ -372,7 +372,7 @@ export class BreadcrumbsWidget {
 		}
 
 		if (!event.target || event.target instanceof HTMLDivElement === false) {
-				return;
+			return;
 		}
 
 		const index = this._nodes.indexOf(event.target as HTMLDivElement);
