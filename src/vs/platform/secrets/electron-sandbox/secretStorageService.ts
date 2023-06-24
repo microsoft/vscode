@@ -65,9 +65,7 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 			errorMessage = localize('isGnome', "You're running in a GNOME environment but encryption is not available. Ensure you have gnome-keyring or another libsecret compatible implementation installed and running.");
 		} else if (isKwallet(provider)) {
 			errorMessage = localize('isKwallet', "You're running in a KDE environment but encryption is not available. Ensure you have kwallet running.");
-		}
-
-		if (provider !== KnownStorageProvider.unknown) {
+		} else if (provider === KnownStorageProvider.basicText) {
 			errorMessage += ' ' + localize('usePlainTextExtraSentence', "Open the troubleshooting guide or you can use plain text obfuscation instead.");
 			const usePlainTextButton: IPromptChoice = {
 				label: localize('usePlainText', "Use plain text (restart required)"),
