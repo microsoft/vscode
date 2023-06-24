@@ -77,10 +77,9 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 	) {
 		super();
-
 		codeEditorService.willCreateDiffEditor();
 
-		this._contextKeyService.createKey(EditorContextKeys.inDiffEditor.key, true);
+		this._contextKeyService.createKey('isInDiffEditor', true);
 		this._contextKeyService.createKey('diffEditorVersion', 2);
 
 		this._options = new DiffEditorOptions(options);

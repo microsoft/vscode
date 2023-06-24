@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { Schemas } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { FilePermission } from 'vs/platform/files/common/files';
+import { isLinux } from 'vs/base/common/platform';
 
 export class ExtHostDiskFileSystemProvider {
 
@@ -20,7 +21,7 @@ export class ExtHostDiskFileSystemProvider {
 		// Register disk file system provider so that certain
 		// file operations can execute fast within the extension
 		// host without roundtripping.
-		extHostConsumerFileSystem.addFileSystemProvider(Schemas.file, new DiskFileSystemProviderAdapter(logService));
+		extHostConsumerFileSystem.addFileSystemProvider(Schemas.file, new DiskFileSystemProviderAdapter(logService), { isCaseSensitive: isLinux });
 	}
 }
 

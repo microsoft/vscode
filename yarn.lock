@@ -9937,10 +9937,10 @@ ts-node@^10.9.1:
     v8-compile-cache-lib "^3.0.1"
     yn "3.1.1"
 
-tsec@0.1.4:
-  version "0.1.4"
-  resolved "https://registry.yarnpkg.com/tsec/-/tsec-0.1.4.tgz#dc8743c28ad01230ea4692e326866e0d54487f3f"
-  integrity sha512-7r6m7gmRE11si2FeM0pPoLfGV3AZTRcJJxx2bS5MYtvwaEMNqq2QlaVAEYaH1RqICeN3ODe2jVBJkC+JYQ/gtQ==
+tsec@0.2.7:
+  version "0.2.7"
+  resolved "https://registry.yarnpkg.com/tsec/-/tsec-0.2.7.tgz#be530025907037ed57f37fc7625b6a7e3658fe43"
+  integrity sha512-Pj9DuBBWLEo8p7QsbrEdXzW/u6QJBcib0ZGOTXkeSDx+PLXFY7hwyZE9Tfhp3TA3LQNpYouyT0WmzXRyUW4otQ==
   dependencies:
     glob "^7.1.1"
     minimatch "^3.0.3"

@@ -183,6 +183,15 @@ export interface IWorkingCopy extends IWorkingCopyIdentifier {
 	//#region Save / Backup
 
 	/**
+	 * The delay in milliseconds to wait before triggering
+	 * a backup after the content of the model has changed.
+	 *
+	 * If not configured, a sensible default will be taken
+	 * based on user settings.
+	 */
+	readonly backupDelay?: number;
+
+	/**
 	 * The workbench may call this method often after it receives
 	 * the `onDidChangeContent` event for the working copy. The motivation
 	 * is to allow to quit VSCode with dirty working copies present.

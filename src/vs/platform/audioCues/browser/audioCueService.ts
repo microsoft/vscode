@@ -224,7 +224,6 @@ export class Sound {
 	public static readonly chatResponseReceived2 = Sound.register({ fileName: 'chatResponseReceived2.mp3' });
 	public static readonly chatResponseReceived3 = Sound.register({ fileName: 'chatResponseReceived3.mp3' });
 	public static readonly chatResponseReceived4 = Sound.register({ fileName: 'chatResponseReceived4.mp3' });
-	public static readonly chatResponseReceived5 = Sound.register({ fileName: 'chatResponseReceived5.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -377,11 +376,6 @@ export class AudioCue {
 
 	public static readonly chatResponseReceived4 = AudioCue.register({
 		sound: Sound.chatResponseReceived4,
-		...this.chatResponseReceived
-	});
-
-	public static readonly chatResponseReceived5 = AudioCue.register({
-		sound: Sound.chatResponseReceived5,
 		...this.chatResponseReceived
 	});
 
