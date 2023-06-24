@@ -747,11 +747,6 @@ class PersistentTerminalProcess extends Disposable {
 	}
 
 	async attach(): Promise<void> {
-		// Something wrong happened if the disconnect runner is not canceled, this likely means
-		// multiple windows attempted to attach.
-		if (!await this._isOrphaned()) {
-			throw new Error(`Cannot attach to persistent process "${this._persistentProcessId}", it is already adopted`);
-		}
 		if (!this._disconnectRunner1.isScheduled() && !this._disconnectRunner2.isScheduled()) {
 			this._logService.warn(`Persistent process "${this._persistentProcessId}": Process had no disconnect runners but was an orphan`);
 		}
