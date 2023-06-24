@@ -41,6 +41,7 @@ type ChatProviderInvokedEvent = {
 	totalTime: number;
 	result: 'success' | 'error' | 'errorWithOutput' | 'cancelled' | 'filtered';
 	requestType: 'string' | 'followup' | 'slashCommand';
+	slashCommand: string;
 };
 
 type ChatProviderInvokedClassification = {
@@ -49,6 +50,7 @@ type ChatProviderInvokedClassification = {
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total time it took to run the provider\'s `provideResponseWithProgress`.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the ChatProvider resulted in an error.' };
 	requestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of request that the user made.' };
+	slashCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of slashCommand used.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat providers.';
 };
@@ -394,7 +396,7 @@ export class ChatService extends Disposable implements IChatService {
 		const requestType = typeof message === 'string' ?
 			(message.startsWith('/') ? 'slashCommand' : 'string') :
 			'followup';
-
+		const slashCommand = requestType === 'slashCommand' ? ((message as string).split(' ')[0]?.substring(1)) : '';
 		const rawResponsePromise = createCancelablePromise<void>(async token => {
 			const progressCallback = (progress: IChatProgress) => {
 				if (token.isCancellationRequested) {
@@ -420,7 +422,8 @@ export class ChatService extends Disposable implements IChatService {
 					// Normally timings happen inside the EH around the actual provider. For cancellation we can measure how long the user waited before cancelling
 					totalTime: stopWatch.elapsed(),
 					result: 'cancelled',
-					requestType
+					requestType: requestType,
+					slashCommand: slashCommand
 				});
 
 				model.cancelRequest(request);
@@ -443,7 +446,8 @@ export class ChatService extends Disposable implements IChatService {
 					timeToFirstProgress: rawResponse.timings?.firstProgress ?? 0,
 					totalTime: rawResponse.timings?.totalElapsed ?? 0,
 					result,
-					requestType
+					requestType: requestType,
+					slashCommand: slashCommand
 				});
 				model.completeResponse(request, rawResponse);
 				this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
