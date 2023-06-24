@@ -32,8 +32,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
 	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
-	readonly onProcessReplay = this._onProcessReplay.event;
+	private readonly _onProcessReplayComplete = this._register(new Emitter<void>());
+	readonly onProcessReplayComplete = this._onProcessReplayComplete.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
@@ -162,6 +162,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 
 		// remove size override
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.OverrideDimensions, value: undefined });
+
+		this._onProcessReplayComplete.fire();
 	}
 
 	handleOrphanQuestion() {

@@ -536,6 +536,7 @@ export interface ITerminalInstance {
 	onDisposed: Event<ITerminalInstance>;
 
 	onProcessIdReady: Event<ITerminalInstance>;
+	onProcessReplayComplete: Event<void>;
 	onRequestExtHostProcess: Event<ITerminalInstance>;
 	onDimensionsChanged: Event<void>;
 	onMaximumDimensionsChanged: Event<void>;

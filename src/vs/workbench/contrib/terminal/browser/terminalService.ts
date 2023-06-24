@@ -95,6 +95,8 @@ export class TerminalService implements ITerminalService {
 		return this._detachedXterms;
 	}
 
+	private _reconnectedTerminalGroups: Promise<ITerminalGroup[]> | undefined;
+
 	private _reconnectedTerminals: Map<string, ITerminalInstance[]> = new Map();
 	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined {
 		return this._reconnectedTerminals.get(reconnectionOwner);
@@ -292,6 +294,13 @@ export class TerminalService implements ITerminalService {
 		reconnectedPromise.then(async () => {
 			this._setConnected();
 			mark('code/terminal/didReconnect');
+			mark('code/terminal/willReplay');
+			const instances = await this._reconnectedTerminalGroups?.then(groups => groups.map(e => e.terminalInstances).flat()) ?? [];
+			await Promise.all(instances.map(e => new Promise<void>(r => Event.once(e.onProcessReplayComplete)(() => {
+				mark(`code/terminal/replay/${e.shellLaunchConfig.attachPersistentProcess?.id}`);
+				r();
+			}))));
+			mark('code/terminal/didReplay');
 			for (const backend of this._terminalInstanceService.getRegisteredBackends()) {
 				mark('code/terminal/willGetPerformanceMarks');
 				this._timerService.setPerformanceMarks(backend.remoteAuthority === undefined ? 'localPtyHost' : 'remotePtyHost', await backend.getPerformanceMarks());
@@ -450,7 +459,7 @@ export class TerminalService implements ITerminalService {
 		mark('code/terminal/didGetTerminalLayoutInfo');
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
 			mark('code/terminal/willRecreateTerminalGroups');
-			this._restoredGroupCount = await this._recreateTerminalGroups(layoutInfo);
+			this._reconnectedTerminalGroups = this._recreateTerminalGroups(layoutInfo);
 			mark('code/terminal/didRecreateTerminalGroups');
 		}
 		// now that terminals have been restored,
@@ -458,17 +467,17 @@ export class TerminalService implements ITerminalService {
 		this._attachProcessLayoutListeners();
 	}
 
-	private async _recreateTerminalGroups(layoutInfo?: ITerminalsLayoutInfo): Promise<number> {
+	private _recreateTerminalGroups(layoutInfo?: ITerminalsLayoutInfo): Promise<ITerminalGroup[]> {
+		const groupPromises: Promise<ITerminalGroup | undefined>[] = [];
 		let reconnectCounter = 0;
 		let activeGroup: Promise<ITerminalGroup | undefined> | undefined;
 		if (layoutInfo) {
-			const tabPromises: Promise<ITerminalGroup | undefined>[] = [];
 			for (const tabLayout of layoutInfo.tabs) {
 				const terminalLayouts = tabLayout.terminals.filter(t => t.terminal && t.terminal.isOrphan);
 				if (terminalLayouts.length) {
 					reconnectCounter += terminalLayouts.length;
 					const promise = this._recreateTerminalGroup(tabLayout, terminalLayouts);
-					tabPromises.push(promise);
+					groupPromises.push(promise);
 					if (tabLayout.isActive) {
 						activeGroup = promise;
 					}
@@ -482,7 +491,7 @@ export class TerminalService implements ITerminalService {
 				activeGroup?.then(group => this._terminalGroupService.activeGroup = group);
 			}
 		}
-		return reconnectCounter;
+		return Promise.all(groupPromises).then(result => result.filter(e => !!e) as ITerminalGroup[]);
 	}
 
 	private async _recreateTerminalGroup(tabLayout: IRawTerminalTabLayoutInfo<IPtyHostAttachTarget | null>, terminalLayouts: IRawTerminalInstanceLayoutInfo<IPtyHostAttachTarget | null>[]): Promise<ITerminalGroup | undefined> {
@@ -502,7 +511,6 @@ export class TerminalService implements ITerminalService {
 				});
 				group = lastInstance.then(instance => this._terminalGroupService.getGroupForInstance(instance));
 			} else {
-				// TODO: Make parentInstance a promise?
 				// add split terminals to this group
 				lastInstance = this.createTerminal({
 					config: { attachPersistentProcess },
