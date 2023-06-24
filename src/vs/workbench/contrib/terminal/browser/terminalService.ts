@@ -84,6 +84,9 @@ export class TerminalService implements ITerminalService {
 	private readonly _whenConnected = new DeferredPromise<void>();
 	get whenConnected(): Promise<void> { return this._whenConnected.p; }
 
+	private _restoredGroupCount: number = 0;
+	get restoredGroupCount(): number { return this._restoredGroupCount; }
+
 	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 	get instances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
@@ -447,7 +450,7 @@ export class TerminalService implements ITerminalService {
 		mark('code/terminal/didGetTerminalLayoutInfo');
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
 			mark('code/terminal/willRecreateTerminalGroups');
-			await this._recreateTerminalGroups(layoutInfo);
+			this._restoredGroupCount = await this._recreateTerminalGroups(layoutInfo);
 			mark('code/terminal/didRecreateTerminalGroups');
 		}
 		// now that terminals have been restored,
