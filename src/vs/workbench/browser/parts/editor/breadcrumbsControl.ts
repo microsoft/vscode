@@ -481,10 +481,10 @@ export class BreadcrumbsControl {
 	}
 
 	private _willStartDragEvent(event: IBreadcrumbsItemEvent): void {
-		if (event.item instanceof FileItem == false) {
+		if (event.item instanceof FileItem === false) {
 			return;
 		}
-		if (event.payload instanceof DragEvent == false) {
+		if (event.payload instanceof DragEvent === false) {
 			return;
 		}
 
@@ -496,7 +496,7 @@ export class BreadcrumbsControl {
 		const element = item.element as FileElement;
 		dragEvent.dataTransfer?.setData(DataTransfers.TEXT, element.uri.fsPath);
 		// If it is a file, allow dragging and dropping to the editor and opening it
-		if (element.kind == FileKind.FILE) {
+		if (element.kind === FileKind.FILE) {
 			dragEvent.dataTransfer?.setData(DataTransfers.RESOURCES, element.uri.toString());
 		}
 	}
