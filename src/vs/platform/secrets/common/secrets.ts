@@ -5,15 +5,10 @@
 
 import { SequencerByKey } from 'vs/base/common/async';
 import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Event, PauseableEmitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isNative } from 'vs/base/common/platform';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { localize } from 'vs/nls';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { once } from 'vs/base/common/functional';
 
 export const ISecretStorageService = createDecorator<ISecretStorageService>('secretStorageService');
 
@@ -29,7 +24,7 @@ export interface ISecretStorageService extends ISecretStorageProvider {
 	onDidChangeSecret: Event<string>;
 }
 
-export class SecretStorageService implements ISecretStorageService {
+export abstract class BaseSecretStorageService implements ISecretStorageService {
 	declare readonly _serviceBrand: undefined;
 
 	private _storagePrefix = 'secret://';
@@ -37,17 +32,15 @@ export class SecretStorageService implements ISecretStorageService {
 	private readonly _onDidChangeSecret = new PauseableEmitter<string>();
 	onDidChangeSecret: Event<string> = this._onDidChangeSecret.event;
 
-	private readonly _sequencer = new SequencerByKey<string>();
-	private initialized = this.init();
+	protected readonly _sequencer = new SequencerByKey<string>();
+	protected initialized = this.init();
 
 	private _type: 'in-memory' | 'persisted' | 'unknown' = 'unknown';
 
 	constructor(
 		@IStorageService private _storageService: IStorageService,
-		@IEncryptionService private _encryptionService: IEncryptionService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@ILogService private readonly _logService: ILogService
+		@IEncryptionService protected _encryptionService: IEncryptionService,
+		@ILogService protected readonly _logService: ILogService
 	) {
 		this._storageService.onDidChangeValue(e => this.onDidChangeValue(e.key));
 	}
@@ -77,13 +70,18 @@ export class SecretStorageService implements ISecretStorageService {
 			await this.initialized;
 
 			const fullKey = this.getKey(key);
+			this._logService.trace('[secrets] getting secret for key:', fullKey);
 			const encrypted = this._storageService.get(fullKey, StorageScope.APPLICATION);
 			if (!encrypted) {
+				this._logService.trace('[secrets] no secret found for key:', fullKey);
 				return undefined;
 			}
 
 			try {
-				return await this._encryptionService.decrypt(encrypted);
+				this._logService.trace('[secrets] decrypting gotten secret for key:', fullKey);
+				const result = await this._encryptionService.decrypt(encrypted);
+				this._logService.trace('[secrets] decrypted secret for key:', fullKey);
+				return result;
 			} catch (e) {
 				this._logService.error(e);
 				this.delete(key);
@@ -96,18 +94,23 @@ export class SecretStorageService implements ISecretStorageService {
 		return this._sequencer.queue(key, async () => {
 			await this.initialized;
 
-			if (isNative && this.type !== 'persisted') {
-				this.notifyNativeUserOnce();
+			this._logService.trace('[secrets] encrypting secret for key:', key);
+			let encrypted;
+			try {
+				encrypted = await this._encryptionService.encrypt(value);
+			} catch (e) {
+				this._logService.error(e);
+				throw e;
 			}
-
-			const encrypted = await this._encryptionService.encrypt(value);
 			const fullKey = this.getKey(key);
 			try {
 				this._onDidChangeSecret.pause();
+				this._logService.trace('[secrets] storing encrypted secret for key:', fullKey);
 				this._storageService.store(fullKey, encrypted, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			} finally {
 				this._onDidChangeSecret.resume();
 			}
+			this._logService.trace('[secrets] stored encrypted secret for key:', fullKey);
 		});
 	}
 
@@ -118,10 +121,12 @@ export class SecretStorageService implements ISecretStorageService {
 			const fullKey = this.getKey(key);
 			try {
 				this._onDidChangeSecret.pause();
+				this._logService.trace('[secrets] deleting secret for key:', fullKey);
 				this._storageService.remove(fullKey, StorageScope.APPLICATION);
 			} finally {
 				this._onDidChangeSecret.resume();
 			}
+			this._logService.trace('[secrets] deleted secret for key:', fullKey);
 		});
 	}
 
@@ -139,21 +144,5 @@ export class SecretStorageService implements ISecretStorageService {
 
 	private getKey(key: string): string {
 		return `${this._storagePrefix}${key}`;
-	}
-
-	private notifyNativeUserOnce = once(() => this.notifyNativeUser());
-	private notifyNativeUser(): void {
-		this._notificationService.prompt(
-			Severity.Warning,
-			localize('notEncrypted', 'Secrets are not being stored on disk because encryption is not available in this environment.'),
-			[{
-				label: localize('openTroubleshooting', "Open Troubleshooting"),
-				run: () => this._instantiationService.invokeFunction(accessor => {
-					const openerService = accessor.get(IOpenerService);
-					// Open troubleshooting docs page
-					return openerService.open('https://go.microsoft.com/fwlink/?linkid=2239490');
-				})
-			}]
-		);
 	}
 }

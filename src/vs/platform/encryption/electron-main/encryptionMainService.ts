@@ -3,9 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { safeStorage } from 'electron';
-import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
+import { safeStorage as safeStorageElectron } from 'electron';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { KnownStorageProvider, IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
 import { ILogService } from 'vs/platform/log/common/log';
+
+// These APIs are currently only supported in our custom build of electron so
+// we need to guard against them not being available.
+interface ISafeStorageAdditionalAPIs {
+	setUsePlainTextEncryption(usePlainText: boolean): void;
+	getSelectedStorageBackend(): string;
+}
+
+const safeStorage: typeof import('electron').safeStorage & Partial<ISafeStorageAdditionalAPIs> = safeStorageElectron;
 
 export class EncryptionMainService implements IEncryptionMainService {
 	_serviceBrand: undefined;
@@ -39,6 +49,40 @@ export class EncryptionMainService implements IEncryptionMainService {
 
 	isEncryptionAvailable(): Promise<boolean> {
 		return Promise.resolve(safeStorage.isEncryptionAvailable());
+	}
+
+	getKeyStorageProvider(): Promise<KnownStorageProvider> {
+		if (isWindows) {
+			return Promise.resolve(KnownStorageProvider.dplib);
+		}
+		if (isMacintosh) {
+			return Promise.resolve(KnownStorageProvider.keychainAccess);
+		}
+		if (safeStorage.getSelectedStorageBackend) {
+			try {
+				const result = safeStorage.getSelectedStorageBackend() as KnownStorageProvider;
+				return Promise.resolve(result);
+			} catch (e) {
+				this.logService.error(e);
+			}
+		}
+		return Promise.resolve(KnownStorageProvider.unknown);
+	}
+
+	async setUsePlainTextEncryption(): Promise<void> {
+		if (isWindows) {
+			throw new Error('Setting plain text encryption is not supported on Windows.');
+		}
+
+		if (isMacintosh) {
+			throw new Error('Setting plain text encryption is not supported on macOS.');
+		}
+
+		if (!safeStorage.setUsePlainTextEncryption) {
+			throw new Error('Setting plain text encryption is not supported.');
+		}
+
+		safeStorage.setUsePlainTextEncryption(true);
 	}
 
 	// TODO: Remove this after a few releases
