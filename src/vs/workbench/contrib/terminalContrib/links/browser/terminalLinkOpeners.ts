@@ -36,12 +36,15 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 			throw new Error('Tried to open file link without a resolved URI');
 		}
 		const linkSuffix = link.parsedLink ? link.parsedLink.suffix : getLinkSuffix(link.text);
-		const selection: ITextEditorSelection | undefined = linkSuffix?.row === undefined ? undefined : {
-			startLineNumber: linkSuffix.row ?? 1,
-			startColumn: linkSuffix.col ?? 1,
-			endLineNumber: linkSuffix.rowEnd,
-			endColumn: linkSuffix.colEnd
-		};
+		let selection: ITextEditorSelection | undefined = link.selection;
+		if (!selection) {
+			selection = linkSuffix?.row === undefined ? undefined : {
+				startLineNumber: linkSuffix.row ?? 1,
+				startColumn: linkSuffix.col ?? 1,
+				endLineNumber: linkSuffix.rowEnd,
+				endColumn: linkSuffix.colEnd
+			};
+		}
 		await this._editorService.openEditor({
 			resource: link.uri,
 			options: { pinned: true, selection, revealIfOpened: true }
