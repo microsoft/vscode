@@ -56,34 +56,34 @@ export const mediaMimes = new Set([
 	'audio/x-wav',
 ]);
 
-export async function getMarkdownLink(document: vscode.TextDocument, _ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, uriEdit: vscode.DocumentPasteEdit, token: vscode.CancellationToken) {
-	if (_ranges.length === 0) {
+export async function getMarkdownLink(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string } | undefined> {
+	if (ranges.length === 0) {
 		return;
 	}
 
-	const selectedTexts = _ranges.map(range => document.getText(range));
-	const rangeTextTuples = _ranges.map((range, index) => [range, selectedTexts[index]] as [vscode.Range, string]);
+	const selectedTexts = ranges.map(range => document.getText(range));
 	const edits: vscode.SnippetTextEdit[] = [];
-	let count: number;
-	count = rangeTextTuples.length;
+	let placeHolder: number = ranges.length;
+	let new_label: string = '';
 
-	for (const [range, text] of rangeTextTuples) {
-		const snippet = await tryGetUriListSnippet(document, dataTransfer, token, text, count);
+	for (let i = 0; i < ranges.length; i++) {
+		const snippet = await tryGetUriListSnippet(document, dataTransfer, token, selectedTexts[i], placeHolder);
 		if (!snippet) {
 			return;
 		}
-		count--;
-		edits.push(new vscode.SnippetTextEdit(range, snippet.snippet));
-		uriEdit.label = snippet.label;
+		placeHolder--;
+		edits.push(new vscode.SnippetTextEdit(ranges[i], snippet.snippet));
+		new_label = snippet.label;
 	}
 
-	const newAdditionalEdits = new vscode.WorkspaceEdit();
-	newAdditionalEdits.set(document.uri, edits);
-	uriEdit.additionalEdit = newAdditionalEdits;
-	return uriEdit;
+
+	const additionalEdits = new vscode.WorkspaceEdit();
+	additionalEdits.set(document.uri, edits);
+	const label = new_label;
+	return { additionalEdits, label };
 }
 
-export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken, title = '', count = 0): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
+export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken, title = '', placeholder = 0): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
 	const urlList = await dataTransfer.get('text/uri-list')?.asString() || await dataTransfer.get('text/plain')?.asString();
 
 	if (!urlList || token.isCancellationRequested) {
@@ -99,7 +99,7 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 		}
 	}
 
-	return createUriListSnippet(document, uris, title, count);
+	return createUriListSnippet(document, uris, title, placeholder);
 }
 
 interface UriListSnippetOptions {
@@ -122,7 +122,7 @@ export function createUriListSnippet(
 	document: vscode.TextDocument,
 	uris: readonly vscode.Uri[],
 	title = '',
-	count = 0,
+	placeholder = 0,
 	options?: UriListSnippetOptions,
 ): { snippet: vscode.SnippetString; label: string } | undefined {
 	if (!uris.length) {
@@ -148,29 +148,29 @@ export function createUriListSnippet(
 		if (insertAsVideo) {
 			insertedAudioVideoCount++;
 			snippet.appendText(`<video src="${escapeHtmlAttribute(mdPath)}" controls title="`);
-			const newTitle = (title !== '') ? title : 'Title';
-			snippet.appendPlaceholder(newTitle, count);
+			const formattedTitle = title.replace(/[\[\]]/g, '\\$&') || 'Title';
+			snippet.appendPlaceholder(formattedTitle, placeholder);
 			snippet.appendText('"></video>');
 		} else if (insertAsAudio) {
 			insertedAudioVideoCount++;
 			snippet.appendText(`<audio src="${escapeHtmlAttribute(mdPath)}" controls title="`);
-			const newTitle = (title !== '') ? title : 'Title';
-			snippet.appendPlaceholder(newTitle, count);
+			const formattedTitle = title.replace(/[\[\]]/g, '\\$&') || 'Title';
+			snippet.appendPlaceholder(formattedTitle, placeholder);
 			snippet.appendText('"></audio>');
 		} else {
 			if (insertAsMedia) {
 				insertedImageCount++;
 				snippet.appendText('![');
-				const newTitle = (title !== '') ? title : 'Alt text';
-				const placeholderText = options?.placeholderText ?? (insertAsMedia ? newTitle : 'label');
-				const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (count === 0 ? undefined : count);
+				const formattedTitle = title.replace(/[\[\]]/g, '\\$&') || 'Title';
+				const placeholderText = options?.placeholderText ?? (insertAsMedia ? formattedTitle : 'label');
+				const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (placeholder === 0 ? undefined : placeholder);
 				snippet.appendPlaceholder(placeholderText, placeholderIndex);
 				snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
 			} else {
 				insertedLinkCount++;
 				snippet.appendText('[');
-				const newTitle = (title !== '') ? title : 'Title';
-				snippet.appendPlaceholder(newTitle, count);
+				const formattedTitle = title.replace(/[\[\]]/g, '\\$&') || 'Title';
+				snippet.appendPlaceholder(formattedTitle, placeholder);
 				snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
 			}
 		}

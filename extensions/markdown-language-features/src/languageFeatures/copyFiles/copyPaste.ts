@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Schemes } from '../../util/schemes';
-import { createEditForMediaFiles, getMarkdownLink, mediaMimes, tryGetUriListSnippet } from './shared';
+import { createEditForMediaFiles, getMarkdownLink, mediaMimes } from './shared';
 
 class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
@@ -13,7 +13,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
-		_ranges: readonly vscode.Range[],
+		ranges: readonly vscode.Range[],
 		dataTransfer: vscode.DataTransfer,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit | undefined> {
@@ -27,21 +27,13 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return createEdit;
 		}
 
-		const markdown_link_enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.pasteAsTextMediaLink.enabled', true);
-		if (markdown_link_enabled) {
-			const uriEdit = new vscode.DocumentPasteEdit('', this._id, '');
-			const pasteEdit = await getMarkdownLink(document, _ranges, dataTransfer, uriEdit, token);
-			if (pasteEdit) {
-				return pasteEdit;
-			}
-		}
-
-		const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
-		if (!snippet) {
+		const uriEdit = new vscode.DocumentPasteEdit('', this._id, 'Insert Markdown Media');
+		const pasteEdit = await getMarkdownLink(document, ranges, dataTransfer, token);
+		if (!pasteEdit) {
 			return;
 		}
 
-		const uriEdit = new vscode.DocumentPasteEdit(snippet.snippet, this._id, snippet.label);
+		uriEdit.additionalEdit = pasteEdit.additionalEdits;
 		uriEdit.priority = this._getPriority(dataTransfer);
 		return uriEdit;
 	}
