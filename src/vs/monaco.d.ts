@@ -3961,18 +3961,19 @@ declare namespace monaco.editor {
 			 * Defaults to false.
 			 */
 			showMoves?: boolean;
+			showEmptyDecorations?: boolean;
 		};
+		/**
+		 * Is the diff editor inside another editor
+		 * Defaults to false
+		 */
+		isInEmbeddedEditor?: boolean;
 	}
 
 	/**
 	 * Configuration options for the diff editor.
 	 */
 	export interface IDiffEditorOptions extends IEditorOptions, IDiffEditorBaseOptions {
-		/**
-		 * Is the diff editor inside another editor
-		 * Defaults to false
-		 */
-		isInEmbeddedEditor?: boolean;
 	}
 
 	/**
@@ -5637,11 +5638,7 @@ declare namespace monaco.editor {
 		readonly languageId: string | null;
 	}
 
-	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
-		/**
-		 * The initial editor dimension (to avoid measuring the container).
-		 */
-		dimension?: IDimension;
+	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions, IEditorConstructionOptions {
 		/**
 		 * Place overflow widgets inside an external DOM node.
 		 * Defaults to an internal DOM node.

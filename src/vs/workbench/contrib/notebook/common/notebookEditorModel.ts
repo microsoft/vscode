@@ -19,6 +19,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IFileWorkingCopyModelConfiguration } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
@@ -173,6 +174,8 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 	readonly onWillDispose: Event<void>;
 
+	readonly configuration: IFileWorkingCopyModelConfiguration | undefined = undefined;
+
 	constructor(
 		private readonly _notebookModel: NotebookTextModel,
 		private readonly _notebookService: INotebookService
@@ -197,6 +200,16 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				break;
 			}
 		}));
+
+		if (_notebookModel.uri.scheme === Schemas.vscodeRemote) {
+			this.configuration = {
+				// Intentionally pick a larger delay for triggering backups when
+				// we are connected to a remote. This saves us repeated roundtrips
+				// to the remote server when the content changes because the
+				// remote hosts the extension of the notebook with the contents truth
+				backupDelay: 10000
+			};
+		}
 	}
 
 	override dispose(): void {

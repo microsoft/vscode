@@ -18,8 +18,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { TextEditInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper';
 import { combineTextEditInfos } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos';
 import { lengthAdd, lengthDiffNonNegative, lengthGetLineCount, lengthOfRange, lengthToPosition, lengthZero, positionToLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
+import { DiffEditorOptions } from './diffEditorOptions';
 
-export class DiffModel extends Disposable implements IDiffEditorViewModel {
+export class DiffEditorViewModel extends Disposable implements IDiffEditorViewModel {
 	private readonly _isDiffUpToDate = observableValue<boolean>('isDiffUpToDate', false);
 	public readonly isDiffUpToDate: IObservable<boolean> = this._isDiffUpToDate;
 
@@ -32,7 +33,7 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 		{ regions: [], originalDecorationIds: [], modifiedDecorationIds: [] }
 	);
 	public readonly unchangedRegions: IObservable<UnchangedRegion[]> = derived('unchangedRegions', r => {
-		if (this.hideUnchangedRegions.read(r)) {
+		if (this._options.collapseUnchangedRegions.read(r)) {
 			return this._unchangedRegions.read(r).regions;
 		} else {
 			// Reset state
@@ -50,10 +51,7 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 
 	constructor(
 		public readonly model: IDiffEditorModel,
-		ignoreTrimWhitespace: IObservable<boolean>,
-		maxComputationTimeMs: IObservable<number>,
-		public readonly hideUnchangedRegions: IObservable<boolean>,
-		private readonly _showMoves: IObservable<boolean>,
+		private readonly _options: DiffEditorOptions,
 		documentDiffProvider: IDocumentDiffProvider,
 	) {
 		super();
@@ -118,9 +116,9 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 			}));
 
 			let result = await documentDiffProvider.computeDiff(model.original, model.modified, {
-				ignoreTrimWhitespace: ignoreTrimWhitespace.read(reader),
-				maxComputationTimeMs: maxComputationTimeMs.read(reader),
-				computeMoves: this._showMoves.read(reader),
+				ignoreTrimWhitespace: this._options.ignoreTrimWhitespace.read(reader),
+				maxComputationTimeMs: this._options.maxComputationTimeMs.read(reader),
+				computeMoves: this._options.showMoves.read(reader),
 			});
 
 			result = applyOriginalEdits(result, originalTextEditInfos, model.original, model.modified) ?? result;

@@ -156,7 +156,11 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
 						executeNotebookCondition,
-						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated()),
+						ContextKeyExpr.or(
+							NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(),
+							NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated(),
+						),
+						ContextKeyExpr.and(NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated())?.negate(),
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					)
 				}
@@ -634,7 +638,7 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation/execute',
-					order: 0
+					order: 20
 				},
 				{
 					id: MenuId.InteractiveToolbar,
@@ -711,7 +715,7 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation/execute',
-					order: 0
+					order: 20
 				},
 			],
 			icon: icons.errorStateIcon,
