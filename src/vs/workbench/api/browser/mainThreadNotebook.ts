@@ -73,8 +73,13 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 				});
 				return result;
 			},
-			save: (uri, versionId, options, token) => {
-				return this._proxy.$saveNotebook(handle, uri, versionId, options, token);
+			save: async (uri, versionId, options, token) => {
+				const stat = await this._proxy.$saveNotebook(handle, uri, versionId, options, token);
+				return {
+					...stat,
+					children: undefined,
+					resource: uri
+				};
 			},
 		}));
 
