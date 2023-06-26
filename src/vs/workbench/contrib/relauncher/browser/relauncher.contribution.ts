@@ -20,9 +20,6 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IFileService, FileOperation } from 'vs/platform/files/common/files';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { stripComments } from 'vs/base/common/json';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update?: { mode?: string };
@@ -172,13 +169,6 @@ class ChangeObserver<T> {
 	private lastValue: T | undefined = undefined;
 
 	/**
-	 * Set default value to compare against
-	 */
-	reset(value: T | undefined): void {
-		this.lastValue = value;
-	}
-
-	/**
 	 * Returns if there was a change compared to the last value
 	 */
 	handleChange(value: T | undefined): boolean {
@@ -268,64 +258,6 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 	}
 }
 
-export class RuntimeArgumentsChangeRelauncher extends Disposable implements IWorkbenchContribution {
-
-	private readonly disableChromiumSandbox = new ChangeObserver('boolean');
-	private readonly disableHardwareAcceleration = new ChangeObserver('boolean');
-	private readonly enableCrashReporter = new ChangeObserver('boolean');
-	private readonly locale = new ChangeObserver('string');
-
-	constructor(
-		@IHostService private readonly hostService: IHostService,
-		@IFileService private readonly fileService: IFileService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IProductService private readonly productService: IProductService,
-		@IDialogService private readonly dialogService: IDialogService
-	) {
-		super();
-
-		// Set default values.
-		this.disableChromiumSandbox.reset(false);
-		this.disableHardwareAcceleration.reset(false);
-		this.enableCrashReporter.reset(true);
-		this.locale.reset('en');
-
-		this._register(this.fileService.onDidRunOperation((e) => {
-			if (e.isOperation(FileOperation.WRITE) && e.resource.toString() === this.environmentService.argvResource.toString()) {
-				this.onRuntimeArgumentFileEdited();
-			}
-		}));
-	}
-
-	private async onRuntimeArgumentFileEdited(): Promise<void> {
-		const argvContent = await this.fileService.readFile(this.environmentService.argvResource);
-		const argvString = argvContent.value.toString();
-		const argvJSON = JSON.parse(stripComments(argvString));
-		// Chromium sandbox
-		let changed = this.disableChromiumSandbox.handleChange(argvJSON['disable-chromium-sandbox']);
-		// GPU rendering
-		changed ||= this.disableHardwareAcceleration.handleChange(argvJSON['disable-hardware-acceleration']);
-		// Crash reporter
-		changed ||= this.enableCrashReporter.handleChange(argvJSON['enable-crash-reporter']);
-		// Langugage packs
-		changed ||= this.locale.handleChange(argvJSON['locale']);
-
-		// Notify only when changed from an event and the change
-		// was not triggerd programmatically (e.g. from experiments)
-		if (changed && this.hostService.hasFocus) {
-			const { confirmed } = await this.dialogService.confirm({
-				message: localize('relaunchRuntimeArgumentsMessage', "A runtime argument has changed that requires a restart to take effect."),
-				detail: localize('relaunchRuntimeArgumentsDetail', "Press the restart button to restart {0} and apply the runtime argument change.", this.productService.nameLong),
-				primaryButton: localize({ key: 'restart', comment: ['&& denotes a mnemonic'] }, "&&Restart")
-			});
-			if (confirmed) {
-				this.hostService.restart();
-			}
-		}
-	}
-}
-
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(WorkspaceChangeExtHostRelauncher, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(RuntimeArgumentsChangeRelauncher, LifecyclePhase.Restored);
