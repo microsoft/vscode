@@ -17,7 +17,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview, ISyncResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { IRemoteUserData, IResourceRefHandle, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSyncEnablementService, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSynchroniser, IWorkspaceState, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { EditSession, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { IWorkspaceIdentityService } from 'vs/workbench/services/workspaces/common/workspaceIdentityService';
 
 
@@ -99,11 +99,14 @@ export class WorkspaceStateSynchroniser extends AbstractSynchroniser implements 
 		});
 
 		const content: IWorkspaceState = { folders, storage: contributedData, version: this.version };
-		this.editSessionsStorageService.write('workspaceState', stringify(content));
+		await this.editSessionsStorageService.write('workspaceState', stringify(content));
 	}
 
 	override async apply(): Promise<ISyncResourcePreview | null> {
-		const resource = await this.editSessionsStorageService.read('workspaceState', undefined);
+		const payload = this.editSessionsStorageService.lastReadResources.get('editSessions')?.content;
+		const workspaceStateId = payload ? (JSON.parse(payload) as EditSession).workspaceStateId : undefined;
+
+		const resource = await this.editSessionsStorageService.read('workspaceState', workspaceStateId);
 		if (!resource) {
 			return null;
 		}
@@ -143,6 +146,8 @@ export class WorkspaceStateSynchroniser extends AbstractSynchroniser implements 
 			}
 			this.storageService.storeAll(storageEntries, true);
 		}
+
+		this.editSessionsStorageService.delete('workspaceState', resource.ref);
 		return null;
 	}
 
