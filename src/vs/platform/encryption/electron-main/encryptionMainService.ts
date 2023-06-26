@@ -26,7 +26,15 @@ export class EncryptionMainService implements IEncryptionMainService {
 	) { }
 
 	async encrypt(value: string): Promise<string> {
-		return JSON.stringify(safeStorage.encryptString(value));
+		try {
+			this.logService.trace('[EncryptionMainService] Encrypting value.');
+			const result = JSON.stringify(safeStorage.encryptString(value));
+			this.logService.trace('[EncryptionMainService] Encrypted value.');
+			return result;
+		} catch (e) {
+			this.logService.error(e);
+			throw e;
+		}
 	}
 
 	async decrypt(value: string): Promise<string> {

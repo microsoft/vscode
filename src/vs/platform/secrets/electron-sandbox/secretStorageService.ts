@@ -62,9 +62,9 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 
 		const provider = await this._encryptionService.getKeyStorageProvider();
 		if (isGnome(provider)) {
-			errorMessage = localize('isGnome', "You're running in a GNOME environment but encryption is not available. Ensure you have gnome-keyring or another libsecret compatible implementation installed and running.");
+			errorMessage = localize('isGnome', "You're running in a GNOME environment but the OS keyring is not available for encryption. Ensure you have gnome-keyring or another libsecret compatible implementation installed and running.");
 		} else if (isKwallet(provider)) {
-			errorMessage = localize('isKwallet', "You're running in a KDE environment but encryption is not available. Ensure you have kwallet running.");
+			errorMessage = localize('isKwallet', "You're running in a KDE environment but the OS keyring is not available for encryption. Ensure you have kwallet running.");
 		} else if (provider === KnownStorageProvider.basicText) {
 			errorMessage += ' ' + localize('usePlainTextExtraSentence', "Open the troubleshooting guide to address this or you can use weaker encryption that doesn't use the OS keyring.");
 			const usePlainTextButton: IPromptChoice = {
