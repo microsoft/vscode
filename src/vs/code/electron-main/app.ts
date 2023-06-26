@@ -1279,7 +1279,7 @@ export class CodeApplication extends Disposable {
 		// Crash reporter
 		this.updateCrashReporterEnablement();
 
-		if (isMacintosh && app.runningUnderARM64Translation) {
+		if (app.runningUnderARM64Translation) {
 			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
 		}
 
