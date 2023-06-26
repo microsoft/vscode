@@ -285,7 +285,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.doubleClickTabToToggleEditorGroupSizes': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('doubleClickTabToToggleEditorGroupSizes', 'Controls whether to maximize/restore the size of current editor group when double clicking on a tab\' title.'),
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'doubleClickTabToToggleEditorGroupSizes' }, "Controls whether to maximize/restore the editor group when double clicking on a tab. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
 			},
 			'workbench.editor.limit.enabled': {
 				'type': 'boolean',
