@@ -82,7 +82,7 @@ export class CLIServerBase {
 	private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
 		const sendResponse = (statusCode: number, returnObj: string | undefined) => {
 			res.writeHead(statusCode, { 'content-type': 'application/json' });
-			res.end(JSON.stringify(returnObj || null), (err?: any) => err && this.logService.error(err));
+			res.end(JSON.stringify(returnObj || null), (err?: any) => err && this.logService.error(err)); // CodeQL [SM01524] Only the message portion of errors are passed in.
 		};
 
 		const chunks: string[] = [];
