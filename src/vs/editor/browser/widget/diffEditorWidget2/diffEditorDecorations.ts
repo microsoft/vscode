@@ -61,8 +61,12 @@ export class DiffEditorDecorations extends Disposable {
 					continue;
 				}
 
-				originalDecorations.push({ range: i.originalRange, options: (i.originalRange.isEmpty() && showEmptyDecorations) ? diffDeleteDecorationEmpty : diffDeleteDecoration });
-				modifiedDecorations.push({ range: i.modifiedRange, options: (i.modifiedRange.isEmpty() && showEmptyDecorations) ? diffAddDecorationEmpty : diffAddDecoration });
+				if (i.originalRange.startLineNumber < m.lineRangeMapping.originalRange.endLineNumberExclusive) {
+					originalDecorations.push({ range: i.originalRange, options: (i.originalRange.isEmpty() && showEmptyDecorations) ? diffDeleteDecorationEmpty : diffDeleteDecoration });
+				}
+				if (i.modifiedRange.startLineNumber < m.lineRangeMapping.modifiedRange.endLineNumberExclusive) {
+					modifiedDecorations.push({ range: i.modifiedRange, options: (i.modifiedRange.isEmpty() && showEmptyDecorations) ? diffAddDecorationEmpty : diffAddDecoration });
+				}
 			}
 
 			if (!m.lineRangeMapping.modifiedRange.isEmpty && this._options.shouldRenderRevertArrows.read(reader) && !currentMove) {
