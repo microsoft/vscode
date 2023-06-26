@@ -8,13 +8,15 @@ import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Color } from 'vs/base/common/color';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, derived, observableFromEvent } from 'vs/base/common/observable';
+import { IObservable, autorun, derived, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
 import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { appendRemoveOnDispose } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
+import { Position } from 'vs/editor/common/core/position';
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
 import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -90,18 +92,37 @@ export class OverviewRulerPart extends Disposable {
 					return;
 				}
 
+				const origViewZonesChanged = observableSignalFromEvent('viewZoneChanged', this._editors.original.onDidChangeViewZones);
+				const modViewZonesChanged = observableSignalFromEvent('viewZoneChanged', this._editors.modified.onDidChangeViewZones);
+				const origHiddenRangesChanged = observableSignalFromEvent('hiddenRangesChanged', this._editors.original.onDidChangeHiddenAreas);
+				const modHiddenRangesChanged = observableSignalFromEvent('hiddenRangesChanged', this._editors.modified.onDidChangeHiddenAreas);
+
 				store.add(autorun('set overview ruler zones', (reader) => {
+					origViewZonesChanged.read(reader);
+					modViewZonesChanged.read(reader);
+					origHiddenRangesChanged.read(reader);
+					modHiddenRangesChanged.read(reader);
+
 					const colors = currentColors.read(reader);
 					const diff = m?.diff.read(reader)?.mappings;
 
-					function createZones(ranges: LineRange[], color: Color) {
+					function createZones(ranges: LineRange[], color: Color, editor: CodeEditorWidget) {
+						const vm = editor._getViewModel();
+						if (!vm) {
+							return [];
+						}
 						return ranges
 							.filter(d => d.length > 0)
-							.map(r => new OverviewRulerZone(r.startLineNumber, r.endLineNumberExclusive, r.length, color.toString()));
+							.map(r => {
+								const start = vm.coordinatesConverter.convertModelPositionToViewPosition(new Position(r.startLineNumber, 1));
+								const end = vm.coordinatesConverter.convertModelPositionToViewPosition(new Position(r.endLineNumberExclusive, 1));
+
+								return new OverviewRulerZone(start.lineNumber, end.lineNumber, 0, color.toString());
+							});
 					}
 
-					originalOverviewRuler?.setZones(createZones((diff || []).map(d => d.lineRangeMapping.originalRange), colors.removeColor));
-					modifiedOverviewRuler?.setZones(createZones((diff || []).map(d => d.lineRangeMapping.modifiedRange), colors.insertColor));
+					originalOverviewRuler?.setZones(createZones((diff || []).map(d => d.lineRangeMapping.originalRange), colors.removeColor, this._editors.original));
+					modifiedOverviewRuler?.setZones(createZones((diff || []).map(d => d.lineRangeMapping.modifiedRange), colors.insertColor, this._editors.modified));
 				}));
 
 				store.add(autorun('layout overview ruler', (reader) => {
