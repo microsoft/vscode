@@ -31,8 +31,8 @@ export class EncryptionMainService implements IEncryptionMainService {
 	}
 
 	async encrypt(value: string): Promise<string> {
+		this.logService.trace('[EncryptionMainService] Encrypting value.');
 		try {
-			this.logService.trace('[EncryptionMainService] Encrypting value.');
 			const result = JSON.stringify(safeStorage.encryptString(value));
 			this.logService.trace('[EncryptionMainService] Encrypted value.');
 			return result;
@@ -57,7 +57,14 @@ export class EncryptionMainService implements IEncryptionMainService {
 		const bufferToDecrypt = Buffer.from(parsedValue.data);
 
 		this.logService.trace('[EncryptionMainService] Decrypting value.');
-		return safeStorage.decryptString(bufferToDecrypt);
+		try {
+			const result = safeStorage.decryptString(bufferToDecrypt);
+			this.logService.trace('[EncryptionMainService] Decrypted value.');
+			return result;
+		} catch (e) {
+			this.logService.error(e);
+			throw e;
+		}
 	}
 
 	isEncryptionAvailable(): Promise<boolean> {
