@@ -9,6 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Command, MultiCommand } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
@@ -77,7 +78,13 @@ export const AccessibilityHelpAction = registerCommand(new MultiCommand({
 			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
 			secondary: [KeyMod.Alt | KeyCode.F1]
 		}
-	}
+	},
+	menuOpts: [{
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: localize('editor.action.accessibilityHelp', "Open Accessibility Help"),
+		order: 1
+	}],
 }));
 
 
@@ -91,5 +98,11 @@ export const AccessibilityViewAction = registerCommand(new MultiCommand({
 			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
 			secondary: [KeyMod.Alt | KeyCode.F1]
 		}
-	}
+	},
+	menuOpts: [{
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: localize('editor.action.accessibilityView', "Open Accessibility View"),
+		order: 1
+	}],
 }));
