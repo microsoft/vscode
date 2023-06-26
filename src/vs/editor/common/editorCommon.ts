@@ -195,7 +195,7 @@ export interface ICodeEditorViewState {
 export interface IDiffEditorViewState {
 	original: ICodeEditorViewState | null;
 	modified: ICodeEditorViewState | null;
-	modelState: unknown;
+	modelState?: unknown;
 }
 /**
  * An editor view state.
