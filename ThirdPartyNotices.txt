@@ -1895,7 +1895,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-microsoft/vscode-mssql 1.19.0 - MIT
+microsoft/vscode-mssql 1.20.0 - MIT
 https://github.com/microsoft/vscode-mssql
 
 ------------------------------------------ START OF LICENSE -----------------------------------------
