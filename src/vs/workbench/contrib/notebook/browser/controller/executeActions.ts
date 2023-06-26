@@ -573,6 +573,10 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 				value: localize('notebookActions.interruptNotebook', "Interrupt"),
 				original: 'Interrupt'
 			},
+			precondition: ContextKeyExpr.and(
+				NOTEBOOK_HAS_SOMETHING_RUNNING,
+				NOTEBOOK_INTERRUPTIBLE_KERNEL
+			),
 			icon: icons.stopIcon,
 			menu: [
 				{
@@ -598,11 +602,6 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 				},
 				{
 					id: MenuId.InteractiveToolbar,
-					when: ContextKeyExpr.and(
-						NOTEBOOK_HAS_SOMETHING_RUNNING,
-						NOTEBOOK_INTERRUPTIBLE_KERNEL,
-						ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive')
-					),
 					group: 'navigation/execute'
 				}
 			]
