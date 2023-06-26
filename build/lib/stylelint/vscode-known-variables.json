@@ -706,6 +706,7 @@
 		"--tab-dirty-border-top-color",
 		"--tabs-border-bottom-color",
 		"--tab-sizing-current-width",
+		"--tab-sizing-fixed-min-width",
 		"--tab-sizing-fixed-max-width",
 		"--testMessageDecorationFontFamily",
 		"--testMessageDecorationFontSize",

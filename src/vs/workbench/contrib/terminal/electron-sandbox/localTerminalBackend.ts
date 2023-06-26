@@ -62,7 +62,6 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ITerminalLogService logService: ITerminalLogService,
@@ -94,10 +93,10 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		// The pty host should not get launched until the first window restored phase
 		await this._lifecycleService.when(LifecyclePhase.Restored);
 
-		mark('code/willConnectPtyHost');
+		mark('code/terminal/willConnectPtyHost');
 		this._logService.trace('Renderer->PtyHost#connect: before acquirePort');
 		acquirePort('vscode:createPtyHostMessageChannel', 'vscode:createPtyHostMessageChannelResult').then(port => {
-			mark('code/didConnectPtyHost');
+			mark('code/terminal/didConnectPtyHost');
 			this._logService.trace('Renderer->PtyHost#connect: connection established');
 			// There are two connections to the pty host; one to the regular shared process
 			// _localPtyService, and one directly via message port _ptyHostDirectProxy. The former is
@@ -190,7 +189,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
 		// TODO: Using _proxy here bypasses the lastPtyId tracking on the main process
 		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, options, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
-		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
+		const pty = new LocalPty(id, shouldPersist, this._proxy);
 		this._ptys.set(id, pty);
 		return pty;
 	}
@@ -198,7 +197,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		try {
 			await this._proxy.attachToProcess(id);
-			const pty = this._instantiationService.createInstance(LocalPty, id, true);
+			const pty = new LocalPty(id, true, this._proxy);
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
@@ -279,18 +278,24 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 				// Re-resolve the environments and replace it on the state so local terminals use a fresh
 				// environment
+				mark('code/terminal/willGetReviveEnvironments');
 				for (const state of parsed) {
 					const freshEnv = await this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig);
 					state.processLaunchConfig.env = freshEnv;
 				}
+				mark('code/terminal/didGetReviveEnvironments');
 
+				mark('code/terminal/willReviveTerminalProcesses');
 				await this._localPtyService.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);
+				mark('code/terminal/didReviveTerminalProcesses');
 				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 				// If reviving processes, send the terminal layout info back to the pty host as it
 				// will not have been persisted on application exit
 				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				if (layoutInfo) {
+					mark('code/terminal/willSetTerminalLayoutInfo');
 					await this._localPtyService.setTerminalLayoutInfo(JSON.parse(layoutInfo));
+					mark('code/terminal/didSetTerminalLayoutInfo');
 					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				}
 			} catch {

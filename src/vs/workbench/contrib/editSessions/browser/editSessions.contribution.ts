@@ -743,7 +743,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			return undefined;
 		}
 
-		const data: EditSession = { folders, version: 2 };
+		const data: EditSession = { folders, version: 2, workspaceStateId: this.editSessionsStorageService.lastWrittenResources.get('workspaceState')?.ref };
 
 		try {
 			this.logService.info(`Storing edit session...`);

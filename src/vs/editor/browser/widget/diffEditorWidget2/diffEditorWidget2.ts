@@ -104,56 +104,10 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			(i, c, o, o2) => this._createInnerEditor(i, c, o, o2),
 		));
 
-
-		this._register(this._editors.original.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
-			if (!m) { return; }
-
-			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.originalRange.contains(e.position.lineNumber));
-			m.syncedMovedTexts.set(movedText, undefined);
-		}));
-		this._register(this._editors.modified.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
-			if (!m) { return; }
-
-			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.modifiedRange.contains(e.position.lineNumber));
-			m.syncedMovedTexts.set(movedText, undefined);
-		}));
-		// Revert change when an arrow is clicked.
-		this._register(this._editors.modified.onMouseDown(event => {
-			if (!event.event.rightButton && event.target.position && event.target.element?.className.includes('arrow-revert-change')) {
-				const lineNumber = event.target.position.lineNumber;
-				const viewZone = event.target as IMouseTargetViewZone | undefined;
-
-				const model = this._diffModel.get();
-				if (!model) {
-					return;
-				}
-				const diffs = model.diff.get()?.mappings;
-				if (!diffs) {
-					return;
-				}
-				const diff = diffs.find(d =>
-					viewZone?.detail.afterLineNumber === d.lineRangeMapping.modifiedRange.startLineNumber - 1 ||
-					d.lineRangeMapping.modifiedRange.startLineNumber === lineNumber
-				);
-				if (!diff) {
-					return;
-				}
-				this.revert(diff.lineRangeMapping);
-
-				event.event.stopPropagation();
-				return;
-			}
-		}));
-
-
 		this._sash = derivedWithStore('sash', (reader, store) => {
 			const showSash = this._options.renderSideBySide.read(reader);
 			this.elements.root.classList.toggle('side-by-side', showSash);
-			if (!showSash) {
-				return undefined;
-			}
+			if (!showSash) { return undefined; }
 			const result = store.add(new DiffEditorSash(
 				this._options,
 				this.elements.root,
@@ -172,44 +126,33 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		});
 		this._register(keepAlive(this._sash, true));
 
-		this._register(autorunWithStore2('unchangedRangesFeature', (reader, store) => {
-			this.unchangedRangesFeature = store.add(new (readHotReloadableExport(UnchangedRangesFeature, reader))(
-				this._editors.original,
-				this._editors.modified,
-				this._diffModel,
-				this._options.renderSideBySide,
-			));
+		this._register(autorunWithStore2('UnchangedRangesFeature', (reader, store) => {
+			this.unchangedRangesFeature = store.add(new (readHotReloadableExport(UnchangedRangesFeature, reader))(this._editors, this._diffModel, this._options));
 		}));
 
-		this._register(autorunWithStore2('decorations', (reader, store) => {
-			store.add(new (readHotReloadableExport(DiffEditorDecorations, reader))(
-				this._editors.original,
-				this._editors.modified,
-				this._diffModel,
-				this._options,
-			));
+		this._register(autorunWithStore2('DiffEditorDecorations', (reader, store) => {
+			store.add(new (readHotReloadableExport(DiffEditorDecorations, reader))(this._editors, this._diffModel, this._options));
 		}));
 
 		this._register(this._instantiationService.createInstance(
 			ViewZoneManager,
-			this._editors.original,
-			this._editors.modified,
+			this._editors,
 			this._diffModel,
 			this._options,
 			this,
 			() => this.unchangedRangesFeature.isUpdatingViewZones,
 		));
 
-		this._register(this._instantiationService.createInstance(OverviewRulerPart,
-			this._editors.original,
-			this._editors.modified,
-			this.elements.root,
-			this._diffModel,
-			this._rootSizeObserver.width,
-			this._rootSizeObserver.height,
-			this._layoutInfo.map(i => i.modifiedEditor),
-			this._options,
-		));
+		this._register(autorunWithStore2('OverviewRulerPart', (reader, store) => {
+			store.add(this._instantiationService.createInstance(readHotReloadableExport(OverviewRulerPart, reader), this._editors,
+				this.elements.root,
+				this._diffModel,
+				this._rootSizeObserver.width,
+				this._rootSizeObserver.height,
+				this._layoutInfo.map(i => i.modifiedEditor),
+				this._options,
+			));
+		}));
 
 		this._reviewPane = this._register(this._instantiationService.createInstance(DiffReview2, this));
 		this.elements.root.appendChild(this._reviewPane.domNode.domNode);
@@ -227,8 +170,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			this._diffModel,
 			this._layoutInfo.map(i => i.originalEditor),
 			this._layoutInfo.map(i => i.modifiedEditor),
-			this._editors.original,
-			this._editors.modified,
+			this._editors,
 		));
 
 		this._register(applyStyle(this.elements.overlay, {
@@ -237,6 +179,40 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 				(this._options.collapseUnchangedRegions.read(reader) && this._diffModel.read(reader)?.diff.read(reader)?.mappings.length === 0)
 					? 'visible' : 'hidden'
 			),
+		}));
+
+		this._register(this._editors.original.onDidChangeCursorPosition(e => {
+			const m = this._diffModel.get();
+			if (!m) { return; }
+			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.originalRange.contains(e.position.lineNumber));
+			m.syncedMovedTexts.set(movedText, undefined);
+		}));
+		this._register(this._editors.modified.onDidChangeCursorPosition(e => {
+			const m = this._diffModel.get();
+			if (!m) { return; }
+			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.modifiedRange.contains(e.position.lineNumber));
+			m.syncedMovedTexts.set(movedText, undefined);
+		}));
+
+		// Revert change when an arrow is clicked.
+		this._register(this._editors.modified.onMouseDown(event => {
+			if (!event.event.rightButton && event.target.position && event.target.element?.className.includes('arrow-revert-change')) {
+				const lineNumber = event.target.position.lineNumber;
+				const viewZone = event.target as IMouseTargetViewZone | undefined;
+
+				const model = this._diffModel.get();
+				if (!model) { return; }
+				const diffs = model.diff.get()?.mappings;
+				if (!diffs) { return; }
+				const diff = diffs.find(d =>
+					viewZone?.detail.afterLineNumber === d.lineRangeMapping.modifiedRange.startLineNumber - 1 ||
+					d.lineRangeMapping.modifiedRange.startLineNumber === lineNumber
+				);
+				if (!diff) { return; }
+				this.revert(diff.lineRangeMapping);
+
+				event.event.stopPropagation();
+			}
 		}));
 	}
 
@@ -307,7 +283,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		const modifiedViewState = this._editors.modified.saveViewState();
 		return {
 			original: originalViewState,
-			modified: modifiedViewState
+			modified: modifiedViewState,
+			modelState: this._diffModel.get()?.serializeState(),
 		};
 	}
 
@@ -316,6 +293,9 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			const diffEditorState = s as IDiffEditorViewState;
 			this._editors.original.restoreViewState(diffEditorState.original);
 			this._editors.modified.restoreViewState(diffEditorState.modified);
+			if (diffEditorState.modelState) {
+				this._diffModel.get()?.restoreSerializedState(diffEditorState.modelState as any);
+			}
 		}
 	}
 

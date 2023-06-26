@@ -126,7 +126,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private _initializeTerminal() {
-		if (this.isBodyVisible() && this._terminalService.isProcessSupportRegistered && this._terminalService.connectionState === TerminalConnectionState.Connected && !this._terminalGroupService.groups.length) {
+		if (this.isBodyVisible() && this._terminalService.isProcessSupportRegistered && this._terminalService.connectionState === TerminalConnectionState.Connected && this._terminalService.restoredGroupCount === 0 && this._terminalGroupService.groups.length === 0) {
 			this._terminalService.createTerminal({ location: TerminalLocation.Panel });
 		}
 	}

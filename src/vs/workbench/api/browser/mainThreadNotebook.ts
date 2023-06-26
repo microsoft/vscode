@@ -72,7 +72,15 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					extensionId: extension.id.value,
 				});
 				return result;
-			}
+			},
+			save: async (uri, versionId, options, token) => {
+				const stat = await this._proxy.$saveNotebook(handle, uri, versionId, options, token);
+				return {
+					...stat,
+					children: undefined,
+					resource: uri
+				};
+			},
 		}));
 
 		if (data) {

@@ -6,8 +6,8 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, derived } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { arrowRevertChange, diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineAddDecorationBackground, diffLineAddDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackground, diffLineDeleteDecorationBackgroundWithIndicator } from 'vs/editor/browser/widget/diffEditorWidget2/decorations';
+import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
 import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorOptions';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { MovedBlocksLinesPart } from 'vs/editor/browser/widget/diffEditorWidget2/movedBlocksLines';
@@ -19,15 +19,14 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export class DiffEditorDecorations extends Disposable {
 	constructor(
-		private readonly _originalEditor: CodeEditorWidget,
-		private readonly _modifiedEditor: CodeEditorWidget,
+		private readonly _editors: DiffEditorEditors,
 		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
 		private readonly _options: DiffEditorOptions,
 	) {
 		super();
 
-		this._register(applyObservableDecorations(this._originalEditor, this._decorations.map(d => d?.originalDecorations || [])));
-		this._register(applyObservableDecorations(this._modifiedEditor, this._decorations.map(d => d?.modifiedDecorations || [])));
+		this._register(applyObservableDecorations(this._editors.original, this._decorations.map(d => d?.originalDecorations || [])));
+		this._register(applyObservableDecorations(this._editors.modified, this._decorations.map(d => d?.modifiedDecorations || [])));
 	}
 
 	private readonly _decorations = derived('decorations', (reader) => {
@@ -38,6 +37,7 @@ export class DiffEditorDecorations extends Disposable {
 
 		const currentMove = this._diffModel.read(reader)!.syncedMovedTexts.read(reader);
 		const renderIndicators = this._options.renderIndicators.read(reader);
+		const showEmptyDecorations = this._options.showEmptyDecorations.read(reader);
 
 		const originalDecorations: IModelDeltaDecoration[] = [];
 		const modifiedDecorations: IModelDeltaDecoration[] = [];
@@ -61,8 +61,13 @@ export class DiffEditorDecorations extends Disposable {
 					continue;
 				}
 
-				originalDecorations.push({ range: i.originalRange, options: i.originalRange.isEmpty() ? diffDeleteDecorationEmpty : diffDeleteDecoration });
-				modifiedDecorations.push({ range: i.modifiedRange, options: i.modifiedRange.isEmpty() ? diffAddDecorationEmpty : diffAddDecoration });
+				// Don't show empty markers outside the line range
+				if (m.lineRangeMapping.originalRange.contains(i.originalRange.startLineNumber)) {
+					originalDecorations.push({ range: i.originalRange, options: (i.originalRange.isEmpty() && showEmptyDecorations) ? diffDeleteDecorationEmpty : diffDeleteDecoration });
+				}
+				if (m.lineRangeMapping.modifiedRange.contains(i.modifiedRange.startLineNumber)) {
+					modifiedDecorations.push({ range: i.modifiedRange, options: (i.modifiedRange.isEmpty() && showEmptyDecorations) ? diffAddDecorationEmpty : diffAddDecoration });
+				}
 			}
 
 			if (!m.lineRangeMapping.modifiedRange.isEmpty && this._options.shouldRenderRevertArrows.read(reader) && !currentMove) {
