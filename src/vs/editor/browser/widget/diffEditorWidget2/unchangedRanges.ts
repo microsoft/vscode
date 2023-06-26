@@ -11,7 +11,8 @@ import { autorun, autorunWithStore2 } from 'vs/base/common/observableImpl/autoru
 import { derived, derivedWithStore } from 'vs/base/common/observableImpl/derived';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
+import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorOptions';
 import { DiffEditorViewModel, UnchangedRegion } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { PlaceholderViewZone, ViewZoneOverlayWidget, applyObservableDecorations, applyStyle, applyViewZones } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -23,18 +24,17 @@ export class UnchangedRangesFeature extends Disposable {
 	public get isUpdatingViewZones(): boolean { return this._isUpdatingViewZones; }
 
 	constructor(
-		private readonly _originalEditor: CodeEditorWidget,
-		private readonly _modifiedEditor: CodeEditorWidget,
+		private readonly _editors: DiffEditorEditors,
 		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
-		private readonly _sideBySide: IObservable<boolean>,
+		private readonly _options: DiffEditorOptions,
 	) {
 		super();
 
-		this._register(this._originalEditor.onDidChangeCursorPosition(e => {
+		this._register(this._editors.original.onDidChangeCursorPosition(e => {
 			if (e.reason === CursorChangeReason.Explicit) {
 				const m = this._diffModel.get();
 				transaction(tx => {
-					for (const s of this._originalEditor.getSelections() || []) {
+					for (const s of this._editors.original.getSelections() || []) {
 						m?.ensureOriginalLineIsVisible(s.getStartPosition().lineNumber, tx);
 						m?.ensureOriginalLineIsVisible(s.getEndPosition().lineNumber, tx);
 					}
@@ -42,11 +42,11 @@ export class UnchangedRangesFeature extends Disposable {
 			}
 		}));
 
-		this._register(this._modifiedEditor.onDidChangeCursorPosition(e => {
+		this._register(this._editors.modified.onDidChangeCursorPosition(e => {
 			if (e.reason === CursorChangeReason.Explicit) {
 				const m = this._diffModel.get();
 				transaction(tx => {
-					for (const s of this._modifiedEditor.getSelections() || []) {
+					for (const s of this._editors.modified.getSelections() || []) {
 						m?.ensureModifiedLineIsVisible(s.getStartPosition().lineNumber, tx);
 						m?.ensureModifiedLineIsVisible(s.getEndPosition().lineNumber, tx);
 					}
@@ -59,7 +59,7 @@ export class UnchangedRangesFeature extends Disposable {
 		const viewZones = derivedWithStore('view zones', (reader, store) => {
 			const origViewZones: IViewZone[] = [];
 			const modViewZones: IViewZone[] = [];
-			const sideBySide = this._sideBySide.read(reader);
+			const sideBySide = this._options.renderSideBySide.read(reader);
 
 			const curUnchangedRegions = unchangedRegions.read(reader);
 			for (const r of curUnchangedRegions) {
@@ -71,13 +71,13 @@ export class UnchangedRangesFeature extends Disposable {
 					const d = derived('hiddenOriginalRangeStart', reader => r.getHiddenOriginalRange(reader).startLineNumber - 1);
 					const origVz = new PlaceholderViewZone(d, 24);
 					origViewZones.push(origVz);
-					store.add(new CollapsedCodeOverlayWidget(this._originalEditor, origVz, r, !sideBySide));
+					store.add(new CollapsedCodeOverlayWidget(this._editors.original, origVz, r, !sideBySide));
 				}
 				{
 					const d = derived('hiddenModifiedRangeStart', reader => r.getHiddenModifiedRange(reader).startLineNumber - 1);
 					const modViewZone = new PlaceholderViewZone(d, 24);
 					modViewZones.push(modViewZone);
-					store.add(new CollapsedCodeOverlayWidget(this._modifiedEditor, modViewZone, r, false));
+					store.add(new CollapsedCodeOverlayWidget(this._editors.modified, modViewZone, r, false));
 				}
 			}
 
@@ -91,7 +91,7 @@ export class UnchangedRangesFeature extends Disposable {
 			isWholeLine: true,
 		};
 
-		this._register(applyObservableDecorations(this._originalEditor, derived('decorations', (reader) => {
+		this._register(applyObservableDecorations(this._editors.original, derived('decorations', (reader) => {
 			const curUnchangedRegions = unchangedRegions.read(reader);
 			return curUnchangedRegions.map<IModelDeltaDecoration>(r => ({
 				range: r.originalRange.toInclusiveRange()!,
@@ -99,7 +99,7 @@ export class UnchangedRangesFeature extends Disposable {
 			}));
 		})));
 
-		this._register(applyObservableDecorations(this._modifiedEditor, derived('decorations', (reader) => {
+		this._register(applyObservableDecorations(this._editors.modified, derived('decorations', (reader) => {
 			const curUnchangedRegions = unchangedRegions.read(reader);
 			return curUnchangedRegions.map<IModelDeltaDecoration>(r => ({
 				range: r.modifiedRange.toInclusiveRange()!,
@@ -107,13 +107,13 @@ export class UnchangedRangesFeature extends Disposable {
 			}));
 		})));
 
-		this._register(applyViewZones(this._originalEditor, viewZones.map(v => v.origViewZones), v => this._isUpdatingViewZones = v));
-		this._register(applyViewZones(this._modifiedEditor, viewZones.map(v => v.modViewZones), v => this._isUpdatingViewZones = v));
+		this._register(applyViewZones(this._editors.original, viewZones.map(v => v.origViewZones), v => this._isUpdatingViewZones = v));
+		this._register(applyViewZones(this._editors.modified, viewZones.map(v => v.modViewZones), v => this._isUpdatingViewZones = v));
 
 		this._register(autorunWithStore2('update folded unchanged regions', (reader, store) => {
 			const curUnchangedRegions = unchangedRegions.read(reader);
-			this._originalEditor.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenOriginalRange(reader).toInclusiveRange()).filter(isDefined));
-			this._modifiedEditor.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenModifiedRange(reader).toInclusiveRange()).filter(isDefined));
+			this._editors.original.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenOriginalRange(reader).toInclusiveRange()).filter(isDefined));
+			this._editors.modified.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenModifiedRange(reader).toInclusiveRange()).filter(isDefined));
 		}));
 	}
 }

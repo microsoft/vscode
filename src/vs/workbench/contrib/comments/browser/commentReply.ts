@@ -165,7 +165,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	async submitComment(): Promise<void> {
-		this._commentFormActions?.triggerDefaultAction();
+		return this._commentFormActions?.triggerDefaultAction();
 	}
 
 	setCommentEditorDecorations() {
@@ -311,6 +311,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 
 	private hideReplyArea() {
 		this.commentEditor.getDomNode()!.style.outline = '';
+		this.commentEditor.setValue('');
 		this._pendingComment = '';
 		this.form.classList.remove('expand');
 		this._error.textContent = '';

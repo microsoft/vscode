@@ -6,8 +6,8 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, derived } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { arrowRevertChange, diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineAddDecorationBackground, diffLineAddDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackground, diffLineDeleteDecorationBackgroundWithIndicator } from 'vs/editor/browser/widget/diffEditorWidget2/decorations';
+import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
 import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorOptions';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { MovedBlocksLinesPart } from 'vs/editor/browser/widget/diffEditorWidget2/movedBlocksLines';
@@ -19,15 +19,14 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export class DiffEditorDecorations extends Disposable {
 	constructor(
-		private readonly _originalEditor: CodeEditorWidget,
-		private readonly _modifiedEditor: CodeEditorWidget,
+		private readonly _editors: DiffEditorEditors,
 		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
 		private readonly _options: DiffEditorOptions,
 	) {
 		super();
 
-		this._register(applyObservableDecorations(this._originalEditor, this._decorations.map(d => d?.originalDecorations || [])));
-		this._register(applyObservableDecorations(this._modifiedEditor, this._decorations.map(d => d?.modifiedDecorations || [])));
+		this._register(applyObservableDecorations(this._editors.original, this._decorations.map(d => d?.originalDecorations || [])));
+		this._register(applyObservableDecorations(this._editors.modified, this._decorations.map(d => d?.modifiedDecorations || [])));
 	}
 
 	private readonly _decorations = derived('decorations', (reader) => {

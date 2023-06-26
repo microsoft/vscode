@@ -547,6 +547,13 @@ export interface IFileDialogService {
 	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined>;
 
 	/**
+	 * The preferred folder path to open the dialog at.
+	 * @param schemeFilter The scheme of the file path. If no filter given, the scheme of the current window is used.
+	 * Falls back to user home in the absence of a setting.
+	 */
+	preferredHome(schemeFilter?: string): Promise<URI>;
+
+	/**
 	 * Shows a save file dialog and returns the chosen file URI.
 	 */
 	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
