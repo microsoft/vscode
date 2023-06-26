@@ -194,6 +194,9 @@ function configureCommandlineSwitchesSync(cliArgs) {
 
 		// disable chromium sandbox
 		'disable-chromium-sandbox',
+
+		// override which password-store is used
+		'password-store'
 	];
 
 	if (process.platform === 'linux') {
@@ -220,8 +223,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Append Electron flags to Electron
 		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) !== -1) {
 
-			// Color profile
-			if (argvKey === 'force-color-profile') {
+			if (
+				// Color profile
+				argvKey === 'force-color-profile' ||
+				// Password store
+				argvKey === 'password-store'
+			) {
 				if (argvValue) {
 					app.commandLine.appendSwitch(argvKey, argvValue);
 				}
