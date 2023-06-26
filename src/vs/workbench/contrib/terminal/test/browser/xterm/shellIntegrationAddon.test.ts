@@ -8,8 +8,7 @@ import { strictEqual, deepStrictEqual, deepEqual } from 'assert';
 import * as sinon from 'sinon';
 import { parseKeyValueAssignment, parseMarkSequence, deserializeMessage, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 
 class TestShellIntegrationAddon extends ShellIntegrationAddon {
@@ -32,9 +31,7 @@ suite('ShellIntegrationAddon', () => {
 
 	setup(() => {
 		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
-		const instantiationService = new TestInstantiationService();
-		instantiationService.stub(ILogService, NullLogService);
-		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon, true, undefined);
+		shellIntegrationAddon = new TestShellIntegrationAddon('', true, undefined, new NullLogService());
 		xterm.loadAddon(shellIntegrationAddon);
 		capabilities = shellIntegrationAddon.capabilities;
 	});
@@ -185,6 +182,18 @@ suite('ShellIntegrationAddon', () => {
 			mock.expects('handleCommandFinished').once().withExactArgs(7);
 			await writeP(xterm, '\x1b]633;D;7\x07');
 			mock.verify();
+		});
+		test('should pass command line sequence to the capability', async () => {
+			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
+			mock.expects('setCommandLine').once().withExactArgs('', false);
+			await writeP(xterm, '\x1b]633;E\x07');
+			mock.verify();
+
+			const mock2 = shellIntegrationAddon.getCommandDetectionMock(xterm);
+			mock2.expects('setCommandLine').twice().withExactArgs('cmd', false);
+			await writeP(xterm, '\x1b]633;E;cmd\x07');
+			await writeP(xterm, '\x1b]633;E;cmd;invalid-nonce\x07');
+			mock2.verify();
 		});
 		test('should not activate capability on the cwd sequence (OSC 633 ; P=Cwd=<cwd> ST)', async () => {
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);

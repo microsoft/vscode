@@ -39,15 +39,23 @@ export class MyersDiffAlgorithm implements IDiffAlgorithm {
 
 		loop: while (true) {
 			d++;
-			for (k = -d; k <= d; k += 2) {
-				if (!timeout.isValid()) {
-					return DiffAlgorithmResult.trivialTimedOut(seq1, seq2);
-				}
-
-				const maxXofDLineTop = k === d ? -1 : V.get(k + 1); // We take a vertical non-diagonal
-				const maxXofDLineLeft = k === -d ? -1 : V.get(k - 1) + 1; // We take a horizontal non-diagonal (+1 x)
+			if (!timeout.isValid()) {
+				return DiffAlgorithmResult.trivialTimedOut(seq1, seq2);
+			}
+			// The paper has `for (k = -d; k <= d; k += 2)`, but we can ignore diagonals that cannot influence the result.
+			const lowerBound = -Math.min(d, seq2.length + (d % 2));
+			const upperBound = Math.min(d, seq1.length + (d % 2));
+			for (k = lowerBound; k <= upperBound; k += 2) {
+				// We can use the X values of (d-1)-lines to compute X value of the longest d-lines.
+				const maxXofDLineTop = k === upperBound ? -1 : V.get(k + 1); // We take a vertical non-diagonal (add a symbol in seq1)
+				const maxXofDLineLeft = k === lowerBound ? -1 : V.get(k - 1) + 1; // We take a horizontal non-diagonal (+1 x) (delete a symbol in seq1)
 				const x = Math.min(Math.max(maxXofDLineTop, maxXofDLineLeft), seq1.length);
 				const y = x - k;
+				if (x > seq1.length || y > seq2.length) {
+					// This diagonal is irrelevant for the result.
+					// TODO: Don't pay the cost for this in the next iteration.
+					continue;
+				}
 				const newMaxX = getXAfterSnake(x, y);
 				V.set(k, newMaxX);
 				const lastPath = x === maxXofDLineTop ? paths.get(k + 1) : paths.get(k - 1);

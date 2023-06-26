@@ -122,6 +122,10 @@
     ],
     "commands": [
       {
+        "command": "_markdown.copyImage",
+        "title": "%markdown.copyImage.title%"
+      },
+      {
         "command": "markdown.showPreview",
         "title": "%markdown.preview.title%",
         "category": "Markdown",
@@ -182,6 +186,12 @@
       }
     ],
     "menus": {
+      "webview/context": [
+        {
+          "command": "_markdown.copyImage",
+          "when": "webviewId == 'markdown.preview' && webviewSection == 'image'"
+        }
+      ],
       "editor/title": [
         {
           "command": "markdown.showPreviewToSide",
@@ -456,13 +466,36 @@
           "markdownDescription": "%configuration.markdown.editor.drop.enabled%",
           "scope": "resource"
         },
-        "markdown.experimental.editor.pasteLinks.enabled": {
+        "markdown.editor.drop.copyIntoWorkspace": {
+          "type": "string",
+          "markdownDescription": "%configuration.markdown.editor.drop.copyIntoWorkspace%",
+          "default": "mediaFiles",
+          "enum": [
+            "mediaFiles",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.copyIntoWorkspace.mediaFiles%",
+            "%configuration.copyIntoWorkspace.never%"
+          ]
+        },
+        "markdown.editor.filePaste.enabled": {
           "type": "boolean",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.editor.pasteLinks.enabled%",
-          "default": true,
-          "tags": [
-            "experimental"
+          "markdownDescription": "%configuration.markdown.editor.filePaste.enabled%",
+          "default": true
+        },
+        "markdown.editor.filePaste.copyIntoWorkspace": {
+          "type": "string",
+          "markdownDescription": "%configuration.markdown.editor.filePaste.copyIntoWorkspace%",
+          "default": "mediaFiles",
+          "enum": [
+            "mediaFiles",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.copyIntoWorkspace.mediaFiles%",
+            "%configuration.copyIntoWorkspace.never%"
           ]
         },
         "markdown.validate.enabled": {
@@ -588,12 +621,25 @@
           "description": "%configuration.markdown.occurrencesHighlight.enabled%",
           "scope": "resource"
         },
-        "markdown.experimental.copyFiles.destination": {
+        "markdown.copyFiles.destination": {
           "type": "object",
           "markdownDescription": "%configuration.markdown.copyFiles.destination%",
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "markdown.copyFiles.overwriteBehavior": {
+          "type": "string",
+          "markdownDescription": "%configuration.markdown.copyFiles.overwriteBehavior%",
+          "default": "nameIncrementally",
+          "enum": [
+            "nameIncrementally",
+            "overwrite"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.copyFiles.overwriteBehavior.nameIncrementally%",
+            "%configuration.markdown.copyFiles.overwriteBehavior.overwrite%"
+          ]
         },
         "markdown.preferredMdPathExtensionStyle": {
           "type": "string",

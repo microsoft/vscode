@@ -154,18 +154,18 @@ suite('SkipList', function () {
 
 		// init
 		const list = new SkipList<number, boolean>(cmp, max);
-		let sw = new StopWatch(true);
+		let sw = new StopWatch();
 		values.forEach(value => list.set(value, true));
 		sw.stop();
 		console.log(`[LIST] ${list.size} elements after ${sw.elapsed()}ms`);
 		let array: number[] = [];
-		sw = new StopWatch(true);
+		sw = new StopWatch();
 		values.forEach(value => array = insertArraySorted(array, value));
 		sw.stop();
 		console.log(`[ARRAY] ${array.length} elements after ${sw.elapsed()}ms`);
 
 		// get
-		sw = new StopWatch(true);
+		sw = new StopWatch();
 		const someValues = [...values].slice(0, values.size / 4);
 		someValues.forEach(key => {
 			const value = list.get(key); // find
@@ -174,7 +174,7 @@ suite('SkipList', function () {
 		});
 		sw.stop();
 		console.log(`[LIST] retrieve ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`);
-		sw = new StopWatch(true);
+		sw = new StopWatch();
 		someValues.forEach(key => {
 			const idx = binarySearch(array, key, cmp); // find
 			console.assert(idx >= 0, '[ARRAY] must have ' + key);
@@ -185,13 +185,13 @@ suite('SkipList', function () {
 
 
 		// insert
-		sw = new StopWatch(true);
+		sw = new StopWatch();
 		someValues.forEach(key => {
 			list.set(-key, false);
 		});
 		sw.stop();
 		console.log(`[LIST] insert ${sw.elapsed()}ms (${(sw.elapsed() / someValues.length).toPrecision(4)}ms/op)`);
-		sw = new StopWatch(true);
+		sw = new StopWatch();
 		someValues.forEach(key => {
 			array = insertArraySorted(array, -key);
 		});
@@ -199,14 +199,14 @@ suite('SkipList', function () {
 		console.log(`[ARRAY] insert ${sw.elapsed()}ms (${(sw.elapsed() / someValues.length).toPrecision(4)}ms/op)`);
 
 		// delete
-		sw = new StopWatch(true);
+		sw = new StopWatch();
 		someValues.forEach(key => {
 			list.delete(key); // find
 			list.delete(-key); // miss
 		});
 		sw.stop();
 		console.log(`[LIST] delete ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`);
-		sw = new StopWatch(true);
+		sw = new StopWatch();
 		someValues.forEach(key => {
 			array = delArraySorted(array, key); // find
 			array = delArraySorted(array, -key); // miss

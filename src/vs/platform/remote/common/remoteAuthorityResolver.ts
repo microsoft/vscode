@@ -10,10 +10,43 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export const IRemoteAuthorityResolverService = createDecorator<IRemoteAuthorityResolverService>('remoteAuthorityResolverService');
 
+export const enum RemoteConnectionType {
+	WebSocket,
+	Managed
+}
+
+export class ManagedRemoteConnection {
+	public readonly type = RemoteConnectionType.Managed;
+
+	constructor(
+		public readonly id: number
+	) { }
+
+	public toString(): string {
+		return `Managed(${this.id})`;
+	}
+}
+
+export class WebSocketRemoteConnection {
+	public readonly type = RemoteConnectionType.WebSocket;
+
+	constructor(
+		public readonly host: string,
+		public readonly port: number,
+	) { }
+
+	public toString(): string {
+		return `WebSocket(${this.host}:${this.port})`;
+	}
+}
+
+export type RemoteConnection = WebSocketRemoteConnection | ManagedRemoteConnection;
+
+export type RemoteConnectionOfType<T extends RemoteConnectionType> = RemoteConnection & { type: T };
+
 export interface ResolvedAuthority {
 	readonly authority: string;
-	readonly host: string;
-	readonly port: number;
+	readonly connectTo: RemoteConnection;
 	readonly connectionToken: string | undefined;
 }
 
@@ -50,8 +83,7 @@ export interface ResolverResult {
 }
 
 export interface IRemoteConnectionData {
-	host: string;
-	port: number;
+	connectTo: RemoteConnection;
 	connectionToken: string | undefined;
 }
 

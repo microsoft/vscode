@@ -75,7 +75,6 @@ export interface IExperimentService {
 	readonly _serviceBrand: undefined;
 	getExperimentById(id: string): Promise<IExperiment>;
 	getExperimentsByType(type: ExperimentActionType): Promise<IExperiment[]>;
-	getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]>;
 	markAsCompleted(experimentId: string): void;
 
 	onExperimentEnabled: Event<IExperiment>;
@@ -207,20 +206,6 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		});
 	}
 
-	public getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]> {
-		return this._loadExperimentsPromise.then(() => {
-			for (const experiment of this._experiments) {
-				if (experiment.enabled
-					&& experiment.state === ExperimentState.Run
-					&& this._curatedMapping[experiment.id]
-					&& this._curatedMapping[experiment.id].curatedExtensionsKey === curatedExtensionsKey) {
-					return this._curatedMapping[experiment.id].curatedExtensionsList;
-				}
-			}
-			return [];
-		});
-	}
-
 	public markAsCompleted(experimentId: string): void {
 		const storageKey = 'experiments.' + experimentId;
 		const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.APPLICATION), {});
@@ -233,7 +218,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			return []; // TODO@sbatten add CLI argument (https://github.com/microsoft/vscode-internalbacklog/issues/2855)
 		}
 
-		const experimentsUrl = this.configurationService.getValue<string>('_workbench.experimentsUrl') || this.productService.experimentsUrl;
+		const experimentsUrl = this.productService.experimentsUrl;
 		if (!experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return [];
 		}

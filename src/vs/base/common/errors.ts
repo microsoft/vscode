@@ -74,6 +74,7 @@ export class ErrorHandler {
 
 export const errorHandler = new ErrorHandler();
 
+/** @skipMangle */
 export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
 	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
 }
@@ -290,6 +291,6 @@ export class BugIndicatingError extends Error {
 		// Because we know for sure only buggy code throws this,
 		// we definitely want to break here and fix the bug.
 		// eslint-disable-next-line no-debugger
-		debugger;
+		// debugger;
 	}
 }

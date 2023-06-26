@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { API as GitAPI, Repository } from './typings/git';
+import { API as GitAPI, RefType, Repository } from './typings/git';
 import { getRepositoryFromUrl } from './util';
 
 export function isFileInRepo(repository: Repository, file: vscode.Uri): boolean {
@@ -92,7 +92,7 @@ function getRangeOrSelection(lineNumber: number | undefined) {
 		: vscode.window.activeTextEditor?.selection;
 }
 
-function rangeString(range: vscode.Range | undefined) {
+export function rangeString(range: vscode.Range | undefined) {
 	if (!range) {
 		return '';
 	}
@@ -119,7 +119,7 @@ export function notebookCellRangeString(index: number | undefined, range: vscode
 	return hash;
 }
 
-function encodeURIComponentExceptSlashes(path: string) {
+export function encodeURIComponentExceptSlashes(path: string) {
 	// There may be special characters like # and whitespace in the path.
 	// These characters are not escaped by encodeURI(), so it is not sufficient to
 	// feed the full URI to encodeURI().
@@ -129,7 +129,7 @@ function encodeURIComponentExceptSlashes(path: string) {
 	return path.split('/').map((segment) => encodeURIComponent(segment)).join('/');
 }
 
-export function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: string, linkType: 'permalink' | 'headlink' = 'permalink', context?: LinkContext, useRange?: boolean): string | undefined {
+export async function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: string, linkType: 'permalink' | 'headlink' = 'permalink', context?: LinkContext, useRange?: boolean): Promise<string | undefined> {
 	hostPrefix = hostPrefix ?? 'https://github.com';
 	const fileAndPosition = getFileAndPosition(context);
 	if (!fileAndPosition) {
@@ -142,6 +142,9 @@ export function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: stri
 	if (!gitRepo) {
 		return;
 	}
+
+	await ensurePublished(gitRepo, uri);
+
 	let repo: { owner: string; repo: string } | undefined;
 	gitRepo.state.remotes.find(remote => {
 		if (remote.fetchUrl) {
@@ -167,4 +170,69 @@ export function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: stri
 
 	return `${hostPrefix}/${repo.owner}/${repo.repo}${blobSegment
 		}${fileSegments}`;
+}
+
+export function getBranchLink(url: string, branch: string, hostPrefix: string = 'https://github.com') {
+	const repo = getRepositoryFromUrl(url);
+	if (!repo) {
+		throw new Error('Invalid repository URL provided');
+	}
+
+	branch = encodeURIComponentExceptSlashes(branch);
+	return `${hostPrefix}/${repo.owner}/${repo.repo}/tree/${branch}`;
+}
+
+export function getVscodeDevHost(): string {
+	return `https://${vscode.env.appName.toLowerCase().includes('insiders') ? 'insiders.' : ''}vscode.dev/github`;
+}
+
+export async function ensurePublished(repository: Repository, file: vscode.Uri) {
+	if ((repository.state.HEAD?.type === RefType.Head || repository.state.HEAD?.type === RefType.Tag)
+		// If HEAD is not published, make sure it is
+		&& !repository?.state.HEAD?.upstream
+	) {
+		const publishBranch = vscode.l10n.t('Publish Branch');
+		const selection = await vscode.window.showInformationMessage(
+			vscode.l10n.t('The current branch is not published to the remote. Would you like to publish your branch before copying a link?'),
+			{ modal: true },
+			publishBranch
+		);
+		if (selection !== publishBranch) {
+			throw new vscode.CancellationError();
+		}
+
+		await vscode.commands.executeCommand('git.publish');
+	}
+
+	const uncommittedChanges = [...repository.state.workingTreeChanges, ...repository.state.indexChanges];
+	if (uncommittedChanges.find((c) => c.uri.toString() === file.toString())) {
+		const commitChanges = vscode.l10n.t('Commit Changes');
+		const copyAnyway = vscode.l10n.t('Copy Anyway');
+		const selection = await vscode.window.showWarningMessage(
+			vscode.l10n.t('The current file has uncommitted changes. Please commit your changes before copying a link.'),
+			{ modal: true },
+			commitChanges,
+			copyAnyway
+		);
+
+		if (selection !== copyAnyway) {
+			// Focus the SCM view
+			vscode.commands.executeCommand('workbench.view.scm');
+			throw new vscode.CancellationError();
+		}
+	} else if (repository.state.HEAD?.ahead) {
+		const pushCommits = vscode.l10n.t('Push Commits');
+		const selection = await vscode.window.showInformationMessage(
+			vscode.l10n.t('The current branch has unpublished commits. Would you like to push your commits before copying a link?'),
+			{ modal: true },
+			pushCommits
+		);
+		if (selection !== pushCommits) {
+			throw new vscode.CancellationError();
+		}
+
+		await repository.push();
+	}
+
+	await repository.status();
 }

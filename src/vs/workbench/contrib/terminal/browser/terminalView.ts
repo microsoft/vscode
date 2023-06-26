@@ -126,7 +126,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private _initializeTerminal() {
-		if (this.isBodyVisible() && this._terminalService.isProcessSupportRegistered && this._terminalService.connectionState === TerminalConnectionState.Connected && !this._terminalGroupService.groups.length) {
+		if (this.isBodyVisible() && this._terminalService.isProcessSupportRegistered && this._terminalService.connectionState === TerminalConnectionState.Connected && this._terminalService.restoredGroupCount === 0 && this._terminalGroupService.groups.length === 0) {
 			this._terminalService.createTerminal({ location: TerminalLocation.Panel });
 		}
 	}
@@ -488,8 +488,8 @@ function getSingleTabLabel(accessor: ServicesAccessor, instance: ITerminalInstan
 	if (!instance || !instance.title) {
 		return '';
 	}
-	const iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon.id : accessor.get(ITerminalProfileResolverService).getDefaultIcon();
-	const label = `$(${icon?.id || iconClass}) ${getSingleTabTitle(instance, separator)}`;
+	const iconId = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon.id : accessor.get(ITerminalProfileResolverService).getDefaultIcon().id;
+	const label = `$(${icon?.id || iconId}) ${getSingleTabTitle(instance, separator)}`;
 
 	const primaryStatus = instance.statusList.primary;
 	if (!primaryStatus?.icon) {
