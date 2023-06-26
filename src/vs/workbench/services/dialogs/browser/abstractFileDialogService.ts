@@ -93,8 +93,9 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	async preferredHome(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
+
 		// Seek a user-local or user-remote machine-scoped override path string depending on whether caller wants a local or a remote home
-		const inspectedValue = this.configurationService.inspect<string>('files.dialog.homePath');
+		const inspectedValue = this.configurationService.inspect<string>('files.dialog.defaultPath');
 		const dialogHomePath = schemeFilter === Schemas.file ? inspectedValue.userLocalValue : inspectedValue.userRemoteValue;
 		const userHomePromise = this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
 		if (!dialogHomePath) {

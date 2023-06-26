@@ -323,9 +323,9 @@ configurationRegistry.registerConfiguration({
 			'default': 'askUser',
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
-		'files.dialog.homePath': {
+		'files.dialog.defaultPath': {
 			'type': 'string',
-			'description': nls.localize('fileDialogHomePath', "Default path for file dialogs, overriding user's home path. Only used in the absence of a context-specific path, such as most recently opened file or folder."),
+			'description': nls.localize('fileDialogDefaultPath', "Default path for file dialogs, overriding user's home path. Only used in the absence of a context-specific path, such as most recently opened file or folder."),
 			'scope': ConfigurationScope.MACHINE
 		},
 		'files.simpleDialog.enable': {
