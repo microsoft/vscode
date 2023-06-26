@@ -30,16 +30,23 @@ export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
 				try {
 					const req = https.request(payload.urlString, options, res => {
 						res.on('data', function (responseData) {
-							oncomplete(res.statusCode ?? 200, res.headers as Record<string, any>, responseData.toString());
+							const responseString = responseData.toString();
+							const response: { acc?: number; rej?: number } = JSON.parse(responseString);
+							if (response.rej) {
+								console.error('OneDataSystemAppender: Some events were rejected', payload.data);
+							}
+							oncomplete(res.statusCode ?? 200, res.headers as Record<string, any>, responseString);
 						});
 						// On response with error send status of 0 and a blank response to oncomplete so we can retry events
 						res.on('error', function (err) {
+							console.error('OneDataSystemAppender: Endpoint responded with an error', err);
 							oncomplete(0, {});
 						});
 					});
 					req.write(payload.data);
 					req.end();
-				} catch {
+				} catch (err) {
+					console.error('OneDataSystemAppender: Failed to send event', err);
 					// If it errors out, send status of 0 and a blank response to oncomplete so we can retry events
 					oncomplete(0, {});
 				}
