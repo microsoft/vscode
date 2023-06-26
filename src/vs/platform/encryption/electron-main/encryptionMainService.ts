@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { safeStorage as safeStorageElectron } from 'electron';
+import { safeStorage as safeStorageElectron, app } from 'electron';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { KnownStorageProvider, IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -23,7 +23,12 @@ export class EncryptionMainService implements IEncryptionMainService {
 	constructor(
 		private readonly machineId: string,
 		@ILogService private readonly logService: ILogService
-	) { }
+	) {
+		// if this commandLine switch is set, the user has opted in to using basic text encryption
+		if (app.commandLine.getSwitchValue('password-store') === 'basic_text') {
+			safeStorage.setUsePlainTextEncryption?.(true);
+		}
+	}
 
 	async encrypt(value: string): Promise<string> {
 		try {
