@@ -795,7 +795,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[InteractiveWindowSetting.interactiveWindowRestore]: {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('interactiveWindow.restore', "Controls whether the Interactive Window sessions/history should be restored across window reloads. Whether the state of controllers used in Interactive Windows is persisted across window reloads are controlled by extensions contributing controllers.")
+			markdownDescription: localize('interactiveWindow.restore', "Controls whether the Interactive Window sessions/history should be restored across window reloads. Whether the state of controllers used in Interactive Windows is persisted across window reloads are controlled by extensions contributing controllers."),
+			deprecationMessage: localize('interactiveWindow.restoreDeprecation', "Restoring the editor is now built in so this setting no longer affects the behavior")
 		}
 	}
 });
