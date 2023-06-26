@@ -62,7 +62,6 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ITerminalLogService logService: ITerminalLogService,
@@ -190,7 +189,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
 		// TODO: Using _proxy here bypasses the lastPtyId tracking on the main process
 		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, options, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
-		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
+		const pty = new LocalPty(id, shouldPersist, this._proxy);
 		this._ptys.set(id, pty);
 		return pty;
 	}
@@ -198,7 +197,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		try {
 			await this._proxy.attachToProcess(id);
-			const pty = this._instantiationService.createInstance(LocalPty, id, true);
+			const pty = new LocalPty(id, true, this._proxy);
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
