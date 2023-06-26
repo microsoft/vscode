@@ -166,11 +166,11 @@ export class PostEditWidgetManager extends Disposable {
 			return;
 		}
 
-		let insertTextMap: ResourceTextEdit[] = [];
+		let insertTextEdit: ResourceTextEdit[] = [];
 		if (typeof edit.insertText === 'string' ? edit.insertText === '' : edit.insertText.snippet === '') {
-			insertTextMap = [];
+			insertTextEdit = [];
 		} else {
-			insertTextMap = ranges.map(range => new ResourceTextEdit(model.uri,
+			insertTextEdit = ranges.map(range => new ResourceTextEdit(model.uri,
 				typeof edit.insertText === 'string'
 					? { range, text: edit.insertText, insertAsSnippet: false }
 					: { range, text: edit.insertText.snippet, insertAsSnippet: true }
@@ -178,7 +178,7 @@ export class PostEditWidgetManager extends Disposable {
 		}
 
 		const allEdits = [
-			...insertTextMap,
+			...insertTextEdit,
 			...(edit.additionalEdit?.edits ?? [])
 		];
 

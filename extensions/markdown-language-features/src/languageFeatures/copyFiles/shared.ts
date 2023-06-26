@@ -61,35 +61,47 @@ export async function getMarkdownLink(document: vscode.TextDocument, ranges: rea
 		return;
 	}
 
-	const selectedTexts = ranges.map(range => document.getText(range));
 	const edits: vscode.SnippetTextEdit[] = [];
-	let placeHolder: number = ranges.length;
-	let new_label: string = '';
+	let placeHolderValue: number = ranges.length;
+	let label: string = '';
 
 	for (let i = 0; i < ranges.length; i++) {
-		const snippet = await tryGetUriListSnippet(document, dataTransfer, token, selectedTexts[i], placeHolder);
+		const snippet = await tryGetUriListSnippet(document, dataTransfer, token, document.getText(ranges[i]), placeHolderValue) || await tryGetUriListLinkSnippet(document, dataTransfer, token, document.getText(ranges[i]), placeHolderValue);
 		if (!snippet) {
 			return;
 		}
-		placeHolder--;
+		placeHolderValue--;
 		edits.push(new vscode.SnippetTextEdit(ranges[i], snippet.snippet));
-		new_label = snippet.label;
+		label = snippet.label;
 	}
-
 
 	const additionalEdits = new vscode.WorkspaceEdit();
 	additionalEdits.set(document.uri, edits);
-	const label = new_label;
+
 	return { additionalEdits, label };
 }
 
-export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken, title = '', placeholder = 0): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
-	const urlList = await dataTransfer.get('text/uri-list')?.asString() || await dataTransfer.get('text/plain')?.asString();
+export async function tryGetUriListLinkSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken, title = '', placeHolderValue = 0): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
+	const urlList = await dataTransfer.get('text/plain')?.asString();
 
 	if (!urlList || token.isCancellationRequested) {
 		return undefined;
 	}
 
+	return tryGetSnippet(document, urlList, title, placeHolderValue);
+}
+
+export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken, title = '', placeHolderValue = 0): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
+	const urlList = await dataTransfer.get('text/uri-list')?.asString();
+
+	if (!urlList || token.isCancellationRequested) {
+		return undefined;
+	}
+
+	return tryGetSnippet(document, urlList, title, placeHolderValue);
+}
+
+async function tryGetSnippet(document: vscode.TextDocument, urlList: String, title = '', placeHolderValue = 0): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
 	const uris: vscode.Uri[] = [];
 	for (const resource of urlList.split(/\r?\n/g)) {
 		try {
@@ -99,7 +111,7 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 		}
 	}
 
-	return createUriListSnippet(document, uris, title, placeholder);
+	return createUriListSnippet(document, uris, title, placeHolderValue);
 }
 
 interface UriListSnippetOptions {
@@ -117,12 +129,11 @@ interface UriListSnippetOptions {
 	readonly separator?: string;
 }
 
-
 export function createUriListSnippet(
 	document: vscode.TextDocument,
 	uris: readonly vscode.Uri[],
 	title = '',
-	placeholder = 0,
+	placeholderValue = 0,
 	options?: UriListSnippetOptions,
 ): { snippet: vscode.SnippetString; label: string } | undefined {
 	if (!uris.length) {
@@ -148,29 +159,25 @@ export function createUriListSnippet(
 		if (insertAsVideo) {
 			insertedAudioVideoCount++;
 			snippet.appendText(`<video src="${escapeHtmlAttribute(mdPath)}" controls title="`);
-			const formattedTitle = title.replace(/[\[\]]/g, '\\$&') || 'Title';
-			snippet.appendPlaceholder(formattedTitle, placeholder);
+			snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
 			snippet.appendText('"></video>');
 		} else if (insertAsAudio) {
 			insertedAudioVideoCount++;
 			snippet.appendText(`<audio src="${escapeHtmlAttribute(mdPath)}" controls title="`);
-			const formattedTitle = title.replace(/[\[\]]/g, '\\$&') || 'Title';
-			snippet.appendPlaceholder(formattedTitle, placeholder);
+			snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
 			snippet.appendText('"></audio>');
 		} else {
 			if (insertAsMedia) {
 				insertedImageCount++;
 				snippet.appendText('![');
-				const formattedTitle = title.replace(/[\[\]]/g, '\\$&') || 'Title';
-				const placeholderText = options?.placeholderText ?? (insertAsMedia ? formattedTitle : 'label');
-				const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (placeholder === 0 ? undefined : placeholder);
+				const placeholderText = options?.placeholderText ?? (insertAsMedia ? (escapeBrackets(title) || 'Alt text') : 'label');
+				const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (placeholderValue === 0 ? undefined : placeholderValue);
 				snippet.appendPlaceholder(placeholderText, placeholderIndex);
 				snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
 			} else {
 				insertedLinkCount++;
 				snippet.appendText('[');
-				const formattedTitle = title.replace(/[\[\]]/g, '\\$&') || 'Title';
-				snippet.appendPlaceholder(formattedTitle, placeholder);
+				snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
 				snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
 			}
 		}
@@ -298,6 +305,12 @@ function escapeMarkdownLinkPath(mdPath: string): string {
 	}
 
 	return encodeURI(mdPath);
+}
+
+function escapeBrackets(value: string): string {
+	value = value.replace(/[\[\]]/g, '\\$&');
+	// value = value.replace(/\r\n\r\n/g, '\n\n');
+	return value;
 }
 
 function needsBracketLink(mdPath: string) {

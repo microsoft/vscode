@@ -15,21 +15,21 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 		dataTransfer: vscode.DataTransfer,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit | undefined> {
-		const markdown_link_enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.pasteUrlAsFormattedLink.enabled', true);
-		if (!markdown_link_enabled) {
+		const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.pasteUrlAsFormattedLink.enabled', true);
+		if (!enabled) {
 			return;
 		}
 
 		// Check if dataTransfer contains a URL
 		const item = dataTransfer.get('text/plain');
-
 		try {
 			new URL(await item?.value);
 		} catch (error) {
 			return;
 		}
 
-		const uriEdit = new vscode.DocumentPasteEdit('', this._id, 'Insert Markdown Link');
+		const label = vscode.l10n.t('Insert Markdown Link');
+		const uriEdit = new vscode.DocumentPasteEdit('', this._id, label);
 		const pasteEdit = await getMarkdownLink(document, ranges, dataTransfer, token);
 		if (!pasteEdit) {
 			return;
