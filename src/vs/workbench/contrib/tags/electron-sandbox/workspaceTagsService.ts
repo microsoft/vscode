@@ -801,21 +801,36 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			const goModPromises = getFilePromises('go.mod', this.fileService, this.textFileService, content => {
 				// TODO: Richard to write the code for parsing the go.mod file
 				// look for everything in require() and get the string value only discard version
-				const dependencies: string[] = splitLines(content.value);
-				for (const dependency of dependencies) {
-					// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
-					const format1 = dependency.split('==');
-					const format2 = dependency.split('>=');
-					const packageName = (format1.length === 2 ? format1[0] : format2[0]).trim();
+				const lines: string[] = splitLines(content.value);
+				let firstRequireBlockFound: boolean = false;
 
-					// copied from line 728 function addPythonTags
-					if (GoModulesToLookFor.indexOf(packageName) > -1) {
-						tags['workspace.go.mod' + packageName] = true;
+				for (let i = 0; i < lines.length; i++) {
+					const line: string = lines[i].trim();
+
+					if (line.startsWith('require (')) {
+					if (!firstRequireBlockFound) {
+						firstRequireBlockFound = true;
+						continue;
+					} else {
+						break;
 					}
-					// not sure if we should keep this
-					for (const metaModule of GoMetaModulesToLookFor) {
-						if (packageName.startsWith(metaModule)) {
-							tags['workspace.go.mod' + metaModule] = true;
+					}
+
+					if (line.startsWith(')')) {
+						break;
+					}
+
+					if (firstRequireBlockFound && line !== '') {
+					const packageName: string = line.split(' ')[0].trim();
+						// copied from line 728 function addPythonTags
+						if (GoModulesToLookFor.indexOf(packageName) > -1) {
+							tags['workspace.go.mod' + packageName] = true;
+						}
+						// not sure if we should keep this
+						for (const metaModule of GoMetaModulesToLookFor) {
+							if (packageName.startsWith(metaModule)) {
+								tags['workspace.go.mod' + metaModule] = true;
+							}
 						}
 					}
 				}
