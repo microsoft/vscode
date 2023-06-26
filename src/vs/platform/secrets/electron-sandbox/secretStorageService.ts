@@ -53,7 +53,7 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 		};
 		buttons.push(troubleshootingButton);
 
-		let errorMessage = localize('encryptionNotAvailableJustTroubleshootingGuide', "Secrets are not being stored on disk because encryption is not available in this environment.");
+		let errorMessage = localize('encryptionNotAvailableJustTroubleshootingGuide', "An OS keyring couldn't be identified for storing the encryption related data in your current desktop environment.");
 
 		if (!isLinux) {
 			this._notificationService.prompt(Severity.Error, errorMessage, buttons);
@@ -66,9 +66,9 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 		} else if (isKwallet(provider)) {
 			errorMessage = localize('isKwallet', "You're running in a KDE environment but encryption is not available. Ensure you have kwallet running.");
 		} else if (provider === KnownStorageProvider.basicText) {
-			errorMessage += ' ' + localize('usePlainTextExtraSentence', "Open the troubleshooting guide or you can use plain text obfuscation instead.");
+			errorMessage += ' ' + localize('usePlainTextExtraSentence', "Open the troubleshooting guide to address this or you can use weaker encryption that doesn't use the OS keyring.");
 			const usePlainTextButton: IPromptChoice = {
-				label: localize('usePlainText', "Use plain text (restart required)"),
+				label: localize('usePlainText', "Use weaker encryption (restart required)"),
 				run: async () => {
 					this._encryptionService.setUsePlainTextEncryption();
 					await this._nativeHostService.relaunch();
