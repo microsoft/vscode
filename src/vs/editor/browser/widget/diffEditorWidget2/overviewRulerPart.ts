@@ -10,7 +10,7 @@ import { Color } from 'vs/base/common/color';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, derived, observableFromEvent } from 'vs/base/common/observable';
 import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { appendRemoveOnDispose } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
@@ -25,8 +25,7 @@ export class OverviewRulerPart extends Disposable {
 	public static readonly ENTIRE_DIFF_OVERVIEW_WIDTH = OverviewRulerPart.ONE_OVERVIEW_WIDTH * 2;
 
 	constructor(
-		private readonly _originalEditor: CodeEditorWidget,
-		private readonly _modifiedEditor: CodeEditorWidget,
+		private readonly _editors: DiffEditorEditors,
 		private readonly _rootElement: HTMLElement,
 		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
 		private readonly _rootWidth: IObservable<number>,
@@ -46,8 +45,8 @@ export class OverviewRulerPart extends Disposable {
 			return { insertColor, removeColor };
 		});
 
-		const scrollTopObservable = observableFromEvent(this._modifiedEditor.onDidScrollChange, () => this._modifiedEditor.getScrollTop());
-		const scrollHeightObservable = observableFromEvent(this._modifiedEditor.onDidScrollChange, () => this._modifiedEditor.getScrollHeight());
+		const scrollTopObservable = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
+		const scrollHeightObservable = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollHeight());
 
 		// overview ruler
 		this._register(autorunWithStore2('create diff editor overview ruler if enabled', (reader, store) => {
@@ -64,23 +63,23 @@ export class OverviewRulerPart extends Disposable {
 			}).root;
 			store.add(appendRemoveOnDispose(diffOverviewRoot, viewportDomElement.domNode));
 			store.add(addStandardDisposableListener(diffOverviewRoot, EventType.POINTER_DOWN, (e) => {
-				this._modifiedEditor.delegateVerticalScrollbarPointerDown(e);
+				this._editors.modified.delegateVerticalScrollbarPointerDown(e);
 			}));
 			store.add(addDisposableListener(diffOverviewRoot, EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
-				this._modifiedEditor.delegateScrollFromMouseWheelEvent(e);
+				this._editors.modified.delegateScrollFromMouseWheelEvent(e);
 			}, { passive: false }));
 			store.add(appendRemoveOnDispose(this._rootElement, diffOverviewRoot));
 
 			store.add(autorunWithStore2('recreate overview rules when model changes', (reader, store) => {
 				const m = this._diffModel.read(reader);
 
-				const originalOverviewRuler = this._originalEditor.createOverviewRuler('original diffOverviewRuler');
+				const originalOverviewRuler = this._editors.original.createOverviewRuler('original diffOverviewRuler');
 				if (originalOverviewRuler) {
 					store.add(originalOverviewRuler);
 					store.add(appendRemoveOnDispose(diffOverviewRoot, originalOverviewRuler.getDomNode()));
 				}
 
-				const modifiedOverviewRuler = this._modifiedEditor.createOverviewRuler('modified diffOverviewRuler');
+				const modifiedOverviewRuler = this._editors.modified.createOverviewRuler('modified diffOverviewRuler');
 				if (modifiedOverviewRuler) {
 					store.add(modifiedOverviewRuler);
 					store.add(appendRemoveOnDispose(diffOverviewRoot, modifiedOverviewRuler.getDomNode()));
