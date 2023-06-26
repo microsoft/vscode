@@ -720,7 +720,7 @@ export function validateFileName(pathService: IPathService, item: ExplorerItem, 
 	// Check for invalid file name.
 	if (names.some(folderName => !pathService.hasValidBasename(item.resource, os, folderName))) {
 		// Escape * characters
-		const escapedName = name.replace(/\*/g, '\\*');
+		const escapedName = name.replace(/\*/g, '\\*'); // CodeQL [SM02383] This only processes filenames which are enforced against having backslashes in them farther up in the stack.
 		return {
 			content: nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(escapedName)),
 			severity: Severity.Error
@@ -1218,7 +1218,7 @@ class BaseSetActiveEditorReadonlyInSession extends Action2 {
 export class SetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
 
 	static readonly ID = 'workbench.action.files.setActiveEditorReadonlyInSession';
-	static readonly LABEL = nls.localize('setActiveEditorReadonlyInSession', "Set Active Editor Readonly in Session");
+	static readonly LABEL = nls.localize('setActiveEditorReadonlyInSession', "Set Active Editor Read-only in Session");
 
 	constructor() {
 		super(
@@ -1246,7 +1246,7 @@ export class SetActiveEditorWriteableInSession extends BaseSetActiveEditorReadon
 export class ToggleActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
 
 	static readonly ID = 'workbench.action.files.toggleActiveEditorReadonlyInSession';
-	static readonly LABEL = nls.localize('toggleActiveEditorReadonlyInSession', "Toggle Active Editor Readonly in Session");
+	static readonly LABEL = nls.localize('toggleActiveEditorReadonlyInSession', "Toggle Active Editor Read-only in Session");
 
 	constructor() {
 		super(
@@ -1260,7 +1260,7 @@ export class ToggleActiveEditorReadonlyInSession extends BaseSetActiveEditorRead
 export class ResetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
 
 	static readonly ID = 'workbench.action.files.resetActiveEditorReadonlyInSession';
-	static readonly LABEL = nls.localize('resetActiveEditorReadonlyInSession', "Reset Active Editor Readonly in Session");
+	static readonly LABEL = nls.localize('resetActiveEditorReadonlyInSession', "Reset Active Editor Read-only in Session");
 
 	constructor() {
 		super(

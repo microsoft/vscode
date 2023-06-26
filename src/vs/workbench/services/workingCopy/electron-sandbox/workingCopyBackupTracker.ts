@@ -89,9 +89,10 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 
 		if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
 
-			// Save all modified working copies
+			// Save all modified working copies that can be auto-saved
 			try {
-				await this.doSaveAllBeforeShutdown(false /* not untitled */, SaveReason.AUTO);
+				const workingCopiesToSave = modifiedWorkingCopies.filter(wc => !(wc.capabilities & WorkingCopyCapabilities.Untitled));
+				await this.doSaveAllBeforeShutdown(workingCopiesToSave, SaveReason.AUTO);
 			} catch (error) {
 				this.logService.error(`[backup tracker] error saving modified working copies: ${error}`); // guard against misbehaving saves, we handle remaining modified below
 			}
@@ -302,17 +303,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		return true; // veto (user canceled)
 	}
 
-	private doSaveAllBeforeShutdown(modifiedWorkingCopies: IWorkingCopy[], reason: SaveReason): Promise<void>;
-	private doSaveAllBeforeShutdown(includeUntitled: boolean, reason: SaveReason): Promise<void>;
-	private doSaveAllBeforeShutdown(arg1: IWorkingCopy[] | boolean, reason: SaveReason): Promise<void> {
-		const modifiedWorkingCopies = Array.isArray(arg1) ? arg1 : this.workingCopyService.modifiedWorkingCopies.filter(workingCopy => {
-			if (arg1 === false && (workingCopy.capabilities & WorkingCopyCapabilities.Untitled)) {
-				return false; // skip untitled unless explicitly included
-			}
-
-			return true;
-		});
-
+	private doSaveAllBeforeShutdown(workingCopies: IWorkingCopy[], reason: SaveReason): Promise<void> {
 		return this.withProgressAndCancellation(async () => {
 
 			// Skip save participants on shutdown for performance reasons
@@ -320,16 +311,18 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 
 			// First save through the editor service if we save all to benefit
 			// from some extras like switching to untitled modified editors before saving.
-
 			let result: boolean | undefined = undefined;
-			if (typeof arg1 === 'boolean' || modifiedWorkingCopies.length === this.workingCopyService.modifiedCount) {
-				result = (await this.editorService.saveAll({ includeUntitled: typeof arg1 === 'boolean' ? arg1 : true, ...saveOptions })).success;
+			if (workingCopies.length === this.workingCopyService.modifiedCount) {
+				result = (await this.editorService.saveAll({
+					includeUntitled: { includeScratchpad: true },
+					...saveOptions
+				})).success;
 			}
 
 			// If we still have modified working copies, save those directly
 			// unless the save was not successful (e.g. cancelled)
 			if (result !== false) {
-				await Promises.settled(modifiedWorkingCopies.map(workingCopy => workingCopy.isModified() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
+				await Promises.settled(workingCopies.map(workingCopy => workingCopy.isModified() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
 			}
 		}, localize('saveBeforeShutdown', "Saving editors with unsaved changes is taking a bit longer..."));
 	}

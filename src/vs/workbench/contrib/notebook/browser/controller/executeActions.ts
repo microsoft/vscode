@@ -5,7 +5,6 @@
 
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -157,7 +156,11 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
 						executeNotebookCondition,
-						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated()),
+						ContextKeyExpr.or(
+							NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(),
+							NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated(),
+						),
+						ContextKeyExpr.and(NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated())?.negate(),
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					)
 				}
@@ -598,7 +601,7 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_HAS_SOMETHING_RUNNING,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL,
-						ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive)
+						ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive')
 					),
 					group: 'navigation/execute'
 				}
@@ -635,13 +638,13 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation/execute',
-					order: 0
+					order: 20
 				},
 				{
 					id: MenuId.InteractiveToolbar,
 					when: ContextKeyExpr.and(
 						NOTEBOOK_HAS_RUNNING_CELL,
-						ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive)
+						ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive')
 					),
 					group: 'navigation',
 					order: 10
@@ -712,7 +715,7 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation/execute',
-					order: 0
+					order: 20
 				},
 			],
 			icon: icons.errorStateIcon,

@@ -24,6 +24,8 @@ import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNoteboo
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { ExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
+import { ExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 
 suite('NotebookCell#Document', function () {
 
@@ -34,6 +36,7 @@ suite('NotebookCell#Document', function () {
 	let extHostDocuments: ExtHostDocuments;
 	let extHostNotebooks: ExtHostNotebookController;
 	let extHostNotebookDocuments: ExtHostNotebookDocuments;
+	let extHostConsumerFileSystem: ExtHostConsumerFileSystem;
 
 	const notebookUri = URI.parse('test:///notebook.file');
 	const disposables = new DisposableStore();
@@ -53,11 +56,12 @@ suite('NotebookCell#Document', function () {
 		});
 		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
+		extHostConsumerFileSystem = new ExtHostConsumerFileSystem(rpcProtocol, new ExtHostFileSystemInfo());
 		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
 			override onExtensionError(): boolean {
 				return true;
 			}
-		}), extHostDocumentsAndEditors, extHostDocuments);
+		}), extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem);
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
 		const reg = extHostNotebooks.registerNotebookSerializer(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookSerializer>() { });

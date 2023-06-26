@@ -179,6 +179,10 @@ export class Session {
 		this._teldata.rounds += `${newLen}|`;
 	}
 
+	get exchanges(): Iterable<SessionExchange> {
+		return this._exchange;
+	}
+
 	get lastExchange(): SessionExchange | undefined {
 		return this._exchange[this._exchange.length - 1];
 	}
@@ -359,7 +363,7 @@ export const IInlineChatSessionService = createDecorator<IInlineChatSessionServi
 export interface IInlineChatSessionService {
 	_serviceBrand: undefined;
 
-	onWillStartSession: Event<URI>;
+	onWillStartSession: Event<IActiveCodeEditor>;
 
 	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
 
@@ -383,8 +387,8 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _onWillStartSession = new Emitter<URI>();
-	readonly onWillStartSession: Event<URI> = this._onWillStartSession.event;
+	private readonly _onWillStartSession = new Emitter<IActiveCodeEditor>();
+	readonly onWillStartSession: Event<IActiveCodeEditor> = this._onWillStartSession.event;
 
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
@@ -412,7 +416,7 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 			return undefined;
 		}
 
-		this._onWillStartSession.fire(editor.getModel().uri);
+		this._onWillStartSession.fire(editor);
 
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();

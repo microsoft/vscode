@@ -25,7 +25,7 @@
 	background-clip: padding-box;
 	border-bottom: 2px solid transparent;
 	border-top: 4px solid transparent;
-	cursor: pointer;
+	cursor: ns-resize;
 }
 
 .diff-hidden-lines .top {
@@ -87,4 +87,17 @@
 	fill: none;
 	stroke: var(--vscode-diffEditor-move-border);
 	stroke-width: 2;
+}
+
+.char-delete.diff-range-empty {
+	margin-left: -1px;
+	border-left: solid var(--vscode-diffEditor-removedTextBackground) 3px;
+}
+
+.char-insert.diff-range-empty {
+	border-left: solid var(--vscode-diffEditor-insertedTextBackground) 3px;
+}
+
+.fold-unchanged {
+	cursor: pointer;
 }

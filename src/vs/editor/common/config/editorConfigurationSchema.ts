@@ -214,8 +214,13 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'diffEditor.experimental.useVersion2': {
 			type: 'boolean',
-			default: false,
+			default: true,
 			description: nls.localize('useVersion2', "Controls whether the diff editor uses the new or the old implementation."),
+		},
+		'diffEditor.experimental.showEmptyDecorations': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('showEmptyDecorations', "Controls whether the diff editor shows empty decorations to see where characters got inserted or deleted."),
 		}
 	}
 };

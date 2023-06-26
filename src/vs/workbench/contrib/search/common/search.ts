@@ -157,7 +157,11 @@ export interface IFilterAndRange {
 }
 
 export function extractRangeFromFilter(filter: string, unless?: string[]): IFilterAndRange | undefined {
-	if (!filter || unless?.some(value => filter.indexOf(value) !== -1)) {
+	// Ignore when the unless character not the first character or is before the line colon pattern
+	if (!filter || unless?.some(value => {
+		const unlessCharPos = filter.indexOf(value);
+		return unlessCharPos === 0 || unlessCharPos > 0 && !LINE_COLON_PATTERN.test(filter.substring(unlessCharPos + 1));
+	})) {
 		return undefined;
 	}
 

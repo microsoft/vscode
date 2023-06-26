@@ -9,9 +9,9 @@ import { localize } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInternalXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
@@ -91,7 +91,7 @@ registerTerminalAction({
 	title: { value: localize('workbench.action.terminal.restartPtyHost', "Restart Pty Host"), original: 'Restart Pty Host' },
 	category: Categories.Developer,
 	run: async (c, accessor) => {
-		const logService = accessor.get(ILogService);
+		const logService = accessor.get(ITerminalLogService);
 		const backends = Array.from(c.instanceService.getRegisteredBackends());
 		const unresponsiveBackends = backends.filter(e => !e.isResponsive);
 		// Restart only unresponsive backends if there are any

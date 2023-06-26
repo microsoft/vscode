@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { OverviewRulerPosition, ConfigurationChangedEvent, EditorLayoutInfo, IComputedEditorOptions, EditorOption, FindComputedEditorOptionValueById, IEditorOptions, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { Event } from 'vs/base/common/event';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IDiffEditorOptions, IEditorOptions, OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
+import { IDimension } from 'vs/editor/common/core/dimension';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer, PositionAffinity, GlyphMarginLane } from 'vs/editor/common/model';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
+import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
+import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
-import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
-import { ILineChange, IDiffComputationResult } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -505,12 +506,7 @@ export interface IEditorAriaOptions {
 	role?: string;
 }
 
-export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
-	/**
-	 * The initial editor dimension (to avoid measuring the container).
-	 */
-	dimension?: IDimension;
-
+export interface IDiffEditorConstructionOptions extends IDiffEditorOptions, IEditorConstructionOptions {
 	/**
 	 * Place overflow widgets inside an external DOM node.
 	 * Defaults to an internal DOM node.
@@ -1260,6 +1256,10 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	revealFirstDiff(): unknown;
+
+	diffReviewNext(): void;
+
+	diffReviewPrev(): void;
 }
 
 /**

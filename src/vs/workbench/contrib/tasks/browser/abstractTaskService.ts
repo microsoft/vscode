@@ -303,11 +303,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
 			let tasks = await this._getTasksForGroup(TaskGroup.Build);
 			if (tasks.length > 0) {
-				const { none, defaults } = this._splitPerGroupType(tasks);
+				const defaults = this._getDefaultTasks(tasks);
 				if (defaults.length === 1) {
 					return defaults[0]._label;
-				} else if (defaults.length + none.length > 0) {
-					tasks = defaults.concat(none);
+				} else if (defaults.length) {
+					tasks = defaults;
 				}
 			}
 
@@ -344,7 +344,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}));
 		}
-
 		this._upgrade();
 	}
 
@@ -2748,7 +2747,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return true;
 	}
 
+	private async _ensureWorkspaceTasks(): Promise<void> {
+		if (!this._workspaceTasksPromise) {
+			await this.getWorkspaceTasks();
+		} else {
+			await this._workspaceTasksPromise;
+		}
+	}
+
 	private async _runTaskCommand(filter?: string | ITaskIdentifier): Promise<void> {
+		await this._ensureWorkspaceTasks();
 		if (!filter) {
 			return this._doRunTaskCommand();
 		}
@@ -2875,12 +2883,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	/**
 	 *
-	 * @param tasks - The tasks which need filtering from defaults and non-defaults
-	 * @param taskGlobsInList - This tells splitPerGroupType to filter out globbed tasks (into default), otherwise fall back to boolean
+	 * @param tasks - The tasks which need to be filtered
+	 * @param taskGlobsInList - This tells splitPerGroupType to filter out globbed tasks (into defaults)
 	 * @returns
 	 */
-	private _splitPerGroupType(tasks: Task[], taskGlobsInList: boolean = false): { none: Task[]; defaults: Task[] } {
-		const none: Task[] = [];
+	private _getDefaultTasks(tasks: Task[], taskGlobsInList: boolean = false): Task[] {
 		const defaults: Task[] = [];
 		for (const task of tasks) {
 			// At this point (assuming taskGlobsInList is true) there are tasks with matching globs, so only put those in defaults
@@ -2888,11 +2895,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				defaults.push(task);
 			} else if (!taskGlobsInList && (task.configurationProperties.group as TaskGroup).isDefault === true) {
 				defaults.push(task);
-			} else {
-				none.push(task);
 			}
 		}
-		return { none, defaults };
+		return defaults;
 	}
 
 	private _runTaskGroupCommand(taskGroup: TaskGroup, strings: {
@@ -2909,7 +2914,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: strings.fetching
 		};
 		const promise = (async () => {
-
+			await this._ensureWorkspaceTasks();
 			let taskGroupTasks: (Task | ConfiguringTask)[] = [];
 
 			async function runSingleTask(task: Task | undefined, problemMatcherOptions: IProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
@@ -2961,12 +2966,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					if (tasks.length > 0) {
 						// If we're dealing with tasks that were chosen because of a glob match,
 						// then put globs in the defaults and everything else in none
-						const { none, defaults } = this._splitPerGroupType(tasks, areGlobTasks);
+						const defaults = this._getDefaultTasks(tasks, areGlobTasks);
 						if (defaults.length === 1) {
 							runSingleTask(defaults[0], undefined, this);
 							return;
-						} else if (defaults.length + none.length > 0) {
-							tasks = defaults.concat(none);
+						} else if (defaults.length > 0) {
+							tasks = defaults;
 						}
 					}
 

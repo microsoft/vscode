@@ -7,12 +7,11 @@ import { Schemas } from 'vs/base/common/network';
 import { env } from 'vs/base/common/process';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IShellLaunchConfig, ITerminalProfile, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalLogService, ITerminalProfile, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
 import { Codicon } from 'vs/base/common/codicons';
@@ -52,7 +51,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		private readonly _configurationService: IConfigurationService,
 		private readonly _configurationResolverService: IConfigurationResolverService,
 		private readonly _historyService: IHistoryService,
-		private readonly _logService: ILogService,
+		private readonly _logService: ITerminalLogService,
 		private readonly _terminalProfileService: ITerminalProfileService,
 		private readonly _workspaceContextService: IWorkspaceContextService,
 		private readonly _remoteAgentService: IRemoteAgentService
@@ -406,7 +405,7 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHistoryService historyService: IHistoryService,
-		@ILogService logService: ILogService,
+		@ITerminalLogService logService: ITerminalLogService,
 		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService,
 		@ITerminalProfileService terminalProfileService: ITerminalProfileService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,

@@ -333,7 +333,7 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 				viewZonIdsPerViewZone.set(z, id);
 			}
 		});
-		if (setIsUpdating) { setIsUpdating(true); }
+		if (setIsUpdating) { setIsUpdating(false); }
 
 		store.add(autorunHandleChanges('layoutZone on change', {
 			createEmptyChangeSummary() {
@@ -353,7 +353,7 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 			}
 			if (setIsUpdating) { setIsUpdating(true); }
 			editor.changeViewZones(a => { for (const id of changeSummary) { a.layoutZone(id); } });
-			if (setIsUpdating) { setIsUpdating(true); }
+			if (setIsUpdating) { setIsUpdating(false); }
 		}));
 	}));
 
@@ -361,7 +361,7 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 		dispose() {
 			if (setIsUpdating) { setIsUpdating(true); }
 			editor.changeViewZones(a => { for (const id of lastViewZoneIds) { a.removeZone(id); } });
-			if (setIsUpdating) { setIsUpdating(true); }
+			if (setIsUpdating) { setIsUpdating(false); }
 		}
 	});
 
