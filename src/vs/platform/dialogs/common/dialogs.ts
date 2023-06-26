@@ -143,7 +143,7 @@ export interface IPromptWithDefaultCancel<T> extends IPrompt<T> {
 export interface IPromptResult<T> extends ICheckboxResult {
 
 	/**
-	 * The result of the `IPromptButton`` that was pressed or `undefined` if none.
+	 * The result of the `IPromptButton` that was pressed or `undefined` if none.
 	 */
 	readonly result?: T;
 }
