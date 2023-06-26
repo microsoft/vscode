@@ -44,7 +44,7 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 
 		});
 
-		return this._sequencer.queue(key, () => super.set(key, value));
+		return super.set(key, value);
 	}
 
 	private notifyOfNoEncryptionOnce = once(() => this.notifyOfNoEncryption());
