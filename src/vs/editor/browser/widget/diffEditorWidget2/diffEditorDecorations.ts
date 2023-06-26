@@ -37,6 +37,7 @@ export class DiffEditorDecorations extends Disposable {
 
 		const currentMove = this._diffModel.read(reader)!.syncedMovedTexts.read(reader);
 		const renderIndicators = this._options.renderIndicators.read(reader);
+		const showEmptyDecorations = this._options.showEmptyDecorations.read(reader);
 
 		const originalDecorations: IModelDeltaDecoration[] = [];
 		const modifiedDecorations: IModelDeltaDecoration[] = [];
@@ -60,8 +61,8 @@ export class DiffEditorDecorations extends Disposable {
 					continue;
 				}
 
-				originalDecorations.push({ range: i.originalRange, options: i.originalRange.isEmpty() ? diffDeleteDecorationEmpty : diffDeleteDecoration });
-				modifiedDecorations.push({ range: i.modifiedRange, options: i.modifiedRange.isEmpty() ? diffAddDecorationEmpty : diffAddDecoration });
+				originalDecorations.push({ range: i.originalRange, options: (i.originalRange.isEmpty() && showEmptyDecorations) ? diffDeleteDecorationEmpty : diffDeleteDecoration });
+				modifiedDecorations.push({ range: i.modifiedRange, options: (i.modifiedRange.isEmpty() && showEmptyDecorations) ? diffAddDecorationEmpty : diffAddDecoration });
 			}
 
 			if (!m.lineRangeMapping.modifiedRange.isEmpty && this._options.shouldRenderRevertArrows.read(reader) && !currentMove) {

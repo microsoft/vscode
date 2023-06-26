@@ -53,6 +53,7 @@ export class DiffEditorOptions {
 	public readonly diffCodeLens = derived('diffCodeLens', reader => this._options.read(reader).diffCodeLens);
 	public readonly accessibilityVerbose = derived('accessibilityVerbose', reader => this._options.read(reader).accessibilityVerbose);
 	public readonly diffAlgorithm = derived('diffAlgorithm', reader => this._options.read(reader).diffAlgorithm);
+	public readonly showEmptyDecorations = derived('showEmptyDecorations', reader => this._options.read(reader).experimental.showEmptyDecorations!);
 
 	public updateOptions(changedOptions: IDiffEditorOptions): void {
 		const newDiffEditorOptions = validateDiffEditorOptions(changedOptions, this._options.get());
@@ -79,6 +80,7 @@ const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
 	experimental: {
 		collapseUnchangedRegions: false,
 		showMoves: false,
+		showEmptyDecorations: true,
 	},
 	isInEmbeddedEditor: false,
 };
@@ -102,6 +104,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		experimental: {
 			collapseUnchangedRegions: validateBooleanOption(options.experimental?.collapseUnchangedRegions, defaults.experimental.collapseUnchangedRegions!),
 			showMoves: validateBooleanOption(options.experimental?.showMoves, defaults.experimental.showMoves!),
+			showEmptyDecorations: validateBooleanOption(options.experimental?.showEmptyDecorations, defaults.experimental.showEmptyDecorations!),
 		},
 		isInEmbeddedEditor: validateBooleanOption(options.isInEmbeddedEditor, defaults.isInEmbeddedEditor),
 	};
