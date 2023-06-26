@@ -2480,6 +2480,7 @@ declare namespace monaco.editor {
 		toInclusiveRange(): Range | null;
 		toExclusiveRange(): Range;
 		mapToLineArray<T>(f: (lineNumber: number) => T): T[];
+		includes(lineNumber: number): boolean;
 	}
 
 	/**

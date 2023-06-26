@@ -97,3 +97,7 @@
 .char-insert.diff-range-empty {
 	border-left: solid var(--vscode-diffEditor-insertedTextBackground) 3px;
 }
+
+.fold-unchanged {
+	cursor: pointer;
+}

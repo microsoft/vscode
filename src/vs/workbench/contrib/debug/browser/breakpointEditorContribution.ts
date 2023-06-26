@@ -475,7 +475,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		if (decorations) {
 			for (const { options } of decorations) {
 				const clz = options.glyphMarginClassName;
-				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-') || clz.includes('codicon-loading'))) {
+				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-') || clz.includes('codicon-loading') || clz.includes('codicon-fold'))) {
 					return false;
 				}
 			}
