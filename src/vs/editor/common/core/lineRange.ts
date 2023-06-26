@@ -225,6 +225,10 @@ export class LineRange {
 	public serialize(): ISerializedLineRange {
 		return [this.startLineNumber, this.endLineNumberExclusive];
 	}
+
+	public includes(lineNumber: number): boolean {
+		return this.startLineNumber <= lineNumber && lineNumber < this.endLineNumberExclusive;
+	}
 }
 
 export type ISerializedLineRange = [startLineNumber: number, endLineNumberExclusive: number];
