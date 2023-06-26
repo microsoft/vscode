@@ -1116,6 +1116,7 @@ interface IEditorPartConfiguration {
 	splitSizing?: 'auto' | 'split' | 'distribute';
 	splitOnDragAndDrop?: boolean;
 	centeredLayoutFixedWidth?: boolean;
+	doubleClickTabToToggleEditorGroupSizes?: boolean;
 	limit?: {
 		enabled?: boolean;
 		excludeDirty?: boolean;
