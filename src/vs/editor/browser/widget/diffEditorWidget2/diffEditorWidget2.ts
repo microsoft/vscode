@@ -283,7 +283,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		const modifiedViewState = this._editors.modified.saveViewState();
 		return {
 			original: originalViewState,
-			modified: modifiedViewState
+			modified: modifiedViewState,
+			modelState: this._diffModel.get()?.serializeState(),
 		};
 	}
 
@@ -292,6 +293,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			const diffEditorState = s as IDiffEditorViewState;
 			this._editors.original.restoreViewState(diffEditorState.original);
 			this._editors.modified.restoreViewState(diffEditorState.modified);
+			this._diffModel.get()?.restoreSerializedState(diffEditorState.modelState as any);
 		}
 	}
 
