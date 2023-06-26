@@ -30,7 +30,11 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 
 		const label = vscode.l10n.t('Insert Markdown Link');
 		const uriEdit = new vscode.DocumentPasteEdit('', this._id, label);
-		const pasteEdit = await getMarkdownLink(document, ranges, dataTransfer, token);
+		const urlList = await item?.asString();
+		if (!urlList) {
+			return undefined;
+		}
+		const pasteEdit = await getMarkdownLink(document, ranges, urlList, token);
 		if (!pasteEdit) {
 			return;
 		}

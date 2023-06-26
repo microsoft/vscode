@@ -56,7 +56,7 @@ export const mediaMimes = new Set([
 	'audio/x-wav',
 ]);
 
-export async function getMarkdownLink(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string } | undefined> {
+export async function getMarkdownLink(document: vscode.TextDocument, ranges: readonly vscode.Range[], urlList: string, token: vscode.CancellationToken): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string } | undefined> {
 	if (ranges.length === 0) {
 		return;
 	}
@@ -64,9 +64,8 @@ export async function getMarkdownLink(document: vscode.TextDocument, ranges: rea
 	const edits: vscode.SnippetTextEdit[] = [];
 	let placeHolderValue: number = ranges.length;
 	let label: string = '';
-
 	for (let i = 0; i < ranges.length; i++) {
-		const snippet = await tryGetUriListSnippet(document, dataTransfer, token, document.getText(ranges[i]), placeHolderValue) || await tryGetUriListLinkSnippet(document, dataTransfer, token, document.getText(ranges[i]), placeHolderValue);
+		const snippet = await tryGetUriListSnippet(document, urlList, token, document.getText(ranges[i]), placeHolderValue);
 		if (!snippet) {
 			return;
 		}
@@ -81,27 +80,11 @@ export async function getMarkdownLink(document: vscode.TextDocument, ranges: rea
 	return { additionalEdits, label };
 }
 
-export async function tryGetUriListLinkSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken, title = '', placeHolderValue = 0): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
-	const urlList = await dataTransfer.get('text/plain')?.asString();
-
-	if (!urlList || token.isCancellationRequested) {
+export async function tryGetUriListSnippet(document: vscode.TextDocument, urlList: String, token: vscode.CancellationToken, title = '', placeHolderValue = 0): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
+	if (token.isCancellationRequested) {
 		return undefined;
 	}
 
-	return tryGetSnippet(document, urlList, title, placeHolderValue);
-}
-
-export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken, title = '', placeHolderValue = 0): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
-	const urlList = await dataTransfer.get('text/uri-list')?.asString();
-
-	if (!urlList || token.isCancellationRequested) {
-		return undefined;
-	}
-
-	return tryGetSnippet(document, urlList, title, placeHolderValue);
-}
-
-async function tryGetSnippet(document: vscode.TextDocument, urlList: String, title = '', placeHolderValue = 0): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
 	const uris: vscode.Uri[] = [];
 	for (const resource of urlList.split(/\r?\n/g)) {
 		try {
@@ -170,7 +153,7 @@ export function createUriListSnippet(
 			if (insertAsMedia) {
 				insertedImageCount++;
 				snippet.appendText('![');
-				const placeholderText = options?.placeholderText ?? (insertAsMedia ? (escapeBrackets(title) || 'Alt text') : 'label');
+				const placeholderText = options?.placeholderText ? (escapeBrackets(title) || 'Alt text') : 'label';
 				const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (placeholderValue === 0 ? undefined : placeholderValue);
 				snippet.appendPlaceholder(placeholderText, placeholderIndex);
 				snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
