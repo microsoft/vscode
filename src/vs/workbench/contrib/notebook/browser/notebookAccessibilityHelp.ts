@@ -18,7 +18,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor): string {
 		localize('notebook.cell.edit', 'The Edit Cell command ({0}) will focus on the cell input.'),
 		localize('notebook.cell.editNoKb', 'The Edit Cell command will focus on the cell input and is currently not triggerable by a keybinding.'), keybindingService));
 	content.push(descriptionForCommand('notebook.cell.quitEdit',
-		localize('notebook.cell.quitEdit', 'The Quit Edit command ({0}) will set focus on the cell container.'), // pressing escape twice may be necessary for screen reader users
+		localize('notebook.cell.quitEdit', 'The Quit Edit command ({0}) will set focus on the cell container. The default (Escape) key may need to be pressed twice first exit the virtual cursor if active.'),
 		localize('notebook.cell.quitEditNoKb', 'The Quit Edit command will set focus on the cell container and is currently not triggerable by a keybinding.'), keybindingService));
 	content.push(descriptionForCommand('notebook.cell.focusInOutput',
 		localize('notebook.cell.focusInOutput', 'The Focus Output command ({0}) will set focus in the cell\'s output.'),
