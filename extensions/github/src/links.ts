@@ -129,7 +129,7 @@ export function encodeURIComponentExceptSlashes(path: string) {
 	return path.split('/').map((segment) => encodeURIComponent(segment)).join('/');
 }
 
-export async function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: string, linkType: 'permalink' | 'headlink' = 'permalink', context?: LinkContext, useRange?: boolean): Promise<string | undefined> {
+export async function getLink(gitAPI: GitAPI, useSelection: boolean, shouldEnsurePublished: boolean, hostPrefix?: string, linkType: 'permalink' | 'headlink' = 'permalink', context?: LinkContext, useRange?: boolean): Promise<string | undefined> {
 	hostPrefix = hostPrefix ?? 'https://github.com';
 	const fileAndPosition = getFileAndPosition(context);
 	if (!fileAndPosition) {
@@ -143,7 +143,9 @@ export async function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?
 		return;
 	}
 
-	await ensurePublished(gitRepo, uri);
+	if (shouldEnsurePublished) {
+		await ensurePublished(gitRepo, uri);
+	}
 
 	let repo: { owner: string; repo: string } | undefined;
 	gitRepo.state.remotes.find(remote => {
