@@ -167,7 +167,7 @@ suite.skip('vscode API - Copy Paste', function () {
 				// Wait for the first provider to finish
 				await providerAFinished;
 
-				// We we access the data transfer here, we should not see changes made by the first provider
+				// We access the data transfer here, we should not see changes made by the first provider
 				const entry = dataTransfer.get(textPlain);
 				const str = await entry!.asString();
 				dataTransfer.set(textPlain, new vscode.DataTransferItem(reverseString(str)));
