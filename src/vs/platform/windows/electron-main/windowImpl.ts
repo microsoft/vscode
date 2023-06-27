@@ -5,9 +5,11 @@
 
 import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event as ElectronEvent, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
 import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
+import { stripComments } from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
@@ -612,6 +614,40 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return this.marketplaceHeadersPromise;
 	}
 
+	private async updateChromiumSandboxEnablement(enable: boolean): Promise<void> {
+
+		// If disable-chromium-sandbox argv is undefined then this is a fresh start.
+		try {
+			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
+			const argvString = argvContent.value.toString();
+			const argvJSON = JSON.parse(stripComments(argvString));
+
+			// Initial startup
+			if (argvJSON['disable-chromium-sandbox'] === undefined) {
+				const additionalArgvContent = [
+					'',
+					'	// Disables the Chromium sandbox.',
+					'	// Should restart the app if the value is changed.',
+					`	"disable-chromium-sandbox": ${!enable},`,
+					'}'
+				];
+				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
+
+				await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
+			}
+
+			// Subsequent startup: update disable-chromium-sandbox value if changed.
+			else {
+				const newArgvString = argvString.replace(/"disable-chromium-sandbox": .*,/, `"disable-chromium-sandbox": ${!enable},`);
+				if (newArgvString !== argvString) {
+					await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
+				}
+			}
+		} catch (error) {
+			this.logService.error(error);
+		}
+	}
+
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
 	private async onWindowError(error: WindowError.PROCESS_GONE, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number }): Promise<void>;
@@ -707,6 +743,23 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					let message: string;
 					if (!details) {
 						message = localize('appGone', "The window terminated unexpectedly");
+					} else if (details.reason === 'launch-failed' && details.exitCode === 18) {
+						// Show Dialog
+						const { response } = await this.dialogMainService.showMessageBox({
+							type: 'warning',
+							buttons: [
+								localize({ key: 'restart', comment: ['&& denotes a mnemonic'] }, "&&Restart")
+							],
+							message: localize('appSandboxError', "Chromium sandbox is unable to create workbench process in your environment"),
+							detail: localize('appSandboxErrorDetail', "We are sorry for the inconvenience. You can restart the application with chromium sandbox disabled to continue where you left off.")
+						}, this._win);
+						if (response === 0) {
+							this.updateChromiumSandboxEnablement(false);
+							this.lifecycleMainService.relaunch();
+						} else {
+							await this.destroyWindow(false, false);
+						}
+						return;
 					} else {
 						message = localize('appGoneDetails', "The window terminated unexpectedly (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
 					}
