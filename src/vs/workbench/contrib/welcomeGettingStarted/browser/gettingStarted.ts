@@ -845,7 +845,7 @@ export class GettingStartedPage extends EditorPane {
 				this.editorInput.selectedCategory = undefined;
 				this.editorInput.selectedStep = undefined;
 			} else {
-				await this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
+				this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
 				this.setSlide('details');
 				return;
 			}
@@ -867,7 +867,7 @@ export class GettingStartedPage extends EditorPane {
 				if (first) {
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
-					await this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
+					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
 					this.setSlide('details');
 					return;
 				}
@@ -1188,7 +1188,7 @@ export class GettingStartedPage extends EditorPane {
 			this.editorInput.selectedCategory = categoryID;
 			this.editorInput.selectedStep = stepId;
 			this.currentWalkthrough = ourCategory;
-			await this.buildCategorySlide(categoryID);
+			this.buildCategorySlide(categoryID);
 			this.setSlide('details');
 		});
 	}
@@ -1343,13 +1343,13 @@ export class GettingStartedPage extends EditorPane {
 		super.clearInput();
 	}
 
-	private async buildCategorySlide(categoryID: string, selectedStep?: string) {
+	private buildCategorySlide(categoryID: string, selectedStep?: string) {
 		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
 
-		await this.extensionService.whenInstalledExtensionsRegistered();
-
-		// Remove internal extension id specifier from exposed id's
-		await this.extensionService.activateByEvent(`onWalkthrough:${categoryID.replace(/[^#]+#/, '')}`);
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			// Remove internal extension id specifier from exposed id's
+			this.extensionService.activateByEvent(`onWalkthrough:${categoryID.replace(/[^#]+#/, '')}`);
+		});
 
 		this.detailsPageDisposables.clear();
 

@@ -36,10 +36,21 @@ bootstrap.enableASARSupport();
 const args = parseCLIArgs();
 // Configure static command line arguments
 const argvConfig = configureCommandlineSwitchesSync(args);
-// Enable sandbox globally unless disabled via `--no-sandbox` argument
-// or if `disable-chromium-sandbox: true` is set in argv.json.
-if (args['sandbox'] && !argvConfig['disable-chromium-sandbox']) {
+// Enable sandbox globally unless
+// 1) disabled via command line using either
+//    `--no-sandbox` or `--disable-chromium-sandbox` argument.
+// 2) argv.json contains `disable-chromium-sandbox: true`.
+if (args['sandbox'] &&
+	!args['disable-chromium-sandbox'] &&
+	!argvConfig['disable-chromium-sandbox']) {
 	app.enableSandbox();
+} else if (app.commandLine.hasSwitch('no-sandbox') &&
+	!app.commandLine.hasSwitch('disable-gpu-sandbox')) {
+	// Disable GPU sandbox whenever --no-sandbox is used.
+	app.commandLine.appendSwitch('disable-gpu-sandbox');
+} else {
+	app.commandLine.appendSwitch('no-sandbox');
+	app.commandLine.appendSwitch('disable-gpu-sandbox');
 }
 
 // Set userData path before app 'ready' event
@@ -192,9 +203,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// override for the color profile to use
 		'force-color-profile',
 
-		// disable chromium sandbox
-		'disable-chromium-sandbox',
-
 		// override which password-store is used
 		'password-store'
 	];
@@ -238,9 +246,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 			else if (argvValue === true || argvValue === 'true') {
 				if (argvKey === 'disable-hardware-acceleration') {
 					app.disableHardwareAcceleration(); // needs to be called explicitly
-				} else if (argvKey === 'disable-chromium-sandbox') {
-					app.commandLine.appendSwitch('no-sandbox');
-					app.commandLine.appendSwitch('disable-gpu-sandbox');
 				} else {
 					app.commandLine.appendSwitch(argvKey);
 				}
@@ -479,6 +484,9 @@ function parseCLIArgs() {
 			'locale',
 			'js-flags',
 			'crash-reporter-directory'
+		],
+		boolean: [
+			'disable-chromium-sandbox',
 		],
 		default: {
 			'sandbox': true

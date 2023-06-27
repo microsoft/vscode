@@ -109,6 +109,7 @@ export interface NativeParsedArgs {
 	'locate-shell-integration-path'?: string;
 	'profile'?: string;
 	'profile-temp'?: boolean;
+	'disable-chromium-sandbox'?: boolean;
 
 	'enable-coi'?: boolean;
 
