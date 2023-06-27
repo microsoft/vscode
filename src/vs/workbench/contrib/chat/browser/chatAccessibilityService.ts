@@ -25,7 +25,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			if (!this._hasReceivedRequest) {
 				this._responsePendingAudioCue = this._audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
 			}
-		}, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS));
+		}, 1000));
 	}
 	acceptRequest(): void {
 		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
