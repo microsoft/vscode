@@ -88,21 +88,21 @@ export const AccessibilityHelpAction = registerCommand(new MultiCommand({
 }));
 
 
-export const AccessibilityViewAction = registerCommand(new MultiCommand({
-	id: 'editor.action.accessibilityView',
+export const AccessibleViewAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibleView',
 	precondition: undefined,
 	kbOpts: {
 		primary: KeyMod.Alt | KeyCode.F2,
 		weight: KeybindingWeight.WorkbenchContrib,
 		linux: {
-			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
-			secondary: [KeyMod.Alt | KeyCode.F1]
+			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F2,
+			secondary: [KeyMod.Alt | KeyCode.F2]
 		}
 	},
 	menuOpts: [{
 		menuId: MenuId.CommandPalette,
 		group: '',
-		title: localize('editor.action.accessibilityView', "Open Accessibility View"),
+		title: localize('editor.action.accessibleView', "Open Accessible View"),
 		order: 1
 	}],
 }));
