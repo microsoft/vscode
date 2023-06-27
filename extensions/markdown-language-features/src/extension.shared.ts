@@ -8,6 +8,7 @@ import { MdLanguageClient } from './client/client';
 import { CommandManager } from './commandManager';
 import { registerMarkdownCommands } from './commands/index';
 import { registerPasteSupport } from './languageFeatures/copyFiles/copyPaste';
+import { registerLinkPasteSupport } from './languageFeatures/copyFiles/copyPasteLinks';
 import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
 import { registerDropIntoEditorSupport } from './languageFeatures/copyFiles/dropIntoEditor';
 import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
@@ -59,6 +60,7 @@ function registerMarkdownLanguageFeatures(
 		registerDropIntoEditorSupport(selector),
 		registerFindFileReferenceSupport(commandManager, client),
 		registerPasteSupport(selector),
+		registerLinkPasteSupport(selector),
 		registerUpdateLinksOnRename(client),
 	);
 }

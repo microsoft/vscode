@@ -30,7 +30,11 @@ class MarkdownImageDropProvider implements vscode.DocumentDropEditProvider {
 	}
 
 	private async _getUriListEdit(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentDropEdit | undefined> {
-		const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
+		const urlList = await dataTransfer.get('text/uri-list')?.asString();
+		if (!urlList) {
+			return undefined;
+		}
+		const snippet = await tryGetUriListSnippet(document, urlList, token);
 		if (!snippet) {
 			return undefined;
 		}
