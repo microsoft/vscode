@@ -244,10 +244,6 @@ const PyModulesToLookFor = [
 	'playwright'
 ];
 
-const GoMetaModulesToLookFor = [
-	'github.com/Azure/azure-sdk-for-go/sdk/'
-];
-
 const GoModulesToLookFor = [
 	'github.com/Azure/azure-sdk-for-go/sdk/storage/azblob',
 	'github.com/Azure/azure-sdk-for-go/sdk/storage/azfile',
@@ -799,40 +795,32 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			});
 
 			const goModPromises = getFilePromises('go.mod', this.fileService, this.textFileService, content => {
-				// TODO: Richard to write the code for parsing the go.mod file
-				// look for everything in require() and get the string value only discard version
-				const lines: string[] = splitLines(content.value);
-				let firstRequireBlockFound: boolean = false;
-
-				for (let i = 0; i < lines.length; i++) {
-					const line: string = lines[i].trim();
-
-					if (line.startsWith('require (')) {
-					if (!firstRequireBlockFound) {
-						firstRequireBlockFound = true;
-						continue;
-					} else {
-						break;
-					}
-					}
-
-					if (line.startsWith(')')) {
-						break;
-					}
-
-					if (firstRequireBlockFound && line !== '') {
-					const packageName: string = line.split(' ')[0].trim();
-						// copied from line 728 function addPythonTags
-						if (GoModulesToLookFor.indexOf(packageName) > -1) {
-							tags['workspace.go.mod' + packageName] = true;
+				try {
+					const lines: string[] = splitLines(content.value);
+					let firstRequireBlockFound: boolean = false;
+					for (let i = 0; i < lines.length; i++) {
+						const line: string = lines[i].trim();
+						if (line.startsWith('require (')) {
+							if (!firstRequireBlockFound) {
+								firstRequireBlockFound = true;
+								continue;
+							} else {
+								break;
+							}
 						}
-						// not sure if we should keep this
-						for (const metaModule of GoMetaModulesToLookFor) {
-							if (packageName.startsWith(metaModule)) {
-								tags['workspace.go.mod' + metaModule] = true;
+						if (line.startsWith(')')) {
+							break;
+						}
+						if (firstRequireBlockFound && line !== '') {
+							const packageName: string = line.split(' ')[0].trim();
+							if (GoModulesToLookFor.indexOf(packageName) > -1) {
+								tags['workspace.go.mod' + packageName] = true;
 							}
 						}
 					}
+				}
+				catch (e) {
+					// Ignore errors when resolving file or parsing file contents
 				}
 			});
 
