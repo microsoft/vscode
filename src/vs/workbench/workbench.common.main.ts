@@ -325,9 +325,6 @@ import 'vs/workbench/contrib/languageDetection/browser/languageDetection.contrib
 // Language Status
 import 'vs/workbench/contrib/languageStatus/browser/languageStatus.contribution';
 
-// Experiments
-import 'vs/workbench/contrib/experiments/browser/experiments.contribution';
-
 // Send a Smile
 import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 

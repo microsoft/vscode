@@ -36,8 +36,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService, Severity, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-sandbox/experimentService.test';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
@@ -198,7 +196,6 @@ suite('ExtensionRecommendationsService Test', () => {
 	let prompted: boolean;
 	const promptedEmitter = new Emitter<void>();
 	let onModelAddedEvent: Emitter<ITextModel>;
-	let experimentService: TestExperimentService;
 
 	suiteSetup(() => {
 		instantiationService = new TestInstantiationService();
@@ -283,16 +280,10 @@ suite('ExtensionRecommendationsService Test', () => {
 			},
 		});
 
-		experimentService = instantiationService.createInstance(TestExperimentService);
-		instantiationService.stub(IExperimentService, experimentService);
 		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(TestExtensionTipsService));
 
 		onModelAddedEvent = new Emitter<ITextModel>();
-	});
-
-	suiteTeardown(() => {
-		experimentService?.dispose();
 	});
 
 	setup(() => {
