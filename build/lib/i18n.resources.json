@@ -75,6 +75,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/assignment",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/extensions",
 			"project": "vscode-workbench"
 		},
