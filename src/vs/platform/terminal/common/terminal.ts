@@ -680,6 +680,7 @@ export interface ITerminalChildProcess {
 
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessReady: Event<IProcessReadyEvent>;
+	onProcessReplayComplete?: Event<void>;
 	onDidChangeProperty: Event<IProcessProperty<any>>;
 	onProcessExit: Event<number | undefined>;
 	onRestoreCommands?: Event<ISerializedCommandDetectionCapability>;

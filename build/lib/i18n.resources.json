@@ -525,6 +525,10 @@
 		{
 			"name": "vs/workbench/services/issue",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/secrets",
+			"project": "vscode-workbench"
 		}
 	]
 }

@@ -126,11 +126,11 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		});
 		this._register(keepAlive(this._sash, true));
 
-		this._register(autorunWithStore2('unchangedRangesFeature', (reader, store) => {
+		this._register(autorunWithStore2('UnchangedRangesFeature', (reader, store) => {
 			this.unchangedRangesFeature = store.add(new (readHotReloadableExport(UnchangedRangesFeature, reader))(this._editors, this._diffModel, this._options));
 		}));
 
-		this._register(autorunWithStore2('decorations', (reader, store) => {
+		this._register(autorunWithStore2('DiffEditorDecorations', (reader, store) => {
 			store.add(new (readHotReloadableExport(DiffEditorDecorations, reader))(this._editors, this._diffModel, this._options));
 		}));
 
@@ -143,16 +143,16 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			() => this.unchangedRangesFeature.isUpdatingViewZones,
 		));
 
-		this._register(this._instantiationService.createInstance(
-			OverviewRulerPart,
-			this._editors,
-			this.elements.root,
-			this._diffModel,
-			this._rootSizeObserver.width,
-			this._rootSizeObserver.height,
-			this._layoutInfo.map(i => i.modifiedEditor),
-			this._options,
-		));
+		this._register(autorunWithStore2('OverviewRulerPart', (reader, store) => {
+			store.add(this._instantiationService.createInstance(readHotReloadableExport(OverviewRulerPart, reader), this._editors,
+				this.elements.root,
+				this._diffModel,
+				this._rootSizeObserver.width,
+				this._rootSizeObserver.height,
+				this._layoutInfo.map(i => i.modifiedEditor),
+				this._options,
+			));
+		}));
 
 		this._reviewPane = this._register(this._instantiationService.createInstance(DiffReview2, this));
 		this.elements.root.appendChild(this._reviewPane.domNode.domNode);

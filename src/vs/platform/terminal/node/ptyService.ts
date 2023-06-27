@@ -204,36 +204,42 @@ export class PtyService extends Disposable implements IPtyService {
 
 	@traceRpc
 	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocale: string) {
+		const promises: Promise<void>[] = [];
 		for (const terminal of state) {
-			const restoreMessage = localize('terminal-history-restored', "History restored");
-			// TODO: We may at some point want to show date information in a hover via a custom sequence:
-			//   new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocale)
-			//   new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocale)
-			const newId = await this.createProcess(
-				{
-					...terminal.shellLaunchConfig,
-					cwd: terminal.processDetails.cwd,
-					color: terminal.processDetails.color,
-					icon: terminal.processDetails.icon,
-					name: terminal.processDetails.titleSource === TitleEventSource.Api ? terminal.processDetails.title : undefined,
-					initialText: terminal.replayEvent.events[0].data + formatMessageForTerminal(restoreMessage, { loudFormatting: true })
-				},
-				terminal.processDetails.cwd,
-				terminal.replayEvent.events[0].cols,
-				terminal.replayEvent.events[0].rows,
-				terminal.unicodeVersion,
-				terminal.processLaunchConfig.env,
-				terminal.processLaunchConfig.executableEnv,
-				terminal.processLaunchConfig.options,
-				true,
-				terminal.processDetails.workspaceId,
-				terminal.processDetails.workspaceName,
-				true,
-				terminal.replayEvent.events[0].data
-			);
-			// Don't start the process here as there's no terminal to answer CPR
-			this._revivedPtyIdMap.set(terminal.id, { newId, state: terminal });
+			promises.push(this._reviveTerminalProcess(terminal));
 		}
+		await Promise.all(promises);
+	}
+
+	private async _reviveTerminalProcess(terminal: ISerializedTerminalState): Promise<void> {
+		const restoreMessage = localize('terminal-history-restored', "History restored");
+		// TODO: We may at some point want to show date information in a hover via a custom sequence:
+		//   new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocale)
+		//   new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocale)
+		const newId = await this.createProcess(
+			{
+				...terminal.shellLaunchConfig,
+				cwd: terminal.processDetails.cwd,
+				color: terminal.processDetails.color,
+				icon: terminal.processDetails.icon,
+				name: terminal.processDetails.titleSource === TitleEventSource.Api ? terminal.processDetails.title : undefined,
+				initialText: terminal.replayEvent.events[0].data + formatMessageForTerminal(restoreMessage, { loudFormatting: true })
+			},
+			terminal.processDetails.cwd,
+			terminal.replayEvent.events[0].cols,
+			terminal.replayEvent.events[0].rows,
+			terminal.unicodeVersion,
+			terminal.processLaunchConfig.env,
+			terminal.processLaunchConfig.executableEnv,
+			terminal.processLaunchConfig.options,
+			true,
+			terminal.processDetails.workspaceId,
+			terminal.processDetails.workspaceName,
+			true,
+			terminal.replayEvent.events[0].data
+		);
+		// Don't start the process here as there's no terminal to answer CPR
+		this._revivedPtyIdMap.set(terminal.id, { newId, state: terminal });
 	}
 
 	@traceRpc
@@ -506,7 +512,6 @@ export class PtyService extends Disposable implements IPtyService {
 		if (layout) {
 			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
 			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
-			this._logService.trace('PtyService.getTerminalLayoutInfo result', tabs);
 			performance.mark('code/didGetTerminalLayoutInfo');
 			return { tabs };
 		}
@@ -742,11 +747,6 @@ class PersistentTerminalProcess extends Disposable {
 	}
 
 	async attach(): Promise<void> {
-		// Something wrong happened if the disconnect runner is not canceled, this likely means
-		// multiple windows attempted to attach.
-		if (!await this._isOrphaned()) {
-			throw new Error(`Cannot attach to persistent process "${this._persistentProcessId}", it is already adopted`);
-		}
 		if (!this._disconnectRunner1.isScheduled() && !this._disconnectRunner2.isScheduled()) {
 			this._logService.warn(`Persistent process "${this._persistentProcessId}": Process had no disconnect runners but was an orphan`);
 		}

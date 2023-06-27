@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { observableValue } from 'vs/base/common/observable';
 import { URI } from 'vs/base/common/uri';
+import { LineRange } from 'vs/editor/common/core/lineRange';
 import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import { IModelChangedEvent, MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { TokenizerWithStateStore } from 'vs/editor/common/model/textModelTokens';
-import { diffStateStacksRefEq, StateStack, StackDiff } from 'vscode-textmate';
 import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { TextMateTokenizationSupport } from 'vs/workbench/services/textMate/browser/tokenizationSupport/textMateTokenizationSupport';
-import { StateDeltas } from 'vs/workbench/services/textMate/browser/workerHost/textMateWorkerHost';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { TextMateTokenizationWorker } from './textMate.worker';
-import { observableValue } from 'vs/base/common/observable';
 import { TokenizationSupportWithLineLimit } from 'vs/workbench/services/textMate/browser/tokenizationSupport/tokenizationSupportWithLineLimit';
-import { LineRange } from 'vs/editor/common/core/lineRange';
+import { StateDeltas } from 'vs/workbench/services/textMate/browser/workerHost/textMateWorkerHost';
+import { StackDiff, StateStack, diffStateStacksRefEq } from 'vscode-textmate';
+import { TextMateTokenizationWorker } from './textMate.worker';
 
 export class TextMateWorkerModel extends MirrorTextModel {
 	private _tokenizationStateStore: TokenizerWithStateStore<StateStack> | null = null;
@@ -95,7 +95,8 @@ export class TextMateWorkerModel extends MirrorTextModel {
 			if (r.grammar) {
 				const tokenizationSupport = new TokenizationSupportWithLineLimit(
 					this._encodedLanguageId,
-					new TextMateTokenizationSupport(r.grammar, r.initialState, false),
+					new TextMateTokenizationSupport(r.grammar, r.initialState, false, undefined, undefined,
+						(timeMs, lineLength) => { this._worker.reportTokenizationTime(timeMs, languageId, r.sourceExtensionId, lineLength); }),
 					this._maxTokenizationLineLength
 				);
 				this._tokenizationStateStore = new TokenizerWithStateStore(this._lines.length, tokenizationSupport);

@@ -15,7 +15,6 @@ import 'vs/css!./media/notebookCellOutput';
 import { PixelRatio } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { DeferredPromise, runWhenIdle, SequencerByKey } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -91,7 +90,6 @@ import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/no
 import { Schemas } from 'vs/base/common/network';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 const $ = DOM.$;
 
@@ -2239,28 +2237,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return undefined;
 	}
 
-	private _cellFocusAria(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
-		const index = this._notebookViewModel?.getCellIndex(cell);
-		const verboseLabel = this.configurationService.getValue(AccessibilityVerbositySettingId.Notebook);
-		if (index !== undefined && index >= 0) {
-			let position = '';
-			switch (focusItem) {
-				case 'editor':
-					position = `the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor is focused` + (verboseLabel ? `, press escape to focus the cell container` : '');
-					break;
-				case 'output':
-					position = `the cell output is focused` + (verboseLabel ? `, press escape to focus the cell container` : '');
-					break;
-				case 'container':
-					position = `the ${cell.cellKind === CellKind.Markup ? 'markdown preview' : 'cell container'} is focused` + (verboseLabel ? `, press enter to focus the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor` : '');
-					break;
-				default:
-					break;
-			}
-			aria.alert(`Cell ${this._notebookViewModel?.getCellIndex(cell)}, ${position} `);
-		}
-	}
-
 	private _toggleNotebookCellSelection(selectedCell: ICellViewModel, selectFromPrevious: boolean): void {
 		const currentSelections = this._list.getSelectedElements();
 		const isSelected = currentSelections.includes(selectedCell);
@@ -2300,7 +2276,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		if (focusItem === 'editor') {
 			this.focusElement(cell);
-			this._cellFocusAria(cell, focusItem);
 			this._list.focusView();
 
 			cell.updateEditState(CellEditState.Editing, 'focusNotebookCell');
@@ -2330,7 +2305,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		} else if (focusItem === 'output') {
 			this.focusElement(cell);
-			this._cellFocusAria(cell, focusItem);
 
 			if (!this.hasEditorFocus()) {
 				this._list.focusView();
@@ -2359,7 +2333,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			cell.focusMode = CellFocusMode.Container;
 
 			this.focusElement(cell);
-			this._cellFocusAria(cell, focusItem);
 			if (!options?.skipReveal) {
 				if (typeof options?.focusEditorLine === 'number') {
 					this._cursorNavMode.set(true);

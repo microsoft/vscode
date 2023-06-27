@@ -84,12 +84,18 @@ interface LinkFormatInfo {
 }
 
 const supportedLinkFormats: LinkFormatInfo[] = [
+	// 5: file content...                         [#181837]
+	//   5:3  error                               [#181837]
 	{ urlFormat: '{0}\r\n{1}:foo', line: '5' },
 	{ urlFormat: '{0}\r\n{1}: foo', line: '5' },
 	{ urlFormat: '{0}\r\n5:another link\r\n{1}:{2} foo', line: '5', column: '3' },
 	{ urlFormat: '{0}\r\n  {1}:{2} foo', line: '5', column: '3' },
 	{ urlFormat: '{0}\r\n  5:6  error  another one\r\n  {1}:{2}  error', line: '5', column: '3' },
 	{ urlFormat: `{0}\r\n  5:6  error  ${'a'.repeat(80)}\r\n  {1}:{2}  error`, line: '5', column: '3' },
+
+	// @@ ... <to-file-range> @@ content...       [#182878]   (tests check the entire line, so they don't include the line content at the end of the last @@)
+	{ urlFormat: '+++ b/{0}\r\n@@ -7,6 +{1},7 @@', line: '5' },
+	{ urlFormat: '+++ b/{0}\r\n@@ -1,1 +1,1 @@\r\nfoo\r\nbar\r\n@@ -7,6 +{1},7 @@', line: '5' },
 ];
 
 suite('Workbench - TerminalMultiLineLinkDetector', () => {

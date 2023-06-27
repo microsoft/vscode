@@ -35,6 +35,9 @@ export interface IEditSessionsStorageService {
 
 	storeClient: EditSessionsStoreClient | undefined;
 
+	lastReadResources: Map<SyncResource, { ref: string; content: string }>;
+	lastWrittenResources: Map<SyncResource, { ref: string; content: string }>;
+
 	initialize(silent?: boolean): Promise<boolean>;
 	read(resource: SyncResource, ref: string | undefined): Promise<{ ref: string; content: string } | undefined>;
 	write(resource: SyncResource, content: string | EditSession): Promise<string>;
@@ -82,6 +85,7 @@ export const EditSessionSchemaVersion = 3;
 
 export interface EditSession {
 	version: number;
+	workspaceStateId?: string;
 	machine?: string;
 	folders: Folder[];
 }

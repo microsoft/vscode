@@ -234,6 +234,7 @@ export class TabsTitleControl extends TitleControl {
 
 		const options = this.accessor.partOptions;
 		if (options.tabSizing === 'fixed') {
+			tabsContainer.style.setProperty('--tab-sizing-fixed-min-width', `${options.tabSizingFixedMinWidth}px`);
 			tabsContainer.style.setProperty('--tab-sizing-fixed-max-width', `${options.tabSizingFixedMaxWidth}px`);
 
 			// For https://github.com/microsoft/vscode/issues/40290 we want to
@@ -249,6 +250,7 @@ export class TabsTitleControl extends TitleControl {
 				this.updateTabsFixedWidth(false);
 			}));
 		} else if (fromEvent) {
+			tabsContainer.style.removeProperty('--tab-sizing-fixed-min-width');
 			tabsContainer.style.removeProperty('--tab-sizing-fixed-max-width');
 			this.updateTabsFixedWidth(false);
 		}
@@ -721,6 +723,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Update tabs sizing
 		if (
+			oldOptions.tabSizingFixedMinWidth !== newOptions.tabSizingFixedMinWidth ||
 			oldOptions.tabSizingFixedMaxWidth !== newOptions.tabSizingFixedMaxWidth ||
 			oldOptions.tabSizing !== newOptions.tabSizing
 		) {
@@ -956,7 +959,9 @@ export class TabsTitleControl extends TitleControl {
 
 				const editor = this.group.getEditorByIndex(index);
 				if (editor && this.group.isPinned(editor)) {
-					this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, this.group);
+					if (this.accessor.partOptions.doubleClickTabToToggleEditorGroupSizes) {
+						this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, this.group);
+					}
 				} else {
 					this.group.pinEditor(editor);
 				}

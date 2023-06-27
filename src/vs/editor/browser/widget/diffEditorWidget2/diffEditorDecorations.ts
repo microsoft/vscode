@@ -61,8 +61,13 @@ export class DiffEditorDecorations extends Disposable {
 					continue;
 				}
 
-				originalDecorations.push({ range: i.originalRange, options: (i.originalRange.isEmpty() && showEmptyDecorations) ? diffDeleteDecorationEmpty : diffDeleteDecoration });
-				modifiedDecorations.push({ range: i.modifiedRange, options: (i.modifiedRange.isEmpty() && showEmptyDecorations) ? diffAddDecorationEmpty : diffAddDecoration });
+				// Don't show empty markers outside the line range
+				if (m.lineRangeMapping.originalRange.contains(i.originalRange.startLineNumber)) {
+					originalDecorations.push({ range: i.originalRange, options: (i.originalRange.isEmpty() && showEmptyDecorations) ? diffDeleteDecorationEmpty : diffDeleteDecoration });
+				}
+				if (m.lineRangeMapping.modifiedRange.contains(i.modifiedRange.startLineNumber)) {
+					modifiedDecorations.push({ range: i.modifiedRange, options: (i.modifiedRange.isEmpty() && showEmptyDecorations) ? diffAddDecorationEmpty : diffAddDecoration });
+				}
 			}
 
 			if (!m.lineRangeMapping.modifiedRange.isEmpty && this._options.shouldRenderRevertArrows.read(reader) && !currentMove) {

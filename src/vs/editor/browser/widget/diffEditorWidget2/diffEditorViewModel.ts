@@ -293,7 +293,7 @@ export class UnchangedRegion {
 					length -= minContext;
 				}
 				result.push(new UnchangedRegion(origStart, modStart, length, 0, 0));
-			} else if (origStart + length === originalLineCount + 1 && length > minContext + minHiddenLineCount) {
+			} else if (origStart + length === originalLineCount + 1 && modStart + length === modifiedLineCount + 1 && length > minContext + minHiddenLineCount) {
 				origStart += minContext;
 				modStart += minContext;
 				length -= minContext;
