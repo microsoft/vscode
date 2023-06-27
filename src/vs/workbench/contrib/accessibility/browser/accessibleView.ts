@@ -126,7 +126,7 @@ class AccessibleView extends Disposable {
 			this._register(this._editorWidget.onKeyUp((e) => {
 				if (e.keyCode === KeyCode.Escape) {
 					this._contextViewService.hideContextView();
-				} else if (e.keyCode === KeyCode.KeyD) {
+				} else if (e.keyCode === KeyCode.KeyD && this._configurationService.getValue(settingKey)) {
 					this._configurationService.updateValue(settingKey, false);
 				} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
 					const url: string = provider.options.readMoreUrl!;
