@@ -32,6 +32,8 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
 import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
+import { ISCMHistoryService } from 'vs/workbench/contrib/scm/common/history';
+import { SCMHistoryService } from 'vs/workbench/contrib/scm/common/historyService';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -404,5 +406,6 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 });
 
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
+registerSingleton(ISCMHistoryService, SCMHistoryService, InstantiationType.Delayed);
 registerSingleton(ISCMViewService, SCMViewService, InstantiationType.Delayed);
 registerSingleton(IQuickDiffService, QuickDiffService, InstantiationType.Delayed);

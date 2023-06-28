@@ -49,12 +49,44 @@ export interface ISCMResourceGroup extends ISequence<ISCMResource> {
 	readonly onDidChange: Event<void>;
 }
 
+export interface ISCMHistory extends ISequence<ISCMHistoryItem> {
+	readonly provider: ISCMProvider;
+	readonly id: string;
+	readonly label: string;
+	readonly onDidChange: Event<void>;
+}
+
+export interface ISCMHistoryChangeEvent {
+	readonly ref1: string;
+	readonly ref2: string;
+	readonly reset?: boolean;
+}
+
+export interface ISCMHistoryItem extends ISequence<ISCMHistoryItemChange> {
+	readonly history: ISCMHistory;
+	readonly id: string;
+	readonly parentIds: string[];
+	readonly label: string;
+	readonly description?: string;
+	readonly icon?: ThemeIcon;
+	readonly timestamp?: number;
+}
+
+export interface ISCMHistoryItemChange {
+	readonly historyItem: ISCMHistoryItem;
+	readonly uri: URI;
+	readonly originalUri: URI;
+	readonly renameUri: URI | undefined;
+	readonly command: Command | undefined;
+}
+
 export interface ISCMProvider extends IDisposable {
 	readonly label: string;
 	readonly id: string;
 	readonly contextValue: string;
 
 	readonly groups: ISequence<ISCMResourceGroup>;
+	readonly histories: ISequence<ISCMHistory>;
 
 	// TODO@Joao: remove
 	readonly onDidChangeResources: Event<void>;

@@ -1017,9 +1017,21 @@ export class Repository {
 
 	async log(options?: LogOptions): Promise<Commit[]> {
 		const maxEntries = options?.maxEntries ?? 32;
-		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--'];
+		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z'];
 		if (options?.path) {
-			args.push(options.path);
+			args.push('--', options.path);
+		}
+
+		if (options?.reverse) {
+			args.push('--reverse', '--ancestry-path');
+		}
+
+		if (options?.sortByAuthorDate) {
+			args.push('--author-date-order');
+		}
+
+		if (options?.range) {
+			args.push(options.range);
 		}
 
 		const result = await this.exec(args);
@@ -1244,7 +1256,7 @@ export class Repository {
 
 	diffIndexWithHEAD(): Promise<Change[]>;
 	diffIndexWithHEAD(path: string): Promise<string>;
-	diffIndexWithHEAD(path?: string | undefined): Promise<string | Change[]>;
+	diffIndexWithHEAD(path?: string | undefined): Promise<Change[]>;
 	async diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
 		if (!path) {
 			return await this.diffFiles(true);
@@ -1287,6 +1299,11 @@ export class Repository {
 		const result = await this.exec(args);
 
 		return result.stdout.trim();
+	}
+
+	async diffBetweenShortStat(ref1: string, ref2: string): Promise<string> {
+		const range = `${ref1}...${ref2}`;
+		return await this.diffFilesShortStat(false, range);
 	}
 
 	private async diffFiles(cached: boolean, ref?: string): Promise<Change[]> {
@@ -1368,6 +1385,25 @@ export class Repository {
 		}
 
 		return result;
+	}
+
+	private async diffFilesShortStat(cached: boolean, ref?: string): Promise<string> {
+		const args = ['diff', '--shortstat'];
+
+		if (cached) {
+			args.push('--cached');
+		}
+
+		if (ref) {
+			args.push(ref);
+		}
+
+		const gitResult = await this.exec(args);
+		if (gitResult.exitCode) {
+			return '';
+		}
+
+		return gitResult.stdout.trim();
 	}
 
 	async getMergeBase(ref1: string, ref2: string): Promise<string> {

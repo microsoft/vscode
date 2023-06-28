@@ -110,12 +110,30 @@
 	line-height: 22px;
 }
 
+.scm-view .monaco-list-row .history,
 .scm-view .monaco-list-row .resource-group {
 	display: flex;
 	height: 100%;
 	align-items: center;
 }
 
+.scm-view .monaco-list-row .history-item .monaco-icon-label {
+	align-items: center;
+}
+
+.scm-view .monaco-list-row .history-item .monaco-icon-label .icon-container {
+	display: flex;
+	font-size: 14px;
+	padding-right: 4px;
+}
+
+.scm-view .monaco-list-row .history-item .monaco-icon-label .avatar {
+	width: 14px;
+	height: 14px;
+	border-radius: 14px;
+}
+
+.scm-view .monaco-list-row .history > .name,
 .scm-view .monaco-list-row .resource-group > .name {
 	flex: 1;
 	overflow: hidden;

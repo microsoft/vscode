@@ -56,7 +56,7 @@ import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCo
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMHistoryChangeEvent, InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
 import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
@@ -1301,10 +1301,12 @@ export interface MainThreadExtensionServiceShape extends IDisposable {
 }
 
 export interface SCMProviderFeatures {
+	hasHistoryProvider?: boolean;
 	hasQuickDiffProvider?: boolean;
 	quickDiffLabel?: string;
 	count?: number;
 	commitTemplate?: string;
+	historyItemGroup?: any;
 	acceptInputCommand?: languages.Command;
 	actionButton?: SCMActionButtonDto | null;
 	statusBarCommands?: ICommandDto[];
@@ -1343,6 +1345,23 @@ export type SCMRawResourceSplices = [
 	SCMRawResourceSplice[]
 ];
 
+export type SCMRawHistoryItem = [
+	string /* id */,
+	string[] /* parentIds */,
+	string /* label */,
+	string | undefined /* description */,
+	ThemeIcon | undefined /* icon */,
+	number | undefined /* timestamp */,
+	SCMRawHistoryItemChange[] /* changes */
+];
+
+export type SCMRawHistoryItemChange = [
+	UriComponents /* uri */,
+	UriComponents /* originalUri */,
+	UriComponents | undefined /* renameUri */,
+	ICommandDto | undefined /* command */
+];
+
 export interface MainThreadSCMShape extends IDisposable {
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): void;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void;
@@ -1354,6 +1373,10 @@ export interface MainThreadSCMShape extends IDisposable {
 	$unregisterGroup(sourceControlHandle: number, handle: number): void;
 
 	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void;
+
+	$registerHistory(sourceControlHandle: number, handle: number, id: string, label: string): void;
+	$unregisterHistory(sourceControlHandle: number, handle: number): void;
+	$onDidChangeHistory(sourceControlHandle: number, handle: number, e: ISCMHistoryChangeEvent): void;
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
@@ -2030,6 +2053,7 @@ export interface ExtHostSCMShape {
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number, preserveFocus: boolean): Promise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string | IMarkdownString, number] | undefined>;
 	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void>;
+	$provideHistory(sourceControlHandle: number, historyHandle: number, ref1: string, ref2: string, token: CancellationToken): Promise<SCMRawHistoryItem[]>;
 }
 
 export interface ExtHostQuickDiffShape {

@@ -23,6 +23,7 @@ import { ActionButtonCommand } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
+import { GitHistoryProvider } from './historyProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -820,8 +821,13 @@ export class Repository implements Disposable {
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 
-		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
+
+		const historyProvider = new GitHistoryProvider(this);
+		this._sourceControl.historyProvider = historyProvider;
+		this.disposables.push(historyProvider);
+
+		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
 		this.disposables.push(this._sourceControl);
 
@@ -1100,6 +1106,10 @@ export class Repository implements Disposable {
 	diffBetween(ref1: string, ref2: string, path?: string | undefined): Promise<string | Change[]>;
 	diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
 		return this.run(Operation.Diff, () => this.repository.diffBetween(ref1, ref2, path));
+	}
+
+	diffBetweenShortStat(ref1: string, ref2: string): Promise<string> {
+		return this.run(Operation.Diff, () => this.repository.diffBetweenShortStat(ref1, ref2));
 	}
 
 	getMergeBase(ref1: string, ref2: string): Promise<string> {
@@ -2040,6 +2050,11 @@ export class Repository implements Disposable {
 			this._submodules = submodules!;
 			this.rebaseCommit = rebaseCommit;
 			this.mergeInProgress = mergeInProgress;
+
+			this._sourceControl.historyItemGroup = HEAD ? {
+				id: HEAD.commit!,
+				label: HEAD.name!,
+			} : undefined;
 
 			this._sourceControl.commitTemplate = commitTemplate;
 

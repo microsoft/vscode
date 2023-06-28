@@ -129,6 +129,9 @@ export interface LogOptions {
 	/** Max number of log entries to retrieve. If not specified, the default is 32. */
 	readonly maxEntries?: number;
 	readonly path?: string;
+	readonly range?: string;
+	readonly reverse?: boolean;
+	readonly sortByAuthorDate?: boolean;
 }
 
 export interface CommitOptions {
