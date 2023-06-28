@@ -219,7 +219,11 @@ export class BreadcrumbsControl {
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
-		this._widget.onDidRightClick(this._onRightClickEvent, this, this._disposables);
+		this._disposables.add(
+			dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => this._onRightClickEvent(e))
+		);
+		this._disposables.add(Gesture.addTarget(this.domNode));
+		this._disposables.add(dom.addDisposableListener(this.domNode, TouchEventType.Contextmenu, e => this._onRightClickEvent(e)));
 
 		this._ckBreadcrumbsPossible = BreadcrumbsControl.CK_BreadcrumbsPossible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
