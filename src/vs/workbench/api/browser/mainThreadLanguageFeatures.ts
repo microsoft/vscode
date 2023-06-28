@@ -847,7 +847,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			__electricCharacterSupport: undefined
 		};
 
-		if (_configuration.__characterPairSupport) {
+		if (_configuration.autoClosingPairs) {
+			configuration.autoClosingPairs = _configuration.autoClosingPairs;
+		} else if (_configuration.__characterPairSupport) {
 			// backwards compatibility
 			configuration.autoClosingPairs = _configuration.__characterPairSupport.autoClosingPairs;
 		}
