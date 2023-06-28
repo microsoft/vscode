@@ -638,8 +638,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		return markdownTooltip;
 	}
 
-	private async installAndRunStartCommand(metadata: RemoteExtensionMetadata) {
-		const extensionId = metadata.id;
+	private async installExtension(extensionId: string) {
 		const galleryExtension = (await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 
 		await this.extensionManagementService.installFromGallery(galleryExtension, {
@@ -647,16 +646,20 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			donotIncludePackAndDependencies: false,
 			context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true }
 		});
+	}
 
+	private async runRemoteStartCommand(extensionId: string, startCommand: string) {
+
+		// check to ensure the extension is installed
 		await retry(async () => {
-			const ext = await this.extensionService.getExtension(metadata.id);
+			const ext = await this.extensionService.getExtension(extensionId);
 			if (!ext) {
 				throw Error('Failed to find installed remote extension');
 			}
 			return ext;
 		}, 300, 10);
-		this.commandService.executeCommand(metadata.startCommand);
 
+		this.commandService.executeCommand(startCommand);
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
 			id: 'remoteInstallAndRun',
 			detail: extensionId,
@@ -801,7 +804,10 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					quickPick.items = [];
 					quickPick.busy = true;
 					quickPick.placeholder = nls.localize('remote.startActions.installingExtension', 'Installing extension... ');
-					await this.installAndRunStartCommand(remoteExtension);
+
+					await this.installExtension(remoteExtension.id);
+					quickPick.hide();
+					await this.runRemoteStartCommand(remoteExtension.id, remoteExtension.startCommand);
 				}
 				else {
 					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
@@ -809,8 +815,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						from: 'remote indicator'
 					});
 					this.commandService.executeCommand(commandId);
+					quickPick.hide();
 				}
-				quickPick.hide();
 			}
 		}));
 
