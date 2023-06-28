@@ -53,6 +53,7 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 			type: 'ptyHost',
 			entryPoint: 'vs/platform/terminal/node/ptyHostMain',
 			execArgv,
+			args: ['--logsPath', this._environmentMainService.logsHome.fsPath],
 			env: this._createPtyHostConfiguration(lastPtyId)
 		});
 
