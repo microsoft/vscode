@@ -118,6 +118,8 @@ variables:
     value: ${{ eq(parameters.VSCODE_PUBLISH_TO_MOONCAKE, true) }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
+  - name: VSCODE_7PM_BUILD
+    value: ${{ in(variables['Build.Reason'], 'BuildCompletion', 'ResourceTrigger') }}
   - name: VSCODE_STEP_ON_IT
     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
   - name: VSCODE_BUILD_MACOS_UNIVERSAL
@@ -154,6 +156,10 @@ resources:
     - container: snapcraft
       image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
       endpoint: VSCodeHub
+  pipelines:
+    - pipeline: vscode-7pm-kick-off
+      source: 'VS Code 7PM Kick-Off'
+      trigger: true
 
 stages:
   - stage: Compile

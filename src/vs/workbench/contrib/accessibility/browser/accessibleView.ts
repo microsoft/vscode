@@ -96,10 +96,6 @@ class AccessibleView extends Disposable {
 			getAnchor: () => this._editorContainer,
 			render: (container) => {
 				return this._render(provider, container);
-			},
-			onHide: () => {
-				provider.onClose();
-				this._keyListener?.dispose();
 			}
 		};
 		this._contextViewService.showContextView(delegate);
@@ -128,6 +124,9 @@ class AccessibleView extends Disposable {
 			this._keyListener = this._register(this._editorWidget.onKeyUp((e) => {
 				if (e.keyCode === KeyCode.Escape) {
 					this._contextViewService.hideContextView();
+					// Delay to allow the context view to hide #186514
+					setTimeout(() => provider.onClose(), 100);
+					this._keyListener?.dispose();
 				} else if (e.keyCode === KeyCode.KeyD && this._configurationService.getValue(settingKey)) {
 					this._configurationService.updateValue(settingKey, false);
 				} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
@@ -143,7 +142,7 @@ class AccessibleView extends Disposable {
 			this._editorWidget.updateOptions({ ariaLabel: provider.options.ariaLabel });
 			this._editorWidget.focus();
 		});
-		return toDisposable(() => provider.onClose());
+		return toDisposable(() => { });
 	}
 
 	private _layout(): void {

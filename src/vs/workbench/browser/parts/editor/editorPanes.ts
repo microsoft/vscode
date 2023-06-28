@@ -448,8 +448,8 @@ export class EditorPanes extends Disposable {
 		// Indicate to editor pane before removing the editor from
 		// the DOM to give a chance to persist certain state that
 		// might depend on still being the active DOM element.
-		this._activeEditorPane.clearInput();
-		this._activeEditorPane.setVisible(false, this.groupView);
+		this.safeRun(() => this._activeEditorPane?.clearInput());
+		this.safeRun(() => this._activeEditorPane?.setVisible(false, this.groupView));
 
 		// Remove editor pane from parent
 		const editorPaneContainer = this._activeEditorPane.getContainer();
@@ -469,17 +469,32 @@ export class EditorPanes extends Disposable {
 	}
 
 	setVisible(visible: boolean): void {
-		this._activeEditorPane?.setVisible(visible, this.groupView);
+		this.safeRun(() => this._activeEditorPane?.setVisible(visible, this.groupView));
 	}
 
 	layout(pagePosition: IDomNodePagePosition): void {
 		this.pagePosition = pagePosition;
 
-		this._activeEditorPane?.layout(new Dimension(pagePosition.width, pagePosition.height), pagePosition);
+		this.safeRun(() => this._activeEditorPane?.layout(new Dimension(pagePosition.width, pagePosition.height), pagePosition));
 	}
 
-	setBoundarySashes(sashes: IBoundarySashes) {
+	setBoundarySashes(sashes: IBoundarySashes): void {
 		this.boundarySashes = sashes;
-		this._activeEditorPane?.setBoundarySashes(sashes);
+
+		this.safeRun(() => this._activeEditorPane?.setBoundarySashes(sashes));
+	}
+
+	private safeRun(fn: () => void): void {
+
+		// We delegate many calls to the active editor pane which
+		// can be any kind of editor. We must ensure that our calls
+		// do not throw, for example in `layout()` because that can
+		// mess with the grid layout.
+
+		try {
+			fn();
+		} catch (error) {
+			this.logService.error(error);
+		}
 	}
 }
