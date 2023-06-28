@@ -618,10 +618,11 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
-		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
-		const glyphMarginWidth = this._editor.getLayoutInfo().glyphMarginWidth;
-		const leftOfContainer = this._hover.containerDomNode.offsetLeft;
-		return editorBox.width + editorBox.left - leftOfContainer - glyphMarginWidth;
+		const editorLayoutInfo = this._editor.getLayoutInfo();
+		const glyphMarginRight = editorLayoutInfo.glyphMarginLeft + editorLayoutInfo.glyphMarginWidth;
+		const cursorPosition = this._editor._getViewModel().getPrimaryCursorState().viewState.position;
+		const bodyBoxWidth = dom.getClientArea(document.body).width;
+		return bodyBoxWidth - glyphMarginRight - this._editor.getOffsetForColumn(cursorPosition.lineNumber, cursorPosition.column);
 	}
 
 	public isMouseGettingCloser(posx: number, posy: number): boolean {
@@ -721,19 +722,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
 		this.onContentsChanged();
-
-		// If the normal rendering dimensions surpass the resizable node max dimensions
-		// then update the dimensions of the hover
-		this._setResizableNodeMaxDimensions();
-		const containerDomNode = this._hover.containerDomNode;
-		const currentHeight = containerDomNode.clientHeight;
-		const currentWidth = containerDomNode.clientWidth;
-		const maxHeight = Math.min(this._resizableNode.maxSize.height, currentHeight);
-		const maxWidth = Math.min(this._resizableNode.maxSize.width, currentWidth);
-		if (currentHeight >= maxHeight || currentWidth >= maxWidth) {
-			this._layoutWidget(maxHeight, maxWidth);
-		}
-
 		if (hoverData.stoleFocus) {
 			this._hover.containerDomNode.focus();
 		}
@@ -770,8 +758,12 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._setContentsDomNodeDimensions(dom.getTotalWidth(contentsDomNode), Math.min(maxRenderingHeight, height - SCROLLBAR_WIDTH));
 	}
 
-	private _layoutWidget(height: number, width: number) {
+	public onContentsChanged(): void {
+		this._removeConstraintsRenderNormally();
 		const containerDomNode = this._hover.containerDomNode;
+
+		let height = dom.getTotalHeight(containerDomNode);
+		let width = dom.getTotalWidth(containerDomNode);
 		this._resizableNode.layout(height, width);
 
 		this._setHoverWidgetDimensions(width, height);
@@ -785,12 +777,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			this._adjustHoverHeightForScrollbar(height);
 		}
 		this._layoutContentWidget();
-	}
-
-	public onContentsChanged(): void {
-		this._removeConstraintsRenderNormally();
-		const containerDomNode = this._hover.containerDomNode;
-		this._layoutWidget(dom.getTotalHeight(containerDomNode), dom.getTotalWidth(containerDomNode));
 	}
 
 	public focus(): void {
