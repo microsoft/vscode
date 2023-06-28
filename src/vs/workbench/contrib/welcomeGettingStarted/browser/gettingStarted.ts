@@ -1151,7 +1151,7 @@ export class GettingStartedPage extends EditorPane {
 		this.featuredExtensionsList?.layout(size);
 		this.recentlyOpenedList?.layout(size);
 
-		if (this.editorInput.selectedStep && this.currentMediaType) {
+		if (this.editorInput?.selectedStep && this.currentMediaType) {
 			this.mediaDisposables.clear();
 			this.stepDisposables.clear();
 			this.buildMediaComponent(this.editorInput.selectedStep);
