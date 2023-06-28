@@ -41,7 +41,7 @@ type ChatProviderInvokedEvent = {
 	totalTime: number;
 	result: 'success' | 'error' | 'errorWithOutput' | 'cancelled' | 'filtered';
 	requestType: 'string' | 'followup' | 'slashCommand';
-	slashCommand: string;
+	slashCommand?: string;
 };
 
 type ChatProviderInvokedClassification = {
@@ -50,7 +50,7 @@ type ChatProviderInvokedClassification = {
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total time it took to run the provider\'s `provideResponseWithProgress`.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the ChatProvider resulted in an error.' };
 	requestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of request that the user made.' };
-	slashCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of slashCommand used.' };
+	slashCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of slashCommand used.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat providers.';
 };
@@ -390,13 +390,20 @@ export class ChatService extends Disposable implements IChatService {
 	private async _sendRequestAsync(model: ChatModel, provider: IChatProvider, message: string | IChatReplyFollowup): Promise<void> {
 		const request = model.addRequest(message);
 
-		const resolvedCommand = typeof message === 'string' && message.startsWith('/') ? await this.handleSlashCommand(model.sessionId, message) : message;
+		let resolvedCommand: string | IChatReplyFollowup = message;
+		let slashCommand: string | undefined;
+		if (typeof message === 'string' && message.startsWith('/')) {
+			const command = (await this.getSlashCommands(model.sessionId, CancellationToken.None))?.
+				find(c => message.startsWith(`/${c.command}`));
+			slashCommand = command?.command === ((message as string).split(' ')[0]?.substring(1)) ? command.command : undefined;
+			resolvedCommand = await command?.provider?.resolveSlashCommand(message, CancellationToken.None) ?? message;
+		}
 
 		let gotProgress = false;
 		const requestType = typeof message === 'string' ?
 			(message.startsWith('/') ? 'slashCommand' : 'string') :
 			'followup';
-		const slashCommand = requestType === 'slashCommand' ? ((message as string).split(' ')[0]?.substring(1)) : '';
+
 		const rawResponsePromise = createCancelablePromise<void>(async token => {
 			const progressCallback = (progress: IChatProgress) => {
 				if (token.isCancellationRequested) {
@@ -480,17 +487,6 @@ export class ChatService extends Disposable implements IChatService {
 
 		model.removeRequest(requestId);
 		provider.removeRequest?.(model.session!, requestId);
-	}
-
-	private async handleSlashCommand(sessionId: string, command: string): Promise<string> {
-		const slashCommands = await this.getSlashCommands(sessionId, CancellationToken.None);
-		for (const slashCommand of slashCommands ?? []) {
-			if (command.startsWith(`/${slashCommand.command}`) && slashCommand.provider) {
-				return await slashCommand.provider.resolveSlashCommand(command, CancellationToken.None) ?? command;
-			}
-		}
-
-		return command;
 	}
 
 	async getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[] | undefined> {
