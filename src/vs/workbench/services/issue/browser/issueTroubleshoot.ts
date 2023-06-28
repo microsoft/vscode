@@ -108,7 +108,7 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 
 		const res = await this.dialogService.confirm({
 			message: localize('troubleshoot issue', "Troubleshoot Issue"),
-			detail: localize('detail.start', "Issue troubleshooting is a process to help you identify if the issue is with {0} or caused by an extension.\n\nDuring the process the window reloads repeatedly. Each time you must confirm if you are still seeing problems.", this.productService.nameLong),
+			detail: localize('detail.start', "Issue troubleshooting is a process to help you identify the cause for an issue. The cause for an issue can be a misconfiguration, due to an extension, or be {0} itself.\n\nDuring the process the window reloads repeatedly. Each time you must confirm if you are still seeing the issue.", this.productService.nameLong),
 			primaryButton: localize({ key: 'msg', comment: ['&& denotes a mnemonic'] }, "&&Troubleshoot Issue"),
 			custom: true
 		});
