@@ -146,7 +146,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		id: 'topLevelRemoteOpen',
 		title: localize('gettingStarted.topLevelRemoteOpen.title', "Connect to..."),
 		description: localize('gettingStarted.topLevelRemoteOpen.description', "Connect to remote development workspaces."),
-		when: '!isWeb',
+		when: '!isWeb && showRemoteStartEntry',
 		icon: Codicon.remote,
 		content: {
 			type: 'startEntry',

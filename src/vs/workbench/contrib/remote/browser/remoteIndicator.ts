@@ -81,6 +81,7 @@ interface RemoteExtensionMetadata {
 	supportedPlatforms?: PlatformName[];
 }
 
+export const showRemoteStartEntry = new RawContextKey<boolean>('showRemoteStartEntry', false);
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
 
 	private static readonly REMOTE_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
@@ -340,6 +341,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 
 		this.remoteMetadataInitialized = true;
+		showRemoteStartEntry.bindTo(this.contextKeyService).set(true);
+		this.updateRemoteStatusIndicator();
 	}
 
 	private updateVirtualWorkspaceLocation() {
@@ -548,8 +551,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		// Show when there are commands other than the 'install additional remote extensions' command.
-		if (this.hasRemoteMenuCommands(true)) {
+		// Show when there are commands or installable remote extensions.
+		if (this.hasRemoteMenuCommands(true) || this.remoteExtensionMetadata.some(ext => !ext.installed && ext.isPlatformCompatible)) {
 			this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
 			return;
 		}
@@ -570,7 +573,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			text,
 			showProgress,
 			tooltip,
-			command: command ?? this.hasRemoteMenuCommands(false) ? RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID : undefined
+			command: command ?? (this.hasRemoteMenuCommands(false) || this.remoteExtensionMetadata.some(ext => !ext.installed && ext.isPlatformCompatible)) ? RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID : undefined
 		};
 
 		if (this.remoteStatusEntry) {
