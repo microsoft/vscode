@@ -3,37 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IInternalXtermTerminal, ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IInternalXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { VSBuffer } from 'vs/base/common/buffer';
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: TerminalCommandId.ShowTextureAtlas,
-			title: { value: localize('workbench.action.terminal.showTextureAtlas', "Show Terminal Texture Atlas"), original: 'Show Terminal Texture Atlas' },
-			f1: true,
-			category: Categories.Developer,
-			precondition: ContextKeyExpr.or(TerminalContextKeys.isOpen)
-		});
-	}
-	async run(accessor: ServicesAccessor) {
-		const terminalService = accessor.get(ITerminalService);
+registerTerminalAction({
+	id: TerminalCommandId.ShowTextureAtlas,
+	title: { value: localize('workbench.action.terminal.showTextureAtlas', "Show Terminal Texture Atlas"), original: 'Show Terminal Texture Atlas' },
+	category: Categories.Developer,
+	precondition: ContextKeyExpr.or(TerminalContextKeys.isOpen),
+	run: async (c, accessor) => {
 		const fileService = accessor.get(IFileService);
 		const openerService = accessor.get(IOpenerService);
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const bitmap = await terminalService.activeInstance?.xterm?.textureAtlas;
+		const bitmap = await c.service.activeInstance?.xterm?.textureAtlas;
 		if (!bitmap) {
 			return;
 		}
@@ -55,22 +49,15 @@ registerAction2(class extends Action2 {
 		openerService.open(fileUri);
 	}
 });
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: TerminalCommandId.WriteDataToTerminal,
-			title: { value: localize('workbench.action.terminal.writeDataToTerminal', "Write Data to Terminal"), original: 'Write Data to Terminal' },
-			f1: true,
-			category: Categories.Developer
-		});
-	}
-	async run(accessor: ServicesAccessor) {
-		const terminalService = accessor.get(ITerminalService);
-		const terminalGroupService = accessor.get(ITerminalGroupService);
-		const quickInputService = accessor.get(IQuickInputService);
 
-		const instance = await terminalService.getActiveOrCreateInstance();
-		await terminalGroupService.showPanel();
+registerTerminalAction({
+	id: TerminalCommandId.WriteDataToTerminal,
+	title: { value: localize('workbench.action.terminal.writeDataToTerminal', "Write Data to Terminal"), original: 'Write Data to Terminal' },
+	category: Categories.Developer,
+	run: async (c, accessor) => {
+		const quickInputService = accessor.get(IQuickInputService);
+		const instance = await c.service.getActiveOrCreateInstance();
+		await c.service.revealActiveTerminal();
 		await instance.processReady;
 		if (!instance.xterm) {
 			throw new Error('Cannot write data to terminal if xterm isn\'t initialized');
@@ -95,5 +82,23 @@ registerAction2(class extends Action2 {
 		}
 		const xterm = instance.xterm as any as IInternalXtermTerminal;
 		xterm._writeText(escapedData);
+	}
+});
+
+
+registerTerminalAction({
+	id: TerminalCommandId.RestartPtyHost,
+	title: { value: localize('workbench.action.terminal.restartPtyHost', "Restart Pty Host"), original: 'Restart Pty Host' },
+	category: Categories.Developer,
+	run: async (c, accessor) => {
+		const logService = accessor.get(ITerminalLogService);
+		const backends = Array.from(c.instanceService.getRegisteredBackends());
+		const unresponsiveBackends = backends.filter(e => !e.isResponsive);
+		// Restart only unresponsive backends if there are any
+		const restartCandidates = unresponsiveBackends.length > 0 ? unresponsiveBackends : backends;
+		for (const backend of restartCandidates) {
+			logService.warn(`Restarting pty host for authority "${backend.remoteAuthority}"`);
+			backend.restartPtyHost();
+		}
 	}
 });

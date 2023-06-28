@@ -38,6 +38,8 @@ import { ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -56,7 +58,7 @@ const NOTEBOOK_FIND_FILTERS = nls.localize('notebook.find.filter.filterAction', 
 const NOTEBOOK_FIND_IN_MARKUP_INPUT = nls.localize('notebook.find.filter.findInMarkupInput', "Markdown Source");
 const NOTEBOOK_FIND_IN_MARKUP_PREVIEW = nls.localize('notebook.find.filter.findInMarkupPreview', "Rendered Markdown");
 const NOTEBOOK_FIND_IN_CODE_INPUT = nls.localize('notebook.find.filter.findInCodeInput', "Code Cell Source");
-const NOTEBOOK_FIND_IN_CODE_OUTPUT = nls.localize('notebook.find.filter.findInCodeOutput', "Cell Output");
+const NOTEBOOK_FIND_IN_CODE_OUTPUT = nls.localize('notebook.find.filter.findInCodeOutput', "Code Cell Output");
 
 const NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH = 318;
 const NOTEBOOK_FIND_WIDGET_INITIAL_HORIZONTAL_PADDING = 4;
@@ -150,46 +152,46 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 	}
 }
 
-class NotebookFindInput extends FindInput {
+export class NotebookFindInputFilterButton extends Disposable {
 	private _filterButtonContainer: HTMLElement;
 	private _actionbar: ActionBar | null = null;
-	private _filterChecked: boolean = false;
 	private _filtersAction: IAction;
 	private _toggleStyles: IToggleStyles;
 
 	constructor(
 		readonly filters: NotebookFindFilters,
-		contextKeyService: IContextKeyService,
 		readonly contextMenuService: IContextMenuService,
 		readonly instantiationService: IInstantiationService,
-		parent: HTMLElement | null,
-		contextViewProvider: IContextViewProvider,
-		options: IFindInputOptions
+		options: IFindInputOptions,
+		tooltip: string = NOTEBOOK_FIND_FILTERS,
 	) {
-		super(parent, contextViewProvider, options);
 
+		super();
 		this._toggleStyles = options.toggleStyles;
 
-		this._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));
-		this._filtersAction = new Action('notebookFindFilterAction', NOTEBOOK_FIND_FILTERS, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon));
+		this._filtersAction = new Action('notebookFindFilterAction', tooltip, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon));
 		this._filtersAction.checked = false;
 		this._filterButtonContainer = dom.$('.find-filter-button');
-		this.controls.appendChild(this._filterButtonContainer);
+		this._filterButtonContainer.classList.add('monaco-custom-toggle');
 		this.createFilters(this._filterButtonContainer);
-
-		this._register(this.filters.onDidChange(() => {
-			if (this.filters.codeInput !== true || this.filters.codeOutput !== true || this.filters.markupInput !== true || this.filters.markupPreview !== false) {
-				this._filtersAction.checked = true;
-			} else {
-				this._filtersAction.checked = false;
-			}
-		}));
-
-		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this.getFilterWidth();
 	}
 
-	private getFilterWidth() {
+	get container() {
+		return this._filterButtonContainer;
+	}
+
+	get width() {
 		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
+	}
+
+	applyStyles(filterChecked: boolean): void {
+		const toggleStyles = this._toggleStyles;
+
+		this._filterButtonContainer.style.border = '1px solid transparent';
+		this._filterButtonContainer.style.borderRadius = '3px';
+		this._filterButtonContainer.style.borderColor = (filterChecked && toggleStyles.inputActiveOptionBorder) || '';
+		this._filterButtonContainer.style.color = (filterChecked && toggleStyles.inputActiveOptionForeground) || 'inherit';
+		this._filterButtonContainer.style.backgroundColor = (filterChecked && toggleStyles.inputActiveOptionBackground) || '';
 	}
 
 	private createFilters(container: HTMLElement): void {
@@ -202,6 +204,29 @@ class NotebookFindInput extends FindInput {
 			}
 		}));
 		this._actionbar.push(this._filtersAction, { icon: true, label: false });
+	}
+}
+
+export class NotebookFindInput extends FindInput {
+	private _findFilter: NotebookFindInputFilterButton;
+	private _filterChecked: boolean = false;
+
+	constructor(
+		readonly filters: NotebookFindFilters,
+		contextKeyService: IContextKeyService,
+		readonly contextMenuService: IContextMenuService,
+		readonly instantiationService: IInstantiationService,
+		parent: HTMLElement | null,
+		contextViewProvider: IContextViewProvider,
+		options: IFindInputOptions,
+	) {
+		super(parent, contextViewProvider, options);
+
+		this._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));
+		this._findFilter = this._register(new NotebookFindInputFilterButton(filters, contextMenuService, instantiationService, options));
+
+		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width;
+		this.controls.appendChild(this._findFilter.container);
 	}
 
 	override setEnabled(enabled: boolean) {
@@ -226,15 +251,7 @@ class NotebookFindInput extends FindInput {
 				this.regex.domNode.classList.toggle('disabled', false);
 			}
 		}
-		this.applyStyles();
-	}
-
-	private applyStyles(): void {
-		const toggleStyles = this._toggleStyles;
-
-		this._filterButtonContainer.style.borderColor = (this._filterChecked && toggleStyles.inputActiveOptionBorder) || '';
-		this._filterButtonContainer.style.color = (this._filterChecked && toggleStyles.inputActiveOptionForeground) || 'inherit';
-		this._filterButtonContainer.style.backgroundColor = (this._filterChecked && toggleStyles.inputActiveOptionBackground) || '';
+		this._findFilter.applyStyles(this._filterChecked);
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
@@ -289,7 +306,14 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	) {
 		super();
 
-		this._filters = new NotebookFindFilters(true, false, true, true);
+		const findScope = this._configurationService.getValue<{
+			markupSource: boolean;
+			markupPreview: boolean;
+			codeSource: boolean;
+			codeOutput: boolean;
+		}>(NotebookSetting.findScope) ?? { markupSource: true, markupPreview: true, codeSource: true, codeOutput: true };
+
+		this._filters = new NotebookFindFilters(findScope.markupSource, findScope.markupPreview, findScope.codeSource, findScope.codeOutput);
 		this._state.change({ filters: this._filters }, false);
 
 		this._filters.onDidChange(() => {
@@ -314,11 +338,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 				() => {
 					this._isReplaceVisible = !this._isReplaceVisible;
 					this._state.change({ isReplaceRevealed: this._isReplaceVisible }, false);
-					if (this._isReplaceVisible) {
-						this._innerReplaceDomNode.style.display = 'flex';
-					} else {
-						this._innerReplaceDomNode.style.display = 'none';
-					}
+					this._updateReplaceViewDisplay();
 				}
 		}));
 		this._toggleReplaceBtn.setEnabled(!isInteractiveWindow);
@@ -438,7 +458,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			}
 		});
 
-		this._focusTracker = this._register(dom.trackFocus(this._innerFindDomNode));
+		this._focusTracker = this._register(dom.trackFocus(this._domNode));
 		this._register(this._focusTracker.onDidFocus(this.onFocusTrackerFocus.bind(this)));
 		this._register(this._focusTracker.onDidBlur(this.onFocusTrackerBlur.bind(this)));
 
@@ -466,13 +486,13 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._register(this._replaceInputFocusTracker.onDidFocus(this.onReplaceInputFocusTrackerFocus.bind(this)));
 		this._register(this._replaceInputFocusTracker.onDidBlur(this.onReplaceInputFocusTrackerBlur.bind(this)));
 
+		this._register(this._replaceInput.inputBox.onDidChange(() => {
+			this._state.change({ replaceString: this._replaceInput.getValue() }, true);
+		}));
+
 		this._domNode.appendChild(this._innerReplaceDomNode);
 
-		if (this._isReplaceVisible) {
-			this._innerReplaceDomNode.style.display = 'flex';
-		} else {
-			this._innerReplaceDomNode.style.display = 'none';
-		}
+		this._updateReplaceViewDisplay();
 
 		this._replaceBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_BTN_LABEL,
@@ -675,11 +695,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._isVisible = true;
 		this._isReplaceVisible = true;
 		this._state.change({ isReplaceRevealed: this._isReplaceVisible }, false);
-		if (this._isReplaceVisible) {
-			this._innerReplaceDomNode.style.display = 'flex';
-		} else {
-			this._innerReplaceDomNode.style.display = 'none';
-		}
+		this._updateReplaceViewDisplay();
 
 		setTimeout(() => {
 			this._domNode.classList.add('visible', 'visible-transition');
@@ -688,6 +704,16 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 			this._replaceInput.focus();
 		}, 0);
+	}
+
+	private _updateReplaceViewDisplay(): void {
+		if (this._isReplaceVisible) {
+			this._innerReplaceDomNode.style.display = 'flex';
+		} else {
+			this._innerReplaceDomNode.style.display = 'none';
+		}
+
+		this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
 	}
 
 	public hide(): void {

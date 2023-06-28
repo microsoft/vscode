@@ -734,7 +734,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	protected override saveState(): void {
 		this.panes.forEach((view) => view.saveState());
-		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private onContextMenu(event: StandardMouseEvent, viewPane: ViewPane): void {

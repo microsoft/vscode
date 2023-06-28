@@ -7,6 +7,6 @@ import { SmartLinesDiffComputer } from 'vs/editor/common/diff/smartLinesDiffComp
 import { StandardLinesDiffComputer } from 'vs/editor/common/diff/standardLinesDiffComputer';
 
 export const linesDiffComputers = {
-	smart: new SmartLinesDiffComputer(),
-	experimental: new StandardLinesDiffComputer(),
+	getLegacy: () => new SmartLinesDiffComputer(),
+	getAdvanced: () => new StandardLinesDiffComputer(),
 };

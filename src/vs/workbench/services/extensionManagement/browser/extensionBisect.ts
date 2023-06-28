@@ -8,7 +8,7 @@ import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalE
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtensionType, IExtension, isResolverExtension } from 'vs/platform/extensions/common/extensions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -185,11 +185,11 @@ class ExtensionBisectUi {
 	private _showBisectPrompt(): void {
 
 		const goodPrompt: IPromptChoice = {
-			label: 'Good now',
+			label: localize('I cannot reproduce', "I can't reproduce"),
 			run: () => this._commandService.executeCommand('extension.bisect.next', false)
 		};
 		const badPrompt: IPromptChoice = {
-			label: 'This is bad',
+			label: localize('This is Bad', "I can reproduce"),
 			run: () => this._commandService.executeCommand('extension.bisect.next', true)
 		};
 		const stop: IPromptChoice = {
@@ -205,7 +205,7 @@ class ExtensionBisectUi {
 			Severity.Info,
 			message,
 			[goodPrompt, badPrompt, stop],
-			{ sticky: true }
+			{ sticky: true, priority: NotificationPriority.URGENT }
 		);
 	}
 }
@@ -329,11 +329,11 @@ registerAction2(class extends Action2 {
 			detail: localize('bisect', "Extension Bisect is active and has disabled {0} extensions. Check if you can still reproduce the problem and proceed by selecting from these options.", bisectService.disabledCount),
 			buttons: [
 				{
-					label: localize({ key: 'next.good', comment: ['&& denotes a mnemonic'] }, "&&Good now"),
+					label: localize({ key: 'next.good', comment: ['&& denotes a mnemonic'] }, "I ca&&n't reproduce"),
 					run: () => false // good now
 				},
 				{
-					label: localize({ key: 'next.bad', comment: ['&& denotes a mnemonic'] }, "This is &&bad"),
+					label: localize({ key: 'next.bad', comment: ['&& denotes a mnemonic'] }, "I can &&reproduce"),
 					run: () => true // bad
 				},
 				{

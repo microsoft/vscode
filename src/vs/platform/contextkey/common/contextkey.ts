@@ -11,6 +11,7 @@ import { Scanner, LexingError, Token, TokenType } from 'vs/platform/contextkey/c
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { illegalArgument } from 'vs/base/common/errors';
 
 const CONSTANT_VALUES = new Map<string, boolean>();
 CONSTANT_VALUES.set('false', false);
@@ -24,6 +25,13 @@ CONSTANT_VALUES.set('isEdge', isEdge);
 CONSTANT_VALUES.set('isFirefox', isFirefox);
 CONSTANT_VALUES.set('isChrome', isChrome);
 CONSTANT_VALUES.set('isSafari', isSafari);
+
+/** allow register constant context keys that are known only after startup; requires running `substituteConstants` on the context key - https://github.com/microsoft/vscode/issues/174218#issuecomment-1437972127 */
+export function setConstant(key: string, value: boolean) {
+	if (CONSTANT_VALUES.get(key) !== undefined) { throw illegalArgument('contextkey.setConstant(k, v) invoked with already set constant `k`'); }
+
+	CONSTANT_VALUES.set(key, value);
+}
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -1516,7 +1524,7 @@ export class ContextKeyNotRegexExpr implements IContextKeyExpression {
 	}
 
 	public serialize(): string {
-		throw new Error('Method not implemented.');
+		return `!(${this._actual.serialize()})`;
 	}
 
 	public keys(): string[] {

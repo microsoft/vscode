@@ -266,7 +266,7 @@ export class TerminalProfileQuickpick {
 			}
 			const argsString = profile.args.map(e => {
 				if (e.includes(' ')) {
-					return `"${e.replace(/"/g, '\\"')}"`;
+					return `"${e.replace(/"/g, '\\"')}"`; // CodeQL [SM02383] js/incomplete-sanitization This is only used as a label on the UI so this isn't a problem
 				}
 				return e;
 			}).join(' ');

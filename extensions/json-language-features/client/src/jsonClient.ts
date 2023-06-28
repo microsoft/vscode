@@ -545,35 +545,45 @@ function getSettings(): Settings {
 		}
 	};
 
-	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[] | undefined, folderUri: Uri | undefined = undefined, settingsLocation = folderUri) => {
+	/*
+	 * Add schemas from the settings
+	 * folderUri to which folder the setting is scoped to. `undefined` means global (also external files)
+	 * settingsLocation against which path relative schema URLs are resolved
+	 */
+	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[] | undefined, folderUri: string | undefined, settingsLocation: Uri | undefined) => {
 		if (schemaSettings) {
 			for (const setting of schemaSettings) {
 				const url = getSchemaId(setting, settingsLocation);
 				if (url) {
-					const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri: folderUri?.toString(false), schema: setting.schema };
+					const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri, schema: setting.schema };
 					schemas.push(schemaSetting);
 				}
 			}
 		}
 	};
 
-	const folders = workspace.workspaceFolders;
+	const folders = workspace.workspaceFolders ?? [];
 
 	const schemaConfigInfo = workspace.getConfiguration('json', null).inspect<JSONSchemaSettings[]>('schemas');
 	if (schemaConfigInfo) {
-		if (schemaConfigInfo.workspaceValue && workspace.workspaceFile && folders && folders.length) {
-			const settingsLocation = Uri.joinPath(workspace.workspaceFile, '..');
-			for (const folder of folders) {
-				collectSchemaSettings(schemaConfigInfo.workspaceValue, folder.uri, settingsLocation);
+		// settings in user config
+		collectSchemaSettings(schemaConfigInfo.globalValue, undefined, undefined);
+		if (workspace.workspaceFile) {
+			if (schemaConfigInfo.workspaceValue) {
+				const settingsLocation = Uri.joinPath(workspace.workspaceFile, '..');
+				// settings in the workspace configuration file apply to all files (also external files)
+				collectSchemaSettings(schemaConfigInfo.workspaceValue, undefined, settingsLocation);
 			}
-		}
-		collectSchemaSettings(schemaConfigInfo.globalValue);
-	}
-
-	if (folders) {
-		for (const folder of folders) {
-			const schemaConfigInfo = workspace.getConfiguration('json', folder.uri).inspect<JSONSchemaSettings[]>('schemas');
-			collectSchemaSettings(schemaConfigInfo?.workspaceFolderValue, folder.uri);
+			for (const folder of folders) {
+				const folderUri = folder.uri;
+				const folderSchemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
+				collectSchemaSettings(folderSchemaConfigInfo?.workspaceFolderValue, folderUri.toString(false), folderUri);
+			}
+		} else {
+			if (schemaConfigInfo.workspaceValue && folders.length === 1) {
+				// single folder workspace: settings apply to all files (also external files)
+				collectSchemaSettings(schemaConfigInfo.workspaceValue, undefined, folders[0].uri);
+			}
 		}
 	}
 	return settings;

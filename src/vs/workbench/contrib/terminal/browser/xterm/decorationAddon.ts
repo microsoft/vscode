@@ -15,17 +15,17 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { CommandInvalidationReason, ICommandDetectionCapability, IMarkProperties, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { CommandInvalidationReason, ICommandDetectionCapability, IMarkProperties, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
-import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
@@ -52,7 +52,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService
+		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super();
 		this._register(toDisposable(() => this._dispose()));
@@ -349,7 +350,26 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			const labelRun = localize("terminal.rerunCommand", 'Rerun Command');
 			actions.push({
 				class: undefined, tooltip: labelRun, id: 'terminal.rerunCommand', label: labelRun, enabled: true,
-				run: () => this._onDidRequestRunCommand.fire({ command })
+				run: async () => {
+					if (command.command === '') {
+						return;
+					}
+					if (!command.isTrusted) {
+						const shouldRun = await new Promise<boolean>(r => {
+							this._notificationService.prompt(Severity.Info, localize('rerun', 'Do you want to run the command: {0}', command.command), [{
+								label: localize('yes', 'Yes'),
+								run: () => r(true)
+							}, {
+								label: localize('no', 'No'),
+								run: () => r(false)
+							}]);
+						});
+						if (!shouldRun) {
+							return;
+						}
+					}
+					this._onDidRequestRunCommand.fire({ command });
+				}
 			});
 			const labelCopy = localize("terminal.copyCommand", 'Copy Command');
 			actions.push({

@@ -13,7 +13,6 @@ import { URI } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
-import { ILogService } from 'vs/platform/log/common/log';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IPtyService, IShellLaunchConfig, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
@@ -22,7 +21,7 @@ import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { CLIServerBase, ICommandsExecuter } from 'vs/workbench/api/node/extHostCLIServer';
 import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
+import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IWorkspaceFolderData } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
@@ -31,6 +30,8 @@ import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentServi
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(
@@ -116,6 +117,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$detachFromProcess': return this._ptyService.detachFromProcess.apply(this._ptyService, args);
 
 			case '$listProcesses': return this._ptyService.listProcesses.apply(this._ptyService, args);
+			case '$getPerformanceMarks': return this._ptyService.getPerformanceMarks.apply(this._ptyService, args);
 			case '$orphanQuestionReply': return this._ptyService.orphanQuestionReply.apply(this._ptyService, args);
 			case '$acceptPtyHostResolvedVariables': return this._ptyService.acceptPtyHostResolvedVariables?.apply(this._ptyService, args);
 
@@ -124,6 +126,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$acknowledgeDataEvent': return this._ptyService.acknowledgeDataEvent.apply(this._ptyService, args);
 			case '$shutdown': return this._ptyService.shutdown.apply(this._ptyService, args);
 			case '$resize': return this._ptyService.resize.apply(this._ptyService, args);
+			case '$clearBuffer': return this._ptyService.clearBuffer.apply(this._ptyService, args);
 			case '$getInitialCwd': return this._ptyService.getInitialCwd.apply(this._ptyService, args);
 			case '$getCwd': return this._ptyService.getCwd.apply(this._ptyService, args);
 
@@ -232,12 +235,13 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		// Apply extension environment variable collections to the environment
 		if (!shellLaunchConfig.strictEnv) {
 			const entries: [string, IEnvironmentVariableCollection][] = [];
-			for (const [k, v] of args.envVariableCollections) {
-				entries.push([k, { map: deserializeEnvironmentVariableCollection(v) }]);
+			for (const [k, v, d] of args.envVariableCollections) {
+				entries.push([k, { map: deserializeEnvironmentVariableCollection(v), descriptionMap: deserializeEnvironmentDescriptionMap(d) }]);
 			}
 			const envVariableCollections = new Map<string, IEnvironmentVariableCollection>(entries);
 			const mergedCollection = new MergedEnvironmentVariableCollection(envVariableCollections);
-			await mergedCollection.applyToProcessEnvironment(env, variableResolver);
+			const workspaceFolder = activeWorkspaceFolder ? withNullAsUndefined(activeWorkspaceFolder) : undefined;
+			await mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
 		}
 
 		// Fork the process and listen for messages

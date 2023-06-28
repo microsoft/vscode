@@ -10,10 +10,12 @@
 	},
 	"enabledApiProposals": [
 		"documentPaste",
-		"diffContentOptions"
+		"diffContentOptions",
+		"dropMetadata"
 	],
 	"activationEvents": [
-		"onNotebook:jupyter-notebook"
+		"onNotebook:jupyter-notebook",
+		"onNotebookSerializer:interactive"
 	],
 	"extensionKind": [
 		"workspace",

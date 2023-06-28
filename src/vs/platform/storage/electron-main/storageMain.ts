@@ -158,12 +158,12 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 					this._storage = storage;
 
 					// Re-emit storage changes via event
-					this._register(storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
+					this._register(storage.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
 
 					// Await storage init
 					await this.doInit(storage);
 
-					// Ensure we track wether storage is new or not
+					// Ensure we track whether storage is new or not
 					const isNewStorage = storage.getBoolean(IS_NEW_KEY);
 					if (isNewStorage === undefined) {
 						storage.set(IS_NEW_KEY, true);

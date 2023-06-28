@@ -9,15 +9,16 @@ import { URI } from 'vs/base/common/uri';
 export const TEST_DATA_SCHEME = 'vscode-test-data';
 
 export const enum TestUriType {
-	AllOutput,
+	TaskOutput,
 	ResultMessage,
 	ResultActualOutput,
 	ResultExpectedOutput,
 }
 
 interface IAllOutputReference {
-	type: TestUriType.AllOutput;
+	type: TestUriType.TaskOutput;
 	resultId: string;
+	taskIndex: number;
 }
 
 interface IResultTestUri {
@@ -73,18 +74,18 @@ export const parseTestUri = (uri: URI): ParsedTestUri | undefined => {
 	}
 
 	if (request[0] === TestUriParts.AllOutput) {
-		return { resultId: locationId, type: TestUriType.AllOutput };
+		return { resultId: locationId, taskIndex: Number(request[1]), type: TestUriType.TaskOutput };
 	}
 
 	return undefined;
 };
 
 export const buildTestUri = (parsed: ParsedTestUri): URI => {
-	if (parsed.type === TestUriType.AllOutput) {
+	if (parsed.type === TestUriType.TaskOutput) {
 		return URI.from({
 			scheme: TEST_DATA_SCHEME,
 			authority: TestUriParts.Results,
-			path: ['', parsed.resultId, TestUriParts.AllOutput].join('/'),
+			path: ['', parsed.resultId, TestUriParts.AllOutput, parsed.taskIndex].join('/'),
 		});
 	}
 

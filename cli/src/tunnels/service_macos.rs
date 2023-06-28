@@ -17,7 +17,7 @@ use crate::{
 	state::LauncherPaths,
 	util::{
 		command::capture_command_and_check_status,
-		errors::{wrap, AnyError, MissingHomeDirectory},
+		errors::{wrap, AnyError, CodeError, MissingHomeDirectory},
 	},
 };
 
@@ -75,14 +75,19 @@ impl ServiceManager for LaunchdService {
 		handle.run_service(self.log, launcher_paths).await
 	}
 
+	async fn is_installed(&self) -> Result<bool, AnyError> {
+		let cmd = capture_command_and_check_status("launchctl", &["list"]).await?;
+		Ok(String::from_utf8_lossy(&cmd.stdout).contains(&get_service_label()))
+	}
+
 	async fn unregister(&self) -> Result<(), crate::util::errors::AnyError> {
 		let service_file = get_service_file_path()?;
 
 		match capture_command_and_check_status("launchctl", &["stop", &get_service_label()]).await {
 			Ok(_) => {}
 			// status 3 == "no such process"
-			Err(AnyError::CommandFailed(e)) if e.output.status.code() == Some(3) => {}
-			Err(e) => return Err(e),
+			Err(CodeError::CommandFailed { code, .. }) if code == 3 => {}
+			Err(e) => return Err(wrap(e, "error stopping service").into()),
 		};
 
 		info!(self.log, "Successfully stopped service...");

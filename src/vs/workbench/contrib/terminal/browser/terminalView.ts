@@ -40,7 +40,7 @@ import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/brow
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
+import { getShellIntegrationTooltip, getShellProcessTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -126,7 +126,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private _initializeTerminal() {
-		if (this.isBodyVisible() && this._terminalService.isProcessSupportRegistered && this._terminalService.connectionState === TerminalConnectionState.Connected && !this._terminalGroupService.groups.length) {
+		if (this.isBodyVisible() && this._terminalService.isProcessSupportRegistered && this._terminalService.connectionState === TerminalConnectionState.Connected && this._terminalService.restoredGroupCount === 0 && this._terminalGroupService.groups.length === 0) {
 			this._terminalService.createTerminal({ location: TerminalLocation.Panel });
 		}
 	}
@@ -488,8 +488,8 @@ function getSingleTabLabel(accessor: ServicesAccessor, instance: ITerminalInstan
 	if (!instance || !instance.title) {
 		return '';
 	}
-	const iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon.id : accessor.get(ITerminalProfileResolverService).getDefaultIcon();
-	const label = `$(${icon?.id || iconClass}) ${getSingleTabTitle(instance, separator)}`;
+	const iconId = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon.id : accessor.get(ITerminalProfileResolverService).getDefaultIcon().id;
+	const label = `$(${icon?.id || iconId}) ${getSingleTabTitle(instance, separator)}`;
 
 	const primaryStatus = instance.statusList.primary;
 	if (!primaryStatus?.icon) {
@@ -503,7 +503,7 @@ function getSingleTabTooltip(instance: ITerminalInstance | undefined, separator:
 		return '';
 	}
 	const parts: string[] = [];
-	parts.push(getSingleTabTitle(instance, separator) + getShellIntegrationTooltip(instance, false));
+	parts.push(getSingleTabTitle(instance, separator) + getShellProcessTooltip(instance, false) + getShellIntegrationTooltip(instance, false));
 	parts.push(instance.statusList.primary?.tooltip || '');
 	return parts.filter(e => e).join('\n\n');
 }

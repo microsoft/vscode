@@ -469,6 +469,9 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private showMessage(message: string): void {
+		if (!this.$message) {
+			return;
+		}
 		this.$message.classList.remove('hide');
 		this.resetMessageElement();
 
@@ -1097,7 +1100,7 @@ class TimelineActionRunner extends ActionRunner {
 			return;
 		}
 
-		await action.run(...[
+		await action.run(
 			{
 				$mid: MarshalledId.TimelineActionContext,
 				handle: item.handle,
@@ -1106,7 +1109,7 @@ class TimelineActionRunner extends ActionRunner {
 			},
 			uri,
 			item.source,
-		]);
+		);
 	}
 }
 

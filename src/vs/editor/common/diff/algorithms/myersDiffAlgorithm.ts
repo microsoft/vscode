@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiffAlgorithm, ISequence, SequenceDiff, OffsetRange } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { DiffAlgorithmResult, IDiffAlgorithm, ISequence, ITimeout, InfiniteTimeout, SequenceDiff } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 
 /**
  * An O(ND) diff algorithm that has a quadratic space worst-case complexity.
 */
 export class MyersDiffAlgorithm implements IDiffAlgorithm {
-	compute(seq1: ISequence, seq2: ISequence): SequenceDiff[] {
+	compute(seq1: ISequence, seq2: ISequence, timeout: ITimeout = InfiniteTimeout.instance): DiffAlgorithmResult {
 		// These are common special cases.
 		// The early return improves performance dramatically.
-		if (seq1.length === 0) {
-			return [new SequenceDiff(new OffsetRange(0, 0), new OffsetRange(0, seq2.length))];
-		} else if (seq2.length === 0) {
-			return [new SequenceDiff(new OffsetRange(0, seq1.length), new OffsetRange(0, 0))];
+		if (seq1.length === 0 || seq2.length === 0) {
+			return DiffAlgorithmResult.trivial(seq1, seq2);
 		}
 
 		function getXAfterSnake(x: number, y: number): number {
@@ -40,11 +39,23 @@ export class MyersDiffAlgorithm implements IDiffAlgorithm {
 
 		loop: while (true) {
 			d++;
-			for (k = -d; k <= d; k += 2) {
-				const maxXofDLineTop = k === d ? -1 : V.get(k + 1); // We take a vertical non-diagonal
-				const maxXofDLineLeft = k === -d ? -1 : V.get(k - 1) + 1; // We take a horizontal non-diagonal (+1 x)
+			if (!timeout.isValid()) {
+				return DiffAlgorithmResult.trivialTimedOut(seq1, seq2);
+			}
+			// The paper has `for (k = -d; k <= d; k += 2)`, but we can ignore diagonals that cannot influence the result.
+			const lowerBound = -Math.min(d, seq2.length + (d % 2));
+			const upperBound = Math.min(d, seq1.length + (d % 2));
+			for (k = lowerBound; k <= upperBound; k += 2) {
+				// We can use the X values of (d-1)-lines to compute X value of the longest d-lines.
+				const maxXofDLineTop = k === upperBound ? -1 : V.get(k + 1); // We take a vertical non-diagonal (add a symbol in seq1)
+				const maxXofDLineLeft = k === lowerBound ? -1 : V.get(k - 1) + 1; // We take a horizontal non-diagonal (+1 x) (delete a symbol in seq1)
 				const x = Math.min(Math.max(maxXofDLineTop, maxXofDLineLeft), seq1.length);
 				const y = x - k;
+				if (x > seq1.length || y > seq2.length) {
+					// This diagonal is irrelevant for the result.
+					// TODO: Don't pay the cost for this in the next iteration.
+					continue;
+				}
 				const newMaxX = getXAfterSnake(x, y);
 				V.set(k, newMaxX);
 				const lastPath = x === maxXofDLineTop ? paths.get(k + 1) : paths.get(k - 1);
@@ -81,7 +92,7 @@ export class MyersDiffAlgorithm implements IDiffAlgorithm {
 		}
 
 		result.reverse();
-		return result;
+		return new DiffAlgorithmResult(result, false);
 	}
 }
 

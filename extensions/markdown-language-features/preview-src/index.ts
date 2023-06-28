@@ -23,14 +23,13 @@ let documentResource = settings.settings.source;
 const vscode = acquireVsCodeApi();
 
 const originalState = vscode.getState() ?? {} as any;
-
 const state = {
-	originalState,
+	...originalState,
 	...getData<any>('data-state')
 };
 
-if (originalState?.resource !== state.resource) {
-	state.scrollProgress = undefined;
+if (typeof originalState.scrollProgress !== 'undefined' && originalState?.resource !== state.resource) {
+	state.scrollProgress = 0;
 }
 
 // Make sure to sync VS Code state here
@@ -64,10 +63,13 @@ function doAfterImagesLoaded(cb: () => void) {
 onceDocumentLoaded(() => {
 	const scrollProgress = state.scrollProgress;
 
+	addImageContexts();
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
 			scrollDisabledCount += 1;
-			window.scrollTo(0, scrollProgress * document.body.clientHeight);
+			// Always set scroll of at least 1 to prevent VS Code's webview code from auto scrolling us
+			const scrollToY = Math.max(1, scrollProgress * document.body.clientHeight);
+			window.scrollTo(0, scrollToY);
 		});
 		return;
 	}
@@ -76,10 +78,16 @@ onceDocumentLoaded(() => {
 		doAfterImagesLoaded(() => {
 			// Try to scroll to fragment if available
 			if (settings.settings.fragment) {
+				let fragment: string;
+				try {
+					fragment = encodeURIComponent(settings.settings.fragment);
+				} catch {
+					fragment = settings.settings.fragment;
+				}
 				state.fragment = undefined;
 				vscode.setState(state);
 
-				const element = getLineElementForFragment(settings.settings.fragment, documentVersion);
+				const element = getLineElementForFragment(fragment, documentVersion);
 				if (element) {
 					scrollDisabledCount += 1;
 					scrollToRevealSourceLine(element.line, documentVersion, settings);
@@ -118,9 +126,58 @@ window.addEventListener('resize', () => {
 	updateScrollProgress();
 }, true);
 
+function addImageContexts() {
+	const images = document.getElementsByTagName('img');
+	let idNumber = 0;
+	for (const img of images) {
+		img.id = 'image-' + idNumber;
+		idNumber += 1;
+		img.setAttribute('data-vscode-context', JSON.stringify({ webviewSection: 'image', id: img.id, 'preventDefaultContextMenuItems': true, resource: documentResource }));
+	}
+}
+
+async function copyImage(image: HTMLImageElement, retries = 5) {
+	if (!document.hasFocus() && retries > 0) {
+		// copyImage is called at the same time as webview.reveal, which means this function is running whilst the webview is gaining focus.
+		// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
+		// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
+		setTimeout(() => { copyImage(image, retries - 1); }, 20);
+		return;
+	}
+
+	try {
+		await navigator.clipboard.write([new ClipboardItem({
+			'image/png': new Promise((resolve) => {
+				const canvas = document.createElement('canvas');
+				if (canvas !== null) {
+					canvas.width = image.naturalWidth;
+					canvas.height = image.naturalHeight;
+					const context = canvas.getContext('2d');
+					context?.drawImage(image, 0, 0);
+				}
+				canvas.toBlob((blob) => {
+					if (blob) {
+						resolve(blob);
+					}
+					canvas.remove();
+				}, 'image/png');
+			})
+		})]);
+	} catch (e) {
+		console.error(e);
+	}
+}
+
 window.addEventListener('message', async event => {
 	const data = event.data as ToWebviewMessage.Type;
 	switch (data.type) {
+		case 'copyImage': {
+			const img = document.getElementById(data.id);
+			if (img instanceof HTMLImageElement) {
+				copyImage(img);
+			}
+			return;
+		}
 		case 'onDidChangeTextEditorSelection':
 			if (data.source === documentResource) {
 				marker.onDidChangeTextEditorSelection(data.line, documentVersion);
@@ -137,7 +194,7 @@ window.addEventListener('message', async event => {
 			const root = document.querySelector('.markdown-body')!;
 
 			const parser = new DOMParser();
-			const newContent = parser.parseFromString(data.content, 'text/html');
+			const newContent = parser.parseFromString(data.content, 'text/html'); // CodeQL [SM03712] This renderers content from the workspace into the Markdown preview. Webviews (and the markdown preview) have many other security measures in place to make this safe
 
 			// Strip out meta http-equiv tags
 			for (const metaElement of Array.from(newContent.querySelectorAll('meta'))) {
@@ -232,6 +289,7 @@ window.addEventListener('message', async event => {
 			++documentVersion;
 
 			window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
+			addImageContexts();
 			break;
 		}
 	}

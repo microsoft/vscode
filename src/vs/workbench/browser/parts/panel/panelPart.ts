@@ -132,7 +132,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	constructor(
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -155,7 +154,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		super(
 			notificationService,
 			storageService,
-			telemetryService,
 			contextMenuService,
 			layoutService,
 			keybindingService,
@@ -340,15 +338,16 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private static toActivity(id: string, name: string, icon: URI | ThemeIcon | undefined, keybindingId: string | undefined): IActivity {
-		let cssClass: string | undefined = undefined;
+		let classNames: string[] | undefined = undefined;
 		let iconUrl: URI | undefined = undefined;
 		if (URI.isUri(icon)) {
 			iconUrl = icon;
 			const cssUrl = asCSSUrl(icon);
 			const hash = new StringSHA1();
 			hash.update(cssUrl);
-			cssClass = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
-			const iconClass = `.monaco-workbench .basepanel .monaco-action-bar .action-label.${cssClass}`;
+			const iconId = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
+			classNames = [iconId, 'uri-icon'];
+			const iconClass = `.monaco-workbench .basepanel .monaco-action-bar .action-label.${iconId}`;
 			createCSSRule(iconClass, `
 				mask: ${cssUrl} no-repeat 50% 50%;
 				mask-size: 16px;
@@ -358,10 +357,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 				-webkit-mask-origin: padding;
 			`);
 		} else if (ThemeIcon.isThemeIcon(icon)) {
-			cssClass = ThemeIcon.asClassName(icon);
+			classNames = ThemeIcon.asClassNameArray(icon);
 		}
 
-		return { id, name, cssClass, iconUrl, keybindingId };
+		return { id, name, classNames, iconUrl, keybindingId };
 	}
 
 	private showOrHideViewContainer(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
@@ -649,7 +648,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	getLastActivePaneCompositeId(): string {
-		return this.getLastActiveCompositetId();
+		return this.getLastActiveCompositeId();
 	}
 
 	hideActivePaneComposite(): void {
@@ -931,7 +930,6 @@ export class PanelPart extends BasePanelPart {
 		super(
 			notificationService,
 			storageService,
-			telemetryService,
 			contextMenuService,
 			layoutService,
 			keybindingService,

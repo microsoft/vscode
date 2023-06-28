@@ -4,25 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok } from 'assert';
-import { timeout } from 'vs/base/common/async';
 import { Terminal } from 'xterm';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-
-async function writeP(terminal: Terminal, data: string): Promise<void> {
-	return new Promise<void>((resolve, reject) => {
-		const failTimeout = timeout(2000);
-		failTimeout.then(() => reject('Writing to xterm is taking longer than 2 seconds'));
-		terminal.write(data, () => {
-			failTimeout.cancel();
-			resolve();
-		});
-	});
-}
+import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 
 type TestTerminalCommandMatch = Pick<ITerminalCommand, 'command' | 'cwd' | 'exitCode'> & { marker: { line: number } };
 
@@ -69,8 +58,7 @@ suite('CommandDetectionCapability', () => {
 		xterm = new Terminal({ allowProposedApi: true, cols: 80 });
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(IContextMenuService, { showContextMenu(delegate: IContextMenuDelegate): void { } } as Partial<IContextMenuService>);
-		instantiationService.stub(ILogService, new NullLogService());
-		capability = instantiationService.createInstance(TestCommandDetectionCapability, xterm);
+		capability = new TestCommandDetectionCapability(xterm, new NullLogService());
 		addEvents = [];
 		capability.onCommandFinished(e => addEvents.push(e));
 		assertCommands([]);

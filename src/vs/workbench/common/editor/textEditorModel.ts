@@ -17,6 +17,7 @@ import { ILanguageDetectionService, LanguageDetectionLanguageEventSource } from 
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { localize } from 'vs/nls';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
@@ -71,7 +72,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle) : null;
 	}
 
-	isReadonly(): boolean {
+	isReadonly(): boolean | IMarkdownString {
 		return true;
 	}
 
@@ -129,13 +130,11 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		}
 
 		const lang = await this.languageDetectionService.detectLanguage(this.textEditorModelHandle);
-		if (lang && !this.isDisposed()) {
+		const prevLang = this.getLanguageId();
+		if (lang && lang !== prevLang && !this.isDisposed()) {
 			this.setLanguageIdInternal(lang, LanguageDetectionLanguageEventSource);
-
 			const languageName = this.languageService.getLanguageName(lang);
-			if (languageName) {
-				this.accessibilityService.alert(localize('languageAutoDetected', "Language {0} was automatically detected and set as the language mode.", languageName));
-			}
+			this.accessibilityService.alert(localize('languageAutoDetected', "Language {0} was automatically detected and set as the language mode.", languageName ?? lang));
 		}
 	}
 

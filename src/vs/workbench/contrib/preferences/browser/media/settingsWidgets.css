@@ -74,9 +74,9 @@
 	min-height: 24px;
 }
 
-/* Use monospace to display glob patterns in exclude widget */
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget .setting-list-value,
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget .setting-list-sibling {
+/* Use monospace to display glob patterns in include/exclude widget */
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-include-exclude-widget .setting-list-value,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-include-exclude-widget .setting-list-sibling {
 	font-family: var(--monaco-monospace-font);
 }
 
@@ -208,7 +208,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-widget,
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-include-exclude-widget,
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget {
 	margin-bottom: 1px;
 	padding: 1px;

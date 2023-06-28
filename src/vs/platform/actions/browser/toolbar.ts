@@ -8,6 +8,7 @@ import { IToolBarOptions, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -94,13 +95,15 @@ export class WorkbenchToolBar extends ToolBar {
 			..._options,
 			// mandatory (overide options)
 			allowContextMenu: true,
+			skipTelemetry: typeof _options?.telemetrySource === 'string',
 		});
 
 		// telemetry logic
-		if (_options?.telemetrySource) {
+		const telemetrySource = _options?.telemetrySource;
+		if (telemetrySource) {
 			this._store.add(this.actionBar.onDidRun(e => telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
 				'workbenchActionExecuted',
-				{ id: e.action.id, from: _options!.telemetrySource! })
+				{ id: e.action.id, from: telemetrySource })
 			));
 		}
 	}
@@ -234,6 +237,7 @@ export class WorkbenchToolBar extends ToolBar {
 					// add context menu actions (iff appicable)
 					menuId: this._options?.contextMenu,
 					menuActionOptions: { renderShortTitle: true, ...this._options?.menuOptions },
+					skipTelemetry: typeof this._options?.telemetrySource === 'string',
 					contextKeyService: this._contextKeyService,
 				});
 			}));
@@ -283,6 +287,9 @@ export interface IMenuWorkbenchToolBarOptions extends IWorkbenchToolBarOptions {
  */
 export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 
+	private readonly _onDidChangeMenuItems = this._store.add(new Emitter<this>());
+	readonly onDidChangeMenuItems: Event<this> = this._onDidChangeMenuItems.event;
+
 	constructor(
 		container: HTMLElement,
 		menuId: MenuId,
@@ -309,7 +316,10 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 			super.setActions(primary, secondary);
 		};
 
-		this._store.add(menu.onDidChange(updateToolbar));
+		this._store.add(menu.onDidChange(() => {
+			updateToolbar();
+			this._onDidChangeMenuItems.fire(this);
+		}));
 		updateToolbar();
 	}
 

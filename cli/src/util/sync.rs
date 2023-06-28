@@ -35,6 +35,13 @@ where
 	}
 }
 
+#[async_trait]
+impl<T: Clone + Send + Sync> Receivable<T> for Barrier<T> {
+	async fn recv_msg(&mut self) -> Option<T> {
+		self.wait().await.ok()
+	}
+}
+
 #[derive(Clone)]
 pub struct BarrierOpener<T: Clone>(Arc<watch::Sender<Option<T>>>);
 

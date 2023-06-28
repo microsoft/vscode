@@ -311,9 +311,15 @@ export interface IDeprecationInfo {
 	readonly additionalInfo?: string;
 }
 
+export interface ISearchPrefferedResults {
+	readonly query?: string;
+	readonly preferredResults?: string[];
+}
+
 export interface IExtensionsControlManifest {
 	readonly malicious: IExtensionIdentifier[];
 	readonly deprecated: IStringDictionary<IDeprecationInfo>;
+	readonly search: ISearchPrefferedResults[];
 }
 
 export const enum InstallOperation {
@@ -341,6 +347,11 @@ export interface IExtensionQueryOptions {
 }
 
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
+
+/**
+ * Service to interact with the Visual Studio Code Marketplace to get extensions.
+ * @throws Error if the Marketplace is not enabled or not reachable.
+ */
 export interface IExtensionGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
@@ -372,6 +383,7 @@ export interface InstallExtensionResult {
 	readonly operation: InstallOperation;
 	readonly source?: URI | IGalleryExtension;
 	readonly local?: ILocalExtension;
+	readonly error?: Error;
 	readonly context?: IStringDictionary<any>;
 	readonly profileLocation?: URI;
 	readonly applicationScoped?: boolean;
@@ -405,8 +417,14 @@ export enum ExtensionManagementErrorCode {
 	Rename = 'Rename',
 	CorruptZip = 'CorruptZip',
 	IncompleteZip = 'IncompleteZip',
+	Signature = 'Signature',
 	Internal = 'Internal',
-	Signature = 'Signature'
+}
+
+export enum ExtensionSignaturetErrorCode {
+	UnknownError = 'UnknownError',
+	PackageIsInvalidZip = 'PackageIsInvalidZip',
+	SignatureArchiveIsInvalidZip = 'SignatureArchiveIsInvalidZip',
 }
 
 export class ExtensionManagementError extends Error {
@@ -423,6 +441,7 @@ export type InstallOptions = {
 	donotIncludePackAndDependencies?: boolean;
 	installGivenVersion?: boolean;
 	installPreReleaseVersion?: boolean;
+	donotVerifySignature?: boolean;
 	operation?: InstallOperation;
 	/**
 	 * Context passed through to InstallExtensionResult
@@ -437,6 +456,8 @@ export interface IExtensionManagementParticipant {
 	postInstall(local: ILocalExtension, source: URI | IGalleryExtension, options: InstallOptions | InstallVSIXOptions, token: CancellationToken): Promise<void>;
 	postUninstall(local: ILocalExtension, options: UninstallOptions, token: CancellationToken): Promise<void>;
 }
+
+export type InstallExtensionInfo = { readonly extension: IGalleryExtension; readonly options: InstallOptions };
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export interface IExtensionManagementService {
@@ -454,6 +475,7 @@ export interface IExtensionManagementService {
 	install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension>;
 	canInstall(extension: IGalleryExtension): Promise<boolean>;
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
+	installGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<InstallExtensionResult[]>;
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
 	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
@@ -463,7 +485,7 @@ export interface IExtensionManagementService {
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension>;
 
-	download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI>;
+	download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI>;
 
 	registerParticipant(pariticipant: IExtensionManagementParticipant): void;
 	getTargetPlatform(): Promise<TargetPlatform>;

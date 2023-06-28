@@ -20,7 +20,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use gethostname::gethostname;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{cell::Cell, fmt::Display, path::PathBuf, sync::Arc};
+use std::{cell::Cell, fmt::Display, path::PathBuf, sync::Arc, thread};
 use tokio::time::sleep;
 use tunnels::{
 	contracts::PROD_FIRST_PARTY_APP_ID,
@@ -49,7 +49,7 @@ struct AuthenticationError {
 	error_description: Option<String>,
 }
 
-#[derive(clap::ArgEnum, Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(clap::ValueEnum, Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum AuthProvider {
 	Microsoft,
 	Github,
@@ -210,6 +210,48 @@ const KEYCHAIN_ENTRY_LIMIT: usize = 128 * 1024;
 
 const CONTINUE_MARKER: &str = "<MORE>";
 
+/// Implementation that wraps the KeyringStorage on Linux to avoid
+/// https://github.com/hwchen/keyring-rs/issues/132
+struct ThreadKeyringStorage {
+	s: Option<KeyringStorage>,
+}
+
+impl ThreadKeyringStorage {
+	fn thread_op<R, Fn>(&mut self, f: Fn) -> R
+	where
+		Fn: 'static + Send + FnOnce(&mut KeyringStorage) -> R,
+		R: 'static + Send,
+	{
+		let mut s = self.s.take().unwrap();
+		let handler = thread::spawn(move || (f(&mut s), s));
+		let (r, s) = handler.join().unwrap();
+		self.s = Some(s);
+		r
+	}
+}
+
+impl Default for ThreadKeyringStorage {
+	fn default() -> Self {
+		Self {
+			s: Some(KeyringStorage::default()),
+		}
+	}
+}
+
+impl StorageImplementation for ThreadKeyringStorage {
+	fn read(&mut self) -> Result<Option<StoredCredential>, WrappedError> {
+		self.thread_op(|s| s.read())
+	}
+
+	fn store(&mut self, value: StoredCredential) -> Result<(), WrappedError> {
+		self.thread_op(move |s| s.store(value))
+	}
+
+	fn clear(&mut self) -> Result<(), WrappedError> {
+		self.thread_op(|s| s.clear())
+	}
+}
+
 #[derive(Default)]
 struct KeyringStorage {
 	// keywring storage can be split into multiple entries due to entry length limits
@@ -222,7 +264,7 @@ macro_rules! get_next_entry {
 		match $self.entries.get($i) {
 			Some(e) => e,
 			None => {
-				let e = keyring::Entry::new("vscode-cli", &format!("vscode-cli-{}", $i));
+				let e = keyring::Entry::new("vscode-cli", &format!("vscode-cli-{}", $i)).unwrap();
 				$self.entries.push(e);
 				$self.entries.last().unwrap()
 			}
@@ -325,7 +367,10 @@ impl Auth {
 			return op(s);
 		}
 
+		#[cfg(not(target_os = "linux"))]
 		let mut keyring_storage = KeyringStorage::default();
+		#[cfg(target_os = "linux")]
+		let mut keyring_storage = ThreadKeyringStorage::default();
 		let mut file_storage = FileStorage(PersistedState::new(self.file_storage_path.clone()));
 
 		let keyring_storage_result = match std::env::var("VSCODE_CLI_USE_FILE_KEYCHAIN") {

@@ -132,6 +132,7 @@ export class TabCompletionController implements IEditorContribution {
 		} else {
 			this._hasSnippets.set(true);
 			this._completionProvider = {
+				_debugDisplayName: 'tabCompletion',
 				dispose: () => {
 					registration.dispose();
 				},

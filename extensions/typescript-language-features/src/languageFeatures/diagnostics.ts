@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { DiagnosticLanguage } from '../configuration/languageDescription';
 import * as arrays from '../utils/arrays';
 import { Disposable } from '../utils/dispose';
-import { DiagnosticLanguage } from '../utils/languageDescription';
 import { ResourceMap } from '../utils/resourceMap';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
@@ -53,7 +53,7 @@ class FileDiagnostics {
 		}
 
 		const existing = this._diagnostics.get(kind);
-		if (arrays.equals(existing || arrays.empty, diagnostics, diagnosticsEquals)) {
+		if (existing?.length === 0 && diagnostics.length === 0) {
 			// No need to update
 			return false;
 		}
@@ -170,7 +170,7 @@ export class DiagnosticsManager extends Disposable {
 	public override dispose() {
 		super.dispose();
 
-		for (const value of this._pendingUpdates.values) {
+		for (const value of this._pendingUpdates.values()) {
 			clearTimeout(value);
 		}
 		this._pendingUpdates.clear();
@@ -259,7 +259,7 @@ export class DiagnosticsManager extends Disposable {
 
 	private rebuildAll(): void {
 		this._currentDiagnostics.clear();
-		for (const fileDiagnostic of this._diagnostics.values) {
+		for (const fileDiagnostic of this._diagnostics.values()) {
 			this.rebuildFile(fileDiagnostic);
 		}
 	}

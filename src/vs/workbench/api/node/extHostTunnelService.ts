@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainThreadTunnelServiceShape, MainContext, PortAttributesProviderSelector, TunnelDto } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTunnelServiceShape, MainContext, PortAttributesSelector, TunnelDto } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import type * as vscode from 'vscode';
 import * as nls from 'vs/nls';
@@ -186,7 +186,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	private _initialCandidates: CandidatePort[] | undefined = undefined;
 
 	private _providerHandleCounter: number = 0;
-	private _portAttributesProviders: Map<number, { provider: vscode.PortAttributesProvider; selector: PortAttributesProviderSelector }> = new Map();
+	private _portAttributesProviders: Map<number, { provider: vscode.PortAttributesProvider; selector: PortAttributesSelector }> = new Map();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -232,7 +232,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return this._providerHandleCounter++;
 	}
 
-	registerPortsAttributesProvider(portSelector: PortAttributesProviderSelector, provider: vscode.PortAttributesProvider): vscode.Disposable {
+	registerPortsAttributesProvider(portSelector: PortAttributesSelector, provider: vscode.PortAttributesProvider): vscode.Disposable {
 		const providerHandle = this.nextPortAttributesProviderHandle();
 		this._portAttributesProviders.set(providerHandle, { selector: portSelector, provider });
 
@@ -244,22 +244,22 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	async $providePortAttributes(handles: number[], ports: number[], pid: number | undefined, commandline: string | undefined, cancellationToken: vscode.CancellationToken): Promise<ProvidedPortAttributes[]> {
-		const providedAttributes: vscode.ProviderResult<vscode.PortAttributes>[] = [];
+		const providedAttributes: { providedAttributes: vscode.PortAttributes | null | undefined; port: number }[] = [];
 		for (const handle of handles) {
 			const provider = this._portAttributesProviders.get(handle);
 			if (!provider) {
 				return [];
 			}
 			providedAttributes.push(...(await Promise.all(ports.map(async (port) => {
-				return provider.provider.providePortAttributes(port, pid, commandline, cancellationToken);
+				return { providedAttributes: (await provider.provider.providePortAttributes(port, pid, commandline, cancellationToken)), port };
 			}))));
 		}
 
-		const allAttributes = <vscode.PortAttributes[]>providedAttributes.filter(attribute => !!attribute);
+		const allAttributes = <{ providedAttributes: vscode.PortAttributes; port: number }[]>providedAttributes.filter(attribute => !!attribute.providedAttributes);
 
 		return (allAttributes.length > 0) ? allAttributes.map(attributes => {
 			return {
-				autoForwardAction: <ProvidedOnAutoForward><unknown>attributes.autoForwardAction,
+				autoForwardAction: <ProvidedOnAutoForward><unknown>attributes.providedAttributes.autoForwardAction,
 				port: attributes.port
 			};
 		}) : [];

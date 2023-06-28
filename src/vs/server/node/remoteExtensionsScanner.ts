@@ -59,7 +59,11 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 		if (extensionsToInstall) {
 			_logService.trace('Installing extensions passed via args...');
 			this._whenExtensionsReady
-				.then(() => _extensionManagementCLI.installExtensions(this._asExtensionIdOrVSIX(extensionsToInstall), [], { isMachineScoped: !!environmentService.args['do-not-sync'], installPreReleaseVersion: !!environmentService.args['pre-release'], isApplicationScoped: environmentService.args['all-profiles'] }, !!environmentService.args['force']))
+				.then(() => _extensionManagementCLI.installExtensions(this._asExtensionIdOrVSIX(extensionsToInstall), [], {
+					isMachineScoped: !!environmentService.args['do-not-sync'],
+					installPreReleaseVersion: !!environmentService.args['pre-release'],
+					isApplicationScoped: true // extensions installed during server startup are available to all profiles
+				}, !!environmentService.args['force']))
 				.then(() => {
 					_logService.trace('Finished installing extensions');
 				}, error => {

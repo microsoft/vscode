@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { KernelPickerFlatStrategy, KernelPickerMRUStrategy } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy';
+import { KernelPickerMRUStrategy } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { INotebookExecutionService, ICellExecutionParticipant } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelHistoryService, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+
 
 export class NotebookExecutionService implements INotebookExecutionService, IDisposable {
 	declare _serviceBrand: undefined;
@@ -29,7 +29,6 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 	}
 
@@ -57,14 +56,7 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 			cellExecutions.push([cell, this._notebookExecutionStateService.createCellExecution(notebook.uri, cell.handle)]);
 		}
 
-		let kernel: INotebookKernel | undefined;
-		const kernelPickerType = this._configurationService.getValue<'all' | 'mru'>('notebook.kernelPicker.type');
-
-		if (kernelPickerType === 'mru') {
-			kernel = await KernelPickerMRUStrategy.resolveKernel(notebook, this._notebookKernelService, this._notebookKernelHistoryService, this._commandService);
-		} else {
-			kernel = await KernelPickerFlatStrategy.resolveKernel(notebook, this._notebookKernelService, this._commandService, contextKeyService);
-		}
+		const kernel = await KernelPickerMRUStrategy.resolveKernel(notebook, this._notebookKernelService, this._notebookKernelHistoryService, this._commandService);
 
 		if (!kernel) {
 			// clear all pending cell executions
@@ -72,9 +64,7 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 			return;
 		}
 
-		if (kernelPickerType === 'mru') {
-			this._notebookKernelHistoryService.addMostRecentKernel(kernel);
-		}
+		this._notebookKernelHistoryService.addMostRecentKernel(kernel);
 
 		// filter cell executions based on selected kernel
 		const validCellExecutions: INotebookCellExecution[] = [];
@@ -88,6 +78,8 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 
 		// request execution
 		if (validCellExecutions.length > 0) {
+			await this.runExecutionParticipants(validCellExecutions);
+
 			this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
 			await kernel.executeNotebookCellsRequest(notebook.uri, validCellExecutions.map(c => c.cellHandle));
 			// the connecting state can change before the kernel resolves executeNotebookCellsRequest
@@ -111,6 +103,20 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 
 	async cancelNotebookCells(notebook: INotebookTextModel, cells: Iterable<NotebookCellTextModel>): Promise<void> {
 		this.cancelNotebookCellHandles(notebook, Array.from(cells, cell => cell.handle));
+	}
+
+	private readonly cellExecutionParticipants = new Set<ICellExecutionParticipant>;
+
+	registerExecutionParticipant(participant: ICellExecutionParticipant) {
+		this.cellExecutionParticipants.add(participant);
+		return toDisposable(() => this.cellExecutionParticipants.delete(participant));
+	}
+
+	private async runExecutionParticipants(executions: INotebookCellExecution[]): Promise<void> {
+		for (const participant of this.cellExecutionParticipants) {
+			await participant.onWillExecuteCell(executions);
+		}
+		return;
 	}
 
 	dispose() {

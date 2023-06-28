@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
+import * as fs from 'fs';
 import { makeUniversalApp } from 'vscode-universal-bundler';
 import { spawn } from '@malept/cross-spawn-promise';
-import * as fs from 'fs-extra';
-import * as path from 'path';
-import * as product from '../../product.json';
 
-async function main() {
-	const buildDir = process.env['AGENT_BUILDDIRECTORY'];
+const root = path.dirname(path.dirname(__dirname));
+
+async function main(buildDir?: string) {
 	const arch = process.env['VSCODE_ARCH'];
 
 	if (!buildDir) {
-		throw new Error('$AGENT_BUILDDIRECTORY not set');
+		throw new Error('Build dir not provided');
 	}
 
+	const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 	const appName = product.nameLong + '.app';
 	const x64AppPath = path.join(buildDir, 'VSCode-darwin-x64', appName);
 	const arm64AppPath = path.join(buildDir, 'VSCode-darwin-arm64', appName);
@@ -43,11 +44,11 @@ async function main() {
 		force: true
 	});
 
-	const productJson = await fs.readJson(productJsonPath);
+	const productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
 	Object.assign(productJson, {
 		darwinUniversalAssetId: 'darwin-universal'
 	});
-	await fs.writeJson(productJsonPath, productJson);
+	fs.writeFileSync(productJsonPath, JSON.stringify(productJson, null, '\t'));
 
 	// Verify if native module architecture is correct
 	const findOutput = await spawn('find', [outAppPath, '-name', 'keytar.node']);
@@ -58,7 +59,7 @@ async function main() {
 }
 
 if (require.main === module) {
-	main().catch(err => {
+	main(process.argv[2]).catch(err => {
 		console.error(err);
 		process.exit(1);
 	});

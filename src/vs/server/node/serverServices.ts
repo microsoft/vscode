@@ -20,8 +20,6 @@ import { CredentialsWebMainService } from 'vs/platform/credentials/node/credenti
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannelClient } from 'vs/platform/download/common/downloadIpc';
-import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
-import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -80,6 +78,7 @@ import { localize } from 'vs/nls';
 import { RemoteExtensionsScannerChannel, RemoteExtensionsScannerService } from 'vs/server/node/remoteExtensionsScanner';
 import { RemoteExtensionsScannerChannelName } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { RemoteUserDataProfilesServiceChannel } from 'vs/platform/userDataProfile/common/userDataProfileIpc';
+import { NodePtyHostStarter } from 'vs/platform/terminal/node/nodePtyHostStarter';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -190,18 +189,16 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 	services.set(ILanguagePackService, instantiationService.createInstance(NativeLanguagePackService));
 
-	const ptyService = instantiationService.createInstance(
-		PtyHostService,
+	const ptyHostStarter = instantiationService.createInstance(
+		NodePtyHostStarter,
 		{
 			graceTime: ProtocolConstants.ReconnectionGraceTime,
 			shortGraceTime: ProtocolConstants.ReconnectionShortGraceTime,
 			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
-		},
-		true
+		}
 	);
+	const ptyService = instantiationService.createInstance(PtyHostService, ptyHostStarter);
 	services.set(IPtyService, ptyService);
-
-	services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
 
 	services.set(ICredentialsMainService, new SyncDescriptor(CredentialsWebMainService));
 
@@ -228,9 +225,6 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 		const channel = new ExtensionManagementChannel(extensionManagementService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority));
 		socketServer.registerChannel('extensions', channel);
-
-		const encryptionChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(IEncryptionMainService));
-		socketServer.registerChannel('encryption', encryptionChannel);
 
 		const credentialsChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(ICredentialsMainService));
 		socketServer.registerChannel('credentials', credentialsChannel);

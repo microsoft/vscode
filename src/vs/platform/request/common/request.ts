@@ -55,12 +55,11 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 	private counter = 0;
 
 	constructor(
-		remote: boolean,
 		loggerService: ILoggerService
 	) {
 		super();
-		this.logger = loggerService.createLogger(remote ? 'remotenetwork' : 'network', {
-			name: remote ? localize('remote request', "Network Requests (Remote)") : localize('request', "Network Requests"),
+		this.logger = loggerService.createLogger('network', {
+			name: localize('request', "Network Requests"),
 			when: CONTEXT_LOG_LEVEL.isEqualTo(LogLevelToString(LogLevel.Trace)).serialize()
 		});
 	}
@@ -179,4 +178,4 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 	configurationRegistry.updateConfigurations({ add: [proxyConfiguration], remove: oldProxyConfiguration ? [oldProxyConfiguration] : [] });
 }
 
-registerProxyConfigurations(ConfigurationScope.MACHINE);
+registerProxyConfigurations(ConfigurationScope.APPLICATION);

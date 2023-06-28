@@ -13,6 +13,7 @@
 	position: absolute;
 	user-select: none;
 	-webkit-user-select: none;
+	z-index: 99;
 }
 
 .monaco-diff-editor .diff-review-summary {
@@ -53,6 +54,7 @@
 	position: absolute;
 	right: 10px;
 	top: 2px;
+	z-index: 100;
 }
 
 .monaco-diff-editor .diff-review-actions .action-label {

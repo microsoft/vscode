@@ -25,7 +25,7 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { Terminal } from 'xterm';
 import { IFileQuery, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
-import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { ITerminalLogService, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
@@ -83,6 +83,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.set(ISearchService, searchService);
 		instantiationService.set(IWorkspaceContextService, new TestContextService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IWorkbenchEnvironmentService, {
 			remoteAuthority: undefined
 		} as Partial<IWorkbenchEnvironmentService>);
@@ -129,6 +130,10 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			// Set a fake detected command starting as line 0 to establish the cwd
 			commandDetection.setCommands([{
 				command: '',
+				exitCode: 0,
+				commandStartLineContent: '',
+				markProperties: {},
+				isTrusted: true,
 				cwd: '/initial/cwd',
 				timestamp: 0,
 				getOutput() { return undefined; },
@@ -266,6 +271,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				// Set a fake detected command starting as line 0 to establish the cwd
 				commandDetection.setCommands([{
 					command: '',
+					isTrusted: true,
 					cwd,
 					timestamp: 0,
 					getOutput() { return undefined; },
@@ -273,7 +279,10 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					marker: {
 						line: 0
 					} as Partial<IXtermMarker> as any,
-					hasOutput() { return true; }
+					hasOutput() { return true; },
+					exitCode: 0,
+					commandStartLineContent: '',
+					markProperties: {}
 				}]);
 				await opener.open({
 					text: 'file.txt',
@@ -323,7 +332,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					source: 'editor',
 					selection: {
 						startColumn: 5,
-						startLineNumber: 10
+						startLineNumber: 10,
+						endColumn: undefined,
+						endLineNumber: undefined
 					},
 				});
 			});
@@ -350,7 +361,11 @@ suite('Workbench - TerminalLinkOpeners', () => {
 
 				// Set a fake detected command starting as line 0 to establish the cwd
 				commandDetection.setCommands([{
+					exitCode: 0,
+					commandStartLineContent: '',
+					markProperties: {},
 					command: '',
+					isTrusted: true,
 					cwd,
 					timestamp: 0,
 					getOutput() { return undefined; },
@@ -408,7 +423,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					source: 'editor',
 					selection: {
 						startColumn: 5,
-						startLineNumber: 10
+						startLineNumber: 10,
+						endColumn: undefined,
+						endLineNumber: undefined
 					},
 				});
 				await opener.open({
@@ -421,7 +438,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					source: 'editor',
 					selection: {
 						startColumn: 5,
-						startLineNumber: 10
+						startLineNumber: 10,
+						endColumn: undefined,
+						endLineNumber: undefined
 					},
 				});
 			});

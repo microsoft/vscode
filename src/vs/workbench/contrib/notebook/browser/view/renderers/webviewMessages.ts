@@ -47,6 +47,11 @@ export interface IOutputBlurMessage extends BaseToWebviewMessage {
 	readonly id: string;
 }
 
+export interface IOutputInputFocusMessage extends BaseToWebviewMessage {
+	readonly type: 'outputInputFocus';
+	readonly inputFocused: boolean;
+}
+
 export interface IScrollToRevealMessage extends BaseToWebviewMessage {
 	readonly type: 'scroll-to-reveal';
 	readonly scrollTop: number;
@@ -378,10 +383,6 @@ export interface INotebookOptionsMessage {
 	readonly renderOptions: RenderOptions;
 }
 
-export interface INotebookUpdateWorkspaceTrust {
-	readonly type: 'updateWorkspaceTrust';
-	readonly isTrusted: boolean;
-}
 export interface ITokenizedCodeBlockMessage {
 	readonly type: 'tokenizedCodeBlock';
 	readonly codeBlockId: string;
@@ -396,7 +397,7 @@ export interface ITokenizedStylesChangedMessage {
 export interface IFindMessage {
 	readonly type: 'find';
 	readonly query: string;
-	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean };
+	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean };
 }
 
 
@@ -479,6 +480,7 @@ export type FromWebviewMessage = WebviewInitialized |
 	IMouseLeaveMessage |
 	IOutputFocusMessage |
 	IOutputBlurMessage |
+	IOutputInputFocusMessage |
 	IScrollToRevealMessage |
 	IWheelMessage |
 	IScrollAckMessage |
@@ -529,7 +531,6 @@ export type ToWebviewMessage = IClearMessage |
 	IInitializeMarkupCells |
 	INotebookStylesMessage |
 	INotebookOptionsMessage |
-	INotebookUpdateWorkspaceTrust |
 	ITokenizedCodeBlockMessage |
 	ITokenizedStylesChangedMessage |
 	IFindMessage |

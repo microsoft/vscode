@@ -446,6 +446,7 @@ class Extensions extends Disposable {
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -545,6 +546,11 @@ class Extensions extends Disposable {
 	private async updateMetadata(localExtension: ILocalExtension, gallery: IGalleryExtension): Promise<ILocalExtension> {
 		let isPreReleaseVersion = false;
 		if (localExtension.manifest.version !== gallery.version) {
+			type GalleryServiceMatchInstalledExtensionClassification = {
+				owner: 'sandy081';
+				comment: 'Report when a request is made to update metadata of an installed extension';
+			};
+			this.telemetryService.publicLog2<{}, GalleryServiceMatchInstalledExtensionClassification>('galleryService:updateMetadata');
 			const galleryWithLocalVersion: IGalleryExtension | undefined = (await this.galleryService.getExtensions([{ ...localExtension.identifier, version: localExtension.manifest.version }], CancellationToken.None))[0];
 			isPreReleaseVersion = !!galleryWithLocalVersion?.properties?.isPreReleaseVersion;
 		}
@@ -659,6 +665,11 @@ class Extensions extends Disposable {
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
+		type GalleryServiceMatchInstalledExtensionClassification = {
+			owner: 'sandy081';
+			comment: 'Report when a request is made to match installed extension with gallery';
+		};
+		this.telemetryService.publicLog2<{}, GalleryServiceMatchInstalledExtensionClassification>('galleryService:matchInstalledExtension');
 		const [compatible] = await this.galleryService.getExtensions([{ ...extension.identifier, preRelease: extension.local?.preRelease }], { compatible: true, targetPlatform: await this.server.extensionManagementService.getTargetPlatform() }, CancellationToken.None);
 		if (compatible) {
 			extension.gallery = compatible;
@@ -737,6 +748,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private installing: IExtension[] = [];
 	private tasksInProgress: CancelablePromise<any>[] = [];
 
+	readonly whenInitialized: Promise<void>;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -796,7 +809,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		urlService.registerHandler(this);
 
-		this.initialize();
+		this.whenInitialized = this.initialize();
 	}
 
 	private async initialize(): Promise<void> {
@@ -844,9 +857,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		// Check for updates
 		this.eventuallyCheckForUpdates(true);
 
-		// Always auto update builtin extensions in web
-		if (isWeb && !this.isAutoUpdateEnabled()) {
-			this.autoUpdateBuiltinExtensions();
+		if (isWeb) {
+			this.syncPinnedBuiltinExtensions();
+			// Always auto update builtin extensions in web
+			if (!this.isAutoUpdateEnabled()) {
+				this.autoUpdateBuiltinExtensions();
+			}
 		}
 	}
 
@@ -1320,7 +1336,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				// Skip if check updates only for builtin extensions and current extension is not builtin.
 				continue;
 			}
-			if (installed.isBuiltin && (installed.type === ExtensionType.System || !installed.local?.identifier.uuid)) {
+			if (installed.isBuiltin && !installed.pinned && (installed.type === ExtensionType.System || !installed.local?.identifier.uuid)) {
 				// Skip checking updates for a builtin extension if it is a system extension or if it does not has Marketplace identifier
 				continue;
 			}
@@ -1328,6 +1344,17 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		if (infos.length) {
 			const targetPlatform = await extensions[0].server.extensionManagementService.getTargetPlatform();
+			type GalleryServiceUpdatesCheckClassification = {
+				owner: 'sandy081';
+				comment: 'Report when a request is made to check for updates of extensions';
+				readonly count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions to check update' };
+			};
+			type GalleryServiceUpdatesCheckEvent = {
+				readonly count: number;
+			};
+			this.telemetryService.publicLog2<GalleryServiceUpdatesCheckEvent, GalleryServiceUpdatesCheckClassification>('galleryService:checkingForUpdates', {
+				count: infos.length,
+			});
 			const galleryExtensions = await this.galleryService.getExtensions(infos, { targetPlatform, compatible: true }, CancellationToken.None);
 			if (galleryExtensions.length) {
 				await this.syncInstalledExtensionsWithGallery(galleryExtensions);
@@ -1386,6 +1413,21 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		await this.checkForUpdates(true);
 		const toUpdate = this.outdated.filter(e => e.isBuiltin);
 		await Promises.settled(toUpdate.map(e => this.install(e, e.local?.preRelease ? { installPreReleaseVersion: true } : undefined)));
+	}
+
+	private async syncPinnedBuiltinExtensions(): Promise<void> {
+		const infos: IExtensionInfo[] = [];
+		for (const installed of this.local) {
+			if (installed.isBuiltin && installed.pinned && installed.local?.identifier.uuid) {
+				infos.push({ ...installed.identifier, version: installed.version });
+			}
+		}
+		if (infos.length) {
+			const galleryExtensions = await this.galleryService.getExtensions(infos, CancellationToken.None);
+			if (galleryExtensions.length) {
+				await this.syncInstalledExtensionsWithGallery(galleryExtensions);
+			}
+		}
 	}
 
 	private autoUpdateExtensions(): Promise<any> {
@@ -1456,23 +1498,23 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	async installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void> {
 		await this.doInstall(extension, async () => {
+			const local = extension.local;
+			if (!local) {
+				throw new Error('Extension not found');
+			}
 			if (!extension.gallery) {
-				extension = (await this.getExtensions([extension.identifier], CancellationToken.None))[0] ?? extension;
+				extension = (await this.getExtensions([{ ...extension.identifier, preRelease: local.preRelease }], CancellationToken.None))[0] ?? extension;
 			}
 			if (extension.gallery) {
-				return server.extensionManagementService.installFromGallery(extension.gallery);
-			}
-
-			if (!extension.local) {
-				throw new Error('Extension not found');
+				return server.extensionManagementService.installFromGallery(extension.gallery, { installPreReleaseVersion: local.preRelease });
 			}
 
 			const targetPlatform = await server.extensionManagementService.getTargetPlatform();
-			if (!isTargetPlatformCompatible(extension.local.targetPlatform, [extension.local.targetPlatform], targetPlatform)) {
+			if (!isTargetPlatformCompatible(local.targetPlatform, [local.targetPlatform], targetPlatform)) {
 				throw new Error(nls.localize('incompatible', "Can't install '{0}' extension because it is not compatible.", extension.identifier.id));
 			}
 
-			const vsix = await this.extensionManagementService.zip(extension.local);
+			const vsix = await this.extensionManagementService.zip(local);
 			try {
 				return await server.extensionManagementService.install(vsix);
 			} finally {
