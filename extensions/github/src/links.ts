@@ -236,6 +236,18 @@ export async function ensurePublished(repository: Repository, file: vscode.Uri) 
 		}
 
 		await repository.push();
+	} else if (repository.state.HEAD?.behind) {
+		const pull = vscode.l10n.t('Pull Changes');
+		const selection = await vscode.window.showInformationMessage(
+			vscode.l10n.t('The current branch is not up to date. Would you like to pull before copying a link?'),
+			{ modal: true },
+			pull
+		);
+		if (selection !== pull) {
+			throw new vscode.CancellationError();
+		}
+
+		await repository.pull();
 	}
 
 	await repository.status();
