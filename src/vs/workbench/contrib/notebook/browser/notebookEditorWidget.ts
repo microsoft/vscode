@@ -560,7 +560,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _createBody(parent: HTMLElement): void {
 		this._notebookTopToolbarContainer = document.createElement('div');
 		this._notebookTopToolbarContainer.classList.add('notebook-toolbar-container');
-		this._notebookTopToolbarContainer.tabIndex = 0;
 		this._notebookTopToolbarContainer.style.display = 'none';
 		DOM.append(parent, this._notebookTopToolbarContainer);
 		this._body = document.createElement('div');
