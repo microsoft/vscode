@@ -159,7 +159,7 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	}
 
 	private async reproduceIssueWithExtensionsDisabled(): Promise<void> {
-		const result = await this.askToReproduceIssue(localize('profile.extensions.disabled', "Issue troubleshooting is active and has temprarily disabled all installed extensions. Check if you can still reproduce the problem and proceed by selecting from these options."));
+		const result = await this.askToReproduceIssue(localize('profile.extensions.disabled', "Issue troubleshooting is active and has temporarily disabled all installed extensions. Check if you can still reproduce the problem and proceed by selecting from these options."));
 		if (result === 'good') {
 			const profile = this.userDataProfilesService.profiles.find(p => p.id === this.state!.profile) ?? this.userDataProfilesService.defaultProfile;
 			await this.reproduceIssueWithExtensionsBisect(profile);
@@ -175,12 +175,12 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	private async reproduceIssueWithEmptyProfile(): Promise<void> {
 		await this.userDataProfileManagementService.createAndEnterTransientProfile();
 		this.updateState(this.state);
-		const result = await this.askToReproduceIssue(localize('empty.profile', "Issue troubleshooting is active and has temporarily reset your settings to defaults. Check if you can still reproduce the problem and proceed by selecting from these options."));
+		const result = await this.askToReproduceIssue(localize('empty.profile', "Issue troubleshooting is active and has temporarily reset your configurations to defaults. Check if you can still reproduce the problem and proceed by selecting from these options."));
 		if (result === 'stop') {
 			await this.stop();
 		}
 		if (result === 'good') {
-			await this.askToReportIssue(localize('issue is with configuration', "Issue troubleshooting has identified that the issue is caused by your settings. Please report the issue by sharing your settings."));
+			await this.askToReportIssue(localize('issue is with configuration', "Issue troubleshooting has identified that the issue is caused by your configurations. Please report the issue by exporting your configurations using \"Export Profile\" command and share the file in the issue report."));
 		}
 		if (result === 'bad') {
 			await this.askToReportIssue(localize('issue is in core', "Issue troubleshooting has identified that the issue is with {0}.", this.productService.nameLong));
