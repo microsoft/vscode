@@ -1090,6 +1090,16 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	) {
 		super();
 
+		this.registerSchemas({
+			defaultSettingsSchema: {},
+			userSettingsSchema: {},
+			profileSettingsSchema: {},
+			machineSettingsSchema: {},
+			workspaceSettingsSchema: {},
+			folderSettingsSchema: {},
+			configDefaultsSchema: {},
+		});
+
 		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			this.registerConfigurationSchemas();
 
@@ -1101,8 +1111,6 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	}
 
 	private registerConfigurationSchemas(): void {
-		const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-
 		const allSettingsSchema: IJSONSchema = {
 			properties: allSettings.properties,
 			patternProperties: allSettings.patternProperties,
@@ -1163,7 +1171,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 			allowComments: true
 		};
 
-		jsonRegistry.registerSchema(defaultSettingsSchemaId, {
+		const defaultSettingsSchema = {
 			properties: Object.keys(allSettings.properties).reduce<IJSONSchemaMap>((result, key) => {
 				result[key] = Object.assign({ deprecationMessage: undefined }, allSettings.properties[key]);
 				return result;
@@ -1175,13 +1183,10 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 			additionalProperties: true,
 			allowTrailingCommas: true,
 			allowComments: true
-		});
-		jsonRegistry.registerSchema(userSettingsSchemaId, userSettingsSchema);
-		jsonRegistry.registerSchema(profileSettingsSchemaId, profileSettingsSchema);
-		jsonRegistry.registerSchema(machineSettingsSchemaId, machineSettingsSchema);
+		};
 
-		if (WorkbenchState.WORKSPACE === this.workspaceContextService.getWorkbenchState()) {
-			const folderSettingsSchema: IJSONSchema = {
+		const folderSettingsSchema: IJSONSchema = WorkbenchState.WORKSPACE === this.workspaceContextService.getWorkbenchState() ?
+			{
 				properties: Object.assign({},
 					this.checkAndFilterPropertiesRequiringTrust(machineOverridableSettings.properties),
 					this.checkAndFilterPropertiesRequiringTrust(resourceSettings.properties)
@@ -1190,15 +1195,9 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 				additionalProperties: true,
 				allowTrailingCommas: true,
 				allowComments: true
-			};
-			jsonRegistry.registerSchema(workspaceSettingsSchemaId, workspaceSettingsSchema);
-			jsonRegistry.registerSchema(folderSettingsSchemaId, folderSettingsSchema);
-		} else {
-			jsonRegistry.registerSchema(workspaceSettingsSchemaId, workspaceSettingsSchema);
-			jsonRegistry.registerSchema(folderSettingsSchemaId, workspaceSettingsSchema);
-		}
+			} : workspaceSettingsSchema;
 
-		jsonRegistry.registerSchema(configurationDefaultsSchemaId, {
+		const configDefaultsSchema: IJSONSchema = {
 			type: 'object',
 			description: localize('configurationDefaults.description', 'Contribute defaults for configurations'),
 			properties: Object.assign({},
@@ -1214,7 +1213,35 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 				}
 			},
 			additionalProperties: false
+		};
+		this.registerSchemas({
+			defaultSettingsSchema,
+			userSettingsSchema,
+			profileSettingsSchema,
+			machineSettingsSchema,
+			workspaceSettingsSchema,
+			folderSettingsSchema,
+			configDefaultsSchema,
 		});
+	}
+
+	private registerSchemas(schemas: {
+		defaultSettingsSchema: IJSONSchema;
+		userSettingsSchema: IJSONSchema;
+		profileSettingsSchema: IJSONSchema;
+		machineSettingsSchema: IJSONSchema;
+		workspaceSettingsSchema: IJSONSchema;
+		folderSettingsSchema: IJSONSchema;
+		configDefaultsSchema: IJSONSchema;
+	}): void {
+		const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+		jsonRegistry.registerSchema(defaultSettingsSchemaId, schemas.defaultSettingsSchema);
+		jsonRegistry.registerSchema(userSettingsSchemaId, schemas.userSettingsSchema);
+		jsonRegistry.registerSchema(profileSettingsSchemaId, schemas.profileSettingsSchema);
+		jsonRegistry.registerSchema(machineSettingsSchemaId, schemas.machineSettingsSchema);
+		jsonRegistry.registerSchema(workspaceSettingsSchemaId, schemas.workspaceSettingsSchema);
+		jsonRegistry.registerSchema(folderSettingsSchemaId, schemas.folderSettingsSchema);
+		jsonRegistry.registerSchema(configurationDefaultsSchemaId, schemas.configDefaultsSchema);
 	}
 
 	private checkAndFilterPropertiesRequiringTrust(properties: IStringDictionary<IConfigurationPropertySchema>): IStringDictionary<IConfigurationPropertySchema> {
