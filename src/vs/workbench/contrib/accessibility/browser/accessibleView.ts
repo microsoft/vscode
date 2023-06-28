@@ -60,6 +60,7 @@ class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
 	get editorWidget() { return this._editorWidget; }
 	private _editorContainer: HTMLElement;
+	private _keyListener: IDisposable | undefined;
 
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -98,6 +99,7 @@ class AccessibleView extends Disposable {
 			},
 			onHide: () => {
 				provider.onClose();
+				this._keyListener?.dispose();
 			}
 		};
 		this._contextViewService.showContextView(delegate);
@@ -123,7 +125,7 @@ class AccessibleView extends Disposable {
 				model.setLanguage(provider.options.language);
 			}
 			container.appendChild(this._editorContainer);
-			this._register(this._editorWidget.onKeyUp((e) => {
+			this._keyListener = this._register(this._editorWidget.onKeyUp((e) => {
 				if (e.keyCode === KeyCode.Escape) {
 					this._contextViewService.hideContextView();
 				} else if (e.keyCode === KeyCode.KeyD && this._configurationService.getValue(settingKey)) {
