@@ -39,7 +39,7 @@ import { registerMoveActions } from 'vs/workbench/contrib/chat/browser/actions/c
 import { registerClearActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
 import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 
@@ -127,13 +127,11 @@ class ChatAccessibleViewContribution extends Disposable {
 			const widgetService = accessor.get(IChatWidgetService);
 			const widget: IChatWidget | undefined = widgetService.lastFocusedWidget;
 			const focusedItem: ChatTreeItem | undefined = widget?.getFocus();
-			if (!widget || !focusedItem) {
+			if (!widget || !focusedItem || !isResponseVM(focusedItem)) {
 				return false;
 			}
 
-			const responseItem: ChatTreeItem | undefined = widget.viewModel?.getItems().find((item): item is IChatResponseViewModel => isResponseVM(item) && item.id === focusedItem?.id);
-
-			const responseContent = responseItem?.response.value;
+			const responseContent = focusedItem?.response.value;
 			if (!responseContent) {
 				return false;
 			}
