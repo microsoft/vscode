@@ -645,17 +645,15 @@ function actionOverflowHelper(initialPrimaryActions: IActionModel[], initialSeco
 		}
 	}
 
-	if (renderActions.length) {
-		for (let i = (renderActions.length - 1); i !== 0; i--) {
-			const temp = renderActions[i];
-			if (temp.size === 0) {
-				continue;
-			}
-			if (temp.action instanceof Separator) {
-				renderActions.splice(i, 1);
-			}
-			break;
+	for (let i = (renderActions.length - 1); i > 0; i--) {
+		const temp = renderActions[i];
+		if (temp.size === 0) {
+			continue;
 		}
+		if (temp.action instanceof Separator) {
+			renderActions.splice(i, 1);
+		}
+		break;
 	}
 
 
