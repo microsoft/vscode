@@ -37,6 +37,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
+		uriEdit.label = pasteEdit.label;
 		uriEdit.additionalEdit = pasteEdit.additionalEdits;
 		uriEdit.priority = this._getPriority(dataTransfer);
 		return uriEdit;
