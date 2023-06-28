@@ -108,7 +108,7 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 
 		const res = await this.dialogService.confirm({
 			message: localize('troubleshoot issue', "Troubleshoot Issue"),
-			detail: localize('detail.start', "Issue troubleshooting is a process to help you identify if the issue is with {0} or caused by an extension.\n\nDuring the process the window reloads repeatedly. Each time you must confirm if you are still seeing problems.", this.productService.nameLong),
+			detail: localize('detail.start', "Issue troubleshooting is a process to help you identify the cause for an issue. The cause for an issue can be a misconfiguration, due to an extension, or be {0} itself.\n\nDuring the process the window reloads repeatedly. Each time you must confirm if you are still seeing the issue.", this.productService.nameLong),
 			primaryButton: localize({ key: 'msg', comment: ['&& denotes a mnemonic'] }, "&&Troubleshoot Issue"),
 			custom: true
 		});
@@ -159,7 +159,7 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	}
 
 	private async reproduceIssueWithExtensionsDisabled(): Promise<void> {
-		const result = await this.askToReproduceIssue(localize('profile.extensions.disabled', "Issue troubleshooting is active and has temprarily disabled all installed extensions. Check if you can still reproduce the problem and proceed by selecting from these options."));
+		const result = await this.askToReproduceIssue(localize('profile.extensions.disabled', "Issue troubleshooting is active and has temporarily disabled all installed extensions. Check if you can still reproduce the problem and proceed by selecting from these options."));
 		if (result === 'good') {
 			const profile = this.userDataProfilesService.profiles.find(p => p.id === this.state!.profile) ?? this.userDataProfilesService.defaultProfile;
 			await this.reproduceIssueWithExtensionsBisect(profile);
@@ -175,12 +175,12 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	private async reproduceIssueWithEmptyProfile(): Promise<void> {
 		await this.userDataProfileManagementService.createAndEnterTransientProfile();
 		this.updateState(this.state);
-		const result = await this.askToReproduceIssue(localize('empty.profile', "Issue troubleshooting is active and has temporarily reset your settings to defaults. Check if you can still reproduce the problem and proceed by selecting from these options."));
+		const result = await this.askToReproduceIssue(localize('empty.profile', "Issue troubleshooting is active and has temporarily reset your configurations to defaults. Check if you can still reproduce the problem and proceed by selecting from these options."));
 		if (result === 'stop') {
 			await this.stop();
 		}
 		if (result === 'good') {
-			await this.askToReportIssue(localize('issue is with configuration', "Issue troubleshooting has identified that the issue is caused by your settings. Please report the issue by sharing your settings."));
+			await this.askToReportIssue(localize('issue is with configuration', "Issue troubleshooting has identified that the issue is caused by your configurations. Please report the issue by exporting your configurations using \"Export Profile\" command and share the file in the issue report."));
 		}
 		if (result === 'bad') {
 			await this.askToReportIssue(localize('issue is in core', "Issue troubleshooting has identified that the issue is with {0}.", this.productService.nameLong));

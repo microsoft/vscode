@@ -146,22 +146,22 @@ export const startEntries: GettingStartedStartEntryContent = [
 		id: 'topLevelRemoteOpen',
 		title: localize('gettingStarted.topLevelRemoteOpen.title', "Connect to..."),
 		description: localize('gettingStarted.topLevelRemoteOpen.description', "Connect to remote development workspaces."),
-		when: '!isWeb && config.workbench.remote.experimental.showStartListEntry',
+		when: '!isWeb && showRemoteStartEntry',
 		icon: Codicon.remote,
 		content: {
 			type: 'startEntry',
-			command: 'command:workbench.action.remote.showStartEntryActions',
+			command: 'command:workbench.action.remote.showMenu',
 		}
 	},
 	{
 		id: 'topLevelOpenTunnel',
 		title: localize('gettingStarted.topLevelOpenTunnel.title', "Open Tunnel..."),
 		description: localize('gettingStarted.topLevelOpenTunnel.description', "Connect to a remote machine through a Tunnel"),
-		when: 'isWeb && config.workbench.remote.experimental.showStartListEntry',
+		when: 'isWeb && showRemoteStartEntryInWeb',
 		icon: Codicon.remote,
 		content: {
 			type: 'startEntry',
-			command: 'command:workbench.action.remote.showTunnelStartEntryActions',
+			command: 'command:workbench.action.remote.showWebStartEntryActions',
 		}
 	},
 ];

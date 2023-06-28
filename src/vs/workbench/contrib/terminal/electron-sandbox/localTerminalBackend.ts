@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -51,8 +51,7 @@ export class LocalTerminalBackendContribution implements IWorkbenchContribution 
 class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBackend {
 	readonly remoteAuthority = undefined;
 
-	private readonly _proxy: IPtyService;
-	private readonly _clientEventually: DeferredPromise<MessagePortClient> = new DeferredPromise();
+	private _proxy!: IPtyService;
 	private readonly _ptys: Map<number, LocalPty> = new Map();
 
 	private readonly _whenConnected = new DeferredPromise<void>();
@@ -63,7 +62,6 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ITerminalLogService logService: ITerminalLogService,
@@ -83,26 +81,29 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	) {
 		super(_localPtyService, logService, historyService, _configurationResolverService, statusBarService, workspaceContextService);
 
-		this._proxy = ProxyChannel.toService<IPtyService>(getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(TerminalIpcChannels.PtyHostWindow))));
-
-		this._connectToDirectProxy();
+		this._register(Event.runAndSubscribe(this.onPtyHostRestart, () => {
+			this._logService.debug('Starting pty host');
+			const clientEventually = new DeferredPromise<MessagePortClient>();
+			this._proxy = ProxyChannel.toService<IPtyService>(getDelayedChannel(clientEventually.p.then(client => client.getChannel(TerminalIpcChannels.PtyHostWindow))));
+			this._connectToDirectProxy(clientEventually);
+		}));
 	}
 
-	private async _connectToDirectProxy(): Promise<void> {
+	private async _connectToDirectProxy(clientEventually: DeferredPromise<MessagePortClient>): Promise<void> {
 		// The pty host should not get launched until the first window restored phase
 		await this._lifecycleService.when(LifecyclePhase.Restored);
 
-		mark('code/willConnectPtyHost');
+		mark('code/terminal/willConnectPtyHost');
 		this._logService.trace('Renderer->PtyHost#connect: before acquirePort');
 		acquirePort('vscode:createPtyHostMessageChannel', 'vscode:createPtyHostMessageChannelResult').then(port => {
-			mark('code/didConnectPtyHost');
+			mark('code/terminal/didConnectPtyHost');
 			this._logService.trace('Renderer->PtyHost#connect: connection established');
 			// There are two connections to the pty host; one to the regular shared process
 			// _localPtyService, and one directly via message port _ptyHostDirectProxy. The former is
 			// used for pty host management messages, it would make sense in the future to use a
 			// separate interface/service for this one.
 			const client = new MessagePortClient(port, `window:${this._environmentService.window.id}`);
-			this._clientEventually.complete(client);
+			clientEventually.complete(client);
 
 			// Attach process listeners
 			this._proxy.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
@@ -188,7 +189,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
 		// TODO: Using _proxy here bypasses the lastPtyId tracking on the main process
 		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, options, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
-		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
+		const pty = new LocalPty(id, shouldPersist, this._proxy);
 		this._ptys.set(id, pty);
 		return pty;
 	}
@@ -196,7 +197,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		try {
 			await this._proxy.attachToProcess(id);
-			const pty = this._instantiationService.createInstance(LocalPty, id, true);
+			const pty = new LocalPty(id, true, this._proxy);
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
@@ -277,18 +278,24 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 				// Re-resolve the environments and replace it on the state so local terminals use a fresh
 				// environment
+				mark('code/terminal/willGetReviveEnvironments');
 				for (const state of parsed) {
 					const freshEnv = await this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig);
 					state.processLaunchConfig.env = freshEnv;
 				}
+				mark('code/terminal/didGetReviveEnvironments');
 
+				mark('code/terminal/willReviveTerminalProcesses');
 				await this._localPtyService.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);
+				mark('code/terminal/didReviveTerminalProcesses');
 				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 				// If reviving processes, send the terminal layout info back to the pty host as it
 				// will not have been persisted on application exit
 				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				if (layoutInfo) {
+					mark('code/terminal/willSetTerminalLayoutInfo');
 					await this._localPtyService.setTerminalLayoutInfo(JSON.parse(layoutInfo));
+					mark('code/terminal/didSetTerminalLayoutInfo');
 					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				}
 			} catch {

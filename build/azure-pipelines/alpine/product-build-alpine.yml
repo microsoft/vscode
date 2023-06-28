@@ -107,6 +107,8 @@ steps:
       TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64")
       yarn gulp vscode-reh-$TARGET-min-ci
       yarn gulp vscode-reh-web-$TARGET-min-ci
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Build
 
   - script: |

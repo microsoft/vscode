@@ -498,6 +498,12 @@
             "%configuration.copyIntoWorkspace.never%"
           ]
         },
+        "markdown.editor.pasteUrlAsFormattedLink.enabled": {
+          "type": "boolean",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
+          "default": true
+        },
         "markdown.validate.enabled": {
           "type": "boolean",
           "scope": "resource",

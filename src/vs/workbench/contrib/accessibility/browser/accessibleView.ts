@@ -60,6 +60,7 @@ class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
 	get editorWidget() { return this._editorWidget; }
 	private _editorContainer: HTMLElement;
+	private _keyListener: IDisposable | undefined;
 
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -98,6 +99,7 @@ class AccessibleView extends Disposable {
 			},
 			onHide: () => {
 				provider.onClose();
+				this._keyListener?.dispose();
 			}
 		};
 		this._contextViewService.showContextView(delegate);
@@ -107,7 +109,7 @@ class AccessibleView extends Disposable {
 		const settingKey = `accessibility.verbosity.${provider.id}`;
 		const value = this._configurationService.getValue(settingKey);
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\nPress H now to open a browser window with more information related to accessibility.\n") : '';
-		const disableHelpHint = provider.options.type && value ? localize('disable-help-hint', '\nTo disable the `accessibility.verbosity` hint for this feature, press D now.\n') : '\n';
+		const disableHelpHint = provider.options.type === AccessibleViewType.HelpMenu && !!value ? localize('disable-help-hint', '\nTo disable the `accessibility.verbosity` hint for this feature, press D now.\n') : '\n';
 		const fragment = provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', 'Exit this menu via the Escape key.');
 
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.id}`, scheme: 'accessible-view', fragment })).then((model) => {
@@ -123,10 +125,10 @@ class AccessibleView extends Disposable {
 				model.setLanguage(provider.options.language);
 			}
 			container.appendChild(this._editorContainer);
-			this._register(this._editorWidget.onKeyUp((e) => {
+			this._keyListener = this._register(this._editorWidget.onKeyUp((e) => {
 				if (e.keyCode === KeyCode.Escape) {
 					this._contextViewService.hideContextView();
-				} else if (e.keyCode === KeyCode.KeyD) {
+				} else if (e.keyCode === KeyCode.KeyD && this._configurationService.getValue(settingKey)) {
 					this._configurationService.updateValue(settingKey, false);
 				} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
 					const url: string = provider.options.readMoreUrl!;

@@ -92,8 +92,6 @@ export interface IProductConfiguration {
 		assignmentContextTelemetryPropertyName: string;
 	};
 
-	readonly experimentsUrl?: string;
-
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
 		readonly servicePPEUrl?: string;

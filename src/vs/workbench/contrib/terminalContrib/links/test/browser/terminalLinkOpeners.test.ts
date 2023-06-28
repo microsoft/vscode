@@ -335,7 +335,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					source: 'editor',
 					selection: {
 						startColumn: 5,
-						startLineNumber: 10
+						startLineNumber: 10,
+						endColumn: undefined,
+						endLineNumber: undefined
 					},
 				});
 			});
@@ -424,7 +426,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					source: 'editor',
 					selection: {
 						startColumn: 5,
-						startLineNumber: 10
+						startLineNumber: 10,
+						endColumn: undefined,
+						endLineNumber: undefined
 					},
 				});
 				await opener.open({
@@ -437,7 +441,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					source: 'editor',
 					selection: {
 						startColumn: 5,
-						startLineNumber: 10
+						startLineNumber: 10,
+						endColumn: undefined,
+						endLineNumber: undefined
 					},
 				});
 			});

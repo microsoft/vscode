@@ -150,10 +150,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the size of editor tabs. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
 			},
+			'workbench.editor.tabSizingFixedMinWidth': {
+				'type': 'number',
+				'default': 50,
+				'minimum': 38,
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabSizingFixedMinWidth' }, "Controls the minimum width of tabs when `#workbench.editor.tabSizing#` size is set to `fixed`.")
+			},
 			'workbench.editor.tabSizingFixedMaxWidth': {
 				'type': 'number',
 				'default': 160,
-				'minimum': 50,
+				'minimum': 38,
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabSizingFixedMaxWidth' }, "Controls the maximum width of tabs when `#workbench.editor.tabSizing#` size is set to `fixed`.")
 			},
 			'workbench.editor.pinnedTabSizing': {
@@ -281,6 +287,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': false,
 				'description': localize('centeredLayoutDynamicWidth', "Controls whether the centered layout tries to maintain constant width when the window is resized.")
+			},
+			'workbench.editor.doubleClickTabToToggleEditorGroupSizes': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'doubleClickTabToToggleEditorGroupSizes' }, "Controls whether to maximize/restore the editor group when double clicking on a tab. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
 			},
 			'workbench.editor.limit.enabled': {
 				'type': 'boolean',

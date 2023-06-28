@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-N4YFn5ze5crjPqMK/opogKs7bSGWtf3lmjV/3LfbSOs=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-7Y08cqii1UgeZbSST9r8UPSownOSMa3/PiKe77avh7I=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -1140,6 +1140,14 @@
 					contentWindow.addEventListener('dragover', handleInnerDragStartEvent);
 
 					unloadMonitor.onIframeLoaded(newFrame);
+				}
+			});
+
+			// propagate vscode-context-menu-visible class
+			hostMessaging.onMessage('set-context-menu-visible', (_event, data) => {
+				const target = getActiveFrame();
+				if (target && target.contentDocument) {
+					target.contentDocument.body.classList.toggle('vscode-context-menu-visible', data.visible);
 				}
 			});
 

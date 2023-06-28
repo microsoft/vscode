@@ -108,6 +108,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onBeforeProcessData = this._onBeforeProcessData.event;
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
 	readonly onProcessData = this._onProcessData.event;
+	private readonly _onProcessReplayComplete = this._register(new Emitter<void>());
+	readonly onProcessReplayComplete = this._onProcessReplayComplete.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onEnvironmentVariableInfoChange = this._register(new Emitter<IEnvironmentVariableInfo>());
@@ -375,10 +377,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this._onDidChangeProperty.fire({ type, value });
 			})
 		];
+		if (newProcess.onProcessReplayComplete) {
+			this._processListeners.push(newProcess.onProcessReplayComplete(() => this._onProcessReplayComplete.fire()));
+		}
 		if (newProcess.onRestoreCommands) {
-			this._processListeners.push(newProcess.onRestoreCommands(e => {
-				this._onRestoreCommands.fire(e);
-			}));
+			this._processListeners.push(newProcess.onRestoreCommands(e => this._onRestoreCommands.fire(e)));
 		}
 		setTimeout(() => {
 			if (this.processState === ProcessState.Launching) {

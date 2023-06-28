@@ -23,6 +23,7 @@ import { Logger } from './logging/logger';
 import { getPackageInfo } from './utils/packageInfo';
 import { isWebAndHasSharedArrayBuffers } from './utils/platform';
 import { PluginManager } from './tsServer/plugins';
+import { Disposable } from './utils/dispose';
 
 class StaticVersionProvider implements ITypeScriptVersionProvider {
 
@@ -96,13 +97,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 	});
 
 	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker, async () => {
-		await preload(logger);
+		await startPreloadWorkspaceContentsIfNeeded(context, logger);
 	}));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }
 
-async function preload(logger: Logger): Promise<void> {
+async function startPreloadWorkspaceContentsIfNeeded(context: vscode.ExtensionContext, logger: Logger): Promise<void> {
 	if (!isWebAndHasSharedArrayBuffers()) {
 		return;
 	}
@@ -113,15 +114,46 @@ async function preload(logger: Logger): Promise<void> {
 		return;
 	}
 
-	try {
-		const remoteHubApi = await RemoteRepositories.getApi();
-		if (await remoteHubApi.loadWorkspaceContents?.(workspaceUri)) {
-			logger.info(`Successfully loaded workspace content for repository ${workspaceUri.toString()}`);
-		} else {
-			logger.info(`Failed to load workspace content for repository ${workspaceUri.toString()}`);
+	const loader = new RemoteWorkspaceContentsPreloader(workspaceUri, logger);
+	context.subscriptions.push(loader);
+	return loader.triggerPreload();
+}
+
+class RemoteWorkspaceContentsPreloader extends Disposable {
+
+	private _preload: Promise<void> | undefined;
+
+	constructor(
+		private readonly workspaceUri: vscode.Uri,
+		private readonly logger: Logger,
+	) {
+		super();
+
+		const fsWatcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(workspaceUri, '*')));
+		this._register(fsWatcher.onDidChange(uri => {
+			if (uri.toString() === workspaceUri.toString()) {
+				this._preload = undefined;
+				this.triggerPreload();
+			}
+		}));
+	}
+
+	async triggerPreload() {
+		this._preload ??= this.doPreload();
+		return this._preload;
+	}
+
+	private async doPreload(): Promise<void> {
+		try {
+			const remoteHubApi = await RemoteRepositories.getApi();
+			if (await remoteHubApi.loadWorkspaceContents?.(this.workspaceUri)) {
+				this.logger.info(`Successfully loaded workspace content for repository ${this.workspaceUri.toString()}`);
+			} else {
+				this.logger.info(`Failed to load workspace content for repository ${this.workspaceUri.toString()}`);
+			}
+		} catch (error) {
+			this.logger.info(`Loading workspace content for repository ${this.workspaceUri.toString()} failed: ${error instanceof Error ? error.toString() : 'Unknown reason'}`);
+			console.error(error);
 		}
-	} catch (error) {
-		logger.info(`Loading workspace content for repository ${workspaceUri.toString()} failed: ${error instanceof Error ? error.toString() : 'Unknown reason'}`);
-		console.error(error);
 	}
 }

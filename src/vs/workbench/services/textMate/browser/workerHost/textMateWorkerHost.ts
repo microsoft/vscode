@@ -9,7 +9,7 @@ import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } fro
 import { IObservable } from 'vs/base/common/observable';
 import { isWeb } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { createWebWorker, MonacoWebWorker } from 'vs/editor/browser/services/webWorker';
+import { MonacoWebWorker, createWebWorker } from 'vs/editor/browser/services/webWorker';
 import { IBackgroundTokenizationStore, IBackgroundTokenizer } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
@@ -38,6 +38,7 @@ export class TextMateWorkerHost implements IDisposable {
 	private _grammarDefinitions: IValidGrammarDefinition[] = [];
 
 	constructor(
+		private readonly _reportTokenizationTime: (timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number) => void,
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
@@ -201,6 +202,10 @@ export class TextMateWorkerHost implements IDisposable {
 			// However, the worker might still be sending tokens for that model.
 			controller.setTokensAndStates(versionId, tokens, lineEndStateDeltas);
 		}
+	}
+
+	public reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number): void {
+		this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength);
 	}
 
 	// #endregion

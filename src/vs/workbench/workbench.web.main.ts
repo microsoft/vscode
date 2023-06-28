@@ -158,6 +158,9 @@ import 'vs/workbench/contrib/issue/browser/issue.contribution';
 // Splash
 import 'vs/workbench/contrib/splash/browser/splash.contribution';
 
+// Remote Start Entry for the Web
+import 'vs/workbench/contrib/remote/browser/remoteStartEntry.contribution';
+
 //#endregion
 
 

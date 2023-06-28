@@ -13,12 +13,15 @@ import { Schemas } from 'vs/base/common/network';
 import { filter } from 'vs/base/common/objects';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWriteFileOptions, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IFileWorkingCopyModelConfiguration } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
@@ -83,6 +86,10 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 	isDirty(): boolean {
 		return this._workingCopy?.isDirty() ?? false;
+	}
+
+	isModified(): boolean {
+		return this._workingCopy?.isModified() ?? false;
 	}
 
 	isOrphaned(): boolean {
@@ -169,9 +176,13 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 	readonly onWillDispose: Event<void>;
 
+	readonly configuration: IFileWorkingCopyModelConfiguration | undefined = undefined;
+	save: ((options: IWriteFileOptions, token: CancellationToken) => Promise<IFileStatWithMetadata>) | undefined;
+
 	constructor(
 		private readonly _notebookModel: NotebookTextModel,
-		private readonly _notebookService: INotebookService
+		private readonly _notebookService: INotebookService,
+		private readonly _configurationService: IConfigurationService
 	) {
 		super();
 
@@ -193,6 +204,30 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				break;
 			}
 		}));
+
+		if (_notebookModel.uri.scheme === Schemas.vscodeRemote) {
+			this.configuration = {
+				// Intentionally pick a larger delay for triggering backups when
+				// we are connected to a remote. This saves us repeated roundtrips
+				// to the remote server when the content changes because the
+				// remote hosts the extension of the notebook with the contents truth
+				backupDelay: 10000
+			};
+
+			// Override save behavior to avoid transferring the buffer across the wire 3 times
+			if (this._configurationService.getValue('notebook.experimental.remoteSave')) {
+				this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
+					const serializer = await this.getNotebookSerializer();
+
+					if (token.isCancellationRequested) {
+						throw new CancellationError();
+					}
+
+					const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
+					return stat;
+				};
+			}
+		}
 	}
 
 	override dispose(): void {
@@ -270,6 +305,7 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 	constructor(
 		private readonly _viewType: string,
 		@INotebookService private readonly _notebookService: INotebookService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
 	async createModel(resource: URI, stream: VSBufferReadableStream, token: CancellationToken): Promise<NotebookFileWorkingCopyModel> {
@@ -287,7 +323,7 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 		}
 
 		const notebookModel = this._notebookService.createNotebookTextModel(info.viewType, resource, data, info.serializer.options);
-		return new NotebookFileWorkingCopyModel(notebookModel, this._notebookService);
+		return new NotebookFileWorkingCopyModel(notebookModel, this._notebookService, this._configurationService);
 	}
 }
 
