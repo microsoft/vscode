@@ -122,7 +122,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	type: 'object',
 	properties: {
 		'breadcrumbs.separator': {
-			description: localize('separator', "'Copy breadcrumbs separator symbol."),
+			description: localize('separator', "Copy breadcrumbs separator symbol."),
 			type: 'string',
 			default: ' > '
 		},
