@@ -21,20 +21,12 @@ export class DiffEditorOptions {
 
 	public readonly renderOverviewRuler = derived('renderOverviewRuler', reader => this._options.read(reader).renderOverviewRuler);
 	public readonly renderSideBySide = derived('renderSideBySide', reader => this._options.read(reader).renderSideBySide);
-	public readonly shouldRenderRevertArrows = derived('shouldRenderRevertArrows', (reader) => {
-		if (!this._options.read(reader).renderMarginRevertIcon) {
-			return false;
-		}
-		if (!this.renderSideBySide.read(reader)) {
-			return false;
-		}
+	public readonly readOnly = derived('readOnly', reader => this._options.read(reader).readOnly);
 
-		// TODO@hediet don't render revert arrows in readonly-files.
-		/*
-		if (this._modifiedEditor.getOption(EditorOption.readOnly)) {
-			return false;
-		}
-		*/
+	public readonly shouldRenderRevertArrows = derived('shouldRenderRevertArrows', (reader) => {
+		if (!this._options.read(reader).renderMarginRevertIcon) { return false; }
+		if (!this.renderSideBySide.read(reader)) { return false; }
+		if (this.readOnly.read(reader)) { return false; }
 		return true;
 	});
 	public readonly renderIndicators = derived('renderIndicators', reader => this._options.read(reader).renderIndicators);
