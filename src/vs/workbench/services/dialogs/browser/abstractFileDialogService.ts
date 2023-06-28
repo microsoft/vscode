@@ -11,6 +11,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
+import * as path from 'vs/base/common/path';
 import { IInstantiationService, } from 'vs/platform/instantiation/common/instantiation';
 import { ISimpleFileDialog, SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
@@ -93,17 +94,21 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	async preferredHome(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
-
-		// Seek a user-local or user-remote machine-scoped override path string depending on whether caller wants a local or a remote home
-		const inspectedValue = this.configurationService.inspect<string>('files.dialog.defaultPath');
-		const dialogHomePath = schemeFilter === Schemas.file ? inspectedValue.userLocalValue : inspectedValue.userRemoteValue;
-		const userHomePromise = this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
-		if (!dialogHomePath) {
-			return userHomePromise;
+		const preferLocal = schemeFilter === Schemas.file;
+		const preferredHomeConfig = this.configurationService.inspect<string>('files.dialog.defaultPath');
+		const preferredHomeCandidate = preferLocal ? preferredHomeConfig.userLocalValue : preferredHomeConfig.userRemoteValue;
+		if (preferredHomeCandidate) {
+			const pathLib = preferLocal ? path : await this.pathService.path;
+			if (pathLib.isAbsolute(preferredHomeCandidate)) {
+				const preferredHomeNormalized = pathLib.normalize(preferredHomeCandidate);
+				const preferredHome = resources.toLocalResource(await this.pathService.fileURI(preferredHomeNormalized), this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
+				if (await this.fileService.exists(preferredHome)) {
+					return preferredHome;
+				}
+			}
 		}
 
-		const resource = await this.pathService.fileURI(dialogHomePath);
-		return resources.toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
+		return this.pathService.userHome({ preferLocal });
 	}
 
 	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {

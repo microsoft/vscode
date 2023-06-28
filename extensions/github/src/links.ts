@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { API as GitAPI, RefType, Repository } from './typings/git';
-import { getRepositoryFromUrl } from './util';
+import { getRepositoryFromUrl, repositoryHasGitHubRemote } from './util';
 
 export function isFileInRepo(repository: Repository, file: vscode.Uri): boolean {
 	return file.path.toLowerCase() === repository.rootUri.path.toLowerCase() ||
@@ -129,21 +129,21 @@ export function encodeURIComponentExceptSlashes(path: string) {
 	return path.split('/').map((segment) => encodeURIComponent(segment)).join('/');
 }
 
-export async function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: string, linkType: 'permalink' | 'headlink' = 'permalink', context?: LinkContext, useRange?: boolean): Promise<string | undefined> {
+export async function getLink(gitAPI: GitAPI, useSelection: boolean, shouldEnsurePublished: boolean, hostPrefix?: string, linkType: 'permalink' | 'headlink' = 'permalink', context?: LinkContext, useRange?: boolean): Promise<string | undefined> {
 	hostPrefix = hostPrefix ?? 'https://github.com';
 	const fileAndPosition = getFileAndPosition(context);
-	if (!fileAndPosition) {
-		return;
-	}
-	const uri = fileAndPosition.uri;
+	const fileUri = fileAndPosition?.uri;
 
 	// Use the first repo if we cannot determine a repo from the uri.
-	const gitRepo = (uri ? getRepositoryForFile(gitAPI, uri) : gitAPI.repositories[0]) ?? gitAPI.repositories[0];
+	const githubRepository = gitAPI.repositories.find(repo => repositoryHasGitHubRemote(repo));
+	const gitRepo = (fileUri ? getRepositoryForFile(gitAPI, fileUri) : githubRepository) ?? githubRepository;
 	if (!gitRepo) {
 		return;
 	}
 
-	await ensurePublished(gitRepo, uri);
+	if (shouldEnsurePublished && fileUri) {
+		await ensurePublished(gitRepo, fileUri);
+	}
 
 	let repo: { owner: string; repo: string } | undefined;
 	gitRepo.state.remotes.find(remote => {
@@ -163,13 +163,17 @@ export async function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?
 	}
 
 	const blobSegment = gitRepo.state.HEAD ? (`/blob/${linkType === 'headlink' && gitRepo.state.HEAD.name ? encodeURIComponentExceptSlashes(gitRepo.state.HEAD.name) : gitRepo.state.HEAD?.commit}`) : '';
-	const encodedFilePath = encodeURIComponentExceptSlashes(uri.path.substring(gitRepo.rootUri.path.length));
+	const uriWithoutFileSegments = `${hostPrefix}/${repo.owner}/${repo.repo}${blobSegment}`;
+	if (!fileUri) {
+		return uriWithoutFileSegments;
+	}
+
+	const encodedFilePath = encodeURIComponentExceptSlashes(fileUri.path.substring(gitRepo.rootUri.path.length));
 	const fileSegments = fileAndPosition.type === LinkType.File
 		? (useSelection ? `${encodedFilePath}${useRange ? rangeString(fileAndPosition.range) : ''}` : '')
 		: (useSelection ? `${encodedFilePath}${useRange ? notebookCellRangeString(fileAndPosition.cellIndex, fileAndPosition.range) : ''}` : '');
 
-	return `${hostPrefix}/${repo.owner}/${repo.repo}${blobSegment
-		}${fileSegments}`;
+	return `${uriWithoutFileSegments}${fileSegments}`;
 }
 
 export function getBranchLink(url: string, branch: string, hostPrefix: string = 'https://github.com') {

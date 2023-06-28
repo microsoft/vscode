@@ -66,7 +66,7 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 		}
 
 		const provider = await this._encryptionService.getKeyStorageProvider();
-		if (provider === KnownStorageProvider.keychainAccess) {
+		if (provider === KnownStorageProvider.basicText) {
 			const detail = localize('usePlainTextExtraSentence', "Open the troubleshooting guide to address this or you can use weaker encryption that doesn't use the OS keyring.");
 			const usePlainTextButton: IPromptChoice = {
 				label: localize('usePlainText', "Use weaker encryption"),
