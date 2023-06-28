@@ -20,13 +20,15 @@ import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userData
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
+import { RemoteNameContext } from 'vs/workbench/common/contextkeys';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 
 const ITroubleshootIssueService = createDecorator<ITroubleshootIssueService>('ITroubleshootIssueService');
 
@@ -347,7 +349,7 @@ registerAction2(class TroubleshootIssueAction extends Action2 {
 			title: { value: localize('troubleshootIssue', "Troubleshoot Issue..."), original: 'Troubleshoot Issue...' },
 			category: Categories.Help,
 			f1: true,
-			precondition: IssueTroubleshootUi.ctxIsTroubleshootActive.negate(),
+			precondition: ContextKeyExpr.and(IssueTroubleshootUi.ctxIsTroubleshootActive.negate(), RemoteNameContext.isEqualTo(''), IsWebContext.negate()),
 		});
 	}
 	run(accessor: ServicesAccessor): Promise<void> {
