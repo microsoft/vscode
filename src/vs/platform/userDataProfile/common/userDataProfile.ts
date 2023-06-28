@@ -416,16 +416,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 				this.logService.error(error);
 			}
 		}
-
-		try {
-			if (this.profiles.length === 1) {
-				await this.fileService.del(this.profilesHome, { recursive: true });
-			} else {
-				await this.fileService.del(profile.location, { recursive: true });
-			}
-		} catch (error) {
-			this.logService.error(error);
-		}
 	}
 
 	async setProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, profileToSet: IUserDataProfile): Promise<void> {
