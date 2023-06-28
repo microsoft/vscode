@@ -645,7 +645,7 @@ function actionOverflowHelper(initialPrimaryActions: IActionModel[], initialSeco
 		}
 	}
 
-	for (let i = (renderActions.length - 1); i !== 0; i--) {
+	for (let i = (renderActions.length - 1); i > 0; i--) {
 		const temp = renderActions[i];
 		if (temp.size === 0) {
 			continue;
