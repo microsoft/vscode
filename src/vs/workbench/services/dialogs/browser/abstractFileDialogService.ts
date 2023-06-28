@@ -11,7 +11,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
-import * as path from 'vs/base/common/path';
+import { isAbsolute as localPathIsAbsolute, normalize as localPathNormalize } from 'vs/base/common/path';
 import { IInstantiationService, } from 'vs/platform/instantiation/common/instantiation';
 import { ISimpleFileDialog, SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
@@ -98,9 +98,9 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const preferredHomeConfig = this.configurationService.inspect<string>('files.dialog.defaultPath');
 		const preferredHomeCandidate = preferLocal ? preferredHomeConfig.userLocalValue : preferredHomeConfig.userRemoteValue;
 		if (preferredHomeCandidate) {
-			const pathLib = preferLocal ? path : await this.pathService.path;
-			if (pathLib.isAbsolute(preferredHomeCandidate)) {
-				const preferredHomeNormalized = pathLib.normalize(preferredHomeCandidate);
+			const isPreferredHomeCandidateAbsolute = preferLocal ? localPathIsAbsolute(preferredHomeCandidate) : (await this.pathService.path).isAbsolute(preferredHomeCandidate);
+			if (isPreferredHomeCandidateAbsolute) {
+				const preferredHomeNormalized = preferLocal ? localPathNormalize(preferredHomeCandidate) : (await this.pathService.path).normalize(preferredHomeCandidate);
 				const preferredHome = resources.toLocalResource(await this.pathService.fileURI(preferredHomeNormalized), this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
 				if (await this.fileService.exists(preferredHome)) {
 					return preferredHome;
