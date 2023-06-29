@@ -63,7 +63,6 @@ class AccessibleView extends Disposable {
 	private _accessiblityHelpIsShown: IContextKey<boolean>;
 	get editorWidget() { return this._editorWidget; }
 	private _editorContainer: HTMLElement;
-	private _keyListener: IDisposable | undefined;
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -142,7 +141,6 @@ class AccessibleView extends Disposable {
 				this._contextViewService.hideContextView();
 				// Delay to allow the context view to hide #186514
 				setTimeout(() => provider.onClose(), 100);
-				this._keyListener?.dispose();
 			} else if (e.keyCode === KeyCode.KeyD && this._configurationService.getValue(settingKey)) {
 				this._configurationService.updateValue(settingKey, false);
 			}
