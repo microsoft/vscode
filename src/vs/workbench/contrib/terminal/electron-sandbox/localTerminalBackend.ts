@@ -279,10 +279,12 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 				// Re-resolve the environments and replace it on the state so local terminals use a fresh
 				// environment
 				mark('code/terminal/willGetReviveEnvironments');
-				for (const state of parsed) {
-					const freshEnv = await this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig);
-					state.processLaunchConfig.env = freshEnv;
-				}
+				await Promise.all(parsed.map(state => new Promise<void>(r => {
+					this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig).then(freshEnv => {
+						state.processLaunchConfig.env = freshEnv;
+						r();
+					});
+				})));
 				mark('code/terminal/didGetReviveEnvironments');
 
 				mark('code/terminal/willReviveTerminalProcesses');
