@@ -96,18 +96,15 @@ class AccessibleView extends Disposable {
 	}
 
 	show(provider: IAccessibleContentProvider): void {
-		let view: IDisposable | undefined;
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => this._editorContainer,
 			render: (container) => {
-				view = this._render(provider, container);
-				return view;
+				return this._render(provider, container);
 			},
 			onHide: () => {
 				if (provider.options.type === AccessibleViewType.HelpMenu) {
 					this._accessiblityHelpIsShown.reset();
 				}
-				view?.dispose();
 			}
 		};
 		this._contextViewService.showContextView(delegate);
@@ -163,7 +160,7 @@ class AccessibleView extends Disposable {
 		}));
 		disposableStore.add(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
 		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
-		return disposableStore;
+		return toDisposable(() => { disposableStore.dispose(); });
 	}
 
 	private _layout(): void {
