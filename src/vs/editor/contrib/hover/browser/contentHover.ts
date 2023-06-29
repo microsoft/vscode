@@ -618,11 +618,9 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
-		const editorLayoutInfo = this._editor.getLayoutInfo();
-		const glyphMarginRight = editorLayoutInfo.glyphMarginLeft + editorLayoutInfo.glyphMarginWidth;
-		const cursorPosition = this._editor._getViewModel().getPrimaryCursorState().viewState.position;
 		const bodyBoxWidth = dom.getClientArea(document.body).width;
-		return bodyBoxWidth - glyphMarginRight - this._editor.getOffsetForColumn(cursorPosition.lineNumber, cursorPosition.column);
+		const horizontalPadding = 14;
+		return bodyBoxWidth - horizontalPadding;
 	}
 
 	public isMouseGettingCloser(posx: number, posy: number): boolean {
