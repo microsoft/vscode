@@ -158,7 +158,7 @@ class AccessibleView extends Disposable {
 		}));
 		disposableStore.add(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
 		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
-		return toDisposable(() => { disposableStore.dispose(); });
+		return disposableStore;
 	}
 
 	private _layout(): void {
