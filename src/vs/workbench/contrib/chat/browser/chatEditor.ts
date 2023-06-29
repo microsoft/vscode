@@ -117,8 +117,7 @@ export class ChatEditor extends EditorPane {
 
 	override layout(dimension: dom.Dimension, position?: dom.IDomPosition | undefined): void {
 		if (this.widget) {
-			const width = Math.min(dimension.width, 600);
-			this.widget.layout(dimension.height, width);
+			this.widget.layout(dimension.height, dimension.width);
 		}
 	}
 }
