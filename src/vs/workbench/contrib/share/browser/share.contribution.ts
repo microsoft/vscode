@@ -58,9 +58,10 @@ class ShareWorkbenchContribution {
 		}
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ShareWorkbenchContribution.SHARE_ENABLED_SETTING)) {
-				if (this.configurationService.getValue<boolean>(ShareWorkbenchContribution.SHARE_ENABLED_SETTING) === true && this._disposables === undefined) {
+				const settingValue = this.configurationService.getValue<boolean>(ShareWorkbenchContribution.SHARE_ENABLED_SETTING;
+				if (settingValue === true && this._disposables === undefined) {
 					this.registerActions();
-				} else if (this.configurationService.getValue<boolean>(ShareWorkbenchContribution.SHARE_ENABLED_SETTING) === false && this._disposables !== undefined) {
+				} else if (settingValue === false && this._disposables !== undefined) {
 					this._disposables?.clear();
 					this._disposables = undefined;
 				}
