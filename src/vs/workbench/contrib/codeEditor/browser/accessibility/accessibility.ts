@@ -26,6 +26,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
+import { accessibilityHelpIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
@@ -279,6 +281,11 @@ class ToggleScreenReaderMode extends Action2 {
 			id: 'editor.action.toggleScreenReaderAccessibilityMode',
 			title: { value: nls.localize('toggleScreenReaderMode', "Toggle Screen Reader Accessibility Mode"), original: 'Toggle Screen Reader Accessibility Mode' },
 			f1: true,
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyCode.KeyE,
+				weight: KeybindingWeight.WorkbenchContrib + 10,
+				when: accessibilityHelpIsShown
+			}
 		});
 	}
 
