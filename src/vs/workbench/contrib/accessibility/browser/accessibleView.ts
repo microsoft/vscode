@@ -145,8 +145,6 @@ class AccessibleView extends Disposable {
 					const url: string = provider.options.readMoreUrl!;
 					alert(AccessibilityHelpNLS.openingDocs);
 					this._openerService.open(URI.parse(url));
-				} else if (e.ctrlKey && e.keyCode === KeyCode.KeyM) {
-
 				}
 				e.stopPropagation();
 				provider.onKeyDown?.(e);
