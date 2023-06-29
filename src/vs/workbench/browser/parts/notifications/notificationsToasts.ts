@@ -27,10 +27,10 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
 
 interface INotificationToast {
-	item: INotificationViewItem;
-	list: NotificationsList;
-	container: HTMLElement;
-	toast: HTMLElement;
+	readonly item: INotificationViewItem;
+	readonly list: NotificationsList;
+	readonly container: HTMLElement;
+	readonly toast: HTMLElement;
 }
 
 enum ToastVisibility {
