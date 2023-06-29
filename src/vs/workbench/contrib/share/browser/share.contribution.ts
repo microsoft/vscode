@@ -47,7 +47,7 @@ const targetMenus = [
 class ShareWorkbenchContribution {
 	private static SHARE_ENABLED_SETTING = 'workbench.experimental.share.enabled';
 
-	private _disposables = new DisposableStore();
+	private _disposables: DisposableStore | undefined;
 
 	constructor(
 		@IShareService private readonly shareService: IShareService,
@@ -58,16 +58,22 @@ class ShareWorkbenchContribution {
 		}
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ShareWorkbenchContribution.SHARE_ENABLED_SETTING)) {
-				if (this.configurationService.getValue<boolean>(ShareWorkbenchContribution.SHARE_ENABLED_SETTING)) {
+				const settingValue = this.configurationService.getValue<boolean>(ShareWorkbenchContribution.SHARE_ENABLED_SETTING);
+				if (settingValue === true && this._disposables === undefined) {
 					this.registerActions();
-				} else {
-					this._disposables.clear();
+				} else if (settingValue === false && this._disposables !== undefined) {
+					this._disposables?.clear();
+					this._disposables = undefined;
 				}
 			}
 		});
 	}
 
 	private registerActions() {
+		if (!this._disposables) {
+			this._disposables = new DisposableStore();
+		}
+
 		this._disposables.add(
 			registerAction2(class ShareAction extends Action2 {
 				static readonly ID = 'workbench.action.share';

@@ -16,6 +16,7 @@ import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -56,20 +57,23 @@ export interface IAccessibleViewOptions {
 	type: AccessibleViewType;
 }
 
+export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
+	private _accessiblityHelpIsShown: IContextKey<boolean>;
 	get editorWidget() { return this._editorWidget; }
 	private _editorContainer: HTMLElement;
 	private _keyListener: IDisposable | undefined;
-
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IModelService private readonly _modelService: IModelService,
-		@IContextViewService private readonly _contextViewService: IContextViewService
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
+		this._accessiblityHelpIsShown = accessibilityHelpIsShown.bindTo(this._contextKeyService);
 		this._editorContainer = document.createElement('div');
 		this._editorContainer.classList.add('accessible-view');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -96,9 +100,17 @@ class AccessibleView extends Disposable {
 			getAnchor: () => this._editorContainer,
 			render: (container) => {
 				return this._render(provider, container);
+			},
+			onHide: () => {
+				if (provider.options.type === AccessibleViewType.HelpMenu) {
+					this._accessiblityHelpIsShown.reset();
+				}
 			}
 		};
 		this._contextViewService.showContextView(delegate);
+		if (provider.options.type === AccessibleViewType.HelpMenu) {
+			this._accessiblityHelpIsShown.set(true);
+		}
 	}
 
 	private _render(provider: IAccessibleContentProvider, container: HTMLElement): IDisposable {
