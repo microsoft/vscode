@@ -120,7 +120,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		};
 	}
 
-	private getPickLabel(editor: IEditor, lineNumber: number, column: number | undefined): string {
+	public getPickLabel(editor: IEditor, lineNumber: number, column: number | undefined): string {
 
 		// Location valid: indicate this as picker label
 		if (this.isValidLineNumber(editor, lineNumber)) {
