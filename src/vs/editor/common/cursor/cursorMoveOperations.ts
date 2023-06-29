@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorConfiguration, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from 'vs/editor/common/cursorCommon';
+import * as strings from 'vs/base/common/strings';
+import { Constants } from 'vs/base/common/uint';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import * as strings from 'vs/base/common/strings';
-import { Constants } from 'vs/base/common/uint';
 import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/cursor/cursorAtomicMoveOperations';
+import { CursorConfiguration, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from 'vs/editor/common/cursorCommon';
 import { PositionAffinity } from 'vs/editor/common/model';
 
 export class CursorPosition {
@@ -213,7 +213,15 @@ export class MoveOperations {
 			column = cursor.position.column;
 		}
 
-		const r = MoveOperations.down(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
+		let i = 0;
+		let r: CursorPosition;
+		do {
+			r = MoveOperations.down(config, model, lineNumber + i, column, cursor.leftoverVisibleColumns, linesCount, true);
+			const np = model.normalizePosition(new Position(r.lineNumber, r.column), PositionAffinity.None);
+			if (np.lineNumber > lineNumber) {
+				break;
+			}
+		} while (i++ < 10 && lineNumber + i < model.getLineCount());
 
 		return cursor.move(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns);
 	}
