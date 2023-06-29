@@ -282,6 +282,12 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					return;
 				}
 
+				// If the PasteLinkEditProvider does not return anything, use the default paste handler
+				if (supportedProviders[0].pasteMimeTypes?.length === 1 && supportedProviders[0].pasteMimeTypes[0] === 'text/plain' && providerEdits.length === 1 && providerEdits[0].id === 'text') {
+					await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
+					return;
+				}
+
 				if (providerEdits.length) {
 					const canShowWidget = editor.getOption(EditorOption.pasteAs).showPasteSelector === 'afterPaste';
 					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: 0, allEdits: providerEdits }, canShowWidget, tokenSource.token);
