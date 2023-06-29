@@ -5,7 +5,7 @@
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -63,7 +63,6 @@ class AccessibleView extends Disposable {
 	private _accessiblityHelpIsShown: IContextKey<boolean>;
 	get editorWidget() { return this._editorWidget; }
 	private _editorContainer: HTMLElement;
-	private _keyListener: IDisposable | undefined;
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -133,28 +132,33 @@ class AccessibleView extends Disposable {
 				model.setLanguage(provider.options.language);
 			}
 			container.appendChild(this._editorContainer);
-			this._keyListener = this._register(this._editorWidget.onKeyUp((e) => {
-				if (e.keyCode === KeyCode.Escape) {
-					this._contextViewService.hideContextView();
-					// Delay to allow the context view to hide #186514
-					setTimeout(() => provider.onClose(), 100);
-					this._keyListener?.dispose();
-				} else if (e.keyCode === KeyCode.KeyD && this._configurationService.getValue(settingKey)) {
-					this._configurationService.updateValue(settingKey, false);
-				} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
-					const url: string = provider.options.readMoreUrl!;
-					alert(AccessibilityHelpNLS.openingDocs);
-					this._openerService.open(URI.parse(url));
-				}
-				e.stopPropagation();
-				provider.onKeyDown?.(e);
-			}));
-			this._register(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
-			this._register(this._editorWidget.onDidContentSizeChange(() => this._layout()));
 			this._editorWidget.updateOptions({ ariaLabel: provider.options.ariaLabel });
 			this._editorWidget.focus();
 		});
-		return toDisposable(() => { });
+		const disposableStore = new DisposableStore();
+		disposableStore.add(this._editorWidget.onKeyUp((e) => {
+			if (e.keyCode === KeyCode.Escape) {
+				this._contextViewService.hideContextView();
+				// Delay to allow the context view to hide #186514
+				setTimeout(() => provider.onClose(), 100);
+			} else if (e.keyCode === KeyCode.KeyD && this._configurationService.getValue(settingKey)) {
+				this._configurationService.updateValue(settingKey, false);
+			}
+			e.stopPropagation();
+			provider.onKeyDown?.(e);
+		}));
+		disposableStore.add(this._editorWidget.onKeyDown((e) => {
+			if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
+				const url: string = provider.options.readMoreUrl!;
+				alert(AccessibilityHelpNLS.openingDocs);
+				this._openerService.open(URI.parse(url));
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		}));
+		disposableStore.add(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
+		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
+		return disposableStore;
 	}
 
 	private _layout(): void {
