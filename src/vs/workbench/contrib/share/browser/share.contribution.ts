@@ -58,7 +58,7 @@ class ShareWorkbenchContribution {
 		}
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ShareWorkbenchContribution.SHARE_ENABLED_SETTING)) {
-				const settingValue = this.configurationService.getValue<boolean>(ShareWorkbenchContribution.SHARE_ENABLED_SETTING;
+				const settingValue = this.configurationService.getValue<boolean>(ShareWorkbenchContribution.SHARE_ENABLED_SETTING);
 				if (settingValue === true && this._disposables === undefined) {
 					this.registerActions();
 				} else if (settingValue === false && this._disposables !== undefined) {
