@@ -95,9 +95,6 @@ const isESM = false;
 
 		window['MonacoEnvironment'] = {};
 
-		// VSCODE_GLOBALS: node_modules
-		globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => (require.__$__nodeRequire ?? require)(String(mod)) });
-
 
 		if (isESM) {
 			// Signal before require()
