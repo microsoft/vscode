@@ -101,7 +101,6 @@ export class ChatEditorInput extends EditorInput {
 
 		this.sessionId = this.model.sessionId;
 		this.providerId = this.model.providerId;
-		await this.model.waitForInitialization();
 		this._register(this.model.onDidChange(() => this._onDidChangeLabel.fire()));
 
 		return this._register(new ChatEditorModel(this.model));

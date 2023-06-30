@@ -195,7 +195,6 @@ export interface IChatModel {
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getRequests(): IChatRequestModel[];
-	waitForInitialization(): Promise<void>;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
 }
@@ -383,6 +382,11 @@ export class ChatModel extends Disposable implements IChatModel {
 			}
 			return request;
 		});
+	}
+
+	startReinitialize(): void {
+		this._session = undefined;
+		this._isInitializedDeferred = new DeferredPromise<void>();
 	}
 
 	initialize(session: IChat, welcomeMessage: ChatWelcomeMessageModel | undefined): void {
