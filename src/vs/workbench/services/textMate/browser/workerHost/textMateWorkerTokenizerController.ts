@@ -32,13 +32,13 @@ export class TextMateWorkerTokenizerController extends Disposable {
 	private readonly _loggingEnabled = observableConfigValue('editor.experimental.asyncTokenizationLogging', false, this._configurationService);
 
 	private _applyStateStackDiffFn?: typeof applyStateStackDiff;
-	private _initialState?: StateStack;
 
 	constructor(
 		private readonly _model: ITextModel,
 		private readonly _worker: TextMateTokenizationWorker,
 		private readonly _languageIdCodec: ILanguageIdCodec,
 		private readonly _backgroundTokenizationStore: IBackgroundTokenizationStore,
+		private readonly _initialState: StateStack,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _maxTokenizationLineLength: IObservable<number>,
 	) {
@@ -168,10 +168,9 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			this._pendingChanges.map((c) => fullLineArrayEditFromModelContentChange(c.changes))
 		);
 
-		if (!this._applyStateStackDiffFn || !this._initialState) {
-			const { applyStateStackDiff, INITIAL } = await importAMDNodeModule<typeof import('vscode-textmate')>('vscode-textmate', 'release/main.js');
+		if (!this._applyStateStackDiffFn) {
+			const { applyStateStackDiff } = await importAMDNodeModule<typeof import('vscode-textmate')>('vscode-textmate', 'release/main.js');
 			this._applyStateStackDiffFn = applyStateStackDiff;
-			this._initialState = INITIAL;
 		}
 
 
