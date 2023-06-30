@@ -58,6 +58,16 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return this._didSignOut.event;
 	}
 
+	private _lastWrittenResources = new Map<SyncResource, { ref: string; content: string }>();
+	get lastWrittenResources() {
+		return this._lastWrittenResources;
+	}
+
+	private _lastReadResources = new Map<SyncResource, { ref: string; content: string }>();
+	get lastReadResources() {
+		return this._lastReadResources;
+	}
+
 	storeClient: EditSessionsStoreClient | undefined; // TODO@joyceerhl lifecycle hack
 
 	constructor(
@@ -89,9 +99,9 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	}
 
 	/**
-	 *
-	 * @param editSession An object representing edit session state to be restored.
-	 * @returns The ref of the stored edit session state.
+	 * @param resource: The resource to retrieve content for.
+	 * @param content An object representing resource state to be restored.
+	 * @returns The ref of the stored state.
 	 */
 	async write(resource: SyncResource, content: string | EditSession): Promise<string> {
 		await this.initialize(false);
@@ -103,14 +113,20 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			content.machine = await this.getOrCreateCurrentMachineId();
 		}
 
-		return this.storeClient!.writeResource(resource, typeof content === 'string' ? content : JSON.stringify(content), null, undefined, createSyncHeaders(generateUuid()));
+		content = typeof content === 'string' ? content : JSON.stringify(content);
+		const ref = await this.storeClient!.writeResource(resource, content, null, undefined, createSyncHeaders(generateUuid()));
+
+		this._lastWrittenResources.set(resource, { ref, content });
+
+		return ref;
 	}
 
 	/**
+	 * @param resource: The resource to retrieve content for.
 	 * @param ref: A specific content ref to retrieve content for, if it exists.
 	 * If undefined, this method will return the latest saved edit session, if any.
 	 *
-	 * @returns An object representing the requested or latest edit session state, if any.
+	 * @returns An object representing the requested or latest state, if any.
 	 */
 	async read(resource: SyncResource, ref: string | undefined): Promise<{ ref: string; content: string } | undefined> {
 		await this.initialize(false);
@@ -133,7 +149,11 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		// TODO@joyceerhl Validate session data, check schema version
-		return (content !== undefined && content !== null && ref !== undefined) ? { ref, content } : undefined;
+		if (content !== undefined && content !== null && ref !== undefined) {
+			this._lastReadResources.set(resource, { ref, content });
+			return { ref, content };
+		}
+		return undefined;
 	}
 
 	async delete(resource: SyncResource, ref: string | null) {

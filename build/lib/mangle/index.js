@@ -360,7 +360,7 @@ class Mangler {
         this.config = config;
         this.service = ts.createLanguageService(new staticLanguageServiceHost_1.StaticLanguageServiceHost(projectPath));
         this.renameWorkerPool = workerpool.pool(path.join(__dirname, 'renameWorker.js'), {
-            maxWorkers: 2,
+            maxWorkers: 1,
             minWorkers: 'max'
         });
     }

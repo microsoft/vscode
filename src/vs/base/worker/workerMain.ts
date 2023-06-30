@@ -55,7 +55,7 @@
 			const func = (
 				trustedTypesPolicy
 					? globalThis.eval(<any>trustedTypesPolicy.createScript('', 'true'))
-					: new Function('true')
+					: new Function('true') // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
 			);
 			func.call(globalThis);
 			return true;
@@ -85,7 +85,7 @@
 					const func = (
 						trustedTypesPolicy
 							? globalThis.eval(trustedTypesPolicy.createScript('', text) as unknown as string)
-							: new Function(text)
+							: new Function(text) // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
 					);
 					func.call(globalThis);
 					resolve();

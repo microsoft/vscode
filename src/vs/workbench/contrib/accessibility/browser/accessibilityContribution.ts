@@ -9,11 +9,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Command, MultiCommand } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
-	Chat = 'accessibility.verbosity.chat',
+	Chat = 'accessibility.verbosity.panelChat',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
 	Notebook = 'accessibility.verbosity.notebook'
@@ -77,5 +78,31 @@ export const AccessibilityHelpAction = registerCommand(new MultiCommand({
 			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
 			secondary: [KeyMod.Alt | KeyCode.F1]
 		}
-	}
+	},
+	menuOpts: [{
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: localize('editor.action.accessibilityHelp', "Open Accessibility Help"),
+		order: 1
+	}],
+}));
+
+
+export const AccessibleViewAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibleView',
+	precondition: undefined,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.F2,
+		weight: KeybindingWeight.WorkbenchContrib,
+		linux: {
+			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F2,
+			secondary: [KeyMod.Alt | KeyCode.F2]
+		}
+	},
+	menuOpts: [{
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: localize('editor.action.accessibleView', "Open Accessible View"),
+		order: 1
+	}],
 }));

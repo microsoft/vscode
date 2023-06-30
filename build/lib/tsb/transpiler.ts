@@ -381,7 +381,10 @@ export class SwcTranspiler implements ITranspiler {
 			minify: {
 				compress: false,
 				mangle: false
-			}
+			},
+			transform: {
+				useDefineForClassFields: false,
+			},
 		},
 		module: {
 			type: 'amd',

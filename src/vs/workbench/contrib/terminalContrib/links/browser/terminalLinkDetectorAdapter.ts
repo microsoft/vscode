@@ -102,7 +102,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 
 	private _createTerminalLink(l: ITerminalSimpleLink, activateCallback: XtermLinkMatcherHandler): TerminalLink {
 		// Remove trailing colon if there is one so the link is more useful
-		if (l.text.length > 0 && l.text.charAt(l.text.length - 1) === ':') {
+		if (!l.disableTrimColon && l.text.length > 0 && l.text.charAt(l.text.length - 1) === ':') {
 			l.text = l.text.slice(0, -1);
 			l.bufferRange.end.x--;
 		}

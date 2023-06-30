@@ -89,6 +89,7 @@ suite('SuggestController', function () {
 
 	test('postfix completion reports incorrect position #86984', async function () {
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -125,6 +126,7 @@ suite('SuggestController', function () {
 	test('use additionalTextEdits sync when possible', async function () {
 
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -166,6 +168,7 @@ suite('SuggestController', function () {
 		let resolveCallCount = 0;
 
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -218,6 +221,7 @@ suite('SuggestController', function () {
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -274,6 +278,7 @@ suite('SuggestController', function () {
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -323,6 +328,7 @@ suite('SuggestController', function () {
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -377,6 +383,7 @@ suite('SuggestController', function () {
 
 		const resolve: Function[] = [];
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -434,6 +441,7 @@ suite('SuggestController', function () {
 
 
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -470,6 +478,7 @@ suite('SuggestController', function () {
 
 	test('Pressing enter on autocomplete should always apply the selected dropdown completion, not a different, hidden one #161883', async function () {
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 
 				const word = doc.getWordUntilPosition(pos);
@@ -516,6 +525,7 @@ suite('SuggestController', function () {
 
 	test('Fast autocomple typing selects the previous autocomplete suggestion, #71795', async function () {
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 
 				const word = doc.getWordUntilPosition(pos);

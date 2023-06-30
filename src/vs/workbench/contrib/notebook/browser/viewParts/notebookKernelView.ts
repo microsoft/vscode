@@ -48,6 +48,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
 			icon: selectKernelIcon,
 			f1: true,
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			menu: [{
 				id: MenuId.EditorTitle,
 				when: ContextKeyExpr.and(

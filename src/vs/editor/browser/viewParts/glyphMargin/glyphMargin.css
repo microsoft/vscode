@@ -12,7 +12,7 @@
 	Keeping name short for faster parsing.
 	cgmr = core glyph margin rendering (div)
 */
-.monaco-editor .margin-view-overlays .cgmr {
+.monaco-editor .glyph-margin-widgets .cgmr {
 	position: absolute;
 	display: flex;
 	align-items: center;

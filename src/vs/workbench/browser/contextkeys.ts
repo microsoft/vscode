@@ -307,7 +307,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 				this.activeEditorAvailableEditorIds.set(editors.join(','));
 			}
 
-			this.activeEditorIsReadonly.set(activeEditorPane.input.hasCapability(EditorInputCapabilities.Readonly));
+			this.activeEditorIsReadonly.set(!!activeEditorPane.input.isReadonly());
 			const primaryEditorResource = EditorResourceAccessor.getOriginalUri(activeEditorPane.input, { supportSideBySide: SideBySideEditor.PRIMARY });
 			this.activeEditorCanToggleReadonly.set(!!primaryEditorResource && this.fileService.hasProvider(primaryEditorResource) && !this.fileService.hasCapability(primaryEditorResource, FileSystemProviderCapabilities.Readonly));
 		} else {

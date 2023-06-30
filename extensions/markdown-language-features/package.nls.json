@@ -41,6 +41,7 @@
 	"configuration.markdown.editor.drop.copyIntoWorkspace": "Controls if files outside of the workspace that are dropped into a Markdown editor should be copied into the workspace.\n\nUse `#markdown.copyFiles.destination#` to configure where copied dropped files should be created",
 	"configuration.markdown.editor.filePaste.enabled": "Enable pasting files into a Markdown editor to create Markdown links. Requires enabling `#editor.pasteAs.enabled#`.",
 	"configuration.markdown.editor.filePaste.copyIntoWorkspace": "Controls if files outside of the workspace that are pasted into a Markdown editor should be copied into the workspace.\n\nUse `#markdown.copyFiles.destination#` to configure where copied files should be created.",
+	"configuration.markdown.editor.pasteUrlAsFormattedLink.enabled": "Controls if a Markdown link is created when a URL is pasted into the Markdown editor. Requires enabling `#editor.pasteAs.enabled#`.",
 	"configuration.copyIntoWorkspace.mediaFiles": "Try to copy external image and video files into the workspace.",
 	"configuration.copyIntoWorkspace.never": "Do not copy external files into the workspace.",
 	"configuration.markdown.validate.enabled.description": "Enable all error reporting in Markdown files.",

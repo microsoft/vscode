@@ -457,7 +457,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			if (fromExisting) {
 				await this.userDataProfileImportExportService.createFromCurrentProfile(name);
 			} else {
-				await this.userDataProfileManagementService.createAndEnterProfile(name, undefined, false);
+				await this.userDataProfileManagementService.createAndEnterProfile(name);
 			}
 		} catch (error) {
 			this.notificationService.error(error);

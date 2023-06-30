@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -143,27 +143,34 @@ export class ExtensionsResource implements IProfileResource {
 				}
 			}
 			if (extensionsToInstall.length) {
+				this.logService.info(`Importing Profile (${profile.name}): Started installing extensions.`);
 				const galleryExtensions = await this.extensionGalleryService.getExtensions(extensionsToInstall.map(e => ({ ...e.identifier, version: e.version, hasPreRelease: e.version ? undefined : e.preRelease })), CancellationToken.None);
+				const installExtensionInfos: InstallExtensionInfo[] = [];
 				await Promise.all(extensionsToInstall.map(async e => {
 					const extension = galleryExtensions.find(galleryExtension => areSameExtensions(galleryExtension.identifier, e.identifier));
 					if (!extension) {
 						return;
 					}
 					if (await this.extensionManagementService.canInstall(extension)) {
-						this.logService.trace(`Importing Profile (${profile.name}): Installing extension...`, extension.identifier.id, extension.version);
-						await this.extensionManagementService.installFromGallery(extension, {
-							isMachineScoped: false,/* set isMachineScoped value to prevent install and sync dialog in web */
-							donotIncludePackAndDependencies: true,
-							installGivenVersion: !!e.version,
-							installPreReleaseVersion: e.preRelease,
-							profileLocation: profile.extensionsResource,
-							context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true }
+						installExtensionInfos.push({
+							extension,
+							options: {
+								isMachineScoped: false,/* set isMachineScoped value to prevent install and sync dialog in web */
+								donotIncludePackAndDependencies: true,
+								installGivenVersion: !!e.version,
+								installPreReleaseVersion: e.preRelease,
+								profileLocation: profile.extensionsResource,
+								context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true }
+							}
 						});
-						this.logService.info(`Importing Profile (${profile.name}): Installed extension...`, extension.identifier.id, extension.version);
 					} else {
 						this.logService.info(`Importing Profile (${profile.name}): Skipped installing extension because it cannot be installed.`, extension.identifier.id);
 					}
 				}));
+				if (installExtensionInfos.length) {
+					await this.extensionManagementService.installGalleryExtensions(installExtensionInfos);
+				}
+				this.logService.info(`Importing Profile (${profile.name}): Finished installing extensions.`);
 			}
 			if (extensionsToUninstall.length) {
 				await Promise.all(extensionsToUninstall.map(e => this.extensionManagementService.uninstall(e)));

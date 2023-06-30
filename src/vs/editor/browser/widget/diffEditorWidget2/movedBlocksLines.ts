@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, observableFromEvent } from 'vs/base/common/observable';
+import { IObservable, autorun, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { DiffModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffModel';
+import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
+import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 
@@ -15,11 +16,10 @@ export class MovedBlocksLinesPart extends Disposable {
 
 	constructor(
 		private readonly _rootElement: HTMLElement,
-		private readonly _diffModel: IObservable<DiffModel | undefined>,
+		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
 		private readonly _originalEditorLayoutInfo: IObservable<EditorLayoutInfo | null>,
 		private readonly _modifiedEditorLayoutInfo: IObservable<EditorLayoutInfo | null>,
-		private readonly _originalEditor: ICodeEditor,
-		private readonly _modifiedEditor: ICodeEditor,
+		private readonly _editors: DiffEditorEditors,
 	) {
 		super();
 
@@ -39,11 +39,13 @@ export class MovedBlocksLinesPart extends Disposable {
 			element.style.width = `${info.verticalScrollbarWidth + info.contentLeft - MovedBlocksLinesPart.movedCodeBlockPadding}px`;
 		}));
 
-		const originalScrollTop = observableFromEvent(this._originalEditor.onDidScrollChange, () => this._originalEditor.getScrollTop());
-		const modifiedScrollTop = observableFromEvent(this._modifiedEditor.onDidScrollChange, () => this._modifiedEditor.getScrollTop());
+		const originalScrollTop = observableFromEvent(this._editors.original.onDidScrollChange, () => this._editors.original.getScrollTop());
+		const modifiedScrollTop = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
+		const viewZonesChanged = observableSignalFromEvent('onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
 
 		this._register(autorun('update', (reader) => {
 			element.replaceChildren();
+			viewZonesChanged.read(reader);
 
 			const info = this._originalEditorLayoutInfo.read(reader);
 			const info2 = this._modifiedEditorLayoutInfo.read(reader);
@@ -65,9 +67,9 @@ export class MovedBlocksLinesPart extends Disposable {
 					return (t1 + t2) / 2;
 				}
 
-				const start = computeLineStart(m.lineRangeMapping.originalRange, this._originalEditor);
+				const start = computeLineStart(m.lineRangeMapping.originalRange, this._editors.original);
 				const startOffset = originalScrollTop.read(reader);
-				const end = computeLineStart(m.lineRangeMapping.modifiedRange, this._modifiedEditor);
+				const end = computeLineStart(m.lineRangeMapping.modifiedRange, this._editors.modified);
 				const endOffset = modifiedScrollTop.read(reader);
 
 				const top = start - startOffset;

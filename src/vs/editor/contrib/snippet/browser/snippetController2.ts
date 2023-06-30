@@ -156,7 +156,8 @@ export class SnippetController2 implements IEditorContribution {
 
 		// regster completion item provider when there is any choice element
 		if (this._session?.hasChoice) {
-			const provider = {
+			const provider: CompletionItemProvider = {
+				_debugDisplayName: 'snippetChoiceCompletions',
 				provideCompletionItems: (model: ITextModel, position: Position) => {
 					if (!this._session || model !== this._editor.getModel() || !Position.equals(this._editor.getPosition(), position)) {
 						return undefined;

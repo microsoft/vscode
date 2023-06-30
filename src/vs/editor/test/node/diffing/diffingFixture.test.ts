@@ -4,14 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { readdirSync, readFileSync, existsSync, writeFileSync, rmSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
+import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { FileAccess } from 'vs/base/common/network';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { SmartLinesDiffComputer } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { StandardLinesDiffComputer } from 'vs/editor/common/diff/standardLinesDiffComputer';
 
 suite('diff fixtures', () => {
+	setup(() => {
+		setUnexpectedErrorHandler(e => {
+			throw e;
+		});
+	});
+
+
 	const fixturesOutDir = FileAccess.asFileUri('vs/editor/test/node/diffing/fixtures').fsPath;
 	// We want the dir in src, so we can directly update the source files if they disagree and create invalid files to capture the previous state.
 	// This makes it very easy to update the fixtures.
@@ -104,7 +112,7 @@ suite('diff fixtures', () => {
 	}
 
 	test(`test`, () => {
-		runTest('move-1', 'advanced');
+		runTest('issue-185779', 'advanced');
 	});
 
 	for (const folder of folders) {

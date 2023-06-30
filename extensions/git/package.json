@@ -2082,7 +2082,7 @@
         },
         "git.defaultBranchName": {
           "type": "string",
-          "description": "%config.defaultBranchName%",
+          "markdownDescription": "%config.defaultBranchName%",
           "default": "main",
           "scope": "resource"
         },
@@ -2719,7 +2719,7 @@
           "default": 50,
           "minimum": 0,
           "maximum": 100,
-          "description": "%config.similarityThreshold%",
+          "markdownDescription": "%config.similarityThreshold%",
           "scope": "resource"
         }
       }

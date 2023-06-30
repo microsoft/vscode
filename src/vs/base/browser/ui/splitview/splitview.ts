@@ -344,6 +344,12 @@ export type DistributeSizing = { type: 'distribute' };
 export type SplitSizing = { type: 'split'; index: number };
 
 /**
+ * When adding a view, use DistributeSizing when all pre-existing views are
+ * distributed evenly, otherwise use SplitSizing.
+ */
+export type AutoSizing = { type: 'auto'; index: number };
+
+/**
  * When adding or removing views, assume the view is invisible.
  */
 export type InvisibleSizing = { type: 'invisible'; cachedVisibleSize: number };
@@ -352,7 +358,7 @@ export type InvisibleSizing = { type: 'invisible'; cachedVisibleSize: number };
  * When adding or removing views, the sizing provides fine grained
  * control over how other views get resized.
  */
-export type Sizing = DistributeSizing | SplitSizing | InvisibleSizing;
+export type Sizing = DistributeSizing | SplitSizing | AutoSizing | InvisibleSizing;
 
 export namespace Sizing {
 
@@ -367,6 +373,12 @@ export namespace Sizing {
 	 * specific view, indexed by the provided `index`.
 	 */
 	export function Split(index: number): SplitSizing { return { type: 'split', index }; }
+
+	/**
+	 * When adding a view, use DistributeSizing when all pre-existing views are
+	 * distributed evenly, otherwise use SplitSizing.
+	 */
+	export function Auto(index: number): AutoSizing { return { type: 'auto', index }; }
 
 	/**
 	 * When adding or removing views, assume the view is invisible.
@@ -644,6 +656,14 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		if (index < 0 || index >= this.viewItems.length) {
 			throw new Error('Index out of bounds');
+		}
+
+		if (sizing?.type === 'auto') {
+			if (this.areViewsDistributed()) {
+				sizing = { type: 'distribute' };
+			} else {
+				sizing = undefined;
+			}
 		}
 
 		// Remove view
@@ -1054,12 +1074,22 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		if (typeof size === 'number') {
 			viewSize = size;
-		} else if (size.type === 'split') {
-			viewSize = this.getViewSize(size.index) / 2;
-		} else if (size.type === 'invisible') {
-			viewSize = { cachedVisibleSize: size.cachedVisibleSize };
 		} else {
-			viewSize = view.minimumSize;
+			if (size.type === 'auto') {
+				if (this.areViewsDistributed()) {
+					size = { type: 'distribute' };
+				} else {
+					size = { type: 'split', index: size.index };
+				}
+			}
+
+			if (size.type === 'split') {
+				viewSize = this.getViewSize(size.index) / 2;
+			} else if (size.type === 'invisible') {
+				viewSize = { cachedVisibleSize: size.cachedVisibleSize };
+			} else {
+				viewSize = view.minimumSize;
+			}
 		}
 
 		const item = this.orientation === Orientation.VERTICAL
@@ -1380,6 +1410,21 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		}
 
 		return undefined;
+	}
+
+	private areViewsDistributed() {
+		let min = undefined, max = undefined;
+
+		for (const view of this.viewItems) {
+			min = min === undefined ? view.size : Math.min(min, view.size);
+			max = max === undefined ? view.size : Math.max(max, view.size);
+
+			if (max - min > 2) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	override dispose(): void {

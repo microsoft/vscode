@@ -145,7 +145,7 @@
       "properties": {
         "typescript.experimental.aiQuickFix": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%typescript.experimental.aiQuickFix%",
           "scope": "resource"
         },
@@ -1256,7 +1256,7 @@
           "description": "%configuration.preferGoToSourceDefinition%",
           "scope": "window"
         },
-				"javascript.preferGoToSourceDefinition": {
+        "javascript.preferGoToSourceDefinition": {
           "type": "boolean",
           "default": false,
           "description": "%configuration.preferGoToSourceDefinition%",

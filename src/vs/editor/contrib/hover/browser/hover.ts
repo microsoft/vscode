@@ -17,7 +17,6 @@ import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/go
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { ContentHoverWidget, ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHover';
-import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -30,7 +29,13 @@ import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHo
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import * as nls from 'vs/nls';
 import 'vs/css!./hover';
+
+// sticky hover widget which doesn't disappear on focus out and such
+const _sticky = false
+	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
+	;
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -40,6 +45,9 @@ export class ModesHoverController implements IEditorContribution {
 	private readonly _didChangeConfigurationHandler: IDisposable;
 
 	private _contentWidget: ContentHoverController | null;
+
+	getWidgetContent(): string | undefined { return this._contentWidget?.getWidgetContent(); }
+
 	private _glyphWidget: MarginHoverWidget | null;
 
 	private _isMouseDown: boolean;
@@ -123,8 +131,9 @@ export class ModesHoverController implements IEditorContribution {
 		if (target.type !== MouseTargetType.OVERLAY_WIDGET) {
 			this._hoverClicked = false;
 		}
-
-		this._hideWidgets();
+		if (!this._contentWidget?.widget.isResizing) {
+			this._hideWidgets();
+		}
 	}
 
 	private _onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
@@ -133,11 +142,14 @@ export class ModesHoverController implements IEditorContribution {
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
 		const targetEm = (mouseEvent.event.browserEvent.relatedTarget) as HTMLElement;
-		if (this._contentWidget?.containsNode(targetEm)) {
+		if (this._contentWidget?.widget.isResizing || this._contentWidget?.containsNode(targetEm)) {
+			// When the content widget is resizing
 			// when the mouse is inside hover widget
 			return;
 		}
-		this._hideWidgets();
+		if (!_sticky) {
+			this._hideWidgets();
+		}
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
@@ -181,7 +193,7 @@ export class ModesHoverController implements IEditorContribution {
 
 		if ((mouseOnDecorator && (
 			(decoratorActivatedOn === 'click' && !this._hoverActivatedByColorDecoratorClick) ||
-			(decoratorActivatedOn === 'hover' && !this._isHoverEnabled) ||
+			(decoratorActivatedOn === 'hover' && !this._isHoverEnabled && !_sticky) ||
 			(decoratorActivatedOn === 'clickAndHover' && !this._isHoverEnabled && !this._hoverActivatedByColorDecoratorClick)))
 			|| !mouseOnDecorator && !this._isHoverEnabled && !this._hoverActivatedByColorDecoratorClick
 		) {
@@ -204,8 +216,9 @@ export class ModesHoverController implements IEditorContribution {
 			this._glyphWidget.startShowingAt(target.position.lineNumber);
 			return;
 		}
-
-		this._hideWidgets();
+		if (!this._contentWidget?.widget.isResizing && !_sticky) {
+			this._hideWidgets();
+		}
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
@@ -225,6 +238,9 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
+		if (_sticky) {
+			return;
+		}
 		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible()) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}

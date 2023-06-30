@@ -95,7 +95,9 @@ class ParentRepositoriesManager {
 		return [...this._repositories.values()];
 	}
 
-	constructor(private readonly globalState: Memento) { }
+	constructor(private readonly globalState: Memento) {
+		this.onDidChangeRepositories();
+	}
 
 	addRepository(repository: string): void {
 		this._repositories.add(repository);
@@ -135,6 +137,10 @@ class UnsafeRepositoriesManager {
 	private _repositories = new Map<string, string>();
 	get repositories(): string[] {
 		return [...this._repositories.keys()];
+	}
+
+	constructor() {
+		this.onDidChangeRepositories();
 	}
 
 	addRepository(repository: string, path: string): void {

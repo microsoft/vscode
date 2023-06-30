@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 
 export namespace AccessibilityHelpNLS {
 	export const accessibilityHelpTitle = nls.localize('accessibilityHelpTitle', "Accessibility Help");
-	export const openingDocs = nls.localize("openingDocs", "Now opening the Editor Accessibility documentation page.");
+	export const openingDocs = nls.localize("openingDocs", "Now opening the Accessibility documentation page.");
 	export const readonlyDiffEditor = nls.localize("readonlyDiffEditor", "You are in a read-only pane of a diff editor.");
 	export const editableDiffEditor = nls.localize("editableDiffEditor", "You are in a pane of a diff editor.");
 	export const readonlyEditor = nls.localize("readonlyEditor", "You are in a read-only code editor");
@@ -20,7 +20,6 @@ export namespace AccessibilityHelpNLS {
 	export const tabFocusModeOnMsgNoKb = nls.localize("tabFocusModeOnMsgNoKb", "Pressing Tab in the current editor will move focus to the next focusable element. The command {0} is currently not triggerable by a keybinding.");
 	export const tabFocusModeOffMsg = nls.localize("tabFocusModeOffMsg", "Pressing Tab in the current editor will insert the tab character. Toggle this behavior by pressing {0}.");
 	export const tabFocusModeOffMsgNoKb = nls.localize("tabFocusModeOffMsgNoKb", "Pressing Tab in the current editor will insert the tab character. The command {0} is currently not triggerable by a keybinding.");
-	export const openDoc = nls.localize("openDoc", "Press H now to open a browser window with more information related to editor accessibility.");
 	export const showAccessibilityHelpAction = nls.localize("showAccessibilityHelpAction", "Show Accessibility Help");
 }
 
