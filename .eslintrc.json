@@ -69,6 +69,7 @@
 			}
 		],
 		"local/code-translation-remind": "warn",
+		"local/code-no-native-private": "warn",
 		"local/code-no-nls-in-standalone-editor": "warn",
 		"local/code-no-standalone-editor": "warn",
 		"local/code-no-unexternalized-strings": "warn",

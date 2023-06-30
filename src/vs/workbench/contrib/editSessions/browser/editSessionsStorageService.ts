@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-native-private */
+
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
