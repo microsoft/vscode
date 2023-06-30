@@ -18,12 +18,11 @@ export class NodePtyHostStarter implements IPtyHostStarter {
 	) {
 	}
 
-	start(lastPtyId: number): IPtyHostConnection {
+	start(): IPtyHostConnection {
 		const opts: IIPCOptions = {
 			serverName: 'Pty Host',
 			args: ['--type=ptyHost', '--logsPath', this._environmentService.logsHome.fsPath],
 			env: {
-				VSCODE_LAST_PTY_ID: lastPtyId,
 				VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,

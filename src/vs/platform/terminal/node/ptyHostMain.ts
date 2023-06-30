@@ -33,7 +33,6 @@ async function startPtyHost() {
 		shortGraceTime: parseInt(process.env.VSCODE_RECONNECT_SHORT_GRACE_TIME || '0'),
 		scrollback: parseInt(process.env.VSCODE_RECONNECT_SCROLLBACK || '100')
 	};
-	const lastPtyId = parseInt(process.env.VSCODE_LAST_PTY_ID || '0');
 
 	// Sanitize environment
 	delete process.env.VSCODE_RECONNECT_GRACE_TIME;
@@ -41,7 +40,6 @@ async function startPtyHost() {
 	delete process.env.VSCODE_RECONNECT_SCROLLBACK;
 	delete process.env.VSCODE_LATENCY;
 	delete process.env.VSCODE_STARTUP_DELAY;
-	delete process.env.VSCODE_LAST_PTY_ID;
 
 	// Delay startup if needed, this must occur before RPC is setup to avoid the channel from timing
 	// out.
@@ -79,7 +77,7 @@ async function startPtyHost() {
 	server.registerChannel(TerminalIpcChannels.Heartbeat, ProxyChannel.fromService(heartbeatService));
 
 	// Init pty service
-	const ptyService = new PtyService(lastPtyId, logService, productService, reconnectConstants, simulatedLatency);
+	const ptyService = new PtyService(logService, productService, reconnectConstants, simulatedLatency);
 	const ptyServiceChannel = ProxyChannel.fromService(ptyService);
 	server.registerChannel(TerminalIpcChannels.PtyHost, ptyServiceChannel);
 
