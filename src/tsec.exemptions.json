@@ -20,6 +20,7 @@
 		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts"
 	],
 	"ban-worker-calls": [
+		"vs/amdX.ts",
 		"vs/base/browser/defaultWorkerFactory.ts",
 		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
 	],
