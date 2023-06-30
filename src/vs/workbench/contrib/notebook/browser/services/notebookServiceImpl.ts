@@ -74,7 +74,9 @@ export class NotebookProviderInfoStore extends Disposable {
 			for (const info of (mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] || []) as NotebookEditorDescriptor[]) {
 				const notebookInfo = new NotebookProviderInfo(info);
 				this.addNotebookInfo(notebookInfo);
-				this.registerEditorForNotebook(notebookInfo);
+				if (notebookInfo.extension) {
+					this.registerEditorForNotebook(notebookInfo);
+				}
 			}
 		});
 
