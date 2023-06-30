@@ -522,7 +522,7 @@ export class Git {
 
 		// Handle symbolic links
 		// Git 2.31 added --path-format flag to rev-parse which allows us to get the relative path of the repository root
-		if (repositoryPath !== repoPath && !isDescendant(repoPath, repositoryPath) && !isDescendant(repositoryPath, repoPath) && this.compareGitVersionTo('2.31.0') !== -1) {
+		if (!pathEquals(repositoryPath, repoPath) && !isDescendant(repoPath, repositoryPath) && !isDescendant(repositoryPath, repoPath) && this.compareGitVersionTo('2.31.0') !== -1) {
 			const relativePathResult = await this.exec(repositoryPath, ['rev-parse', '--path-format=relative', '--show-toplevel',]);
 			return path.resolve(repositoryPath, relativePathResult.stdout.trimLeft().replace(/[\r\n]+$/, ''));
 		}
