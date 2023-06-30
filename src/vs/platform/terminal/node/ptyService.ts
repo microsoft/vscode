@@ -68,6 +68,8 @@ export class PtyService extends Disposable implements IPtyService {
 	private readonly _revivedPtyIdMap: Map<number, { newId: number; state: ISerializedTerminalState }> = new Map();
 	private readonly _autoReplies: Map<string, string> = new Map();
 
+	private _lastPtyId: number = 0;
+
 	private readonly _onHeartbeat = this._register(new Emitter<void>());
 	readonly onHeartbeat = this._traceEvent('_onHeartbeat', this._onHeartbeat.event);
 
@@ -104,7 +106,6 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	constructor(
-		private _lastPtyId: number,
 		private readonly _logService: ILogService,
 		private readonly _productService: IProductService,
 		private readonly _reconnectConstants: IReconnectConstants,

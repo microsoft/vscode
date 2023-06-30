@@ -40,7 +40,7 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 		validatedIpcMain.on('vscode:createPtyHostMessageChannel', (e, nonce) => this._onWindowConnection(e, nonce));
 	}
 
-	start(lastPtyId: number): IPtyHostConnection {
+	start(): IPtyHostConnection {
 		this.utilityProcess = new UtilityProcess(this._logService, NullTelemetryService, this._lifecycleMainService);
 
 		const inspectParams = parsePtyHostDebugPort(this._environmentMainService.args, this._environmentMainService.isBuilt);
@@ -54,7 +54,7 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 			entryPoint: 'vs/platform/terminal/node/ptyHostMain',
 			execArgv,
 			args: ['--logsPath', this._environmentMainService.logsHome.fsPath],
-			env: this._createPtyHostConfiguration(lastPtyId)
+			env: this._createPtyHostConfiguration()
 		});
 
 		const port = this.utilityProcess.connect();
@@ -75,11 +75,10 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 		};
 	}
 
-	private _createPtyHostConfiguration(lastPtyId: number) {
+	private _createPtyHostConfiguration() {
 		this._environmentMainService.unsetSnapExportedVariables();
 		const config: { [key: string]: string } = {
 			...deepClone(process.env),
-			VSCODE_LAST_PTY_ID: String(lastPtyId),
 			VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
