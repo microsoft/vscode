@@ -12,7 +12,7 @@ import * as which from 'which';
 import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh } from './util';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions } from './api/git';
@@ -518,6 +518,13 @@ export class Git {
 
 				return path.normalize(pathUri.fsPath);
 			}
+		}
+
+		// Handle symbolic links
+		// Git 2.31 added --path-format flag to rev-parse which allows us to get the relative path of the repository root
+		if (repositoryPath !== repoPath && !isDescendant(repoPath, repositoryPath) && !isDescendant(repositoryPath, repoPath) && this.compareGitVersionTo('2.31.0') !== -1) {
+			const relativePathResult = await this.exec(repositoryPath, ['rev-parse', '--path-format=relative', '--show-toplevel',]);
+			return path.resolve(repositoryPath, relativePathResult.stdout.trimLeft().replace(/[\r\n]+$/, ''));
 		}
 
 		return repoPath;
