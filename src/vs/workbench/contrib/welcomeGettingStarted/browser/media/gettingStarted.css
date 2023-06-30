@@ -595,7 +595,7 @@
 	width: inherit;
 	display: flex;
 	justify-content: center;
-	}
+}
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.getting-started-footer {
 	grid-area: footer;
