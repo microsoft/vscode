@@ -79,7 +79,7 @@
     "@vscode/windows-mutex": "^0.4.4",
     "@vscode/windows-process-tree": "^0.5.0",
     "@vscode/windows-registry": "^1.1.0",
-    "graceful-fs": "4.2.8",
+    "graceful-fs": "4.2.11",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",
     "jschardet": "3.0.0",
