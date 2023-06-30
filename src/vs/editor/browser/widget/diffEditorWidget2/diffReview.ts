@@ -216,7 +216,7 @@ export class DiffReview2 extends Disposable {
 		this._diffEditor.setPosition(new Position(entries[0].modifiedLineStart, 1));
 		this._diffEditor.setSelection({ startColumn: 1, startLineNumber: entries[0].modifiedLineStart, endColumn: Constants.MAX_SAFE_SMALL_INTEGER, endLineNumber: entries[entries.length - 1].modifiedLineEnd });
 		this._isVisible = true;
-		//this._diffEditor.doLayout();
+		this.layout();
 		this._render();
 		this._goToRow(this._getPrevRow(), 'previous');
 	}
@@ -251,7 +251,7 @@ export class DiffReview2 extends Disposable {
 		this._diffEditor.setPosition(new Position(entries[0].modifiedLineStart, 1));
 		this._diffEditor.setSelection({ startColumn: 1, startLineNumber: entries[0].modifiedLineStart, endColumn: Constants.MAX_SAFE_SMALL_INTEGER, endLineNumber: entries[entries.length - 1].modifiedLineEnd });
 		this._isVisible = true;
-		//this._diffEditor.doLayout();
+		this.layout();
 		this._render();
 		this._goToRow(this._getNextRow(), 'next');
 	}
@@ -277,7 +277,7 @@ export class DiffReview2 extends Disposable {
 		this._isVisible = false;
 		this._diffEditor.updateOptions({ readOnly: false });
 		this._diffEditor.focus();
-		//this._diffEditor.doLayout();
+		this.layout();
 		this._render();
 	}
 
@@ -336,9 +336,14 @@ export class DiffReview2 extends Disposable {
 	}
 
 	private _width: number = 0;
+	private _top: number = 0;
+	private _height: number = 0;
 
-	public layout(top: number, width: number, height: number): void {
+	public layout(top: number = this._top, width: number = this._width, height: number = this._height): void {
 		this._width = width;
+		this._top = top;
+		this._height = height;
+
 		this.shadow.setTop(top - 6);
 		this.shadow.setWidth(width);
 		this.shadow.setHeight(this._isVisible ? 6 : 0);

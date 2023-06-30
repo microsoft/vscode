@@ -416,7 +416,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		const hostMap = this._tunnels.get(remoteHost);
 		if (hostMap) {
 			const tunnel = hostMap.get(remotePort);
-			const tunnelResult = await tunnel;
+			const tunnelResult = tunnel ? await tunnel.value : undefined;
 			if (!tunnelResult) {
 				hostMap.delete(remotePort);
 			}

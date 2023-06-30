@@ -34,18 +34,13 @@ class AccessibilityHelpProvider extends Disposable implements IAccessibleContent
 		this._editor.focus();
 		this.dispose();
 	}
-	options: IAccessibleViewOptions = { type: AccessibleViewType.HelpMenu, ariaLabel: localize('terminal-help-label', "terminal accessibility help") };
+	options: IAccessibleViewOptions = { type: AccessibleViewType.HelpMenu, ariaLabel: localize('editor-help', "editor accessibility help"), readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
 	id: string = 'editor';
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
-		let url = (this._editor.getRawOptions() as any).accessibilityHelpUrl;
-		if (typeof url === 'undefined') {
-			url = 'https://go.microsoft.com/fwlink/?linkid=852450';
-		}
-		this.options.readMoreUrl = url;
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {

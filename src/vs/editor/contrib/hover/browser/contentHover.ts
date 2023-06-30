@@ -618,10 +618,9 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
-		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
-		const glyphMarginWidth = this._editor.getLayoutInfo().glyphMarginWidth;
-		const leftOfContainer = this._hover.containerDomNode.offsetLeft;
-		return editorBox.width + editorBox.left - leftOfContainer - glyphMarginWidth;
+		const bodyBoxWidth = dom.getClientArea(document.body).width;
+		const horizontalPadding = 14;
+		return bodyBoxWidth - horizontalPadding;
 	}
 
 	public isMouseGettingCloser(posx: number, posy: number): boolean {

@@ -83,7 +83,10 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 	private computePreferredHeight(notification: INotificationViewItem): number {
 
 		// Prepare offset helper depending on toolbar actions count
-		let actions = 1; // close
+		let actions = 0;
+		if (!notification.hasProgress) {
+			actions++; // close
+		}
 		if (notification.canCollapse) {
 			actions++; // expand/collapse
 		}
@@ -132,8 +135,9 @@ export interface INotificationTemplateData {
 }
 
 interface IMessageActionHandler {
+	readonly toDispose: DisposableStore;
+
 	callback: (href: string) => void;
-	toDispose: DisposableStore;
 }
 
 class NotificationMessageRenderer {

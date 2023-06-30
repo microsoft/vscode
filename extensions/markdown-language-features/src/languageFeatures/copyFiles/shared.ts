@@ -153,7 +153,7 @@ export function createUriListSnippet(
 			if (insertAsMedia) {
 				insertedImageCount++;
 				snippet.appendText('![');
-				const placeholderText = options?.placeholderText ? (escapeBrackets(title) || 'Alt text') : 'label';
+				const placeholderText = escapeBrackets(title) || options?.placeholderText || 'Alt text';
 				const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (placeholderValue === 0 ? undefined : placeholderValue);
 				snippet.appendPlaceholder(placeholderText, placeholderIndex);
 				snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);

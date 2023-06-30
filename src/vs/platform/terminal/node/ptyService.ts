@@ -247,6 +247,7 @@ export class PtyService extends Disposable implements IPtyService {
 		);
 		// Don't start the process here as there's no terminal to answer CPR
 		this._revivedPtyIdMap.set(terminal.id, { newId, state: terminal });
+		this._logService.info(`Revived process, old id ${terminal.id} -> new id ${newId}`);
 	}
 
 	@traceRpc
@@ -539,6 +540,7 @@ export class PtyService extends Disposable implements IPtyService {
 	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
 		try {
 			const revivedPtyId = this._revivedPtyIdMap.get(t.terminal)?.newId;
+			this._logService.info(`Expanding terminal instance, old id ${t.terminal} -> new id ${revivedPtyId}`);
 			this._revivedPtyIdMap.delete(t.terminal);
 			const persistentProcessId = revivedPtyId ?? t.terminal;
 			const persistentProcess = this._throwIfNoPty(persistentProcessId);
@@ -549,6 +551,8 @@ export class PtyService extends Disposable implements IPtyService {
 			};
 		} catch (e) {
 			this._logService.warn(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
+			this._logService.info('Reattach to wrong terminal debug info - layout info by id', t);
+			this._logService.info('Reattach to wrong terminal debug info - _revivePtyIdMap', Array.from(this._revivedPtyIdMap.values()));
 			// this will be filtered out and not reconnected
 			return {
 				terminal: null,

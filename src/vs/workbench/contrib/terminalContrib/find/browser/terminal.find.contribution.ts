@@ -121,7 +121,7 @@ registerActiveInstanceAction({
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	run: (activeInstance) => {
 		const state = TerminalFindContribution.get(activeInstance)?.findWidget.state;
-		state?.change({ matchCase: !state.isRegex }, false);
+		state?.change({ isRegex: !state.isRegex }, false);
 	}
 });
 
@@ -137,7 +137,7 @@ registerActiveInstanceAction({
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	run: (activeInstance) => {
 		const state = TerminalFindContribution.get(activeInstance)?.findWidget.state;
-		state?.change({ matchCase: !state.wholeWord }, false);
+		state?.change({ wholeWord: !state.wholeWord }, false);
 	}
 });
 

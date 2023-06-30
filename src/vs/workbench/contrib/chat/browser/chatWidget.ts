@@ -401,7 +401,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this._chatAccessibilityService.acceptRequest();
 			const input = query ?? editorValue;
-			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
+			const usedSlashCommand = this.lookupSlashCommand(typeof input === 'string' ? input : input.message);
+			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, usedSlashCommand);
 
 			if (result) {
 				this.inputPart.acceptInput(query);
@@ -414,6 +415,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._chatAccessibilityService.acceptResponse();
 			}
 		}
+	}
+
+	private lookupSlashCommand(input: string): ISlashCommand | undefined {
+		return this.lastSlashCommands?.find(sc => input.startsWith(`/${sc.command}`));
 	}
 
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {

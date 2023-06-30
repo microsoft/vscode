@@ -34,6 +34,7 @@ import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { EditorType, IDiffEditorModel, IDiffEditorViewModel, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -366,13 +367,21 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 	revert(diff: LineRangeMapping): void {
 		const model = this._diffModel.get()?.model;
-		if (!model) {
-			return;
-		}
-		const originalText = model.original.getValueInRange(diff.originalRange.toExclusiveRange());
-		this._editors.modified.executeEdits('diffEditor', [
-			{ range: diff.modifiedRange.toExclusiveRange(), text: originalText }
-		]);
+		if (!model) { return; }
+
+		const changes: IIdentifiedSingleEditOperation[] = diff.innerChanges
+			? diff.innerChanges.map<IIdentifiedSingleEditOperation>(c => ({
+				range: c.modifiedRange,
+				text: model.original.getValueInRange(c.originalRange)
+			}))
+			: [
+				{
+					range: diff.modifiedRange.toExclusiveRange(),
+					text: model.original.getValueInRange(diff.originalRange.toExclusiveRange())
+				}
+			];
+
+		this._editors.modified.executeEdits('diffEditor', changes);
 	}
 
 	private _goTo(diff: DiffMapping): void {

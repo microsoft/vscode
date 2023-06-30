@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-native-private */
+
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -150,4 +152,3 @@ export const remoteConnectionLatencyMeasurer = new class {
 		return this.#lastMeasurement;
 	}
 };
-

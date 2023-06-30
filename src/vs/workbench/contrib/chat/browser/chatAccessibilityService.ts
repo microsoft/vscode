@@ -11,7 +11,7 @@ import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/cha
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 const CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS = 5000;
-const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 1000;
+const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
 
 	declare readonly _serviceBrand: undefined;

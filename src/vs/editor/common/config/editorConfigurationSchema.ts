@@ -205,12 +205,12 @@ const editorConfiguration: IConfigurationNode = {
 		'diffEditor.experimental.collapseUnchangedRegions': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('collapseUnchangedRegions', "Controls whether the diff editor shows unchanged regions. Only works when 'diffEditor.experimental.useVersion2' is set."),
+			markdownDescription: nls.localize('collapseUnchangedRegions', "Controls whether the diff editor shows unchanged regions. Only works when {0} is set.", '`#diffEditor.experimental.useVersion2#`'),
 		},
 		'diffEditor.experimental.showMoves': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('showMoves', "Controls whether the diff editor should show detected code moves. Only works when 'diffEditor.experimental.useVersion2' is set."),
+			markdownDescription: nls.localize('showMoves', "Controls whether the diff editor should show detected code moves. Only works when {0} is set.", '`#diffEditor.experimental.useVersion2#`')
 		},
 		'diffEditor.experimental.useVersion2': {
 			type: 'boolean',

@@ -8,7 +8,7 @@ import { getMarkdownLink } from './shared';
 
 class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 
-	private readonly _id = 'insertMarkdownLink';
+	readonly id = 'insertMarkdownLink';
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
 		ranges: readonly vscode.Range[],
@@ -28,8 +28,7 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const label = vscode.l10n.t('Insert Markdown Link');
-		const uriEdit = new vscode.DocumentPasteEdit('', this._id, label);
+		const uriEdit = new vscode.DocumentPasteEdit('', this.id, '');
 		const urlList = await item?.asString();
 		if (!urlList) {
 			return undefined;
@@ -39,6 +38,7 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
+		uriEdit.label = pasteEdit.label;
 		uriEdit.additionalEdit = pasteEdit.additionalEdits;
 		return uriEdit;
 	}
