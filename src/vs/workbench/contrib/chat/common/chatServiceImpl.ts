@@ -287,13 +287,8 @@ export class ChatService extends Disposable implements IChatService {
 	private _startSession(providerId: string, someSessionHistory: ISerializableChatData | undefined, token: CancellationToken): ChatModel {
 		const model = this.instantiationService.createInstance(ChatModel, providerId, someSessionHistory);
 		this._sessionModels.set(model.sessionId, model);
-		const modelInitPromise = this.initializeSession(model, someSessionHistory, token);
-		modelInitPromise.then(resolvedModel => {
-			if (!resolvedModel) {
-				model.dispose();
-				this._sessionModels.delete(model.sessionId);
-			}
-		}).catch(err => {
+		const modelInitPromise = this.initializeSession(model, token);
+		modelInitPromise.catch(err => {
 			this.trace('startSession', `initializeSession failed: ${err}`);
 			model.setInitializationError(err);
 			model.dispose();
@@ -303,7 +298,22 @@ export class ChatService extends Disposable implements IChatService {
 		return model;
 	}
 
-	private async initializeSession(model: ChatModel, sessionHistory: ISerializableChatData | undefined, token: CancellationToken): Promise<ChatModel | undefined> {
+	private reinitializeModel(model: ChatModel): void {
+		model.startReinitialize();
+		this.startSessionInit(model, CancellationToken.None);
+	}
+
+	private startSessionInit(model: ChatModel, token: CancellationToken): void {
+		const modelInitPromise = this.initializeSession(model, token);
+		modelInitPromise.catch(err => {
+			this.trace('startSession', `initializeSession failed: ${err}`);
+			model.setInitializationError(err);
+			model.dispose();
+			this._sessionModels.delete(model.sessionId);
+		});
+	}
+
+	private async initializeSession(model: ChatModel, token: CancellationToken): Promise<void> {
 		await this.extensionService.activateByEvent(`onInteractiveSession:${model.providerId}`);
 
 		const provider = this._providers.get(model.providerId);
@@ -319,18 +329,16 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		if (!session) {
-			this.trace('startSession', 'Provider returned no session');
-			return undefined;
+			throw new Error('Provider returned no session');
 		}
 
 		this.trace('startSession', `Provider returned session`);
 
-		const welcomeMessage = sessionHistory ? undefined : withNullAsUndefined(await provider.provideWelcomeMessage?.(token));
+		const welcomeMessage = model.welcomeMessage ? undefined : withNullAsUndefined(await provider.provideWelcomeMessage?.(token));
 		const welcomeModel = welcomeMessage && new ChatWelcomeMessageModel(
 			welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item as IChatReplyFollowup[]), session.responderUsername, session.responderAvatarIconUri);
 
 		model.initialize(session, welcomeModel);
-		return model;
 	}
 
 	getSession(sessionId: string): IChatModel | undefined {
@@ -617,6 +625,10 @@ export class ChatService extends Disposable implements IChatService {
 
 		this._providers.set(provider.id, provider);
 		this._hasProvider.set(true);
+
+		Array.from(this._sessionModels.values())
+			.filter(model => model.providerId === provider.id)
+			.forEach(model => this.reinitializeModel(model));
 
 		return toDisposable(() => {
 			this.trace('registerProvider', `Disposing chat provider`);
