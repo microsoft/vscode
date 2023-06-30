@@ -9,7 +9,9 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-
+import { accessibilityHelpIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 class ToggleScreenReaderMode extends Action2 {
 
 	constructor() {
