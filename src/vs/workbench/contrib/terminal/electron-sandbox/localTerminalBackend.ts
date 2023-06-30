@@ -107,6 +107,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			// separate interface/service for this one.
 			const client = new MessagePortClient(port, `window:${this._environmentService.window.id}`);
 			clientEventually.complete(client);
+			this._onPtyHostConnected.fire();
 
 			// Attach process listeners
 			this._proxy.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
@@ -190,7 +191,6 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess> {
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
-		// TODO: Using _proxy here bypasses the lastPtyId tracking on the main process
 		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, options, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
 		const pty = new LocalPty(id, shouldPersist, this._proxy);
 		this._ptys.set(id, pty);

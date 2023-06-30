@@ -52,7 +52,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 	private _ensurePtyHost() {
 		if (!this.__connection) {
-			[this.__connection, this.__proxy] = this._startPtyHost();
+			this._startPtyHost();
 		}
 	}
 
@@ -102,8 +102,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// remote server).
 		registerTerminalPlatformConfiguration();
 
+		this._register(this._ptyHostStarter);
 		this._register(toDisposable(() => this._disposePtyHost()));
-
 
 		this._resolveVariablesRequestStore = this._register(new RequestStore(undefined, this._logService));
 		this._resolveVariablesRequestStore.onCreateRequest(this._onPtyHostRequestResolveVariables.fire, this._onPtyHostRequestResolveVariables);
@@ -145,8 +145,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		const connection = this._ptyHostStarter.start(lastPtyId);
 		const client = connection.client;
 
-		this._onPtyHostStart.fire();
-
 		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts
 		const heartbeatService = ProxyChannel.toService<IHeartbeatService>(client.getChannel(TerminalIpcChannels.Heartbeat));
 		heartbeatService.onBeat(() => this._handleHeartbeat());
@@ -180,6 +178,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 		this.__connection = connection;
 		this.__proxy = proxy;
+
+		this._onPtyHostStart.fire();
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingId.IgnoreProcessNames)) {
