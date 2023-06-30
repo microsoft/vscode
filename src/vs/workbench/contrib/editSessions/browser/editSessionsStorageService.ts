@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -40,7 +38,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	private serverConfiguration = this.productService['editSessions.store'];
 	private machineClient: IUserDataSyncMachinesService | undefined;
 
-	#authenticationInfo: { sessionId: string; token: string; providerId: string } | undefined;
+	private authenticationInfo: { sessionId: string; token: string; providerId: string } | undefined;
 	private static CACHED_SESSION_STORAGE_KEY = 'editSessionAccountPreference';
 
 	private initialized = false;
@@ -227,13 +225,13 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		// If we already have an existing auth session in memory, use that
-		if (this.#authenticationInfo !== undefined) {
+		if (this.authenticationInfo !== undefined) {
 			return true;
 		}
 
 		const authenticationSession = await this.getAuthenticationSession(silent);
 		if (authenticationSession !== undefined) {
-			this.#authenticationInfo = authenticationSession;
+			this.authenticationInfo = authenticationSession;
 			this.storeClient.setAuthToken(authenticationSession.token, authenticationSession.providerId);
 		}
 
@@ -436,25 +434,25 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			&& e.scope === StorageScope.APPLICATION
 		) {
 			const newSessionId = this.existingSessionId;
-			const previousSessionId = this.#authenticationInfo?.sessionId;
+			const previousSessionId = this.authenticationInfo?.sessionId;
 
 			if (previousSessionId !== newSessionId) {
 				this.logService.trace(`Resetting authentication state because authentication session ID preference changed from ${previousSessionId} to ${newSessionId}.`);
-				this.#authenticationInfo = undefined;
+				this.authenticationInfo = undefined;
 				this.initialized = false;
 			}
 		}
 	}
 
 	private clearAuthenticationPreference(): void {
-		this.#authenticationInfo = undefined;
+		this.authenticationInfo = undefined;
 		this.initialized = false;
 		this.existingSessionId = undefined;
 		this.signedInContext.set(false);
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
-		if (this.#authenticationInfo?.sessionId && e.removed.find(session => session.id === this.#authenticationInfo?.sessionId)) {
+		if (this.authenticationInfo?.sessionId && e.removed.find(session => session.id === this.authenticationInfo?.sessionId)) {
 			this.clearAuthenticationPreference();
 		}
 	}
