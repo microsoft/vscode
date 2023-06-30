@@ -43,13 +43,19 @@
 
 .test-explorer .test-item .label,
 .test-output-peek-tree .test-peek-item .name {
-	display: flex;
-	align-items: center;
 	flex-grow: 1;
-	gap: 0.15em;
 	width: 0;
 	overflow: hidden;
 	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.test-output-peek-tree .test-peek-item .name .codicon,
+.test-explorer .test-item .label .codicon {
+	vertical-align: middle;
+	font-size: 1em;
+	transform: scale(1.25);
+	margin: 0 0.125em;
 }
 
 .test-explorer .test-item,
@@ -106,15 +112,6 @@
 
 .test-explorer .monaco-list-row .error p {
 	margin: 0;
-}
-
-.test-explorer .name,
-.test-output-peek-tree .name {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	flex-grow: 1;
-	height: 22px;
-	align-items: center;
 }
 
 .test-explorer .computed-state,
