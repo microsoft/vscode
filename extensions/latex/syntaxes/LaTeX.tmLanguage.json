@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/580c019674f82ef887a6dcce7bfc75ab0b58486d",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/30adbfae9dcb0a6477584247ac477f13845d1f5f",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -102,7 +102,7 @@
 					"name": "punctuation.definition.arguments.begin.latex"
 				}
 			},
-			"comment": "this works OK with all kinds of stuff as long as the section is one line",
+			"comment": "this works OK with all kinds of crazy stuff as long as section is one line",
 			"contentName": "entity.name.section.latex",
 			"end": "\\}",
 			"endCaptures": {
@@ -1064,7 +1064,7 @@
 			]
 		},
 		{
-			"begin": "((?:\\s*)\\\\begin\\{([a-zA-Z]*code(?:\\*)?)\\}(?:\\[.*\\])?(?:\\{.*\\})?)",
+			"begin": "((?:\\s*)\\\\begin\\{([a-zA-Z]*code|lstlisting|minted|pyglist)(?:\\*)?\\}(?:\\[.*\\])?(?:\\{.*\\})?)",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -2071,28 +2071,19 @@
 			]
 		},
 		{
-			"name": "string.quoted.double.latex",
-			"match": "(?<!\\\\)(\\`\\`)(?:.*?(?<!\\\\))(\\'\\'|\\\")",
-			"captures": {
+			"begin": "(?<!\\\\)(\\`\\`)",
+			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.string.begin.latex"
-				},
-				"2": {
-					"name": "punctuation.definition.string.end.latex"
 				}
-			}
-		},
-		{
-			"name": "string.quoted.single.latex",
-			"match": "(?<!\\\\)(\\`)(?:.*?(?<!\\\\))(\\')",
-			"captures": {
+			},
+			"end": "(?<!\\\\)(\\'\\'|\")",
+			"endCaptures": {
 				"1": {
-					"name": "punctuation.definition.string.begin.latex"
-				},
-				"2": {
 					"name": "punctuation.definition.string.end.latex"
 				}
-			}
+			},
+			"name": "string.quoted.double.latex"
 		},
 		{
 			"begin": "\\$\\$",
