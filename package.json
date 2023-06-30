@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.80.0",
+  "version": "1.81.0",
   "distro": "4ec8f427013e8d904920b6bdd931e78344401c19",
   "author": {
     "name": "Microsoft Corporation"
@@ -79,13 +79,13 @@
     "@vscode/windows-mutex": "^0.4.4",
     "@vscode/windows-process-tree": "^0.5.0",
     "@vscode/windows-registry": "^1.1.0",
-    "graceful-fs": "4.2.8",
+    "graceful-fs": "4.2.11",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",
     "jschardet": "3.0.0",
     "keytar": "7.9.0",
     "minimist": "^1.2.6",
-    "native-is-elevated": "0.6.0",
+    "native-is-elevated": "0.7.0",
     "native-keymap": "^3.3.2",
     "native-watchdog": "^1.4.1",
     "node-pty": "1.1.0-beta1",

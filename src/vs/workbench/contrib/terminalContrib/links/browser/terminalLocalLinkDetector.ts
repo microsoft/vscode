@@ -134,7 +134,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 			// If any candidates end with special characters that are likely to not be part of the
 			// link, add a candidate excluding them.
-			const specialEndCharRegex = /[\[\]"']$/;
+			const specialEndCharRegex = /[\[\]"'\.]$/;
 			const trimRangeMap: Map<string, number> = new Map();
 			const specialEndLinkCandidates: string[] = [];
 			for (const candidate of linkCandidates) {
