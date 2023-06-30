@@ -1980,7 +1980,8 @@ export class SearchModel extends Disposable {
 			const query: IFileQuery = {
 				type: QueryType.File,
 				filePattern: include,
-				folderQueries: textQuery.folderQueries
+				folderQueries: textQuery.folderQueries,
+				maxResults: textQuery.maxResults,
 			};
 			return this.searchService.fileSearch(
 				query,
