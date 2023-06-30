@@ -1295,6 +1295,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		// Clone minimap options before changing them
 		clonedOptions.minimap = { ...(clonedOptions.minimap || {}) };
 		clonedOptions.minimap.enabled = false;
+		if (this._options.experimental.collapseUnchangedRegions) {
+			clonedOptions.stickyScroll = { enabled: false };
+		}
 		return clonedOptions;
 	}
 
