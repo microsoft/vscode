@@ -14,12 +14,12 @@ import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utility
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
 import { IpcMainEvent } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { deepClone } from 'vs/base/common/objects';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export class ElectronPtyHostStarter implements IPtyHostStarter {
+export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarter {
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
 
@@ -35,9 +35,14 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly _logService: ILogService
 	) {
+		super();
+
 		this._lifecycleMainService.onWillShutdown(() => this._onWillShutdown.fire());
 		// Listen for new windows to establish connection directly to pty host
 		validatedIpcMain.on('vscode:createPtyHostMessageChannel', (e, nonce) => this._onWindowConnection(e, nonce));
+		this._register(toDisposable(() => {
+			validatedIpcMain.removeHandler('vscode:createPtyHostMessageChannel');
+		}));
 	}
 
 	start(): IPtyHostConnection {
@@ -62,9 +67,9 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 
 		const store = new DisposableStore();
 		store.add(client);
-		store.add(this.utilityProcess);
 		store.add(toDisposable(() => {
-			validatedIpcMain.removeHandler('vscode:createPtyHostMessageChannel');
+			this.utilityProcess?.kill();
+			this.utilityProcess?.dispose();
 			this.utilityProcess = undefined;
 		}));
 
