@@ -1670,7 +1670,7 @@ class OutputPeekTree extends Disposable {
 			taskChildrenToUpdate.clear();
 		}, 300));
 
-		const handleNewResults = (result: LiveTestResult) => {
+		const attachToResults = (result: LiveTestResult) => {
 			const resultNode = cc.get(result)! as TestResultElement;
 			const disposable = new DisposableStore();
 			disposable.add(result.onNewTask(() => {
@@ -1713,7 +1713,7 @@ class OutputPeekTree extends Disposable {
 				disposable.dispose();
 			}));
 
-			this.tree.expand(resultNode, true);
+			return resultNode;
 		};
 
 		this._register(results.onResultsChanged(e => {
@@ -1737,7 +1737,7 @@ class OutputPeekTree extends Disposable {
 					this.tree.collapse(child.element, false);
 				}
 
-				handleNewResults(e.started);
+				this.tree.expand(attachToResults(e.started), true);
 			}
 		}));
 
@@ -1749,7 +1749,7 @@ class OutputPeekTree extends Disposable {
 			}
 		};
 
-		this._register(onDidReveal(({ subject, preserveFocus = false }) => {
+		this._register(onDidReveal(async ({ subject, preserveFocus = false }) => {
 			if (subject instanceof TaskSubject) {
 				const resultItem = this.tree.getNode(null).children.find(c => (c.element as TestResultElement)?.id === subject.resultId);
 				if (resultItem) {
@@ -1798,6 +1798,11 @@ class OutputPeekTree extends Disposable {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this.tree.setChildren(null, getRootChildren());
+		for (const result of results.results) {
+			if (!result.completedAt && result instanceof LiveTestResult) {
+				attachToResults(result);
+			}
+		}
 	}
 
 	public layout(height: number, width: number) {
@@ -1880,8 +1885,6 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 
 	/** @inheritdoc */
 	public renderElement(element: ITreeNode<ITreeElement, FuzzyScore>, _index: number, templateData: TemplateData): void {
-		templateData.elementDisposable.clear();
-		templateData.elementDisposable.add(element.element.onDidChange(() => this.doRender(element.element, templateData)));
 		this.doRender(element.element, templateData);
 	}
 
@@ -1890,7 +1893,15 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 		templateData.templateDisposable.dispose();
 	}
 
+	/** Called to render a new element */
 	private doRender(element: ITreeElement, templateData: TemplateData) {
+		templateData.elementDisposable.clear();
+		templateData.elementDisposable.add(element.onDidChange(() => this.doRender(element, templateData)));
+		this.doRenderInner(element, templateData);
+	}
+
+	/** Called, and may be re-called, to render or re-render an element */
+	private doRenderInner(element: ITreeElement, templateData: TemplateData) {
 		if (element.labelWithIcons) {
 			dom.reset(templateData.label, ...element.labelWithIcons);
 		} else if (element.description) {
