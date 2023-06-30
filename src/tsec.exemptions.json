@@ -24,6 +24,7 @@
 		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
 	],
 	"ban-worker-importscripts": [
+		"vs/amdX.ts",
 		"vs/workbench/services/extensions/worker/polyfillNestedWorker.ts",
 		"vs/workbench/api/worker/extensionHostWorker.ts",
 		"vs/base/worker/workerMain.ts"

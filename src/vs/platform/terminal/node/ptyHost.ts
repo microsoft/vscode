@@ -19,9 +19,6 @@ export interface IPtyHostStarter {
 
 	/**
 	 * Creates a pty host and connects to it.
-	 *
-	 * @param lastPtyId Tracks the last terminal ID from the pty host so we can give it to the new
-	 * pty host if it's restarted and avoid ID conflicts.
 	 */
-	start(lastPtyId: number): IPtyHostConnection;
+	start(): IPtyHostConnection;
 }

@@ -25,12 +25,6 @@ enum Constants {
 }
 
 /**
- * Tracks the last terminal ID from the pty host so we can give it to the new pty host if it's
- * restarted and avoid ID conflicts.
- */
-let lastPtyId = 0;
-
-/**
  * This service implements IPtyService by launching a pty host process, forwarding messages to and
  * from the pty host process and manages the connection.
  */
@@ -142,7 +136,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	private _startPtyHost(): [IPtyHostConnection, IPtyService] {
-		const connection = this._ptyHostStarter.start(lastPtyId);
+		const connection = this._ptyHostStarter.start();
 		const client = connection.client;
 
 		this._onPtyHostStart.fire();
@@ -212,7 +206,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		const timeout = setTimeout(() => this._handleUnresponsiveCreateProcess(), HeartbeatConstants.CreateProcessTimeout);
 		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, options, shouldPersist, workspaceId, workspaceName);
 		clearTimeout(timeout);
-		lastPtyId = Math.max(lastPtyId, id);
 		return id;
 	}
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
