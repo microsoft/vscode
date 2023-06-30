@@ -395,10 +395,6 @@ export class ContentHoverController extends Disposable {
 	public goToBottom(): void {
 		this._widget.goToBottom();
 	}
-
-	public escape(): void {
-		this._widget.escape();
-	}
 }
 
 class HoverResult {
@@ -730,15 +726,12 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!this._visibleData) {
 			return;
 		}
-		const stoleFocus = this._visibleData.stoleFocus;
 		this._setHoverData(undefined);
 		this._resizableNode.maxSize = new dom.Dimension(Infinity, Infinity);
 		this._resizableNode.clearSashHoverState();
 		this._hoverFocusedKey.set(false);
 		this._editor.layoutContentWidget(this);
-		if (stoleFocus) {
-			this._editor.focus();
-		}
+		this._editor.focus();
 	}
 
 	private _removeConstraintsRenderNormally(): void {
@@ -821,10 +814,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	public goToBottom(): void {
 		this._hover.scrollbar.setScrollPosition({ scrollTop: this._hover.scrollbar.getScrollDimensions().scrollHeight });
-	}
-
-	public escape(): void {
-		this._editor.focus();
 	}
 }
 
