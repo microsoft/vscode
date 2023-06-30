@@ -72,7 +72,9 @@ export class NotebookProviderInfoStore extends Disposable {
 		// Process the notebook contributions but buffer changes from the resolver
 		this._editorResolverService.bufferChangeEvents(() => {
 			for (const info of (mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] || []) as NotebookEditorDescriptor[]) {
-				this.add(new NotebookProviderInfo(info));
+				const notebookInfo = new NotebookProviderInfo(info);
+				this.addNotebookInfo(notebookInfo);
+				this.registerEditorForNotebook(notebookInfo);
 			}
 		});
 
@@ -101,7 +103,7 @@ export class NotebookProviderInfoStore extends Disposable {
 
 		const builtinProvidersFromCache: Map<string, IDisposable> = new Map();
 		builtins.forEach(builtin => {
-			builtinProvidersFromCache.set(builtin.id, this.add(builtin));
+			builtinProvidersFromCache.set(builtin.id, this.addNotebookInfo(builtin));
 		});
 
 		for (const extension of extensions) {
@@ -124,7 +126,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					}
 				}
 
-				this.add(new NotebookProviderInfo({
+				const notebookInfo = new NotebookProviderInfo({
 					extension: extension.description.identifier,
 					id: notebookContribution.type,
 					displayName: notebookContribution.displayName,
@@ -132,7 +134,9 @@ export class NotebookProviderInfoStore extends Disposable {
 					priority: this._convertPriority(notebookContribution.priority),
 					providerDisplayName: extension.description.displayName ?? extension.description.identifier.value,
 					exclusive: false
-				}));
+				});
+				this.addNotebookInfo(notebookInfo);
+				this.registerEditorForNotebook(notebookInfo);
 			}
 		}
 
@@ -160,7 +164,7 @@ export class NotebookProviderInfoStore extends Disposable {
 
 	}
 
-	private _registerContributionPoint(notebookProviderInfo: NotebookProviderInfo): IDisposable {
+	registerEditorForNotebook(notebookProviderInfo: NotebookProviderInfo): IDisposable {
 
 		const disposables = new DisposableStore();
 
@@ -260,7 +264,8 @@ export class NotebookProviderInfoStore extends Disposable {
 			));
 		}
 
-		return disposables;
+		this._contributedEditorDisposables.add(disposables);
+		return toDisposable(() => disposables.dispose());
 	}
 
 
@@ -273,17 +278,11 @@ export class NotebookProviderInfoStore extends Disposable {
 		return this._contributedEditors.get(viewType);
 	}
 
-	add(info: NotebookProviderInfo): IDisposable {
+	addNotebookInfo(info: NotebookProviderInfo): IDisposable {
 		if (this._contributedEditors.has(info.id)) {
 			throw new Error(`notebook type '${info.id}' ALREADY EXISTS`);
 		}
 		this._contributedEditors.set(info.id, info);
-		let editorRegistration: IDisposable | undefined;
-		// Don't overwrite editor contributions if they come from elsewhere
-		if (!info.externalEditor) {
-			editorRegistration = this._registerContributionPoint(info);
-			this._contributedEditorDisposables.add(editorRegistration);
-		}
 
 		const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
@@ -293,7 +292,6 @@ export class NotebookProviderInfoStore extends Disposable {
 			const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 			mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
 			this._memento.saveMemento();
-			editorRegistration?.dispose();
 			this._contributedEditors.delete(info.id);
 		});
 	}
@@ -640,13 +638,12 @@ export class NotebookService extends Disposable implements INotebookService {
 			providerDisplayName: data.providerDisplayName,
 			exclusive: data.exclusive,
 			priority: RegisteredEditorPriority.default,
-			selectors: [],
-			externalEditor: !!data.externalEditor
+			selectors: []
 		});
 
 		info.update({ selectors: data.filenamePattern });
 
-		const reg = this.notebookProviderInfoStore.add(info);
+		const reg = this.notebookProviderInfoStore.addNotebookInfo(info);
 		this._onDidChangeEditorTypes.fire();
 
 		return toDisposable(() => {

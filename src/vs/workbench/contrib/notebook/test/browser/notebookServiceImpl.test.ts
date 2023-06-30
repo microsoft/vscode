@@ -64,8 +64,10 @@ suite('NotebookProviderInfoStore', function () {
 			providerDisplayName: 'bar',
 		});
 
-		store.add(fooInfo);
-		store.add(barInfo);
+		store.addNotebookInfo(fooInfo);
+		store.registerEditorForNotebook(fooInfo);
+		store.addNotebookInfo(barInfo);
+		store.registerEditorForNotebook(barInfo);
 
 		assert.ok(store.get('foo'));
 		assert.ok(store.get('bar'));
