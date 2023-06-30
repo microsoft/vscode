@@ -46,7 +46,13 @@ export function traceRpc(_target: any, key: string, descriptor: any) {
 		if (this.traceRpcArgs.simulatedLatency) {
 			await timeout(this.traceRpcArgs.simulatedLatency);
 		}
-		const result = await fn.apply(this, args);
+		let result: any;
+		try {
+			result = await fn.apply(this, args);
+		} catch (e) {
+			this.traceRpcArgs.logService.error(`[RPC Response] PtyService#${fn.name}`, e);
+			throw e;
+		}
 		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
 			this.traceRpcArgs.logService.trace(`[RPC Response] PtyService#${fn.name}`, result);
 		}
