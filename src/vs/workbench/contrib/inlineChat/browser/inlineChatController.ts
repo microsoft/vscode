@@ -214,6 +214,12 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async [State.CREATE_SESSION](options: InlineChatRunOptions): Promise<State.CANCEL | State.INIT_UI | State.PAUSE> {
+		if (this._activeSession) {
+			this._sessionStore.clear();
+			this._inlineChatSessionService.releaseSession(this._activeSession);
+			await this[State.PAUSE]();
+		}
+		assertType(this._activeSession === undefined);
 		assertType(this._editor.hasModel());
 
 		let session: Session | undefined = options.existingSession;
