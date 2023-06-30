@@ -344,13 +344,20 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 				async getChildren(node?: ITreeItem): Promise<ITreeItem[]> {
 					let children: ITreeItem[];
+					const checkboxesUpdated: ITreeItem[] = [];
 					if (node && node.children) {
 						children = node.children;
 					} else {
 						node = node ?? self.root;
 						node.children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
 						children = node.children ?? [];
-						children.forEach(child => child.parent = node);
+						children.forEach(child => {
+							child.parent = node;
+							if (!self.manuallyManageCheckboxes && (node?.checkbox?.isChecked === true) && (child.checkbox?.isChecked === false)) {
+								child.checkbox.isChecked = true;
+								checkboxesUpdated.push(child);
+							}
+						});
 					}
 					if (node instanceof Root) {
 						const oldEmpty = this._isEmpty;
@@ -358,6 +365,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						if (oldEmpty !== this._isEmpty) {
 							this._onDidChangeEmpty.fire();
 						}
+					}
+					if (checkboxesUpdated.length > 0) {
+						self._onDidChangeCheckboxState.fire(checkboxesUpdated);
 					}
 					return children;
 				}
