@@ -157,9 +157,13 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._providerResponseId = providerResponseId;
 	}
 
-	complete(errorDetails?: IChatResponseErrorDetails): void {
-		this._isComplete = true;
+	setErrorDetails(errorDetails?: IChatResponseErrorDetails): void {
 		this._errorDetails = errorDetails;
+		this._onDidChange.fire();
+	}
+
+	complete(): void {
+		this._isComplete = true;
 		this._onDidChange.fire();
 	}
 
@@ -471,7 +475,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 	}
 
-	completeResponse(request: ChatRequestModel, rawResponse: IChatResponse): void {
+	setResponse(request: ChatRequestModel, rawResponse: IChatResponse): void {
 		if (!this._session) {
 			throw new Error('completeResponse: No session');
 		}
@@ -480,7 +484,15 @@ export class ChatModel extends Disposable implements IChatModel {
 			request.response = new ChatResponseModel(new MarkdownString(''), this);
 		}
 
-		request.response.complete(rawResponse.errorDetails);
+		request.response.setErrorDetails(rawResponse.errorDetails);
+	}
+
+	completeResponse(request: ChatRequestModel): void {
+		if (!request.response) {
+			throw new Error('Call setResponse before completeResponse');
+		}
+
+		request.response.complete();
 	}
 
 	setFollowups(request: ChatRequestModel, followups: IChatFollowup[] | undefined): void {
@@ -492,7 +504,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		request.response.setFollowups(followups);
 	}
 
-	setResponse(request: ChatRequestModel, response: ChatResponseModel): void {
+	setResponseModel(request: ChatRequestModel, response: ChatResponseModel): void {
 		request.response = response;
 		this._onDidChange.fire({ kind: 'addResponse', response });
 	}
