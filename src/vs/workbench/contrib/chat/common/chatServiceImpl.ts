@@ -449,13 +449,17 @@ export class ChatService extends Disposable implements IChatService {
 					requestType,
 					slashCommand: usedSlashCommand?.command
 				});
-				model.completeResponse(request, rawResponse);
+				model.setResponse(request, rawResponse);
 				this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
 
+				// TODO refactor this or rethink the API https://github.com/microsoft/vscode-copilot/issues/593
 				if (provider.provideFollowups) {
 					Promise.resolve(provider.provideFollowups(model.session!, CancellationToken.None)).then(followups => {
 						model.setFollowups(request, withNullAsUndefined(followups));
+						model.completeResponse(request);
 					});
+				} else {
+					model.completeResponse(request);
 				}
 			}
 		});
@@ -579,7 +583,7 @@ export class ChatService extends Disposable implements IChatService {
 		model.acceptResponseProgress(request, {
 			content: response.message,
 		}, true);
-		model.completeResponse(request, {
+		model.setResponse(request, {
 			session: model.session!,
 			errorDetails: response.errorDetails,
 		});
