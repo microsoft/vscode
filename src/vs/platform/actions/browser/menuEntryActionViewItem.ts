@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, asCSSUrl, EventType, ModifierKeyEmitter, prepend } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, asCSSUrl, EventType, IModifierKeyStatus, ModifierKeyEmitter, prepend } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionViewItem, BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
@@ -159,36 +159,21 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			this._updateItemClass(this._menuItemAction.item);
 		}
 
-		let mouseOver = false;
-
-		let alternativeKeyDown = this._altKey.keyStatus.altKey || ((isWindows || isLinux) && this._altKey.keyStatus.shiftKey);
-
-		const updateAltState = () => {
-			const wantsAltCommand = mouseOver && alternativeKeyDown && !!this._commandAction.alt?.enabled;
-			if (wantsAltCommand !== this._wantsAltCommand) {
-				this._wantsAltCommand = wantsAltCommand;
-				this.updateLabel();
-				this.updateTooltip();
-				this.updateClass();
-			}
-		};
-
 		if (this._menuItemAction.alt) {
-			this._register(this._altKey.event(value => {
-				alternativeKeyDown = value.altKey || ((isWindows || isLinux) && value.shiftKey);
-				updateAltState();
-			}));
+			const updateAltState = (keyStatus: IModifierKeyStatus) => {
+				const wantsAltCommand = !!this._commandAction.alt?.enabled && (keyStatus.altKey || ((isWindows || isLinux) && keyStatus.shiftKey));
+
+				if (wantsAltCommand !== this._wantsAltCommand) {
+					this._wantsAltCommand = wantsAltCommand;
+					this.updateLabel();
+					this.updateTooltip();
+					this.updateClass();
+				}
+			};
+
+			this._register(this._altKey.event(updateAltState));
+			updateAltState(this._altKey.keyStatus);
 		}
-
-		this._register(addDisposableListener(container, 'mouseleave', _ => {
-			mouseOver = false;
-			updateAltState();
-		}));
-
-		this._register(addDisposableListener(container, 'mouseenter', _ => {
-			mouseOver = true;
-			updateAltState();
-		}));
 	}
 
 	protected override updateLabel(): void {

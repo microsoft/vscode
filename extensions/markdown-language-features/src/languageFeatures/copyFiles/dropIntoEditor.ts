@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { createEditForMediaFiles as createEditForMediaFiles, tryGetUriListSnippet } from './shared';
+import { createEditForMediaFiles as createEditForMediaFiles, mediaMimes, tryGetUriListSnippet } from './shared';
 import { Schemes } from '../../util/schemes';
 
 
@@ -30,7 +30,11 @@ class MarkdownImageDropProvider implements vscode.DocumentDropEditProvider {
 	}
 
 	private async _getUriListEdit(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentDropEdit | undefined> {
-		const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
+		const urlList = await dataTransfer.get('text/uri-list')?.asString();
+		if (!urlList) {
+			return undefined;
+		}
+		const snippet = await tryGetUriListSnippet(document, urlList, token);
 		if (!snippet) {
 			return undefined;
 		}
@@ -67,7 +71,8 @@ class MarkdownImageDropProvider implements vscode.DocumentDropEditProvider {
 export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector) {
 	return vscode.languages.registerDocumentDropEditProvider(selector, new MarkdownImageDropProvider(), {
 		dropMimeTypes: [
-			'text/uri-list'
+			'text/uri-list',
+			...mediaMimes,
 		]
 	});
 }

@@ -89,7 +89,6 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	get activeDebugConsole(): vscode.DebugConsole { return this._activeDebugConsole.value; }
 
 	private _breakpoints: Map<string, vscode.Breakpoint>;
-	private _breakpointEventsActive: boolean;
 
 	private readonly _onDidChangeBreakpoints: Emitter<vscode.BreakpointsChangeEvent>;
 
@@ -128,18 +127,13 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 		this._debugServiceProxy = extHostRpcService.getProxy(MainContext.MainThreadDebugService);
 
-		this._onDidChangeBreakpoints = new Emitter<vscode.BreakpointsChangeEvent>({
-			onWillAddFirstListener: () => {
-				this.startBreakpoints();
-			}
-		});
+		this._onDidChangeBreakpoints = new Emitter<vscode.BreakpointsChangeEvent>();
 
 		this._onDidChangeStackFrameFocus = new Emitter<vscode.ThreadFocus | vscode.StackFrameFocus | undefined>();
 
 		this._activeDebugConsole = new ExtHostDebugConsole(this._debugServiceProxy);
 
 		this._breakpoints = new Map<string, vscode.Breakpoint>();
-		this._breakpointEventsActive = false;
 
 		this._extensionService.getExtensionRegistry().then((extensionRegistry: ExtensionDescriptionRegistry) => {
 			extensionRegistry.onDidChange(_ => {
@@ -211,18 +205,12 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	}
 
 	get breakpoints(): vscode.Breakpoint[] {
-
-		this.startBreakpoints();
-
 		const result: vscode.Breakpoint[] = [];
 		this._breakpoints.forEach(bp => result.push(bp));
 		return result;
 	}
 
 	public addBreakpoints(breakpoints0: vscode.Breakpoint[]): Promise<void> {
-
-		this.startBreakpoints();
-
 		// filter only new breakpoints
 		const breakpoints = breakpoints0.filter(bp => {
 			const id = bp.id;
@@ -278,9 +266,6 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	}
 
 	public removeBreakpoints(breakpoints0: vscode.Breakpoint[]): Promise<void> {
-
-		this.startBreakpoints();
-
 		// remove from array
 		const breakpoints = breakpoints0.filter(b => this._breakpoints.delete(b.id));
 
@@ -833,13 +818,6 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	protected daExecutableFromPackage(session: ExtHostDebugSession, extensionRegistry: ExtensionDescriptionRegistry): DebugAdapterExecutable | undefined {
 		return undefined;
-	}
-
-	private startBreakpoints() {
-		if (!this._breakpointEventsActive) {
-			this._breakpointEventsActive = true;
-			this._debugServiceProxy.$startBreakpointEvents();
-		}
 	}
 
 	private fireBreakpointChanges(added: vscode.Breakpoint[], removed: vscode.Breakpoint[], changed: vscode.Breakpoint[]) {

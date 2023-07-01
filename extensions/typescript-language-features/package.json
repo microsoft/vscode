@@ -145,7 +145,7 @@
       "properties": {
         "typescript.experimental.aiQuickFix": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%typescript.experimental.aiQuickFix%",
           "scope": "resource"
         },
@@ -1256,7 +1256,7 @@
           "description": "%configuration.preferGoToSourceDefinition%",
           "scope": "window"
         },
-				"javascript.preferGoToSourceDefinition": {
+        "javascript.preferGoToSourceDefinition": {
           "type": "boolean",
           "default": false,
           "description": "%configuration.preferGoToSourceDefinition%",
@@ -1282,12 +1282,12 @@
       },
       {
         "command": "typescript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
+        "title": "%typescript.goToProjectConfig.title%",
         "category": "TypeScript"
       },
       {
         "command": "javascript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
+        "title": "%javascript.goToProjectConfig.title%",
         "category": "JavaScript"
       },
       {

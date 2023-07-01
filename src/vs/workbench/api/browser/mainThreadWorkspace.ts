@@ -144,9 +144,6 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	$startFileSearch(includePattern: string | null, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false | null, maxResults: number | null, token: CancellationToken): Promise<UriComponents[] | null> {
 		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
-		if (!workspace.folders.length) {
-			return Promise.resolve(null);
-		}
 
 		const query = this._queryBuilder.file(
 			includeFolder ? [includeFolder] : workspace.folders,

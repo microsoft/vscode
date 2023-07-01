@@ -17,6 +17,11 @@ enum MediaKind {
 	Audio,
 }
 
+const externalUriSchemes = [
+	'http',
+	'https',
+];
+
 export const mediaFileExtensions = new Map<string, MediaKind>([
 	// Images
 	['bmp', MediaKind.Image],
@@ -56,10 +61,32 @@ export const mediaMimes = new Set([
 	'audio/x-wav',
 ]);
 
+export async function getMarkdownLink(document: vscode.TextDocument, ranges: readonly vscode.Range[], urlList: string, token: vscode.CancellationToken): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string } | undefined> {
+	if (ranges.length === 0) {
+		return;
+	}
 
-export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
-	const urlList = await dataTransfer.get('text/uri-list')?.asString();
-	if (!urlList || token.isCancellationRequested) {
+	const edits: vscode.SnippetTextEdit[] = [];
+	let placeHolderValue: number = ranges.length;
+	let label: string = '';
+	for (let i = 0; i < ranges.length; i++) {
+		const snippet = await tryGetUriListSnippet(document, urlList, token, document.getText(ranges[i]), placeHolderValue);
+		if (!snippet) {
+			return;
+		}
+		placeHolderValue--;
+		edits.push(new vscode.SnippetTextEdit(ranges[i], snippet.snippet));
+		label = snippet.label;
+	}
+
+	const additionalEdits = new vscode.WorkspaceEdit();
+	additionalEdits.set(document.uri, edits);
+
+	return { additionalEdits, label };
+}
+
+export async function tryGetUriListSnippet(document: vscode.TextDocument, urlList: String, token: vscode.CancellationToken, title = '', placeHolderValue = 0): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
+	if (token.isCancellationRequested) {
 		return undefined;
 	}
 
@@ -72,7 +99,7 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 		}
 	}
 
-	return createUriListSnippet(document, uris);
+	return createUriListSnippet(document, uris, title, placeHolderValue);
 }
 
 interface UriListSnippetOptions {
@@ -90,11 +117,12 @@ interface UriListSnippetOptions {
 	readonly separator?: string;
 }
 
-
 export function createUriListSnippet(
 	document: vscode.TextDocument,
 	uris: readonly vscode.Uri[],
-	options?: UriListSnippetOptions
+	title = '',
+	placeholderValue = 0,
+	options?: UriListSnippetOptions,
 ): { snippet: vscode.SnippetString; label: string } | undefined {
 	if (!uris.length) {
 		return;
@@ -118,28 +146,33 @@ export function createUriListSnippet(
 
 		if (insertAsVideo) {
 			insertedAudioVideoCount++;
-			snippet.appendText(`<video src="${mdPath}" controls title="`);
-			snippet.appendPlaceholder('Title');
+			snippet.appendText(`<video src="${escapeHtmlAttribute(mdPath)}" controls title="`);
+			snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
 			snippet.appendText('"></video>');
 		} else if (insertAsAudio) {
 			insertedAudioVideoCount++;
-			snippet.appendText(`<audio src="${mdPath}" controls title="`);
-			snippet.appendPlaceholder('Title');
+			snippet.appendText(`<audio src="${escapeHtmlAttribute(mdPath)}" controls title="`);
+			snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
 			snippet.appendText('"></audio>');
 		} else {
 			if (insertAsMedia) {
 				insertedImageCount++;
+				snippet.appendText('![');
+				const placeholderText = escapeBrackets(title) || options?.placeholderText || 'Alt text';
+				const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (placeholderValue === 0 ? undefined : placeholderValue);
+				snippet.appendPlaceholder(placeholderText, placeholderIndex);
+				snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
 			} else {
 				insertedLinkCount++;
+				snippet.appendText('[');
+				snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
+				if (externalUriSchemes.includes(uri.scheme)) {
+					const uriString = uri.toString(true);
+					snippet.appendText(`](${uriString})`);
+				} else {
+					snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
+				}
 			}
-
-			snippet.appendText(insertAsMedia ? '![' : '[');
-
-			const placeholderText = options?.placeholderText ?? (insertAsMedia ? 'Alt text' : 'label');
-			const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : undefined;
-			snippet.appendPlaceholder(placeholderText, placeholderIndex);
-
-			snippet.appendText(`](${mdPath})`);
 		}
 
 		if (i < uris.length - 1 && uris.length > 1) {
@@ -246,11 +279,58 @@ function getMdPath(dir: vscode.Uri | undefined, file: vscode.Uri) {
 			// so that drive-letters are resolved cast insensitively. However we then want to
 			// convert back to a posix path to insert in to the document.
 			const relativePath = path.relative(dir.fsPath, file.fsPath);
-			return encodeURI(path.posix.normalize(relativePath.split(path.sep).join(path.posix.sep)));
+			return path.posix.normalize(relativePath.split(path.sep).join(path.posix.sep));
 		}
 
-		return encodeURI(path.posix.relative(dir.path, file.path));
+		return path.posix.relative(dir.path, file.path);
 	}
 
 	return file.toString(false);
 }
+
+function escapeHtmlAttribute(attr: string): string {
+	return encodeURI(attr).replaceAll('"', '&quot;');
+}
+
+function escapeMarkdownLinkPath(mdPath: string): string {
+	if (needsBracketLink(mdPath)) {
+		return '<' + mdPath.replaceAll('<', '\\<').replaceAll('>', '\\>') + '>';
+	}
+
+	return encodeURI(mdPath);
+}
+
+function escapeBrackets(value: string): string {
+	value = value.replace(/[\[\]]/g, '\\$&');
+	return value;
+}
+
+function needsBracketLink(mdPath: string) {
+	// Links with whitespace or control characters must be enclosed in brackets
+	if (mdPath.startsWith('<') || /\s|[\u007F\u0000-\u001f]/.test(mdPath)) {
+		return true;
+	}
+
+	// Check if the link has mis-matched parens
+	if (!/[\(\)]/.test(mdPath)) {
+		return false;
+	}
+
+	let previousChar = '';
+	let nestingCount = 0;
+	for (const char of mdPath) {
+		if (char === '(' && previousChar !== '\\') {
+			nestingCount++;
+		} else if (char === ')' && previousChar !== '\\') {
+			nestingCount--;
+		}
+
+		if (nestingCount < 0) {
+			return true;
+		}
+		previousChar = char;
+	}
+
+	return nestingCount > 0;
+}
+

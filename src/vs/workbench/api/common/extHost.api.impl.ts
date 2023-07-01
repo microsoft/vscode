@@ -98,7 +98,7 @@ import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessi
 import { ExtHostProfileContentHandlers } from 'vs/workbench/api/common/extHostProfileContentHandler';
 import { ExtHostQuickDiff } from 'vs/workbench/api/common/extHostQuickDiff';
 import { ExtHostChat } from 'vs/workbench/api/common/extHostChat';
-import { ExtHostInteractiveEditor } from 'vs/workbench/api/common/extHostInteractiveEditor';
+import { ExtHostInteractiveEditor } from 'vs/workbench/api/common/extHostInlineChat';
 import { ExtHostNotebookDocumentSaveParticipant } from 'vs/workbench/api/common/extHostNotebookDocumentSaveParticipant';
 import { ExtHostSemanticSimilarity } from 'vs/workbench/api/common/extHostSemanticSimilarity';
 import { ExtHostIssueReporter } from 'vs/workbench/api/common/extHostIssueReporter';
@@ -170,7 +170,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadBulkEdits)));
-	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments));
+	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem));
 	const extHostNotebookDocuments = rpcProtocol.set(ExtHostContext.ExtHostNotebookDocuments, new ExtHostNotebookDocuments(extHostNotebook));
 	const extHostNotebookEditors = rpcProtocol.set(ExtHostContext.ExtHostNotebookEditors, new ExtHostNotebookEditors(extHostLogService, extHostNotebook));
 	const extHostNotebookKernels = rpcProtocol.set(ExtHostContext.ExtHostNotebookKernels, new ExtHostNotebookKernels(rpcProtocol, initData, extHostNotebook, extHostCommands, extHostLogService));
@@ -202,7 +202,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
-	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInteractiveEditor, new ExtHostInteractiveEditor(rpcProtocol, extHostCommands, extHostDocuments, extHostLogService));
+	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInlineChat, new ExtHostInteractiveEditor(rpcProtocol, extHostCommands, extHostDocuments, extHostLogService));
 	const extHostChat = rpcProtocol.set(ExtHostContext.ExtHostChat, new ExtHostChat(rpcProtocol, extHostLogService));
 	const extHostSemanticSimilarity = rpcProtocol.set(ExtHostContext.ExtHostSemanticSimilarity, new ExtHostSemanticSimilarity(rpcProtocol));
 	const extHostIssueReporter = rpcProtocol.set(ExtHostContext.ExtHostIssueReporter, new ExtHostIssueReporter(rpcProtocol));
@@ -788,7 +788,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostDecorations.registerFileDecorationProvider(provider, extension);
 			},
 			registerUriHandler(handler: vscode.UriHandler) {
-				return extHostUrls.registerUriHandler(extension.identifier, handler);
+				return extHostUrls.registerUriHandler(extension, handler);
 			},
 			createQuickPick<T extends vscode.QuickPickItem>(): vscode.QuickPick<T> {
 				return extHostQuickOpen.createQuickPick(extension);
@@ -1020,7 +1020,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerFileSystemProvider(scheme, provider, options) {
 				return combinedDisposable(
 					extHostFileSystem.registerFileSystemProvider(extension, scheme, provider, options),
-					extHostConsumerFileSystem.addFileSystemProvider(scheme, provider)
+					extHostConsumerFileSystem.addFileSystemProvider(scheme, provider, options)
 				);
 			},
 			get fs() {
@@ -1041,6 +1041,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerResourceLabelFormatter: (formatter: vscode.ResourceLabelFormatter) => {
 				checkProposedApiEnabled(extension, 'resolvers');
 				return extHostLabelService.$registerResourceLabelFormatter(formatter);
+			},
+			getRemoteExecServer: (authority: string) => {
+				checkProposedApiEnabled(extension, 'resolvers');
+				return extensionService.getRemoteExecServer(authority);
 			},
 			onDidCreateFiles: (listener, thisArg, disposables) => {
 				return extHostFileSystemEvent.onDidCreateFile(listener, thisArg, disposables);
@@ -1294,6 +1298,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get onDidPerformUserAction() {
 				checkProposedApiEnabled(extension, 'interactiveUserActions');
 				return extHostChat.onDidPerformUserAction;
+			},
+			transferChatSession(session: vscode.InteractiveSession, toWorkspace: vscode.Uri) {
+				checkProposedApiEnabled(extension, 'interactive');
+				return extHostChat.transferChatSession(session, toWorkspace);
 			}
 		};
 
@@ -1454,7 +1462,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ThemeColor: extHostTypes.ThemeColor,
 			ThemeIcon: extHostTypes.ThemeIcon,
 			TreeItem: extHostTypes.TreeItem,
-			TreeItem2: extHostTypes.TreeItem,
 			TreeItemCheckboxState: extHostTypes.TreeItemCheckboxState,
 			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
 			TypeHierarchyItem: extHostTypes.TypeHierarchyItem,

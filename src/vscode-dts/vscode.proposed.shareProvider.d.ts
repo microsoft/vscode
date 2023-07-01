@@ -47,9 +47,10 @@ declare module 'vscode' {
 		 *
 		 * @param item Data about an item which can be shared.
 		 * @param token A cancellation token.
-		 * @returns An {@link Uri} which will be copied to the user's clipboard and presented in a confirmation dialog.
+		 * @returns A {@link Uri} representing an external link or sharing text. The provider result
+		 * will be copied to the user's clipboard and presented in a confirmation dialog.
 		 */
-		provideShare(item: ShareableItem, token: CancellationToken): ProviderResult<Uri>;
+		provideShare(item: ShareableItem, token: CancellationToken): ProviderResult<Uri | string>;
 	}
 
 	export namespace window {

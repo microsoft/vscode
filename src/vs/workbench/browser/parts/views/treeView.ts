@@ -344,13 +344,20 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 				async getChildren(node?: ITreeItem): Promise<ITreeItem[]> {
 					let children: ITreeItem[];
+					const checkboxesUpdated: ITreeItem[] = [];
 					if (node && node.children) {
 						children = node.children;
 					} else {
 						node = node ?? self.root;
 						node.children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
 						children = node.children ?? [];
-						children.forEach(child => child.parent = node);
+						children.forEach(child => {
+							child.parent = node;
+							if (!self.manuallyManageCheckboxes && (node?.checkbox?.isChecked === true) && (child.checkbox?.isChecked === false)) {
+								child.checkbox.isChecked = true;
+								checkboxesUpdated.push(child);
+							}
+						});
 					}
 					if (node instanceof Root) {
 						const oldEmpty = this._isEmpty;
@@ -358,6 +365,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						if (oldEmpty !== this._isEmpty) {
 							this._onDidChangeEmpty.fire();
 						}
+					}
+					if (checkboxesUpdated.length > 0) {
+						self._onDidChangeCheckboxState.fire(checkboxesUpdated);
 					}
 					return children;
 				}
@@ -629,7 +639,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 					function checkChildren(currentItem: ITreeItem) {
 						for (const child of (currentItem.children ?? [])) {
-							if (child.checkbox !== undefined && currentItem.checkbox !== undefined) {
+							if ((child.checkbox !== undefined) && (currentItem.checkbox !== undefined) && (child.checkbox.isChecked !== currentItem.checkbox.isChecked)) {
 								child.checkbox.isChecked = currentItem.checkbox.isChecked;
 								additionalItems.push(child);
 								checkChildren(child);
@@ -661,11 +671,11 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 									}
 								}
 							}
-							if (someChecked && !someUnchecked) {
+							if (someChecked && !someUnchecked && (currentItem.parent.checkbox.isChecked !== true)) {
 								currentItem.parent.checkbox.isChecked = true;
 								additionalItems.push(currentItem.parent);
 								checkParents(currentItem.parent);
-							} else if (someUnchecked && !someChecked) {
+							} else if (someUnchecked && (currentItem.parent.checkbox.isChecked !== false)) {
 								currentItem.parent.checkbox.isChecked = false;
 								additionalItems.push(currentItem.parent);
 								checkParents(currentItem.parent);
@@ -1316,7 +1326,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				this.rerender();
 			}
 			if (!templateData.checkbox) {
-				const checkbox = new TreeItemCheckbox(templateData.checkboxContainer, this.checkboxStateHandler);
+				const checkbox = new TreeItemCheckbox(templateData.checkboxContainer, this.checkboxStateHandler, this._hoverDelegate);
 				templateData.checkbox = checkbox;
 			}
 			templateData.checkbox.render(node);

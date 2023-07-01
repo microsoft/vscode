@@ -857,9 +857,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		// Check for updates
 		this.eventuallyCheckForUpdates(true);
 
-		// Always auto update builtin extensions in web
-		if (isWeb && !this.isAutoUpdateEnabled()) {
-			this.autoUpdateBuiltinExtensions();
+		if (isWeb) {
+			this.syncPinnedBuiltinExtensions();
+			// Always auto update builtin extensions in web
+			if (!this.isAutoUpdateEnabled()) {
+				this.autoUpdateBuiltinExtensions();
+			}
 		}
 	}
 
@@ -1333,7 +1336,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				// Skip if check updates only for builtin extensions and current extension is not builtin.
 				continue;
 			}
-			if (installed.isBuiltin && (installed.type === ExtensionType.System || !installed.local?.identifier.uuid)) {
+			if (installed.isBuiltin && !installed.pinned && (installed.type === ExtensionType.System || !installed.local?.identifier.uuid)) {
 				// Skip checking updates for a builtin extension if it is a system extension or if it does not has Marketplace identifier
 				continue;
 			}
@@ -1410,6 +1413,21 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		await this.checkForUpdates(true);
 		const toUpdate = this.outdated.filter(e => e.isBuiltin);
 		await Promises.settled(toUpdate.map(e => this.install(e, e.local?.preRelease ? { installPreReleaseVersion: true } : undefined)));
+	}
+
+	private async syncPinnedBuiltinExtensions(): Promise<void> {
+		const infos: IExtensionInfo[] = [];
+		for (const installed of this.local) {
+			if (installed.isBuiltin && installed.pinned && installed.local?.identifier.uuid) {
+				infos.push({ ...installed.identifier, version: installed.version });
+			}
+		}
+		if (infos.length) {
+			const galleryExtensions = await this.galleryService.getExtensions(infos, CancellationToken.None);
+			if (galleryExtensions.length) {
+				await this.syncInstalledExtensionsWithGallery(galleryExtensions);
+			}
+		}
 	}
 
 	private autoUpdateExtensions(): Promise<any> {

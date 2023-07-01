@@ -189,6 +189,7 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	const widget = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), themeService, participant instanceof StandaloneColorPickerParticipant));
 	context.setColorPicker(widget);
 
+	let editorUpdatedByColorPicker = false;
 	let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
 	if (participant instanceof StandaloneColorPickerParticipant) {
 		const color = hoverParts[0].model.color;
@@ -200,10 +201,21 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	} else {
 		disposables.add(model.onColorFlushed(async (color: Color) => {
 			await _updateColorPresentations(editorModel, model, color, range, colorHover);
+			editorUpdatedByColorPicker = true;
 			range = _updateEditorModel(editor, range, model, context);
 		}));
 	}
-	disposables.add(model.onDidChangeColor((color: Color) => { _updateColorPresentations(editorModel, model, color, range, colorHover); }));
+	disposables.add(model.onDidChangeColor((color: Color) => {
+		_updateColorPresentations(editorModel, model, color, range, colorHover);
+	}));
+	disposables.add(editor.onDidChangeModelContent((e) => {
+		if (editorUpdatedByColorPicker) {
+			editorUpdatedByColorPicker = false;
+		} else {
+			context.hide();
+			editor.focus();
+		}
+	}));
 	return disposables;
 }
 

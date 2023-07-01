@@ -76,6 +76,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.configProviders = [];
 		this.toDispose = [];
 		this.initLaunches();
+		this.setCompoundSchemaValues();
 		this.registerListeners();
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		const previousSelectedType = this.storageService.get(DEBUG_SELECTED_TYPE, StorageScope.WORKSPACE);

@@ -150,11 +150,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the size of editor tabs. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
 			},
+			'workbench.editor.tabSizingFixedMinWidth': {
+				'type': 'number',
+				'default': 50,
+				'minimum': 38,
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabSizingFixedMinWidth' }, "Controls the minimum width of tabs when `#workbench.editor.tabSizing#` size is set to `fixed`.")
+			},
 			'workbench.editor.tabSizingFixedMaxWidth': {
 				'type': 'number',
 				'default': 160,
-				'minimum': 50,
-				'markdownDescription': localize('workbench.editor.tabSizingFixedMaxWidth', "Controls the maximum width of tabs when {0} is set to {1}.", '`#workbench.editor.tabSizing#`', '`fixed`')
+				'minimum': 38,
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabSizingFixedMaxWidth' }, "Controls the maximum width of tabs when `#workbench.editor.tabSizing#` size is set to `fixed`.")
 			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',
@@ -169,9 +175,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.splitSizing': {
 				'type': 'string',
-				'enum': ['distribute', 'split'],
-				'default': 'distribute',
+				'enum': ['auto', 'distribute', 'split'],
+				'default': 'auto',
 				'enumDescriptions': [
+					localize('workbench.editor.splitSizingAuto', "Splits all the editor groups to equal parts unless a part has been changed in size."),
 					localize('workbench.editor.splitSizingDistribute', "Splits all the editor groups to equal parts."),
 					localize('workbench.editor.splitSizingSplit', "Splits the active editor group to equal parts.")
 				],
@@ -281,6 +288,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('centeredLayoutDynamicWidth', "Controls whether the centered layout tries to maintain constant width when the window is resized.")
 			},
+			'workbench.editor.doubleClickTabToToggleEditorGroupSizes': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'doubleClickTabToToggleEditorGroupSizes' }, "Controls whether to maximize/restore the editor group when double clicking on a tab. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+			},
 			'workbench.editor.limit.enabled': {
 				'type': 'boolean',
 				'default': false,
@@ -327,7 +339,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'patternProperties': {
 					'.*': { 'type': 'boolean' }
 				},
-				'markdownDescription': localize('exclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files from the local file history. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths. Changing this setting has no effect on existing local file history entries."),
+				'markdownDescription': localize('exclude', "Configure paths or [glob patterns](https://aka.ms/vscode-glob-patterns) for excluding files from the local file history. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths. Changing this setting has no effect on existing local file history entries."),
 				'scope': ConfigurationScope.RESOURCE
 			},
 			'workbench.localHistory.mergeWindow': {
@@ -350,13 +362,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.commandPalette.experimental.suggestCommands': {
 				'type': 'boolean',
+				tags: ['experimental'],
 				'description': localize('suggestCommands', "Controls whether the command palette should have a list of commonly used commands."),
 				'default': false
 			},
 			'workbench.commandPalette.experimental.useSemanticSimilarity': {
 				'type': 'boolean',
+				tags: ['experimental'],
 				'description': localize('useSemanticSimilarity', "Controls whether the command palette should include similar commands. You must have an extension installed that provides Semantic Similarity."),
-				'default': false
+				'default': true
 			},
 			'workbench.quickOpen.closeOnFocusLost': {
 				'type': 'boolean',

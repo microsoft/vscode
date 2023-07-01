@@ -278,8 +278,12 @@ export class NotebookProviderInfoStore extends Disposable {
 			throw new Error(`notebook type '${info.id}' ALREADY EXISTS`);
 		}
 		this._contributedEditors.set(info.id, info);
-		const editorRegistration = this._registerContributionPoint(info);
-		this._contributedEditorDisposables.add(editorRegistration);
+		let editorRegistration: IDisposable | undefined;
+		// Don't overwrite editor contributions if they come from elsewhere
+		if (!info.externalEditor) {
+			editorRegistration = this._registerContributionPoint(info);
+			this._contributedEditorDisposables.add(editorRegistration);
+		}
 
 		const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
@@ -289,7 +293,7 @@ export class NotebookProviderInfoStore extends Disposable {
 			const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 			mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
 			this._memento.saveMemento();
-			editorRegistration.dispose();
+			editorRegistration?.dispose();
 			this._contributedEditors.delete(info.id);
 		});
 	}
@@ -637,6 +641,7 @@ export class NotebookService extends Disposable implements INotebookService {
 			exclusive: data.exclusive,
 			priority: RegisteredEditorPriority.default,
 			selectors: [],
+			externalEditor: !!data.externalEditor
 		});
 
 		info.update({ selectors: data.filenamePattern });

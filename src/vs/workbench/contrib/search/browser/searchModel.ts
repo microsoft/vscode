@@ -724,6 +724,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 			this._notebookUpdateScheduler.schedule();
 		}) ?? null;
 
+		this._findMatchDecorationModel?.stopWebviewFind();
 		this._findMatchDecorationModel?.dispose();
 		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditorWidget);
 	}
@@ -735,12 +736,11 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 		if (this._notebookEditorWidget) {
 			this._notebookUpdateScheduler.cancel();
-			this._findMatchDecorationModel?.dispose();
-			this._findMatchDecorationModel = undefined;
 			this._editorWidgetListener?.dispose();
 		}
 
 		if (this._findMatchDecorationModel) {
+			this._findMatchDecorationModel?.stopWebviewFind();
 			this._findMatchDecorationModel?.dispose();
 			this._findMatchDecorationModel = undefined;
 		}
@@ -792,7 +792,11 @@ export class FileMatch extends Disposable implements IFileMatch {
 				webviewMatches: webviewMatches
 			};
 		});
-		this._findMatchDecorationModel.setAllFindMatchesDecorations(cellFindMatch);
+		try {
+			this._findMatchDecorationModel.setAllFindMatchesDecorations(cellFindMatch);
+		} catch (e) {
+			// no op, might happen due to bugs related to cell output regex search
+		}
 	}
 	async updateMatchesForEditorWidget(): Promise<void> {
 		if (!this._notebookEditorWidget) {

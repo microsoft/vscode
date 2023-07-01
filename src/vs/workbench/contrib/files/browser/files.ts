@@ -150,6 +150,7 @@ export function getOpenEditorsViewMultiSelection(listService: IListService, edit
 			if (selection.some(s => s === mainEditor)) {
 				return selection;
 			}
+			return mainEditor ? [mainEditor] : undefined;
 		}
 	}
 

@@ -8,7 +8,6 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
@@ -18,12 +17,13 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions, IProcessReadyEvent, ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ISerializableEnvironmentDescriptionMap as ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import type * as performance from 'vs/base/common/performance';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 
@@ -80,8 +80,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	get onProcessExit(): Event<{ id: number; event: number | undefined }> {
 		return this._channel.listen<{ id: number; event: number | undefined }>('$onProcessExitEvent');
 	}
-	get onProcessReady(): Event<{ id: number; event: { pid: number; cwd: string; requireWindowsMode?: boolean } }> {
-		return this._channel.listen<{ id: number; event: { pid: number; cwd: string; requiresWindowsMode?: boolean } }>('$onProcessReadyEvent');
+	get onProcessReady(): Event<{ id: number; event: IProcessReadyEvent }> {
+		return this._channel.listen<{ id: number; event: IProcessReadyEvent }>('$onProcessReadyEvent');
 	}
 	get onProcessReplay(): Event<{ id: number; event: IPtyHostProcessReplayEvent }> {
 		return this._channel.listen<{ id: number; event: IPtyHostProcessReplayEvent }>('$onProcessReplayEvent');
@@ -107,7 +107,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		@IConfigurationResolverService private readonly _resolverService: IConfigurationResolverService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILogService private readonly _logService: ILogService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 	) { }
@@ -202,6 +202,9 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	listProcesses(): Promise<IProcessDetails[]> {
 		return this._channel.call('$listProcesses');
 	}
+	getPerformanceMarks(): Promise<performance.PerformanceMark[]> {
+		return this._channel.call('$getPerformanceMarks');
+	}
 	reduceConnectionGraceTime(): Promise<void> {
 		return this._channel.call('$reduceConnectionGraceTime');
 	}
@@ -225,6 +228,9 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	}
 	resize(id: number, cols: number, rows: number): Promise<void> {
 		return this._channel.call('$resize', [id, cols, rows]);
+	}
+	clearBuffer(id: number): Promise<void> {
+		return this._channel.call('$clearBuffer', [id]);
 	}
 	getInitialCwd(id: number): Promise<string> {
 		return this._channel.call('$getInitialCwd', [id]);

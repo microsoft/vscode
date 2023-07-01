@@ -53,6 +53,8 @@ export namespace Schemas {
 
 	export const vscodeRemoteResource = 'vscode-remote-resource';
 
+	export const vscodeManagedRemoteResource = 'vscode-managed-remote-resource';
+
 	export const vscodeUserData = 'vscode-userdata';
 
 	export const vscodeCustomEditor = 'vscode-custom-editor';
@@ -60,7 +62,6 @@ export namespace Schemas {
 	export const vscodeNotebookCell = 'vscode-notebook-cell';
 	export const vscodeNotebookCellMetadata = 'vscode-notebook-cell-metadata';
 	export const vscodeNotebookCellOutput = 'vscode-notebook-cell-output';
-	export const vscodeInteractive = 'vscode-interactive';
 	export const vscodeInteractiveInput = 'vscode-interactive-input';
 
 	export const vscodeSettings = 'vscode-settings';
@@ -288,10 +289,12 @@ export const FileAccess = new FileAccessImpl();
 
 export namespace COI {
 
+	const coepDefault = platform.isElectron ? 'credentialless' : 'require-corp';
+
 	const coiHeaders = new Map<'3' | '2' | '1' | string, Record<string, string>>([
 		['1', { 'Cross-Origin-Opener-Policy': 'same-origin' }],
-		['2', { 'Cross-Origin-Embedder-Policy': 'require-corp' }],
-		['3', { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' }],
+		['2', { 'Cross-Origin-Embedder-Policy': coepDefault }],
+		['3', { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': coepDefault }],
 	]);
 
 	export const CoopAndCoep = Object.freeze(coiHeaders.get('3'));

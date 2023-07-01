@@ -13,7 +13,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { LifecyclePhase, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ExeBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/exeBasedRecommendations';
-import { ExperimentalRecommendations } from 'vs/workbench/contrib/extensions/browser/experimentalRecommendations';
 import { WorkspaceRecommendations } from 'vs/workbench/contrib/extensions/browser/workspaceRecommendations';
 import { FileBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/fileBasedRecommendations';
 import { KeymapRecommendations } from 'vs/workbench/contrib/extensions/browser/keymapRecommendations';
@@ -42,7 +41,6 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	// Recommendations
 	private readonly fileBasedRecommendations: FileBasedRecommendations;
 	private readonly workspaceRecommendations: WorkspaceRecommendations;
-	private readonly experimentalRecommendations: ExperimentalRecommendations;
 	private readonly configBasedRecommendations: ConfigBasedRecommendations;
 	private readonly exeBasedRecommendations: ExeBasedRecommendations;
 	private readonly keymapRecommendations: KeymapRecommendations;
@@ -71,7 +69,6 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 
 		this.workspaceRecommendations = instantiationService.createInstance(WorkspaceRecommendations);
 		this.fileBasedRecommendations = instantiationService.createInstance(FileBasedRecommendations);
-		this.experimentalRecommendations = instantiationService.createInstance(ExperimentalRecommendations);
 		this.configBasedRecommendations = instantiationService.createInstance(ConfigBasedRecommendations);
 		this.exeBasedRecommendations = instantiationService.createInstance(ExeBasedRecommendations);
 		this.keymapRecommendations = instantiationService.createInstance(KeymapRecommendations);
@@ -101,7 +98,6 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			this.workspaceRecommendations.activate(),
 			this.configBasedRecommendations.activate(),
 			this.fileBasedRecommendations.activate(),
-			this.experimentalRecommendations.activate(),
 			this.keymapRecommendations.activate(),
 			this.languageRecommendations.activate(),
 			this.webRecommendations.activate(),
@@ -138,7 +134,6 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		const allRecommendations = [
 			...this.configBasedRecommendations.recommendations,
 			...this.exeBasedRecommendations.recommendations,
-			...this.experimentalRecommendations.recommendations,
 			...this.fileBasedRecommendations.recommendations,
 			...this.workspaceRecommendations.recommendations,
 			...this.keymapRecommendations.recommendations,
@@ -170,7 +165,6 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		const recommendations = [
 			...this.configBasedRecommendations.otherRecommendations,
 			...this.exeBasedRecommendations.otherRecommendations,
-			...this.experimentalRecommendations.recommendations,
 			...this.webRecommendations.recommendations
 		];
 

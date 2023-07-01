@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-native-private */
+
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
@@ -97,6 +99,10 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		return this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: false });
 	}
 
+	public hideCodeActions(): void {
+		this._actionWidgetService.hide();
+	}
+
 	public manualTriggerAtCurrentPosition(
 		notAvailableMessage: string,
 		triggerAction: CodeActionTriggerSource,
@@ -124,6 +130,10 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				this._trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.QuickFix, filter: {} });
 			}
 		}
+	}
+
+	public hideLightBulbWidget(): void {
+		this._lightBulbWidget.rawValue?.hide();
 	}
 
 	private async update(newState: CodeActionsState.State): Promise<void> {
