@@ -7,6 +7,8 @@
 		"github.vscode-pull-request-github",
 		"ms-vscode.vscode-github-issue-notebooks",
 		"ms-vscode.vscode-selfhost-test-provider",
-		"ms-python.python"
+		"ms-python.python",
+		"ms-python.vscode-pylance"
 	]
 }
+

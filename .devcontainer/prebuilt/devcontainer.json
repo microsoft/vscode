@@ -15,7 +15,8 @@
 			},
 			"extensions": [
 				"dbaeumer.vscode-eslint",
-				"mutantdino.resourcemonitor"
+				"mutantdino.resourcemonitor",
+				"ms-python.vscode-pylance"
 			]
 		}
 	},
