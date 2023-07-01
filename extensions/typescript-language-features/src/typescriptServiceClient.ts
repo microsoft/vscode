@@ -770,7 +770,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 		}
 
-		return undefined;
+		const tsRootPath = this.toTsFilePath(roots[0].uri);
+		if (!tsRootPath || tsRootPath.startsWith(inMemoryResourcePrefix)) {
+			return undefined;
+		}
+
+		return roots[0].uri;
 	}
 
 	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {
