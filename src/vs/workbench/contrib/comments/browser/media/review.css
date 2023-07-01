@@ -136,6 +136,9 @@
 
 .review-widget .body .review-comment .review-comment-contents .comment-body {
 	padding-top: 4px;
+}
+
+.review-widget .body .review-comment .review-comment-contents .comment-body-max-height {
 	max-height: 20em;
 }
 

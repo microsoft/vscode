@@ -18,6 +18,8 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 	private cache = new Map<string, Credentials>();
 	private credentialsProviders = new Set<CredentialsProvider>();
 
+	readonly featureDescription = 'git auth provider';
+
 	constructor(private ipc?: IIPCServer) {
 		if (ipc) {
 			this.disposable = ipc.registerHandler('askpass', this);

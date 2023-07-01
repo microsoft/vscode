@@ -206,6 +206,18 @@
 	margin: 0;
 }
 
+.quick-input-list .quick-input-list-icon {
+	background-size: 16px;
+	background-position: left center;
+	background-repeat: no-repeat;
+	padding-right: 6px;
+	width: 16px;
+	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
 .quick-input-list .quick-input-list-rows {
 	overflow: hidden;
 	text-overflow: ellipsis;

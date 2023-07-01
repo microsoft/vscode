@@ -83,7 +83,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		// Check all the selectors to make sure it's worth going to the extension host.
 		const appropriateHandles = Array.from(this.portsAttributesProviders.entries()).filter(entry => {
 			const selector = entry[1];
-			const portRange = selector.portRange;
+			const portRange = (typeof selector.portRange === 'number') ? [selector.portRange, selector.portRange + 1] : selector.portRange;
 			const portInRange = portRange ? ports.some(port => portRange[0] <= port && port < portRange[1]) : true;
 			const commandMatches = !selector.commandPattern || (commandLine && (commandLine.match(selector.commandPattern)));
 			return portInRange && commandMatches;

@@ -122,6 +122,10 @@
     ],
     "commands": [
       {
+        "command": "_markdown.copyImage",
+        "title": "%markdown.copyImage.title%"
+      },
+      {
         "command": "markdown.showPreview",
         "title": "%markdown.preview.title%",
         "category": "Markdown",
@@ -182,6 +186,12 @@
       }
     ],
     "menus": {
+      "webview/context": [
+        {
+          "command": "_markdown.copyImage",
+          "when": "webviewId == 'markdown.preview' && webviewSection == 'image'"
+        }
+      ],
       "editor/title": [
         {
           "command": "markdown.showPreviewToSide",
@@ -487,6 +497,12 @@
             "%configuration.copyIntoWorkspace.mediaFiles%",
             "%configuration.copyIntoWorkspace.never%"
           ]
+        },
+        "markdown.editor.pasteUrlAsFormattedLink.enabled": {
+          "type": "boolean",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
+          "default": true
         },
         "markdown.validate.enabled": {
           "type": "boolean",

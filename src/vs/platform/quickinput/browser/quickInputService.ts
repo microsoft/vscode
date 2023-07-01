@@ -221,7 +221,8 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			pickerGroup: {
 				pickerGroupBorder: asCssVariable(pickerGroupBorder),
 				pickerGroupForeground: asCssVariable(pickerGroupForeground),
-			}
+			},
+			colorScheme: this.themeService.getColorTheme().type
 		};
 	}
 }

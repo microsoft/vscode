@@ -153,6 +153,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 		this._domNode.style.padding = '6px 11px';
 		this._domNode.style.borderRadius = '2px';
 		this._domNode.style.cursor = 'pointer';
+		this._domNode.style.zIndex = '1';
 
 		if (keyBindingAction) {
 			const keybinding = keybindingService.lookupKeybinding(keyBindingAction);

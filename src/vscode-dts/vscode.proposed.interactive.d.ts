@@ -17,6 +17,7 @@ declare module 'vscode' {
 		placeholder?: string;
 		slashCommands?: InteractiveEditorSlashCommand[];
 		wholeRange?: Range;
+		message?: string;
 	}
 
 	// todo@API make classes
@@ -180,5 +181,7 @@ declare module 'vscode' {
 		export function sendInteractiveRequestToProvider(providerId: string, message: InteractiveSessionDynamicRequest): void;
 
 		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider): Disposable;
+
+		export function transferChatSession(session: InteractiveSession, toWorkspace: Uri): void;
 	}
 }

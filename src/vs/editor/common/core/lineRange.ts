@@ -14,6 +14,24 @@ export class LineRange {
 		return new LineRange(range.startLineNumber, range.endLineNumber);
 	}
 
+	public static subtract(a: LineRange, b: LineRange | undefined): LineRange[] {
+		if (!b) {
+			return [a];
+		}
+		if (a.startLineNumber < b.startLineNumber && b.endLineNumberExclusive < a.endLineNumberExclusive) {
+			return [
+				new LineRange(a.startLineNumber, b.startLineNumber),
+				new LineRange(b.endLineNumberExclusive, a.endLineNumberExclusive)
+			];
+		} else if (b.startLineNumber <= a.startLineNumber && a.endLineNumberExclusive <= b.endLineNumberExclusive) {
+			return [];
+		} else if (b.endLineNumberExclusive < a.endLineNumberExclusive) {
+			return [new LineRange(Math.max(b.endLineNumberExclusive, a.startLineNumber), a.endLineNumberExclusive)];
+		} else {
+			return [new LineRange(a.startLineNumber, Math.min(b.startLineNumber, a.endLineNumberExclusive))];
+		}
+	}
+
 	/**
 	 * @param lineRanges An array of sorted line ranges.
 	 */
@@ -85,6 +103,13 @@ export class LineRange {
 
 	public static ofLength(startLineNumber: number, length: number): LineRange {
 		return new LineRange(startLineNumber, startLineNumber + length);
+	}
+
+	/**
+	 * @internal
+	 */
+	public static deserialize(lineRange: ISerializedLineRange): LineRange {
+		return new LineRange(lineRange[0], lineRange[1]);
 	}
 
 	/**
@@ -185,4 +210,25 @@ export class LineRange {
 	public toExclusiveRange(): Range {
 		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive, 1);
 	}
+
+	public mapToLineArray<T>(f: (lineNumber: number) => T): T[] {
+		const result: T[] = [];
+		for (let lineNumber = this.startLineNumber; lineNumber < this.endLineNumberExclusive; lineNumber++) {
+			result.push(f(lineNumber));
+		}
+		return result;
+	}
+
+	/**
+	 * @internal
+	 */
+	public serialize(): ISerializedLineRange {
+		return [this.startLineNumber, this.endLineNumberExclusive];
+	}
+
+	public includes(lineNumber: number): boolean {
+		return this.startLineNumber <= lineNumber && lineNumber < this.endLineNumberExclusive;
+	}
 }
+
+export type ISerializedLineRange = [startLineNumber: number, endLineNumberExclusive: number];

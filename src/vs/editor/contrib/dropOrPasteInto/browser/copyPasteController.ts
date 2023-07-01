@@ -114,7 +114,18 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private handleCopy(e: ClipboardEvent) {
-		if (!e.clipboardData || !this._editor.hasTextFocus() || !this.isPasteAsEnabled()) {
+		if (!this._editor.hasTextFocus()) {
+			return;
+		}
+
+		if (platform.isWeb) {
+			// Explicitly clear the web resources clipboard.
+			// This is needed because on web, the browser clipboard is faked out using an in-memory store.
+			// This means the resources clipboard is not properly updated when copying from the editor.
+			this._clipboardService.writeResources([]);
+		}
+
+		if (!e.clipboardData || !this.isPasteAsEnabled()) {
 			return;
 		}
 
@@ -268,6 +279,12 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				const providerEdits = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, tokenSource.token);
 				if (tokenSource.token.isCancellationRequested) {
+					return;
+				}
+
+				// If the only edit returned is a text edit, use the default paste handler
+				if (providerEdits.length === 1 && providerEdits[0].id === 'text') {
+					await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
 					return;
 				}
 

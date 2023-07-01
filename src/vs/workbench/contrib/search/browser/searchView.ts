@@ -1535,11 +1535,10 @@ export class SearchView extends ViewPane {
 
 
 	private _updateResults() {
+		if (this.state === SearchUIState.Idle) {
+			return;
+		}
 		try {
-			if (this.state === SearchUIState.Idle) {
-				return;
-			}
-
 			// Search result tree update
 			const fileCount = this.viewModel.searchResult.fileCount();
 			if (this._visibleMatches !== fileCount) {

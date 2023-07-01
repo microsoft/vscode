@@ -11,6 +11,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
+import { isAbsolute as localPathIsAbsolute, normalize as localPathNormalize } from 'vs/base/common/path';
 import { IInstantiationService, } from 'vs/platform/instantiation/common/instantiation';
 import { ISimpleFileDialog, SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
@@ -69,7 +70,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 
 		if (!candidate) {
-			candidate = await this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
+			candidate = await this.preferredHome(schemeFilter);
 		}
 
 		return candidate;
@@ -86,10 +87,28 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 
 		if (!candidate) {
-			return this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
+			return this.preferredHome(schemeFilter);
 		}
 
 		return resources.dirname(candidate);
+	}
+
+	async preferredHome(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
+		const preferLocal = schemeFilter === Schemas.file;
+		const preferredHomeConfig = this.configurationService.inspect<string>('files.dialog.defaultPath');
+		const preferredHomeCandidate = preferLocal ? preferredHomeConfig.userLocalValue : preferredHomeConfig.userRemoteValue;
+		if (preferredHomeCandidate) {
+			const isPreferredHomeCandidateAbsolute = preferLocal ? localPathIsAbsolute(preferredHomeCandidate) : (await this.pathService.path).isAbsolute(preferredHomeCandidate);
+			if (isPreferredHomeCandidateAbsolute) {
+				const preferredHomeNormalized = preferLocal ? localPathNormalize(preferredHomeCandidate) : (await this.pathService.path).normalize(preferredHomeCandidate);
+				const preferredHome = resources.toLocalResource(await this.pathService.fileURI(preferredHomeNormalized), this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
+				if (await this.fileService.exists(preferredHome)) {
+					return preferredHome;
+				}
+			}
+		}
+
+		return this.pathService.userHome({ preferLocal });
 	}
 
 	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {

@@ -350,15 +350,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else {
 			const renderValue = this.getWordsForProgressiveRender(element);
 			isFullyRendered = !!element.renderData?.isFullyRendered;
-			if (isFullyRendered) {
-				// We've reached the end of the available content, so do a normal render
-				this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
-				if (element.isComplete) {
-					this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
-					element.renderData = undefined;
-				} else {
-					this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
-				}
+			if (isFullyRendered && element.isComplete) {
+				// Response is done and content is rendered, so do a normal render
+				this.traceLayout('runProgressiveRender', `end progressive render, index=${index} and clearing renderData, response is complete, index=${index}`);
+				element.renderData = undefined;
 				disposables.clear();
 				this.basicRenderElement(element.response.value, element, index, templateData);
 			} else if (renderValue) {
@@ -368,11 +363,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					isFullyRendered: renderValue.isFullString
 				};
 
-				// Don't add the cursor if it will go after a codeblock, since this will always cause layout shifting
-				// when the codeblock is the last thing in the response, and that happens often.
-				const plusCursor = renderValue.value.match(/```\s*$/) ?
-					renderValue.value :
-					renderValue.value + ` ${ChatListItemRenderer.cursorCharacter}`;
+				const plusCursor = (renderValue.value.match(/```\s*$/) ?
+					renderValue.value + '\n\n' :
+					renderValue.value) + ` ${ChatListItemRenderer.cursorCharacter}`;
 				const result = this.renderMarkdown(new MarkdownString(plusCursor), element, disposables, templateData, true);
 				// Doing the progressive render
 				dom.clearNode(templateData.value);
@@ -402,7 +395,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const slashCommands = this.delegate.getSlashCommands();
 		const usedSlashCommand = slashCommands.find(s => markdown.value.startsWith(`/${s.command} `));
 		const toRender = usedSlashCommand ? markdown.value.slice(usedSlashCommand.command.length + 2) : markdown.value;
-		markdown = new MarkdownString(toRender);
+		markdown = new MarkdownString(toRender, {
+			isTrusted: {
+				enabledCommands: ['vscode.open']
+			},
+		});
 
 		const codeblocks: IChatCodeBlockInfo[] = [];
 		const result = this.renderer.render(markdown, {
@@ -618,7 +615,7 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 		}));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.editor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, editorElement, {
-			...getSimpleEditorOptions(),
+			...getSimpleEditorOptions(this.configurationService),
 			readOnly: true,
 			lineNumbers: 'off',
 			selectOnLineNumbers: true,

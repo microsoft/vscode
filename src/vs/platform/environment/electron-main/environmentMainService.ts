@@ -5,6 +5,7 @@
 
 import { memoize } from 'vs/base/common/decorators';
 import { join } from 'vs/base/common/path';
+import { isLinux } from 'vs/base/common/platform';
 import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -34,9 +35,14 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 
 	// --- config
 	readonly disableUpdates: boolean;
+
+	unsetSnapExportedVariables(): void;
+	restoreSnapExportedVariables(): void;
 }
 
 export class EnvironmentMainService extends NativeEnvironmentService implements IEnvironmentMainService {
+
+	private _snapEnv: Record<string, string> = {};
 
 	@memoize
 	get cachedLanguagesPath(): string { return join(this.userDataPath, 'clp'); }
@@ -57,11 +63,46 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get disableKeytar(): boolean { return !!this.args['disable-keytar']; }
 
 	@memoize
-	get crossOriginIsolated(): boolean { return !!this.args['enable-coi']; }
+	get crossOriginIsolated(): boolean { return !this.args['disable-coi']; }
 
 	@memoize
 	get codeCachePath(): string | undefined { return process.env['VSCODE_CODE_CACHE_PATH'] || undefined; }
 
 	@memoize
 	get useCodeCache(): boolean { return !!this.codeCachePath; }
+
+	unsetSnapExportedVariables() {
+		if (!isLinux) {
+			return;
+		}
+		for (const key in process.env) {
+			if (key.endsWith('_VSCODE_SNAP_ORIG')) {
+				const originalKey = key.slice(0, -17); // Remove the _VSCODE_SNAP_ORIG suffix
+				if (this._snapEnv[originalKey]) {
+					continue;
+				}
+				// Preserve the original value in case the snap env is re-entered
+				if (process.env[originalKey]) {
+					this._snapEnv[originalKey] = process.env[originalKey]!;
+				}
+				// Copy the original value from before entering the snap env if available,
+				// if not delete the env variable.
+				if (process.env[key]) {
+					process.env[originalKey] = process.env[key];
+				} else {
+					delete process.env[originalKey];
+				}
+			}
+		}
+	}
+
+	restoreSnapExportedVariables() {
+		if (!isLinux) {
+			return;
+		}
+		for (const key in this._snapEnv) {
+			process.env[key] = this._snapEnv[key];
+			delete this._snapEnv[key];
+		}
+	}
 }

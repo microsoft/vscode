@@ -5,7 +5,7 @@
 
 /**
  * @param {string} name
- * @param {string[]} exclude
+ * @param {string[]=} exclude
  */
 function createModuleDescription(name, exclude) {
 

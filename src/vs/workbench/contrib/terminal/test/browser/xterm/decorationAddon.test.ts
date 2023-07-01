@@ -56,12 +56,12 @@ suite('DecorationAddon', () => {
 		});
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
+		instantiationService.stub(ILogService, NullLogService);
 		const capabilities = new TerminalCapabilityStore();
 		capabilities.add(TerminalCapability.CommandDetection, instantiationService.createInstance(CommandDetectionCapability, xterm));
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		decorationAddon = instantiationService.createInstance(DecorationAddon, capabilities);
 		xterm.loadAddon(decorationAddon);
-		instantiationService.stub(ILogService, NullLogService);
 	});
 
 	suite('registerDecoration', async () => {
