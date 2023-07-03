@@ -2247,7 +2247,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (userTasks) {
 			result.set(USER_TASKS_GROUP_KEY, userTasks);
 		}
-		console.log('result', result.entries());
 		return result;
 	}
 
