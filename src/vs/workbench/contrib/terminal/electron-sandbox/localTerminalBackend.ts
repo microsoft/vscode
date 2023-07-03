@@ -56,7 +56,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	private _directProxyClientEventually: DeferredPromise<MessagePortClient> | undefined;
 	private _directProxy: IPtyService | undefined;
 	/**
-	 * Communicate to the direct proxy (renderer<->ptyhost) is it's available, otherwise use the
+	 * Communicate to the direct proxy (renderer<->ptyhost) if it's available, otherwise use the
 	 * indirect proxy (renderer<->main<->ptyhost). The latter may not need to actually launch the
 	 * pty host, for example when detecting profiles.
 	 */
