@@ -33,7 +33,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'pane
 		const upHistoryKeybinding = keybindingService.lookupKeybinding('inlineChat.previousFromHistory')?.getAriaLabel();
 		const downHistoryKeybinding = keybindingService.lookupKeybinding('inlineChat.nextFromHistory')?.getAriaLabel();
 		if (upHistoryKeybinding && downHistoryKeybinding) {
-			content.push(localize('inlineChat.requestHistory', 'In the input box, use {0} and {1} to navigate your request history. Edit input and use enter or the submit button to run a new request.'), upHistoryKeybinding, downHistoryKeybinding);
+			content.push(localize('inlineChat.requestHistory', 'In the input box, use {0} and {1} to navigate your request history. Edit input and use enter or the submit button to run a new request.', upHistoryKeybinding, downHistoryKeybinding));
 		}
 		content.push(localize('inlineChat.contextActions', "Context menu actions may run a request prefixed with /fix or /explain. Type / to discover more ready-made commands."));
 		content.push(localize('inlineChat.fix', "When a request is prefixed with /fix, a response will indicate the problem with the current code. A diff editor will be rendered and can be reached by tabbing."));

@@ -87,6 +87,9 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			this._proxy = ProxyChannel.toService<IPtyService>(getDelayedChannel(clientEventually.p.then(client => client.getChannel(TerminalIpcChannels.PtyHostWindow))));
 			this._connectToDirectProxy(clientEventually);
 		}));
+
+		// Eagerly fetch the backend's environment for memoization
+		this.getEnvironment();
 	}
 
 	private async _connectToDirectProxy(clientEventually: DeferredPromise<MessagePortClient>): Promise<void> {
@@ -104,6 +107,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			// separate interface/service for this one.
 			const client = new MessagePortClient(port, `window:${this._environmentService.window.id}`);
 			clientEventually.complete(client);
+			this._onPtyHostConnected.fire();
 
 			// Attach process listeners
 			this._proxy.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
@@ -187,7 +191,6 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess> {
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
-		// TODO: Using _proxy here bypasses the lastPtyId tracking on the main process
 		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, options, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
 		const pty = new LocalPty(id, shouldPersist, this._proxy);
 		this._ptys.set(id, pty);
@@ -242,6 +245,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return this._proxy.getEnvironment();
 	}
 
+	@memoize
 	async getShellEnvironment(): Promise<IProcessEnvironment> {
 		return this._shellEnvironmentService.getShellEnv();
 	}
@@ -279,14 +283,16 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 				// Re-resolve the environments and replace it on the state so local terminals use a fresh
 				// environment
 				mark('code/terminal/willGetReviveEnvironments');
-				for (const state of parsed) {
-					const freshEnv = await this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig);
-					state.processLaunchConfig.env = freshEnv;
-				}
+				await Promise.all(parsed.map(state => new Promise<void>(r => {
+					this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig).then(freshEnv => {
+						state.processLaunchConfig.env = freshEnv;
+						r();
+					});
+				})));
 				mark('code/terminal/didGetReviveEnvironments');
 
 				mark('code/terminal/willReviveTerminalProcesses');
-				await this._localPtyService.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);
+				await this._proxy.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);
 				mark('code/terminal/didReviveTerminalProcesses');
 				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 				// If reviving processes, send the terminal layout info back to the pty host as it
@@ -294,16 +300,16 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				if (layoutInfo) {
 					mark('code/terminal/willSetTerminalLayoutInfo');
-					await this._localPtyService.setTerminalLayoutInfo(JSON.parse(layoutInfo));
+					await this._proxy.setTerminalLayoutInfo(JSON.parse(layoutInfo));
 					mark('code/terminal/didSetTerminalLayoutInfo');
 					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				}
-			} catch {
-				// no-op
+			} catch (e: unknown) {
+				this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
 			}
 		}
 
-		return this._localPtyService.getTerminalLayoutInfo(layoutArgs);
+		return this._proxy.getTerminalLayoutInfo(layoutArgs);
 	}
 
 	private async _resolveEnvironmentForRevive(variableResolver: terminalEnvironment.VariableResolver | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<IProcessEnvironment> {

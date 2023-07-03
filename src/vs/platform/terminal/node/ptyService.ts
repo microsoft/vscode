@@ -46,7 +46,13 @@ export function traceRpc(_target: any, key: string, descriptor: any) {
 		if (this.traceRpcArgs.simulatedLatency) {
 			await timeout(this.traceRpcArgs.simulatedLatency);
 		}
-		const result = await fn.apply(this, args);
+		let result: any;
+		try {
+			result = await fn.apply(this, args);
+		} catch (e) {
+			this.traceRpcArgs.logService.error(`[RPC Response] PtyService#${fn.name}`, e);
+			throw e;
+		}
 		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
 			this.traceRpcArgs.logService.trace(`[RPC Response] PtyService#${fn.name}`, result);
 		}
@@ -67,6 +73,8 @@ export class PtyService extends Disposable implements IPtyService {
 	private readonly _detachInstanceRequestStore: RequestStore<IProcessDetails | undefined, { workspaceId: string; instanceId: number }>;
 	private readonly _revivedPtyIdMap: Map<number, { newId: number; state: ISerializedTerminalState }> = new Map();
 	private readonly _autoReplies: Map<string, string> = new Map();
+
+	private _lastPtyId: number = 0;
 
 	private readonly _onHeartbeat = this._register(new Emitter<void>());
 	readonly onHeartbeat = this._traceEvent('_onHeartbeat', this._onHeartbeat.event);
@@ -104,7 +112,6 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	constructor(
-		private _lastPtyId: number,
 		private readonly _logService: ILogService,
 		private readonly _productService: IProductService,
 		private readonly _reconnectConstants: IReconnectConstants,
@@ -240,6 +247,7 @@ export class PtyService extends Disposable implements IPtyService {
 		);
 		// Don't start the process here as there's no terminal to answer CPR
 		this._revivedPtyIdMap.set(terminal.id, { newId, state: terminal });
+		this._logService.info(`Revived process, old id ${terminal.id} -> new id ${newId}`);
 	}
 
 	@traceRpc
@@ -268,7 +276,6 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 		const id = ++this._lastPtyId;
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, options, this._logService, this._productService);
-		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		const processLaunchOptions: IPersistentTerminalProcessLaunchConfig = {
 			env,
 			executableEnv,
@@ -280,6 +287,7 @@ export class PtyService extends Disposable implements IPtyService {
 			this._ptys.delete(id);
 			this._onProcessExit.fire({ id, event });
 		});
+		persistentProcess.onProcessData(event => this._onProcessData.fire({ id, event }));
 		persistentProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
 		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
 		persistentProcess.onProcessOrphanQuestion(() => this._onProcessOrphanQuestion.fire({ id }));
@@ -532,6 +540,7 @@ export class PtyService extends Disposable implements IPtyService {
 	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
 		try {
 			const revivedPtyId = this._revivedPtyIdMap.get(t.terminal)?.newId;
+			this._logService.info(`Expanding terminal instance, old id ${t.terminal} -> new id ${revivedPtyId}`);
 			this._revivedPtyIdMap.delete(t.terminal);
 			const persistentProcessId = revivedPtyId ?? t.terminal;
 			const persistentProcess = this._throwIfNoPty(persistentProcessId);
@@ -542,6 +551,8 @@ export class PtyService extends Disposable implements IPtyService {
 			};
 		} catch (e) {
 			this._logService.warn(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
+			this._logService.info('Reattach to wrong terminal debug info - layout info by id', t);
+			this._logService.info('Reattach to wrong terminal debug info - _revivePtyIdMap', Array.from(this._revivedPtyIdMap.values()));
 			// this will be filtered out and not reconnected
 			return {
 				terminal: null,

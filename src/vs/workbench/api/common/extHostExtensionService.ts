@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-native-private */
+
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as performance from 'vs/base/common/performance';
@@ -62,8 +64,8 @@ export interface IHostUtils {
 	readonly _serviceBrand: undefined;
 	readonly pid: number | undefined;
 	exit(code: number): void;
-	exists(path: string): Promise<boolean>;
-	realpath(path: string): Promise<string>;
+	fsExists?(path: string): Promise<boolean>;
+	fsRealpath?(path: string): Promise<string>;
 }
 
 type TelemetryActivationEventFragment = {
@@ -325,11 +327,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	 * Applies realpath to file-uris and returns all others uris unmodified
 	 */
 	private async _realPathExtensionUri(uri: URI): Promise<URI> {
-		if (uri.scheme !== Schemas.file) {
-			return uri;
+		if (uri.scheme === Schemas.file && this._hostUtils.fsRealpath) {
+			const realpathValue = await this._hostUtils.fsRealpath(uri.fsPath);
+			return URI.file(realpathValue);
 		}
-		const realpathValue = await this._hostUtils.realpath(uri.fsPath);
-		return URI.file(realpathValue);
+		return uri;
 	}
 
 	// create trie to enable fast 'filename -> extension id' look up
@@ -683,8 +685,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const host: IExtensionActivationHost = {
 			logService: this._logService,
 			folders: folders.map(folder => folder.uri),
-			forceUsingSearch: localWithRemote,
-			exists: (uri) => this._hostUtils.exists(uri.fsPath),
+			forceUsingSearch: localWithRemote || !this._hostUtils.fsExists,
+			exists: (uri) => this._hostUtils.fsExists!(uri.fsPath),
 			checkExists: (folders, includes, token) => this._mainThreadWorkspaceProxy.$checkExists(folders, includes, token)
 		};
 

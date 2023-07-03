@@ -72,17 +72,17 @@ class EmbedderTerminalService implements IEmbedderTerminalService {
 
 
 class EmbedderTerminalProcess extends Disposable implements ITerminalChildProcess {
-	readonly #pty: IEmbedderTerminalPty;
+	private readonly _pty: IEmbedderTerminalPty;
 
 	readonly shouldPersist = false;
 
 	readonly onProcessData: Event<IProcessDataEvent | string>;
-	readonly #onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
-	readonly onProcessReady = this.#onProcessReady.event;
-	readonly #onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
-	readonly onDidChangeProperty = this.#onDidChangeProperty.event;
-	readonly #onProcessExit = this._register(new Emitter<number | undefined>());
-	readonly onProcessExit = this.#onProcessExit.event;
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	readonly onProcessReady = this._onProcessReady.event;
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
+	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
+	readonly onProcessExit = this._onProcessExit.event;
 
 	constructor(
 		readonly id: number,
@@ -90,13 +90,13 @@ class EmbedderTerminalProcess extends Disposable implements ITerminalChildProces
 	) {
 		super();
 
-		this.#pty = pty;
-		this.onProcessData = this.#pty.onDidWrite;
-		if (this.#pty.onDidClose) {
-			this._register(this.#pty.onDidClose(e => this.#onProcessExit.fire(e || undefined)));
+		this._pty = pty;
+		this.onProcessData = this._pty.onDidWrite;
+		if (this._pty.onDidClose) {
+			this._register(this._pty.onDidClose(e => this._onProcessExit.fire(e || undefined)));
 		}
-		if (this.#pty.onDidChangeName) {
-			this._register(this.#pty.onDidChangeName(e => this.#onDidChangeProperty.fire({
+		if (this._pty.onDidChangeName) {
+			this._register(this._pty.onDidChangeName(e => this._onDidChangeProperty.fire({
 				type: ProcessPropertyType.Title,
 				value: e
 			})));
@@ -104,12 +104,12 @@ class EmbedderTerminalProcess extends Disposable implements ITerminalChildProces
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {
-		this.#onProcessReady.fire({ pid: -1, cwd: '', windowsPty: undefined });
-		this.#pty.open();
+		this._onProcessReady.fire({ pid: -1, cwd: '', windowsPty: undefined });
+		this._pty.open();
 		return undefined;
 	}
 	shutdown(): void {
-		this.#pty.close();
+		this._pty.close();
 	}
 
 	// TODO: A lot of these aren't useful for some implementations of ITerminalChildProcess, should

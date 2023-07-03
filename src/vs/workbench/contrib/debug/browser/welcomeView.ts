@@ -123,16 +123,7 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 
 let debugKeybindingLabel = '';
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize(
-		{
-			key: 'runAndDebugAction',
-			comment: [
-				'{0} will be replaced with a keybinding',
-				'Please do not translate the word "command", it is part of our internal syntax which must not change',
-				'{Locked="](command:{1})"}'
-			]
-		},
-		"[Run and Debug{0}](command:{1})", debugKeybindingLabel, DEBUG_START_COMMAND_ID),
+	content: `[${localize('runAndDebugAction', "Run and Debug")}${debugKeybindingLabel}](command:${DEBUG_START_COMMAND_ID})`,
 	when: CONTEXT_DEBUGGERS_AVAILABLE,
 	group: ViewContentGroups.Debug,
 	// Allow inserting more buttons directly after this one (by setting order to 1).
@@ -140,16 +131,7 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize(
-		{
-			key: 'detectThenRunAndDebug',
-			comment: [
-				'Please do not translate the word "command", it is part of our internal syntax which must not change',
-				'{Locked="](command:{0})"}',
-
-			]
-		},
-		"[Show all automatic debug configurations](command:{0}).", SELECT_AND_START_ID),
+	content: `[${localize('detectThenRunAndDebug', "Show all automatic debug configurations")}](command:${SELECT_AND_START_ID}).`,
 	when: CONTEXT_DEBUGGERS_AVAILABLE,
 	group: ViewContentGroups.Debug,
 	order: 10

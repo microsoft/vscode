@@ -610,7 +610,7 @@ class ExtHostTreeView<T> extends Disposable {
 							return Promise.resolve(node);
 						}
 					}
-					throw new Error(`Cannot resolve tree item for element ${handle}`);
+					throw new Error(`Cannot resolve tree item for element ${handle} from extension ${this.extension.identifier.value}`);
 				}));
 	}
 

@@ -298,12 +298,12 @@ export class TerminalService implements ITerminalService {
 			const instances = await this._reconnectedTerminalGroups?.then(groups => groups.map(e => e.terminalInstances).flat()) ?? [];
 			await Promise.all(instances.map(e => new Promise<void>(r => Event.once(e.onProcessReplayComplete)(r))));
 			mark('code/terminal/didReplay');
-			for (const backend of this._terminalInstanceService.getRegisteredBackends()) {
-				mark('code/terminal/willGetPerformanceMarks');
+			mark('code/terminal/willGetPerformanceMarks');
+			await Promise.all(Array.from(this._terminalInstanceService.getRegisteredBackends()).map(async backend => {
 				this._timerService.setPerformanceMarks(backend.remoteAuthority === undefined ? 'localPtyHost' : 'remotePtyHost', await backend.getPerformanceMarks());
-				mark('code/terminal/didGetPerformanceMarks');
 				backend.setConnected();
-			}
+			}));
+			mark('code/terminal/didGetPerformanceMarks');
 			this._whenConnected.complete();
 		});
 

@@ -120,7 +120,7 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 		}
 
 		const originalProfile = this.userDataProfileService.currentProfile;
-		await this.userDataProfileImportExportService.createTemporaryProfile(this.userDataProfileService.currentProfile, localize('troubleshoot issue', "Troubleshoot Issue"), true);
+		await this.userDataProfileImportExportService.createTroubleshootProfile();
 		this.state = new TroubleShootState(TroubleshootStage.EXTENSIONS, originalProfile.id);
 		await this.resume();
 	}
