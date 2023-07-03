@@ -518,7 +518,8 @@ export class PtyService extends Disposable implements IPtyService {
 		performance.mark('code/willGetTerminalLayoutInfo');
 		const layout = this._workspaceLayoutInfos.get(args.workspaceId);
 		if (layout) {
-			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
+			const doneSet: Set<number> = new Set();
+			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab, doneSet)));
 			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
 			performance.mark('code/didGetTerminalLayoutInfo');
 			return { tabs };
@@ -527,8 +528,8 @@ export class PtyService extends Disposable implements IPtyService {
 		return undefined;
 	}
 
-	private async _expandTerminalTab(tab: ITerminalTabLayoutInfoById): Promise<ITerminalTabLayoutInfoDto> {
-		const expandedTerminals = (await Promise.all(tab.terminals.map(t => this._expandTerminalInstance(t))));
+	private async _expandTerminalTab(tab: ITerminalTabLayoutInfoById, doneSet: Set<number>): Promise<ITerminalTabLayoutInfoDto> {
+		const expandedTerminals = (await Promise.all(tab.terminals.map(t => this._expandTerminalInstance(t, doneSet))));
 		const filtered = expandedTerminals.filter(term => term.terminal !== null) as IRawTerminalInstanceLayoutInfo<IProcessDetails>[];
 		return {
 			isActive: tab.isActive,
@@ -537,12 +538,16 @@ export class PtyService extends Disposable implements IPtyService {
 		};
 	}
 
-	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
+	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById, doneSet: Set<number>): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
 		try {
 			const revivedPtyId = this._revivedPtyIdMap.get(t.terminal)?.newId;
 			this._logService.info(`Expanding terminal instance, old id ${t.terminal} -> new id ${revivedPtyId}`);
 			this._revivedPtyIdMap.delete(t.terminal);
 			const persistentProcessId = revivedPtyId ?? t.terminal;
+			if (doneSet.has(persistentProcessId)) {
+				throw new Error(`Terminal ${persistentProcessId} has already been expanded`);
+			}
+			doneSet.add(persistentProcessId);
 			const persistentProcess = this._throwIfNoPty(persistentProcessId);
 			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess, revivedPtyId !== undefined);
 			return {
