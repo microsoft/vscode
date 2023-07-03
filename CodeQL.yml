@@ -10,7 +10,6 @@ path_classifiers:
     # It matches zero or more whole directory segments. There is no need to use a wildcard at the end of a directory path because all sub-directories are automatically matched.
     # That is, /anything/ matches the anything directory and all its subdirectories.
     # Always enclose the expression in double quotes if it includes *.
-    - "**/*.test.js"
     - "**/*.test.ts"
 
   # The default behavior is to tag all files created during the
