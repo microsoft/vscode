@@ -50,7 +50,7 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 		if (!this._accessibleBufferWidget) {
 			this._accessibleBufferWidget = this.add(this._instantiationService.createInstance(AccessibleBufferWidget, this._instance, this._xterm));
 		}
-		await this._accessibleBufferWidget?.show();
+		await this._accessibleBufferWidget.show();
 	}
 
 	async createCommandQuickPick(): Promise<IQuickPick<IQuickPickItem> | undefined> {
