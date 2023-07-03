@@ -935,7 +935,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		// to match it against the workspace folders and the canonical paths of the workspace folders
 		const workspaceFolderPaths = new Set<string | undefined>([
 			...workspaceFolders.map(folder => folder.uri.fsPath),
-			...await Promise.all(workspaceFolders.map(async folder => await this.getWorkspaceFolderRealPath(folder)))
+			...await Promise.all(workspaceFolders.map(folder => this.getWorkspaceFolderRealPath(folder)))
 		]);
 
 		return !Array.from(workspaceFolderPaths).some(folder => folder && (pathEquals(folder, repositoryPath) || isDescendant(folder, repositoryPath)));
