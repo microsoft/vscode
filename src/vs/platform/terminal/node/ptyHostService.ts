@@ -298,8 +298,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.getWslPath(original, direction);
 	}
 
-	getRevivedPtyNewId(id: number): Promise<number | undefined> {
-		return this._proxy.getRevivedPtyNewId(id);
+	getRevivedPtyNewId(workspaceId: string, id: number): Promise<number | undefined> {
+		return this._proxy.getRevivedPtyNewId(workspaceId, id);
 	}
 
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
@@ -328,8 +328,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.serializeTerminalState(ids);
 	}
 
-	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string) {
-		return this._proxy.reviveTerminalProcesses(state, dateTimeFormatLocate);
+	async reviveTerminalProcesses(workspaceId: string, state: ISerializedTerminalState[], dateTimeFormatLocate: string) {
+		return this._proxy.reviveTerminalProcesses(workspaceId, state, dateTimeFormatLocate);
 	}
 
 	async refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]> {

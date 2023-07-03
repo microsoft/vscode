@@ -232,7 +232,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	async attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		await this._connectToDirectProxy();
 		try {
-			const newId = await this._proxy.getRevivedPtyNewId(id) ?? id;
+			const newId = await this._proxy.getRevivedPtyNewId(this._getWorkspaceId(), id) ?? id;
 			return await this.attachToProcess(newId);
 		} catch (e) {
 			this._logService.warn(`Couldn't attach to process ${e.message}`);
@@ -288,9 +288,8 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	}
 
 	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
-		const layoutArgs: IGetTerminalLayoutInfoArgs = {
-			workspaceId: this._getWorkspaceId()
-		};
+		const workspaceId = this._getWorkspaceId();
+		const layoutArgs: IGetTerminalLayoutInfoArgs = { workspaceId };
 
 		// Revive processes if needed
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
@@ -317,7 +316,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			mark('code/terminal/didGetReviveEnvironments');
 
 			mark('code/terminal/willReviveTerminalProcesses');
-			await this._proxy.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);
+			await this._proxy.reviveTerminalProcesses(workspaceId, parsed, Intl.DateTimeFormat().resolvedOptions().locale);
 			mark('code/terminal/didReviveTerminalProcesses');
 			this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 			// If reviving processes, send the terminal layout info back to the pty host as it
