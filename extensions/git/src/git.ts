@@ -477,18 +477,18 @@ export class Git {
 		return folderPath;
 	}
 
-	async getRepositoryRoot(repositoryPath: string): Promise<string> {
-		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel']);
+	async getRepositoryRoot(pathInsidePossibleRepository: string): Promise<string> {
+		const result = await this.exec(pathInsidePossibleRepository, ['rev-parse', '--show-toplevel']);
 
 		// Keep trailing spaces which are part of the directory name
-		const repoPath = path.normalize(result.stdout.trimLeft().replace(/[\r\n]+$/, ''));
+		const repositoryRootPath = path.normalize(result.stdout.trimLeft().replace(/[\r\n]+$/, ''));
 
 		if (isWindows) {
 			// On Git 2.25+ if you call `rev-parse --show-toplevel` on a mapped drive, instead of getting the mapped
 			// drive path back, you get the UNC path for the mapped drive. So we will try to normalize it back to the
 			// mapped drive path, if possible
-			const repoUri = Uri.file(repoPath);
-			const pathUri = Uri.file(repositoryPath);
+			const repoUri = Uri.file(repositoryRootPath);
+			const pathUri = Uri.file(pathInsidePossibleRepository);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
 				// eslint-disable-next-line local/code-no-look-behind-regex
 				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
@@ -521,13 +521,17 @@ export class Git {
 		}
 
 		// Handle symbolic links
-		// Git 2.31 added --path-format flag to rev-parse which allows us to get the relative path of the repository root
-		if (!pathEquals(repositoryPath, repoPath) && !isDescendant(repoPath, repositoryPath) && !isDescendant(repositoryPath, repoPath) && this.compareGitVersionTo('2.31.0') !== -1) {
-			const relativePathResult = await this.exec(repositoryPath, ['rev-parse', '--path-format=relative', '--show-toplevel',]);
-			return path.resolve(repositoryPath, relativePathResult.stdout.trimLeft().replace(/[\r\n]+$/, ''));
+		// Git 2.31 added the `--path-format` flag to rev-parse which
+		// allows us to get the relative path of the repository root
+		if (!pathEquals(pathInsidePossibleRepository, repositoryRootPath) &&
+			!isDescendant(repositoryRootPath, pathInsidePossibleRepository) &&
+			!isDescendant(pathInsidePossibleRepository, repositoryRootPath) &&
+			this.compareGitVersionTo('2.31.0') !== -1) {
+			const relativePathResult = await this.exec(pathInsidePossibleRepository, ['rev-parse', '--path-format=relative', '--show-toplevel',]);
+			return path.resolve(pathInsidePossibleRepository, relativePathResult.stdout.trimLeft().replace(/[\r\n]+$/, ''));
 		}
 
-		return repoPath;
+		return repositoryRootPath;
 	}
 
 	async getRepositoryDotGit(repositoryPath: string): Promise<{ path: string; commonPath?: string }> {
