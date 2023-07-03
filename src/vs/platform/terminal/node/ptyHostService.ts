@@ -223,7 +223,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 	listProcesses(): Promise<IProcessDetails[]> {
 		return this._proxy.listProcesses();
 	}
-	getPerformanceMarks(): Promise<performance.PerformanceMark[]> {
+	async getPerformanceMarks(): Promise<performance.PerformanceMark[]> {
+		if (!this.__proxy) {
+			return [];
+		}
 		return this._proxy.getPerformanceMarks();
 	}
 	reduceConnectionGraceTime(): Promise<void> {
@@ -279,13 +282,16 @@ export class PtyHostService extends Disposable implements IPtyService {
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
-	// TODO: Should this only be available on the pty host service?
 	async getProfiles(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
 		const shellEnv = await this._resolveShellEnv();
 		return detectAvailableProfiles(profiles, defaultProfile, includeDetectedProfiles, this._configurationService, shellEnv, undefined, this._logService, this._resolveVariables.bind(this, workspaceId));
 	}
-	// TODO: Should this only be available on the pty host service?
-	getEnvironment(): Promise<IProcessEnvironment> {
+	async getEnvironment(): Promise<IProcessEnvironment> {
+		// If the pty host is yet to be launched, just return the environment of this process as it
+		// is essentially the same when used to evaluate terminal profiles.
+		if (!this.__proxy) {
+			return { ...process.env };
+		}
 		return this._proxy.getEnvironment();
 	}
 	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
