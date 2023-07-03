@@ -26,6 +26,7 @@ import { Terminal } from 'xterm';
 
 class AccessibleBufferContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.accessible-buffer';
+	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
 	static get(instance: ITerminalInstance): AccessibleBufferContribution | null {
 		return instance.getContribution<AccessibleBufferContribution>(AccessibleBufferContribution.ID);
 	}
@@ -40,11 +41,15 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 		super();
 	}
 	layout(xterm: IXtermTerminal & { raw: Terminal }): void {
-		if (!this._accessibleBufferWidget) {
-			this._accessibleBufferWidget = this.add(this._instantiationService.createInstance(AccessibleBufferWidget, this._instance, xterm));
-		}
+		this._xterm = xterm;
 	}
 	async show(): Promise<void> {
+		if (!this._xterm) {
+			return;
+		}
+		if (!this._accessibleBufferWidget) {
+			this._accessibleBufferWidget = this.add(this._instantiationService.createInstance(AccessibleBufferWidget, this._instance, this._xterm));
+		}
 		await this._accessibleBufferWidget?.show();
 	}
 
