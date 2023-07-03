@@ -62,10 +62,9 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	 */
 	private get _proxy(): IPtyService { return this._directProxy || this._localPtyService; }
 
-	// TODO: Clarify naming, connected to what?
-	private readonly _whenConnected = new DeferredPromise<void>();
-	get whenConnected(): Promise<void> { return this._whenConnected.p; }
-	setConnected(): void { this._whenConnected.complete(); }
+	private readonly _whenReady = new DeferredPromise<void>();
+	get whenReady(): Promise<void> { return this._whenReady.p; }
+	setReady(): void { this._whenReady.complete(); }
 
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
@@ -93,7 +92,9 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		this.onPtyHostRestart(() => this._connectToDirectProxy());
 	}
 
-	// TODO: Should this only be connected on createProcess and related calls? All others are routed to ILocalPtyService until direct is available?
+	/**
+	 * Request a direct connection to the pty host, this will launch the pty host process if necessary.
+	 */
 	private async _connectToDirectProxy(): Promise<void> {
 		// Check if connecting is in progress
 		if (this._directProxyClientEventually) {
@@ -240,6 +241,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	}
 
 	async listProcesses(): Promise<IProcessDetails[]> {
+		await this._connectToDirectProxy();
 		return this._proxy.listProcesses();
 	}
 

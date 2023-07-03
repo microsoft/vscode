@@ -953,8 +953,16 @@ export interface ITerminalBackend {
 	readonly remoteAuthority: string | undefined;
 
 	readonly isResponsive: boolean;
-	readonly whenConnected: Promise<void>;
-	setConnected(): void;
+
+	/**
+	 * A promise that resolves when the backend is ready to be used, ie. after terminal persistence
+	 * has been actioned.
+	 */
+	readonly whenReady: Promise<void>;
+	/**
+	 * Signal to the backend that persistence has been actioned and is ready for use.
+	 */
+	setReady(): void;
 
 	/**
 	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
