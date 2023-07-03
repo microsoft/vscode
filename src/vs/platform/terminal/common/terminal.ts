@@ -956,8 +956,6 @@ export interface ITerminalBackend {
 	readonly whenConnected: Promise<void>;
 	setConnected(): void;
 
-	readonly whenPtyHostReady: Promise<void>;
-
 	/**
 	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
 	 * terminals using this pty host connection and mark them as disconnected.
