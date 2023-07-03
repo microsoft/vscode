@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -51,12 +51,20 @@ export class LocalTerminalBackendContribution implements IWorkbenchContribution 
 class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBackend {
 	readonly remoteAuthority = undefined;
 
-	private _proxy!: IPtyService;
 	private readonly _ptys: Map<number, LocalPty> = new Map();
 
-	private readonly _whenConnected = new DeferredPromise<void>();
-	get whenConnected(): Promise<void> { return this._whenConnected.p; }
-	setConnected(): void { this._whenConnected.complete(); }
+	private _directProxyClientEventually: DeferredPromise<MessagePortClient> | undefined;
+	private _directProxy: IPtyService | undefined;
+	/**
+	 * Communicate to the direct proxy (renderer<->ptyhost) if it's available, otherwise use the
+	 * indirect proxy (renderer<->main<->ptyhost). The latter may not need to actually launch the
+	 * pty host, for example when detecting profiles.
+	 */
+	private get _proxy(): IPtyService { return this._directProxy || this._localPtyService; }
+
+	private readonly _whenReady = new DeferredPromise<void>();
+	get whenReady(): Promise<void> { return this._whenReady.p; }
+	setReady(): void { this._whenReady.complete(); }
 
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
@@ -81,19 +89,26 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	) {
 		super(_localPtyService, logService, historyService, _configurationResolverService, statusBarService, workspaceContextService);
 
-		this._register(Event.runAndSubscribe(this.onPtyHostRestart, () => {
-			this._logService.debug('Starting pty host');
-			const clientEventually = new DeferredPromise<MessagePortClient>();
-			this._proxy = ProxyChannel.toService<IPtyService>(getDelayedChannel(clientEventually.p.then(client => client.getChannel(TerminalIpcChannels.PtyHostWindow))));
-			this._connectToDirectProxy(clientEventually);
-		}));
-
-		// Eagerly fetch the backend's environment for memoization
-		this.getEnvironment();
+		this.onPtyHostRestart(() => this._connectToDirectProxy());
 	}
 
-	private async _connectToDirectProxy(clientEventually: DeferredPromise<MessagePortClient>): Promise<void> {
-		// The pty host should not get launched until the first window restored phase
+	/**
+	 * Request a direct connection to the pty host, this will launch the pty host process if necessary.
+	 */
+	private async _connectToDirectProxy(): Promise<void> {
+		// Check if connecting is in progress
+		if (this._directProxyClientEventually) {
+			await this._directProxyClientEventually.p;
+			return;
+		}
+
+		this._logService.debug('Starting pty host');
+		const directProxyClientEventually = new DeferredPromise<MessagePortClient>();
+		this._directProxyClientEventually = directProxyClientEventually;
+		const directProxy = ProxyChannel.toService<IPtyService>(getDelayedChannel(this._directProxyClientEventually.p.then(client => client.getChannel(TerminalIpcChannels.PtyHostWindow))));
+		this._directProxy = directProxy;
+
+		// The pty host should not get launched until at least the window restored phase
 		await this._lifecycleService.when(LifecyclePhase.Restored);
 
 		mark('code/terminal/willConnectPtyHost');
@@ -106,23 +121,23 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			// used for pty host management messages, it would make sense in the future to use a
 			// separate interface/service for this one.
 			const client = new MessagePortClient(port, `window:${this._environmentService.window.id}`);
-			clientEventually.complete(client);
+			directProxyClientEventually.complete(client);
 			this._onPtyHostConnected.fire();
 
 			// Attach process listeners
-			this._proxy.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-			this._proxy.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
-			this._proxy.onProcessExit(e => {
+			directProxy.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
+			directProxy.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
+			directProxy.onProcessExit(e => {
 				const pty = this._ptys.get(e.id);
 				if (pty) {
 					pty.handleExit(e.event);
 					this._ptys.delete(e.id);
 				}
 			});
-			this._proxy.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
-			this._proxy.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
-			this._proxy.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
-			this._proxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
+			directProxy.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
+			directProxy.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
+			directProxy.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
+			directProxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
 
 			// Listen for config changes
 			const initialConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
@@ -130,13 +145,13 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 				// Ensure the reply is value
 				const reply = initialConfig.autoReplies[match] as string | null;
 				if (reply) {
-					this._proxy.installAutoReply(match, reply);
+					directProxy.installAutoReply(match, reply);
 				}
 			}
 			// TODO: Could simplify update to a single call
 			this._register(this._configurationService.onDidChangeConfiguration(async e => {
 				if (e.affectsConfiguration(TerminalSettingId.AutoReplies)) {
-					this._proxy.uninstallAllAutoReplies();
+					directProxy.uninstallAllAutoReplies();
 					const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 					for (const match of Object.keys(config.autoReplies)) {
 						// Ensure the reply is value
@@ -147,6 +162,9 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 					}
 				}
 			}));
+
+			// Eagerly fetch the backend's environment for memoization
+			this.getEnvironment();
 		});
 	}
 
@@ -190,6 +208,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		options: ITerminalProcessOptions,
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess> {
+		await this._connectToDirectProxy();
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
 		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, options, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
 		const pty = new LocalPty(id, shouldPersist, this._proxy);
@@ -198,6 +217,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	}
 
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+		await this._connectToDirectProxy();
 		try {
 			await this._proxy.attachToProcess(id);
 			const pty = new LocalPty(id, true, this._proxy);
@@ -210,8 +230,9 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	}
 
 	async attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+		await this._connectToDirectProxy();
 		try {
-			const newId = await this._proxy.getRevivedPtyNewId(id) ?? id;
+			const newId = await this._proxy.getRevivedPtyNewId(this._getWorkspaceId(), id) ?? id;
 			return await this.attachToProcess(newId);
 		} catch (e) {
 			this._logService.warn(`Couldn't attach to process ${e.message}`);
@@ -220,6 +241,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	}
 
 	async listProcesses(): Promise<IProcessDetails[]> {
+		await this._connectToDirectProxy();
 		return this._proxy.listProcesses();
 	}
 
@@ -237,7 +259,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean) {
 		// TODO: Differentiate interfaces of direct to pty host and pty host service (or just move them all to pty host)
-		return this._localPtyService.getProfiles?.(this._workspaceContextService.getWorkspace().id, profiles, defaultProfile, includeDetectedProfiles) || [];
+		return this._proxy.getProfiles?.(this._workspaceContextService.getWorkspace().id, profiles, defaultProfile, includeDetectedProfiles) || [];
 	}
 
 	@memoize
@@ -266,47 +288,48 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	}
 
 	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
-		const layoutArgs: IGetTerminalLayoutInfoArgs = {
-			workspaceId: this._getWorkspaceId()
-		};
+		const workspaceId = this._getWorkspaceId();
+		const layoutArgs: IGetTerminalLayoutInfoArgs = { workspaceId };
 
 		// Revive processes if needed
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 		const parsed = this._deserializeTerminalState(serializedState);
-		if (parsed) {
-			try {
-				// Create variable resolver
-				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-				const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-				const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority), this._configurationResolverService);
+		if (!parsed) {
+			return undefined;
+		}
 
-				// Re-resolve the environments and replace it on the state so local terminals use a fresh
-				// environment
-				mark('code/terminal/willGetReviveEnvironments');
-				await Promise.all(parsed.map(state => new Promise<void>(r => {
-					this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig).then(freshEnv => {
-						state.processLaunchConfig.env = freshEnv;
-						r();
-					});
-				})));
-				mark('code/terminal/didGetReviveEnvironments');
+		try {
+			// Create variable resolver
+			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+			const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+			const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority), this._configurationResolverService);
 
-				mark('code/terminal/willReviveTerminalProcesses');
-				await this._proxy.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);
-				mark('code/terminal/didReviveTerminalProcesses');
-				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
-				// If reviving processes, send the terminal layout info back to the pty host as it
-				// will not have been persisted on application exit
-				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
-				if (layoutInfo) {
-					mark('code/terminal/willSetTerminalLayoutInfo');
-					await this._proxy.setTerminalLayoutInfo(JSON.parse(layoutInfo));
-					mark('code/terminal/didSetTerminalLayoutInfo');
-					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
-				}
-			} catch (e: unknown) {
-				this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
+			// Re-resolve the environments and replace it on the state so local terminals use a fresh
+			// environment
+			mark('code/terminal/willGetReviveEnvironments');
+			await Promise.all(parsed.map(state => new Promise<void>(r => {
+				this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig).then(freshEnv => {
+					state.processLaunchConfig.env = freshEnv;
+					r();
+				});
+			})));
+			mark('code/terminal/didGetReviveEnvironments');
+
+			mark('code/terminal/willReviveTerminalProcesses');
+			await this._proxy.reviveTerminalProcesses(workspaceId, parsed, Intl.DateTimeFormat().resolvedOptions().locale);
+			mark('code/terminal/didReviveTerminalProcesses');
+			this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
+			// If reviving processes, send the terminal layout info back to the pty host as it
+			// will not have been persisted on application exit
+			const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
+			if (layoutInfo) {
+				mark('code/terminal/willSetTerminalLayoutInfo');
+				await this._proxy.setTerminalLayoutInfo(JSON.parse(layoutInfo));
+				mark('code/terminal/didSetTerminalLayoutInfo');
+				this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 			}
+		} catch (e: unknown) {
+			this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
 		}
 
 		return this._proxy.getTerminalLayoutInfo(layoutArgs);

@@ -2200,7 +2200,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return new Map();
 		}
 		await this._waitForSupportedExecutions;
-		if (this._workspaceTasksPromise) {
+		// The build task might be run before folder open. On folder open, we need to update the tasks so that
+		// all tasks are parsed. #173384
+		if (runSource !== TaskRunSource.FolderOpen && this._workspaceTasksPromise) {
 			return this._workspaceTasksPromise;
 		}
 		return this._updateWorkspaceTasks(runSource);

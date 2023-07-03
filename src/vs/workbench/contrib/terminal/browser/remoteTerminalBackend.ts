@@ -50,8 +50,8 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 	private readonly _ptys: Map<number, RemotePty> = new Map();
 
 	private readonly _whenConnected = new DeferredPromise<void>();
-	get whenConnected(): Promise<void> { return this._whenConnected.p; }
-	setConnected(): void { this._whenConnected.complete(); }
+	get whenReady(): Promise<void> { return this._whenConnected.p; }
+	setReady(): void { this._whenConnected.complete(); }
 
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
