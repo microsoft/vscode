@@ -319,7 +319,7 @@ export class TerminalService implements ITerminalService {
 			mark('code/terminal/didReplay');
 			mark('code/terminal/willGetPerformanceMarks');
 			await Promise.all(Array.from(this._terminalInstanceService.getRegisteredBackends()).map(async backend => {
-				this._timerService.setPerformanceMarks(backend.remoteAuthority === undefined ? 'localPtyHost' : 'remotePtyHost', (instances.length > 0 ? await backend.getPerformanceMarks() : []));
+				this._timerService.setPerformanceMarks(backend.remoteAuthority === undefined ? 'localPtyHost' : 'remotePtyHost', await backend.getPerformanceMarks());
 				backend.setReady();
 			}));
 			mark('code/terminal/didGetPerformanceMarks');
