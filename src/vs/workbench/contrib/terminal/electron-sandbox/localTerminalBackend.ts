@@ -277,7 +277,6 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	}
 
 	async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
-		await this._connectToDirectProxy();
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),
 			tabs: layoutInfo ? layoutInfo.tabs : []
