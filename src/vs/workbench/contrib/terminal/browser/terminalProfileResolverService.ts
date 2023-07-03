@@ -28,7 +28,6 @@ import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/
 export interface IProfileContextProvider {
 	getDefaultSystemShell(remoteAuthority: string | undefined, os: OperatingSystem): Promise<string>;
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
-	getShellEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment | undefined>;
 }
 
 const generatedProfileName = 'Generated';
@@ -275,8 +274,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private async _resolveProfile(profile: ITerminalProfile, options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
-		// TODO: is it a problem using the shell env here?
-		const env = await this._context.getShellEnvironment(options.remoteAuthority) || await this._context.getEnvironment(options.remoteAuthority);
+		const env = await this._context.getEnvironment(options.remoteAuthority);
 
 		if (options.os === OperatingSystem.Windows) {
 			// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
@@ -429,13 +427,6 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 						return env;
 					}
 					return backend.getEnvironment();
-				},
-				getShellEnvironment: async (remoteAuthority) => {
-					const backend = await terminalInstanceService.getBackend(remoteAuthority);
-					if (!remoteAuthority || !backend) {
-						return env;
-					}
-					return backend.getShellEnvironment();
 				}
 			},
 			configurationService,
