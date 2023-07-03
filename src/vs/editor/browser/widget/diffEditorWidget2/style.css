@@ -78,12 +78,12 @@
 	border: 2px solid var(--vscode-diffEditor-move-border);
 }
 
-.monaco-editor .moved-blocks-lines {
+.monaco-diff-editor .moved-blocks-lines {
 	position: absolute;
 	pointer-events: none;
 }
 
-.monaco-editor .moved-blocks-lines path {
+.monaco-diff-editor .moved-blocks-lines path {
 	fill: none;
 	stroke: var(--vscode-diffEditor-move-border);
 	stroke-width: 2;
