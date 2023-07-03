@@ -41,6 +41,13 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 						throw new ErrorNoTelemetry(`Cannot get environment when there is no backend for remote authority '${remoteAuthority}'`);
 					}
 					return backend.getEnvironment();
+				},
+				getShellEnvironment: async (remoteAuthority) => {
+					const backend = await terminalInstanceService.getBackend(remoteAuthority);
+					if (!backend) {
+						throw new ErrorNoTelemetry(`Cannot get environment when there is no backend for remote authority '${remoteAuthority}'`);
+					}
+					return backend.getShellEnvironment();
 				}
 			},
 			configurationService,

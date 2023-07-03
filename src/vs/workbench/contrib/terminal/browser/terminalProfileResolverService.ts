@@ -26,8 +26,9 @@ import { terminalProfileArgsMatch, isUriComponents } from 'vs/platform/terminal/
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export interface IProfileContextProvider {
-	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
-	getEnvironment: (remoteAuthority: string | undefined) => Promise<IProcessEnvironment>;
+	getDefaultSystemShell(remoteAuthority: string | undefined, os: OperatingSystem): Promise<string>;
+	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
+	getShellEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment | undefined>;
 }
 
 const generatedProfileName = 'Generated';
@@ -274,11 +275,13 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private async _resolveProfile(profile: ITerminalProfile, options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
+		// TODO: is it a problem using the shell env here?
+		const env = await this._context.getShellEnvironment(options.remoteAuthority) || await this._context.getEnvironment(options.remoteAuthority);
+
 		if (options.os === OperatingSystem.Windows) {
 			// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 			// safe to assume that this was used by accident as Sysnative does not
 			// exist and will break the terminal in non-WoW64 environments.
-			const env = await this._context.getEnvironment(options.remoteAuthority);
 			const isWoW64 = !!env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 			const windir = env.windir;
 			if (!isWoW64 && windir) {
@@ -295,7 +298,6 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 
 		// Resolve path variables
-		const env = await this._context.getEnvironment(options.remoteAuthority);
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(options.remoteAuthority ? Schemas.vscodeRemote : Schemas.file);
 		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		profile.path = await this._resolveVariables(profile.path, env, lastActiveWorkspace);
@@ -427,6 +429,13 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 						return env;
 					}
 					return backend.getEnvironment();
+				},
+				getShellEnvironment: async (remoteAuthority) => {
+					const backend = await terminalInstanceService.getBackend(remoteAuthority);
+					if (!remoteAuthority || !backend) {
+						return env;
+					}
+					return backend.getShellEnvironment();
 				}
 			},
 			configurationService,
