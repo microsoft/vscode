@@ -76,6 +76,19 @@ function migrateOne(filePath, fileContents) {
 			// Rename to .cjs
 			const cjsFilePath = filePath.replace(/\.js$/, '.cjs');
 			writeDestFile(cjsFilePath, fileContents);
+		} else if (
+			filePath.endsWith('vs/loader.js')
+		) {
+			// fake loader
+			writeDestFile(filePath, `(function () {
+	if (typeof require !== 'undefined') {
+		return;
+	}
+	globalThis.require = function () {
+		console.trace('this is ESM, no more AMD/CJS require');
+	};
+})();`);
+
 		} else {
 			writeDestFile(filePath, fileContents);
 		}
