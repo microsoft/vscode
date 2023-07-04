@@ -197,6 +197,7 @@ suite('SearchModel', () => {
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
 			aRawMatch('/2', new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
@@ -300,13 +301,13 @@ suite('SearchModel', () => {
 			webviewResults: webviewMatchesToTextSearchMatches(webviewMatches),
 		};
 
-		const model: SearchModel = instantiationService.createInstance(SearchModel);
 		const notebookSearchService = instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([aRawMatchWithCells('/1', cellMatchMd, cellMatchCode)], undefined));
-
+		const notebookSearch = sinon.spy(notebookSearchService, "notebookSearch");
+		const model: SearchModel = instantiationService.createInstance(SearchModel);
 		await model.search({ contentPattern: { pattern: 'test' }, type: QueryType.Text, folderQueries });
 		const actual = model.searchResult.matches();
 
-		assert(sinon.spy(notebookSearchService, "notebookSearch")?.calledOnce);
+		assert(notebookSearch.calledOnce);
 		assert(textSearch.getCall(0).args[3]?.size === 1);
 		assert(textSearch.getCall(0).args[3]?.has(notebookUri)); // ensure that the textsearch knows not to re-source the notebooks
 
@@ -354,6 +355,7 @@ suite('SearchModel', () => {
 			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
@@ -370,6 +372,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
 		instantiationService.stub(ISearchService, searchServiceWithResults([]));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject = instantiationService.createInstance(SearchModel);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
@@ -391,6 +394,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, searchServiceWithResults(
 			[aRawMatch('/1', new TextSearchMatch('some preview', lineOneRange))],
 			{ results: [], stats: testSearchStats, messages: [] }));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject = instantiationService.createInstance(SearchModel);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
@@ -457,6 +461,7 @@ suite('SearchModel', () => {
 			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 		assert.ok(!testObject.searchResult.isEmpty());
@@ -470,12 +475,11 @@ suite('SearchModel', () => {
 	test('Search Model: Previous search is cancelled when new search is called', async () => {
 		const tokenSource = new CancellationTokenSource();
 		instantiationService.stub(ISearchService, canceleableSearchService(tokenSource));
-		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
-
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], tokenSource));
-
+		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
 		testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 		instantiationService.stub(ISearchService, searchServiceWithResults([]));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 		testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 
 		assert.ok(tokenSource.token.isCancellationRequested);
@@ -487,6 +491,7 @@ suite('SearchModel', () => {
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
 		await testObject.search({ contentPattern: { pattern: 're' }, type: QueryType.Text, folderQueries });
