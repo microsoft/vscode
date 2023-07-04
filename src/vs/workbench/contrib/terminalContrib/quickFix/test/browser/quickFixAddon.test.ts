@@ -27,9 +27,9 @@ import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { importAMDNodeModule } from 'vs/amdX';
 import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
+import { importAMDNodeModule } from 'vs/amdX';
 
 suite('QuickFixAddon', () => {
 	let quickFixAddon: TerminalQuickFixAddon;
