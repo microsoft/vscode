@@ -17,7 +17,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
-import { LoaderStats } from 'vs/base/common/amd';
+import { LoaderStats, isESM } from 'vs/base/common/amd';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -132,10 +132,14 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 				this._addPerfMarksTable('Terminal Stats', md, this._timerService.getPerformanceMarks().find(e => e[0] === 'renderer')?.[1].filter(e => e.name.startsWith('code/terminal/')));
 				md.blank();
 				this._addRawPerfMarks(md);
+				if (!isESM) {
+					md.blank();
+					this._addLoaderStats(md, stats);
+					md.blank();
+					this._addCachedDataStats(md);
+				}
 				md.blank();
-				// this._addLoaderStats(md, stats);
-				// md.blank();
-				// this._addCachedDataStats(md);
+				this._addResourceTimingStats(md);
 
 				this._model.setValue(md.value);
 			}
@@ -260,57 +264,68 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		}
 	}
 
-	// private _addLoaderStats(md: MarkdownBuilder, stats: LoaderStats): void {
-	// 	md.heading(2, 'Loader Stats');
-	// 	md.heading(3, 'Load AMD-module');
-	// 	md.table(['Module', 'Duration'], stats.amdLoad);
-	// 	md.blank();
-	// 	md.heading(3, 'Load commonjs-module');
-	// 	md.table(['Module', 'Duration'], stats.nodeRequire);
-	// 	md.blank();
-	// 	md.heading(3, 'Invoke AMD-module factory');
-	// 	md.table(['Module', 'Duration'], stats.amdInvoke);
-	// 	md.blank();
-	// 	md.heading(3, 'Invoke commonjs-module');
-	// 	md.table(['Module', 'Duration'], stats.nodeEval);
-	// }
+	private _addLoaderStats(md: MarkdownBuilder, stats: LoaderStats): void {
+		md.heading(2, 'Loader Stats');
+		md.heading(3, 'Load AMD-module');
+		md.table(['Module', 'Duration'], stats.amdLoad);
+		md.blank();
+		md.heading(3, 'Load commonjs-module');
+		md.table(['Module', 'Duration'], stats.nodeRequire);
+		md.blank();
+		md.heading(3, 'Invoke AMD-module factory');
+		md.table(['Module', 'Duration'], stats.amdInvoke);
+		md.blank();
+		md.heading(3, 'Invoke commonjs-module');
+		md.table(['Module', 'Duration'], stats.nodeEval);
+	}
 
-	// private _addCachedDataStats(md: MarkdownBuilder): void {
+	private _addCachedDataStats(md: MarkdownBuilder): void {
 
-	// 	const map = new Map<LoaderEventType, string[]>();
-	// 	map.set(LoaderEventType.CachedDataCreated, []);
-	// 	map.set(LoaderEventType.CachedDataFound, []);
-	// 	map.set(LoaderEventType.CachedDataMissed, []);
-	// 	map.set(LoaderEventType.CachedDataRejected, []);
-	// 	if (typeof require === 'function' && typeof require.getStats === 'function') {
-	// 		for (const stat of require.getStats()) {
-	// 			if (map.has(stat.type)) {
-	// 				map.get(stat.type)!.push(stat.detail);
-	// 			}
-	// 		}
-	// 	}
+		const map = new Map<LoaderEventType, string[]>();
+		map.set(LoaderEventType.CachedDataCreated, []);
+		map.set(LoaderEventType.CachedDataFound, []);
+		map.set(LoaderEventType.CachedDataMissed, []);
+		map.set(LoaderEventType.CachedDataRejected, []);
+		if (typeof require === 'function' && typeof require.getStats === 'function') {
+			for (const stat of require.getStats()) {
+				if (map.has(stat.type)) {
+					map.get(stat.type)!.push(stat.detail);
+				}
+			}
+		}
 
-	// 	const printLists = (arr?: string[]) => {
-	// 		if (arr) {
-	// 			arr.sort();
-	// 			for (const e of arr) {
-	// 				md.li(`${e}`);
-	// 			}
-	// 			md.blank();
-	// 		}
-	// 	};
+		const printLists = (arr?: string[]) => {
+			if (arr) {
+				arr.sort();
+				for (const e of arr) {
+					md.li(`${e}`);
+				}
+				md.blank();
+			}
+		};
 
-	// 	md.heading(2, 'Node Cached Data Stats');
-	// 	md.blank();
-	// 	md.heading(3, 'cached data used');
-	// 	printLists(map.get(LoaderEventType.CachedDataFound));
-	// 	md.heading(3, 'cached data missed');
-	// 	printLists(map.get(LoaderEventType.CachedDataMissed));
-	// 	md.heading(3, 'cached data rejected');
-	// 	printLists(map.get(LoaderEventType.CachedDataRejected));
-	// 	md.heading(3, 'cached data created (lazy, might need refreshes)');
-	// 	printLists(map.get(LoaderEventType.CachedDataCreated));
-	// }
+		md.heading(2, 'Node Cached Data Stats');
+		md.blank();
+		md.heading(3, 'cached data used');
+		printLists(map.get(LoaderEventType.CachedDataFound));
+		md.heading(3, 'cached data missed');
+		printLists(map.get(LoaderEventType.CachedDataMissed));
+		md.heading(3, 'cached data rejected');
+		printLists(map.get(LoaderEventType.CachedDataRejected));
+		md.heading(3, 'cached data created (lazy, might need refreshes)');
+		printLists(map.get(LoaderEventType.CachedDataCreated));
+	}
+
+	private _addResourceTimingStats(md: MarkdownBuilder) {
+		const stats = performance.getEntriesByType('resource').map(entry => {
+			return [entry.name, entry.duration];
+		});
+		if (!stats.length) {
+			return;
+		}
+		md.heading(2, 'Resource Timing Stats');
+		md.table(['Name', 'Duration'], stats);
+	}
 }
 
 class MarkdownBuilder {
