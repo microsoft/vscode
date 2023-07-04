@@ -29,6 +29,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
+import { importAMDNodeModule } from 'vs/amdX';
 
 suite('QuickFixAddon', () => {
 	let quickFixAddon: TerminalQuickFixAddon;
@@ -37,9 +38,10 @@ suite('QuickFixAddon', () => {
 	let openerService: OpenerService;
 	let labelService: LabelService;
 	let terminal: Terminal;
-	setup(() => {
+	setup(async () => {
 		const instantiationService = new TestInstantiationService();
-		terminal = new Terminal({
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		terminal = new TerminalCtor({
 			allowProposedApi: true,
 			cols: 80,
 			rows: 30

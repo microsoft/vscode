@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { importAMDNodeModule } from 'vs/amdX';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -49,7 +50,7 @@ suite('Buffer Content Tracker', () => {
 	let bufferTracker: BufferContentTracker;
 	const prompt = 'vscode-git:(prompt/more-tests)';
 	const promptPlusData = 'vscode-git:(prompt/more-tests) ' + 'some data';
-	setup(() => {
+	setup(async () => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
 		instantiationService = new TestInstantiationService();
 		themeService = new TestThemeService();
@@ -66,7 +67,8 @@ suite('Buffer Content Tracker', () => {
 		if (!isWindows) {
 			capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 		}
-		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilities, '', new MockContextKeyService().createKey('', true)!, true);
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		xterm = instantiationService.createInstance(XtermTerminal, TerminalCtor, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilities, '', new MockContextKeyService().createKey('', true)!, true);
 		const container = document.createElement('div');
 		xterm.raw.open(container);
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
