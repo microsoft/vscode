@@ -19,7 +19,7 @@ import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/wid
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminalContrib/find/browser/terminalFindWidget';
-import { Terminal as RawXtermTerminal } from 'xterm';
+import type { Terminal as RawXtermTerminal } from 'xterm';
 
 class TerminalFindContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.find';

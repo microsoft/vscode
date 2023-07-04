@@ -166,6 +166,9 @@ if (typeof globalThis.require === 'object') {
 }
 
 /**
+ * Utility for importing an AMD node module. This util supports AMD and ESM contexts and should be used while the ESM adoption
+ * is on its way.
+ *
  * e.g. pass in `vscode-textmate/release/main.js`
  */
 export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideNodeModule: string, isBuilt?: boolean): Promise<T> {
