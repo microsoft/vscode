@@ -211,7 +211,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			}
 		};
 		for (const override of this.overrides) {
-			if (arrays.equals(override.identifiers, [identifier])) {
+			if (override.identifiers.length === 1 && override.identifiers[0] === identifier) {
 				contentsForIdentifierOnly = override.contents;
 			} else if (override.identifiers.includes(identifier)) {
 				mergeContents(override.contents);
