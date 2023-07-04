@@ -22,8 +22,8 @@ import { ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/co
 import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/browser/xterm/xtermTerminal.test';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import type { ILink, Terminal } from 'xterm';
-import { importAMDNodeModule } from 'vs/amdX';
 import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
+import { importAMDNodeModule } from 'vs/amdX';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -84,7 +84,6 @@ suite('TerminalLinkManager', () => {
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 
 		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
-
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
 		linkManager = instantiationService.createInstance(TestLinkManager, xterm, upcastPartial<ITerminalProcessManager>({
 			get initialCwd() {

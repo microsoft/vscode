@@ -196,6 +196,14 @@
 		},
 		{
 			"files": [
+				"src/**/{common,browser}/**/*.ts"
+			],
+			"rules": {
+				"local/code-amd-node-module": "warn"
+			}
+		},
+		{
+			"files": [
 				"src/**/*.ts"
 			],
 			"rules": {

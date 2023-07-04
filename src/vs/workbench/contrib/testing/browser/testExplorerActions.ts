@@ -28,7 +28,7 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IActionableTestTreeElement, TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
+import { TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { TestResultsView } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
@@ -83,12 +83,10 @@ export class HideTestAction extends Action2 {
 		});
 	}
 
-	public override run(accessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]) {
+	public override run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]) {
 		const service = accessor.get(ITestService);
 		for (const element of elements) {
-			if (element instanceof TestItemTreeElement) {
-				service.excluded.toggle(element.test, true);
-			}
+			service.excluded.toggle(element.test, true);
 		}
 		return Promise.resolve();
 	}
@@ -157,9 +155,9 @@ export class DebugAction extends Action2 {
 		});
 	}
 
-	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
+	public override run(acessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
 		return acessor.get(ITestService).runTests({
-			tests: elements.flatMap(e => [...e.tests]),
+			tests: elements.map(e => e.test),
 			group: TestRunProfileBitset.Debug,
 		});
 	}
@@ -180,16 +178,11 @@ export class RunUsingProfileAction extends Action2 {
 		});
 	}
 
-	public override async run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
-		const testElements = elements.filter((e): e is TestItemTreeElement => e instanceof TestItemTreeElement);
-		if (testElements.length === 0) {
-			return;
-		}
-
+	public override async run(acessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
 		const commandService = acessor.get(ICommandService);
 		const testService = acessor.get(ITestService);
 		const profile: ITestRunProfile | undefined = await commandService.executeCommand('vscode.pickTestProfile', {
-			onlyForTest: testElements[0].test,
+			onlyForTest: elements[0].test,
 		});
 		if (!profile) {
 			return;
@@ -200,7 +193,7 @@ export class RunUsingProfileAction extends Action2 {
 				profileGroup: profile.group,
 				profileId: profile.profileId,
 				controllerId: profile.controllerId,
-				testIds: testElements.filter(t => canUseProfileWithTest(profile, t.test)).map(t => t.test.item.extId)
+				testIds: elements.filter(t => canUseProfileWithTest(profile, t.test)).map(t => t.test.item.extId)
 			}]
 		});
 	}
@@ -219,9 +212,9 @@ export class RunAction extends Action2 {
 	/**
 	 * @override
 	 */
-	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
+	public override run(acessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
 		return acessor.get(ITestService).runTests({
-			tests: elements.flatMap(e => [...e.tests]),
+			tests: elements.map(e => e.test),
 			group: TestRunProfileBitset.Run,
 		});
 	}
@@ -271,14 +264,10 @@ export class ContinuousRunTestAction extends Action2 {
 		});
 	}
 
-	public override async run(accessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
+	public override async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
 		const crService = accessor.get(ITestingContinuousRunService);
 		const profileService = accessor.get(ITestProfileService);
 		for (const element of elements) {
-			if (!(element instanceof TestItemTreeElement)) {
-				continue;
-			}
-
 			const id = element.test.item.extId;
 			if (crService.isSpecificallyEnabledFor(id)) {
 				crService.stop(id);
@@ -316,17 +305,13 @@ export class ContinuousRunUsingProfileTestAction extends Action2 {
 		});
 	}
 
-	public override async run(accessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
+	public override async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
 		const crService = accessor.get(ITestingContinuousRunService);
 		const profileService = accessor.get(ITestProfileService);
 		const notificationService = accessor.get(INotificationService);
 		const quickInputService = accessor.get(IQuickInputService);
 
 		for (const element of elements) {
-			if (!(element instanceof TestItemTreeElement)) {
-				continue;
-			}
-
 			const selected = await selectContinuousRunProfiles(crService, notificationService, quickInputService,
 				[{ profiles: profileService.getControllerProfiles(element.test.controllerId) }]);
 
@@ -1432,16 +1417,11 @@ export class RefreshTestsAction extends Action2 {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]) {
+	public async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]) {
 		const testService = accessor.get(ITestService);
 		const progressService = accessor.get(IProgressService);
 
-		const controllerIds = distinct(
-			elements
-				.filter((e): e is TestItemTreeElement => e instanceof TestItemTreeElement)
-				.map(e => e.test.controllerId)
-		);
-
+		const controllerIds = distinct(elements.map(e => e.test.controllerId));
 		return progressService.withProgress({ location: Testing.ViewletId }, async () => {
 			if (controllerIds.length) {
 				await Promise.all(controllerIds.map(id => testService.refreshTests(id)));

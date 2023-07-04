@@ -25,8 +25,8 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import type { Terminal } from 'xterm';
 import { IFileQuery, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
-import { importAMDNodeModule } from 'vs/amdX';
 import { ITerminalLogService, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
+import { importAMDNodeModule } from 'vs/amdX';
 
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
@@ -109,7 +109,6 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				}
 			}
 		} as Partial<IEditorService>);
-
 		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
 		xterm = new TerminalCtor({ allowProposedApi: true });
 	});

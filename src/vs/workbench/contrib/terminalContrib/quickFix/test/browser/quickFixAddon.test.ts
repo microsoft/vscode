@@ -40,9 +40,7 @@ suite('QuickFixAddon', () => {
 	let terminal: Terminal;
 	setup(async () => {
 		const instantiationService = new TestInstantiationService();
-
 		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
-
 		terminal = new TerminalCtor({
 			allowProposedApi: true,
 			cols: 80,
