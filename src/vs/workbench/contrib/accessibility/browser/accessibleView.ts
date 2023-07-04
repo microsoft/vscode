@@ -5,7 +5,7 @@
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -22,7 +22,6 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IDisposable } from 'xterm';
 
 const enum DIMENSION_DEFAULT {
 	WIDTH = .6,
