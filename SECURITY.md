@@ -1,3 +1,5 @@
+![00BF81C7-2F1D-4FEC-B71B-A01047284FA4](https://github.com/microsoft/vscode/assets/91646027/5990346d-c2b1-4d2d-b1a6-592f65fe5d22)
+![CDCBBD17-FD02-4EC5-BE53-AF6C669BBB01](https://github.com/microsoft/vscode/assets/91646027/0eaea673-c556-4efc-adbf-7f9293506dda)
 <!-- BEGIN MICROSOFT SECURITY.MD V0.0.5 BLOCK -->
 
 ## Security
