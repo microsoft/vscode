@@ -12,7 +12,7 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IBufferLine, Terminal } from 'xterm';
+import type { IBufferLine, Terminal } from 'xterm';
 
 const enum Constants {
 	/**

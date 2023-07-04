@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IBuffer, Terminal } from 'xterm';
+import type { IBuffer, Terminal } from 'xterm';
 import { SinonStub, stub, useFakeTimers } from 'sinon';
 import { Emitter } from 'vs/base/common/event';
 import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminalContrib/typeAhead/browser/terminalTypeAheadAddon';

@@ -13,8 +13,9 @@ import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminalContrib/li
 import { assertLinkHelper } from 'vs/workbench/contrib/terminalContrib/links/test/browser/linkTestUtils';
 import { createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { importAMDNodeModule } from 'vs/amdX';
 
 suite('Workbench - TerminalUriLinkDetector', () => {
 	let configurationService: TestConfigurationService;
@@ -22,7 +23,7 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 	let xterm: Terminal;
 	let validResources: URI[] = [];
 
-	setup(() => {
+	setup(async () => {
 		const instantiationService = new TestInstantiationService();
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -36,7 +37,8 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 		});
 		validResources = [];
 
-		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
 		detector = instantiationService.createInstance(TerminalUriLinkDetector, xterm, {
 			initialCwd: '/parent/cwd',
 			os: OperatingSystem.Linux,

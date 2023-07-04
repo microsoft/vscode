@@ -26,7 +26,7 @@ import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/acces
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -137,4 +137,3 @@ async function writeAndAssertBufferState(data: string, rows: number, terminal: T
 	assert.strictEqual(bufferTracker.lines.length, rows);
 	assert.deepStrictEqual(bufferTracker.lines, content.split('\r\n'));
 }
-
