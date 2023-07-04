@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IChannelClient } from 'vs/base/parts/ipc/common/ipc';
 
 export interface IPtyHostConnection {
@@ -13,7 +13,7 @@ export interface IPtyHostConnection {
 	readonly onDidProcessExit: Event<{ code: number; signal: string }>;
 }
 
-export interface IPtyHostStarter {
+export interface IPtyHostStarter extends IDisposable {
 	onBeforeWindowConnection?: Event<void>;
 	onWillShutdown?: Event<void>;
 

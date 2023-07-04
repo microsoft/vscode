@@ -585,6 +585,8 @@
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent.image>.getting-started-media {
 	grid-area: title-start / media-start / steps-end / media-end;
 	align-self: unset;
+	display: flex;
+	justify-content: center;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image>.getting-started-media {

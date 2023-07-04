@@ -1892,31 +1892,31 @@
       "git.branch": [
         {
           "command": "git.merge",
-          "group": "branch@1"
+          "group": "1_merge@1"
         },
         {
           "command": "git.rebase",
-          "group": "branch@2"
+          "group": "1_merge@2"
         },
         {
           "command": "git.branch",
-          "group": "branch@3"
+          "group": "2_branch@1"
         },
         {
           "command": "git.branchFrom",
-          "group": "branch@4"
+          "group": "2_branch@2"
         },
         {
           "command": "git.renameBranch",
-          "group": "branch@5"
+          "group": "3_modify@1"
         },
         {
           "command": "git.deleteBranch",
-          "group": "branch@6"
+          "group": "3_modify@2"
         },
         {
           "command": "git.publish",
-          "group": "branch@7"
+          "group": "4_publish@1"
         }
       ],
       "git.remotes": [
@@ -1932,40 +1932,40 @@
       "git.stash": [
         {
           "command": "git.stash",
-          "group": "stash@1"
+          "group": "1_stash@1"
         },
         {
           "command": "git.stashIncludeUntracked",
-          "group": "stash@2"
+          "group": "1_stash@2"
         },
         {
           "command": "git.stashStaged",
           "when": "gitVersion2.35",
-          "group": "stash@3"
+          "group": "1_stash@3"
         },
         {
           "command": "git.stashApplyLatest",
-          "group": "stash@4"
+          "group": "2_apply@1"
         },
         {
           "command": "git.stashApply",
-          "group": "stash@5"
+          "group": "2_apply@2"
         },
         {
           "command": "git.stashPopLatest",
-          "group": "stash@6"
+          "group": "3_pop@1"
         },
         {
           "command": "git.stashPop",
-          "group": "stash@7"
+          "group": "3_pop@2"
         },
         {
           "command": "git.stashDrop",
-          "group": "stash@8"
+          "group": "4_drop@1"
         },
         {
           "command": "git.stashDropAll",
-          "group": "stash@9"
+          "group": "4_drop@2"
         }
       ],
       "git.tags": [
