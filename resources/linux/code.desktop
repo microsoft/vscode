@@ -14,5 +14,5 @@ Keywords=vscode;
 
 [Desktop Action new-empty-window]
 Name=New Empty Window
-Exec=@@EXEC@@ --new-window %F
+Exec=@@EXEC@@ --new-window --ozone-platform-hint=auto %F
 Icon=@@ICON@@
