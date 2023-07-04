@@ -13,7 +13,6 @@ import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditorWidget2/ov
 import { EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffEditorOptions } from './diffEditorOptions';
 
@@ -30,7 +29,6 @@ export class DiffEditorEditors extends Disposable {
 		private readonly _options: DiffEditorOptions,
 		codeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
 		private readonly _createInnerEditor: (instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>, editorWidgetOptions: ICodeEditorWidgetOptions) => CodeEditorWidget,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
@@ -56,17 +54,13 @@ export class DiffEditorEditors extends Disposable {
 
 	private _createLeftHandSideEditor(options: Readonly<IDiffEditorConstructionOptions>, codeEditorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
 		const editor = this._constructInnerEditor(this._instantiationService, this.originalEditorElement, this._adjustOptionsForLeftHandSide(options), codeEditorWidgetOptions);
-		const isInDiffLeftEditorKey = this._contextKeyService.createKey<boolean>('isInDiffLeftEditor', editor.hasWidgetFocus());
-		this._register(editor.onDidFocusEditorWidget(() => isInDiffLeftEditorKey.set(true)));
-		this._register(editor.onDidBlurEditorWidget(() => isInDiffLeftEditorKey.set(false)));
+		editor.setContextValue('isInDiffLeftEditor', true);
 		return editor;
 	}
 
 	private _createRightHandSideEditor(options: Readonly<IDiffEditorConstructionOptions>, codeEditorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
 		const editor = this._constructInnerEditor(this._instantiationService, this.modifiedEditorElement, this._adjustOptionsForRightHandSide(options), codeEditorWidgetOptions);
-		const isInDiffRightEditorKey = this._contextKeyService.createKey<boolean>('isInDiffRightEditor', editor.hasWidgetFocus());
-		this._register(editor.onDidFocusEditorWidget(() => isInDiffRightEditorKey.set(true)));
-		this._register(editor.onDidBlurEditorWidget(() => isInDiffRightEditorKey.set(false)));
+		editor.setContextValue('isInDiffRightEditor', true);
 		return editor;
 	}
 
