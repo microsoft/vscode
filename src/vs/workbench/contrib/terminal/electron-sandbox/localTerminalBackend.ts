@@ -183,7 +183,6 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	async persistTerminalState(): Promise<void> {
 		const ids = Array.from(this._ptys.keys());
 		const serialized = await this._proxy.serializeTerminalState(ids);
-		this._logService.info('local persistTerminalState serialied', serialized);
 		this._storageService.store(TerminalStorageKeys.TerminalBufferState, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
