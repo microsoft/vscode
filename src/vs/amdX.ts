@@ -9,6 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { URI } from 'vs/base/common/uri';
 
+
 class DefineCall {
 	constructor(
 		public readonly id: string | null | undefined,
@@ -176,7 +177,7 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 
 		if (isBuilt === undefined) {
 			const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
-			isBuilt = !!product?.commit;
+			isBuilt = Boolean((product ?? (<any>globalThis).vscode?.context?.configuration()?.product)?.commit);
 		}
 
 		if (_paths[nodeModuleName]) {

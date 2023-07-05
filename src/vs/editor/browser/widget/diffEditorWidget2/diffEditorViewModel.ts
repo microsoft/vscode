@@ -158,7 +158,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				}
 
 				this._lastDiff = result;
-				this._diff.set(DiffState.fromDiffResult(result), tx);
+				const state = DiffState.fromDiffResult(result);
+				this._diff.set(state, tx);
 				this._isDiffUpToDate.set(true, tx);
 				const currentSyncedMovedText = this.syncedMovedTexts.get();
 				this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, tx);

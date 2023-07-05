@@ -540,6 +540,7 @@ export class GettingStartedPage extends EditorPane {
 
 			const media = stepToExpand.media;
 			const mediaElement = $<HTMLImageElement>('img');
+			clearNode(this.stepMediaComponent);
 			this.stepMediaComponent.appendChild(mediaElement);
 			mediaElement.setAttribute('alt', media.altText);
 			this.updateMediaSourceForColorMode(mediaElement, media.path);
@@ -1162,6 +1163,10 @@ export class GettingStartedPage extends EditorPane {
 		this.container.classList.toggle('height-constrained', size.height <= 600);
 		this.container.classList.toggle('width-constrained', size.width <= 400);
 		this.container.classList.toggle('width-semi-constrained', size.width <= 800);
+
+		this.categoriesPageScrollbar?.scanDomNode();
+		this.detailsPageScrollbar?.scanDomNode();
+		this.detailsScrollbar?.scanDomNode();
 	}
 
 	private updateCategoryProgress() {

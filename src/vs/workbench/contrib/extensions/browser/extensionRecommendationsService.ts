@@ -26,6 +26,8 @@ import { WebRecommendations } from 'vs/workbench/contrib/extensions/browser/webR
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { RemoteRecommendations } from 'vs/workbench/contrib/extensions/browser/remoteRecommendations';
+import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
+import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
 type IgnoreRecommendationClassification = {
 	owner: 'sandy081';
@@ -64,6 +66,8 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		@IExtensionIgnoredRecommendationsService private readonly extensionRecommendationsManagementService: IExtensionIgnoredRecommendationsService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IRemoteExtensionsScannerService private readonly remoteExtensionsScannerService: IRemoteExtensionsScannerService,
+		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
 	) {
 		super();
 
@@ -91,7 +95,12 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	}
 
 	private async activate(): Promise<void> {
-		await this.lifecycleService.when(LifecyclePhase.Restored);
+		try {
+			await Promise.allSettled([
+				this.remoteExtensionsScannerService.whenExtensionsReady(),
+				this.userDataInitializationService.whenInitializationFinished(),
+				this.lifecycleService.when(LifecyclePhase.Restored)]);
+		} catch (error) { /* ignore */ }
 
 		// activate all recommendations
 		await Promise.all([
@@ -256,12 +265,6 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return !this.extensionRecommendationsManagementService.ignoredRecommendations.includes(extensionId.toLowerCase());
 	}
 
-	// for testing
-	protected get workbenchRecommendationDelay() {
-		// remote extensions might still being installed #124119
-		return 5000;
-	}
-
 	private async promptWorkspaceRecommendations(): Promise<void> {
 		const installed = await this.extensionsWorkbenchService.queryLocal();
 		const allowedRecommendations = [
@@ -273,7 +276,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
 
 		if (allowedRecommendations.length) {
-			await timeout(this.workbenchRecommendationDelay);
+			await timeout(5000);
 			await this.extensionRecommendationNotificationService.promptWorkspaceRecommendations(allowedRecommendations);
 		}
 	}
