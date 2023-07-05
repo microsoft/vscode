@@ -2002,7 +2002,7 @@ class TreeActionsProvider {
 				const extId = element.test.item.extId;
 				primary.push(new Action(
 					'testing.outputPeek.goToFile',
-					localize('testing.goToFile', "Go to File"),
+					localize('testing.goToFile', "Go to Source"),
 					ThemeIcon.asClassName(Codicon.goToFile),
 					undefined,
 					() => this.commandService.executeCommand('vscode.revealTest', extId),
