@@ -1334,7 +1334,10 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		}
 
 		const fileMatchParentParts: URI[] = [];
-		const normalizedResource = this.uriIdentityService.extUri.normalizePath(this.resource);
+		const normalizedResource = this.uriIdentityService.extUri.normalizePath(
+			(this.resource.path.endsWith('/')) ?
+				this.resource.with({ path: this.resource.path.substring(0, this.resource.path.length - 1) }) :
+				this.resource);
 		let uri = this.normalizedUriParent(rawFileMatch.resource);
 
 		while (!this.uriEquals(normalizedResource, uri)) {
