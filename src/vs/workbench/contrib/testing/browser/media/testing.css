@@ -229,10 +229,6 @@
 	max-width: none;
 }
 
-.testing-filter-wrapper {
-	height: 27px;
-}
-
 .testing-filter-action-item .testing-filter-wrapper {
 	flex-grow: 1;
 }
