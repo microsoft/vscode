@@ -520,8 +520,8 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	 * Shows a peek for the message in the editor.
 	 */
 	public async show(uri: URI) {
-		const subjecet = this.retrieveTest(uri);
-		if (!subjecet) {
+		const subject = this.retrieveTest(uri);
+		if (!subject) {
 			return;
 		}
 
@@ -537,12 +537,12 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			this.peek.value!.create();
 		}
 
-		if (subjecet instanceof MessageSubject) {
-			const message = subjecet.messages[subjecet.messageIndex];
+		if (subject instanceof MessageSubject) {
+			const message = subject.messages[subject.messageIndex];
 			alert(renderStringAsPlaintext(message.message));
 		}
 
-		this.peek.value.setModel(subjecet);
+		this.peek.value.setModel(subject);
 		this.currentPeekUri = uri;
 	}
 
@@ -1022,7 +1022,7 @@ const diffEditorOptions: IDiffEditorConstructionOptions = {
 	diffAlgorithm: 'advanced',
 };
 
-const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { actualOutput: string; expectedOutput: string } =>
+const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { actual: string; expected: string } =>
 	message.type === TestMessageType.Error && message.actual !== undefined && message.expected !== undefined;
 
 class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
@@ -1377,8 +1377,9 @@ const firstLine = (str: string) => {
 };
 
 const isMultiline = (str: string | undefined) => !!str && str.includes('\n');
-const hintPeekStrHeight = (str: string | undefined) =>
-	clamp(str ? Math.max(count(str, '\n'), Math.ceil(str.length / 80)) + 3 : 0, 14, 24);
+
+// add 5ish lines for the size of the title and decorations in the peek.
+const hintPeekStrHeight = (str: string) => Math.min(count(str, '\n') + 5, 24);
 
 class SimpleDiffEditorModel extends EditorModel {
 	public readonly original = this._original.object.textEditorModel;
