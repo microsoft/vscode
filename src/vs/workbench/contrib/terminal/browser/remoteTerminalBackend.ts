@@ -6,7 +6,7 @@
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { revive } from 'vs/base/common/marshalling';
-import { PerformanceMark } from 'vs/base/common/performance';
+import { PerformanceMark, mark } from 'vs/base/common/performance';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -324,22 +324,28 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		// Revive processes if needed
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 		const parsed = this._deserializeTerminalState(serializedState);
-		if (parsed) {
-			try {
-				// Note that remote terminals do not get their environment re-resolved unlike in local terminals
+		if (!parsed) {
+			return undefined;
+		}
 
-				await this._remoteTerminalChannel.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);
-				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
-				// If reviving processes, send the terminal layout info back to the pty host as it
-				// will not have been persisted on application exit
-				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
-				if (layoutInfo) {
-					await this._remoteTerminalChannel.setTerminalLayoutInfo(JSON.parse(layoutInfo));
-					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
-				}
-			} catch {
-				// no-op
+		try {
+			// Note that remote terminals do not get their environment re-resolved unlike in local terminals
+
+			mark('code/terminal/willReviveTerminalProcessesRemote');
+			await this._remoteTerminalChannel.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);
+			mark('code/terminal/didReviveTerminalProcessesRemote');
+			this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
+			// If reviving processes, send the terminal layout info back to the pty host as it
+			// will not have been persisted on application exit
+			const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
+			if (layoutInfo) {
+				mark('code/terminal/willSetTerminalLayoutInfoRemote');
+				await this._remoteTerminalChannel.setTerminalLayoutInfo(JSON.parse(layoutInfo));
+				mark('code/terminal/didSetTerminalLayoutInfoRemote');
+				this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 			}
+		} catch (e: unknown) {
+			this._logService.warn('RemoteTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
 		}
 
 		return this._remoteTerminalChannel.getTerminalLayoutInfo();
