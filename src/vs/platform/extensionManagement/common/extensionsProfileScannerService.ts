@@ -275,7 +275,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 					});
 				}
 				if (migrate) {
-					await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)));
+					await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)), { atomic: { postfix: '.vsctmp' } });
 				}
 			}
 
@@ -290,7 +290,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 					relativeLocation: this.toRelativePath(e.location),
 					metadata: e.metadata
 				}));
-				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)));
+				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)), { atomic: { postfix: '.vsctmp' } });
 			}
 
 			return extensions;

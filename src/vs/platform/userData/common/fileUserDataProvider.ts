@@ -11,6 +11,7 @@ import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream'
 import { ILogService } from 'vs/platform/log/common/log';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { isObject } from 'vs/base/common/types';
 
 /**
  * This is a wrapper on top of the local filesystem provider which will
@@ -85,6 +86,9 @@ export class FileUserDataProvider extends Disposable implements
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
+		if (!isObject(opts.atomic)) {
+			opts = { ...opts, atomic: { postfix: '.vsctmp' } };
+		}
 		return this.fileSystemProvider.writeFile(this.toFileSystemResource(resource), content, opts);
 	}
 

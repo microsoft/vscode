@@ -9,6 +9,9 @@ import { NativeEnvironmentService } from 'vs/platform/environment/node/environme
 import { OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { memoize } from 'vs/base/common/decorators';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
@@ -211,5 +214,7 @@ export interface IServerEnvironmentService extends INativeEnvironmentService {
 }
 
 export class ServerEnvironmentService extends NativeEnvironmentService implements IServerEnvironmentService {
+	@memoize
+	override get userRoamingDataHome(): URI { return super.userRoamingDataHome.with({ scheme: Schemas.file }); }
 	override get args(): ServerParsedArgs { return super.args as ServerParsedArgs; }
 }
