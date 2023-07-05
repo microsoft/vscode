@@ -170,7 +170,7 @@ export class OpenEditorsView extends ViewPane {
 	protected override renderHeaderTitle(container: HTMLElement): void {
 		super.renderHeaderTitle(container, this.title);
 
-		const count = dom.append(container, $('.count'));
+		const count = dom.append(container, $('.open-editors-dirty-count-container'));
 		this.dirtyCountElement = dom.append(count, $('.dirty-count.monaco-count-badge.long'));
 
 		this.dirtyCountElement.style.backgroundColor = asCssVariable(badgeBackground);
