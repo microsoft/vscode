@@ -723,10 +723,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 			}
 			this._notebookUpdateScheduler.schedule();
 		}) ?? null;
-
-		this._findMatchDecorationModel?.stopWebviewFind();
-		this._findMatchDecorationModel?.dispose();
-		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditorWidget);
+		this._addNotebookHighlights();
 	}
 
 	unbindNotebookEditorWidget(widget?: NotebookEditorWidget) {
@@ -738,13 +735,34 @@ export class FileMatch extends Disposable implements IFileMatch {
 			this._notebookUpdateScheduler.cancel();
 			this._editorWidgetListener?.dispose();
 		}
+		this._removeNotebookHighlights();
+		this._notebookEditorWidget = null;
+	}
 
+	updateNotebookHighlights(): void {
+		if (this.parent().showHighlights) {
+			this._addNotebookHighlights();
+			this.setNotebookFindMatchDecorationsUsingCellMatches(Array.from(this._cellMatches.values()));
+		} else {
+			this._removeNotebookHighlights();
+		}
+	}
+
+	private _addNotebookHighlights(): void {
+		if (!this._notebookEditorWidget) {
+			return;
+		}
+		this._findMatchDecorationModel?.stopWebviewFind();
+		this._findMatchDecorationModel?.dispose();
+		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditorWidget);
+	}
+
+	private _removeNotebookHighlights(): void {
 		if (this._findMatchDecorationModel) {
 			this._findMatchDecorationModel?.stopWebviewFind();
 			this._findMatchDecorationModel?.dispose();
 			this._findMatchDecorationModel = undefined;
 		}
-		this._notebookEditorWidget = null;
 	}
 	private updateNotebookMatches(matches: CellFindMatchWithIndex[], modelChange: boolean): void {
 
@@ -1808,6 +1826,7 @@ export class SearchResult extends Disposable {
 		let selectedMatch: Match | null = null;
 		this.matches().forEach((fileMatch: FileMatch) => {
 			fileMatch.updateHighlights();
+			fileMatch.updateNotebookHighlights();
 			if (!selectedMatch) {
 				selectedMatch = fileMatch.getSelectedMatch();
 			}
