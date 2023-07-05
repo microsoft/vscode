@@ -1696,7 +1696,9 @@ class OutputPeekTree extends Disposable {
 
 					const itemNode = taskNode.itemsCache.get(e.item);
 					if (itemNode && this.tree.hasElement(itemNode)) {
-						this.tree.setChildren(itemNode, getTestChildren(result, e.item, index), { diffIdentityProvider });
+						if (e.reason === TestResultItemChangeReason.NewMessage) {
+							this.tree.setChildren(itemNode, getTestChildren(result, e.item, index), { diffIdentityProvider });
+						}
 						itemNode.changeEmitter.fire();
 						return;
 					}

@@ -12,6 +12,7 @@ import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/expl
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, getChildrenForParent, testIdentityProvider } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { ISerializedTestTreeCollapseState, isCollapsedInSerializedTestTree } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingViewState';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ITestItemUpdate, InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff, applyTestItemUpdate } from 'vs/workbench/contrib/testing/common/testTypes';
@@ -106,6 +107,10 @@ export class ListProjection extends Disposable implements ITestTreeProjection {
 
 		// when test states change, reflect in the tree
 		this._register(results.onTestChanged(ev => {
+			if (ev.reason === TestResultItemChangeReason.NewMessage) {
+				return; // no effect in the tree
+			}
+
 			let result = ev.item;
 			// if the state is unset, or the latest run is not making the change,
 			// double check that it's valid. Retire calls might cause previous

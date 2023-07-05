@@ -215,11 +215,13 @@ const itemToNode = (controllerId: string, item: ITestItem, parent: string | null
 export const enum TestResultItemChangeReason {
 	ComputedStateChange,
 	OwnStateChange,
+	NewMessage,
 }
 
 export type TestResultItemChange = { item: TestResultItem; result: ITestResult } & (
 	| { reason: TestResultItemChangeReason.ComputedStateChange }
 	| { reason: TestResultItemChangeReason.OwnStateChange; previousState: TestResultState; previousOwnDuration: number | undefined }
+	| { reason: TestResultItemChangeReason.NewMessage }
 );
 
 /**
@@ -319,8 +321,10 @@ export class LiveTestResult implements ITestResult {
 			type: TestMessageType.Output,
 		};
 
-		if (testId) {
-			this.testById.get(testId)?.tasks[index].messages.push(message);
+		const test = testId && this.testById.get(testId);
+		if (test) {
+			test.tasks[index].messages.push(message);
+			this.changeEmitter.fire({ item: test, result: this, reason: TestResultItemChangeReason.NewMessage });
 		} else {
 			task.otherMessages.push(message);
 		}
@@ -390,13 +394,7 @@ export class LiveTestResult implements ITestResult {
 		}
 
 		entry.tasks[this.mustGetTaskIndex(taskId)].messages.push(message);
-		this.changeEmitter.fire({
-			item: entry,
-			result: this,
-			reason: TestResultItemChangeReason.OwnStateChange,
-			previousState: entry.ownComputedState,
-			previousOwnDuration: entry.ownDuration,
-		});
+		this.changeEmitter.fire({ item: entry, result: this, reason: TestResultItemChangeReason.NewMessage });
 	}
 
 	/**
