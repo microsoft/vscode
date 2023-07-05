@@ -210,6 +210,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _taskSystemInfos: Map<string, ITaskSystemInfo[]>;
 
 	protected _workspaceTasksPromise?: Promise<Map<string, IWorkspaceFolderTaskResult>>;
+	protected _whenTaskSystemReady?: Promise<void>;
 
 	protected _taskSystem?: ITaskSystem;
 	protected _taskSystemListeners?: IDisposable[] = [];
@@ -267,7 +268,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
-
+		this._whenTaskSystemReady = Event.toPromise(this.onDidChangeTaskSystemInfo);
 		this._workspaceTasksPromise = undefined;
 		this._taskSystem = undefined;
 		this._taskSystemListeners = undefined;
@@ -376,15 +377,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this.getWorkspaceTasks().then(async () => {
 			this._tasksReconnected = await this._reconnectTasks();
 		});
-	}
-
-	private async _waitForTaskSystem(): Promise<void> {
-		if (this.hasTaskSystemInfo) {
-			return;
-		}
-		// Wait until we have task system info (the extension host and workspace folders are available).
-		this._logService.trace('RunBuildTask: Awaiting task system info.');
-		await Event.toPromise(Event.once(this.onDidChangeTaskSystemInfo));
 	}
 
 	private async _reconnectTasks(): Promise<boolean> {
@@ -2208,7 +2200,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return new Map();
 		}
 		await this._waitForSupportedExecutions;
-		await this._waitForTaskSystem();
+		await this._whenTaskSystemReady;
 		if (this._workspaceTasksPromise) {
 			return this._workspaceTasksPromise;
 		}
