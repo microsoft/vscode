@@ -8,7 +8,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem, isWindows } from 'vs/base/common/platform';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
 import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -138,6 +138,11 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private _startPtyHost(): [IPtyHostConnection, IPtyService] {
 		const connection = this._ptyHostStarter.start();
 		const client = connection.client;
+
+		// Log a full stack trace which will tell the exact reason the pty host is starting up
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			this._logService.trace('PtyHostService#_startPtyHost', new Error().stack?.replace(/^Error/, ''));
+		}
 
 		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts
 		const heartbeatService = ProxyChannel.toService<IHeartbeatService>(client.getChannel(TerminalIpcChannels.Heartbeat));
