@@ -12,7 +12,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { Metadata, isIExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtension, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
+import { FileOperationResult, IFileService, hasFileAtomicWriteCapability, toFileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -290,7 +290,8 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 					relativeLocation: this.toRelativePath(e.location),
 					metadata: e.metadata
 				}));
-				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)));
+				const fsp = this.fileService.getProvider(file.scheme);
+				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)), fsp && hasFileAtomicWriteCapability(fsp) ? { atomic: { postfix: '.vsctmp' } } : undefined);
 			}
 
 			return extensions;
