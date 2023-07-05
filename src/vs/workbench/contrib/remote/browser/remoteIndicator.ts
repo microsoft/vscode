@@ -836,7 +836,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			this._register(this.onDidChangeEntries(() => {
 				// If quick pick is open, update the quick pick items after initialization.
 				quickPick.busy = false;
-				quickPick.placeholder = nls.localize('remoteActions', "Select an option to open a Remote Window");
 				quickPick.items = computeItems();
 			}));
 		}
