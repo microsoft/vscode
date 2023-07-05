@@ -373,10 +373,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._tasksReconnected = true;
 			return;
 		}
-		this._getTaskSystem();
 		this.getWorkspaceTasks().then(async () => {
 			this._tasksReconnected = await this._reconnectTasks();
 		});
+	}
+
+	private async _waitForTaskSystem(): Promise<void> {
+		if (this.hasTaskSystemInfo) {
+			return;
+		}
+		// Wait until we have task system info (the extension host and workspace folders are available).
+		this._logService.trace('RunBuildTask: Awaiting task system info.');
+		await Event.toPromise(Event.once(this.onDidChangeTaskSystemInfo));
 	}
 
 	private async _reconnectTasks(): Promise<boolean> {
@@ -2199,6 +2207,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!(await this._trust())) {
 			return new Map();
 		}
+		await this._waitForTaskSystem();
 		await this._waitForSupportedExecutions;
 		// The build task might be run before folder open. On folder open, we need to update the tasks so that
 		// all tasks are parsed. #173384
@@ -2750,6 +2759,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _runTaskCommand(filter?: string | ITaskIdentifier): Promise<void> {
+		await this._waitForTaskSystem();
 		if (!filter) {
 			return this._doRunTaskCommand();
 		}
@@ -2907,6 +2917,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: strings.fetching
 		};
 		const promise = (async () => {
+			await this._waitForTaskSystem();
 			let taskGroupTasks: (Task | ConfiguringTask)[] = [];
 
 			async function runSingleTask(task: Task | undefined, problemMatcherOptions: IProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
