@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-// ESM-comment-begin
 import { COI } from 'vs/base/common/network';
-// ESM-comment-end
 import { URI } from 'vs/base/common/uri';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 
@@ -44,8 +42,11 @@ function getWorker(workerMainLocation: URI | undefined, label: string): Worker |
 	}
 	// ESM-comment-end
 	if (workerMainLocation) {
-		const workerUrl = workerMainLocation.toString(true);
-		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
+
+		const workerURL = new URL(workerMainLocation.toString(true));
+		COI.addSearchParam(workerURL.searchParams, true, true);
+
+		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerURL.href) as unknown as string : workerURL.href, { name: label });
 	}
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
 }
