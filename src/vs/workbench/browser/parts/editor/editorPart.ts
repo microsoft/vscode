@@ -554,7 +554,14 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private getSplitSizingStyle(): Sizing {
-		return this._partOptions.splitSizing === 'split' ? Sizing.Split : Sizing.Distribute;
+		switch (this._partOptions.splitSizing) {
+			case 'distribute':
+				return Sizing.Distribute;
+			case 'split':
+				return Sizing.Split;
+			default:
+				return Sizing.Auto;
+		}
 	}
 
 	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null): IEditorGroupView {

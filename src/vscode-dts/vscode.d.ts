@@ -7443,6 +7443,11 @@ declare module 'vscode' {
 		 * Controls whether the terminal is cleared before executing the task.
 		 */
 		clear?: boolean;
+
+		/**
+		 * Controls whether the terminal is closed after executing the task.
+		 */
+		close?: boolean;
 	}
 
 	/**
@@ -10153,21 +10158,22 @@ declare module 'vscode' {
 		/**
 		 * Creates a status bar {@link StatusBarItem item}.
 		 *
-		 * @param alignment The alignment of the item.
-		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
-		 * @return A new status bar item.
-		 */
-		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
-
-		/**
-		 * Creates a status bar {@link StatusBarItem item}.
-		 *
-		 * @param id The unique identifier of the item.
+		 * @param id The identifier of the item. Must be unique within the extension.
 		 * @param alignment The alignment of the item.
 		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
 		 * @return A new status bar item.
 		 */
 		export function createStatusBarItem(id: string, alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
+
+		/**
+		 * Creates a status bar {@link StatusBarItem item}.
+		 *
+		 * @see {@link createStatusBarItem} for creating a status bar item with an identifier.
+		 * @param alignment The alignment of the item.
+		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
+		 * @return A new status bar item.
+		 */
+		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
 
 		/**
 		 * Creates a {@link Terminal} with a backing shell process. The cwd of the terminal will be the workspace
@@ -10386,6 +10392,44 @@ declare module 'vscode' {
 		* An optional interface to implement drag and drop in the tree view.
 		*/
 		dragAndDropController?: TreeDragAndDropController<T>;
+
+		/**
+		 * By default, when the children of a tree item have already been fetched, child checkboxes are automatically managed based on the checked state of the parent tree item.
+		 * If the tree item is collapsed by default (meaning that the children haven't yet been fetched) then child checkboxes will not be updated.
+		 * To override this behavior and manage child and parent checkbox state in the extension, set this to `true`.
+		 *
+		 * Examples where {@link TreeViewOptions.manageCheckboxStateManually} is false, the default behavior:
+		 *
+		 * 1. A tree item is checked, then its children are fetched. The children will be checked.
+		 *
+		 * 2. A tree item's parent is checked. The tree item and all of it's siblings will be checked.
+		 *   - [ ] Parent
+		 *     - [ ] Child 1
+		 *     - [ ] Child 2
+		 *   When the user checks Parent, the tree will look like this:
+		 *   - [x] Parent
+		 *     - [x] Child 1
+		 *     - [x] Child 2
+		 *
+		 * 3. A tree item and all of it's siblings are checked. The parent will be checked.
+		 *   - [ ] Parent
+		 *     - [ ] Child 1
+		 *     - [ ] Child 2
+		 *   When the user checks Child 1 and Child 2, the tree will look like this:
+		 *   - [x] Parent
+		 *     - [x] Child 1
+		 *     - [x] Child 2
+		 *
+		 * 4. A tree item is unchecked. The parent will be unchecked.
+		 *   - [x] Parent
+		 *     - [x] Child 1
+		 *     - [x] Child 2
+		 *   When the user unchecks Child 1, the tree will look like this:
+		 *   - [ ] Parent
+		 *     - [ ] Child 1
+		 *     - [x] Child 2
+		 */
+		manageCheckboxStateManually?: boolean;
 	}
 
 	/**
@@ -10603,6 +10647,16 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * An event describing the change in a tree item's checkbox state.
+	 */
+	export interface TreeCheckboxChangeEvent<T> {
+		/**
+		* The items that were checked or unchecked.
+		*/
+		readonly items: ReadonlyArray<[T, TreeItemCheckboxState]>;
+	}
+
+	/**
 	 * Represents a Tree view
 	 */
 	export interface TreeView<T> extends Disposable {
@@ -10636,6 +10690,11 @@ declare module 'vscode' {
 		 * Event that is fired when {@link TreeView.visible visibility} has changed
 		 */
 		readonly onDidChangeVisibility: Event<TreeViewVisibilityChangeEvent>;
+
+		/**
+		* An event to signal that an element or root has either been checked or unchecked.
+		*/
+		readonly onDidChangeCheckboxState: Event<TreeCheckboxChangeEvent<T>>;
 
 		/**
 		 * An optional human-readable message that will be rendered in the view.
@@ -10819,6 +10878,12 @@ declare module 'vscode' {
 		accessibilityInformation?: AccessibilityInformation;
 
 		/**
+		 * {@link TreeItemCheckboxState TreeItemCheckboxState} of the tree item.
+		 * {@link TreeDataProvider.onDidChangeTreeData onDidChangeTreeData} should be fired when {@link TreeItem.checkboxState checkboxState} changes.
+		 */
+		checkboxState?: TreeItemCheckboxState | { readonly state: TreeItemCheckboxState; readonly tooltip?: string; readonly accessibilityInformation?: AccessibilityInformation };
+
+		/**
 		 * @param label A human-readable string describing this item
 		 * @param collapsibleState {@link TreeItemCollapsibleState} of the tree item. Default is {@link TreeItemCollapsibleState.None}
 		 */
@@ -10864,6 +10929,20 @@ declare module 'vscode' {
 		 * first is the inclusive start index and the second the exclusive end index
 		 */
 		highlights?: [number, number][];
+	}
+
+	/**
+	* Checkbox state of the tree item
+	*/
+	export enum TreeItemCheckboxState {
+		/**
+		 * Determines an item is unchecked
+		 */
+		Unchecked = 0,
+		/**
+		 * Determines an item is checked
+		 */
+		Checked = 1
 	}
 
 	/**
@@ -11257,6 +11336,12 @@ declare module 'vscode' {
 		 * is cleared. Defaults to true.
 		 */
 		persistent: boolean;
+
+		/**
+		 * A description for the environment variable collection, this will be used to describe the
+		 * changes in the UI.
+		 */
+		description: string | MarkdownString | undefined;
 
 		/**
 		 * Replace an environment variable with a value.
@@ -16356,7 +16441,7 @@ declare module 'vscode' {
 		appendOutput(output: string, location?: Location, test?: TestItem): void;
 
 		/**
-		 * Signals that the end of the test run. Any tests included in the run whose
+		 * Signals the end of the test run. Any tests included in the run whose
 		 * states have not been updated will have their state reset.
 		 */
 		end(): void;
@@ -16782,7 +16867,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents the main editor area which consists of multple groups which contain tabs.
+	 * Represents the main editor area which consists of multiple groups which contain tabs.
 	 */
 	export interface TabGroups {
 		/**

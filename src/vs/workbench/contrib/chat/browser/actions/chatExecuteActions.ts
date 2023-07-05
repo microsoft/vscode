@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_INTERACTIVE_INPUT_HAS_TEXT, CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatExecuteActionContext {
@@ -32,10 +32,10 @@ export function registerChatExecuteActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.send,
-				precondition: CONTEXT_INTERACTIVE_INPUT_HAS_TEXT,
+				precondition: CONTEXT_CHAT_INPUT_HAS_TEXT,
 				menu: {
 					id: MenuId.ChatExecute,
-					when: CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.negate(),
+					when: CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
 					group: 'navigation',
 				}
 			});
@@ -64,7 +64,7 @@ export function registerChatExecuteActions() {
 				icon: Codicon.debugStop,
 				menu: {
 					id: MenuId.ChatExecute,
-					when: CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS,
+					when: CONTEXT_CHAT_REQUEST_IN_PROGRESS,
 					group: 'navigation',
 				}
 			});

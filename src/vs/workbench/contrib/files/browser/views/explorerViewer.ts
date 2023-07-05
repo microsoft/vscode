@@ -1140,6 +1140,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				return false;
 			}
 
+			if (!isCopy && items.every((source) => source.isReadonly)) {
+				return false; // Cannot move readonly items unless we copy
+			}
+
 			if (items.some((source) => {
 				if (source.isRoot && target instanceof ExplorerItem && !target.isRoot) {
 					return true; // Root folder can not be moved to a non root file stat.

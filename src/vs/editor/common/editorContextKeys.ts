@@ -24,7 +24,7 @@ export namespace EditorContextKeys {
 	 */
 	export const textInputFocus = new RawContextKey<boolean>('textInputFocus', false, nls.localize('textInputFocus', "Whether an editor or a rich text input has focus (cursor is blinking)"));
 
-	export const readOnly = new RawContextKey<boolean>('editorReadonly', false, nls.localize('editorReadonly', "Whether the editor is read only"));
+	export const readOnly = new RawContextKey<boolean>('editorReadonly', false, nls.localize('editorReadonly', "Whether the editor is read-only"));
 	export const inDiffEditor = new RawContextKey<boolean>('inDiffEditor', false, nls.localize('inDiffEditor', "Whether the context is a diff editor"));
 	export const isEmbeddedDiffEditor = new RawContextKey<boolean>('isEmbeddedDiffEditor', false, nls.localize('isEmbeddedDiffEditor', "Whether the context is an embedded diff editor"));
 	export const columnSelection = new RawContextKey<boolean>('editorColumnSelection', false, nls.localize('editorColumnSelection', "Whether `editor.columnSelection` is enabled"));

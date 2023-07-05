@@ -109,8 +109,9 @@ export interface NativeParsedArgs {
 	'locate-shell-integration-path'?: string;
 	'profile'?: string;
 	'profile-temp'?: boolean;
+	'disable-chromium-sandbox'?: boolean;
 
-	'enable-coi'?: boolean;
+	'disable-coi'?: boolean;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;

@@ -28,7 +28,6 @@ export interface IQuickPickItem {
 	type?: 'item';
 	id?: string;
 	label: string;
-	meta?: string;
 	ariaLabel?: string;
 	description?: string;
 	detail?: string;
@@ -40,6 +39,8 @@ export interface IQuickPickItem {
 	 */
 	keybinding?: ResolvedKeybinding;
 	iconClasses?: readonly string[];
+	iconPath?: { dark: URI; light?: URI };
+	iconClass?: string;
 	italic?: boolean;
 	strikethrough?: boolean;
 	highlights?: IQuickPickItemHighlights;

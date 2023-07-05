@@ -202,6 +202,26 @@ const editorConfiguration: IConfigurationNode = {
 			],
 			tags: ['experimental'],
 		},
+		'diffEditor.experimental.collapseUnchangedRegions': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('collapseUnchangedRegions', "Controls whether the diff editor shows unchanged regions. Only works when {0} is set.", '`#diffEditor.experimental.useVersion2#`'),
+		},
+		'diffEditor.experimental.showMoves': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('showMoves', "Controls whether the diff editor should show detected code moves. Only works when {0} is set.", '`#diffEditor.experimental.useVersion2#`')
+		},
+		'diffEditor.experimental.useVersion2': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('useVersion2', "Controls whether the diff editor uses the new or the old implementation."),
+		},
+		'diffEditor.experimental.showEmptyDecorations': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('showEmptyDecorations', "Controls whether the diff editor shows empty decorations to see where characters got inserted or deleted."),
+		}
 	}
 };
 

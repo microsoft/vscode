@@ -109,6 +109,9 @@ import { UserDataAutoSyncService } from 'vs/platform/userDataSync/node/userDataA
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { RemoteStorageService } from 'vs/platform/storage/common/storageService';
+import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
+import { RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 
 class SharedProcessMain extends Disposable {
 
@@ -338,6 +341,9 @@ class SharedProcessMain extends Disposable {
 		services.set(ISignService, new SyncDescriptor(SignService, undefined, false /* proxied to other processes */));
 
 		// Tunnel
+		const remoteSocketFactoryService = new RemoteSocketFactoryService();
+		services.set(IRemoteSocketFactoryService, remoteSocketFactoryService);
+		remoteSocketFactoryService.register(RemoteConnectionType.WebSocket, nodeSocketFactory);
 		services.set(ISharedTunnelsService, new SyncDescriptor(SharedTunnelsService));
 		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService));
 

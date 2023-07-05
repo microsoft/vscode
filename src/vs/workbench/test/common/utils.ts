@@ -12,6 +12,8 @@ import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
  * and can be used to add assertions. e.g. that registries are empty, etc.
  *
  * !! This is called directly by the testing framework.
+ *
+ * @skipMangle
  */
 export function assertCleanState(): void {
 	// If this test fails, it is a clear indication that

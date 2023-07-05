@@ -22,10 +22,24 @@ const enum CharCode {
 
 let outputChannel: vscode.OutputChannel;
 
+const SLOWED_DOWN_CONNECTION_DELAY = 800;
+
 export function activate(context: vscode.ExtensionContext) {
 
 	let connectionPaused = false;
 	const connectionPausedEvent = new vscode.EventEmitter<boolean>();
+
+	let connectionSlowedDown = false;
+	const connectionSlowedDownEvent = new vscode.EventEmitter<boolean>();
+	const slowedDownConnections = new Set<Function>();
+	connectionSlowedDownEvent.event(slowed => {
+		if (!slowed) {
+			for (const cb of slowedDownConnections) {
+				cb();
+			}
+			slowedDownConnections.clear();
+		}
+	});
 
 	function getTunnelFeatures(): vscode.TunnelInformation['tunnelFeatures'] {
 		return {
@@ -48,6 +62,22 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			] : []
 		};
+	}
+
+	function maybeSlowdown(): Promise<void> | void {
+		if (connectionSlowedDown) {
+			return new Promise(resolve => {
+				const handle = setTimeout(() => {
+					resolve();
+					slowedDownConnections.delete(resolve);
+				}, SLOWED_DOWN_CONNECTION_DELAY);
+
+				slowedDownConnections.add(() => {
+					resolve();
+					clearTimeout(handle);
+				});
+			});
+		}
 	}
 
 	function doResolve(authority: string, progress: vscode.Progress<{ message?: string; increment?: number }>): Promise<vscode.ResolverResult> {
@@ -237,13 +267,15 @@ export function activate(context: vscode.ExtensionContext) {
 					connectionPausedEvent.event(_ => handleConnectionPause());
 					handleConnectionPause();
 
-					proxySocket.on('data', (data) => {
+					proxySocket.on('data', async (data) => {
+						await maybeSlowdown();
 						remoteReady = remoteSocket.write(data);
 						if (!remoteReady) {
 							proxySocket.pause();
 						}
 					});
-					remoteSocket.on('data', (data) => {
+					remoteSocket.on('data', async (data) => {
+						await maybeSlowdown();
 						localReady = proxySocket.write(data);
 						if (!localReady) {
 							remoteSocket.pause();
@@ -356,6 +388,22 @@ export function activate(context: vscode.ExtensionContext) {
 			pauseStatusBarEntry.hide();
 		}
 		connectionPausedEvent.fire(connectionPaused);
+	}));
+
+	const slowdownStatusBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+	slowdownStatusBarEntry.text = 'Remote connection slowed down. Click to undo';
+	slowdownStatusBarEntry.command = 'vscode-testresolver.toggleConnectionSlowdown';
+	slowdownStatusBarEntry.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.toggleConnectionSlowdown', () => {
+		if (!connectionSlowedDown) {
+			connectionSlowedDown = true;
+			slowdownStatusBarEntry.show();
+		} else {
+			connectionSlowedDown = false;
+			slowdownStatusBarEntry.hide();
+		}
+		connectionSlowedDownEvent.fire(connectionSlowedDown);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.openTunnel', async () => {

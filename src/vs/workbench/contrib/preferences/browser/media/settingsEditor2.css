@@ -160,6 +160,11 @@
 	color: var(--vscode-settings-headerForeground);
 }
 
+.settings-editor > .settings-body .settings-tree-container .setting-item-extension-toggle .setting-item-extension-toggle-button {
+	display: block;
+	width: fit-content;
+}
+
 .settings-editor.no-results > .settings-body .settings-toc-container,
 .settings-editor.no-results > .settings-body .settings-tree-container {
 	display: none;
@@ -481,6 +486,7 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-number input[type=number] {
 	/* Hide arrow button that shows in type=number fields */
 	-moz-appearance: textfield !important;
+	appearance: textfield !important;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown * {
@@ -556,7 +562,7 @@
 	padding: 0px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-value-checkbox.codicon:not(.checked)::before  {
+.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-value-checkbox.codicon:not(.checked)::before {
 	opacity: 0;
 }
 

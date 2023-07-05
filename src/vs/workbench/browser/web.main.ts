@@ -91,6 +91,7 @@ import { UserDataSyncInitializer } from 'vs/workbench/services/userDataSync/brow
 import { BrowserRemoteResourceLoader } from 'vs/workbench/services/remote/browser/browserRemoteResourceHandler';
 import { BufferLogger } from 'vs/platform/log/common/bufferLog';
 import { FileLoggerService } from 'vs/platform/log/common/fileLog';
+import { IEmbedderTerminalService } from 'vs/workbench/services/terminal/common/embedderTerminalService';
 
 export class BrowserMain extends Disposable {
 
@@ -151,6 +152,7 @@ export class BrowserMain extends Disposable {
 			const instantiationService = accessor.get(IInstantiationService);
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const labelService = accessor.get(ILabelService);
+			const embedderTerminalService = accessor.get(IEmbedderTerminalService);
 
 			let logger: DelayedLogChannel | undefined = undefined;
 
@@ -181,7 +183,8 @@ export class BrowserMain extends Disposable {
 					}
 				},
 				window: {
-					withProgress: (options, task) => progressService.withProgress(options, task)
+					withProgress: (options, task) => progressService.withProgress(options, task),
+					createTerminal: (options) => embedderTerminalService.createTerminal(options),
 				},
 				workspace: {
 					openTunnel: async tunnelOptions => {

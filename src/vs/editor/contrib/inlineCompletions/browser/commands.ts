@@ -198,7 +198,7 @@ export class ToggleAlwaysShowInlineSuggestionToolbar extends Action2 {
 				group: 'secondary',
 				order: 10,
 			}],
-			toggled: InlineCompletionContextKeys.alwaysShowInlineSuggestionToolbar,
+			toggled: ContextKeyExpr.equals('config.editor.inlineSuggest.showToolbar', 'always')
 		});
 	}
 

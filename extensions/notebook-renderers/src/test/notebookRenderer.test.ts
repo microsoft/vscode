@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { activate } from '..';
 import { OutputItem, RendererApi } from 'vscode-notebook-renderer';
-import { IRichRenderContext, RenderOptions } from '../rendererTypes';
+import { IDisposable, IRichRenderContext, RenderOptions } from '../rendererTypes';
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM();
@@ -37,7 +37,15 @@ suite('Notebook builtin output renderer', () => {
 
 	type optionalRenderOptions = { [k in keyof RenderOptions]?: RenderOptions[k] };
 
+	type handler = (e: RenderOptions) => any;
+
+	const settingsChangedHandlers: handler[] = [];
+	function fireSettingsChange(options: optionalRenderOptions) {
+		settingsChangedHandlers.forEach((handler) => handler(options as RenderOptions));
+	}
+
 	function createContext(settings?: optionalRenderOptions): IRichRenderContext {
+		settingsChangedHandlers.length = 0;
 		return {
 			setState(_value: void) { },
 			getState() { return undefined; },
@@ -48,9 +56,16 @@ suite('Notebook builtin output renderer', () => {
 				lineLimit: 30,
 				...settings
 			} as RenderOptions,
-			onDidChangeSettings<T>(_listener: (e: T) => any, _thisArgs?: any, _disposables?: any) {
+			onDidChangeSettings(listener: handler, _thisArgs?: any, disposables?: IDisposable[]) {
+				settingsChangedHandlers.push(listener);
+
+				const dispose = () => {
+					settingsChangedHandlers.splice(settingsChangedHandlers.indexOf(listener), 1);
+				};
+
+				disposables?.push({ dispose });
 				return {
-					dispose(): void { }
+					dispose
 				};
 			},
 			workspace: {
@@ -81,6 +96,10 @@ suite('Notebook builtin output renderer', () => {
 			outputContainer.appendChild(outputElement);
 
 			this.firstOutput = outputElement;
+		}
+
+		public get cellElement() {
+			return this.cell;
 		}
 
 		public getFirstOuputElement() {
@@ -146,7 +165,7 @@ suite('Notebook builtin output renderer', () => {
 
 			const inserted = outputElement.firstChild as HTMLElement;
 			assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
-			assert.ok(!outputElement.classList.contains('remove-padding'), `Padding should not be removed for non-scrollable outputs: ${outputElement.classList}`);
+			assert.ok(outputElement.classList.contains('remove-padding'), `Padding should be removed for non-scrollable outputs: ${outputElement.classList}`);
 			assert.ok(!inserted.classList.contains('word-wrap') && !inserted.classList.contains('scrollable'),
 				`output content classList should not contain word-wrap and scrollable ${inserted.classList}`);
 			assert.ok(inserted.innerHTML.indexOf('>content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
@@ -224,6 +243,103 @@ suite('Notebook builtin output renderer', () => {
 		assert.ok(inserted.innerHTML.indexOf('>first stream content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
 		assert.ok(inserted.innerHTML.indexOf('>second stream content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
 		assert.ok(inserted.innerHTML.indexOf('>third stream content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
+	});
+
+	test(`Consolidated streaming outputs should replace matching outputs correctly`, async () => {
+		const context = createContext({ outputScrolling: false });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputHtml = new OutputHtml();
+		const outputElement = outputHtml.getFirstOuputElement();
+		const outputItem1 = createOutputItem('first stream content', stdoutMimeType, '1');
+		const outputItem2 = createOutputItem('second stream content', stdoutMimeType, '2');
+		await renderer!.renderOutputItem(outputItem1, outputElement);
+		const secondOutput = outputHtml.appendOutputElement();
+		await renderer!.renderOutputItem(outputItem2, secondOutput);
+		const newOutputItem1 = createOutputItem('replaced content', stdoutMimeType, '2');
+		await renderer!.renderOutputItem(newOutputItem1, secondOutput);
+
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>first stream content</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>replaced content</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>second stream content</') === -1, `Content was not replaced in output element: ${outputHtml.cellElement.innerHTML}`);
+	});
+
+	test(`Streaming outputs interleaved with other mime types will produce separate outputs`, async () => {
+		const context = createContext({ outputScrolling: false });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputHtml = new OutputHtml();
+		const firstOutputElement = outputHtml.getFirstOuputElement();
+		const outputItem1 = createOutputItem('first stream content', stdoutMimeType, '1');
+		const outputItem2 = createOutputItem(JSON.stringify(error), errorMimeType, '2');
+		const outputItem3 = createOutputItem('second stream content', stdoutMimeType, '3');
+		await renderer!.renderOutputItem(outputItem1, firstOutputElement);
+		const secondOutputElement = outputHtml.appendOutputElement();
+		await renderer!.renderOutputItem(outputItem2, secondOutputElement);
+		const thirdOutputElement = outputHtml.appendOutputElement();
+		await renderer!.renderOutputItem(outputItem3, thirdOutputElement);
+
+		assert.ok(firstOutputElement.innerHTML.indexOf('>first stream content</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(secondOutputElement.innerHTML.indexOf('>NameError</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(thirdOutputElement.innerHTML.indexOf('>second stream content</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+	});
+
+	test(`Multiple adjacent streaming outputs, rerendering the first should erase the rest`, async () => {
+		const context = createContext();
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputHtml = new OutputHtml();
+		const outputElement = outputHtml.getFirstOuputElement();
+		const outputItem1 = createOutputItem('first stream content', stdoutMimeType, '1');
+		const outputItem2 = createOutputItem('second stream content', stdoutMimeType, '2');
+		const outputItem3 = createOutputItem('third stream content', stderrMimeType, '3');
+		await renderer!.renderOutputItem(outputItem1, outputElement);
+		await renderer!.renderOutputItem(outputItem2, outputHtml.appendOutputElement());
+		await renderer!.renderOutputItem(outputItem3, outputHtml.appendOutputElement());
+		const newOutputItem1 = createOutputItem('replaced content', stderrMimeType, '1');
+		await renderer!.renderOutputItem(newOutputItem1, outputElement);
+
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>replaced content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>first stream content</') === -1, `Content was not cleared: ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>second stream content</') === -1, `Content was not cleared: ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>third stream content</') === -1, `Content was not cleared: ${outputElement.innerHTML}`);
+	});
+
+	test(`Rendered output will wrap on settings change event`, async () => {
+		const context = createContext({ outputWordWrap: false, outputScrolling: true });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputElement = new OutputHtml().getFirstOuputElement();
+		const outputItem = createOutputItem('content', stdoutMimeType);
+		await renderer!.renderOutputItem(outputItem, outputElement);
+		fireSettingsChange({ outputWordWrap: true, outputScrolling: true });
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
+			`output content classList should contain word-wrap and scrollable ${inserted.classList}`);
+	});
+
+	test(`Settings event change listeners should not grow if output is re-rendered`, async () => {
+		const context = createContext({ outputWordWrap: false });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputElement = new OutputHtml().getFirstOuputElement();
+		await renderer!.renderOutputItem(createOutputItem('content', stdoutMimeType), outputElement);
+		const handlerCount = settingsChangedHandlers.length;
+		await renderer!.renderOutputItem(createOutputItem('content', stdoutMimeType), outputElement);
+
+		assert.equal(settingsChangedHandlers.length, handlerCount);
 	});
 });
 

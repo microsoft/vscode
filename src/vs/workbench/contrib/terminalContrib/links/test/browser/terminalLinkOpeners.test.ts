@@ -22,10 +22,11 @@ import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilitie
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 import { IFileQuery, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
-import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
+import { ITerminalLogService, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
+import { importAMDNodeModule } from 'vs/amdX';
 
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
@@ -75,7 +76,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 	let activationResult: ITerminalLinkActivationResult | undefined;
 	let xterm: Terminal;
 
-	setup(() => {
+	setup(async () => {
 		instantiationService = new TestInstantiationService();
 		fileService = new TestFileService(new NullLogService());
 		searchService = new TestSearchService(null!, null!, null!, null!, null!, null!, null!);
@@ -83,6 +84,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.set(ISearchService, searchService);
 		instantiationService.set(IWorkspaceContextService, new TestContextService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IWorkbenchEnvironmentService, {
 			remoteAuthority: undefined
 		} as Partial<IWorkbenchEnvironmentService>);
@@ -107,7 +109,8 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				}
 			}
 		} as Partial<IEditorService>);
-		xterm = new Terminal({ allowProposedApi: true });
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		xterm = new TerminalCtor({ allowProposedApi: true });
 	});
 
 	suite('TerminalSearchLinkOpener', () => {
@@ -331,7 +334,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					source: 'editor',
 					selection: {
 						startColumn: 5,
-						startLineNumber: 10
+						startLineNumber: 10,
+						endColumn: undefined,
+						endLineNumber: undefined
 					},
 				});
 			});
@@ -420,7 +425,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					source: 'editor',
 					selection: {
 						startColumn: 5,
-						startLineNumber: 10
+						startLineNumber: 10,
+						endColumn: undefined,
+						endLineNumber: undefined
 					},
 				});
 				await opener.open({
@@ -433,7 +440,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					source: 'editor',
 					selection: {
 						startColumn: 5,
-						startLineNumber: 10
+						startLineNumber: 10,
+						endColumn: undefined,
+						endLineNumber: undefined
 					},
 				});
 			});

@@ -19,13 +19,18 @@ export const memFs = 'memfs';
 export const vscodeVfs = 'vscode-vfs';
 export const officeScript = 'office-script';
 
-export const semanticSupportedSchemes = isWeb() && vscode.workspace.workspaceFolders ?
-	vscode.workspace.workspaceFolders.map(folder => folder.uri.scheme) : [
+export function getSemanticSupportedSchemes() {
+	if (isWeb() && vscode.workspace.workspaceFolders) {
+		return vscode.workspace.workspaceFolders.map(folder => folder.uri.scheme);
+	}
+
+	return [
 		file,
 		untitled,
 		walkThroughSnippet,
 		vscodeNotebookCell,
 	];
+}
 
 /**
  * File scheme for which JS/TS language feature should be disabled

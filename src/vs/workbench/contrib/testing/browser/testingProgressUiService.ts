@@ -13,8 +13,8 @@ import { ProgressLocation, UnmanagedProgress } from 'vs/platform/progress/common
 import { IViewsService } from 'vs/workbench/common/views';
 import { AutoOpenTesting, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { LiveTestResult, TestResultItemChangeReason, TestStateCount } from 'vs/workbench/contrib/testing/common/testResult';
+import { isFailedState, TestStateCount } from 'vs/workbench/contrib/testing/common/testingStates';
+import { LiveTestResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 

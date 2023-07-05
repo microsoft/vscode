@@ -188,6 +188,7 @@ interface ICommandImplementationRegistration {
 	priority: number;
 	name: string;
 	implementation: CommandImplementation;
+	when?: ContextKeyExpression;
 }
 
 export class MultiCommand extends Command {
@@ -197,8 +198,8 @@ export class MultiCommand extends Command {
 	/**
 	 * A higher priority gets to be looked at first
 	 */
-	public addImplementation(priority: number, name: string, implementation: CommandImplementation): IDisposable {
-		this._implementations.push({ priority, name, implementation });
+	public addImplementation(priority: number, name: string, implementation: CommandImplementation, when?: ContextKeyExpression): IDisposable {
+		this._implementations.push({ priority, name, implementation, when });
 		this._implementations.sort((a, b) => b.priority - a.priority);
 		return {
 			dispose: () => {
@@ -214,8 +215,16 @@ export class MultiCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
 		const logService = accessor.get(ILogService);
+		const contextKeyService = accessor.get(IContextKeyService);
 		logService.trace(`Executing Command '${this.id}' which has ${this._implementations.length} bound.`);
 		for (const impl of this._implementations) {
+			if (impl.when) {
+				const context = contextKeyService.getContext(document.activeElement);
+				const value = impl.when.evaluate(context);
+				if (!value) {
+					continue;
+				}
+			}
 			const result = impl.implementation(accessor, args);
 			if (result) {
 				logService.trace(`Command '${this.id}' was handled by '${impl.name}'.`);
@@ -450,9 +459,13 @@ export abstract class EditorAction2 extends Action2 {
 		// precondition does hold
 		return editor.invokeWithinContext((editorAccessor) => {
 			const kbService = editorAccessor.get(IContextKeyService);
-			if (kbService.contextMatchesRules(withNullAsUndefined(this.desc.precondition))) {
-				return this.runEditorCommand(editorAccessor, editor!, ...args);
+			const logService = editorAccessor.get(ILogService);
+			const enabled = kbService.contextMatchesRules(withNullAsUndefined(this.desc.precondition));
+			if (!enabled) {
+				logService.debug(`[EditorAction2] NOT running command because its precondition is FALSE`, this.desc.id, this.desc.precondition?.serialize());
+				return;
 			}
+			return this.runEditorCommand(editorAccessor, editor!, ...args);
 		});
 	}
 

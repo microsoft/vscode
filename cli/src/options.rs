@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::constants::{APPLICATION_NAME_MAP, PRODUCT_NAME_LONG_MAP, SERVER_NAME_MAP};
 
-#[derive(clap::ArgEnum, Copy, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(clap::ValueEnum, Copy, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Quality {
 	#[serde(rename = "stable")]
 	Stable,
@@ -95,7 +95,7 @@ impl TryFrom<&str> for Quality {
 	}
 }
 
-#[derive(clap::ArgEnum, Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(clap::ValueEnum, Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TelemetryLevel {
 	Off,
 	Crash,

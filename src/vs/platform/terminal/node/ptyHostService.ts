@@ -13,21 +13,16 @@ import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IPtyService, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, ITerminalLaunchError, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ProcessPropertyType, TerminalIcon, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IPtyService, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, ITerminalLaunchError, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ProcessPropertyType, TerminalIcon, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
+import * as performance from 'vs/base/common/performance';
 
 enum Constants {
 	MaxRestarts = 5
 }
-
-/**
- * Tracks the last terminal ID from the pty host so we can give it to the new pty host if it's
- * restarted and avoid ID conflicts.
- */
-let lastPtyId = 0;
 
 /**
  * This service implements IPtyService by launching a pty host process, forwarding messages to and
@@ -51,11 +46,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 	private _ensurePtyHost() {
 		if (!this.__connection) {
-			[this.__connection, this.__proxy] = this._startPtyHost();
+			this._startPtyHost();
 		}
 	}
 
-	private readonly _shellEnv: Promise<typeof process.env>;
 	private readonly _resolveVariablesRequestStore: RequestStore<string[], { workspaceId: string; originalText: string[] }>;
 	private _wasQuitRequested = false;
 	private _restartCount = 0;
@@ -77,7 +71,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number; event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessReady = this._register(new Emitter<{ id: number; event: { pid: number; cwd: string } }>());
+	private readonly _onProcessReady = this._register(new Emitter<{ id: number; event: IProcessReadyEvent }>());
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessReplay = this._register(new Emitter<{ id: number; event: IPtyHostProcessReplayEvent }>());
 	readonly onProcessReplay = this._onProcessReplay.event;
@@ -102,10 +96,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// remote server).
 		registerTerminalPlatformConfiguration();
 
-		this._shellEnv = this._resolveShellEnv();
-
+		this._register(this._ptyHostStarter);
 		this._register(toDisposable(() => this._disposePtyHost()));
-
 
 		this._resolveVariablesRequestStore = this._register(new RequestStore(undefined, this._logService));
 		this._resolveVariablesRequestStore.onCreateRequest(this._onPtyHostRequestResolveVariables.fire, this._onPtyHostRequestResolveVariables);
@@ -144,15 +136,13 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	private _startPtyHost(): [IPtyHostConnection, IPtyService] {
-		const connection = this._ptyHostStarter.start(lastPtyId);
+		const connection = this._ptyHostStarter.start();
 		const client = connection.client;
-
-		this._onPtyHostStart.fire();
 
 		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts
 		const heartbeatService = ProxyChannel.toService<IHeartbeatService>(client.getChannel(TerminalIpcChannels.Heartbeat));
 		heartbeatService.onBeat(() => this._handleHeartbeat());
-		this._handleHeartbeat();
+		this._handleHeartbeat(true);
 
 		// Handle exit
 		this._register(connection.onDidProcessExit(e => {
@@ -178,14 +168,12 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
 		this._register(proxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
 
-		// HACK: When RemoteLoggerChannelClient is not delayed, the Pty Host log file won't show up
-		// in the Output view of the first window?
-		Event.once(Event.any(proxy.onProcessReady, proxy.onProcessReplay))(() => {
-			this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
-		});
+		this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
 
 		this.__connection = connection;
 		this.__proxy = proxy;
+
+		this._onPtyHostStart.fire();
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingId.IgnoreProcessNames)) {
@@ -218,7 +206,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		const timeout = setTimeout(() => this._handleUnresponsiveCreateProcess(), HeartbeatConstants.CreateProcessTimeout);
 		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, options, shouldPersist, workspaceId, workspaceName);
 		clearTimeout(timeout);
-		lastPtyId = Math.max(lastPtyId, id);
 		return id;
 	}
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
@@ -235,6 +222,12 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 	listProcesses(): Promise<IProcessDetails[]> {
 		return this._proxy.listProcesses();
+	}
+	async getPerformanceMarks(): Promise<performance.PerformanceMark[]> {
+		if (!this.__proxy) {
+			return [];
+		}
+		return this._proxy.getPerformanceMarks();
 	}
 	reduceConnectionGraceTime(): Promise<void> {
 		return this._proxy.reduceConnectionGraceTime();
@@ -253,6 +246,9 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 	resize(id: number, cols: number, rows: number): Promise<void> {
 		return this._proxy.resize(id, cols, rows);
+	}
+	clearBuffer(id: number): Promise<void> {
+		return this._proxy.clearBuffer(id);
 	}
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
 		return this._proxy.acknowledgeDataEvent(id, charCount);
@@ -287,18 +283,23 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
 	async getProfiles(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
-		const shellEnv = await this._shellEnv;
+		const shellEnv = await this._resolveShellEnv();
 		return detectAvailableProfiles(profiles, defaultProfile, includeDetectedProfiles, this._configurationService, shellEnv, undefined, this._logService, this._resolveVariables.bind(this, workspaceId));
 	}
-	getEnvironment(): Promise<IProcessEnvironment> {
+	async getEnvironment(): Promise<IProcessEnvironment> {
+		// If the pty host is yet to be launched, just return the environment of this process as it
+		// is essentially the same when used to evaluate terminal profiles.
+		if (!this.__proxy) {
+			return { ...process.env };
+		}
 		return this._proxy.getEnvironment();
 	}
 	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
 		return this._proxy.getWslPath(original, direction);
 	}
 
-	getRevivedPtyNewId(id: number): Promise<number | undefined> {
-		return this._proxy.getRevivedPtyNewId(id);
+	getRevivedPtyNewId(workspaceId: string, id: number): Promise<number | undefined> {
+		return this._proxy.getRevivedPtyNewId(workspaceId, id);
 	}
 
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
@@ -327,8 +328,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.serializeTerminalState(ids);
 	}
 
-	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string) {
-		return this._proxy.reviveTerminalProcesses(state, dateTimeFormatLocate);
+	async reviveTerminalProcesses(workspaceId: string, state: ISerializedTerminalState[], dateTimeFormatLocate: string) {
+		return this._proxy.reviveTerminalProcesses(workspaceId, state, dateTimeFormatLocate);
 	}
 
 	async refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]> {
@@ -350,9 +351,9 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._connection.store.dispose();
 	}
 
-	private _handleHeartbeat() {
+	private _handleHeartbeat(isConnecting?: boolean) {
 		this._clearHeartbeatTimeouts();
-		this._heartbeatFirstTimeout = setTimeout(() => this._handleHeartbeatFirstTimeout(), HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier);
+		this._heartbeatFirstTimeout = setTimeout(() => this._handleHeartbeatFirstTimeout(), isConnecting ? HeartbeatConstants.ConnectingBeatInterval : (HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier));
 		if (!this._isResponsive) {
 			this._isResponsive = true;
 			this._onPtyHostResponsive.fire();

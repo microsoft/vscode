@@ -38,6 +38,7 @@ impl SocketSignal {
 }
 
 /// todo@connor4312: cleanup once everything is moved to rpc standard interfaces
+#[allow(dead_code)]
 pub enum ServerMessageDestination {
 	Channel(mpsc::Sender<SocketSignal>),
 	Rpc(MsgPackCaller),

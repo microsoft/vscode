@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok } from 'assert';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
+import { importAMDNodeModule } from 'vs/amdX';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 
 type TestTerminalCommandMatch = Pick<ITerminalCommand, 'command' | 'cwd' | 'exitCode'> & { marker: { line: number } };
@@ -54,12 +55,13 @@ suite('CommandDetectionCapability', () => {
 		capability.handleCommandFinished(exitCode);
 	}
 
-	setup(() => {
-		xterm = new Terminal({ allowProposedApi: true, cols: 80 });
+	setup(async () => {
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+
+		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80 });
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(IContextMenuService, { showContextMenu(delegate: IContextMenuDelegate): void { } } as Partial<IContextMenuService>);
-		instantiationService.stub(ILogService, new NullLogService());
-		capability = instantiationService.createInstance(TestCommandDetectionCapability, xterm);
+		capability = new TestCommandDetectionCapability(xterm, new NullLogService());
 		addEvents = [];
 		capability.onCommandFinished(e => addEvents.push(e));
 		assertCommands([]);

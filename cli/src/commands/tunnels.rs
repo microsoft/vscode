@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 use async_trait::async_trait;
+use base64::{engine::general_purpose as b64, Engine as _};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{str::FromStr, time::Duration};
 use sysinfo::Pid;
@@ -25,17 +27,17 @@ use crate::{
 		code_server::CodeServerArgs,
 		create_service_manager, dev_tunnels, legal,
 		paths::get_all_servers,
-		protocol,
+		protocol, serve_stream,
 		shutdown_signal::ShutdownRequest,
 		singleton_client::do_single_rpc_call,
 		singleton_server::{
 			make_singleton_server, start_singleton_server, BroadcastLogSink, SingletonServerArgs,
 		},
-		Next, ServiceContainer, ServiceManager,
+		Next, ServeStreamParams, ServiceContainer, ServiceManager,
 	},
 	util::{
 		app_lock::AppMutex,
-		errors::{wrap, AnyError},
+		errors::{wrap, AnyError, CodeError},
 		prereqs::PreReqChecker,
 	},
 };
@@ -105,6 +107,25 @@ impl ServiceContainer for TunnelServiceContainer {
 		.await?;
 		Ok(())
 	}
+}
+
+pub async fn command_shell(ctx: CommandContext) -> Result<i32, AnyError> {
+	let platform = PreReqChecker::new().verify().await?;
+	serve_stream(
+		tokio::io::stdin(),
+		tokio::io::stderr(),
+		ServeStreamParams {
+			log: ctx.log,
+			launcher_paths: ctx.paths,
+			platform,
+			requires_auth: true,
+			exit_barrier: ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
+			code_server_args: (&ctx.args).into(),
+		},
+	)
+	.await;
+
+	Ok(0)
 }
 
 pub async fn service(
@@ -227,16 +248,37 @@ pub async fn kill(ctx: CommandContext) -> Result<i32, AnyError> {
 	.map_err(|e| e.into())
 }
 
+#[derive(Serialize)]
+pub struct StatusOutput {
+	pub tunnel: Option<protocol::singleton::TunnelState>,
+	pub service_installed: bool,
+}
+
 pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
-	let status: protocol::singleton::Status = do_single_rpc_call(
+	let tunnel_status = do_single_rpc_call::<_, protocol::singleton::Status>(
 		&ctx.paths.tunnel_lockfile(),
 		ctx.log.clone(),
 		protocol::singleton::METHOD_STATUS,
 		protocol::EmptyObject {},
 	)
-	.await?;
+	.await;
 
-	ctx.log.result(serde_json::to_string(&status).unwrap());
+	let service_installed = create_service_manager(ctx.log.clone(), &ctx.paths)
+		.is_installed()
+		.await
+		.unwrap_or(false);
+
+	ctx.log.result(
+		serde_json::to_string(&StatusOutput {
+			service_installed,
+			tunnel: match tunnel_status {
+				Ok(s) => Some(s.tunnel),
+				Err(CodeError::NoRunningTunnel) => None,
+				Err(e) => return Err(e.into()),
+			},
+		})
+		.unwrap(),
+	);
 
 	Ok(0)
 }
@@ -289,7 +331,7 @@ fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 	let mut hash = Sha256::new();
 	hash.update(tunnel.id.as_bytes());
 	let result = hash.finalize();
-	base64::encode_config(result, base64::URL_SAFE_NO_PAD)
+	b64::URL_SAFE_NO_PAD.encode(result)
 }
 
 async fn serve_with_csa(
@@ -302,6 +344,13 @@ async fn serve_with_csa(
 	let log_broadcast = BroadcastLogSink::new();
 	log = log.tee(log_broadcast.clone());
 	log::install_global_logger(log.clone()); // re-install so that library logs are captured
+
+	debug!(
+		log,
+		"Starting tunnel with `{} {}`",
+		APPLICATION_NAME,
+		std::env::args().collect::<Vec<_>>().join(" ")
+	);
 
 	// Intentionally read before starting the server. If the server updated and
 	// respawn is requested, the old binary will get renamed, and then
@@ -393,7 +442,10 @@ async fn serve_with_csa(
 
 				return Ok(exit.code().unwrap_or(1));
 			}
-			Next::Exit => return Ok(0),
+			Next::Exit => {
+				debug!(log, "Tunnel shut down");
+				return Ok(0);
+			}
 			Next::Restart => continue,
 		}
 	}

@@ -83,6 +83,13 @@ call "%INTEGRATION_TEST_ELECTRON_PATH%" %IPYNBWORKSPACE% --extensionDevelopmentP
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
+echo ### Notebook Output tests
+set NBOUTWORKSPACE=%TEMPDIR%\nbout-%RANDOM%
+mkdir %NBOUTWORKSPACE%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %NBOUTWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\notebook-renderers --extensionTestsPath=%~dp0\..\extensions\notebook-renderers\out\test %API_TESTS_EXTRA_ARGS%
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
 echo ### Configuration editing tests
 set CFWORKSPACE=%TEMPDIR%\cf-%RANDOM%
 mkdir %CFWORKSPACE%

@@ -28,6 +28,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
  * Stored file specific working copy model factory.
@@ -68,6 +69,15 @@ export interface IStoredFileWorkingCopyModel extends IFileWorkingCopyModel {
 	 * to the state before saving.
 	 */
 	pushStackElement(): void;
+
+	/**
+	 * Optionally allows a stored file working copy model to
+	 * implement the `save` method. This allows to implement
+	 * a more efficient save logic compared to the default
+	 * which is to ask the model for a `snapshot` and then
+	 * writing that to the model's resource.
+	 */
+	save?(options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata>;
 }
 
 export interface IStoredFileWorkingCopyModelContentChangedEvent {
@@ -117,9 +127,9 @@ export interface IStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> e
 	resolve(options?: IStoredFileWorkingCopyResolveOptions): Promise<void>;
 
 	/**
-	 * Explicitly sets the working copy to be dirty.
+	 * Explicitly sets the working copy to be modified.
 	 */
-	markDirty(): void;
+	markModified(): void;
 
 	/**
 	 * Whether the stored file working copy is in the provided `state`
@@ -145,7 +155,7 @@ export interface IStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> e
 	/**
 	 * Whether the stored file working copy is readonly or not.
 	 */
-	isReadonly(): boolean;
+	isReadonly(): boolean | IMarkdownString;
 }
 
 export interface IResolvedStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extends IStoredFileWorkingCopy<M> {
@@ -349,8 +359,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		return this.dirty;
 	}
 
-	markDirty(): void {
-		this.setDirty(true);
+	markModified(): void {
+		this.setDirty(true); // stored file working copy tracks modified via dirty
 	}
 
 	private setDirty(dirty: boolean): void {
@@ -756,6 +766,10 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 	//#region Backup
 
+	get backupDelay(): number | undefined {
+		return this.model?.configuration?.backupDelay;
+	}
+
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 
 		// Fill in metadata if we are resolved
@@ -969,34 +983,43 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			const resolvedFileWorkingCopy = this;
 			return this.saveSequentializer.setPending(versionId, (async () => {
 				try {
-
-					// Snapshot working copy model contents
-					const snapshot = await raceCancellation(resolvedFileWorkingCopy.model.snapshot(saveCancellation.token), saveCancellation.token);
-
-					// It is possible that a subsequent save is cancelling this
-					// running save. As such we return early when we detect that
-					// However, we do not pass the token into the file service
-					// because that is an atomic operation currently without
-					// cancellation support, so we dispose the cancellation if
-					// it was not cancelled yet.
-					if (saveCancellation.token.isCancellationRequested) {
-						return;
-					} else {
-						saveCancellation.dispose();
-					}
-
 					const writeFileOptions: IWriteFileOptions = {
 						mtime: lastResolvedFileStat.mtime,
 						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource)) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 						unlock: options.writeUnlock
 					};
 
-					// Write them to disk
 					let stat: IFileStatWithMetadata;
-					if (options?.writeElevated && this.elevatedFileService.isSupported(lastResolvedFileStat.resource)) {
-						stat = await this.elevatedFileService.writeFileElevated(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
-					} else {
-						stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+
+					// Delegate to working copy model save method if any
+					if (typeof resolvedFileWorkingCopy.model.save === 'function') {
+						stat = await resolvedFileWorkingCopy.model.save(writeFileOptions, saveCancellation.token);
+					}
+
+					// Otherwise ask for a snapshot and save via file services
+					else {
+
+						// Snapshot working copy model contents
+						const snapshot = await raceCancellation(resolvedFileWorkingCopy.model.snapshot(saveCancellation.token), saveCancellation.token);
+
+						// It is possible that a subsequent save is cancelling this
+						// running save. As such we return early when we detect that
+						// However, we do not pass the token into the file service
+						// because that is an atomic operation currently without
+						// cancellation support, so we dispose the cancellation if
+						// it was not cancelled yet.
+						if (saveCancellation.token.isCancellationRequested) {
+							return;
+						} else {
+							saveCancellation.dispose();
+						}
+
+						// Write them to disk
+						if (options?.writeElevated && this.elevatedFileService.isSupported(lastResolvedFileStat.resource)) {
+							stat = await this.elevatedFileService.writeFileElevated(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+						} else {
+							stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+						}
 					}
 
 					this.handleSaveSuccess(stat, versionId, options);
@@ -1074,7 +1097,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		// Any other save error
 		else {
 			const isWriteLocked = fileOperationError.fileOperationResult === FileOperationResult.FILE_WRITE_LOCKED;
-			const triedToUnlock = isWriteLocked && fileOperationError.options?.unlock;
+			const triedToUnlock = isWriteLocked && (fileOperationError.options as IWriteFileOptions | undefined)?.unlock;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
 			const canSaveElevated = this.elevatedFileService.isSupported(this.resource);
 
@@ -1110,10 +1133,13 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			primaryActions.push(toAction({
 				id: 'fileWorkingCopy.saveAs',
 				label: localize('saveAs', "Save As..."),
-				run: () => {
+				run: async () => {
 					const editor = this.workingCopyEditorService.findEditor(this);
 					if (editor) {
-						this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
+						const result = await this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
+						if (!result.success) {
+							this.doHandleSaveError(error); // show error again given the operation failed
+						}
 					}
 				}
 			}));
@@ -1244,7 +1270,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 	//#region Utilities
 
-	isReadonly(): boolean {
+	isReadonly(): boolean | IMarkdownString {
 		return this.filesConfigurationService.isReadonly(this.resource, this.lastResolvedFileStat);
 	}
 

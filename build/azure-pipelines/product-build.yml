@@ -118,6 +118,8 @@ variables:
     value: ${{ eq(parameters.VSCODE_PUBLISH_TO_MOONCAKE, true) }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
+  - name: VSCODE_7PM_BUILD
+    value: ${{ in(variables['Build.Reason'], 'BuildCompletion', 'ResourceTrigger') }}
   - name: VSCODE_STEP_ON_IT
     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
   - name: VSCODE_BUILD_MACOS_UNIVERSAL
@@ -144,16 +146,20 @@ resources:
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-arm64
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:buster-arm64
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-arm64
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-armhf
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:buster-armhf
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-armhf
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: snapcraft
       image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
       endpoint: VSCodeHub
+  pipelines:
+    - pipeline: vscode-7pm-kick-off
+      source: 'VS Code 7PM Kick-Off'
+      trigger: true
 
 stages:
   - stage: Compile
@@ -176,6 +182,7 @@ stages:
           steps:
             - template: ./linux/cli-build-linux.yml
               parameters:
+                VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
 
@@ -216,6 +223,7 @@ stages:
           steps:
             - template: ./darwin/cli-build-darwin.yml
               parameters:
+                VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
 
@@ -235,6 +243,7 @@ stages:
           steps:
             - template: ./win32/cli-build-win32.yml
               parameters:
+                VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
 

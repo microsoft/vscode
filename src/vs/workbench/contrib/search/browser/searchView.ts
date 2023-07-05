@@ -945,7 +945,7 @@ export class SearchView extends ViewPane {
 			this.tree.setSelection([next], event);
 			this.tree.reveal(next);
 			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(next);
-			if (ariaLabel) { aria.alert(ariaLabel); }
+			if (ariaLabel) { aria.status(ariaLabel); }
 		}
 	}
 
@@ -988,7 +988,7 @@ export class SearchView extends ViewPane {
 			this.tree.setSelection([prev], event);
 			this.tree.reveal(prev);
 			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(prev);
-			if (ariaLabel) { aria.alert(ariaLabel); }
+			if (ariaLabel) { aria.status(ariaLabel); }
 		}
 	}
 
@@ -1535,11 +1535,10 @@ export class SearchView extends ViewPane {
 
 
 	private _updateResults() {
+		if (this.state === SearchUIState.Idle) {
+			return;
+		}
 		try {
-			if (this.state === SearchUIState.Idle) {
-				return;
-			}
-
 			// Search result tree update
 			const fileCount = this.viewModel.searchResult.fileCount();
 			if (this._visibleMatches !== fileCount) {
@@ -1877,16 +1876,15 @@ export class SearchView extends ViewPane {
 						await elemParent.updateMatchesForEditorWidget();
 
 						const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
-						const matches = element.parent().matches();
+						const matches = elemParent.matches();
 						const match = matchIndex >= matches.length ? matches[matches.length - 1] : matches[matchIndex];
 
 						if (match instanceof MatchInNotebook) {
 							elemParent.showMatch(match);
-						}
-
-						if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
-							this.tree.setSelection([match], getSelectionKeyboardEvent());
-							this.tree.setFocus([match]);
+							if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
+								this.tree.setSelection([match], getSelectionKeyboardEvent());
+								this.tree.setFocus([match]);
+							}
 						}
 					}
 				}

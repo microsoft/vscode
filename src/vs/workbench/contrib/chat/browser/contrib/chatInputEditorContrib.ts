@@ -22,9 +22,9 @@ import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 
-const decorationDescription = 'interactive session';
-const slashCommandPlaceholderDecorationType = 'interactive-session-detail';
-const slashCommandTextDecorationType = 'interactive-session-text';
+const decorationDescription = 'chat';
+const slashCommandPlaceholderDecorationType = 'chat-session-detail';
+const slashCommandTextDecorationType = 'chat-session-text';
 
 class InputEditorDecorations extends Disposable {
 
@@ -141,6 +141,7 @@ class SlashCommandCompletions extends Disposable {
 		super();
 
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'chatSlashCommand',
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, _position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);

@@ -95,11 +95,13 @@ export class BaseCodeEditorView extends CodeEditorView {
 			}
 
 			const blockClassNames = ['merge-editor-block'];
+			let blockPadding: [top: number, right: number, bottom: number, left: number] = [0, 0, 0, 0];
 			if (isHandled) {
 				blockClassNames.push('handled');
 			}
 			if (modifiedBaseRange === activeModifiedBaseRange) {
 				blockClassNames.push('focused');
+				blockPadding = [0, 2, 0, 2];
 			}
 			blockClassNames.push('base');
 
@@ -139,6 +141,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 				options: {
 					showIfCollapsed: true,
 					blockClassName: blockClassNames.join(' '),
+					blockPadding,
 					blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
 					description: 'Merge Editor',
 					minimap: {

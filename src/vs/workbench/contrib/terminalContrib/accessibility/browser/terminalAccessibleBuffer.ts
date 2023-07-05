@@ -17,10 +17,10 @@ import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioC
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { TerminalAccessibleWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleWidget';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 
 export const enum NavigationType {
 	Next = 'next',
@@ -54,7 +54,7 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
-		@ILogService private readonly _logService: ILogService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITerminalService _terminalService: ITerminalService
 	) {
 		super(ClassName.AccessibleBuffer, _instance, _xterm, TerminalContextKeys.accessibleBufferFocus, _instantiationService, _modelService, _configurationService, _contextKeyService, _terminalService);

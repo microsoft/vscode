@@ -568,7 +568,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 						}
 						return true;
 					} else {
-						return false;
+						return this.displaySelectAnotherQuickPick(editor, false);
 					}
 				} catch (ex) {
 					return false;
