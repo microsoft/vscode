@@ -82,7 +82,7 @@ export class TestingProgressTrigger extends Disposable {
 	}
 
 	private openTestView() {
-		this.viewsService.openView(Testing.ExplorerViewId, false);
+		this.viewsService.openView(Testing.ResultsViewId, false);
 	}
 }
 
