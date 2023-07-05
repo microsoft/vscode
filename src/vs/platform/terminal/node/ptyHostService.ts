@@ -43,6 +43,13 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._ensurePtyHost();
 		return this.__proxy!;
 	}
+	/**
+	 * Get the proxy if it exists, otherwise undefined. This is used when calls are not needed to be
+	 * passed through to the pty host if it has not yet been spawned.
+	 */
+	private get _optionalProxy(): IPtyService | undefined {
+		return this.__proxy;
+	}
 
 	private _ensurePtyHost() {
 		if (!this.__connection) {
@@ -105,8 +112,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// Start the pty host when a window requests a connection, if the starter has that capability.
 		if (this._ptyHostStarter.onRequestConnection) {
 			Event.once(this._ptyHostStarter.onRequestConnection)(() => this._ensurePtyHost());
-		} else {
-			this._ensurePtyHost();
 		}
 
 		this._ptyHostStarter.onWillShutdown?.(() => this._wasQuitRequested = true);
@@ -228,13 +233,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.listProcesses();
 	}
 	async getPerformanceMarks(): Promise<performance.PerformanceMark[]> {
-		if (!this.__proxy) {
-			return [];
-		}
-		return this._proxy.getPerformanceMarks();
+		return this._optionalProxy?.getPerformanceMarks() ?? [];
 	}
-	reduceConnectionGraceTime(): Promise<void> {
-		return this._proxy.reduceConnectionGraceTime();
+	async reduceConnectionGraceTime(): Promise<void> {
+		return this._optionalProxy?.reduceConnectionGraceTime();
 	}
 	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		return this._proxy.start(id);
