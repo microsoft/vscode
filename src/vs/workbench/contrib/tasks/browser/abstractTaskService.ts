@@ -2201,9 +2201,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		await this._waitForSupportedExecutions;
 		await this._whenTaskSystemReady;
-		if (this._workspaceTasksPromise) {
-			return this._workspaceTasksPromise;
-		}
 		return this._updateWorkspaceTasks(runSource);
 	}
 
@@ -2748,16 +2745,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return true;
 	}
 
-	private async _ensureWorkspaceTasks(): Promise<void> {
-		if (!this._workspaceTasksPromise) {
-			await this.getWorkspaceTasks();
-		} else {
-			await this._workspaceTasksPromise;
-		}
-	}
-
 	private async _runTaskCommand(filter?: string | ITaskIdentifier): Promise<void> {
-		await this._ensureWorkspaceTasks();
+		await this.getWorkspaceTasks();
 		if (!filter) {
 			return this._doRunTaskCommand();
 		}
@@ -2915,7 +2904,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: strings.fetching
 		};
 		const promise = (async () => {
-			await this._ensureWorkspaceTasks();
+			await this.getWorkspaceTasks();
 			let taskGroupTasks: (Task | ConfiguringTask)[] = [];
 
 			async function runSingleTask(task: Task | undefined, problemMatcherOptions: IProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
