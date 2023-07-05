@@ -23,8 +23,8 @@ export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarte
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
 
-	private readonly _onBeforeWindowConnection = new Emitter<void>();
-	readonly onBeforeWindowConnection = this._onBeforeWindowConnection.event;
+	private readonly _onRequestConnection = new Emitter<void>();
+	readonly onRequestConnection = this._onRequestConnection.event;
 	private readonly _onWillShutdown = new Emitter<void>();
 	readonly onWillShutdown = this._onWillShutdown.event;
 
@@ -104,7 +104,7 @@ export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarte
 	}
 
 	private _onWindowConnection(e: IpcMainEvent, nonce: string) {
-		this._onBeforeWindowConnection.fire();
+		this._onRequestConnection.fire();
 
 		const port = this.utilityProcess!.connect();
 
