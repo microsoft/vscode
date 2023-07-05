@@ -711,13 +711,10 @@ class TestResultsViewContent extends Disposable {
 			historyVisible: IObservableValue<boolean>;
 			showRevealLocationOnMessages: boolean;
 		},
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService protected readonly modelService: ITextModelService,
 	) {
 		super();
-
-		TestingContextKeys.isInPeek.bindTo(contextKeyService);
 	}
 
 	public fillBody(containerElement: HTMLElement): void {
@@ -806,6 +803,7 @@ class TestResultsPeek extends PeekViewWidget {
 
 	private readonly visibilityChange = this._disposables.add(new Emitter<boolean>());
 	private readonly content: TestResultsViewContent;
+	private scopedContextKeyService?: IContextKeyService;
 	private dimension?: dom.Dimension;
 	public current?: InspectSubject;
 
@@ -821,7 +819,6 @@ class TestResultsPeek extends PeekViewWidget {
 	) {
 		super(editor, { showFrame: true, frameWidth: 1, showArrow: true, isResizeable: true, isAccessible: true, className: 'test-output-peek' }, instantiationService);
 
-		TestingContextKeys.isInPeek.bindTo(contextKeyService);
 		this._disposables.add(themeService.onDidColorThemeChange(this.applyTheme, this));
 		this._disposables.add(this.onDidClose(() => this.visibilityChange.fire(false)));
 		this.content = this._disposables.add(instantiationService.createInstance(TestResultsViewContent, editor, { historyVisible: testingPeek.historyVisible, showRevealLocationOnMessages: false }));
@@ -839,6 +836,15 @@ class TestResultsPeek extends PeekViewWidget {
 			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
 			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
 		});
+	}
+
+	protected override _fillContainer(container: HTMLElement): void {
+		if (!this.scopedContextKeyService) {
+			this.scopedContextKeyService = this._disposables.add(this.contextKeyService.createScoped(container));
+			TestingContextKeys.isInPeek.bindTo(this.scopedContextKeyService).set(true);
+		}
+
+		super._fillContainer(container);
 	}
 
 	protected override _fillHead(container: HTMLElement): void {
