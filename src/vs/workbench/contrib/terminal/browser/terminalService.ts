@@ -282,6 +282,25 @@ export class TerminalService implements ITerminalService {
 
 		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
 
+		this._primaryBackend?.onDidRequestDetach(async (e) => {
+			const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
+			if (instanceToDetach) {
+				const persistentProcessId = instanceToDetach?.persistentProcessId;
+				if (persistentProcessId && !instanceToDetach.shellLaunchConfig.isFeatureTerminal && !instanceToDetach.shellLaunchConfig.customPtyImplementation) {
+					if (instanceToDetach.target === TerminalLocation.Editor) {
+						this._terminalEditorService.detachInstance(instanceToDetach);
+					} else {
+						this._terminalGroupService.getGroupForInstance(instanceToDetach)?.removeInstance(instanceToDetach);
+					}
+					await instanceToDetach.detachProcessAndDispose(TerminalExitReason.User);
+					await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
+				} else {
+					// will get rejected without a persistentProcessId to attach to
+					await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, undefined);
+				}
+			}
+		});
+
 		mark('code/terminal/willReconnect');
 		let reconnectedPromise: Promise<any>;
 		if (isPersistentRemote) {
@@ -301,29 +320,10 @@ export class TerminalService implements ITerminalService {
 			mark('code/terminal/willGetPerformanceMarks');
 			await Promise.all(Array.from(this._terminalInstanceService.getRegisteredBackends()).map(async backend => {
 				this._timerService.setPerformanceMarks(backend.remoteAuthority === undefined ? 'localPtyHost' : 'remotePtyHost', await backend.getPerformanceMarks());
-				backend.setConnected();
+				backend.setReady();
 			}));
 			mark('code/terminal/didGetPerformanceMarks');
 			this._whenConnected.complete();
-		});
-
-		this._primaryBackend?.onDidRequestDetach(async (e) => {
-			const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
-			if (instanceToDetach) {
-				const persistentProcessId = instanceToDetach?.persistentProcessId;
-				if (persistentProcessId && !instanceToDetach.shellLaunchConfig.isFeatureTerminal && !instanceToDetach.shellLaunchConfig.customPtyImplementation) {
-					if (instanceToDetach.target === TerminalLocation.Editor) {
-						this._terminalEditorService.detachInstance(instanceToDetach);
-					} else {
-						this._terminalGroupService.getGroupForInstance(instanceToDetach)?.removeInstance(instanceToDetach);
-					}
-					await instanceToDetach.detachProcessAndDispose(TerminalExitReason.User);
-					await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
-				} else {
-					// will get rejected without a persistentProcessId to attach to
-					await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, undefined);
-				}
-			}
 		});
 	}
 

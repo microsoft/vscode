@@ -22,6 +22,8 @@ export abstract class BaseTerminalBackend extends Disposable {
 
 	get isResponsive(): boolean { return !this._isPtyHostUnresponsive; }
 
+	protected readonly _onPtyHostConnected = this._register(new Emitter<void>());
+	readonly onPtyHostConnected = this._onPtyHostConnected.event;
 	protected readonly _onPtyHostRestart = this._register(new Emitter<void>());
 	readonly onPtyHostRestart = this._onPtyHostRestart.event;
 	protected readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
@@ -50,13 +52,14 @@ export abstract class BaseTerminalBackend extends Disposable {
 			}));
 		}
 		if (this._ptyHostController.onPtyHostStart) {
+			this.onPtyHostConnected(() => hasStarted = true);
 			this._register(this._ptyHostController.onPtyHostStart(() => {
 				this._logService.debug(`The terminal's pty host process is starting`);
-				// Only fire the event on the 2nd
+				// Only fire the _restart_ event after it has started
 				if (hasStarted) {
+					this._logService.trace('IPtyHostController#onPtyHostRestart');
 					this._onPtyHostRestart.fire();
 				}
-				hasStarted = true;
 				statusBarAccessor?.dispose();
 				this._isPtyHostUnresponsive = false;
 			}));

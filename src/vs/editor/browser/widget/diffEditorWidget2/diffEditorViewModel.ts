@@ -158,7 +158,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				}
 
 				this._lastDiff = result;
-				this._diff.set(DiffState.fromDiffResult(result), tx);
+				const state = DiffState.fromDiffResult(result);
+				this._diff.set(state, tx);
 				this._isDiffUpToDate.set(true, tx);
 				const currentSyncedMovedText = this.syncedMovedTexts.get();
 				this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, tx);
@@ -288,15 +289,18 @@ export class UnchangedRegion {
 			let modStart = mapping.modifiedRange.startLineNumber;
 			let length = mapping.originalRange.length;
 
-			if (origStart === 1 && modStart === 1 && length > minContext + minHiddenLineCount) {
-				if (length < originalLineCount) {
+			const atStart = origStart === 1 && modStart === 1;
+			const atEnd = origStart + length === originalLineCount + 1 && modStart + length === modifiedLineCount + 1;
+
+			if ((atStart || atEnd) && length > minContext + minHiddenLineCount) {
+				if (atStart && !atEnd) {
 					length -= minContext;
 				}
-				result.push(new UnchangedRegion(origStart, modStart, length, 0, 0));
-			} else if (origStart + length === originalLineCount + 1 && modStart + length === modifiedLineCount + 1 && length > minContext + minHiddenLineCount) {
-				origStart += minContext;
-				modStart += minContext;
-				length -= minContext;
+				if (atEnd && !atStart) {
+					origStart += minContext;
+					modStart += minContext;
+					length -= minContext;
+				}
 				result.push(new UnchangedRegion(origStart, modStart, length, 0, 0));
 			} else if (length > minContext * 2 + minHiddenLineCount) {
 				origStart += minContext;

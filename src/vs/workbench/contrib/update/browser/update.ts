@@ -12,7 +12,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
+import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason } from 'vs/platform/update/common/update';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -29,6 +29,7 @@ import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { Promises } from 'vs/base/common/async';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
+import { Action } from 'vs/base/common/actions';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const RELEASE_NOTES_URL = new RawContextKey<string>('releaseNotesUrl', '');
@@ -169,6 +170,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IActivityService private readonly activityService: IActivityService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@IHostService private readonly hostService: IHostService
 	) {
 		super();
@@ -202,6 +204,23 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		this.updateStateContextKey.set(state.type);
 
 		switch (state.type) {
+			case StateType.Disabled:
+				if (state.reason === DisablementReason.RunningAsAdmin) {
+					this.notificationService.notify({
+						severity: Severity.Info,
+						message: nls.localize('update service disabled', "Updates are disabled because you are running the user-scope installation of {0} as Administrator.", this.productService.nameLong),
+						actions: {
+							primary: [
+								new Action('', nls.localize('learn more', "Learn More"), undefined, undefined, () => {
+									this.openerService.open('https://aka.ms/vscode-windows-setup');
+								})
+							]
+						},
+						neverShowAgain: { id: 'no-updates-running-as-admin', }
+					});
+				}
+				break;
+
 			case StateType.Idle:
 				if (state.error) {
 					this.onError(state.error);

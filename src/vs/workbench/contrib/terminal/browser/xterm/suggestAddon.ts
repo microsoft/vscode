@@ -19,7 +19,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISuggestController } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { ITerminalAddon, Terminal } from 'xterm';
+import type { ITerminalAddon, Terminal } from 'xterm';
 import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const enum ShellIntegrationOscPs {

@@ -63,7 +63,7 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get disableKeytar(): boolean { return !!this.args['disable-keytar']; }
 
 	@memoize
-	get crossOriginIsolated(): boolean { return !this.args['disable-coi']; }
+	get crossOriginIsolated(): boolean { return !!this.args['enable-coi']; }
 
 	@memoize
 	get codeCachePath(): string | undefined { return process.env['VSCODE_CODE_CACHE_PATH'] || undefined; }

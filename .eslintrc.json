@@ -196,6 +196,14 @@
 		},
 		{
 			"files": [
+				"src/**/{common,browser}/**/*.ts"
+			],
+			"rules": {
+				"local/code-amd-node-module": "warn"
+			}
+		},
+		{
+			"files": [
 				"src/**/*.ts"
 			],
 			"rules": {
@@ -594,6 +602,12 @@
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
 							"vs/workbench/workbench.common.main"
+						]
+					},
+					{
+						"target": "src/vs/amdX.ts",
+						"restrictions": [
+							"vs/base/common/*"
 						]
 					},
 					{

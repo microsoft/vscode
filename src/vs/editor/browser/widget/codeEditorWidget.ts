@@ -42,7 +42,7 @@ import { editorErrorForeground, editorHintForeground, editorInfoForeground, edit
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyValue, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -1910,6 +1910,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private removeDropIndicator(): void {
 		this._dropIntoEditorDecorations.clear();
+	}
+
+	public setContextValue(key: string, value: ContextKeyValue): void {
+		this._contextKeyService.createKey(key, value);
 	}
 }
 

@@ -140,7 +140,7 @@ async function detectAvailableWindowsProfiles(
 
 	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, shellEnv, logService, variableResolver);
 
-	if (includeDetectedProfiles || useWslProfiles) {
+	if (includeDetectedProfiles && useWslProfiles) {
 		try {
 			const result = await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl' : 'bash'}.exe`, defaultProfileName);
 			for (const wslProfile of result) {

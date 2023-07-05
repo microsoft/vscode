@@ -10,13 +10,14 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import { IModelChangedEvent, MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { TokenizerWithStateStore } from 'vs/editor/common/model/textModelTokens';
+import type { diffStateStacksRefEq, StateStack, StackDiff } from 'vscode-textmate';
 import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { TextMateTokenizationSupport } from 'vs/workbench/services/textMate/browser/tokenizationSupport/textMateTokenizationSupport';
 import { TokenizationSupportWithLineLimit } from 'vs/workbench/services/textMate/browser/tokenizationSupport/tokenizationSupportWithLineLimit';
 import { StateDeltas } from 'vs/workbench/services/textMate/browser/workerHost/textMateWorkerHost';
-import { StackDiff, StateStack, diffStateStacksRefEq } from 'vscode-textmate';
 import { TextMateTokenizationWorker } from './textMate.worker';
+import { importAMDNodeModule } from 'vs/amdX';
 
 export class TextMateWorkerModel extends MirrorTextModel {
 	private _tokenizationStateStore: TokenizerWithStateStore<StateStack> | null = null;
@@ -25,6 +26,7 @@ export class TextMateWorkerModel extends MirrorTextModel {
 		'_maxTokenizationLineLength',
 		-1
 	);
+	private _diffStateStacksRefEqFn?: typeof diffStateStacksRefEq;
 
 	constructor(
 		uri: URI,
@@ -107,9 +109,14 @@ export class TextMateWorkerModel extends MirrorTextModel {
 		});
 	}
 
-	private _tokenize(): void {
+	private async _tokenize(): Promise<void> {
 		if (this._isDisposed || !this._tokenizationStateStore) {
 			return;
+		}
+
+		if (!this._diffStateStacksRefEqFn) {
+			const { diffStateStacksRefEq } = await importAMDNodeModule<typeof import('vscode-textmate')>('vscode-textmate', 'release/main.js');
+			this._diffStateStacksRefEqFn = diffStateStacksRefEq;
 		}
 
 		const startTime = new Date().getTime();
@@ -131,7 +138,7 @@ export class TextMateWorkerModel extends MirrorTextModel {
 				const lineStartState = this._tokenizationStateStore.getStartState(lineNumberToTokenize)!;
 				const r = this._tokenizationStateStore.tokenizationSupport.tokenizeEncoded(text, true, lineStartState);
 				if (this._tokenizationStateStore.store.setEndState(lineNumberToTokenize, r.endState as StateStack)) {
-					const delta = diffStateStacksRefEq(lineStartState, r.endState as StateStack);
+					const delta = this._diffStateStacksRefEqFn(lineStartState, r.endState as StateStack);
 					stateDeltaBuilder.setState(lineNumberToTokenize, delta);
 				} else {
 					stateDeltaBuilder.setState(lineNumberToTokenize, null);
