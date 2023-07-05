@@ -183,6 +183,10 @@
 	border-bottom-width: 2px;
 }
 
+.test-output-peek-message-container {
+	overflow: hidden;
+}
+
 .test-output-peek-message-container,
 .test-output-peek-tree {
 	height: 100%;
