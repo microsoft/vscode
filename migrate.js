@@ -85,7 +85,10 @@ function migrateOne(filePath, fileContents) {
 		return;
 	}
 	globalThis.require = function () {
-		console.trace('this is ESM, no more AMD/CJS require');
+		console.trace('[require(...)] this is ESM, no more AMD/CJS require');
+	};
+	globalThis.require.config = function () {
+		console.trace('[require.config(...)] this is ESM, no more AMD/CJS require');
 	};
 })();`);
 
