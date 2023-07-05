@@ -210,7 +210,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _taskSystemInfos: Map<string, ITaskSystemInfo[]>;
 
 	protected _workspaceTasksPromise?: Promise<Map<string, IWorkspaceFolderTaskResult>>;
-	protected _whenTaskSystemReady?: Promise<void>;
+	protected readonly _whenTaskSystemReady: Promise<void>;
 
 	protected _taskSystem?: ITaskSystem;
 	protected _taskSystemListeners?: IDisposable[] = [];
