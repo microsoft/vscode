@@ -15,7 +15,7 @@ import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeContextMenuEvent, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -1228,6 +1228,7 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	private dimensions?: dom.IDimension;
 	private readonly terminalCwd = this._register(new MutableObservableValue<string>(''));
+	private readonly xtermLayoutDelayer = this._register(new Delayer(50));
 
 	/** Active terminal instance. */
 	private readonly terminal = this._register(new MutableDisposable<IDetachedXtermTerminal>());
@@ -1343,6 +1344,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 
 	private clear() {
 		this.outputDataListener.clear();
+		this.xtermLayoutDelayer.cancel();
 		this.terminal.clear();
 	}
 
@@ -1359,10 +1361,12 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 		height = this.dimensions?.height ?? this.container.clientHeight
 	) {
 		width -= 10 + 20; // scrollbar width + margin
-		const scaled = getXtermScaledDimensions(xterm.getFont(), width, height);
-		if (scaled) {
-			xterm.resize(scaled.cols, scaled.rows);
-		}
+		this.xtermLayoutDelayer.trigger(() => {
+			const scaled = getXtermScaledDimensions(xterm.getFont(), width, height);
+			if (scaled) {
+				xterm.resize(scaled.cols, scaled.rows);
+			}
+		});
 	}
 }
 
