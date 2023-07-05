@@ -6,6 +6,7 @@
 import { IStringDictionary } from 'vs/base/common/collections';
 import { PerformanceMark } from 'vs/base/common/performance';
 import { isLinux, isMacintosh, isNative, isWeb, isWindows } from 'vs/base/common/platform';
+import { isString } from 'vs/base/common/types';
 import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -91,16 +92,29 @@ export interface IFileToOpen extends IBaseWindowOpenable {
 	readonly fileUri: URI;
 }
 
-export function isWorkspaceToOpen(uriToOpen: IWindowOpenable): uriToOpen is IWorkspaceToOpen {
-	return !!(uriToOpen as IWorkspaceToOpen).workspaceUri;
+/**
+ * Represents an empty workspace with a remote authority.
+ * The empty string as remote authority signals that a local window should be opened.
+ * IEmptyWorkspace is currently only used in the web embedder API.
+ */
+export interface IEmptyWorkspace extends IBaseWindowOpenable {
+	readonly remoteAuthority: string;
 }
 
-export function isFolderToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFolderToOpen {
-	return !!(uriToOpen as IFolderToOpen).folderUri;
+export function isWorkspaceToOpen(ws: any): ws is IWorkspaceToOpen {
+	return URI.isUri(ws.workspaceUri && (ws.label === undefined || isString(ws.label)));
 }
 
-export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOpen {
-	return !!(uriToOpen as IFileToOpen).fileUri;
+export function isFolderToOpen(ws: any): ws is IFolderToOpen {
+	return URI.isUri(ws.folderUri && (ws.label === undefined || isString(ws.label)));
+}
+
+export function isFileToOpen(ws: any): ws is IFileToOpen {
+	return URI.isUri(ws.fileUri && (ws.label === undefined || isString(ws.label)));
+}
+
+export function isEmptyWorkspace(ws: any): ws is IEmptyWorkspace {
+	return isString(ws.remoteAuthority) && (ws.label === undefined || isString(ws.label));
 }
 
 export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';

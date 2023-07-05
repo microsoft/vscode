@@ -9,7 +9,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IWorkspaceToOpen, IFolderToOpen } from 'vs/platform/window/common/window';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IWorkspaceToOpen, IFolderToOpen, IEmptyWorkspace } from 'vs/platform/window/common/window';
 import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -37,14 +37,15 @@ import { Schemas } from 'vs/base/common/network';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { coalesce } from 'vs/base/common/arrays';
+import { isEqualAuthority } from 'vs/base/common/resources';
 
 /**
  * A workspace to open in the workbench can either be:
  * - a workspace file with 0-N folders (via `workspaceUri`)
  * - a single folder (via `folderUri`)
- * - empty (via `undefined`)
+ * - empty (via `undefined` or `IEmptyWorkspace`). IEmptyWorkspace is used if the workspace should have a different remote than the currently opened one.
  */
-export type IWorkspace = IWorkspaceToOpen | IFolderToOpen | undefined;
+export type IWorkspace = IWorkspaceToOpen | IFolderToOpen | IEmptyWorkspace | undefined;
 
 export interface IWorkspaceProvider {
 
@@ -69,10 +70,8 @@ export interface IWorkspaceProvider {
 	 * @param workspace the workspace to open.
 	 * @param options optional options for the workspace to open.
 	 * - `reuse`: whether to open inside the current window or a new window
-	 * - `payload`: arbitrary payload that should be made available
-	 * to the opening window via the `IWorkspaceProvider.payload` property.
-	 * @param payload optional payload to send to the workspace to open.
-	 *
+	 * - `payload`: arbitrary payload that should be made available to the
+	 *      opening window via the `IWorkspaceProvider.payload` property.
 	 * @returns true if successfully opened, false otherwise.
 	 */
 	open(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<boolean>;
@@ -283,7 +282,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 						environment.set('mergeFileBase', editors[2].resource.toString());
 						environment.set('mergeFileResult', editors[3].resource.toString());
 
-						this.doOpen(undefined, { payload: Array.from(environment.entries()) });
+						this.doOpen(this.newEmptyWorkspace(options?.remoteAuthority), { payload: Array.from(environment.entries()) });
 					}
 				}
 
@@ -309,7 +308,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 						environment.set('diffFileSecondary', editors[0].resource.toString());
 						environment.set('diffFilePrimary', editors[1].resource.toString());
 
-						this.doOpen(undefined, { payload: Array.from(environment.entries()) });
+						this.doOpen(this.newEmptyWorkspace(options?.remoteAuthority), { payload: Array.from(environment.entries()) });
 					}
 				}
 
@@ -346,7 +345,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 								environment.set('gotoLineMode', 'true');
 							}
 
-							this.doOpen(undefined, { payload: Array.from(environment.entries()) });
+							this.doOpen(this.newEmptyWorkspace(options?.remoteAuthority), { payload: Array.from(environment.entries()) });
 						}
 					}
 				}
@@ -425,8 +424,27 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return !openInNewWindow;
 	}
 
+	/**
+	 * Returns a representation of an empty workspace.
+	 *  - `undefined` is used to open a workspace that has the same remote authority as the current workspace.
+	 *  - `IEmptyWorkspace` is used to open a workspace with a different remote authority than the current workspace.
+	 * @param remoteAuthority the remoteAuthority for the new workspace. undefined to use the current remote authority, null to enforce a local workspace
+	 * @returns a representation of an empty workspace.
+	 */
+	private newEmptyWorkspace(remoteAuthority: string | undefined | null): undefined | IEmptyWorkspace {
+		if (remoteAuthority === null) {
+			// open a local workspace
+			return this.environmentService.remoteAuthority === undefined ? undefined : { remoteAuthority: '' };
+		} else if (remoteAuthority !== undefined) {
+			// open a remote workspace
+			return isEqualAuthority(remoteAuthority, this.environmentService.remoteAuthority) ? undefined : { remoteAuthority };
+		}
+		// stick with the current remote authority
+		return undefined;
+	}
+
 	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		return this.doOpen(undefined, {
+		return this.doOpen(this.newEmptyWorkspace(options?.remoteAuthority), {
 			reuse: options?.forceReuseWindow,
 			payload: this.preservePayload(true /* empty window */)
 		});
