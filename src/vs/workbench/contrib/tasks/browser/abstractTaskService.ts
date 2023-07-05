@@ -210,6 +210,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _taskSystemInfos: Map<string, ITaskSystemInfo[]>;
 
 	protected _workspaceTasksPromise?: Promise<Map<string, IWorkspaceFolderTaskResult>>;
+	protected readonly _whenTaskSystemReady: Promise<void>;
 
 	protected _taskSystem?: ITaskSystem;
 	protected _taskSystemListeners?: IDisposable[] = [];
@@ -267,7 +268,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
-
+		this._whenTaskSystemReady = Event.toPromise(this.onDidChangeTaskSystemInfo);
 		this._workspaceTasksPromise = undefined;
 		this._taskSystem = undefined;
 		this._taskSystemListeners = undefined;
@@ -373,7 +374,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._tasksReconnected = true;
 			return;
 		}
-		this._getTaskSystem();
 		this.getWorkspaceTasks().then(async () => {
 			this._tasksReconnected = await this._reconnectTasks();
 		});
@@ -2200,9 +2200,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return new Map();
 		}
 		await this._waitForSupportedExecutions;
-		// The build task might be run before folder open. On folder open, we need to update the tasks so that
-		// all tasks are parsed. #173384
-		if (runSource !== TaskRunSource.FolderOpen && this._workspaceTasksPromise) {
+		await this._whenTaskSystemReady;
+		if (this._workspaceTasksPromise) {
 			return this._workspaceTasksPromise;
 		}
 		return this._updateWorkspaceTasks(runSource);
