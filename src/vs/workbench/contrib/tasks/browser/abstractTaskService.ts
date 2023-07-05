@@ -2756,8 +2756,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return true;
 	}
 
+	private async _ensureWorkspaceTasks(): Promise<void> {
+		if (!this._workspaceTasksPromise) {
+			await this.getWorkspaceTasks();
+		} else {
+			await this._workspaceTasksPromise;
+		}
+	}
+
 	private async _runTaskCommand(filter?: string | ITaskIdentifier): Promise<void> {
-		await this._waitForTaskSystem();
+		await this._ensureWorkspaceTasks();
 		if (!filter) {
 			return this._doRunTaskCommand();
 		}
@@ -2915,7 +2923,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: strings.fetching
 		};
 		const promise = (async () => {
-			await this._waitForTaskSystem();
+			await this._ensureWorkspaceTasks();
 			let taskGroupTasks: (Task | ConfiguringTask)[] = [];
 
 			async function runSingleTask(task: Task | undefined, problemMatcherOptions: IProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
