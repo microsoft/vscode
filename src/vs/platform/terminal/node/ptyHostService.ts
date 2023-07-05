@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment, OperatingSystem, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, OS, OperatingSystem, isWindows } from 'vs/base/common/platform';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
@@ -19,6 +19,7 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs
 import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
 import * as performance from 'vs/base/common/performance';
+import { getSystemShell } from 'vs/base/node/shell';
 
 enum Constants {
 	MaxRestarts = 5
@@ -122,7 +123,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	private async _refreshIgnoreProcessNames(): Promise<void> {
-		return this._proxy.refreshIgnoreProcessNames?.(this._ignoreProcessNames);
+		return this._optionalProxy?.refreshIgnoreProcessNames?.(this._ignoreProcessNames);
 	}
 
 	private async _resolveShellEnv(): Promise<typeof process.env> {
@@ -286,7 +287,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
-		return this._proxy.getDefaultSystemShell(osOverride);
+		return this._optionalProxy?.getDefaultSystemShell(osOverride) ?? getSystemShell(osOverride ?? OS, process.env);
 	}
 	async getProfiles(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
 		const shellEnv = await this._resolveShellEnv();
