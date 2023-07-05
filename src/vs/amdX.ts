@@ -177,7 +177,7 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 
 		if (isBuilt === undefined) {
 			const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
-			isBuilt = Boolean((product ?? (<any>globalThis).vscode.context.configuration()?.product)?.commit);
+			isBuilt = Boolean((product ?? (<any>globalThis).vscode?.context?.configuration()?.product)?.commit);
 		}
 
 		if (_paths[nodeModuleName]) {
