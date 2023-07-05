@@ -105,6 +105,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// Start the pty host when a window requests a connection, if the starter has that capability.
 		if (this._ptyHostStarter.onRequestConnection) {
 			Event.once(this._ptyHostStarter.onRequestConnection)(() => this._ensurePtyHost());
+		} else {
+			this._ensurePtyHost();
 		}
 
 		this._ptyHostStarter.onWillShutdown?.(() => this._wasQuitRequested = true);

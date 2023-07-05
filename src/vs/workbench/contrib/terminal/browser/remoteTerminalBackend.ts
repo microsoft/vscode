@@ -165,6 +165,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		}
 		const ids = Array.from(this._ptys.keys());
 		const serialized = await this._remoteTerminalChannel.serializeTerminalState(ids);
+		this._logService.info('remote persistTerminalState serialied', serialized);
 		this._storageService.store(TerminalStorageKeys.TerminalBufferState, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
