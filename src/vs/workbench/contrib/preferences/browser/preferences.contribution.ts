@@ -6,7 +6,7 @@
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { isObject } from 'vs/base/common/types';
+import { isBoolean, isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/preferences';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -126,6 +126,19 @@ const category = { value: nls.localize('preferences', "Preferences"), original: 
 interface IOpenSettingsActionOptions {
 	openToSide?: boolean;
 	query?: string;
+	revealSetting?: {
+		key: string;
+		edit?: boolean;
+	};
+	focusSearch?: boolean;
+}
+
+function sanitizeBoolean(arg: any): boolean | undefined {
+	return isBoolean(arg) ? arg : undefined;
+}
+
+function sanitizeString(arg: any): string | undefined {
+	return isString(arg) ? arg : undefined;
 }
 
 function sanitizeOpenSettingsArgs(args: any): IOpenSettingsActionOptions {
@@ -133,10 +146,23 @@ function sanitizeOpenSettingsArgs(args: any): IOpenSettingsActionOptions {
 		args = {};
 	}
 
-	return {
-		openToSide: args.openToSide,
-		query: args.query
+	let sanitizedObject: IOpenSettingsActionOptions = {
+		focusSearch: sanitizeBoolean(args?.focusSearch),
+		openToSide: sanitizeBoolean(args?.openToSide),
+		query: sanitizeString(args?.query)
 	};
+
+	if (isString(args?.revealSetting?.key)) {
+		sanitizedObject = {
+			...sanitizedObject,
+			revealSetting: {
+				key: args.revealSetting.key,
+				edit: sanitizeBoolean(args.revealSetting?.edit)
+			}
+		};
+	}
+
+	return sanitizedObject;
 }
 
 class PreferencesActionsContribution extends Disposable implements IWorkbenchContribution {
