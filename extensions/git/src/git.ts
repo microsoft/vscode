@@ -12,7 +12,7 @@ import * as which from 'which';
 import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh } from './util';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions } from './api/git';
@@ -477,18 +477,18 @@ export class Git {
 		return folderPath;
 	}
 
-	async getRepositoryRoot(repositoryPath: string): Promise<string> {
-		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel']);
+	async getRepositoryRoot(pathInsidePossibleRepository: string): Promise<string> {
+		const result = await this.exec(pathInsidePossibleRepository, ['rev-parse', '--show-toplevel']);
 
 		// Keep trailing spaces which are part of the directory name
-		const repoPath = path.normalize(result.stdout.trimLeft().replace(/[\r\n]+$/, ''));
+		const repositoryRootPath = path.normalize(result.stdout.trimLeft().replace(/[\r\n]+$/, ''));
 
 		if (isWindows) {
 			// On Git 2.25+ if you call `rev-parse --show-toplevel` on a mapped drive, instead of getting the mapped
 			// drive path back, you get the UNC path for the mapped drive. So we will try to normalize it back to the
 			// mapped drive path, if possible
-			const repoUri = Uri.file(repoPath);
-			const pathUri = Uri.file(repositoryPath);
+			const repoUri = Uri.file(repositoryRootPath);
+			const pathUri = Uri.file(pathInsidePossibleRepository);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
 				// eslint-disable-next-line local/code-no-look-behind-regex
 				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
@@ -520,7 +520,18 @@ export class Git {
 			}
 		}
 
-		return repoPath;
+		// Handle symbolic links
+		// Git 2.31 added the `--path-format` flag to rev-parse which
+		// allows us to get the relative path of the repository root
+		if (!pathEquals(pathInsidePossibleRepository, repositoryRootPath) &&
+			!isDescendant(repositoryRootPath, pathInsidePossibleRepository) &&
+			!isDescendant(pathInsidePossibleRepository, repositoryRootPath) &&
+			this.compareGitVersionTo('2.31.0') !== -1) {
+			const relativePathResult = await this.exec(pathInsidePossibleRepository, ['rev-parse', '--path-format=relative', '--show-toplevel',]);
+			return path.resolve(pathInsidePossibleRepository, relativePathResult.stdout.trimLeft().replace(/[\r\n]+$/, ''));
+		}
+
+		return repositoryRootPath;
 	}
 
 	async getRepositoryDotGit(repositoryPath: string): Promise<{ path: string; commonPath?: string }> {
