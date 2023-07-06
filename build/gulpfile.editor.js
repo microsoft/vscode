@@ -78,7 +78,7 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 			apiusages,
 			extrausages
 		],
-		shakeLevel: process.env.EXTRACT_EDITOR_SRC_SHAKE_LEVEL !== undefined ? process.env.EXTRACT_EDITOR_SRC_SHAKE_LEVEL : 2, // 0-Files, 1-InnerFile, 2-ClassMembers
+		shakeLevel: (process.env.EXTRACT_EDITOR_SRC_SHAKE_LEVEL !== undefined) ? parseInt(process.env.EXTRACT_EDITOR_SRC_SHAKE_LEVEL, 10) : 2, // 0-Files, 1-InnerFile, 2-ClassMembers
 		importIgnorePattern: /(^vs\/css!)/,
 		destRoot: path.join(root, 'out-editor-src'),
 		redirects: []

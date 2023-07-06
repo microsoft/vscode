@@ -61,7 +61,7 @@ jobs:
       - name: Editor Distro & ESM Bundle
         run: yarn gulp editor-esm-bundle
         env:
-          EXTRACT_EDITOR_SRC_SHAKE_LEVEL: 0
+          EXTRACT_EDITOR_SRC_SHAKE_LEVEL: 2
 
       - name: Editor ESM sources check
         working-directory: ./test/monaco
