@@ -362,6 +362,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const processContext = ProcessExecutionSupportedContext.bindTo(this._contextKeyService);
 			processContext.set(process && !isVirtual);
 		}
+		// update tasks so an incomplete list isn't returned when getWorkspaceTasks is called
+		this._workspaceTasksPromise = undefined;
 		this._onDidRegisterSupportedExecutions.fire();
 	}
 
@@ -2201,6 +2203,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		await this._waitForSupportedExecutions;
 		await this._whenTaskSystemReady;
+		if (this._workspaceTasksPromise) {
+			return this._workspaceTasksPromise;
+		}
 		return this._updateWorkspaceTasks(runSource);
 	}
 
