@@ -153,8 +153,10 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case RemoteTerminalChannelRequest.RequestDetachInstance: return this._ptyHostService.requestDetachInstance(args[0], args[1]);
 			case RemoteTerminalChannelRequest.AcceptDetachedInstance: return this._ptyHostService.acceptDetachInstanceReply(args[0], args[1]);
 			case RemoteTerminalChannelRequest.FreePortKillProcess: return this._ptyHostService.freePortKillProcess.apply(this._ptyHostService, args);
-			default: break;
+			case RemoteTerminalChannelRequest.AcceptDetachInstanceReply: return this._ptyHostService.acceptDetachInstanceReply.apply(this._ptyHostService, args);
 		}
+
+		// @ts-expect-error Assert command is never to ensure all messages are handled
 		throw new Error(`IPC Command ${command} not found`);
 	}
 
@@ -173,9 +175,10 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case RemoteTerminalChannelEvent.OnExecuteCommand: return this.onExecuteCommand;
 			case RemoteTerminalChannelEvent.OnDidRequestDetach: return this._ptyHostService.onDidRequestDetach || Event.None;
 			case RemoteTerminalChannelEvent.OnDidChangeProperty: return this._ptyHostService.onDidChangeProperty;
-			default: break;
 		}
-		throw new Error('Not supported');
+
+		// @ts-expect-error Assert event is never to ensure all messages are handled
+		throw new Error(`IPC Command ${event} not found`);
 	}
 
 	private async _createProcess(uriTransformer: IURITransformer, args: ICreateTerminalProcessArguments): Promise<ICreateTerminalProcessResult> {

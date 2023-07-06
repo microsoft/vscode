@@ -94,6 +94,7 @@ export const enum RemoteTerminalChannelRequest {
 	UpdateProperty = '$updateProperty',
 	RefreshProperty = '$refreshProperty',
 	RequestDetachInstance = '$requestDetachInstance',
+	AcceptDetachInstanceReply = '$acceptDetachInstanceReply',
 	AcceptDetachedInstance = '$acceptDetachedInstance',
 	FreePortKillProcess = '$freePortKillProcess',
 }
