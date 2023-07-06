@@ -154,6 +154,7 @@ steps:
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
+        echo "##vso[task.setvariable variable=BUILT_CLIENT_ARCHIVE]true"
         echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -168,7 +169,9 @@ steps:
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         exec { yarn gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" }
+        echo "##vso[task.setvariable variable=BUILT_SERVER_ARCHIVE]true"
         exec { yarn gulp "vscode-reh-web-win32-$(VSCODE_ARCH)-min-ci" }
+        echo "##vso[task.setvariable variable=BUILT_WEB_ARCHIVE]true"
         echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -269,6 +272,7 @@ steps:
 
       - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\archive\$(ARCHIVE_NAME)
         artifact: vscode_client_win32_$(VSCODE_ARCH)_archive
+        condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT_ARCHIVE'], 'true'))
         displayName: Publish archive
 
       - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\system-setup\$(SYSTEM_SETUP_NAME)
@@ -282,9 +286,9 @@ steps:
       - publish: $(System.DefaultWorkingDirectory)\.build\vscode-server-win32-$(VSCODE_ARCH).zip
         artifact: vscode_server_win32_$(VSCODE_ARCH)_archive
         displayName: Publish server archive
-        condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+        condition: and(succeededOrFailed(), eq(variables['BUILT_SERVER_ARCHIVE'], 'true'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
       - publish: $(System.DefaultWorkingDirectory)\.build\vscode-server-win32-$(VSCODE_ARCH)-web.zip
         artifact: vscode_web_win32_$(VSCODE_ARCH)_archive
         displayName: Publish web server archive
-        condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+        condition: and(succeededOrFailed(), eq(variables['BUILT_WEB_ARCHIVE'], 'true'), ne(variables['VSCODE_ARCH'], 'arm64'))
