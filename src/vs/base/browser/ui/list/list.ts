@@ -61,7 +61,7 @@ export interface IListContextMenuEvent<T> {
 	readonly browserEvent: UIEvent;
 	readonly element: T | undefined;
 	readonly index: number | undefined;
-	readonly anchor: HTMLElement | { readonly x: number; readonly y: number };
+	readonly anchor: HTMLElement | { readonly x: number; readonly y: number; readonly isCurrentCursor?: boolean };
 }
 
 export interface IIdentityProvider<T> {

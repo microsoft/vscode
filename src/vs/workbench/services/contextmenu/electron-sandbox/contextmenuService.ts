@@ -103,8 +103,8 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			const menu = this.createMenu(delegate, actions, onHide);
 			const anchor = delegate.getAnchor();
 
-			let x: number;
-			let y: number;
+			let x: number | undefined;
+			let y: number | undefined;
 
 			let zoom = getZoomFactor();
 			if (dom.isHTMLElement(anchor)) {
@@ -156,17 +156,28 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					y += 4 / zoom;
 				}
 			} else {
-				const pos: { x: number; y: number } = anchor;
+				const pos = anchor;
 				x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
 				y = pos.y;
+				if (pos.isCurrentCursor) {
+					// If (x, y) indicates the current cursor position, we set
+					// both to undefined and let Electron figure out the accurate value.
+					// (https://www.electronjs.org/docs/latest/api/menu#menupopupoptions)
+					// This avoids the numeric loss when applying *zoom and Math.floor,
+					// which leads to the closest being accidentally clicked.
+					// https://github.com/microsoft/vscode/issues/113175
+					x = y = undefined;
+				}
 			}
 
-			x *= zoom;
-			y *= zoom;
+			if (x !== undefined && y !== undefined) {
+				x = Math.floor(x * zoom);
+				y = Math.floor(y * zoom);
+			}
 
 			popup(menu, {
-				x: Math.floor(x),
-				y: Math.floor(y),
+				x: x,
+				y: y,
 				positioningItem: delegate.autoSelectFirstItem ? 0 : undefined,
 			}, () => onHide());
 

@@ -454,10 +454,10 @@ export class TabsTitleControl extends TitleControl {
 			EventHelper.stop(e);
 
 			// Find target anchor
-			let anchor: HTMLElement | { x: number; y: number } = tabsContainer;
+			let anchor: HTMLElement | { x: number; y: number; isCurrentCursor?: boolean } = tabsContainer;
 			if (e instanceof MouseEvent) {
 				const event = new StandardMouseEvent(e);
-				anchor = { x: event.posx, y: event.posy };
+				anchor = { x: event.posx, y: event.posy, isCurrentCursor: true };
 			}
 
 			// Show it

@@ -21,6 +21,7 @@ export interface IAnchor {
 	y: number;
 	width?: number;
 	height?: number;
+	isCurrentCursor?: boolean;
 }
 
 export const enum AnchorAlignment {

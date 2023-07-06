@@ -453,7 +453,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		let actions: IAction[] | undefined = undefined;
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => ({ x: event.posx, y: event.posy }),
+			getAnchor: () => ({ x: event.posx, y: event.posy, isCurrentCursor: true }),
 			getActions: () => {
 				actions = this.getContextMenuActions(event);
 

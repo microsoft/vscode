@@ -1354,7 +1354,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		const fromMouse = this.disposables.add(Event.chain(this.view.onContextMenu))
 			.filter(_ => !didJustPressContextMenuKey)
-			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.pageX + 1, y: browserEvent.pageY }, browserEvent }))
+			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.pageX + 1, y: browserEvent.pageY, isCurrentCursor: true }, browserEvent }))
 			.event;
 
 		return Event.any<IListContextMenuEvent<T>>(fromKeyDown, fromKeyUp, fromMouse);

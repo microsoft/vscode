@@ -829,7 +829,7 @@ export class CommentController implements IEditorContribution {
 
 		if (newCommentInfos.length > 1) {
 			if (e && range) {
-				const anchor = { x: e.event.posx, y: e.event.posy };
+				const anchor = { x: e.event.posx, y: e.event.posy, isCurrentCursor: true };
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor,

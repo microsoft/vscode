@@ -77,7 +77,7 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 			return;
 		}
 
-		const anchor = { x: e.event.posx, y: e.event.posy };
+		const anchor = { x: e.event.posx, y: e.event.posy, isCurrentCursor: true };
 		const lineNumber = e.target.position.lineNumber;
 
 		const contextKeyService = this.contextKeyService.createOverlay([['editorLineNumber', lineNumber]]);

@@ -577,7 +577,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		event.stopPropagation();
 		event.preventDefault();
 
-		const anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
+		const anchor: { x: number; y: number; isCurrentCursor?: boolean } = { x: event.posx, y: event.posy, isCurrentCursor: true };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => this.menuActions?.getContextMenuActions() ?? []
@@ -743,7 +743,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		const actions: IAction[] = viewPane.menuActions.getContextMenuActions();
 
-		const anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
+		const anchor: { x: number; y: number; isCurrentCursor?: boolean } = { x: event.posx, y: event.posy, isCurrentCursor: true };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions

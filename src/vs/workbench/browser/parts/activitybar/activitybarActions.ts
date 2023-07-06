@@ -151,7 +151,8 @@ abstract class AbstractGlobalActivityActionViewItem extends ActivityActionViewIt
 			const event = new StandardMouseEvent(e);
 			const anchor = {
 				x: event.posx,
-				y: event.posy
+				y: event.posy,
+				isCurrentCursor: true,
 			};
 
 			this.contextMenuService.showContextMenu({

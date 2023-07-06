@@ -399,7 +399,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	protected onContextMenu(e: MouseEvent, menuId: MenuId): void {
 		// Find target anchor
 		const event = new StandardMouseEvent(e);
-		const anchor = { x: event.posx, y: event.posy };
+		const anchor = { x: event.posx, y: event.posy, isCurrentCursor: true };
 
 		// Show it
 		this.contextMenuService.showContextMenu({
