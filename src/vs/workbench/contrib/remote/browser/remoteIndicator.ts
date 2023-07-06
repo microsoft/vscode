@@ -47,7 +47,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { DomEmitter } from 'vs/base/browser/event';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { infoIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -325,22 +325,18 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		for (let i = 0; i < this.remoteExtensionMetadata.length; i++) {
 			const extensionId = this.remoteExtensionMetadata[i].id;
 			const supportedPlatforms = this.remoteExtensionMetadata[i].supportedPlatforms;
-			// Update compatibility
-			const token = new CancellationTokenSource();
-			const galleryExtension = (await this.extensionGalleryService.getExtensions([{ id: extensionId }], token.token))[0];
-			if (!await this.extensionManagementService.canInstall(galleryExtension)) {
-				this.remoteExtensionMetadata[i].isPlatformCompatible = false;
+			const isInstalled = (await this.extensionManagementService.getInstalled()).find(value => ExtensionIdentifier.equals(value.identifier.id, extensionId)) ? true : false;
+
+			this.remoteExtensionMetadata[i].installed = isInstalled;
+			if (isInstalled) {
+				this.remoteExtensionMetadata[i].isPlatformCompatible = true;
 			}
 			else if (supportedPlatforms && !supportedPlatforms.includes(currentPlatform)) {
 				this.remoteExtensionMetadata[i].isPlatformCompatible = false;
 			}
 			else {
 				this.remoteExtensionMetadata[i].isPlatformCompatible = true;
-				this.remoteExtensionMetadata[i].dependencies = galleryExtension.properties.extensionPack ?? [];
 			}
-
-			// Check if installed and enabled
-			this.remoteExtensionMetadata[i].installed = (await this.extensionManagementService.getInstalled()).find(value => ExtensionIdentifier.equals(value.identifier.id, extensionId)) ? true : false;
 		}
 
 		this.remoteMetadataInitialized = true;
