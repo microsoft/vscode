@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -27,7 +28,7 @@ interface Word {
 	text: string;
 }
 
-export class TerminalWordLinkDetector implements ITerminalLinkDetector {
+export class TerminalWordLinkDetector extends Disposable implements ITerminalLinkDetector {
 	static id = 'word';
 
 	// Word links typically search the workspace so it makes sense that their maximum link length is
@@ -41,12 +42,14 @@ export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IProductService private readonly _productService: IProductService,
 	) {
+		super();
+
 		this._refreshSeparatorCodes();
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.WordSeparators)) {
 				this._refreshSeparatorCodes();
 			}
-		});
+		}));
 	}
 
 	detect(lines: IBufferLine[], startLine: number, endLine: number): ITerminalSimpleLink[] {
