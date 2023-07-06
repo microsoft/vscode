@@ -822,7 +822,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			throw err;
 		};
 
-		const chain = remoteAuthorityChain.split(/@|%40/g).reverse();
+		const chain = remoteAuthorityChain.split(/@|%40/g).reverse().filter(
+			authorityChainCandidate => authorityChainCandidate.indexOf('+') != -1 // filter entries that don't contain + since they are invalid
+		)
+
 		logInfo(`activating remote resolvers ${chain.join(' -> ')}`);
 
 		let resolvers;
