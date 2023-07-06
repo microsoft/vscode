@@ -107,7 +107,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 
 	async call(ctx: RemoteAgentConnectionContext, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case '$restartPtyHost': return this._ptyHostService.restartPtyHost?.apply(this._ptyHostService, args);
+			case '$restartPtyHost': return this._ptyHostService.restartPtyHost.apply(this._ptyHostService, args);
 
 			case '$createProcess': {
 				const uriTransformer = createURITransformer(ctx.remoteAuthority);
@@ -119,7 +119,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$listProcesses': return this._ptyHostService.listProcesses.apply(this._ptyHostService, args);
 			case '$getPerformanceMarks': return this._ptyHostService.getPerformanceMarks.apply(this._ptyHostService, args);
 			case '$orphanQuestionReply': return this._ptyHostService.orphanQuestionReply.apply(this._ptyHostService, args);
-			case '$acceptPtyHostResolvedVariables': return this._ptyHostService.acceptPtyHostResolvedVariables?.apply(this._ptyHostService, args);
+			case '$acceptPtyHostResolvedVariables': return this._ptyHostService.acceptPtyHostResolvedVariables.apply(this._ptyHostService, args);
 
 			case '$start': return this._ptyHostService.start.apply(this._ptyHostService, args);
 			case '$input': return this._ptyHostService.input.apply(this._ptyHostService, args);
@@ -152,7 +152,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$refreshProperty': return this._ptyHostService.refreshProperty.apply(this._ptyHostService, args);
 			case '$requestDetachInstance': return this._ptyHostService.requestDetachInstance(args[0], args[1]);
 			case '$acceptDetachedInstance': return this._ptyHostService.acceptDetachInstanceReply(args[0], args[1]);
-			case '$freePortKillProcess': return this._ptyHostService.freePortKillProcess?.apply(this._ptyHostService, args);
+			case '$freePortKillProcess': return this._ptyHostService.freePortKillProcess.apply(this._ptyHostService, args);
 		}
 
 		throw new Error(`IPC Command ${command} not found`);
@@ -320,7 +320,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 	}
 
 	private async _getProfiles(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		return this._ptyHostService.getProfiles?.(workspaceId, profiles, defaultProfile, includeDetectedProfiles) || [];
+		return this._ptyHostService.getProfiles(workspaceId, profiles, defaultProfile, includeDetectedProfiles) || [];
 	}
 
 	private _getEnvironment(): platform.IProcessEnvironment {
