@@ -152,6 +152,7 @@ export class GitTimelineProvider implements TimelineProvider {
 		const commits = await repo.logFile(uri, {
 			maxEntries: limit,
 			hash: options.cursor,
+			follow: true,
 			// sortByAuthorDate: true
 		});
 
