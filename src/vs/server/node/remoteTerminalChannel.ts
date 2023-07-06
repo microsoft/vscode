@@ -156,7 +156,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case RemoteTerminalChannelRequest.AcceptDetachInstanceReply: return this._ptyHostService.acceptDetachInstanceReply.apply(this._ptyHostService, args);
 		}
 
-		// @ts-expect-error Assert command is never to ensure all messages are handled
+		// @ts-expect-error Assert command is the `never` type to ensure all messages are handled
 		throw new Error(`IPC Command ${command} not found`);
 	}
 
@@ -177,7 +177,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case RemoteTerminalChannelEvent.OnDidChangeProperty: return this._ptyHostService.onDidChangeProperty;
 		}
 
-		// @ts-expect-error Assert event is never to ensure all messages are handled
+		// @ts-expect-error Assert event is the `never` type to ensure all messages are handled
 		throw new Error(`IPC Command ${event} not found`);
 	}
 
