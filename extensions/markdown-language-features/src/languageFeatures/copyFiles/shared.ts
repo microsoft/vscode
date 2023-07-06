@@ -96,14 +96,11 @@ export async function getMarkdownLink(document: vscode.TextDocument, ranges: rea
 }
 
 function checkPaste(document: vscode.TextDocument, ranges: readonly vscode.Range[], regex: RegExp, index: number): boolean {
-	let match;
 	const rangeStartOffset = document.offsetAt(ranges[index].start);
 	const rangeEndOffset = document.offsetAt(ranges[index].end);
-
-	while ((match = regex.exec(document.getText()))) {
-		const linkStart = match.index;
-		const linkEnd = linkStart + match[0].length;
-		if (rangeEndOffset < linkEnd && rangeStartOffset > linkStart) {
+	const matches = [...document.getText().matchAll(regex)];
+	for (const match of matches) {
+		if (match.index !== undefined && rangeStartOffset > match.index && rangeEndOffset < match.index + match[0].length) {
 			return true;
 		}
 	}
