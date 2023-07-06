@@ -721,6 +721,15 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
 	*/
 	freeInlineCompletions(completions: T): void;
+
+	/**
+	 * Returns a list of preferred providers.
+	 * The current provider is only requested for completions if none of the preferred providers returned a result.
+	 * A preferred provider is only asked if it is registered and applies to the current document.
+	 */
+	getPreferredProviders?(): InlineCompletionsProvider<T>[];
+
+	toString?(): string;
 }
 
 export interface CodeAction {

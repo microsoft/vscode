@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertNever } from 'vs/base/common/assert';
+import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -29,17 +30,73 @@ export async function provideInlineCompletions(
 ): Promise<InlineCompletionProviderResult> {
 	// Important: Don't use position after the await calls, as the model could have been changed in the meantime!
 	const defaultReplaceRange = getDefaultRange(position, model);
-
 	const providers = registry.all(model);
-	const providerResults = await Promise.all(providers.map(async provider => {
-		try {
-			const completions = await provider.provideInlineCompletions(model, position, context, token);
-			return ({ provider, completions });
-		} catch (e) {
-			onUnexpectedExternalError(e);
+
+	type Result = Promise<InlineCompletions<InlineCompletion> | null | undefined>;
+	const states = new Map<InlineCompletionsProvider<InlineCompletions<InlineCompletion>>, Result>();
+
+	const seen = new Set<InlineCompletionsProvider<InlineCompletions<InlineCompletion>>>();
+	function findPreferredProviderCircle(provider: InlineCompletionsProvider<any>, stack: InlineCompletionsProvider[]): InlineCompletionsProvider[] | undefined {
+		stack = [...stack, provider];
+
+		if (seen.has(provider)) {
+			return stack;
 		}
-		return ({ provider, completions: undefined });
-	}));
+
+		seen.add(provider);
+		try {
+			if (provider.getPreferredProviders) {
+				const preferred = provider.getPreferredProviders();
+				for (const p of preferred) {
+					const c = findPreferredProviderCircle(p, stack);
+					if (c) { return c; }
+				}
+			}
+		} finally {
+			seen.delete(provider);
+		}
+		return undefined;
+	}
+
+	function processProvider(provider: InlineCompletionsProvider<any>): Result {
+		const state = states.get(provider);
+		if (state) {
+			return state;
+		}
+
+		const circle = findPreferredProviderCircle(provider, []);
+		if (circle) {
+			onUnexpectedExternalError(new Error(`Inline completions: cyclic yield-to dependency detected. Path: ${circle.map(s => s.toString()).join(' -> ')}`));
+		}
+
+		const deferredPromise = new DeferredPromise<InlineCompletions<InlineCompletion> | null | undefined>();
+		states.set(provider, deferredPromise.p);
+
+		(async () => {
+			if (provider.getPreferredProviders && !circle) {
+				const preferred = provider.getPreferredProviders();
+				for (const p of preferred) {
+					const result = await processProvider(p);
+					if (result && result.items.length > 0) {
+						// Skip provider
+						return undefined;
+					}
+				}
+			}
+
+			try {
+				const completions = await provider.provideInlineCompletions(model, position, context, token);
+				return completions;
+			} catch (e) {
+				onUnexpectedExternalError(e);
+				return undefined;
+			}
+		})().then(c => deferredPromise.complete(c), e => deferredPromise.error(e));
+
+		return deferredPromise.p;
+	}
+
+	const providerResults = await Promise.all(providers.map(async provider => ({ provider, completions: await processProvider(provider) })));
 
 	const itemsByHash = new Map<string, InlineCompletionItem>();
 	const lists: InlineCompletionList[] = [];
