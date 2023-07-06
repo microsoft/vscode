@@ -422,7 +422,7 @@ export class TerminalService implements ITerminalService {
 	private _setConnected() {
 		this._connectionState = TerminalConnectionState.Connected;
 		this._onDidChangeConnectionState.fire();
-		this._logService.trace('Reconnected to terminals');
+		this._logService.trace('Pty host ready');
 	}
 
 	private async _reconnectToRemoteTerminals(): Promise<void> {
@@ -444,6 +444,8 @@ export class TerminalService implements ITerminalService {
 		// now that terminals have been restored,
 		// attach listeners to update remote when terminals are changed
 		this._attachProcessLayoutListeners();
+
+		this._logService.trace('Reconnected to remote terminals');
 	}
 
 	private async _reconnectToLocalTerminals(): Promise<void> {
@@ -462,6 +464,8 @@ export class TerminalService implements ITerminalService {
 		// now that terminals have been restored,
 		// attach listeners to update local state when terminals are changed
 		this._attachProcessLayoutListeners();
+
+		this._logService.trace('Reconnected to local terminals');
 	}
 
 	private _recreateTerminalGroups(layoutInfo?: ITerminalsLayoutInfo): Promise<ITerminalGroup[]> {

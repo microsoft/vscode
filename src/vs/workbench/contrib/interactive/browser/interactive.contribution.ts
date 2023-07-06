@@ -89,15 +89,12 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		const info = notebookService.getContributedNotebookType('interactive');
 
 		// We need to contribute a notebook type for the Interactive Window to provide notebook models.
-		// Don't add a file selector for the notebook type to avoid having the notebook Service create an editor for it.
-		// The IW editor is registered below, and we don't want it overwritten by the notebook Service.
 		if (!info) {
 			this._register(notebookService.registerContributedNotebookType('interactive', {
 				providerDisplayName: 'Interactive Notebook',
 				displayName: 'Interactive',
 				filenamePattern: ['*.interactive'],
-				exclusive: true,
-				externalEditor: true
+				exclusive: true
 			}));
 		}
 
