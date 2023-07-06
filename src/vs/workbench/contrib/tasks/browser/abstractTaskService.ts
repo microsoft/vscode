@@ -374,7 +374,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._tasksReconnected = true;
 			return;
 		}
-		this.getWorkspaceTasks().then(async () => {
+		this.getWorkspaceTasks(TaskRunSource.Reconnect).then(async () => {
 			this._tasksReconnected = await this._reconnectTasks();
 		});
 	}
@@ -2349,11 +2349,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return { workspaceFolder, set: undefined, configurations: undefined, hasErrors: false };
 	}
 
-	private async _computeTasksForSingleConfig(workspaceFolder: IWorkspaceFolder | undefined, config: TaskConfig.IExternalTaskRunnerConfiguration | undefined, runSource: TaskRunSource, custom: CustomTask[], customized: IStringDictionary<ConfiguringTask>, source: TaskConfig.TaskConfigSource, isRecentTask: boolean = false): Promise<boolean> {
-		if (!config || !workspaceFolder) {
+	private async _computeTasksForSingleConfig(workspaceFolder: IWorkspaceFolder, config: TaskConfig.IExternalTaskRunnerConfiguration | undefined, runSource: TaskRunSource, custom: CustomTask[], customized: IStringDictionary<ConfiguringTask>, source: TaskConfig.TaskConfigSource, isRecentTask: boolean = false): Promise<boolean> {
+		if (!config) {
 			return false;
 		}
-		const taskSystemInfo: ITaskSystemInfo | undefined = workspaceFolder ? this._getTaskSystemInfo(workspaceFolder.uri.scheme) : undefined;
+		const taskSystemInfo: ITaskSystemInfo | undefined = this._getTaskSystemInfo(workspaceFolder.uri.scheme);
 		const problemReporter = new ProblemReporter(this._outputChannel);
 		if (!taskSystemInfo) {
 			problemReporter.fatal(nls.localize('TaskSystem.workspaceFolderError', 'Workspace folder was undefined'));
@@ -2746,7 +2746,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _runTaskCommand(filter?: string | ITaskIdentifier): Promise<void> {
-		await this.getWorkspaceTasks();
 		if (!filter) {
 			return this._doRunTaskCommand();
 		}
@@ -2904,7 +2903,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: strings.fetching
 		};
 		const promise = (async () => {
-			await this.getWorkspaceTasks();
 			let taskGroupTasks: (Task | ConfiguringTask)[] = [];
 
 			async function runSingleTask(task: Task | undefined, problemMatcherOptions: IProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
