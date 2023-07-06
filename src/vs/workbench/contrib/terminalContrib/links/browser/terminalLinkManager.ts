@@ -77,7 +77,7 @@ export class TerminalLinkManager extends DisposableStore {
 			this._setupLinkDetector(TerminalMultiLineLinkDetector.id, this._instantiationService.createInstance(TerminalMultiLineLinkDetector, this._xterm, this._processManager, this._linkResolver));
 			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, capabilities, this._processManager, this._linkResolver));
 		}
-		this._setupLinkDetector(TerminalWordLinkDetector.id, this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm));
+		this._setupLinkDetector(TerminalWordLinkDetector.id, this.add(this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm)));
 
 		// Setup link openers
 		const localFileOpener = this._instantiationService.createInstance(TerminalLocalFileLinkOpener);

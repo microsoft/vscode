@@ -8,8 +8,8 @@ import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_HOST_NAME_FOREGROUND } from
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RunOnceScheduler, retry } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { MenuId, IMenuService, MenuItemAction, MenuRegistry, registerAction2, Action2, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
@@ -47,7 +47,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { DomEmitter } from 'vs/base/browser/event';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { infoIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -115,6 +115,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private loggedInvalidGroupNames: { [group: string]: boolean } = Object.create(null);
 	private readonly remoteExtensionMetadata: RemoteExtensionMetadata[];
 	private remoteMetadataInitialized: boolean = false;
+	private readonly _onDidChangeEntries = this._register(new Emitter<void>());
+	private readonly onDidChangeEntries: Event<void> = this._onDidChangeEntries.event;
+
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
@@ -322,25 +325,22 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		for (let i = 0; i < this.remoteExtensionMetadata.length; i++) {
 			const extensionId = this.remoteExtensionMetadata[i].id;
 			const supportedPlatforms = this.remoteExtensionMetadata[i].supportedPlatforms;
-			// Update compatibility
-			const token = new CancellationTokenSource();
-			const galleryExtension = (await this.extensionGalleryService.getExtensions([{ id: extensionId }], token.token))[0];
-			if (!await this.extensionManagementService.canInstall(galleryExtension)) {
-				this.remoteExtensionMetadata[i].isPlatformCompatible = false;
+			const isInstalled = (await this.extensionManagementService.getInstalled()).find(value => ExtensionIdentifier.equals(value.identifier.id, extensionId)) ? true : false;
+
+			this.remoteExtensionMetadata[i].installed = isInstalled;
+			if (isInstalled) {
+				this.remoteExtensionMetadata[i].isPlatformCompatible = true;
 			}
 			else if (supportedPlatforms && !supportedPlatforms.includes(currentPlatform)) {
 				this.remoteExtensionMetadata[i].isPlatformCompatible = false;
 			}
 			else {
 				this.remoteExtensionMetadata[i].isPlatformCompatible = true;
-				this.remoteExtensionMetadata[i].dependencies = galleryExtension.properties.extensionPack ?? [];
 			}
-
-			// Check if installed and enabled
-			this.remoteExtensionMetadata[i].installed = (await this.extensionManagementService.getInstalled()).find(value => ExtensionIdentifier.equals(value.identifier.id, extensionId)) ? true : false;
 		}
 
 		this.remoteMetadataInitialized = true;
+		this._onDidChangeEntries.fire();
 		showRemoteStartEntry.bindTo(this.contextKeyService).set(true);
 		this.updateRemoteStatusIndicator();
 	}
@@ -551,15 +551,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		// Show when there are commands or installable remote extensions.
-		if (this.hasRemoteMenuCommands(true) || this.remoteExtensionMetadata.some(ext => !ext.installed && ext.isPlatformCompatible)) {
-			this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
-			return;
-		}
-
-		// No Remote Extensions: hide status indicator
-		dispose(this.remoteStatusEntry);
-		this.remoteStatusEntry = undefined;
+		this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
+		return;
 	}
 
 	private renderRemoteStatusIndicator(initialText: string, initialTooltip?: string | MarkdownString, command?: string, showProgress?: boolean): void {
@@ -573,7 +566,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			text,
 			showProgress,
 			tooltip,
-			command: command ?? (this.hasRemoteMenuCommands(false) || this.remoteExtensionMetadata.some(ext => !ext.installed && ext.isPlatformCompatible)) ? RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID : undefined
+			command: command ?? RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID
 		};
 
 		if (this.remoteStatusEntry) {
@@ -834,17 +827,15 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		const itemUpdater = this.remoteIndicatorMenu.onDidChange(() => quickPick.items = computeItems());
 		quickPick.onDidHide(itemUpdater.dispose);
 
-		quickPick.show();
-	}
-
-	private hasRemoteMenuCommands(ignoreInstallAdditional: boolean): boolean {
-		if (this.remoteAuthority !== undefined || this.virtualWorkspaceLocation !== undefined) {
-			if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID) {
-				return true;
-			}
-		} else if (!ignoreInstallAdditional && this.extensionGalleryService.isEnabled()) {
-			return true;
+		if (!this.remoteMetadataInitialized) {
+			quickPick.busy = true;
+			this._register(this.onDidChangeEntries(() => {
+				// If quick pick is open, update the quick pick items after initialization.
+				quickPick.busy = false;
+				quickPick.items = computeItems();
+			}));
 		}
-		return this.getRemoteMenuActions().length > 0;
+
+		quickPick.show();
 	}
 }
