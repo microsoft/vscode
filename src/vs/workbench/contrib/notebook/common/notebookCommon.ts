@@ -533,8 +533,6 @@ export interface INotebookContributionData {
 	displayName: string;
 	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
 	exclusive: boolean;
-	/// Editor contribution is handled elswhere e.g. interactive
-	externalEditor?: boolean;
 }
 
 
