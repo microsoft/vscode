@@ -21,6 +21,7 @@ import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/brows
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
@@ -131,7 +132,23 @@ class InputEditorDecorations extends Disposable {
 	}
 }
 
-ChatWidget.CONTRIBS.push(InputEditorDecorations);
+class InputEditorSlashCommandFollowups extends Disposable {
+	constructor(
+		private readonly widget: IChatWidget,
+		private readonly chatService: IChatService
+	) {
+		super();
+		this._register(this.chatService.onDidCompleteSlashCommand((command) => this.prependSlashCommand(command)));
+	}
+
+	private prependSlashCommand(command: string) {
+		if (this.widget.inputEditor.getValue().trim().length === 0) {
+			this.widget.inputEditor.setValue(`/${command}`);
+		}
+	}
+}
+
+ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandFollowups);
 
 class SlashCommandCompletions extends Disposable {
 	constructor(

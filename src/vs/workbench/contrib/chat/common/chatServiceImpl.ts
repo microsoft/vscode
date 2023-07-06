@@ -135,6 +135,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
+	private readonly _onDidCompleteSlashCommand = this._register(new Emitter<string>());
+	public readonly onDidCompleteSlashCommand = this._onDidCompleteSlashCommand.event;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -465,9 +468,15 @@ export class ChatService extends Disposable implements IChatService {
 					Promise.resolve(provider.provideFollowups(model.session!, CancellationToken.None)).then(followups => {
 						model.setFollowups(request, withNullAsUndefined(followups));
 						model.completeResponse(request);
+						if (usedSlashCommand?.command) {
+							this._onDidCompleteSlashCommand.fire(usedSlashCommand.command);
+						}
 					});
 				} else {
 					model.completeResponse(request);
+					if (usedSlashCommand?.command) {
+						this._onDidCompleteSlashCommand.fire(usedSlashCommand.command);
+					}
 				}
 			}
 		});

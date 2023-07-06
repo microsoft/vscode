@@ -176,6 +176,8 @@ export const IChatService = createDecorator<IChatService>('IChatService');
 export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionId: string | undefined;
+
+	onDidCompleteSlashCommand: Event<string>;
 	registerProvider(provider: IChatProvider): IDisposable;
 	registerSlashCommandProvider(provider: ISlashCommandProvider): IDisposable;
 	getProviderInfos(): IChatProviderInfo[];
