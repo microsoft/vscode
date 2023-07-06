@@ -66,7 +66,7 @@ export async function provideInlineCompletions(
 
 		const circle = findPreferredProviderCircle(provider, []);
 		if (circle) {
-			onUnexpectedExternalError(new Error(`Inline completions: cyclic yield-to dependency detected. Path: ${circle.map(s => s.toString()).join(' -> ')}`));
+			onUnexpectedExternalError(new Error(`Inline completions: cyclic yield-to dependency detected. Path: ${circle.map(s => s.toString ? s.toString() : ('' + s)).join(' -> ')}`));
 		}
 
 		const deferredPromise = new DeferredPromise<InlineCompletions<InlineCompletion> | null | undefined>();
