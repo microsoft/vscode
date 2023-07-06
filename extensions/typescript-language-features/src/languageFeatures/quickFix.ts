@@ -340,20 +340,9 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		}
 
 		for (const tsCodeFix of response.body) {
-			this.addAllFixesForTsCodeAction(results, document, file, diagnostic, tsCodeFix as Proto.CodeFixAction);
+			results.addAction(this.getSingleFixForTsCodeAction(document, diagnostic, tsCodeFix));
+			this.addFixAllForTsCodeAction(results, document.uri, file, diagnostic, tsCodeFix as Proto.CodeFixAction);
 		}
-		return results;
-	}
-
-	private addAllFixesForTsCodeAction(
-		results: CodeActionSet,
-		document: vscode.TextDocument,
-		file: string,
-		diagnostic: vscode.Diagnostic,
-		tsAction: Proto.CodeFixAction
-	): CodeActionSet {
-		results.addAction(this.getSingleFixForTsCodeAction(document, diagnostic, tsAction));
-		this.addFixAllForTsCodeAction(results, document.uri, file, diagnostic, tsAction as Proto.CodeFixAction);
 		return results;
 	}
 
@@ -366,6 +355,16 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		let followupAction: Command | undefined;
 		if (aiQuickFixEnabled && tsAction.fixName === fixNames.classIncorrectlyImplementsInterface) {
 			followupAction = new EditorChatFollowUp('Implement the class using the interface', document, diagnostic.range, this.client);
+		}
+		else if (aiQuickFixEnabled && tsAction.fixName === fixNames.inferFromUsage) {
+			// TODO: "this code" is not specific; not sure if that's important
+			// TODO: Only fires when noImplicitAny is an error
+			// TODO: Seems to replace the inferFromUsage codefix, which is OK by me but maybe not the best.
+			// TODO: Doesn't fire in JS files? Not sure.
+			// TODO: The span for inferFromUsage is smaller than a correct span..and copilot seems to ignore the span anyway.
+			// TODO: When there are "enough" types around, leave off the "Add separate interfaces when possible" because it's not helpful.
+			// TODO: It would be nice to fire on other errors
+			followupAction = new EditorChatFollowUp('Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.', document, diagnostic.range, this.client);
 		}
 		const codeAction = new VsCodeCodeAction(tsAction, tsAction.description, vscode.CodeActionKind.QuickFix);
 		codeAction.edit = getEditForCodeAction(this.client, tsAction);

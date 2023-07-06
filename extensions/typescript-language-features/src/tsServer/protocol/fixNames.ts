@@ -16,5 +16,6 @@ export const fixImport = 'import';
 export const forgottenThisPropertyAccess = 'forgottenThisPropertyAccess';
 export const removeUnnecessaryAwait = 'removeUnnecessaryAwait';
 export const spelling = 'spelling';
+export const inferFromUsage = 'inferFromUsage';
 export const unreachableCode = 'fixUnreachableCode';
 export const unusedIdentifier = 'unusedIdentifier';
