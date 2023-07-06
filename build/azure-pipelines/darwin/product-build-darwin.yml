@@ -114,7 +114,7 @@ steps:
     - script: |
         set -e
         yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
-        echo "##vso[task.setvariable variable=BUILT_CLIENT_ARCHIVE]true"
+        echo "##vso[task.setvariable variable=BUILT_CLIENT]true"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build client
@@ -122,7 +122,11 @@ steps:
     - script: |
         set -e
         yarn gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
-        echo "##vso[task.setvariable variable=BUILT_SERVER_ARCHIVE]true"
+        mv ../vscode-reh-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH) # TODO@joaomoreno
+        ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH).zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd .. && zip -Xry $ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH))
+        echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server
@@ -130,7 +134,11 @@ steps:
     - script: |
         set -e
         yarn gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
-        echo "##vso[task.setvariable variable=BUILT_WEB_ARCHIVE]true"
+        mv ../vscode-reh-web-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH)-web # TODO@joaomoreno
+        ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH)-web.zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd .. && zip -Xry $ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH)-web)
+        echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server (web)
@@ -185,18 +193,14 @@ steps:
         DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
       displayName: Set Hardened Entitlements
 
-    - script: cd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip *
-      displayName: Archive build
-
     - script: |
         set -e
-
-        # package Remote Extension Host
-        pushd .. && mv vscode-reh-darwin-$(VSCODE_ARCH) vscode-server-darwin-$(VSCODE_ARCH) && zip -Xry vscode-server-darwin-$(VSCODE_ARCH).zip vscode-server-darwin-$(VSCODE_ARCH) && popd
-
-        # package Remote Extension Host (Web)
-        pushd .. && mv vscode-reh-web-darwin-$(VSCODE_ARCH) vscode-server-darwin-$(VSCODE_ARCH)-web && zip -Xry vscode-server-darwin-$(VSCODE_ARCH)-web.zip vscode-server-darwin-$(VSCODE_ARCH)-web && popd
-      displayName: Prepare to publish servers
+        ARCHIVE_PATH=".build/darwin/client/VSCode-darwin-$(VSCODE_ARCH).zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $ARCHIVE_PATH *)
+        echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
+      condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT'], 'true'))
+      displayName: Package client
 
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (client)
@@ -218,17 +222,17 @@ steps:
       displayName: Publish SBOM (server)
       artifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
 
-    - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
+    - publish: $(CLIENT_PATH)
       artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
-      condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT_ARCHIVE'], 'true'))
+      condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
       displayName: Publish client archive
 
-    - publish: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH).zip
+    - publish: $(SERVER_PATH)
       artifact: vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
-      condition: and(succeededOrFailed(), eq(variables['BUILT_SERVER_ARCHIVE'], 'true'))
+      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
       displayName: Publish server archive
 
-    - publish: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web.zip
+    - publish: $(WEB_PATH)
       artifact: vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
-      condition: and(succeededOrFailed(), eq(variables['BUILT_WEB_ARCHIVE'], 'true'))
+      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
       displayName: Publish web server archive
