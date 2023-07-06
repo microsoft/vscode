@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n } from 'vscode';
-import { Branch, RefType, Status } from './api/git';
+import { Branch, Status } from './api/git';
 import { OperationKind } from './operation';
 import { CommitCommandsCenter } from './postCommitCommands';
 import { Repository } from './repository';
@@ -82,7 +82,8 @@ export class ActionButtonCommand {
 		}
 
 		// Commit Changes (enabled) -> Publish Branch -> Sync Changes -> Commit Changes (disabled)
-		return actionButton ?? this.getPublishBranchActionButton() ?? this.getSyncChangesActionButton() ?? this.getCommitActionButton();
+		// return actionButton ?? this.getPublishBranchActionButton() ?? this.getSyncChangesActionButton() ?? this.getCommitActionButton();
+		return actionButton ?? this.getCommitActionButton();
 	}
 
 	private getCommitActionButton(): SourceControlActionButton | undefined {
@@ -133,58 +134,58 @@ export class ActionButtonCommand {
 		return commandGroups;
 	}
 
-	private getPublishBranchActionButton(): SourceControlActionButton | undefined {
-		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const showActionButton = config.get<{ publish: boolean }>('showActionButton', { publish: true });
+	// private getPublishBranchActionButton(): SourceControlActionButton | undefined {
+	// 	const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+	// 	const showActionButton = config.get<{ publish: boolean }>('showActionButton', { publish: true });
 
-		// Not a branch (tag, detached), branch does have an upstream, commit/merge/rebase is in progress, or the button is disabled
-		if (this.state.HEAD?.type === RefType.Tag || !this.state.HEAD?.name || this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
+	// 	// Not a branch (tag, detached), branch does have an upstream, commit/merge/rebase is in progress, or the button is disabled
+	// 	if (this.state.HEAD?.type === RefType.Tag || !this.state.HEAD?.name || this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
 
-		// Button icon
-		const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(cloud-upload)';
+	// 	// Button icon
+	// 	const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(cloud-upload)';
 
-		return {
-			command: {
-				command: 'git.publish',
-				title: l10n.t({ message: '{0} Publish Branch', args: [icon], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }),
-				tooltip: this.state.isSyncInProgress ?
-					(this.state.HEAD?.name ?
-						l10n.t({ message: 'Publishing Branch "{0}"...', args: [this.state.HEAD.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
-						l10n.t({ message: 'Publishing Branch...', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })) :
-					(this.repository.HEAD?.name ?
-						l10n.t({ message: 'Publish Branch "{0}"', args: [this.state.HEAD?.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
-						l10n.t({ message: 'Publish Branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })),
-				arguments: [this.repository.sourceControl],
-			},
-			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
-		};
-	}
+	// 	return {
+	// 		command: {
+	// 			command: 'git.publish',
+	// 			title: l10n.t({ message: '{0} Publish Branch', args: [icon], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }),
+	// 			tooltip: this.state.isSyncInProgress ?
+	// 				(this.state.HEAD?.name ?
+	// 					l10n.t({ message: 'Publishing Branch "{0}"...', args: [this.state.HEAD.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
+	// 					l10n.t({ message: 'Publishing Branch...', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })) :
+	// 				(this.repository.HEAD?.name ?
+	// 					l10n.t({ message: 'Publish Branch "{0}"', args: [this.state.HEAD?.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
+	// 					l10n.t({ message: 'Publish Branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })),
+	// 			arguments: [this.repository.sourceControl],
+	// 		},
+	// 		enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
+	// 	};
+	// }
 
-	private getSyncChangesActionButton(): SourceControlActionButton | undefined {
-		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const showActionButton = config.get<{ sync: boolean }>('showActionButton', { sync: true });
-		const branchIsAheadOrBehind = (this.state.HEAD?.behind ?? 0) > 0 || (this.state.HEAD?.ahead ?? 0) > 0;
+	// private getSyncChangesActionButton(): SourceControlActionButton | undefined {
+	// 	const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+	// 	const showActionButton = config.get<{ sync: boolean }>('showActionButton', { sync: true });
+	// 	const branchIsAheadOrBehind = (this.state.HEAD?.behind ?? 0) > 0 || (this.state.HEAD?.ahead ?? 0) > 0;
 
-		// Branch does not have an upstream, branch is not ahead/behind the remote branch, commit/merge/rebase is in progress, or the button is disabled
-		if (!this.state.HEAD?.upstream || !branchIsAheadOrBehind || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.sync) { return undefined; }
+	// 	// Branch does not have an upstream, branch is not ahead/behind the remote branch, commit/merge/rebase is in progress, or the button is disabled
+	// 	if (!this.state.HEAD?.upstream || !branchIsAheadOrBehind || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.sync) { return undefined; }
 
-		const ahead = this.state.HEAD.ahead ? ` ${this.state.HEAD.ahead}$(arrow-up)` : '';
-		const behind = this.state.HEAD.behind ? ` ${this.state.HEAD.behind}$(arrow-down)` : '';
-		const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(sync)';
+	// 	const ahead = this.state.HEAD.ahead ? ` ${this.state.HEAD.ahead}$(arrow-up)` : '';
+	// 	const behind = this.state.HEAD.behind ? ` ${this.state.HEAD.behind}$(arrow-down)` : '';
+	// 	const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(sync)';
 
-		return {
-			command: {
-				command: 'git.sync',
-				title: l10n.t('{0} Sync Changes{1}{2}', icon, behind, ahead),
-				tooltip: this.state.isSyncInProgress ?
-					l10n.t('Synchronizing Changes...')
-					: this.repository.syncTooltip,
-				arguments: [this.repository.sourceControl],
-			},
-			description: `${icon}${behind}${ahead}`,
-			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
-		};
-	}
+	// 	return {
+	// 		command: {
+	// 			command: 'git.sync',
+	// 			title: l10n.t('{0} Sync Changes{1}{2}', icon, behind, ahead),
+	// 			tooltip: this.state.isSyncInProgress ?
+	// 				l10n.t('Synchronizing Changes...')
+	// 				: this.repository.syncTooltip,
+	// 			arguments: [this.repository.sourceControl],
+	// 		},
+	// 		description: `${icon}${behind}${ahead}`,
+	// 		enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
+	// 	};
+	// }
 
 	private onDidChangeOperations(): void {
 		const isCheckoutInProgress

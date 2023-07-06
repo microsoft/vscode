@@ -9,8 +9,9 @@ declare module 'vscode' {
 	export interface SourceControlHistoryProvider {
 		onDidChange: Event<SourceControlHistoryChangeEvent>;
 		provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
-		resolveHistoryItem(historyItemId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
-		resolveHistoryItemGroup(historyItemGroupId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemGroup>;
+		provideHistoryItemChanges(historyItemId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
+
+		// resolveHistoryItemGroup(historyItemGroupId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemGroup | undefined>;
 		resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string, token: CancellationToken): ProviderResult<SourceControlHistoryItem>;
 	}
 
@@ -28,20 +29,24 @@ declare module 'vscode' {
 	export interface SourceControlHistoryItemGroup {
 		readonly id: string;
 		readonly label: string;
-		readonly remote?: Partial<Omit<SourceControlHistoryItemGroup, 'remote'>>;
+		readonly ahead?: number;
+		readonly behind?: number;
+		readonly remote?: string;
 	}
 
 	export interface SourceControlHistoryItem {
 		readonly id: string;
-		readonly icon?: ThemeIcon;
+		readonly parentIds: string[];
 		readonly label: string;
 		readonly description?: string;
+		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 		readonly timestamp?: number;
 	}
 
 	export interface SourceControlHistoryItemChange {
 		readonly uri: Uri;
-		readonly originalUri: Uri;
+		readonly originalUri: Uri | undefined;
+		readonly modifiedUri: Uri | undefined;
 		readonly renameUri: Uri | undefined;
 	}
 

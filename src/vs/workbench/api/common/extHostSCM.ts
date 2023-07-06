@@ -11,7 +11,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { asPromise } from 'vs/base/common/async';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMRawHistoryItem } from './extHost.protocol';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto } from './extHost.protocol';
 import { sortedDiff, equals } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import type * as vscode from 'vscode';
@@ -42,6 +42,19 @@ function getIconResource(decorations?: vscode.SourceControlResourceThemableDecor
 		return decorations.iconPath;
 	} else {
 		return undefined;
+	}
+}
+
+function getHistoryItemIconDto(historyItem: vscode.SourceControlHistoryItem): UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined {
+	if (!historyItem.icon) {
+		return undefined;
+	} else if (URI.isUri(historyItem.icon)) {
+		return historyItem.icon;
+	} else if (ThemeIcon.isThemeIcon(historyItem.icon)) {
+		return historyItem.icon;
+	} else {
+		const icon = historyItem.icon as { light: URI; dark: URI };
+		return { light: icon.light, dark: icon.dark };
 	}
 }
 
@@ -195,6 +208,10 @@ function commandEquals(a: vscode.Command, b: vscode.Command): boolean {
 
 function commandListEquals(a: readonly vscode.Command[], b: readonly vscode.Command[]): boolean {
 	return equals(a, b, commandEquals);
+}
+
+function historyItemGroupEquals(a: vscode.SourceControlHistoryItemGroup | undefined, b: vscode.SourceControlHistoryItemGroup | undefined): boolean {
+	return a?.id === b?.id && a?.label === b?.label && a?.remote === b?.remote && a?.ahead === b?.ahead && a?.behind === b?.behind;
 }
 
 export interface IValidateInput {
@@ -454,22 +471,6 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	}
 }
 
-// class ExtHostSourceControlHistory {
-
-// 	private static _handlePool: number = 0;
-// 	readonly handle: number = ExtHostSourceControlHistory._handlePool++;
-
-// 	constructor(readonly id: string, readonly label: string, private readonly _provider: vscode.SourceControlHistoryProvider) { }
-
-// 	async provideHistory(ref1: string, ref2: string, token: CancellationToken): Promise<vscode.SourceControlHistoryItem[]> {
-// 		return [];
-// 		// const historyItems = await this._provider.provideHistory(ref1, ref2, token);
-// 		// return historyItems ?? [];
-// 	}
-
-// 	dispose(): void { }
-// }
-
 class ExtHostSourceControl implements vscode.SourceControl {
 
 	private static _handlePool: number = 0;
@@ -477,8 +478,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	#proxy: MainThreadSCMShape;
 
 	private _groups: Map<GroupHandle, ExtHostSourceControlResourceGroup> = new Map<GroupHandle, ExtHostSourceControlResourceGroup>();
-
-	// private _histories: Map<HistoryHandle, ExtHostSourceControlHistory> = new Map<HistoryHandle, ExtHostSourceControlHistory>();
 
 	get id(): string {
 		return this._id;
@@ -550,7 +549,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	set historyItemGroup(historyItemGroup: vscode.SourceControlHistoryItemGroup | undefined) {
 		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
 
-		if (historyItemGroup === this._historyItemGroup) {
+		if (historyItemGroupEquals(historyItemGroup, this._historyItemGroup)) {
 			return;
 		}
 
@@ -736,37 +735,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	getResourceGroup(handle: GroupHandle): ExtHostSourceControlResourceGroup | undefined {
 		return this._groups.get(handle);
 	}
-
-	// createHistory(id: string, label: string, provider: vscode.SourceControlHistoryProvider): vscode.Disposable {
-	// 	checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
-
-	// 	const history = new ExtHostSourceControlHistory(id, label, provider);
-	// 	this.#proxy.$registerHistory(this.handle, history.handle, history.id, history.label);
-	// 	this._histories.set(history.handle, history);
-
-	// 	const listener = provider.onDidChange(e => {
-	// 		this.#proxy.$onDidChangeHistory(this.handle, history.handle, e);
-	// 	});
-
-	// 	return new Disposable(() => {
-	// 		listener.dispose();
-
-	// 		this.#proxy.$unregisterHistory(this.handle, history.handle);
-	// 		this._histories.delete(history.handle);
-	// 	});
-	// }
-
-	// async $provideHistory(handle: HistoryHandle, ref1: string, ref2: string, token: CancellationToken): Promise<vscode.SourceControlHistoryItem[]> {
-	// 	checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
-
-	// 	const history = this._histories.get(handle);
-	// 	if (!history) {
-	// 		return [];
-	// 	}
-
-	// 	const historyItems = await history.provideHistory(ref1, ref2, token);
-	// 	return historyItems;
-	// }
 
 	setSelectionState(selected: boolean): void {
 		this._selected = selected;
@@ -965,27 +933,62 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return Promise.resolve(undefined);
 	}
 
-	async $provideHistory(sourceControlHandle: number, historyHandle: number, ref1: string, ref2: string, token: CancellationToken): Promise<SCMRawHistoryItem[]> {
-		return [];
+	async $resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string, token: CancellationToken): Promise<SCMHistoryItemDto | undefined> {
+		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
 
-		// const sourceControl = this._sourceControls.get(sourceControlHandle);
+		if (!historyProvider) {
+			return undefined;
+		}
 
-		// if (!sourceControl) {
-		// 	return [];
-		// }
+		const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(historyItemGroupId1, historyItemGroupId2, token);
+		if (!ancestor) {
+			return undefined;
+		}
 
-		// const historyItems = await sourceControl.$provideHistory(historyHandle, ref1, ref2, token);
-		// const historyItemsRaw = historyItems.map(item => {
-		// 	const changesRaw = item.changes.map(change => {
-		// 		const disposables = new DisposableStore();
-		// 		const command = this._commands.converter.toInternal(change.command, disposables);
+		return {
+			id: ancestor.id,
+			parentIds: ancestor.parentIds,
+			label: ancestor.label,
+			description: ancestor.description,
+			icon: getHistoryItemIconDto(ancestor),
+			timestamp: ancestor.timestamp,
+		};
+	}
 
-		// 		return [change.uri, change.originalUri, change.renameUri, command] as SCMRawHistoryItemChange;
-		// 	});
+	async $provideHistoryItems(sourceControlHandle: number, historyItemGroupId: string, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
+		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
 
-		// 	return [item.id, [], item.label, item.description, item.icon, item.timestamp, changesRaw] as SCMRawHistoryItem;
-		// });
+		if (!historyProvider) {
+			return undefined;
+		}
 
-		// return historyItemsRaw;
+		const historyItems = await historyProvider.provideHistoryItems(historyItemGroupId, options, token);
+		if (!historyItems) {
+			return undefined;
+		}
+
+		return historyItems.map(item => ({
+			id: item.id,
+			parentIds: item.parentIds,
+			label: item.label,
+			description: item.description,
+			icon: getHistoryItemIconDto(item),
+			timestamp: item.timestamp,
+		}));
+	}
+
+	async $provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined> {
+		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+
+		if (!historyProvider) {
+			return undefined;
+		}
+
+		const historyItemChanges = await historyProvider.provideHistoryItemChanges(historyItemId, token);
+		if (!historyItemChanges) {
+			return undefined;
+		}
+
+		return historyItemChanges;
 	}
 }

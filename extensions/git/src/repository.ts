@@ -1460,6 +1460,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Rebase, () => this.repository.rebase(branch));
 	}
 
+	async revParse(ref: string): Promise<string | undefined> {
+		return await this.run(Operation.RevParse, () => this.repository.revParse(ref));
+	}
+
 	async tag(name: string, message?: string): Promise<void> {
 		await this.run(Operation.Tag, () => this.repository.tag(name, message));
 	}
@@ -2054,6 +2058,9 @@ export class Repository implements Disposable {
 			this._sourceControl.historyItemGroup = HEAD ? {
 				id: HEAD.commit!,
 				label: HEAD.name!,
+				ahead: HEAD.ahead,
+				behind: HEAD.behind,
+				remote: HEAD.upstream ? `${HEAD.upstream.remote}/${HEAD.upstream.name}` : undefined
 			} : undefined;
 
 			this._sourceControl.commitTemplate = commitTemplate;

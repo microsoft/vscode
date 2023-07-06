@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMHistory, ISCMHistoryItem, ISCMHistoryItemChange } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -16,7 +16,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Command } from 'vs/editor/common/languages';
 import { reset } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceNode, ResourceTree } from 'vs/base/common/resourceTree';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
 	return !!(element as ISCMRepository).provider && !!(element as ISCMRepository).input;
@@ -31,31 +30,11 @@ export function isSCMActionButton(element: any): element is ISCMActionButton {
 }
 
 export function isSCMResourceGroup(element: any): element is ISCMResourceGroup {
-	return !!(element as ISCMResourceGroup).provider && !!(element as ISCMResourceGroup).elements && typeof ((element as ISCMResourceGroup)).hideWhenEmpty === 'boolean';
+	return !!(element as ISCMResourceGroup).provider && !!(element as ISCMResourceGroup).elements;
 }
 
 export function isSCMResource(element: any): element is ISCMResource {
 	return !!(element as ISCMResource).sourceUri && isSCMResourceGroup((element as ISCMResource).resourceGroup);
-}
-
-export function isSCMResourceNode(element: any): element is IResourceNode<ISCMResource, ISCMResourceGroup> {
-	return ResourceTree.isResourceNode(element) && isSCMResourceGroup(element.context);
-}
-
-export function isSCMHistory(element: any): element is ISCMHistory {
-	return !!(element as ISCMHistory).provider && (element as ISCMHistory).elements.every(h => isSCMHistoryItem(h));
-}
-
-export function isSCMHistoryItem(element: any): element is ISCMHistoryItem {
-	return !!(element as ISCMHistoryItem).history?.provider && !!(element as ISCMHistoryItem).parentIds;
-}
-
-export function isSCMHistoryItemChange(element: any): element is ISCMHistoryItemChange {
-	return !!(element as ISCMHistoryItemChange).uri && !!(element as ISCMHistoryItemChange).originalUri;
-}
-
-export function isSCMHistoryItemChangeNode(element: any): element is IResourceNode<ISCMHistoryItemChange, ISCMHistoryItem> {
-	return ResourceTree.isResourceNode(element) && isSCMHistoryItem(element.context);
 }
 
 const compareActions = (a: IAction, b: IAction) => a.id === b.id && a.enabled === b.enabled;

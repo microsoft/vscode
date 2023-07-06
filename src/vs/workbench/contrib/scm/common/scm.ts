@@ -13,10 +13,12 @@ import { IAction } from 'vs/base/common/actions';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ISCMHistoryItemGroup } from 'vs/workbench/contrib/scm/common/history';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
 export const REPOSITORIES_VIEW_PANE_ID = 'workbench.scm.repositories';
+export const SYNC_VIEW_PANE_ID = 'workbench.scm.sync';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;
@@ -49,44 +51,12 @@ export interface ISCMResourceGroup extends ISequence<ISCMResource> {
 	readonly onDidChange: Event<void>;
 }
 
-export interface ISCMHistory extends ISequence<ISCMHistoryItem> {
-	readonly provider: ISCMProvider;
-	readonly id: string;
-	readonly label: string;
-	readonly onDidChange: Event<void>;
-}
-
-export interface ISCMHistoryChangeEvent {
-	readonly ref1: string;
-	readonly ref2: string;
-	readonly reset?: boolean;
-}
-
-export interface ISCMHistoryItem extends ISequence<ISCMHistoryItemChange> {
-	readonly history: ISCMHistory;
-	readonly id: string;
-	readonly parentIds: string[];
-	readonly label: string;
-	readonly description?: string;
-	readonly icon?: ThemeIcon;
-	readonly timestamp?: number;
-}
-
-export interface ISCMHistoryItemChange {
-	readonly historyItem: ISCMHistoryItem;
-	readonly uri: URI;
-	readonly originalUri: URI;
-	readonly renameUri: URI | undefined;
-	readonly command: Command | undefined;
-}
-
 export interface ISCMProvider extends IDisposable {
 	readonly label: string;
 	readonly id: string;
 	readonly contextValue: string;
 
 	readonly groups: ISequence<ISCMResourceGroup>;
-	readonly histories: ISequence<ISCMHistory>;
 
 	// TODO@Joao: remove
 	readonly onDidChangeResources: Event<void>;
@@ -95,7 +65,9 @@ export interface ISCMProvider extends IDisposable {
 	readonly inputBoxDocumentUri: URI;
 	readonly count?: number;
 	readonly commitTemplate: string;
+	readonly historyItemGroup?: ISCMHistoryItemGroup;
 	readonly onDidChangeCommitTemplate: Event<string>;
+	readonly onDidChangeHistoryItemGroup: Event<void>;
 	readonly onDidChangeStatusBarCommands?: Event<readonly Command[]>;
 	readonly acceptInputCommand?: Command;
 	readonly actionButton?: ISCMActionButtonDescriptor;

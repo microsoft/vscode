@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, SourceControlHistoryChangeEvent, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider } from 'vscode';
+import { Disposable, Event, EventEmitter, SourceControlHistoryChangeEvent, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon } from 'vscode';
 import { Repository } from './repository';
 import { IDisposable } from './util';
+import { toGitUri } from './uri';
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, IDisposable {
 
@@ -20,123 +21,76 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, IDispos
 	}
 
 	private onDidRunGitStatus(): void {
-		this._onDidChange.fire({ added: [], deleted: [], modified: [] });
+		//TODO@lszomoru - handle added, and deleted history item groups
+		const historyItemGroup = this.repository.sourceControl.historyItemGroup;
+		this._onDidChange.fire({ added: [], deleted: [], modified: historyItemGroup ? [historyItemGroup] : [] });
 	}
 
-	provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
-		throw new Error('Method not implemented.');
+	async provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
+		//TODO@lszomoru - support limit and cursor
+		if (typeof options.limit === 'number') {
+			throw new Error('Unsupported options.');
+		}
+		if (typeof options.limit?.id !== 'string') {
+			throw new Error('Unsupported options.');
+		}
+
+		// Resolve the history item group id to a commit
+		const historyItemGroupCommit = await this.repository.revParse(historyItemGroupId);
+
+		const optionsRef = options.limit.id;
+		const [commits, summary] = await Promise.all([
+			this.repository.log({ range: `${optionsRef}..${historyItemGroupId}`, sortByAuthorDate: true }),
+			this.getSummaryHistoryItem(optionsRef, historyItemGroupCommit!)
+		]);
+
+		const historyItems = [summary];
+		historyItems.push(...commits.map(commit => {
+			return {
+				id: commit.hash,
+				parentIds: commit.parents,
+				label: commit.message,
+				description: commit.authorName,
+				icon: new ThemeIcon('account'),
+				timestamp: commit.authorDate?.getTime()
+			};
+		}));
+
+		return historyItems;
 	}
-	resolveHistoryItem(historyItemId: string): Promise<SourceControlHistoryItemChange[]> {
-		throw new Error('Method not implemented.');
+
+	async provideHistoryItemChanges(historyItemId: string): Promise<SourceControlHistoryItemChange[]> {
+		const [ref1, ref2] = historyItemId.includes('..')
+			? historyItemId.split('..')
+			: [`${historyItemId}^`, historyItemId];
+
+		const changes = await this.repository.diffBetween(ref1, ref2);
+
+		return changes.map(change => ({
+			uri: change.uri.with({ query: `ref=${historyItemId}` }),
+			originalUri: toGitUri(change.originalUri, ref1),
+			modifiedUri: toGitUri(change.originalUri, ref2),
+			renameUri: change.renameUri,
+		}));
 	}
-	resolveHistoryItemGroup(historyItemGroupId: string): Promise<SourceControlHistoryItemGroup> {
-		throw new Error('Method not implemented.');
+
+	// resolveHistoryItemGroup(historyItemGroupId: string): Promise<SourceControlHistoryItemGroup> {
+	// 	throw new Error('Method not implemented.');
+	// }
+
+	async resolveHistoryItemGroupCommonAncestor(refId1: string, refId2: string): Promise<SourceControlHistoryItem> {
+		const mergeBase = await this.repository.getMergeBase(refId1, refId2);
+		const commit = await this.repository.getCommit(mergeBase);
+
+		return { id: mergeBase, parentIds: commit.parents, label: commit.message, description: commit.authorName, icon: new ThemeIcon('account'), timestamp: commit.authorDate?.getTime() };
 	}
-	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string): Promise<SourceControlHistoryItem> {
-		throw new Error('Method not implemented.');
+
+	private async getSummaryHistoryItem(ref1: string, ref2: string): Promise<SourceControlHistoryItem> {
+		const diffShortStat = await this.repository.diffBetweenShortStat(ref1, ref2);
+		return { id: `${ref1}..${ref2}`, parentIds: [], icon: new ThemeIcon('files'), label: 'Changes', description: diffShortStat };
 	}
 
 	dispose(): void {
 		this.disposables.forEach(d => d.dispose());
 	}
 }
-
-// abstract class GitCommitHistoryProvider implements SourceControlHistoryProvider {
-
-// 	protected readonly _onDidChange = new EventEmitter<SourceControlHistoryChangeEvent>();
-// 	readonly onDidChange: Event<SourceControlHistoryChangeEvent> = this._onDidChange.event;
-
-// 	private disposables: Disposable[] = [];
-
-// 	constructor(protected readonly repository: Repository) {
-// 		this.disposables.push(repository.onDidRunGitStatus(this.onDidRunGitStatus, this));
-// 	}
-
-// 	async provideHistory(ref1: string, ref2: string): Promise<SourceControlHistoryItem[]> {
-// 		const commits = await this.repository.log({ range: `${ref1}..${ref2}`, sortByAuthorDate: true });
-
-// 		if (commits.length === 0) {
-// 			return [];
-// 		}
-
-// 		const diff = await this.repository.diffBetween(ref1, ref2);
-// 		const diffShortStat = await this.repository.diffBetweenShortStat(ref1, ref2);
-
-// 		const historyItems: SourceControlHistoryItem[] = [{
-// 			id: `${ref1}..${ref2}`,
-// 			icon: new ThemeIcon('files'),
-// 			label: 'Changes',
-// 			description: diffShortStat,
-// 			changes: diff.map(diff => {
-// 				const basename = path.basename(diff.uri.fsPath);
-// 				const shortRef1 = /^[0-9a-f]{40}$/i.test(ref1) ? ref1.substring(0, 8) : ref1;
-// 				const shortRef2 = /^[0-9a-f]{40}$/i.test(ref2) ? ref2.substring(0, 8) : ref2;
-
-// 				return {
-// 					uri: diff.uri.with({ query: `ref=${ref1}..${ref2}` }),
-// 					originalUri: diff.originalUri.with({ query: `ref=${ref1}..${ref2}` }),
-// 					renameUri: diff.renameUri?.with({ query: `ref=${ref1}..${ref2}` }),
-// 					command: {
-// 						command: 'vscode.diff',
-// 						title: l10n.t('Open'),
-// 						arguments: [
-// 							toGitUri(diff.uri, ref1),
-// 							toGitUri(diff.uri, ref2),
-// 							`${basename} (${shortRef1}) ↔ ${basename} (${shortRef2})`]
-// 					}
-// 				};
-// 			})
-// 		}];
-
-// 		historyItems.push(...commits.map(commit => {
-// 			return {
-// 				id: commit.hash,
-// 				icon: new ThemeIcon('account'),
-// 				label: commit.message,
-// 				description: commit.authorName,
-// 				timestamp: commit.authorDate?.getTime(),
-// 				changes: []
-// 			};
-// 		}));
-
-// 		return historyItems;
-// 	}
-
-// 	resolveHistoryItem(): Promise<SourceControlHistoryItemChange[] | undefined> {
-// 		throw new Error('Method not implemented.');
-// 	}
-
-// 	protected abstract onDidRunGitStatus(): void;
-// }
-
-// export class GitIncomingCommitsHistoryProvider extends GitCommitHistoryProvider {
-
-// 	override onDidRunGitStatus(): void {
-// 		if (!this.repository.HEAD?.commit) {
-// 			return;
-// 		}
-
-// 		if (this.repository.HEAD.upstream?.remote && this.repository.HEAD.upstream?.name && this.repository.HEAD?.behind) {
-// 			this._onDidChange.fire({ ref1: this.repository.HEAD?.commit, ref2: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`, reset: true });
-// 		}
-// 	}
-// }
-
-// export class GitOutgoingCommitsHistoryProvider extends GitCommitHistoryProvider {
-
-// 	override onDidRunGitStatus(): void {
-// 		if (!this.repository.HEAD?.commit) {
-// 			return;
-// 		}
-
-// 		if (!this.repository.HEAD.upstream) {
-// 			this._onDidChange.fire({ ref1: 'origin', ref2: this.repository.HEAD?.commit, reset: true });
-// 			return;
-// 		}
-
-// 		if (this.repository.HEAD.upstream?.remote && this.repository.HEAD.upstream?.name && this.repository.HEAD?.ahead) {
-// 			this._onDidChange.fire({ ref1: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`, ref2: this.repository.HEAD?.commit, reset: true });
-// 			return;
-// 		}
-// 	}
-// }

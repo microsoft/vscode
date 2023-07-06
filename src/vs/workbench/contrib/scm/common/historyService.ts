@@ -11,22 +11,22 @@ export class SCMHistoryService extends Disposable implements ISCMHistoryService 
 
 	declare readonly _serviceBrand: undefined;
 
-	private historyProviders: Set<ISCMHistoryProvider> = new Set();
+	private historyProviders: Map<string, ISCMHistoryProvider> = new Map<string, ISCMHistoryProvider>();
 
 	private readonly _onDidChangeHistoryProviders = this._register(new Emitter<void>());
 	readonly onDidChangeHistoryProviders = this._onDidChangeHistoryProviders.event;
 
-	constructor() {
-		super();
-	}
-
 	addHistoryProvider(historyProvider: ISCMHistoryProvider): IDisposable {
-		this.historyProviders.add(historyProvider);
+		this.historyProviders.set(historyProvider.id, historyProvider);
 		this._onDidChangeHistoryProviders.fire();
 
 		return toDisposable(() => {
-			this.historyProviders.delete(historyProvider);
+			this.historyProviders.delete(historyProvider.id);
 			this._onDidChangeHistoryProviders.fire();
 		});
+	}
+
+	getHistoryProvider(id: string): ISCMHistoryProvider | undefined {
+		return this.historyProviders.get(id);
 	}
 }
