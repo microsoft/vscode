@@ -239,7 +239,7 @@ steps:
           $PackageJson = Get-Content -Raw -Path ..\VSCode-win32-$(VSCODE_ARCH)\resources\app\package.json | ConvertFrom-Json
           $Version = $PackageJson.version
           echo "##vso[task.setvariable variable=VSCODE_VERSION]$Version"
-        condition: and(succeededOrFailed())
+        condition: succeededOrFailed()
         displayName: Package client
 
       - powershell:  |
