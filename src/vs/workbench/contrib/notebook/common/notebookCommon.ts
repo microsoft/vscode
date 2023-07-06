@@ -952,6 +952,7 @@ export const NotebookSetting = {
 	findScope: 'notebook.find.scope',
 	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
+	remoteSaving: 'notebook.experimental.remoteSave'
 } as const;
 
 export const enum CellStatusbarAlignment {
