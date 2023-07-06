@@ -221,8 +221,6 @@ export enum TerminalIpcChannels {
 	Heartbeat = 'heartbeat'
 }
 
-export const IPtyService = createDecorator<IPtyService>('ptyService');
-
 export const enum ProcessPropertyType {
 	Cwd = 'cwd',
 	InitialCwd = 'initialCwd',
@@ -266,18 +264,8 @@ export interface IFixedTerminalDimensions {
 	rows?: number;
 }
 
-export interface IPtyHostController {
-	readonly onPtyHostExit?: Event<number>;
-	readonly onPtyHostStart?: Event<void>;
-	readonly onPtyHostUnresponsive?: Event<void>;
-	readonly onPtyHostResponsive?: Event<void>;
-	readonly onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent>;
-
-	restartPtyHost?(): void;
-	acceptPtyHostResolvedVariables?(requestId: number, resolved: string[]): Promise<void>;
-}
-
-export interface IPtyService extends IPtyHostController {
+export const IPtyService = createDecorator<IPtyService>('ptyService');
+export interface IPtyService {
 	readonly _serviceBrand: undefined;
 
 	readonly onProcessData: Event<{ id: number; event: IProcessDataEvent | string }>;
@@ -287,10 +275,6 @@ export interface IPtyService extends IPtyHostController {
 	readonly onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
 	readonly onDidChangeProperty: Event<{ id: number; property: IProcessProperty<any> }>;
 	readonly onProcessExit: Event<{ id: number; event: number | undefined }>;
-
-	restartPtyHost?(): Promise<void>;
-	shutdownAll?(): Promise<void>;
-	acceptPtyHostResolvedVariables?(requestId: number, resolved: string[]): Promise<void>;
 
 	createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
@@ -307,6 +291,7 @@ export interface IPtyService extends IPtyHostController {
 	): Promise<number>;
 	attachToProcess(id: number): Promise<void>;
 	detachFromProcess(id: number, forcePersist?: boolean): Promise<void>;
+	shutdownAll(): Promise<void>;
 
 	/**
 	 * Lists all orphaned processes, ie. those without a connected frontend.
@@ -334,7 +319,6 @@ export interface IPtyService extends IPtyHostController {
 	uninstallAllAutoReplies(): Promise<void>;
 	uninstallAutoReply(match: string): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getProfiles?(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string>;
 	getRevivedPtyNewId(workspaceId: string, id: number): Promise<number | undefined>;
@@ -343,7 +327,7 @@ export interface IPtyService extends IPtyHostController {
 	reduceConnectionGraceTime(): Promise<void>;
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
-	freePortKillProcess?(port: string): Promise<{ port: string; processId: string }>;
+	freePortKillProcess(port: string): Promise<{ port: string; processId: string }>;
 	/**
 	 * Serializes and returns terminal state.
 	 * @param ids The persistent terminal IDs to serialize.
@@ -357,7 +341,24 @@ export interface IPtyService extends IPtyHostController {
 	refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]>;
 	updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: IProcessPropertyMap[T]): Promise<void>;
 
+	// TODO: Make mandatory and remove impl from pty host service
 	refreshIgnoreProcessNames?(names: string[]): Promise<void>;
+}
+
+export interface IPtyHostController {
+	readonly onPtyHostExit: Event<number>;
+	readonly onPtyHostStart: Event<void>;
+	readonly onPtyHostUnresponsive: Event<void>;
+	readonly onPtyHostResponsive: Event<void>;
+	readonly onPtyHostRequestResolveVariables: Event<IRequestResolveVariablesEvent>;
+
+	restartPtyHost(): Promise<void>;
+	acceptPtyHostResolvedVariables(requestId: number, resolved: string[]): Promise<void>;
+	getProfiles(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
+}
+
+export const IPtyHostService = createDecorator<IPtyHostService>('ptyHostService');
+export interface IPtyHostService extends IPtyService, IPtyHostController {
 }
 
 /**
@@ -1066,7 +1067,7 @@ export const ILocalPtyService = createDecorator<ILocalPtyService>('localPtyServi
  *
  * **This service should only be used within the terminal component.**
  */
-export interface ILocalPtyService extends IPtyService { }
+export interface ILocalPtyService extends IPtyHostService { }
 
 export const ITerminalLogService = createDecorator<ITerminalLogService>('terminalLogService');
 export interface ITerminalLogService extends ILogService {
