@@ -11,6 +11,7 @@ import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IObservable, observableValue } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Constants } from 'vs/base/common/uint';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
@@ -85,7 +86,7 @@ export class DiffReview2 extends Disposable {
 	private static _ttPolicy = DiffReview._ttPolicy; // TODO inline once DiffReview is deprecated.
 
 	private readonly _diffEditor: DiffEditorWidget2;
-	private _isVisible: boolean;
+	private get _isVisible() { return this._isVisibleObs.get(); }
 	public readonly shadow: FastDomNode<HTMLElement>;
 	private readonly _actionBar: ActionBar;
 	public readonly actionBarContainer: FastDomNode<HTMLElement>;
@@ -95,6 +96,10 @@ export class DiffReview2 extends Disposable {
 	private _diffs: Diff[];
 	private _currentDiff: Diff | null;
 
+	private readonly _isVisibleObs = observableValue('isVisible', false);
+
+	public readonly isVisible: IObservable<boolean> = this._isVisibleObs;
+
 	constructor(
 		diffEditor: DiffEditorWidget2,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -103,7 +108,6 @@ export class DiffReview2 extends Disposable {
 	) {
 		super();
 		this._diffEditor = diffEditor;
-		this._isVisible = false;
 
 		this.shadow = createFastDomNode(document.createElement('div'));
 		this.shadow.setClassName('diff-review-shadow');
@@ -215,7 +219,7 @@ export class DiffReview2 extends Disposable {
 		const entries = this._diffs[index].entries;
 		this._diffEditor.setPosition(new Position(entries[0].modifiedLineStart, 1));
 		this._diffEditor.setSelection({ startColumn: 1, startLineNumber: entries[0].modifiedLineStart, endColumn: Constants.MAX_SAFE_SMALL_INTEGER, endLineNumber: entries[entries.length - 1].modifiedLineEnd });
-		this._isVisible = true;
+		this._isVisibleObs.set(true, undefined);
 		this.layout();
 		this._render();
 		this._goToRow(this._getPrevRow(), 'previous');
@@ -250,7 +254,7 @@ export class DiffReview2 extends Disposable {
 		const entries = this._diffs[index].entries;
 		this._diffEditor.setPosition(new Position(entries[0].modifiedLineStart, 1));
 		this._diffEditor.setSelection({ startColumn: 1, startLineNumber: entries[0].modifiedLineStart, endColumn: Constants.MAX_SAFE_SMALL_INTEGER, endLineNumber: entries[entries.length - 1].modifiedLineEnd });
-		this._isVisible = true;
+		this._isVisibleObs.set(true, undefined);
 		this.layout();
 		this._render();
 		this._goToRow(this._getNextRow(), 'next');
@@ -274,8 +278,7 @@ export class DiffReview2 extends Disposable {
 	}
 
 	private hide(): void {
-		this._isVisible = false;
-		this._diffEditor.updateOptions({ readOnly: false });
+		this._isVisibleObs.set(false, undefined);
 		this._diffEditor.focus();
 		this.layout();
 		this._render();
@@ -329,10 +332,6 @@ export class DiffReview2 extends Disposable {
 			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, true);
 		}
 		this.scrollbar.scanDomNode();
-	}
-
-	public isVisible(): boolean {
-		return this._isVisible;
 	}
 
 	private _width: number = 0;
@@ -564,7 +563,6 @@ export class DiffReview2 extends Disposable {
 			return;
 		}
 
-		this._diffEditor.updateOptions({ readOnly: true });
 		const diffIndex = this._findDiffIndex(this._diffEditor.getPosition()!);
 
 		if (this._diffs[diffIndex] === this._currentDiff) {

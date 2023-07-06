@@ -96,6 +96,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
 
+		const reviewPaneObservable = observableValue<undefined | DiffReview2>('reviewPane', undefined);
 		this._editors = this._register(this._instantiationService.createInstance(
 			DiffEditorEditors,
 			this.elements.original,
@@ -103,6 +104,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			this._options,
 			codeEditorWidgetOptions,
 			(i, c, o, o2) => this._createInnerEditor(i, c, o, o2),
+			reviewPaneObservable.map((r, reader) => r?.isVisible.read(reader) ?? false),
 		));
 
 		this._sash = derivedWithStore('sash', (reader, store) => {
@@ -159,6 +161,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this.elements.root.appendChild(this._reviewPane.domNode.domNode);
 		this.elements.root.appendChild(this._reviewPane.shadow.domNode);
 		this.elements.root.appendChild(this._reviewPane.actionBarContainer.domNode);
+		reviewPaneObservable.set(this._reviewPane, undefined);
 
 		this._createDiffEditorContributions();
 
