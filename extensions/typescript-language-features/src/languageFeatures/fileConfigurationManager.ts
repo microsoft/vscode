@@ -161,6 +161,7 @@ export default class FileConfigurationManager extends Disposable {
 			placeOpenBraceOnNewLineForFunctions: config.get<boolean>('placeOpenBraceOnNewLineForFunctions'),
 			placeOpenBraceOnNewLineForControlBlocks: config.get<boolean>('placeOpenBraceOnNewLineForControlBlocks'),
 			semicolons: config.get<Proto.SemicolonPreference>('semicolons'),
+			indentSwitchCase: config.get<boolean>('indentSwitchCase'),
 		};
 	}
 

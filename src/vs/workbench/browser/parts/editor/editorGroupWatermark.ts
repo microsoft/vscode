@@ -61,7 +61,7 @@ export class EditorGroupWatermark extends Disposable {
 
 	private readonly shortcuts: HTMLElement;
 	private transientDisposables = this._register(new DisposableStore());
-	private enabled: boolean;
+	private enabled: boolean = false;
 	private workbenchState: WorkbenchState;
 
 	constructor(
@@ -83,14 +83,10 @@ export class EditorGroupWatermark extends Disposable {
 		append(container, elements.root);
 		this.shortcuts = elements.shortcuts;
 
-		this.workbenchState = contextService.getWorkbenchState();
-		this.enabled = this.configurationService.getValue<boolean>('workbench.tips.enabled');
-
 		this.registerListeners();
 
-		if (this.enabled) {
-			this.render();
-		}
+		this.workbenchState = contextService.getWorkbenchState();
+		this.render();
 	}
 
 	private registerListeners(): void {
@@ -98,24 +94,12 @@ export class EditorGroupWatermark extends Disposable {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('workbench.tips.enabled')) {
-				const enabled = this.configurationService.getValue<boolean>('workbench.tips.enabled');
-
-				if (enabled === this.enabled) {
-					return;
-				}
-
-				this.enabled = enabled;
-
-				if (this.enabled) {
-					this.render();
-				} else {
-					this.clear();
-				}
+				this.render();
 			}
 		}));
 
 		this._register(this.contextService.onDidChangeWorkbenchState(workbenchState => {
-			if (!this.enabled || this.workbenchState === workbenchState) {
+			if (this.workbenchState === workbenchState) {
 				return;
 			}
 
@@ -134,7 +118,18 @@ export class EditorGroupWatermark extends Disposable {
 	}
 
 	private render(): void {
+		const enabled = this.configurationService.getValue<boolean>('workbench.tips.enabled');
+
+		if (enabled === this.enabled) {
+			return;
+		}
+
+		this.enabled = enabled;
 		this.clear();
+
+		if (!enabled) {
+			return;
+		}
 
 		const box = append(this.shortcuts, $('.watermark-box'));
 		const folder = this.workbenchState !== WorkbenchState.EMPTY;

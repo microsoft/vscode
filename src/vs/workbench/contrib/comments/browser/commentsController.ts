@@ -353,8 +353,13 @@ export class CommentController implements IEditorContribution {
 		this.globalToDispose.add(this._commentThreadRangeDecorator = new CommentThreadRangeDecorator(this.commentService));
 
 		this.globalToDispose.add(this.commentService.onDidDeleteDataProvider(ownerId => {
-			delete this._pendingNewCommentCache[ownerId];
-			delete this._pendingEditsCache[ownerId];
+			if (ownerId) {
+				delete this._pendingNewCommentCache[ownerId];
+				delete this._pendingEditsCache[ownerId];
+			} else {
+				this._pendingNewCommentCache = {};
+				this._pendingEditsCache = {};
+			}
 			this.beginCompute();
 		}));
 		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginCompute()));
@@ -532,6 +537,14 @@ export class CommentController implements IEditorContribution {
 	public expandAll(): void {
 		for (const widget of this._commentWidgets) {
 			widget.expand();
+		}
+	}
+
+	public expandUnresolved(): void {
+		for (const widget of this._commentWidgets) {
+			if (widget.commentThread.state === languages.CommentThreadState.Unresolved) {
+				widget.expand();
+			}
 		}
 	}
 
@@ -810,6 +823,7 @@ export class CommentController implements IEditorContribution {
 	public addCommentAtLine(range: Range | undefined, e: IEditorMouseEvent | undefined): Promise<void> {
 		const newCommentInfos = this._commentingRangeDecorator.getMatchedCommentAction(range);
 		if (!newCommentInfos.length || !this.editor?.hasModel()) {
+			this._addInProgress = false;
 			return Promise.resolve();
 		}
 

@@ -81,7 +81,8 @@
 			"name": "Comments",
 			"scope": [
 				"comment",
-				"punctuation.definition.comment"
+				"punctuation.definition.comment",
+				"string.quoted.docstring"
 			],
 			"settings": {
 				"foreground": "#a57a4c"

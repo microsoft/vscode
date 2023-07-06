@@ -191,7 +191,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		connection.onDidChangeWatchedFiles(async ({ changes }) => {
 			for (const change of changes) {
 				const resource = URI.parse(change.uri);
-				this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.onDidChangeWatchedFiles', { type: change.type, resource });
+				this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.onDidChangeWatchedFiles', { type: change.type, resource: resource.toString() });
 				switch (change.type) {
 					case FileChangeType.Changed: {
 						const entry = this._documentCache.get(resource);
@@ -342,7 +342,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 	}
 
 	async stat(resource: URI): Promise<md.FileStat | undefined> {
-		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.stat', { resource });
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.stat', { resource: resource.toString() });
 		if (this._documentCache.has(resource)) {
 			return { isDirectory: false };
 		}
@@ -359,7 +359,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 	}
 
 	async readDirectory(resource: URI): Promise<[string, md.FileStat][]> {
-		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.readDir', { resource });
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.readDir', { resource: resource.toString() });
 		return this.connection.sendRequest(protocol.fs_readDirectory, { uri: resource.toString() });
 	}
 
@@ -378,7 +378,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 
 	watchFile(resource: URI, options: md.FileWatcherOptions): md.IFileSystemWatcher {
 		const id = this._watcherPool++;
-		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.watchFile', { id, resource });
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.watchFile', { id, resource: resource.toString() });
 
 		const entry = {
 			resource,
@@ -401,7 +401,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			onDidChange: entry.onDidChange.event,
 			onDidDelete: entry.onDidDelete.event,
 			dispose: () => {
-				this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.disposeWatcher', { id, resource });
+				this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.disposeWatcher', { id, resource: resource.toString() });
 				this.connection.sendRequest(protocol.fs_watcher_delete, { id });
 				this._watchers.delete(id);
 			}
@@ -413,7 +413,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 	}
 
 	private doDeleteDocument(uri: URI) {
-		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.deleteDocument', { document: uri });
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace.deleteDocument', { document: uri.toString() });
 
 		this._documentCache.delete(uri);
 		this._onDidDeleteMarkdownDocument.fire(uri);

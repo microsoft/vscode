@@ -38,6 +38,8 @@ export interface ITerminalStatusList {
 
 	/**
 	 * Adds a status to the list.
+	 * @param status The status object. Ideally a single status object that does not change will be
+	 * shared as this call will no-op if the status is already set (checked by by object reference).
 	 * @param duration An optional duration in milliseconds of the status, when specified the status
 	 * will remove itself when the duration elapses unless the status gets re-added.
 	 */
@@ -86,6 +88,11 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 		if (duration && duration > 0) {
 			const timeout = window.setTimeout(() => this.remove(status), duration);
 			this._statusTimeouts.set(status.id, timeout);
+		}
+		const existingStatus = this._statuses.get(status.id);
+		if (existingStatus && existingStatus !== status) {
+			this._onDidRemoveStatus.fire(existingStatus);
+			this._statuses.delete(existingStatus.id);
 		}
 		if (!this._statuses.has(status.id)) {
 			const oldPrimary = this.primary;

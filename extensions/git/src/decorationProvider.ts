@@ -131,7 +131,7 @@ class GitDecorationProvider implements FileDecorationProvider {
 					bucket.set(r.rightUri.toString(), decoration);
 				}
 
-				if (r.type === Status.INDEX_RENAMED) {
+				if (r.type === Status.INDEX_RENAMED || r.type === Status.INTENT_TO_RENAME) {
 					bucket.set(r.resourceUri.toString(), decoration);
 				}
 			}

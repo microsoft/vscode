@@ -77,8 +77,11 @@
 			}
 		},
 		{
-			"name": "Comment",
-			"scope": "comment",
+			"name": "Comments",
+			"scope": [
+				"comment",
+				"string.quoted.docstring"
+			],
 			"settings": {
 				"fontStyle": "italic",
 				"foreground": "#e7c0c0ff"

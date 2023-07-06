@@ -37,8 +37,12 @@ export class StandaloneCommandsQuickAccessProvider extends AbstractEditorCommand
 		super({ showAlias: false }, instantiationService, keybindingService, commandService, telemetryService, dialogService);
 	}
 
-	protected getCommandPicks(): Array<ICommandQuickPick> {
+	protected async getCommandPicks(): Promise<Array<ICommandQuickPick>> {
 		return this.getCodeEditorCommandPicks();
+	}
+
+	protected hasAdditionalCommandPicks(): boolean {
+		return false;
 	}
 
 	protected async getAdditionalCommandPicks(): Promise<ICommandQuickPick[]> {

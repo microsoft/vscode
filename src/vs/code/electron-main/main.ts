@@ -70,6 +70,7 @@ import { ILoggerMainService, LoggerMainService } from 'vs/platform/log/electron-
 import { LogService } from 'vs/platform/log/common/logService';
 import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 
 /**
  * The main VS Code entry point.
@@ -177,6 +178,10 @@ class CodeMain {
 		services.set(IFileService, fileService);
 		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+
+		// Use FileUserDataProvider for user data to
+		// enable atomic read / write operations.
+		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, logService));
 
 		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);
@@ -382,7 +387,7 @@ class CodeMain {
 
 		// Print --status usage info
 		if (environmentMainService.args.status) {
-			logService.warn('Warning: The --status argument can only be used if {0} is already running. Please run it again after {0} has started.', productService.nameShort);
+			console.log(localize('statusWarning', "Warning: The --status argument can only be used if {0} is already running. Please run it again after {0} has started.", productService.nameShort));
 
 			throw new ExpectedError('Terminating...');
 		}

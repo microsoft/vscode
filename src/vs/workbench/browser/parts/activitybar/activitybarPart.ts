@@ -862,7 +862,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 				state.push({
 					id: compositeItem.id,
 					name: viewContainerModel.title,
-					icon: URI.isUri(viewContainerModel.icon) && this.environmentService.remoteAuthority ? undefined : viewContainerModel.icon, /* Donot cache uri icons with remote connection */
+					icon: URI.isUri(viewContainerModel.icon) && this.environmentService.remoteAuthority ? undefined : viewContainerModel.icon, // Do not cache uri icons with remote connection
 					views,
 					pinned: compositeItem.pinned,
 					order: compositeItem.order,
@@ -888,7 +888,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 					cachedViewContainer.icon = placeholderViewContainer.themeIcon ? placeholderViewContainer.themeIcon :
 						placeholderViewContainer.iconUrl ? URI.revive(placeholderViewContainer.iconUrl) : undefined;
 					if (URI.isUri(cachedViewContainer.icon) && this.environmentService.remoteAuthority) {
-						cachedViewContainer.icon = undefined; /* Donot cache uri icons with remote connection */
+						cachedViewContainer.icon = undefined; // Do not cache uri icons with remote connection
 					}
 					cachedViewContainer.views = placeholderViewContainer.views;
 					cachedViewContainer.isBuiltin = placeholderViewContainer.isBuiltin;

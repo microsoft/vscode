@@ -21,6 +21,8 @@ import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, IT
  * NOTE: This is used as an API type as well, and should not be changed.
  */
 export class TelemetryTrustedValue<T> {
+	// This is merely used as an identifier as the instance will be lost during serialization over the exthost
+	public readonly isTrustedTelemetryValue = true;
 	constructor(public readonly value: T) { }
 }
 
@@ -89,7 +91,7 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 		if (event.source !== ConfigurationTarget.DEFAULT) {
 			type UpdateConfigurationClassification = {
 				owner: 'lramos15, sbatten';
-				comment: 'Event which fires when user updates telemetry configuration';
+				comment: 'Event which fires when user updates settings';
 				configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration file was updated i.e user or workspace' };
 				configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration keys were updated' };
 			};
@@ -378,7 +380,7 @@ export function cleanData(data: Record<string, any>, cleanUpPatterns: RegExp[]):
 	return cloneAndChange(data, value => {
 
 		// If it's a trusted value it means it's okay to skip cleaning so we don't clean it
-		if (value instanceof TelemetryTrustedValue) {
+		if (value instanceof TelemetryTrustedValue || Object.hasOwnProperty.call(value, 'isTrustedTelemetryValue')) {
 			return value.value;
 		}
 

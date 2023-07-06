@@ -57,23 +57,6 @@
 	flex: 0; /* do not steal space when label is hidden because we are in edit mode */
 }
 
-.explorer-folders-view .pane-header .count {
-	min-width: fit-content;
-	display: flex;
-	align-items: center;
-}
-
-.pane.horizontal:not(.expanded) .pane-header .dirty-count.monaco-count-badge,
-.pane-header .dirty-count.monaco-count-badge.hidden {
-	display: none;
-}
-
-.dirty-count.monaco-count-badge {
-	padding: 2px 4px;
-	margin-left: 6px;
-	min-height: auto;
-}
-
 .explorer-folders-view .explorer-item.nonexistent-root {
 	opacity: 0.5;
 }

@@ -25,7 +25,6 @@ import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { distinct } from 'vs/base/common/arrays';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -102,7 +101,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
-		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 	) {
@@ -153,16 +151,24 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		this._register(disposableTimeout(() => this.promptRecommendations(uri, model), 0));
 	}
 
+	private promptRecommendations(uri: URI, model: ITextModel): void {
+		if (this.promptImportantRecommendations(uri, model)) {
+			return;
+		}
+
+		this.promptRecommendedExtensionForFileExtension(uri, extname(uri).toLowerCase());
+	}
+
 	/**
 	 * Prompt the user to either install the recommended extension for the file type in the current editor model
 	 * or prompt to search the marketplace if it has extensions that can support the file type
 	 */
-	private promptRecommendations(uri: URI, model: ITextModel, extensionRecommendations?: IStringDictionary<IFileOpenCondition[]>): void {
+	private promptImportantRecommendations(uri: URI, model: ITextModel, extensionRecommendations?: IStringDictionary<IFileOpenCondition[]>): boolean {
 		const pattern = extname(uri).toLowerCase();
 		extensionRecommendations = extensionRecommendations ?? this.recommendationsByPattern.get(pattern) ?? this.fileOpenRecommendations;
 		const extensionRecommendationEntries = Object.entries(extensionRecommendations);
 		if (extensionRecommendationEntries.length === 0) {
-			return;
+			return false;
 		}
 
 		const processedPathGlobs = new Map<string, boolean>();
@@ -248,10 +254,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			}
 		}
 
-		if (Object.keys(matchedRecommendations).length) {
-			this.promptFromRecommendations(uri, model, matchedRecommendations);
-		}
-
 		this.recommendationsByPattern.set(pattern, recommendationsByPattern);
 		if (Object.keys(unmatchedRecommendations).length) {
 			if (listenOnLanguageChange) {
@@ -260,7 +262,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 					// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
 					disposables.add(disposableTimeout(() => {
 						if (!disposables.isDisposed) {
-							this.promptRecommendations(uri, model, unmatchedRecommendations);
+							this.promptImportantRecommendations(uri, model, unmatchedRecommendations);
 							disposables.dispose();
 						}
 					}, 0));
@@ -268,6 +270,13 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				disposables.add(model.onWillDispose(() => disposables.dispose()));
 			}
 		}
+
+		if (Object.keys(matchedRecommendations).length) {
+			this.promptFromRecommendations(uri, model, matchedRecommendations);
+			return true;
+		}
+
+		return false;
 	}
 
 	private promptFromRecommendations(uri: URI, model: ITextModel, extensionRecommendations: IStringDictionary<IFileOpenCondition[]>): void {
@@ -303,11 +312,9 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		const language = model.getLanguageId();
 		const languageName = this.languageService.getLanguageName(language);
 		if (importantRecommendations.size &&
-			this.promptRecommendedExtensionForFileType(languageName && isImportantRecommendationForLanguage && language !== PLAINTEXT_LANGUAGE_ID ? languageName : basename(uri), language, [...importantRecommendations])) {
+			this.promptRecommendedExtensionForFileType(languageName && isImportantRecommendationForLanguage && language !== PLAINTEXT_LANGUAGE_ID ? localize('languageName', "{0} language", languageName) : basename(uri), language, [...importantRecommendations])) {
 			return;
 		}
-
-		this.promptRecommendedExtensionForFileExtension(uri, extname(uri).toLowerCase());
 	}
 
 	private promptRecommendedExtensionForFileType(name: string, language: string, recommendations: string[]): boolean {
@@ -332,16 +339,11 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		return true;
 	}
 
-	private async promptImportantExtensionsInstallNotification(recommendations: string[], name: string, language: string): Promise<void> {
+	private async promptImportantExtensionsInstallNotification(extensions: string[], name: string, language: string): Promise<void> {
 		try {
-			const treatmentMessage = await this.tasExperimentService.getTreatment<string>('languageRecommendationMessage');
-			const message = treatmentMessage ? treatmentMessage.replace('{0}', () => name)
-				: recommendations.length > 1
-					? localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name)
-					: localize('singleRecommended', "Do you want to install the recommended extension for {0}?", name);
-			const result = await this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(recommendations, message, recommendations.map(extensionId => `@id:${extensionId}`).join(' '), RecommendationSource.FILE);
+			const result = await this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification({ extensions, name, source: RecommendationSource.FILE });
 			if (result === RecommendationsNotificationResult.Accepted) {
-				this.addToPromptedRecommendations(language, recommendations);
+				this.addToPromptedRecommendations(language, extensions);
 			}
 		} catch (error) { /* Ignore */ }
 	}
@@ -367,6 +369,11 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	}
 
 	private async promptRecommendedExtensionForFileExtension(uri: URI, fileExtension: string): Promise<void> {
+
+		if (this.extensionRecommendationNotificationService.hasToIgnoreRecommendationNotifications()) {
+			return;
+		}
+
 		// Do not prompt when there is no local and remote extension management servers
 		if (!this.extensionManagementServerService.localExtensionManagementServer && !this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return;

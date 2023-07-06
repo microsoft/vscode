@@ -143,6 +143,12 @@
       "title": "%configuration.typescript%",
       "order": 20,
       "properties": {
+        "typescript.experimental.aiQuickFix": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.experimental.aiQuickFix%",
+          "scope": "resource"
+        },
         "typescript.tsdk": {
           "type": "string",
           "markdownDescription": "%typescript.tsdk.desc%",
@@ -513,6 +519,12 @@
             "%format.semicolons.insert%",
             "%format.semicolons.remove%"
           ]
+        },
+        "typescript.format.indentSwitchCase": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.indentSwitchCase%",
+          "scope": "resource"
         },
         "javascript.validate.enable": {
           "type": "boolean",
@@ -889,6 +901,12 @@
             "index",
             "js"
           ],
+          "enumItemLabels": [
+            null,
+            null,
+            null,
+            "%typescript.preferences.importModuleSpecifierEnding.label.js%"
+          ],
           "markdownEnumDescriptions": [
             "%typescript.preferences.importModuleSpecifierEnding.auto%",
             "%typescript.preferences.importModuleSpecifierEnding.minimal%",
@@ -906,6 +924,12 @@
             "minimal",
             "index",
             "js"
+          ],
+          "enumItemLabels": [
+            null,
+            null,
+            null,
+            "%typescript.preferences.importModuleSpecifierEnding.label.js%"
           ],
           "markdownEnumDescriptions": [
             "%typescript.preferences.importModuleSpecifierEnding.auto%",
@@ -1005,6 +1029,18 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.preferences.useAliasesForRenames%",
+          "scope": "language-overridable"
+        },
+        "javascript.preferences.renameMatchingJsxTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameMatchingJsxTags%",
+          "scope": "language-overridable"
+        },
+        "typescript.preferences.renameMatchingJsxTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameMatchingJsxTags%",
           "scope": "language-overridable"
         },
         "typescript.updateImportsOnFileMove.enabled": {
@@ -1202,14 +1238,17 @@
           "description": "%configuration.suggest.objectLiteralMethodSnippets.enabled%",
           "scope": "resource"
         },
-        "typescript.experimental.tsserver.web.enableProjectWideIntellisense": {
+        "typescript.tsserver.web.projectWideIntellisense.enabled": {
           "type": "boolean",
-          "default": false,
-          "description": "%typescript.experimental.tsserver.web.enableProjectWideIntellisense%",
-          "scope": "window",
-          "tags": [
-            "experimental"
-          ]
+          "default": true,
+          "description": "%configuration.tsserver.web.projectWideIntellisense.enabled%",
+          "scope": "window"
+        },
+        "typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors%",
+          "scope": "window"
         },
         "typescript.preferGoToSourceDefinition": {
           "type": "boolean",
@@ -1217,7 +1256,7 @@
           "description": "%configuration.preferGoToSourceDefinition%",
           "scope": "window"
         },
-				"javascript.preferGoToSourceDefinition": {
+        "javascript.preferGoToSourceDefinition": {
           "type": "boolean",
           "default": false,
           "description": "%configuration.preferGoToSourceDefinition%",
@@ -1243,12 +1282,12 @@
       },
       {
         "command": "typescript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
+        "title": "%typescript.goToProjectConfig.title%",
         "category": "TypeScript"
       },
       {
         "command": "javascript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
+        "title": "%javascript.goToProjectConfig.title%",
         "category": "JavaScript"
       },
       {

@@ -10,7 +10,7 @@ import { IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
 import type { StateDeltas, TextMateWorkerHost } from 'vs/workbench/services/textMate/browser/workerHost/textMateWorkerHost';
 import { ICreateGrammarResult, TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
-import { IOnigLib, IRawTheme } from 'vscode-textmate';
+import type { IOnigLib, IRawTheme } from 'vscode-textmate';
 import { TextMateWorkerModel } from './textMateWorkerModel';
 
 export interface ICreateData {
@@ -29,6 +29,7 @@ export interface IValidGrammarDefinitionDTO {
 	injectTo?: string[];
 	balancedBracketSelectors: string[];
 	unbalancedBracketSelectors: string[];
+	sourceExtensionId?: string;
 }
 
 export class TextMateTokenizationWorker {
@@ -50,6 +51,7 @@ export class TextMateTokenizationWorker {
 				injectTo: def.injectTo,
 				balancedBracketSelectors: def.balancedBracketSelectors,
 				unbalancedBracketSelectors: def.unbalancedBracketSelectors,
+				sourceExtensionId: def.sourceExtensionId,
 			};
 		});
 		this._grammarFactory = this._loadTMGrammarFactory(grammarDefinitions);
@@ -132,6 +134,10 @@ export class TextMateTokenizationWorker {
 
 	public setTokensAndStates(resource: URI, versionId: number, tokens: Uint8Array, stateDeltas: StateDeltas[]): void {
 		this._host.setTokensAndStates(resource, versionId, tokens, stateDeltas);
+	}
+
+	public reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number): void {
+		this._host.reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength);
 	}
 
 	// #endregion

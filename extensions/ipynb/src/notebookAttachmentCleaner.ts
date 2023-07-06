@@ -231,9 +231,12 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 
 		if (cell.index > -1 && !objectEquals(markdownAttachmentsInUse, cell.metadata.attachments)) {
 			const updateMetadata: { [key: string]: any } = deepClone(cell.metadata);
-			updateMetadata.attachments = markdownAttachmentsInUse;
+			if (Object.keys(markdownAttachmentsInUse).length === 0) {
+				updateMetadata.attachments = undefined;
+			} else {
+				updateMetadata.attachments = markdownAttachmentsInUse;
+			}
 			const metadataEdit = vscode.NotebookEdit.updateCellMetadata(cell.index, updateMetadata);
-
 			return metadataEdit;
 		}
 		return;
@@ -365,7 +368,7 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 	private getAttachmentNames(document: vscode.TextDocument) {
 		const source = document.getText();
 		const filenames: Map<string, { valid: boolean; ranges: vscode.Range[] }> = new Map();
-		const re = /!\[.*?\]\(attachment:(?<filename>.*?)\)/gm;
+		const re = /!\[.*?\]\(<?attachment:(?<filename>.*?)>?\)/gm;
 
 		let match;
 		while ((match = re.exec(source))) {

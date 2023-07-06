@@ -152,7 +152,7 @@ suite('typescript.previewer', () => {
 				{ "text": "}", "kind": "link" },
 				{ "text": " b", "kind": "text" }
 			], noopToResource),
-			'a [`dog`](file:///path/file.ts#L7%2C5) b');
+			'a [`dog`](command:_typescript.openJsDocLink?%5B%7B%22file%22%3A%7B%22path%22%3A%22%2Fpath%2Ffile.ts%22%2C%22scheme%22%3A%22file%22%7D%2C%22position%22%3A%7B%22line%22%3A6%2C%22character%22%3A4%7D%7D%5D) b');
 	});
 
 	test('Should render @linkcode text as code', async () => {
@@ -173,6 +173,6 @@ suite('typescript.previewer', () => {
 				{ "text": "}", "kind": "link" },
 				{ "text": " b", "kind": "text" }
 			], noopToResource),
-			'a [`husky`](file:///path/file.ts#L7%2C5) b');
+			'a [`husky`](command:_typescript.openJsDocLink?%5B%7B%22file%22%3A%7B%22path%22%3A%22%2Fpath%2Ffile.ts%22%2C%22scheme%22%3A%22file%22%7D%2C%22position%22%3A%7B%22line%22%3A6%2C%22character%22%3A4%7D%7D%5D) b');
 	});
 });

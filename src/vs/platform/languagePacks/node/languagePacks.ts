@@ -171,7 +171,7 @@ class LanguagePacksCache extends Disposable {
 		if (languagePack) {
 			const md5 = createHash('md5');
 			for (const extension of languagePack.extensions) {
-				md5.update(extension.extensionIdentifier.uuid || extension.extensionIdentifier.id).update(extension.version);
+				md5.update(extension.extensionIdentifier.uuid || extension.extensionIdentifier.id).update(extension.version); // CodeQL [SM01510] The extension UUID is not sensitive info and is not manually created by a user
 			}
 			languagePack.hash = md5.digest('hex');
 		}

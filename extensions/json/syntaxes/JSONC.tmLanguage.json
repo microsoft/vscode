@@ -5,7 +5,7 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/microsoft/vscode-JSON.tmLanguage/commit/9bd83f1c252b375e957203f21793316203f61f70",
-	"name": "JSON with comments",
+	"name": "JSON with Comments",
 	"scopeName": "source.json.comments",
 	"patterns": [
 		{

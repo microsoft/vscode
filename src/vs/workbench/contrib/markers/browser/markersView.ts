@@ -138,7 +138,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 	) {
-		const panelState = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
+		const panelState = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		super({
 			...options,
 			filterOptions: {

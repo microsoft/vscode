@@ -137,7 +137,6 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
-	readonly experimental?: { useSandbox: boolean };
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {

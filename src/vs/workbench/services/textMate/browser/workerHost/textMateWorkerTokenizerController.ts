@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { importAMDNodeModule } from 'vs/amdX';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, keepAlive, observableFromEvent } from 'vs/base/common/observable';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
@@ -17,7 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ArrayEdit, MonotonousIndexTransformer, SingleArrayEdit } from 'vs/workbench/services/textMate/browser/arrayOperation';
 import { TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/worker/textMate.worker';
 import type { StateDeltas } from 'vs/workbench/services/textMate/browser/workerHost/textMateWorkerHost';
-import { applyStateStackDiff, StateStack } from 'vscode-textmate';
+import type { applyStateStackDiff, StateStack } from 'vscode-textmate';
 
 export class TextMateWorkerTokenizerController extends Disposable {
 	private _pendingChanges: IModelContentChangedEvent[] = [];
@@ -30,12 +31,14 @@ export class TextMateWorkerTokenizerController extends Disposable {
 
 	private readonly _loggingEnabled = observableConfigValue('editor.experimental.asyncTokenizationLogging', false, this._configurationService);
 
+	private _applyStateStackDiffFn?: typeof applyStateStackDiff;
+	private _initialState?: StateStack;
+
 	constructor(
 		private readonly _model: ITextModel,
 		private readonly _worker: TextMateTokenizationWorker,
 		private readonly _languageIdCodec: ILanguageIdCodec,
 		private readonly _backgroundTokenizationStore: IBackgroundTokenizationStore,
-		private readonly _initialState: StateStack,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _maxTokenizationLineLength: IObservable<number>,
 	) {
@@ -95,7 +98,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 	/**
 	 * This method is called from the worker through the worker host.
 	 */
-	public setTokensAndStates(versionId: number, rawTokens: ArrayBuffer, stateDeltas: StateDeltas[]): void {
+	public async setTokensAndStates(versionId: number, rawTokens: ArrayBuffer, stateDeltas: StateDeltas[]): Promise<void> {
 		// _states state, change{k}, ..., change{versionId}, state delta base & rawTokens, change{j}, ..., change{m}, current renderer state
 		//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                ^^^^^^^^^^^^^^^^^^^^^^^^^
 		//                | past changes                                                   | future states
@@ -133,17 +136,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			}
 
 			const curToFutureTransformerTokens = MonotonousIndexTransformer.fromMany(
-				this._pendingChanges.map((c) => new ArrayEdit(
-					c.changes.map(
-						(c) =>
-							new SingleArrayEdit(
-								c.range.startLineNumber - 1,
-								// Expand the edit range to include the entire line
-								(c.range.endLineNumber - c.range.startLineNumber) + 1,
-								countEOL(c.text)[0] + 1
-							)
-					)
-				))
+				this._pendingChanges.map((c) => fullLineArrayEditFromModelContentChange(c.changes))
 			);
 
 			// Filter tokens in lines that got changed in the future to prevent flickering
@@ -171,11 +164,16 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			}
 		}
 
-		this._backgroundTokenizationStore.setTokens(tokens);
-
 		const curToFutureTransformerStates = MonotonousIndexTransformer.fromMany(
-			this._pendingChanges.map((c) => lineArrayEditFromModelContentChange(c.changes))
+			this._pendingChanges.map((c) => fullLineArrayEditFromModelContentChange(c.changes))
 		);
+
+		if (!this._applyStateStackDiffFn || !this._initialState) {
+			const { applyStateStackDiff, INITIAL } = await importAMDNodeModule<typeof import('vscode-textmate')>('vscode-textmate', 'release/main.js');
+			this._applyStateStackDiffFn = applyStateStackDiff;
+			this._initialState = INITIAL;
+		}
+
 
 		// Apply state deltas to _states and _backgroundTokenizationStore
 		for (const d of stateDeltas) {
@@ -184,7 +182,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 				const delta = d.stateDeltas[i];
 				let state: StateStack;
 				if (delta) {
-					state = applyStateStackDiff(prevState, delta)!;
+					state = this._applyStateStackDiffFn(prevState, delta)!;
 					this._states.setEndState(d.startLineNumber + i, state);
 				} else {
 					state = this._states.getEndState(d.startLineNumber + i)!;
@@ -192,6 +190,8 @@ export class TextMateWorkerTokenizerController extends Disposable {
 
 				const offset = curToFutureTransformerStates.transform(d.startLineNumber + i - 1);
 				if (offset !== undefined) {
+					// Only set the state if there is no future change in this line,
+					// as this might make consumers believe that the state/tokens are accurate
 					this._backgroundTokenizationStore.setEndState(offset + 1, state);
 				}
 
@@ -202,17 +202,20 @@ export class TextMateWorkerTokenizerController extends Disposable {
 				prevState = state;
 			}
 		}
+		// First set states, then tokens, so that events fired from set tokens don't read invalid states
+		this._backgroundTokenizationStore.setTokens(tokens);
 	}
 }
 
-function lineArrayEditFromModelContentChange(c: IModelContentChange[]): ArrayEdit {
+function fullLineArrayEditFromModelContentChange(c: IModelContentChange[]): ArrayEdit {
 	return new ArrayEdit(
 		c.map(
 			(c) =>
 				new SingleArrayEdit(
 					c.range.startLineNumber - 1,
-					c.range.endLineNumber - c.range.startLineNumber,
-					countEOL(c.text)[0]
+					// Expand the edit range to include the entire line
+					c.range.endLineNumber - c.range.startLineNumber + 1,
+					countEOL(c.text)[0] + 1
 				)
 		)
 	);

@@ -632,24 +632,6 @@ suite('ExtHostConfiguration', function () {
 		assert.strictEqual(config.has('config0'), true);
 	});
 
-	test('getConfiguration vs get', function () {
-
-		const all = createExtHostConfiguration({
-			'farboo': {
-				'config0': true,
-				'config4': 38
-			}
-		});
-
-		let config = all.getConfiguration('farboo.config0');
-		assert.strictEqual(config.get(''), undefined);
-		assert.strictEqual(config.has(''), false);
-
-		config = all.getConfiguration('farboo');
-		assert.strictEqual(config.get('config0'), true);
-		assert.strictEqual(config.has('config0'), true);
-	});
-
 	test('name vs property', function () {
 		const all = createExtHostConfiguration({
 			'farboo': {
@@ -787,6 +769,16 @@ suite('ExtHostConfiguration', function () {
 		});
 
 		testObject.$acceptConfigurationChanged(newConfigData, configEventData);
+	});
+
+	test('get return instance of array value', function () {
+		const testObject = createExtHostConfiguration({ 'far': { 'boo': [] } });
+
+		const value: string[] = testObject.getConfiguration().get('far.boo', []);
+		value.push('a');
+
+		const actual = testObject.getConfiguration().get('far.boo', []);
+		assert.deepStrictEqual(actual, []);
 	});
 
 	function aWorkspaceFolder(uri: URI, index: number, name: string = ''): IWorkspaceFolder {

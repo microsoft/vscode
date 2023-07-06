@@ -15,7 +15,7 @@ function generateViewMoreElement(outputId: string) {
 	const container = document.createElement('div');
 	container.classList.add('truncation-message');
 	const first = document.createElement('span');
-	first.textContent = 'Output is Truncated. View as a ';
+	first.textContent = 'Output is truncated. View as a ';
 	container.appendChild(first);
 
 	const viewAsScrollableLink = document.createElement('a');
@@ -39,10 +39,14 @@ function generateViewMoreElement(outputId: string) {
 	container.appendChild(third);
 
 	const layoutSettingsLink = document.createElement('a');
-	layoutSettingsLink.textContent = 'settings...';
+	layoutSettingsLink.textContent = 'settings';
 	layoutSettingsLink.href = `command:workbench.action.openSettings?%5B%22%40tag%3AnotebookOutputLayout%22%5D`;
 	layoutSettingsLink.ariaLabel = 'notebook output settings';
 	container.appendChild(layoutSettingsLink);
+
+	const fourth = document.createElement('span');
+	fourth.textContent = '...';
+	container.appendChild(fourth);
 
 	return container;
 }

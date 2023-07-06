@@ -129,11 +129,22 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
 		const diff = elements.length - deleteCount;
 		const end = start + deleteCount;
-		const sortedIndexes = [
-			...this.sortedIndexes.filter(i => i < start),
-			...elements.map((hasTrait, i) => hasTrait ? i + start : -1).filter(i => i !== -1),
-			...this.sortedIndexes.filter(i => i >= end).map(i => i + diff)
-		];
+		const sortedIndexes: number[] = [];
+		let i = 0;
+
+		while (i < this.sortedIndexes.length && this.sortedIndexes[i] < start) {
+			sortedIndexes.push(this.sortedIndexes[i++]);
+		}
+
+		for (let j = 0; j < elements.length; j++) {
+			if (elements[j]) {
+				sortedIndexes.push(j + start);
+			}
+		}
+
+		while (i < this.sortedIndexes.length && this.sortedIndexes[i] >= end) {
+			sortedIndexes.push(this.sortedIndexes[i++] + diff);
+		}
 
 		const length = this.length + diff;
 
@@ -226,12 +237,16 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 
 	splice(start: number, deleteCount: number, elements: T[]): void {
 		if (!this.identityProvider) {
-			return this.trait.splice(start, deleteCount, elements.map(() => false));
+			return this.trait.splice(start, deleteCount, new Array(elements.length).fill(false));
 		}
 
 		const pastElementsWithTrait = this.trait.get().map(i => this.identityProvider!.getId(this.view.element(i)).toString());
-		const elementsWithTrait = elements.map(e => pastElementsWithTrait.indexOf(this.identityProvider!.getId(e).toString()) > -1);
+		if (pastElementsWithTrait.length === 0) {
+			return this.trait.splice(start, deleteCount, new Array(elements.length).fill(false));
+		}
 
+		const pastElementsWithTraitSet = new Set(pastElementsWithTrait);
+		const elementsWithTrait = elements.map(e => pastElementsWithTraitSet.has(this.identityProvider!.getId(e).toString()));
 		this.trait.splice(start, deleteCount, elementsWithTrait);
 	}
 }
@@ -622,7 +637,7 @@ export class MouseController<T> implements IDisposable {
 			this.disposables.add(Gesture.addTarget(list.getHTMLElement()));
 		}
 
-		Event.any(list.onMouseClick, list.onMouseMiddleClick, list.onTap)(this.onViewPointer, this, this.disposables);
+		Event.any<IListMouseEvent<any> | IListGestureEvent<any>>(list.onMouseClick, list.onMouseMiddleClick, list.onTap)(this.onViewPointer, this, this.disposables);
 	}
 
 	updateOptions(optionsUpdate: IListOptionsUpdate): void {
@@ -683,6 +698,11 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
+		if (e.browserEvent.isHandledByList) {
+			return;
+		}
+
+		e.browserEvent.isHandledByList = true;
 		const focus = e.index;
 
 		if (typeof focus === 'undefined') {
@@ -719,6 +739,11 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
+		if (e.browserEvent.isHandledByList) {
+			return;
+		}
+
+		e.browserEvent.isHandledByList = true;
 		const focus = this.list.getFocus();
 		this.list.setSelection(focus, e.browserEvent);
 	}
@@ -1496,8 +1521,16 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.contentHeight;
 	}
 
+	get contentWidth(): number {
+		return this.view.contentWidth;
+	}
+
 	get onDidChangeContentHeight(): Event<number> {
 		return this.view.onDidChangeContentHeight;
+	}
+
+	get onDidChangeContentWidth(): Event<number> {
+		return this.view.onDidChangeContentWidth;
 	}
 
 	get scrollTop(): number {

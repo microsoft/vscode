@@ -4,6 +4,9 @@
 		"outDir": "./out",
 		"types": [
 			"node"
+		],
+		"lib": [
+			"WebWorker"
 		]
 	},
 	"include": [

@@ -11,6 +11,13 @@ export const enum RecommendationSource {
 	EXE = 3
 }
 
+export interface IExtensionRecommendations {
+	source: RecommendationSource;
+	extensions: string[];
+	name: string;
+	searchValue?: string;
+}
+
 export function RecommendationSourceToString(source: RecommendationSource) {
 	switch (source) {
 		case RecommendationSource.FILE: return 'file';
@@ -35,7 +42,7 @@ export interface IExtensionRecommendationNotificationService {
 	readonly ignoredRecommendations: string[];
 	hasToIgnoreRecommendationNotifications(): boolean;
 
-	promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string, source: RecommendationSource): Promise<RecommendationsNotificationResult>;
+	promptImportantExtensionsInstallNotification(recommendations: IExtensionRecommendations): Promise<RecommendationsNotificationResult>;
 	promptWorkspaceRecommendations(recommendations: string[]): Promise<void>;
 }
 

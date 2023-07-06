@@ -25,7 +25,7 @@ import { isString, isUndefined } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ResourceMap } from 'vs/base/common/map';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService, migratePlatformSpecificExtensionGalleryResourceURL } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
@@ -52,6 +52,14 @@ function isGalleryExtensionInfo(obj: unknown): obj is GalleryExtensionInfo {
 	return typeof galleryExtensionInfo?.id === 'string'
 		&& (galleryExtensionInfo.preRelease === undefined || typeof galleryExtensionInfo.preRelease === 'boolean')
 		&& (galleryExtensionInfo.migrateStorageFrom === undefined || typeof galleryExtensionInfo.migrateStorageFrom === 'string');
+}
+
+function isUriComponents(thing: unknown): thing is UriComponents {
+	if (!thing) {
+		return false;
+	}
+	return isString((<any>thing).path) &&
+		isString((<any>thing).scheme);
 }
 
 interface IStoredWebExtension {
@@ -117,12 +125,13 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		}
 	}
 
-	private _customBuiltinExtensionsInfoPromise: Promise<{ extensions: ExtensionInfo[]; extensionsToMigrate: [string, string][]; extensionLocations: URI[] }> | undefined;
-	private readCustomBuiltinExtensionsInfoFromEnv(): Promise<{ extensions: ExtensionInfo[]; extensionsToMigrate: [string, string][]; extensionLocations: URI[] }> {
+	private _customBuiltinExtensionsInfoPromise: Promise<{ extensions: ExtensionInfo[]; extensionsToMigrate: [string, string][]; extensionLocations: URI[]; extensionGalleryResources: URI[] }> | undefined;
+	private readCustomBuiltinExtensionsInfoFromEnv(): Promise<{ extensions: ExtensionInfo[]; extensionsToMigrate: [string, string][]; extensionLocations: URI[]; extensionGalleryResources: URI[] }> {
 		if (!this._customBuiltinExtensionsInfoPromise) {
 			this._customBuiltinExtensionsInfoPromise = (async () => {
 				let extensions: ExtensionInfo[] = [];
 				const extensionLocations: URI[] = [];
+				const extensionGalleryResources: URI[] = [];
 				const extensionsToMigrate: [string, string][] = [];
 				const customBuiltinExtensionsInfo = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions)
 					? this.environmentService.options.additionalBuiltinExtensions.map(additionalBuiltinExtension => isString(additionalBuiltinExtension) ? { id: additionalBuiltinExtension } : additionalBuiltinExtension)
@@ -133,8 +142,13 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						if (e.migrateStorageFrom) {
 							extensionsToMigrate.push([e.migrateStorageFrom, e.id]);
 						}
-					} else {
-						extensionLocations.push(URI.revive(e));
+					} else if (isUriComponents(e)) {
+						const extensionLocation = URI.revive(e);
+						if (this.extensionResourceLoaderService.isExtensionGalleryResource(extensionLocation)) {
+							extensionGalleryResources.push(extensionLocation);
+						} else {
+							extensionLocations.push(extensionLocation);
+						}
 					}
 				}
 				if (extensions.length) {
@@ -146,7 +160,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				if (extensionLocations.length) {
 					this.logService.info('Found additional builtin location extensions in env', extensionLocations.map(e => e.toString()));
 				}
-				return { extensions, extensionsToMigrate, extensionLocations };
+				if (extensionGalleryResources.length) {
+					this.logService.info('Found additional builtin extension gallery resources in env', extensionGalleryResources.map(e => e.toString()));
+				}
+				return { extensions, extensionsToMigrate, extensionLocations, extensionGalleryResources };
 			})();
 		}
 		return this._customBuiltinExtensionsInfoPromise;
@@ -212,9 +229,9 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			return [];
 		}
 		const result: IScannedExtension[] = [];
-		await Promise.allSettled(extensionLocations.map(async location => {
+		await Promise.allSettled(extensionLocations.map(async extensionLocation => {
 			try {
-				const webExtension = await this.toWebExtension(location);
+				const webExtension = await this.toWebExtension(extensionLocation);
 				const extension = await this.toScannedExtension(webExtension, true);
 				if (extension.isValid || !scanOptions?.skipInvalidExtensions) {
 					result.push(extension);
@@ -234,9 +251,13 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			return [];
 		}
 		const result: IScannedExtension[] = [];
-		const { extensions } = await this.readCustomBuiltinExtensionsInfoFromEnv();
+		const { extensions, extensionGalleryResources } = await this.readCustomBuiltinExtensionsInfoFromEnv();
 		try {
-			const useCache = this.storageService.get('additionalBuiltinExtensions', StorageScope.APPLICATION, '[]') === JSON.stringify(extensions);
+			const cacheValue = JSON.stringify({
+				extensions: extensions.sort((a, b) => a.id.localeCompare(b.id)),
+				extensionGalleryResources: extensionGalleryResources.map(e => e.toString()).sort()
+			});
+			const useCache = this.storageService.get('additionalBuiltinExtensions', StorageScope.APPLICATION, '{}') === cacheValue;
 			const webExtensions = await (useCache ? this.getCustomBuiltinExtensionsFromCache() : this.updateCustomBuiltinExtensionsCache());
 			if (webExtensions.length) {
 				await Promise.all(webExtensions.map(async webExtension => {
@@ -252,7 +273,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					}
 				}));
 			}
-			this.storageService.store('additionalBuiltinExtensions', JSON.stringify(extensions), StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this.storageService.store('additionalBuiltinExtensions', cacheValue, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		} catch (error) {
 			this.logService.info('Ignoring following additional builtin extensions as there is an error while fetching them from gallery', extensions.map(({ id }) => id), getErrorMessage(error));
 		}
@@ -329,23 +350,17 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		if (!this._updateCustomBuiltinExtensionsCachePromise) {
 			this._updateCustomBuiltinExtensionsCachePromise = (async () => {
 				this.logService.info('Updating additional builtin extensions cache');
-				const webExtensions: IWebExtension[] = [];
-				const { extensions } = await this.readCustomBuiltinExtensionsInfoFromEnv();
-				if (extensions.length) {
-					const galleryExtensionsMap = await this.getExtensionsWithDependenciesAndPackedExtensions(extensions);
-					const missingExtensions = extensions.filter(({ id }) => !galleryExtensionsMap.has(id.toLowerCase()));
-					if (missingExtensions.length) {
-						this.logService.info('Skipping the additional builtin extensions because their compatible versions are not found.', missingExtensions);
-					}
-					await Promise.all([...galleryExtensionsMap.values()].map(async gallery => {
-						try {
-							const webExtension = await this.toWebExtensionFromGallery(gallery, { isPreReleaseVersion: gallery.properties.isPreReleaseVersion, preRelease: gallery.properties.isPreReleaseVersion, isBuiltin: true });
-							webExtensions.push(webExtension);
-						} catch (error) {
-							this.logService.info(`Ignoring additional builtin extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
-						}
-					}));
+				const { extensions, extensionGalleryResources } = await this.readCustomBuiltinExtensionsInfoFromEnv();
+				const [galleryWebExtensions, extensionGalleryResourceWebExtensions] = await Promise.all([
+					this.resolveBuiltinGalleryExtensions(extensions),
+					this.resolveBuiltinExtensionGalleryResources(extensionGalleryResources)
+				]);
+				const webExtensionsMap = new Map<string, IWebExtension>();
+				for (const webExtension of [...galleryWebExtensions, ...extensionGalleryResourceWebExtensions]) {
+					webExtensionsMap.set(webExtension.identifier.id.toLowerCase(), webExtension);
 				}
+				await this.resolveDependenciesAndPackedExtensions(extensionGalleryResourceWebExtensions, webExtensionsMap);
+				const webExtensions = [...webExtensionsMap.values()];
 				await this.writeCustomBuiltinExtensionsCache(() => webExtensions);
 				return webExtensions;
 			})();
@@ -353,7 +368,78 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return this._updateCustomBuiltinExtensionsCachePromise;
 	}
 
-	private async getExtensionsWithDependenciesAndPackedExtensions(toGet: IExtensionInfo[], result: Map<string, IGalleryExtension> = new Map<string, IGalleryExtension>()): Promise<Map<string, IGalleryExtension>> {
+	private async resolveBuiltinExtensionGalleryResources(extensionGalleryResources: URI[]): Promise<IWebExtension[]> {
+		if (extensionGalleryResources.length === 0) {
+			return [];
+		}
+		const result = new Map<string, IWebExtension>();
+		const extensionInfos: IExtensionInfo[] = [];
+		await Promise.all(extensionGalleryResources.map(async extensionGalleryResource => {
+			const webExtension = await this.toWebExtensionFromExtensionGalleryResource(extensionGalleryResource);
+			result.set(webExtension.identifier.id.toLowerCase(), webExtension);
+			extensionInfos.push({ id: webExtension.identifier.id, version: webExtension.version });
+		}));
+		const galleryExtensions = await this.galleryService.getExtensions(extensionInfos, CancellationToken.None);
+		for (const galleryExtension of galleryExtensions) {
+			const webExtension = result.get(galleryExtension.identifier.id.toLowerCase());
+			if (webExtension) {
+				result.set(galleryExtension.identifier.id.toLowerCase(), {
+					...webExtension,
+					identifier: { id: webExtension.identifier.id, uuid: galleryExtension.identifier.uuid },
+					readmeUri: galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined,
+					changelogUri: galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined,
+					metadata: { isPreReleaseVersion: galleryExtension.properties.isPreReleaseVersion, preRelease: galleryExtension.properties.isPreReleaseVersion, isBuiltin: true, pinned: true }
+				});
+			}
+		}
+		return [...result.values()];
+	}
+
+	private async resolveBuiltinGalleryExtensions(extensions: IExtensionInfo[]): Promise<IWebExtension[]> {
+		if (extensions.length === 0) {
+			return [];
+		}
+		const webExtensions: IWebExtension[] = [];
+		const galleryExtensionsMap = await this.getExtensionsWithDependenciesAndPackedExtensions(extensions);
+		const missingExtensions = extensions.filter(({ id }) => !galleryExtensionsMap.has(id.toLowerCase()));
+		if (missingExtensions.length) {
+			this.logService.info('Skipping the additional builtin extensions because their compatible versions are not found.', missingExtensions);
+		}
+		await Promise.all([...galleryExtensionsMap.values()].map(async gallery => {
+			try {
+				const webExtension = await this.toWebExtensionFromGallery(gallery, { isPreReleaseVersion: gallery.properties.isPreReleaseVersion, preRelease: gallery.properties.isPreReleaseVersion, isBuiltin: true });
+				webExtensions.push(webExtension);
+			} catch (error) {
+				this.logService.info(`Ignoring additional builtin extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
+			}
+		}));
+		return webExtensions;
+	}
+
+	private async resolveDependenciesAndPackedExtensions(webExtensions: IWebExtension[], result: Map<string, IWebExtension>): Promise<void> {
+		const extensionInfos: IExtensionInfo[] = [];
+		for (const webExtension of webExtensions) {
+			for (const e of [...(webExtension.manifest?.extensionDependencies ?? []), ...(webExtension.manifest?.extensionPack ?? [])]) {
+				if (!result.has(e.toLowerCase())) {
+					extensionInfos.push({ id: e, version: webExtension.version });
+				}
+			}
+		}
+		if (extensionInfos.length === 0) {
+			return;
+		}
+		const galleryExtensions = await this.getExtensionsWithDependenciesAndPackedExtensions(extensionInfos, new Set<string>([...result.keys()]));
+		await Promise.all([...galleryExtensions.values()].map(async gallery => {
+			try {
+				const webExtension = await this.toWebExtensionFromGallery(gallery, { isPreReleaseVersion: gallery.properties.isPreReleaseVersion, preRelease: gallery.properties.isPreReleaseVersion, isBuiltin: true });
+				result.set(webExtension.identifier.id.toLowerCase(), webExtension);
+			} catch (error) {
+				this.logService.info(`Ignoring additional builtin extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
+			}
+		}));
+	}
+
+	private async getExtensionsWithDependenciesAndPackedExtensions(toGet: IExtensionInfo[], seen: Set<string> = new Set<string>(), result: Map<string, IGalleryExtension> = new Map<string, IGalleryExtension>()): Promise<Map<string, IGalleryExtension>> {
 		if (toGet.length === 0) {
 			return result;
 		}
@@ -362,13 +448,13 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		for (const extension of extensions) {
 			result.set(extension.identifier.id.toLowerCase(), extension);
 			for (const id of [...(isNonEmptyArray(extension.properties.dependencies) ? extension.properties.dependencies : []), ...(isNonEmptyArray(extension.properties.extensionPack) ? extension.properties.extensionPack : [])]) {
-				if (!result.has(id.toLowerCase()) && !packsAndDependencies.has(id.toLowerCase())) {
+				if (!result.has(id.toLowerCase()) && !packsAndDependencies.has(id.toLowerCase()) && !seen.has(id.toLowerCase())) {
 					const extensionInfo = toGet.find(e => areSameExtensions(e, extension.identifier));
 					packsAndDependencies.set(id.toLowerCase(), { id, preRelease: extensionInfo?.preRelease });
 				}
 			}
 		}
-		return this.getExtensionsWithDependenciesAndPackedExtensions([...packsAndDependencies.values()].filter(({ id }) => !result.has(id.toLowerCase())), result);
+		return this.getExtensionsWithDependenciesAndPackedExtensions([...packsAndDependencies.values()].filter(({ id }) => !result.has(id.toLowerCase())), seen, result);
 	}
 
 	async scanSystemExtensions(): Promise<IExtension[]> {
@@ -438,7 +524,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	async addExtension(location: URI, metadata: Metadata, profileLocation: URI): Promise<IScannedExtension> {
-		const webExtension = await this.toWebExtension(location, undefined, undefined, undefined, undefined, undefined, metadata);
+		const webExtension = await this.toWebExtension(location, undefined, undefined, undefined, undefined, undefined, undefined, metadata);
 		const extension = await this.toScannedExtension(webExtension, false);
 		await this.addToInstalledExtensions([webExtension], profileLocation);
 		return extension;
@@ -559,11 +645,25 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async toWebExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: Metadata): Promise<IWebExtension> {
-		let extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL(galleryExtension, 'extension');
+		const extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({
+			publisher: galleryExtension.publisher,
+			name: galleryExtension.name,
+			version: galleryExtension.version,
+			targetPlatform: galleryExtension.properties.targetPlatform === TargetPlatform.WEB ? TargetPlatform.WEB : undefined
+		}, 'extension');
+
 		if (!extensionLocation) {
 			throw new Error('No extension gallery service configured.');
 		}
-		extensionLocation = galleryExtension.properties.targetPlatform === TargetPlatform.WEB ? extensionLocation.with({ query: `${extensionLocation.query ? `${extensionLocation.query}&` : ''}target=${galleryExtension.properties.targetPlatform}` }) : extensionLocation;
+
+		return this.toWebExtensionFromExtensionGalleryResource(extensionLocation,
+			galleryExtension.identifier,
+			galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined,
+			galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined,
+			metadata);
+	}
+
+	private async toWebExtensionFromExtensionGalleryResource(extensionLocation: URI, identifier?: IExtensionIdentifier, readmeUri?: URI, changelogUri?: URI, metadata?: Metadata): Promise<IWebExtension> {
 		const extensionResources = await this.listExtensionResources(extensionLocation);
 		const packageNLSResources = this.getPackageNLSResourceMapFromResources(extensionResources);
 
@@ -571,11 +671,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const fallbackPackageNLSResource = extensionResources.find(e => basename(e) === 'package.nls.json');
 		return this.toWebExtension(
 			extensionLocation,
-			galleryExtension.identifier,
+			identifier,
+			undefined,
 			packageNLSResources,
 			fallbackPackageNLSResource ? URI.parse(fallbackPackageNLSResource) : null,
-			galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined,
-			galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined,
+			readmeUri,
+			changelogUri,
 			metadata);
 	}
 
@@ -591,12 +692,13 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return packageNLSResources;
 	}
 
-	private async toWebExtension(extensionLocation: URI, identifier?: IExtensionIdentifier, packageNLSUris?: Map<string, URI>, fallbackPackageNLSUri?: URI | null, readmeUri?: URI, changelogUri?: URI, metadata?: Metadata): Promise<IWebExtension> {
-		let manifest: IExtensionManifest;
-		try {
-			manifest = await this.getExtensionManifest(extensionLocation);
-		} catch (error) {
-			throw new Error(`Error while fetching manifest from the location '${extensionLocation.toString()}'. ${getErrorMessage(error)}`);
+	private async toWebExtension(extensionLocation: URI, identifier?: IExtensionIdentifier, manifest?: IExtensionManifest, packageNLSUris?: Map<string, URI>, fallbackPackageNLSUri?: URI | ITranslations | null, readmeUri?: URI, changelogUri?: URI, metadata?: Metadata): Promise<IWebExtension> {
+		if (!manifest) {
+			try {
+				manifest = await this.getExtensionManifest(extensionLocation);
+			} catch (error) {
+				throw new Error(`Error while fetching manifest from the location '${extensionLocation.toString()}'. ${getErrorMessage(error)}`);
+			}
 		}
 
 		if (!this.extensionManifestPropertiesService.canExecuteOnWeb(manifest)) {
@@ -611,7 +713,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				fallbackPackageNLSUri = undefined;
 			}
 		}
-		const defaultManifestTranslations: ITranslations | null | undefined = fallbackPackageNLSUri ? await this.getTranslations(fallbackPackageNLSUri) : null;
+		const defaultManifestTranslations: ITranslations | null | undefined = fallbackPackageNLSUri ? URI.isUri(fallbackPackageNLSUri) ? await this.getTranslations(fallbackPackageNLSUri) : fallbackPackageNLSUri : null;
 
 		return {
 			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: identifier?.uuid },
@@ -621,7 +723,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			readmeUri,
 			changelogUri,
 			packageNLSUris,
-			fallbackPackageNLSUri: fallbackPackageNLSUri ? fallbackPackageNLSUri : undefined,
+			fallbackPackageNLSUri: URI.isUri(fallbackPackageNLSUri) ? fallbackPackageNLSUri : undefined,
 			defaultManifestTranslations,
 			metadata,
 		};
@@ -828,6 +930,11 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					update = true;
 					webExtension.defaultManifestTranslations = null;
 				}
+			}
+			const migratedLocation = migratePlatformSpecificExtensionGalleryResourceURL(webExtension.location, TargetPlatform.WEB);
+			if (migratedLocation) {
+				update = true;
+				webExtension.location = migratedLocation;
 			}
 			return webExtension;
 		}));

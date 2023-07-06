@@ -96,10 +96,6 @@
 	background-color: var(--vscode-activityBar-foreground) !important;
 }
 
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before {
-	border-left-color: var(--vscode-activityBar-activeBorder);
-}
-
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before,
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .active-item-indicator:before {
 	content: "";

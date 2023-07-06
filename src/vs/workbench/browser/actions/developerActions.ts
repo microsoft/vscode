@@ -30,6 +30,9 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { ResolutionResult, ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
+import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -260,7 +263,7 @@ class ToggleScreencastModeAction extends Action2 {
 			const shortcut = keybindingService.softDispatch(event, event.target);
 
 			// Hide the single arrow key pressed
-			if (shortcut && shortcut.kind === ResultKind.KbFound && shortcut.commandId && configurationService.getValue('screencastMode.hideSingleEditorCursorMoves') && (
+			if (shortcut.kind === ResultKind.KbFound && shortcut.commandId && configurationService.getValue('screencastMode.hideSingleEditorCursorMoves') && (
 				['cursorLeft', 'cursorRight', 'cursorUp', 'cursorDown'].includes(shortcut.commandId))
 			) {
 				return;
@@ -324,8 +327,8 @@ class ToggleScreencastModeAction extends Action2 {
 		ToggleScreencastModeAction.disposable = disposables;
 	}
 
-	private _isKbFound(resolutionResult: ResolutionResult | null): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: any; isBubble: boolean } {
-		return resolutionResult !== null && resolutionResult.kind === ResultKind.KbFound;
+	private _isKbFound(resolutionResult: ResolutionResult): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: any; isBubble: boolean } {
+		return resolutionResult.kind === ResultKind.KbFound;
 	}
 }
 
@@ -341,7 +344,12 @@ class LogStorageAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IStorageService).log();
+		const storageService = accessor.get(IStorageService);
+		const dialogService = accessor.get(IDialogService);
+
+		storageService.log();
+
+		dialogService.info(localize('storageLogDialogMessage', "The storage database contents have been logged to the developer tools."), localize('storageLogDialogDetails', "Open developer tools from the menu and select the Console tab."));
 	}
 }
 
@@ -360,6 +368,7 @@ class LogWorkingCopiesAction extends Action2 {
 		const workingCopyService = accessor.get(IWorkingCopyService);
 		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
 		const logService = accessor.get(ILogService);
+		const outputService = accessor.get(IOutputService);
 
 		const backups = await workingCopyBackupService.getBackups();
 
@@ -377,6 +386,8 @@ class LogWorkingCopiesAction extends Action2 {
 		];
 
 		logService.info(msg.join('\n'));
+
+		outputService.showChannel(windowLogId, true);
 	}
 }
 
