@@ -273,7 +273,7 @@ export class DiffReview2 extends Disposable {
 		}
 	}
 
-	private hide(): void {
+	public hide(): void {
 		this._isVisible = false;
 		this._diffEditor.updateOptions({ readOnly: false });
 		this._diffEditor.focus();
