@@ -264,7 +264,9 @@ export interface IFixedTerminalDimensions {
 	rows?: number;
 }
 
-export const IPtyService = createDecorator<IPtyService>('ptyService');
+/**
+ * A service that communicates with a pty host.
+*/
 export interface IPtyService {
 	readonly _serviceBrand: undefined;
 
@@ -344,6 +346,7 @@ export interface IPtyService {
 	// TODO: Make mandatory and remove impl from pty host service
 	refreshIgnoreProcessNames?(names: string[]): Promise<void>;
 }
+export const IPtyService = createDecorator<IPtyService>('ptyService');
 
 export interface IPtyHostController {
 	readonly onPtyHostExit: Event<number>;
@@ -357,7 +360,10 @@ export interface IPtyHostController {
 	getProfiles(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 }
 
-export const IPtyHostService = createDecorator<IPtyHostService>('ptyHostService');
+/**
+ * A service that communicates with a pty host controller (eg. main or server
+ * process) and is able to launch and forward requests to the pty host.
+*/
 export interface IPtyHostService extends IPtyService, IPtyHostController {
 }
 

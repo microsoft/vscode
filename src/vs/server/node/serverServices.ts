@@ -48,7 +48,7 @@ import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/
 import { ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender, NullAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
-import { IPtyService, IPtyHostService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
@@ -199,7 +199,6 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	);
 	const ptyHostService = instantiationService.createInstance(PtyHostService, ptyHostStarter);
 	services.set(IPtyService, ptyHostService);
-	services.set(IPtyHostService, ptyHostService);
 
 	services.set(ICredentialsMainService, new SyncDescriptor(CredentialsWebMainService));
 
