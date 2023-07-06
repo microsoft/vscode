@@ -125,7 +125,7 @@ steps:
         mv ../vscode-reh-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH) # TODO@joaomoreno
         ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH).zip"
         mkdir -p $(dirname $ARCHIVE_PATH)
-        (cd .. && zip -Xry $ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH))
+        (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH))
         echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -137,7 +137,7 @@ steps:
         mv ../vscode-reh-web-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH)-web # TODO@joaomoreno
         ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH)-web.zip"
         mkdir -p $(dirname $ARCHIVE_PATH)
-        (cd .. && zip -Xry $ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH)-web)
+        (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH)-web)
         echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -197,7 +197,7 @@ steps:
         set -e
         ARCHIVE_PATH=".build/darwin/client/VSCode-darwin-$(VSCODE_ARCH).zip"
         mkdir -p $(dirname $ARCHIVE_PATH)
-        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $ARCHIVE_PATH *)
+        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH *)
         echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
       condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT'], 'true'))
       displayName: Package client
