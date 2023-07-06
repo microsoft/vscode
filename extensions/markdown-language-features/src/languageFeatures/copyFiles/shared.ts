@@ -73,9 +73,10 @@ export async function getMarkdownLink(document: vscode.TextDocument, ranges: rea
 	let smartPaste: boolean = false;
 	for (let i = 0; i < ranges.length; i++) {
 		if (enabled === 'smart') {
-			const inCodeBracket = checkPaste(document, ranges, /^```[\s\S]*?```$/gm, i);
 			const inMarkdownLink = checkPaste(document, ranges, /\[([^\]]*)\]\(([^)]*)\)/g, i);
-			smartPaste = (inMarkdownLink || inCodeBracket);
+			const inFencedCode = checkPaste(document, ranges, /^```[\s\S]*?```$/gm, i);
+			const inFencedMath = checkPaste(document, ranges, /^\$\$[\s\S]*?\$\$$/gm, i);
+			smartPaste = (inMarkdownLink || inFencedCode || inFencedMath);
 		}
 
 		const snippet = await tryGetUriListSnippet(document, urlList, token, document.getText(ranges[i]), placeHolderValue, smartPaste);
