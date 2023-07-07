@@ -627,10 +627,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		return this._initialCwd;
 	}
 
-	getLatency(): Promise<number> {
-		return Promise.resolve(0);
-	}
-
 	getWindowsPty(): IProcessReadyWindowsPty | undefined {
 		return isWindows ? {
 			backend: 'useConpty' in this._ptyOptions && this._ptyOptions.useConpty ? 'conpty' : 'winpty',

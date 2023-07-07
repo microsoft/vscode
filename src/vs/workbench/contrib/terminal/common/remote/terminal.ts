@@ -63,6 +63,7 @@ export const enum RemoteTerminalChannelRequest {
 	AttachToProcess = '$attachToProcess',
 	DetachFromProcess = '$detachFromProcess',
 	ListProcesses = '$listProcesses',
+	GetLatency = '$getLatency',
 	GetPerformanceMarks = '$getPerformanceMarks',
 	OrphanQuestionReply = '$orphanQuestionReply',
 	AcceptPtyHostResolvedVariables = '$acceptPtyHostResolvedVariables',
