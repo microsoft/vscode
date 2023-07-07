@@ -37,8 +37,7 @@ steps:
       (cd build && yarn)
 
       # Unpack snap tarball artifact, in order to preserve file perms
-      SNAP_TARBALL_PATH=".build/linux/snap-tarball/snap-$(VSCODE_ARCH).tar.gz"
-      (cd .build/linux && tar -xzf $SNAP_TARBALL_PATH)
+      (cd .build/linux && tar -xzf snap-tarball/snap-$(VSCODE_ARCH).tar.gz)
 
       # Create snap package
       BUILD_VERSION="$(date +%s)"
