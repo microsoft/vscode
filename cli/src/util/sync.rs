@@ -2,38 +2,60 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use tokio::sync::watch::{
-	self,
-	error::{RecvError, SendError},
+use async_trait::async_trait;
+use std::{marker::PhantomData, sync::Arc};
+use tokio::sync::{
+	broadcast, mpsc,
+	watch::{self, error::RecvError},
 };
 
 #[derive(Clone)]
 pub struct Barrier<T>(watch::Receiver<Option<T>>)
 where
-	T: Copy;
+	T: Clone;
 
 impl<T> Barrier<T>
 where
-	T: Copy,
+	T: Clone,
 {
 	/// Waits for the barrier to be closed, returning a value if one was sent.
 	pub async fn wait(&mut self) -> Result<T, RecvError> {
 		loop {
 			self.0.changed().await?;
 
-			if let Some(v) = *(self.0.borrow()) {
+			if let Some(v) = self.0.borrow().clone() {
 				return Ok(v);
 			}
 		}
 	}
+
+	/// Gets whether the barrier is currently open
+	pub fn is_open(&self) -> bool {
+		self.0.borrow().is_some()
+	}
 }
 
-pub struct BarrierOpener<T>(watch::Sender<Option<T>>);
+#[async_trait]
+impl<T: Clone + Send + Sync> Receivable<T> for Barrier<T> {
+	async fn recv_msg(&mut self) -> Option<T> {
+		self.wait().await.ok()
+	}
+}
 
-impl<T> BarrierOpener<T> {
-	/// Closes the barrier.
-	pub fn open(self, value: T) -> Result<(), SendError<Option<T>>> {
-		self.0.send(Some(value))
+#[derive(Clone)]
+pub struct BarrierOpener<T: Clone>(Arc<watch::Sender<Option<T>>>);
+
+impl<T: Clone> BarrierOpener<T> {
+	/// Opens the barrier.
+	pub fn open(&self, value: T) {
+		self.0.send_if_modified(|v| {
+			if v.is_none() {
+				*v = Some(value);
+				true
+			} else {
+				false
+			}
+		});
 	}
 }
 
@@ -44,7 +66,119 @@ where
 	T: Copy,
 {
 	let (closed_tx, closed_rx) = watch::channel(None);
-	(Barrier(closed_rx), BarrierOpener(closed_tx))
+	(Barrier(closed_rx), BarrierOpener(Arc::new(closed_tx)))
+}
+
+/// Type that can receive messages in an async way.
+#[async_trait]
+pub trait Receivable<T> {
+	async fn recv_msg(&mut self) -> Option<T>;
+}
+
+// todo: ideally we would use an Arc in the broadcast::Receiver to avoid having
+// to clone bytes everywhere, requires updating rpc consumers as well.
+#[async_trait]
+impl<T: Clone + Send> Receivable<T> for broadcast::Receiver<T> {
+	async fn recv_msg(&mut self) -> Option<T> {
+		loop {
+			match self.recv().await {
+				Ok(v) => return Some(v),
+				Err(broadcast::error::RecvError::Lagged(_)) => continue,
+				Err(broadcast::error::RecvError::Closed) => return None,
+			}
+		}
+	}
+}
+
+#[async_trait]
+impl<T: Send> Receivable<T> for mpsc::UnboundedReceiver<T> {
+	async fn recv_msg(&mut self) -> Option<T> {
+		self.recv().await
+	}
+}
+
+#[async_trait]
+impl<T: Send> Receivable<T> for () {
+	async fn recv_msg(&mut self) -> Option<T> {
+		futures::future::pending().await
+	}
+}
+
+pub struct ConcatReceivable<T: Send, A: Receivable<T>, B: Receivable<T>> {
+	left: Option<A>,
+	right: B,
+	_marker: PhantomData<T>,
+}
+
+impl<T: Send, A: Receivable<T>, B: Receivable<T>> ConcatReceivable<T, A, B> {
+	pub fn new(left: A, right: B) -> Self {
+		Self {
+			left: Some(left),
+			right,
+			_marker: PhantomData,
+		}
+	}
+}
+
+#[async_trait]
+impl<T: Send, A: Send + Receivable<T>, B: Send + Receivable<T>> Receivable<T>
+	for ConcatReceivable<T, A, B>
+{
+	async fn recv_msg(&mut self) -> Option<T> {
+		if let Some(left) = &mut self.left {
+			match left.recv_msg().await {
+				Some(v) => return Some(v),
+				None => {
+					self.left = None;
+				}
+			}
+		}
+
+		return self.right.recv_msg().await;
+	}
+}
+
+pub struct MergedReceivable<T: Send, A: Receivable<T>, B: Receivable<T>> {
+	left: Option<A>,
+	right: Option<B>,
+	_marker: PhantomData<T>,
+}
+
+impl<T: Send, A: Receivable<T>, B: Receivable<T>> MergedReceivable<T, A, B> {
+	pub fn new(left: A, right: B) -> Self {
+		Self {
+			left: Some(left),
+			right: Some(right),
+			_marker: PhantomData,
+		}
+	}
+}
+
+#[async_trait]
+impl<T: Send, A: Send + Receivable<T>, B: Send + Receivable<T>> Receivable<T>
+	for MergedReceivable<T, A, B>
+{
+	async fn recv_msg(&mut self) -> Option<T> {
+		loop {
+			match (&mut self.left, &mut self.right) {
+				(Some(left), Some(right)) => {
+					tokio::select! {
+						left = left.recv_msg() => match left {
+							Some(v) => return Some(v),
+							None => { self.left = None; continue; },
+						},
+						right = right.recv_msg() => match right {
+							Some(v) => return Some(v),
+							None => { self.right = None; continue; },
+						},
+					}
+				}
+				(Some(a), None) => break a.recv_msg().await,
+				(None, Some(b)) => break b.recv_msg().await,
+				(None, None) => break None,
+			}
+		}
+	}
 }
 
 #[cfg(test)]
@@ -60,7 +194,7 @@ mod tests {
 			tx.send(barrier.wait().await.unwrap()).unwrap();
 		});
 
-		opener.open(42).unwrap();
+		opener.open(42);
 
 		assert!(rx.await.unwrap() == 42);
 	}
@@ -71,7 +205,7 @@ mod tests {
 		let (tx1, rx1) = tokio::sync::oneshot::channel::<u32>();
 		let (tx2, rx2) = tokio::sync::oneshot::channel::<u32>();
 
-		opener.open(42).unwrap();
+		opener.open(42);
 		let mut b1 = barrier.clone();
 		tokio::spawn(async move {
 			tx1.send(b1.wait().await.unwrap()).unwrap();

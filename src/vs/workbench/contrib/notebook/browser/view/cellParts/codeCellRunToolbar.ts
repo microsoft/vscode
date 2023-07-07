@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -117,7 +117,7 @@ export class RunToolbar extends CellContentPart {
 	}
 }
 
-export function getCodeCellExecutionContextKeyService(contextKeyService: IContextKeyService): IContextKeyService {
+export function getCodeCellExecutionContextKeyService(contextKeyService: IContextKeyService): IScopedContextKeyService {
 	// Create a fake ContextKeyService, and look up the keybindings within this context.
 	const executionContextKeyService = contextKeyService.createScoped(document.createElement('div'));
 	InputFocusedContext.bindTo(executionContextKeyService).set(true);

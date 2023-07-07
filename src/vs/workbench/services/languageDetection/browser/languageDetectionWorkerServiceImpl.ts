@@ -154,13 +154,13 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	// only gives history for a workspace... where this takes advantage of history at a global level as well.
 	private initEditorOpenedListeners(storageService: IStorageService) {
 		try {
-			const globalLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.globalOpenedLanguagesStorageKey, StorageScope.PROFILE, '[]'));
-			this.historicalGlobalOpenedLanguageIds.fromJSON(globalLangHistroyData);
+			const globalLangHistoryData = JSON.parse(storageService.get(LanguageDetectionService.globalOpenedLanguagesStorageKey, StorageScope.PROFILE, '[]'));
+			this.historicalGlobalOpenedLanguageIds.fromJSON(globalLangHistoryData);
 		} catch (e) { console.error(e); }
 
 		try {
-			const workspaceLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.workspaceOpenedLanguagesStorageKey, StorageScope.WORKSPACE, '[]'));
-			this.historicalWorkspaceOpenedLanguageIds.fromJSON(workspaceLangHistroyData);
+			const workspaceLangHistoryData = JSON.parse(storageService.get(LanguageDetectionService.workspaceOpenedLanguagesStorageKey, StorageScope.WORKSPACE, '[]'));
+			this.historicalWorkspaceOpenedLanguageIds.fromJSON(workspaceLangHistoryData);
 		} catch (e) { console.error(e); }
 
 		this._register(this._editorService.onDidActiveEditorChange(() => {
@@ -332,7 +332,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 
 		await this._withSyncedResources([resource]);
 		const modelId = await (await this._getProxy()).detectLanguage(resource.toString(), langBiases, preferHistory, supportedLangs);
-		const langaugeId = this.getLanguageId(modelId);
+		const languageId = this.getLanguageId(modelId);
 
 		const LanguageDetectionStatsId = 'automaticlanguagedetection.perf';
 
@@ -350,10 +350,10 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 
 		this._telemetryService.publicLog2<ILanguageDetectionPerf, LanguageDetectionPerfClassification>(LanguageDetectionStatsId, {
 			timeSpent: Date.now() - startTime,
-			detection: langaugeId || 'unknown',
+			detection: languageId || 'unknown',
 		});
 
-		return langaugeId;
+		return languageId;
 	}
 }
 

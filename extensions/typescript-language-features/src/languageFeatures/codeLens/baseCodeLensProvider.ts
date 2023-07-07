@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../../protocol';
 import { CachedResponse } from '../../tsServer/cachedResponse';
+import type * as Proto from '../../tsServer/protocol/protocol';
+import * as typeConverters from '../../typeConverters';
 import { ITypeScriptServiceClient } from '../../typescriptService';
 import { escapeRegExp } from '../../utils/regexp';
-import * as typeConverters from '../../utils/typeConverters';
 
 
 export class ReferencesCodeLens extends vscode.CodeLens {

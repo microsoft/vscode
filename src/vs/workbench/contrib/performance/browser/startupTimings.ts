@@ -96,9 +96,8 @@ export class BrowserStartupTimings extends StartupTimings implements IWorkbenchC
 
 		const standardStartupError = await this._isStandardStartup();
 		const perfBaseline = await this.timerService.perfBaseline;
-		const { sessionId } = await this.telemetryService.getTelemetryInfo();
 		const [from, to] = this.environmentService.profDurationMarkers;
-		const content = `${this.timerService.getDuration(from, to)}\t${this.productService.nameShort}\t${(this.productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\t${String(perfBaseline).padStart(4, '0')}ms\n`;
+		const content = `${this.timerService.getDuration(from, to)}\t${this.productService.nameShort}\t${(this.productService.commit || '').slice(0, 10) || '0000000000'}\t${this.telemetryService.sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\t${String(perfBaseline).padStart(4, '0')}ms\n`;
 
 		this.logService.info(`[prof-timers] ${content}`);
 	}

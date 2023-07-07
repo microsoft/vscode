@@ -349,12 +349,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('scm.defaultViewMode.list', "Shows search results as a list.")
 			],
 			'description': nls.localize('search.defaultViewMode', "Controls the default search result view mode.")
-		},
-		'search.experimental.notebookSearch': {
-			type: 'boolean',
-			description: nls.localize('search.experimental.notebookSearch', "Controls whether to use the experimental notebook search in the global search. Please refresh your search for changes to this setting to take effect."),
-			default: false
-		},
+		}
 	}
 });
 

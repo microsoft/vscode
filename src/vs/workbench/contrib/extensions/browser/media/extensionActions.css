@@ -93,13 +93,6 @@
 	margin-top: 2px; /* margin for outline */
 }
 
-.monaco-action-bar .action-item .action-label.extension-action.multiserver.install:after,
-.monaco-action-bar .action-item .action-label.extension-action.multiserver.update:after {
-	content: '▼';
-	padding-left: 2px;
-	font-size: 80%;
-}
-
 .monaco-action-bar .action-item.disabled .action-label.extension-action.hide,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.ignore,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.undo-ignore,
@@ -130,7 +123,7 @@
 }
 
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label:before {
-	content: '✓';
+	content: '\2713';
 	padding-right: 4px;
 }
 

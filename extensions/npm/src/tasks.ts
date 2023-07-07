@@ -140,7 +140,7 @@ export async function getPackageManager(extensionContext: ExtensionContext, fold
 			window.showInformationMessage(multiplePMWarning, learnMore, neverShowAgain).then(result => {
 				switch (result) {
 					case neverShowAgain: extensionContext.globalState.update(neverShowWarning, true); break;
-					case learnMore: env.openExternal(Uri.parse('https://nodejs.dev/learn/the-package-lock-json-file'));
+					case learnMore: env.openExternal(Uri.parse('https://docs.npmjs.com/cli/v9/configuring-npm/package-lock-json'));
 				}
 			});
 		}

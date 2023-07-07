@@ -66,7 +66,7 @@
 .monaco-editor .codicon.codicon-symbol-text,
 .monaco-workbench .codicon.codicon-symbol-text { color: var(--vscode-symbolIcon-textForeground); }
 .monaco-editor .codicon.codicon-symbol-type-parameter,
-.monaco-workbench .codicon.codicon-symbol-type-parameter { color: var(--vscode-typeParameterForeground); }
+.monaco-workbench .codicon.codicon-symbol-type-parameter { color: var(--vscode-symbolIcon-typeParameterForeground); }
 .monaco-editor .codicon.codicon-symbol-unit,
 .monaco-workbench .codicon.codicon-symbol-unit { color: var(--vscode-symbolIcon-unitForeground); }
 .monaco-editor .codicon.codicon-symbol-variable,

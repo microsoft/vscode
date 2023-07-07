@@ -99,6 +99,15 @@ export interface IConfigurationValue<T> {
 	readonly overrideIdentifiers?: string[];
 }
 
+export function isConfigured<T>(configValue: IConfigurationValue<T>): configValue is IConfigurationValue<T> & { value: T } {
+	return configValue.applicationValue !== undefined ||
+		configValue.userValue !== undefined ||
+		configValue.userLocalValue !== undefined ||
+		configValue.userRemoteValue !== undefined ||
+		configValue.workspaceValue !== undefined ||
+		configValue.workspaceFolderValue !== undefined;
+}
+
 export interface IConfigurationUpdateOptions {
 	/**
 	 * If `true`, do not notifies the error to user by showing the message box. Default is `false`.
@@ -121,7 +130,7 @@ export interface IConfigurationService {
 	 * Fetches the value of the section for the given overrides.
 	 * Value can be of native type or an object keyed off the section name.
 	 *
-	 * @param section - Section of the configuraion. Can be `null` or `undefined`.
+	 * @param section - Section of the configuration. Can be `null` or `undefined`.
 	 * @param overrides - Overrides that has to be applied while fetching
 	 *
 	 */
@@ -139,7 +148,7 @@ export interface IConfigurationService {
 	 *
 	 * Passing a resource through overrides will update the configuration in the workspace folder containing that resource.
 	 *
-	 * *Note 1:* Updating configuraiton to a default value will remove the configuration from the requested target. If not target is passed, it will be removed from all writeable targets.
+	 * *Note 1:* Updating configuration to a default value will remove the configuration from the requested target. If not target is passed, it will be removed from all writeable targets.
 	 *
 	 * *Note 2:* Use `undefined` value to remove the configuration from the given target. If not target is passed, it will be removed from all writeable targets.
 	 *

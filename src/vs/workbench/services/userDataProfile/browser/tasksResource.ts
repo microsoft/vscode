@@ -11,10 +11,29 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface ITasksResourceContent {
 	tasks: string | null;
+}
+
+export class TasksResourceInitializer implements IProfileResourceInitializer {
+
+	constructor(
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
+	) {
+	}
+
+	async initialize(content: string): Promise<void> {
+		const tasksContent: ITasksResourceContent = JSON.parse(content);
+		if (!tasksContent.tasks) {
+			this.logService.info(`Initializing Profile: No tasks to apply...`);
+			return;
+		}
+		await this.fileService.writeFile(this.userDataProfileService.currentProfile.tasksResource, VSBuffer.fromString(tasksContent.tasks));
+	}
 }
 
 export class TasksResource implements IProfileResource {

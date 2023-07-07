@@ -81,12 +81,6 @@ const RULES: IRule[] = [
 		skip: true // -> skip all test files
 	},
 
-	// TODO@bpasero remove me once electron utility process has landed
-	{
-		target: '**/vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost.ts',
-		skip: true
-	},
-
 	// Common: vs/base/common/platform.ts
 	{
 		target: '**/vs/base/common/platform.ts',
@@ -202,12 +196,6 @@ const RULES: IRule[] = [
 		disallowedDefinitions: [
 			'@types/node'	// no node.js
 		]
-	},
-
-	// Electron (renderer): skip
-	{
-		target: '**/vs/**/electron-browser/**',
-		skip: true // -> supports all types
 	},
 
 	// Electron (main)

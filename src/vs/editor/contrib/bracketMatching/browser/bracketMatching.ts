@@ -78,6 +78,25 @@ class SelectToBracketAction extends EditorAction {
 		BracketMatchingController.get(editor)?.selectToBracket(selectBrackets);
 	}
 }
+class RemoveBracketsAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.removeBrackets',
+			label: nls.localize('smartSelect.removeBrackets', "Remove Brackets"),
+			alias: 'Remove Brackets',
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		BracketMatchingController.get(editor)?.removeBrackets(this.id);
+	}
+}
 
 type Brackets = [Range, Range];
 
@@ -251,6 +270,32 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			this._editor.revealRange(newSelections[0]);
 		}
 	}
+	public removeBrackets(editSource?: string): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		const model = this._editor.getModel();
+		this._editor.getSelections().forEach((selection) => {
+			const position = selection.getPosition();
+
+			let brackets = model.bracketPairs.matchBracket(position);
+			if (!brackets) {
+				brackets = model.bracketPairs.findEnclosingBrackets(position);
+			}
+			if (brackets) {
+				this._editor.pushUndoStop();
+				this._editor.executeEdits(
+					editSource,
+					[
+						{ range: brackets[0], text: '' },
+						{ range: brackets[1], text: '' }
+					]
+				);
+				this._editor.pushUndoStop();
+			}
+		});
+	}
 
 	private static readonly _DECORATION_OPTIONS_WITH_OVERVIEW_RULER = ModelDecorationOptions.register({
 		description: 'bracket-match-overview',
@@ -359,6 +404,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 registerEditorContribution(BracketMatchingController.ID, BracketMatchingController, EditorContributionInstantiation.AfterFirstRender);
 registerEditorAction(SelectToBracketAction);
 registerEditorAction(JumpToBracketAction);
+registerEditorAction(RemoveBracketsAction);
 
 // Go to menu
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {

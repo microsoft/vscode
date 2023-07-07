@@ -12,11 +12,12 @@ import { basename } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
+import { IModelDecoration } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
-import { getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { QuickFixAction, CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
+import { getCodeActions, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/browser/gotoError';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
@@ -25,7 +26,6 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Progress } from 'vs/platform/progress/common/progress';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const $ = dom.$;
 
@@ -219,7 +219,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 				context.statusBar.addAction({
 					label: nls.localize('quick fixes', "Quick Fix..."),
-					commandId: QuickFixAction.Id,
+					commandId: quickFixCommandId,
 					run: (target) => {
 						showing = true;
 						const controller = CodeActionController.get(this._editor);
@@ -228,8 +228,8 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						// context menu as well when using keyboard navigation
 						context.hide();
 						controller?.showCodeActions(markerCodeActionTrigger, actions, {
-							x: elementPosition.left + 6,
-							y: elementPosition.top + elementPosition.height + 6,
+							x: elementPosition.left,
+							y: elementPosition.top,
 							width: elementPosition.width,
 							height: elementPosition.height
 						});

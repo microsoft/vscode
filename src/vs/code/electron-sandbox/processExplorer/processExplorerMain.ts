@@ -486,6 +486,7 @@ class ProcessExplorer {
 
 		if (isLocal) {
 			items.push({
+				accelerator: 'Alt+E',
 				label: localize('killProcess', "Kill Process"),
 				click: () => {
 					this.nativeHostService.killProcess(pid, 'SIGTERM');

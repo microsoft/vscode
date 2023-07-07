@@ -38,7 +38,7 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 		}));
 	}
 
-	async updateCurrentProfile(userDataProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
+	async updateCurrentProfile(userDataProfile: IUserDataProfile): Promise<void> {
 		if (this._currentProfile.id === userDataProfile.id) {
 			return;
 		}
@@ -46,7 +46,6 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 		this._currentProfile = userDataProfile;
 		const joiners: Promise<void>[] = [];
 		this._onDidChangeCurrentProfile.fire({
-			preserveData,
 			previous,
 			profile: userDataProfile,
 			join(promise) {

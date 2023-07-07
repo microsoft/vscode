@@ -7,7 +7,7 @@ import { decodeKeybinding, ResolvedKeybinding } from 'vs/base/common/keybindings
 import { OperatingSystem } from 'vs/base/common/platform';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 
-export function createUSLayoutResolvedKeybinding(encodedKeybinding: number, OS: OperatingSystem): ResolvedKeybinding | undefined {
+export function createUSLayoutResolvedKeybinding(encodedKeybinding: number | number[], OS: OperatingSystem): ResolvedKeybinding | undefined {
 	if (encodedKeybinding === 0) {
 		return undefined;
 	}

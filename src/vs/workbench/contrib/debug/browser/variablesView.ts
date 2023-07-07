@@ -214,7 +214,7 @@ export class VariablesView extends ViewPane {
 		const toDispose = new DisposableStore();
 
 		try {
-			const contextKeyService = toDispose.add(await getContextForVariableMenuWithDataAccess(this.contextKeyService, variable));
+			const contextKeyService = await getContextForVariableMenuWithDataAccess(this.contextKeyService, variable);
 			const menu = toDispose.add(this.menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService));
 
 			const context: IVariablesContext = getVariablesContext(variable);

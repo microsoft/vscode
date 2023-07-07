@@ -69,6 +69,7 @@
 			}
 		],
 		"local/code-translation-remind": "warn",
+		"local/code-no-native-private": "warn",
 		"local/code-no-nls-in-standalone-editor": "warn",
 		"local/code-no-standalone-editor": "warn",
 		"local/code-no-unexternalized-strings": "warn",
@@ -86,12 +87,6 @@
 				"electron-sandbox": [
 					"common",
 					"browser"
-				],
-				"electron-browser": [
-					"common",
-					"browser",
-					"node",
-					"electron-sandbox"
 				],
 				"electron-main": [
 					"common",
@@ -136,6 +131,7 @@
 			"rules": {
 				"local/vscode-dts-create-func": "warn",
 				"local/vscode-dts-literal-or-types": "warn",
+				"local/vscode-dts-string-type-literals": "warn",
 				"local/vscode-dts-interface-naming": "warn",
 				"local/vscode-dts-cancellation": "warn",
 				"local/vscode-dts-use-thenable": "warn",
@@ -181,6 +177,7 @@
 							"invalidate",
 							"open",
 							"override",
+							"perform",
 							"receive",
 							"register",
 							"remove",
@@ -199,6 +196,14 @@
 		},
 		{
 			"files": [
+				"src/**/{common,browser}/**/*.ts"
+			],
+			"rules": {
+				"local/code-amd-node-module": "warn"
+			}
+		},
+		{
+			"files": [
 				"src/**/*.ts"
 			],
 			"rules": {
@@ -209,7 +214,6 @@
 						// imports that are allowed in all files of layers:
 						// - browser
 						// - electron-sandbox
-						// - electron-browser
 						"when": "hasBrowser",
 						"allow": [
 							"vs/css!./**/*"
@@ -218,7 +222,6 @@
 					{
 						// imports that are allowed in all files of layers:
 						// - node
-						// - electron-browser
 						// - electron-main
 						"when": "hasNode",
 						"allow": [
@@ -228,6 +231,9 @@
 							"@vscode/ripgrep",
 							"@vscode/iconv-lite-umd",
 							"@vscode/policy-watcher",
+							"@vscode/proxy-agent",
+							"@vscode/spdlog",
+							"@vscode/windows-process-tree",
 							"assert",
 							"child_process",
 							"console",
@@ -236,6 +242,7 @@
 							"electron",
 							"events",
 							"fs",
+							"fs/promises",
 							"graceful-fs",
 							"http",
 							"https",
@@ -247,7 +254,7 @@
 							"os",
 							"path",
 							"perf_hooks",
-							"spdlog",
+							"readline",
 							"stream",
 							"string_decoder",
 							"tas-client-umd",
@@ -255,13 +262,12 @@
 							"url",
 							"util",
 							"v8-inspect-profiler",
-							"vscode-proxy-agent",
 							"vscode-regexpp",
 							"vscode-textmate",
-							"windows-process-tree",
 							"worker_threads",
 							"xterm",
 							"xterm-addon-canvas",
+							"xterm-addon-image",
 							"xterm-addon-search",
 							"xterm-addon-serialize",
 							"xterm-addon-unicode11",
@@ -296,14 +302,12 @@
 					//  - src/vs/base/browser
 					//  - src/vs/base/electron-sandbox
 					//  - src/vs/base/node
-					//  - src/vs/base/electron-browser
 					//  - src/vs/base/electron-main
 					//  - src/vs/base/test/common
 					//  - src/vs/base/test/worker
 					//  - src/vs/base/test/browser
 					//  - src/vs/base/test/electron-sandbox
 					//  - src/vs/base/test/node
-					//  - src/vs/base/test/electron-browser
 					//  - src/vs/base/test/electron-main
 					//
 					// When /~ is used in the restrictions, it will be replaced with the correct
@@ -428,7 +432,8 @@
 							"vs/workbench/api/~",
 							"vs/workbench/~",
 							"vs/workbench/services/*/~",
-							"vs/workbench/contrib/*/~"
+							"vs/workbench/contrib/*/~",
+							"vs/workbench/contrib/terminalContrib/*/~"
 						]
 					},
 					{
@@ -461,6 +466,35 @@
 							"vs/workbench/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
+							"vscode-notebook-renderer", // Type only import
+							{
+								"when": "hasBrowser",
+								"pattern": "xterm"
+							}, // node module allowed even in /browser/
+							{
+								"when": "hasBrowser",
+								"pattern": "xterm-addon-*"
+							}, // node module allowed even in /browser/
+							{
+								"when": "hasBrowser",
+								"pattern": "vscode-textmate"
+							} // node module allowed even in /browser/
+						]
+					},
+					{
+						"target": "src/vs/workbench/contrib/terminalContrib/*/~",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/workbench/~",
+							"vs/workbench/services/*/~",
+							"vs/workbench/contrib/*/~",
+							// Only allow terminalContrib to import from itself, this works because
+							// terminalContrib is one extra folder deep
+							"vs/workbench/contrib/terminalContrib/*/~",
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
@@ -513,6 +547,13 @@
 						]
 					},
 					{
+						"target": "src/vs/workbench/contrib/terminal/terminal.all.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/workbench/contrib/**"
+						]
+					},
+					{
 						"target": "src/vs/workbench/workbench.common.main.ts",
 						"layer": "browser",
 						"restrictions": [
@@ -525,7 +566,8 @@
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
-							"vs/workbench/contrib/*/~"
+							"vs/workbench/contrib/*/~",
+							"vs/workbench/contrib/terminal/terminal.all"
 						]
 					},
 					{
@@ -560,6 +602,12 @@
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
 							"vs/workbench/workbench.common.main"
+						]
+					},
+					{
+						"target": "src/vs/amdX.ts",
+						"restrictions": [
+							"vs/base/common/*"
 						]
 					},
 					{

@@ -73,4 +73,8 @@ class Logger extends AbstractMessageLogger {
 	private doLog(messages: [LogLevel, string][]) {
 		this.proxy.$log(this.file, messages);
 	}
+
+	override flush(): void {
+		this.proxy.$flush(this.file);
+	}
 }

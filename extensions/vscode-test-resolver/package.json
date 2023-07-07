@@ -4,10 +4,9 @@
   "version": "0.0.1",
   "publisher": "vscode",
   "license": "MIT",
-  "enableProposedApi": true,
   "enabledApiProposals": [
     "resolvers",
-	"tunnels"
+    "tunnels"
   ],
   "private": true,
   "engines": {
@@ -32,6 +31,7 @@
     "onCommand:vscode-testresolver.toggleConnectionPause"
   ],
   "main": "./out/extension",
+  "browser": "./dist/browser/testResolverMain",
   "devDependencies": {
     "@types/node": "16.x"
   },
@@ -67,6 +67,11 @@
         "command": "vscode-testresolver.currentWindow"
       },
       {
+        "title": "Connect to TestResolver in Current Window with Managed Connection",
+        "category": "Remote-TestResolver",
+        "command": "vscode-testresolver.currentWindowManaged"
+      },
+      {
         "title": "Show TestResolver Log",
         "category": "Remote-TestResolver",
         "command": "vscode-testresolver.showLog"
@@ -90,6 +95,11 @@
         "title": "Pause Connection (Test Reconnect)",
         "category": "Remote-TestResolver",
         "command": "vscode-testresolver.toggleConnectionPause"
+      },
+      {
+        "title": "Slowdown Connection (Test Slow Down Indicator)",
+        "category": "Remote-TestResolver",
+        "command": "vscode-testresolver.toggleConnectionSlowdown"
       }
     ],
     "menus": {

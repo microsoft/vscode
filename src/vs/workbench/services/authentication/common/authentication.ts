@@ -5,13 +5,15 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+export interface AuthenticationSessionAccount {
+	label: string;
+	id: string;
+}
+
 export interface AuthenticationSession {
 	id: string;
 	accessToken: string;
-	account: {
-		label: string;
-		id: string;
-	};
+	account: AuthenticationSessionAccount;
 	scopes: ReadonlyArray<string>;
 	idToken?: string;
 }
@@ -25,6 +27,11 @@ export interface AuthenticationSessionsChangeEvent {
 export interface AuthenticationProviderInformation {
 	id: string;
 	label: string;
+}
+
+export interface IAuthenticationCreateSessionOptions {
+	sessionToRecreate?: AuthenticationSession;
+	activateImmediate?: boolean;
 }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
@@ -60,11 +67,15 @@ export interface IAuthenticationService {
 	getSessions(id: string, scopes?: string[], activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 	getLabel(providerId: string): string;
 	supportsMultipleAccounts(providerId: string): boolean;
-	createSession(providerId: string, scopes: string[], activateImmediate?: boolean): Promise<AuthenticationSession>;
+	createSession(providerId: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
 	removeSession(providerId: string, sessionId: string): Promise<void>;
 
 	manageTrustedExtensionsForAccount(providerId: string, accountName: string): Promise<void>;
 	removeAccountSessions(providerId: string, accountName: string, sessions: AuthenticationSession[]): Promise<void>;
+}
+
+export interface IAuthenticationProviderCreateSessionOptions {
+	sessionToRecreate?: AuthenticationSession;
 }
 
 export interface IAuthenticationProvider {
@@ -75,6 +86,6 @@ export interface IAuthenticationProvider {
 	manageTrustedExtensions(accountName: string): void;
 	removeAccountSessions(accountName: string, sessions: AuthenticationSession[]): Promise<void>;
 	getSessions(scopes?: string[]): Promise<readonly AuthenticationSession[]>;
-	createSession(scopes: string[]): Promise<AuthenticationSession>;
+	createSession(scopes: string[], options: IAuthenticationProviderCreateSessionOptions): Promise<AuthenticationSession>;
 	removeSession(sessionId: string): Promise<void>;
 }

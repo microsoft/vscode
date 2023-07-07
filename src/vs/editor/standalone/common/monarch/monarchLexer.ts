@@ -387,7 +387,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 
 export type ILoadStatus = { loaded: true } | { loaded: false; promise: Promise<void> };
 
-export class MonarchTokenizer implements languages.ITokenizationSupport {
+export class MonarchTokenizer implements languages.ITokenizationSupport, IDisposable {
 
 	private readonly _languageService: ILanguageService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
@@ -422,7 +422,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 			}
 			if (isOneOfMyEmbeddedModes) {
 				emitting = true;
-				languages.TokenizationRegistry.fire([this._languageId]);
+				languages.TokenizationRegistry.handleChange([this._languageId]);
 				emitting = false;
 			}
 		});
@@ -883,6 +883,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 
 		if (languageId !== this._languageId) {
 			// Fire language loading event
+			this._languageService.requestBasicLanguageFeatures(languageId);
 			languages.TokenizationRegistry.getOrCreate(languageId);
 			this._embeddedLanguages[languageId] = true;
 		}

@@ -11,11 +11,11 @@ import { AbstractProblemCollector, StartStopProblemCollector } from 'vs/workbenc
 import { ITaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { IMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;

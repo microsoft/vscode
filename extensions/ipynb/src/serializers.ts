@@ -332,9 +332,10 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 		} else if (mime.toLowerCase().includes('json')) {
 			const stringValue = textDecoder.decode(value);
 			return stringValue.length > 0 ? JSON.parse(stringValue) : stringValue;
+		} else if (mime === 'image/svg+xml') {
+			return splitMultilineString(textDecoder.decode(value));
 		} else {
-			const stringValue = textDecoder.decode(value);
-			return stringValue;
+			return textDecoder.decode(value);
 		}
 	} catch (ex) {
 		return '';

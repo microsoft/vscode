@@ -42,7 +42,7 @@ suite('ExtensionsProfileScannerService', () => {
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		const uriIdentityService = instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
-		const environmentService = instantiationService.stub(IEnvironmentService, { userRoamingDataHome: ROOT });
+		const environmentService = instantiationService.stub(IEnvironmentService, { userRoamingDataHome: ROOT, cacheHome: joinPath(ROOT, 'cache'), });
 		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		instantiationService.stub(IUserDataProfilesService, userDataProfilesService);
 	});

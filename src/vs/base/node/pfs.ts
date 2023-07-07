@@ -37,8 +37,13 @@ export enum RimRafMode {
  * - `UNLINK`: direct removal from disk
  * - `MOVE`: faster variant that first moves the target to temp dir and then
  *           deletes it in the background without waiting for that to finish.
+ *           the optional `moveToPath` allows to override where to rename the
+ *           path to before deleting it.
  */
-async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
+async function rimraf(path: string, mode: RimRafMode.UNLINK): Promise<void>;
+async function rimraf(path: string, mode: RimRafMode.MOVE, moveToPath?: string): Promise<void>;
+async function rimraf(path: string, mode?: RimRafMode, moveToPath?: string): Promise<void>;
+async function rimraf(path: string, mode = RimRafMode.UNLINK, moveToPath?: string): Promise<void> {
 	if (isRootOrDriveLetter(path)) {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
@@ -49,12 +54,11 @@ async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
 	}
 
 	// delete: via move
-	return rimrafMove(path);
+	return rimrafMove(path, moveToPath);
 }
 
-async function rimrafMove(path: string): Promise<void> {
+async function rimrafMove(path: string, moveToPath = randomPath(tmpdir())): Promise<void> {
 	try {
-		const pathInTemp = randomPath(tmpdir());
 		try {
 			// Intentionally using `fs.promises` here to skip
 			// the patched graceful-fs method that can result
@@ -64,7 +68,7 @@ async function rimrafMove(path: string): Promise<void> {
 			// than necessary and we have a fallback to delete
 			// via unlink.
 			// https://github.com/microsoft/vscode/issues/139908
-			await fs.promises.rename(path, pathInTemp);
+			await fs.promises.rename(path, moveToPath);
 		} catch (error) {
 			if (error.code === 'ENOENT') {
 				return; // ignore - path to delete did not exist
@@ -74,7 +78,7 @@ async function rimrafMove(path: string): Promise<void> {
 		}
 
 		// Delete but do not return as promise
-		rimrafUnlink(pathInTemp).catch(error => {/* ignore */ });
+		rimrafUnlink(moveToPath).catch(error => {/* ignore */ });
 	} catch (error) {
 		if (error.code !== 'ENOENT') {
 			throw error;

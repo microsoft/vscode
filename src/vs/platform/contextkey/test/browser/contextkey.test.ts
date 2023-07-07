@@ -60,6 +60,25 @@ suite('ContextKeyService', () => {
 		return p;
 	});
 
+	test('updateParent to same service', () => {
+		const root = new ContextKeyService(new TestConfigurationService());
+		const parent1 = root.createScoped(document.createElement('div'));
+
+		const child = parent1.createScoped(document.createElement('div'));
+		parent1.createKey('testA', 1);
+		parent1.createKey('testB', 2);
+		parent1.createKey('testD', 0);
+
+		let eventFired = false;
+		child.onDidChangeContext(e => {
+			eventFired = true;
+		});
+
+		child.updateParent(parent1);
+
+		assert.strictEqual(eventFired, false);
+	});
+
 	test('issue #147732: URIs as context values', () => {
 		const disposables = new DisposableStore();
 		const configurationService: IConfigurationService = new TestConfigurationService();

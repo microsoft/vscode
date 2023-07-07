@@ -10,7 +10,6 @@ use std::{
 	process::Command,
 };
 
-use super::shutdown_signal::ShutdownSignal;
 use async_trait::async_trait;
 use zbus::{dbus_proxy, zvariant, Connection};
 
@@ -18,7 +17,7 @@ use crate::{
 	constants::{APPLICATION_NAME, PRODUCT_NAME_LONG},
 	log,
 	state::LauncherPaths,
-	util::errors::{wrap, AnyError},
+	util::errors::{wrap, AnyError, DbusConnectFailedError},
 };
 
 use super::ServiceManager;
@@ -41,7 +40,7 @@ impl SystemdService {
 	async fn connect() -> Result<Connection, AnyError> {
 		let connection = Connection::session()
 			.await
-			.map_err(|e| wrap(e, "error creating dbus session"))?;
+			.map_err(|e| DbusConnectFailedError(e.to_string()))?;
 		Ok(connection)
 	}
 
@@ -111,7 +110,25 @@ impl ServiceManager for SystemdService {
 
 		info!(self.log, "Tunnel service successfully started");
 
+		if std::env::var("SSH_CLIENT").is_ok() || std::env::var("SSH_TTY").is_ok() {
+			info!(self.log, "Tip: run `sudo loginctl enable-linger $USER` to ensure the service stays running after you disconnect.");
+		}
+
 		Ok(())
+	}
+
+	async fn is_installed(&self) -> Result<bool, AnyError> {
+		let connection = SystemdService::connect().await?;
+		let proxy = SystemdService::proxy(&connection).await?;
+		let state = proxy
+			.get_unit_file_state(SystemdService::service_name_string())
+			.await;
+
+		if let Ok(s) = state {
+			Ok(s == "enabled")
+		} else {
+			Ok(false)
+		}
 	}
 
 	async fn run(
@@ -119,8 +136,7 @@ impl ServiceManager for SystemdService {
 		launcher_paths: crate::state::LauncherPaths,
 		mut handle: impl 'static + super::ServiceContainer,
 	) -> Result<(), crate::util::errors::AnyError> {
-		let rx = ShutdownSignal::create_rx(&[ShutdownSignal::CtrlC]);
-		handle.run_service(self.log, launcher_paths, rx).await
+		handle.run_service(self.log, launcher_paths).await
 	}
 
 	async fn show_logs(&self) -> Result<(), AnyError> {
@@ -220,6 +236,8 @@ trait SystemdManagerDbus {
 		runtime: bool,
 		force: bool,
 	) -> zbus::Result<(bool, Vec<(String, String, String)>)>;
+
+	fn get_unit_file_state(&self, file: String) -> zbus::Result<String>;
 
 	fn link_unit_files(
 		&self,

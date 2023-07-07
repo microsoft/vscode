@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughUtils';
 import 'vs/css!./media/walkThroughPart';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
@@ -26,9 +27,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { isObject } from 'vs/base/common/types';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorOptions as ICodeEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { getExtraColor } from 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughUtils';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { deepClone } from 'vs/base/common/objects';
@@ -482,15 +481,3 @@ export class WalkThroughPart extends EditorPane {
 		super.dispose();
 	}
 }
-
-// theming
-
-const embeddedEditorBackground = registerColor('walkThrough.embeddedEditorBackground', { dark: null, light: null, hcDark: null, hcLight: null }, localize('walkThrough.embeddedEditorBackground', 'Background color for the embedded editors on the Interactive Playground.'));
-
-registerThemingParticipant((theme, collector) => {
-	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hcDark: null, hcLight: null });
-	if (color) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .monaco-editor-background,
-			.monaco-workbench .part.editor > .content .walkThroughContent .margin-view-overlays { background: ${color}; }`);
-	}
-});

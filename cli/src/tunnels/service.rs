@@ -6,14 +6,11 @@
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
-use tokio::sync::mpsc;
 
 use crate::log;
 use crate::state::LauncherPaths;
 use crate::util::errors::{wrap, AnyError};
 use crate::util::io::{tailf, TailEvent};
-
-use super::shutdown_signal::ShutdownSignal;
 
 pub const SERVICE_LOG_FILE_NAME: &str = "tunnel-service.log";
 
@@ -23,7 +20,6 @@ pub trait ServiceContainer: Send {
 		&mut self,
 		log: log::Logger,
 		launcher_paths: LauncherPaths,
-		shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
 	) -> Result<(), AnyError>;
 }
 
@@ -44,6 +40,9 @@ pub trait ServiceManager {
 
 	/// Show logs from the running service to standard out.
 	async fn show_logs(&self) -> Result<(), AnyError>;
+
+	/// Gets whether the tunnel service is installed.
+	async fn is_installed(&self) -> Result<bool, AnyError>;
 
 	/// Unregisters the current executable as a service.
 	async fn unregister(&self) -> Result<(), AnyError>;

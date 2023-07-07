@@ -17,7 +17,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { localize } from 'vs/nls';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -91,7 +91,7 @@ abstract class AbstractCellRenderer {
 		configurationService: IConfigurationService,
 		protected readonly keybindingService: IKeybindingService,
 		protected readonly notificationService: INotificationService,
-		protected readonly contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		protected readonly contextKeyServiceProvider: (container: HTMLElement) => IScopedContextKeyService,
 		language: string,
 		protected dndController: CellDragAndDropController | undefined
 	) {
@@ -111,7 +111,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		notebookEditor: INotebookEditorDelegate,
 		dndController: CellDragAndDropController,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor>,
-		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		contextKeyServiceProvider: (container: HTMLElement) => IScopedContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -231,7 +231,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		notebookEditor: INotebookEditorDelegate,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor>,
 		dndController: CellDragAndDropController,
-		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		contextKeyServiceProvider: (container: HTMLElement) => IScopedContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService menuService: IMenuService,

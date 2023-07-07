@@ -369,7 +369,6 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 				this._setActiveInstance(instance);
 				this._onDidFocusInstance.fire(instance);
 			}),
-			instance.onDidFocusFindWidget(() => this._setActiveInstance(instance)),
 			instance.capabilities.onDidAddCapability(() => this._onDidChangeInstanceCapability.fire(instance)),
 			instance.capabilities.onDidRemoveCapability(() => this._onDidChangeInstanceCapability.fire(instance)),
 		]);

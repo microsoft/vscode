@@ -20,6 +20,13 @@ export const enum TestResultState {
 	Errored = 6
 }
 
+/** note: keep in sync with TestRunProfileKind in vscode.d.ts */
+export const enum ExtTestRunProfileKind {
+	Run = 1,
+	Debug = 2,
+	Coverage = 3,
+}
+
 export const enum TestRunProfileBitset {
 	Run = 1 << 1,
 	Debug = 1 << 2,
@@ -462,12 +469,14 @@ export interface TestResultItem extends InternalTestItem {
 }
 
 export namespace TestResultItem {
-	/** Serialized version of the TestResultItem */
+	/**
+	 * Serialized version of the TestResultItem. Note that 'retired' is not
+	 * included since all hydrated items are automatically retired.
+	 */
 	export interface Serialized extends InternalTestItem.Serialized {
 		tasks: ITestTaskState.Serialized[];
 		ownComputedState: TestResultState;
 		computedState: TestResultState;
-		retired?: boolean;
 	}
 
 	export const serializeWithoutMessages = (original: TestResultItem): Serialized => ({
@@ -475,7 +484,6 @@ export namespace TestResultItem {
 		ownComputedState: original.ownComputedState,
 		computedState: original.computedState,
 		tasks: original.tasks.map(ITestTaskState.serializeWithoutMessages),
-		retired: original.retired,
 	});
 
 	export const serialize = (original: TestResultItem): Serialized => ({
@@ -483,7 +491,6 @@ export namespace TestResultItem {
 		ownComputedState: original.ownComputedState,
 		computedState: original.computedState,
 		tasks: original.tasks.map(ITestTaskState.serialize),
-		retired: original.retired,
 	});
 
 	export const deserialize = (serialized: Serialized): TestResultItem => ({

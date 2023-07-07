@@ -211,7 +211,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			}
 		};
 		for (const override of this.overrides) {
-			if (arrays.equals(override.identifiers, [identifier])) {
+			if (override.identifiers.length === 1 && override.identifiers[0] === identifier) {
 				contentsForIdentifierOnly = override.contents;
 			} else if (override.identifiers.includes(identifier)) {
 				mergeContents(override.contents);
@@ -1012,7 +1012,7 @@ export class Configuration {
 		this._defaultConfiguration.keys.forEach(key => keys.add(key));
 		this.userConfiguration.keys.forEach(key => keys.add(key));
 		this._workspaceConfiguration.keys.forEach(key => keys.add(key));
-		this._folderConfigurations.forEach(folderConfiguraiton => folderConfiguraiton.keys.forEach(key => keys.add(key)));
+		this._folderConfigurations.forEach(folderConfiguration => folderConfiguration.keys.forEach(key => keys.add(key)));
 		return [...keys.values()];
 	}
 
@@ -1021,7 +1021,7 @@ export class Configuration {
 		this._defaultConfiguration.getAllOverrideIdentifiers().forEach(key => keys.add(key));
 		this.userConfiguration.getAllOverrideIdentifiers().forEach(key => keys.add(key));
 		this._workspaceConfiguration.getAllOverrideIdentifiers().forEach(key => keys.add(key));
-		this._folderConfigurations.forEach(folderConfiguraiton => folderConfiguraiton.getAllOverrideIdentifiers().forEach(key => keys.add(key)));
+		this._folderConfigurations.forEach(folderConfiguration => folderConfiguration.getAllOverrideIdentifiers().forEach(key => keys.add(key)));
 		return [...keys.values()];
 	}
 
@@ -1030,7 +1030,7 @@ export class Configuration {
 		this._defaultConfiguration.getKeysForOverrideIdentifier(overrideIdentifier).forEach(key => keys.add(key));
 		this.userConfiguration.getKeysForOverrideIdentifier(overrideIdentifier).forEach(key => keys.add(key));
 		this._workspaceConfiguration.getKeysForOverrideIdentifier(overrideIdentifier).forEach(key => keys.add(key));
-		this._folderConfigurations.forEach(folderConfiguraiton => folderConfiguraiton.getKeysForOverrideIdentifier(overrideIdentifier).forEach(key => keys.add(key)));
+		this._folderConfigurations.forEach(folderConfiguration => folderConfiguration.getKeysForOverrideIdentifier(overrideIdentifier).forEach(key => keys.add(key)));
 		return [...keys.values()];
 	}
 

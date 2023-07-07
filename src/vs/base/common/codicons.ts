@@ -560,6 +560,9 @@ export const Codicon = {
 	gitPullRequestNewChanges: register('git-pull-request-new-changes', 0xec0c),
 	searchFuzzy: register('search-fuzzy', 0xec0d),
 	commentDraft: register('comment-draft', 0xec0e),
+	send: register('send', 0xec0f),
+	sparkle: register('sparkle', 0xec10),
+	insert: register('insert', 0xec11),
 
 
 	// derived icons, that could become separate icons

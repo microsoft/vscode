@@ -651,6 +651,8 @@ export interface ITreeView extends IDisposable {
 
 	canSelectMany: boolean;
 
+	manuallyManageCheckboxes: boolean;
+
 	message?: string;
 
 	title: string;
@@ -665,7 +667,7 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidCollapseItem: Event<ITreeItem>;
 
-	readonly onDidChangeSelection: Event<ITreeItem[]>;
+	readonly onDidChangeSelection: Event<readonly ITreeItem[]>;
 
 	readonly onDidChangeFocus: Event<ITreeItem>;
 
@@ -679,11 +681,11 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeWelcomeState: Event<void>;
 
-	readonly onDidChangeCheckboxState: Event<ITreeItem[]>;
+	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]>;
 
 	readonly container: any | undefined;
 
-	refresh(treeItems?: ITreeItem[]): Promise<void>;
+	refresh(treeItems?: readonly ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
 
@@ -703,7 +705,7 @@ export interface ITreeView extends IDisposable {
 
 	getSelection(): ITreeItem[];
 
-	setFocus(item: ITreeItem): void;
+	setFocus(item?: ITreeItem): void;
 
 	show(container: any): void;
 }
@@ -754,6 +756,7 @@ export type TreeCommand = Command & { originalId?: string };
 export interface ITreeItemCheckboxState {
 	isChecked: boolean;
 	tooltip?: string;
+	accessibilityInformation?: IAccessibilityInformation;
 }
 
 export interface ITreeItem {
@@ -783,6 +786,8 @@ export interface ITreeItem {
 	command?: TreeCommand;
 
 	children?: ITreeItem[];
+
+	parent?: ITreeItem;
 
 	accessibilityInformation?: IAccessibilityInformation;
 
@@ -851,8 +856,12 @@ export class ResolvableTreeItem implements ITreeItem {
 }
 
 export class NoTreeViewError extends Error {
+	override readonly name = 'NoTreeViewError';
 	constructor(treeViewId: string) {
 		super(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+	}
+	static is(err: Error): err is NoTreeViewError {
+		return err.name === 'NoTreeViewError';
 	}
 }
 

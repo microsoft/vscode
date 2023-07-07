@@ -76,6 +76,9 @@ export interface IKeybindingsRegistry {
 	getDefaultKeybindings(): IKeybindingItem[];
 }
 
+/**
+ * Stores all built-in and extension-provided keybindings (but not ones that user defines themselves)
+ */
 class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 
 	private _coreKeybindings: LinkedList<IKeybindingItem>;

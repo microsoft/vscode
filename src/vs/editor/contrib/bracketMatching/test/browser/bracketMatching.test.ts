@@ -209,4 +209,27 @@ suite('bracket matching', () => {
 			new Selection(1, 19, 1, 16)
 		]);
 	});
+
+	test('Removes brackets', () => {
+		const editor = createCodeEditorWithBrackets('var x = (3 + (5-7)); y();');
+		const bracketMatchingController = disposables.add(editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController));
+		function removeBrackets() {
+			bracketMatchingController.removeBrackets();
+		}
+
+		// position before the bracket
+		editor.setPosition(new Position(1, 9));
+		removeBrackets();
+		assert.deepStrictEqual(editor.getModel().getValue(), 'var x = 3 + (5-7); y();');
+		editor.getModel().setValue('var x = (3 + (5-7)); y();');
+
+		// position between brackets
+		editor.setPosition(new Position(1, 16));
+		removeBrackets();
+		assert.deepStrictEqual(editor.getModel().getValue(), 'var x = (3 + 5-7); y();');
+		removeBrackets();
+		assert.deepStrictEqual(editor.getModel().getValue(), 'var x = 3 + 5-7; y();');
+		removeBrackets();
+		assert.deepStrictEqual(editor.getModel().getValue(), 'var x = 3 + 5-7; y();');
+	});
 });

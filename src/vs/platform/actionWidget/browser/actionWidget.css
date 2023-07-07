@@ -3,13 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.action-list-description {
-	opacity: .7;
-	margin-left: 0.5em;
-	font-size: .9em;
-	white-space: pre;
-}
-
 .action-widget {
 	font-size: 13px;
 	border-radius: 0;

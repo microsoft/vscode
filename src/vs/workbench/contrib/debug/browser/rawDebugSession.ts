@@ -172,6 +172,10 @@ export class RawDebugSession implements IDisposable {
 		this.debugAdapter.onRequest(request => this.dispatchRequest(request));
 	}
 
+	get isInShutdown() {
+		return this.inShutdown;
+	}
+
 	get onDidExitAdapter(): Event<AdapterEndEvent> {
 		return this._onDidExitAdapter.event;
 	}
@@ -307,7 +311,7 @@ export class RawDebugSession implements IDisposable {
 		if (this.capabilities.supportsTerminateRequest) {
 			if (!this.terminated) {
 				this.terminated = true;
-				return this.send('terminate', { restart }, undefined, 2000);
+				return this.send('terminate', { restart }, undefined);
 			}
 			return this.disconnect({ terminateDebuggee: true, restart });
 		}
@@ -569,7 +573,8 @@ export class RawDebugSession implements IDisposable {
 						args.suspendDebuggee = suspendDebuggee;
 					}
 
-					await this.send('disconnect', args, undefined, 2000);
+					// if there's an error, the DA is probably already gone, so give it a much shorter timeout.
+					await this.send('disconnect', args, undefined, error ? 200 : 2000);
 				} catch (e) {
 					// Catch the potential 'disconnect' error - no need to show it to the user since the adapter is shutting down
 				} finally {

@@ -57,9 +57,9 @@ export class LoggerChannelClient extends AbstractLoggerService implements ILogge
 		this.channel.call('setLogLevel', [arg1, arg2]);
 	}
 
-	override setVisibility(resource: URI, visibility: boolean): void {
-		super.setVisibility(resource, visibility);
-		this.channel.call('setVisibility', [resource, visibility]);
+	override setVisibility(resourceOrId: URI | string, visibility: boolean): void {
+		super.setVisibility(resourceOrId, visibility);
+		this.channel.call('setVisibility', [this.toResource(resourceOrId), visibility]);
 	}
 
 	protected doCreateLogger(file: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {

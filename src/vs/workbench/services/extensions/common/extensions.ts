@@ -323,6 +323,25 @@ export const enum ActivationKind {
 	Immediate = 1
 }
 
+export interface WillStopExtensionHostsEvent {
+
+	/**
+	 * A human readable reason for stopping the extension hosts
+	 * that e.g. can be shown in a confirmation dialog to the
+	 * user.
+	 */
+	readonly reason: string;
+
+	/**
+	 * Allows to veto the stopping of extension hosts. The veto can be a long running
+	 * operation.
+	 *
+	 * @param reason a human readable reason for vetoing the extension host stop in case
+	 * where the resolved `value: true`.
+	 */
+	veto(value: boolean | Promise<boolean>, reason: string): void;
+}
+
 export interface IExtensionService {
 	readonly _serviceBrand: undefined;
 
@@ -365,6 +384,12 @@ export interface IExtensionService {
 	 * responsive-state.
 	 */
 	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent>;
+
+	/**
+	 * Fired before stop of extension hosts happens. Allows listeners to veto against the
+	 * stop to prevent it from happening.
+	 */
+	onWillStop: Event<WillStopExtensionHostsEvent>;
 
 	/**
 	 * Send an activation event and activate interested extensions.
@@ -426,13 +451,14 @@ export interface IExtensionService {
 
 	/**
 	 * Stops the extension hosts.
+	 *
+	 * @param reason a human readable reason for stopping the extension hosts. This maybe
+	 * can be presented to the user when showing dialogs.
+	 *
+	 * @returns a promise that resolves to `true` if the extension hosts were stopped, `false`
+	 * if the operation was vetoed by listeners of the `onWillStop` event.
 	 */
-	stopExtensionHosts(): void;
-
-	/**
-	 * Restarts the extension host.
-	 */
-	restartExtensionHost(): Promise<void>;
+	stopExtensionHosts(reason: string): Promise<boolean>;
 
 	/**
 	 * Starts the extension hosts.
@@ -480,8 +506,7 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 		extensionLocation: extension.location,
 		...extension.manifest,
 		uuid: extension.identifier.uuid,
-		targetPlatform: extension.targetPlatform,
-		browserNlsBundleUris: extension.browserNlsBundleUris
+		targetPlatform: extension.targetPlatform
 	};
 }
 
@@ -493,6 +518,7 @@ export class NullExtensionService implements IExtensionService {
 	onDidChangeExtensions = Event.None;
 	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
 	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
+	onWillStop: Event<WillStopExtensionHostsEvent> = Event.None;
 	readonly extensions = [];
 	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(undefined); }
 	activationEventIsDone(_activationEvent: string): boolean { return false; }
@@ -501,8 +527,7 @@ export class NullExtensionService implements IExtensionService {
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus } { return Object.create(null); }
 	getInspectPorts(_extensionHostKind: ExtensionHostKind, _tryEnableInspector: boolean): Promise<number[]> { return Promise.resolve([]); }
-	stopExtensionHosts(): void { }
-	async restartExtensionHost(): Promise<void> { }
+	stopExtensionHosts(): any { }
 	async startExtensionHosts(): Promise<void> { }
 	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }
 	canAddExtension(): boolean { return false; }

@@ -691,10 +691,11 @@ export function getActiveElement(): Element | null {
 	return result;
 }
 
-export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
+export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0], beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
+	beforeAppend?.(style);
 	container.appendChild(style);
 	return style;
 }
@@ -929,6 +930,12 @@ class FocusTracker extends Disposable implements IFocusTracker {
 	}
 }
 
+/**
+ * Creates a new `IFocusTracker` instance that tracks focus changes on the given `element` and its descendants.
+ *
+ * @param element The `HTMLElement` or `Window` to track focus changes on.
+ * @returns An `IFocusTracker` instance.
+ */
 export function trackFocus(element: HTMLElement | Window): IFocusTracker {
 	return new FocusTracker(element);
 }
@@ -1038,6 +1045,14 @@ export function join(nodes: Node[], separator: Node | string): Node[] {
 	});
 
 	return result;
+}
+
+export function setVisibility(visible: boolean, ...elements: HTMLElement[]): void {
+	if (visible) {
+		show(...elements);
+	} else {
+		hide(...elements);
+	}
 }
 
 export function show(...elements: HTMLElement[]): void {
@@ -1850,7 +1865,7 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 				el.appendChild(c);
 			} else if (typeof c === 'string') {
 				el.append(c);
-			} else {
+			} else if ('root' in c) {
 				Object.assign(result, c);
 				el.appendChild(c.root);
 			}

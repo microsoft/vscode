@@ -37,7 +37,7 @@ import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener'
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
@@ -215,7 +215,7 @@ export class ExtensionEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.extension';
 
-	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
 	private template: IExtensionEditorTemplate | undefined;
 
 	private extensionReadme: Cache<string> | null;
@@ -683,6 +683,7 @@ export class ExtensionEditor extends EditorPane {
 				options: {
 					enableFindWidget: true,
 					tryRestoreScrollPosition: true,
+					disableServiceWorker: true,
 				},
 				contentOptions: {},
 				extension: undefined,
@@ -766,13 +767,18 @@ export class ExtensionEditor extends EditorPane {
 				<style nonce="${nonce}">
 					${DEFAULT_MARKDOWN_STYLES}
 
+					/* prevent scroll-to-top button from blocking the body text */
+					body {
+						padding-bottom: 75px;
+					}
+
 					#scroll-to-top {
 						position: fixed;
-						width: 40px;
-						height: 40px;
+						width: 32px;
+						height: 32px;
 						right: 25px;
 						bottom: 25px;
-						background-color: var(--vscode-button-background);
+						background-color: var(--vscode-button-secondaryBackground);
 						border-color: var(--vscode-button-border);
 						border-radius: 50%;
 						cursor: pointer;
@@ -784,7 +790,7 @@ export class ExtensionEditor extends EditorPane {
 					}
 
 					#scroll-to-top:hover {
-						background-color: var(--vscode-button-hoverBackground);
+						background-color: var(--vscode-button-secondaryHoverBackground);
 						box-shadow: 2px 2px 2px rgba(0,0,0,.25);
 					}
 
@@ -938,15 +944,16 @@ export class ExtensionEditor extends EditorPane {
 		const moreInfoContainer = append(container, $('.more-info-container.additional-details-element'));
 		append(moreInfoContainer, $('.additional-details-title', undefined, localize('Marketplace Info', "More Info")));
 		const moreInfo = append(moreInfoContainer, $('.more-info'));
+		const toDateString = (date: Date) => `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
 		if (gallery) {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('published', "Published")),
-					$('div', undefined, new Date(gallery.releaseDate).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, toDateString(new Date(gallery.releaseDate)))
 				),
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last released', "Last released")),
-					$('div', undefined, new Date(gallery.lastUpdated).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, toDateString(new Date(gallery.lastUpdated)))
 				)
 			);
 		}
@@ -954,7 +961,7 @@ export class ExtensionEditor extends EditorPane {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last updated', "Last updated")),
-					$('div', undefined, new Date(extension.local.installedTimestamp).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, toDateString(new Date(extension.local.installedTimestamp)))
 				)
 			);
 		}

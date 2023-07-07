@@ -19,7 +19,7 @@ import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewCon
 import { Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput } from 'vs/platform/dnd/browser/dnd';
 import { registerTerminalActions, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { TERMINAL_VIEW_ID, TerminalCommandId, ITerminalProfileService, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_VIEW_ID, TerminalCommandId, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
@@ -32,7 +32,7 @@ import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/brows
 import { registerTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { TerminalSettingId, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { ITerminalLogService, TerminalSettingId, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { isIOS, isWindows } from 'vs/base/common/platform';
 import { setupTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
@@ -52,18 +52,15 @@ import { RemoteTerminalBackendContribution } from 'vs/workbench/contrib/terminal
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TerminalMainContribution } from 'vs/workbench/contrib/terminal/browser/terminalMainContribution';
 import { Schemas } from 'vs/base/common/network';
-import { TerminalQuickFixService } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixService';
-import { TerminalLinkResolverService } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkResolverService';
-import { ITerminalLinkResolverService } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { TerminalLogService } from 'vs/platform/terminal/common/terminalLogService';
 
 // Register services
+registerSingleton(ITerminalLogService, TerminalLogService, InstantiationType.Delayed);
 registerSingleton(ITerminalService, TerminalService, InstantiationType.Delayed);
 registerSingleton(ITerminalEditorService, TerminalEditorService, InstantiationType.Delayed);
 registerSingleton(ITerminalGroupService, TerminalGroupService, InstantiationType.Delayed);
 registerSingleton(ITerminalInstanceService, TerminalInstanceService, InstantiationType.Delayed);
 registerSingleton(ITerminalProfileService, TerminalProfileService, InstantiationType.Delayed);
-registerSingleton(ITerminalQuickFixService, TerminalQuickFixService, InstantiationType.Delayed);
-registerSingleton(ITerminalLinkResolverService, TerminalLinkResolverService, InstantiationType.Delayed);
 
 // Register quick accesses
 const quickAccessRegistry = (Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess));

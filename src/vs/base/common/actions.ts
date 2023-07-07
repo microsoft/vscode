@@ -16,6 +16,7 @@ export interface ITelemetryData {
 export type WorkbenchActionExecutedClassification = {
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the action that was run.' };
 	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the component the action was run from.' };
+	detail?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Optional details about how the action was run, e.g which keybinding was used.' };
 	owner: 'bpasero';
 	comment: 'Provides insight into actions that are executed within the workbench.';
 };
@@ -23,6 +24,7 @@ export type WorkbenchActionExecutedClassification = {
 export type WorkbenchActionExecutedEvent = {
 	id: string;
 	from: string;
+	detail?: string;
 };
 
 export interface IAction {
@@ -32,7 +34,7 @@ export interface IAction {
 	class: string | undefined;
 	enabled: boolean;
 	checked?: boolean;
-	run(event?: unknown): unknown;
+	run(...args: unknown[]): unknown;
 }
 
 export interface IActionRunner extends IDisposable {

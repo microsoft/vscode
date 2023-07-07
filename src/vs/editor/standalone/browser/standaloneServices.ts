@@ -44,11 +44,10 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent, Verbosity } from 'vs/platform/label/common/label';
 import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IEditorProgressService, IProgressService, IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder, STANDALONE_EDITOR_WORKSPACE_ID } from 'vs/platform/workspace/common/workspace';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { StandaloneServicesNLS } from 'vs/editor/common/standaloneStrings';
-import { ClassifiedEvent, StrictPropertyCheck, OmitMetadata, IGDPRProperty } from 'vs/platform/telemetry/common/gdprTypings';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ConsoleLogger, ILogService } from 'vs/platform/log/common/log';
@@ -88,10 +87,11 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
-import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
+import { AudioCue, AudioCueGroupId, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
 import { LogService } from 'vs/platform/log/common/logService';
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -200,6 +200,39 @@ class StandaloneProgressService implements IProgressService {
 			report: () => { },
 		});
 	}
+}
+
+class StandaloneEnvironmentService implements IEnvironmentService {
+
+	declare readonly _serviceBrand: undefined;
+
+	readonly stateResource: URI = URI.from({ scheme: 'monaco', authority: 'stateResource' });
+	readonly userRoamingDataHome: URI = URI.from({ scheme: 'monaco', authority: 'userRoamingDataHome' });
+	readonly keyboardLayoutResource: URI = URI.from({ scheme: 'monaco', authority: 'keyboardLayoutResource' });
+	readonly argvResource: URI = URI.from({ scheme: 'monaco', authority: 'argvResource' });
+	readonly untitledWorkspacesHome: URI = URI.from({ scheme: 'monaco', authority: 'untitledWorkspacesHome' });
+	readonly workspaceStorageHome: URI = URI.from({ scheme: 'monaco', authority: 'workspaceStorageHome' });
+	readonly localHistoryHome: URI = URI.from({ scheme: 'monaco', authority: 'localHistoryHome' });
+	readonly cacheHome: URI = URI.from({ scheme: 'monaco', authority: 'cacheHome' });
+	readonly userDataSyncHome: URI = URI.from({ scheme: 'monaco', authority: 'userDataSyncHome' });
+	readonly sync: 'on' | 'off' | undefined = undefined;
+	readonly continueOn?: string | undefined = undefined;
+	readonly editSessionId?: string | undefined = undefined;
+	readonly debugExtensionHost: IExtensionHostDebugParams = { port: null, break: false };
+	readonly isExtensionDevelopment: boolean = false;
+	readonly disableExtensions: boolean | string[] = false;
+	readonly enableExtensions?: readonly string[] | undefined = undefined;
+	readonly extensionDevelopmentLocationURI?: URI[] | undefined = undefined;
+	readonly extensionDevelopmentKind?: ExtensionKind[] | undefined = undefined;
+	readonly extensionTestsLocationURI?: URI | undefined = undefined;
+	readonly logsHome: URI = URI.from({ scheme: 'monaco', authority: 'logsHome' });
+	readonly logLevel?: string | undefined = undefined;
+	readonly extensionLogLevel?: [string, string][] | undefined = undefined;
+	readonly verbose: boolean = false;
+	readonly isBuilt: boolean = false;
+	readonly disableTelemetry: boolean = false;
+	readonly serviceMachineIdResource: URI = URI.from({ scheme: 'monaco', authority: 'serviceMachineIdResource' });
+	readonly policyFile?: URI | undefined = undefined;
 }
 
 class StandaloneDialogService implements IDialogService {
@@ -684,6 +717,11 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 		});
 	}
 
+	inspect<T>(resource: URI | undefined, position: IPosition | null, section: string): IConfigurationValue<Readonly<T>> {
+		const language = resource ? this.getLanguage(resource, position) : undefined;
+		return this.configurationService.inspect<T>(section, { resource, overrideIdentifier: language });
+	}
+
 	private getLanguage(resource: URI, position: IPosition | null): string | null {
 		const model = this.modelService.getModel(resource);
 		if (model) {
@@ -717,35 +755,17 @@ class StandaloneResourcePropertiesService implements ITextResourcePropertiesServ
 
 class StandaloneTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
-
-	public telemetryLevel = TelemetryLevel.NONE;
-	public sendErrorTelemetry = false;
-
-	public setEnabled(value: boolean): void {
-	}
-
-	public setExperimentProperty(name: string, value: string): void {
-	}
-
-	public publicLog(eventName: string, data?: any): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as any);
-	}
-
-	public publicLogError(eventName: string, data?: any): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLogError(eventName, data as any);
-	}
-
-	public getTelemetryInfo(): Promise<ITelemetryInfo> {
-		throw new Error(`Not available`);
-	}
+	readonly telemetryLevel = TelemetryLevel.NONE;
+	readonly sessionId = 'someValue.sessionId';
+	readonly machineId = 'someValue.machineId';
+	readonly firstSessionDate = 'someValue.firstSessionDate';
+	readonly sendErrorTelemetry = false;
+	setEnabled(): void { }
+	setExperimentProperty(): void { }
+	publicLog() { }
+	publicLog2() { }
+	publicLogError() { }
+	publicLogError2() { }
 }
 
 class StandaloneWorkspaceContextService implements IWorkspaceContextService {
@@ -1035,6 +1055,11 @@ class StandaloneAudioService implements IAudioCueService {
 
 	async playSound(cue: Sound, allowManyInParallel?: boolean | undefined): Promise<void> {
 	}
+	playAudioCueLoop(cue: AudioCue): IDisposable {
+		return toDisposable(() => { });
+	}
+	playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): void {
+	}
 }
 
 export interface IEditorOverrideServices {
@@ -1048,6 +1073,7 @@ registerSingleton(IWorkspaceContextService, StandaloneWorkspaceContextService, I
 registerSingleton(ILabelService, StandaloneUriLabelService, InstantiationType.Eager);
 registerSingleton(ITelemetryService, StandaloneTelemetryService, InstantiationType.Eager);
 registerSingleton(IDialogService, StandaloneDialogService, InstantiationType.Eager);
+registerSingleton(IEnvironmentService, StandaloneEnvironmentService, InstantiationType.Eager);
 registerSingleton(INotificationService, StandaloneNotificationService, InstantiationType.Eager);
 registerSingleton(IMarkerService, MarkerService, InstantiationType.Eager);
 registerSingleton(ILanguageService, StandaloneLanguageService, InstantiationType.Eager);

@@ -41,7 +41,8 @@ suite('StorageMainService', function () {
 		keybindingsResource: joinPath(inMemoryProfileRoot, 'keybindingsResource'),
 		tasksResource: joinPath(inMemoryProfileRoot, 'tasksResource'),
 		snippetsHome: joinPath(inMemoryProfileRoot, 'snippetsHome'),
-		extensionsResource: joinPath(inMemoryProfileRoot, 'extensionsResource')
+		extensionsResource: joinPath(inMemoryProfileRoot, 'extensionsResource'),
+		cacheHome: joinPath(inMemoryProfileRoot, 'cache'),
 	};
 
 	class TestStorageMainService extends StorageMainService {

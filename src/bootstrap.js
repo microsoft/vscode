@@ -50,41 +50,14 @@
 
 	//#region Add support for using node_modules.asar
 
-	/**
-	 * @param {string=} appRoot
-	 */
-	function enableASARSupport(appRoot) {
+	function enableASARSupport() {
 		if (!path || !Module || typeof process === 'undefined') {
 			console.warn('enableASARSupport() is only available in node.js environments');
 			return;
 		}
 
-		const NODE_MODULES_PATH = appRoot ? path.join(appRoot, 'node_modules') : path.join(__dirname, '../node_modules');
-
-		// Windows only:
-		// use both lowercase and uppercase drive letter
-		// as a way to ensure we do the right check on
-		// the node modules path: node.js might internally
-		// use a different case compared to what we have
-		/** @type {string | undefined} */
-		let NODE_MODULES_ALTERNATIVE_PATH;
-		if (appRoot /* only used from renderer until `sandbox` enabled */ && process.platform === 'win32') {
-			const driveLetter = appRoot.substr(0, 1);
-
-			let alternativeDriveLetter;
-			if (driveLetter.toLowerCase() !== driveLetter) {
-				alternativeDriveLetter = driveLetter.toLowerCase();
-			} else {
-				alternativeDriveLetter = driveLetter.toUpperCase();
-			}
-
-			NODE_MODULES_ALTERNATIVE_PATH = alternativeDriveLetter + NODE_MODULES_PATH.substr(1);
-		} else {
-			NODE_MODULES_ALTERNATIVE_PATH = undefined;
-		}
-
+		const NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
 		const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
-		const NODE_MODULES_ASAR_ALTERNATIVE_PATH = NODE_MODULES_ALTERNATIVE_PATH ? `${NODE_MODULES_ALTERNATIVE_PATH}.asar` : undefined;
 
 		// @ts-ignore
 		const originalResolveLookupPaths = Module._resolveLookupPaths;
@@ -93,22 +66,11 @@
 		Module._resolveLookupPaths = function (request, parent) {
 			const paths = originalResolveLookupPaths(request, parent);
 			if (Array.isArray(paths)) {
-				let asarPathAdded = false;
 				for (let i = 0, len = paths.length; i < len; i++) {
 					if (paths[i] === NODE_MODULES_PATH) {
-						asarPathAdded = true;
 						paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
 						break;
-					} else if (paths[i] === NODE_MODULES_ALTERNATIVE_PATH) {
-						asarPathAdded = true;
-						paths.splice(i, 0, NODE_MODULES_ASAR_ALTERNATIVE_PATH);
-						break;
 					}
-				}
-				if (!asarPathAdded && appRoot) {
-					// Assuming that adding just `NODE_MODULES_ASAR_PATH` is sufficient
-					// because nodejs should find it even if it has a different drive letter case
-					paths.push(NODE_MODULES_ASAR_PATH);
 				}
 			}
 

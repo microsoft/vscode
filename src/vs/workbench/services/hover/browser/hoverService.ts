@@ -16,6 +16,7 @@ import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifec
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 
 export class HoverService implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -114,7 +115,7 @@ export class HoverService implements IHoverService {
 		}
 		const event = new StandardKeyboardEvent(e);
 		const keybinding = this._keybindingService.resolveKeyboardEvent(event);
-		if (keybinding.getSingleModifierDispatchChords().some(value => !!value) || this._keybindingService.softDispatch(event, event.target)) {
+		if (keybinding.getSingleModifierDispatchChords().some(value => !!value) || this._keybindingService.softDispatch(event, event.target).kind !== ResultKind.NoMatchingKb) {
 			return;
 		}
 		if (hideOnKeyDown && (!this._currentHoverOptions?.trapFocus || e.key !== 'Tab')) {

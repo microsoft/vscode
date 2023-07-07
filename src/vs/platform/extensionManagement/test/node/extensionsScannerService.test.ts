@@ -11,7 +11,7 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { IExtensionsProfileScannerService, IProfileExtensionsScanOptions } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { AbstractExtensionsScannerService, ExtensionScannerInput, IExtensionsScannerService, IScannedExtensionManifest, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
-import { ExtensionType, IExtensionManifest, MANIFEST_CACHE_FOLDER, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
@@ -43,7 +43,7 @@ class ExtensionsScannerService extends AbstractExtensionsScannerService implemen
 			URI.file(nativeEnvironmentService.builtinExtensionsPath),
 			URI.file(nativeEnvironmentService.extensionsPath),
 			joinPath(nativeEnvironmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
-			joinPath(ROOT, MANIFEST_CACHE_FOLDER),
+			userDataProfilesService.defaultProfile,
 			userDataProfilesService, extensionsProfileScannerService, fileService, logService, nativeEnvironmentService, productService, uriIdentityService, instantiationService);
 	}
 
@@ -74,6 +74,7 @@ suite('NativeExtensionsScanerService Test', () => {
 			userRoamingDataHome: ROOT,
 			builtinExtensionsPath: systemExtensionsLocation.fsPath,
 			extensionsPath: userExtensionsLocation.fsPath,
+			cacheHome: joinPath(ROOT, 'cache'),
 		});
 		instantiationService.stub(IProductService, { version: '1.66.0' });
 		const uriIdentityService = new UriIdentityService(fileService);

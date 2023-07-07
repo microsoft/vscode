@@ -145,12 +145,16 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 			return;
 		}
 
+		const instanceOnDidFocusListener = instance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true));
+		const instanceOnDidBlurListener = instance.onDidBlur(() => this._terminalEditorFocusContextKey.reset());
+
 		this._register(toDisposable(() => {
 			if (!this._isDetached && !this._isShuttingDown) {
 				// Will be ignored if triggered by onExit or onDisposed terminal events
 				// as disposed was already called
 				instance.dispose(TerminalExitReason.User);
 			}
+			dispose([instanceOnDidFocusListener, instanceOnDidBlurListener]);
 		}));
 
 		const disposeListeners = [
@@ -162,8 +166,8 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 			instance.onDisposed(() => this.dispose()),
 			instance.onTitleChanged(() => this._onDidChangeLabel.fire()),
 			instance.onIconChanged(() => this._onDidChangeLabel.fire()),
-			instance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true)),
-			instance.onDidBlur(() => this._terminalEditorFocusContextKey.reset()),
+			instanceOnDidFocusListener,
+			instanceOnDidBlurListener,
 			instance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
 		];
 

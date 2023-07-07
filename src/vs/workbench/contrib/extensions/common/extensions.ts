@@ -96,6 +96,7 @@ export interface IExtensionsWorkbenchService {
 	readonly local: IExtension[];
 	readonly installed: IExtension[];
 	readonly outdated: IExtension[];
+	readonly whenInitialized: Promise<void>;
 	queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]>;
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;

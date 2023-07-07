@@ -12,11 +12,11 @@ pub mod input;
 pub mod io;
 pub mod machine;
 pub mod prereqs;
+pub mod ring_buffer;
 pub mod sync;
 pub use is_integrated::*;
-
-#[cfg(target_os = "linux")]
+pub mod app_lock;
+pub mod file_lock;
+pub mod os;
 pub mod tar;
-
-#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub mod zipper;

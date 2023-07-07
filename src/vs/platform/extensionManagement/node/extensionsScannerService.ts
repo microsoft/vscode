@@ -30,7 +30,7 @@ export class ExtensionsScannerService extends NativeExtensionsScannerService imp
 			URI.file(environmentService.builtinExtensionsPath),
 			URI.file(environmentService.extensionsPath),
 			environmentService.userHome,
-			URI.file(environmentService.userDataPath),
+			userDataProfilesService.defaultProfile,
 			userDataProfilesService, extensionsProfileScannerService, fileService, logService, environmentService, productService, uriIdentityService, instantiationService);
 	}
 

@@ -24,7 +24,7 @@ import { IExtensionService, toExtension } from 'vs/workbench/services/extensions
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextModel } from 'vs/editor/common/model';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
@@ -166,7 +166,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 				Severity.Info,
 				formatterOrMessage,
 				[{ label: nls.localize('do.config.notification', "Configure..."), run: () => this._pickAndPersistDefaultFormatter(formatter, document) }],
-				{ silent: true }
+				{ priority: NotificationPriority.SILENT }
 			);
 		}
 		return undefined;

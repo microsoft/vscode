@@ -21,8 +21,8 @@
 .monaco-tl-contents .monaco-highlighted-label .highlight {
 	color: unset !important;
 	background-color: var(--vscode-list-filterMatchBackground);
-	border: 1px dotted var(--vscode-list-filterMatchBorder);
-	box-sizing: border-box;
+	outline: 1px dotted var(--vscode-list-filterMatchBorder);
+	outline-offset: -1px;
 }
 
 .monaco-workbench .tree-explorer-viewlet-tree-view {
@@ -82,6 +82,9 @@
 .monaco-workbench .pane > .pane-body .welcome-view-content > .button-container {
 	width: 100%;
 	max-width: 300px;
+}
+
+.monaco-workbench:not(.reduce-motion) .pane > .pane-body .welcome-view-content > .button-container {
 	transition: 0.2s max-width ease-out;
 }
 

@@ -18,7 +18,7 @@ export interface ICredentialsProvider {
 }
 
 export interface ICredentialsChangeEvent {
-	service: string;
+	service?: string;
 	account: string;
 }
 

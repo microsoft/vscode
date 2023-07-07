@@ -91,7 +91,7 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 		this._providers = languageFeaturesService.linkedEditingRangeProvider;
 		this._enabled = false;
 		this._visibleContextKey = CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
-		this._debounceInformation = languageFeatureDebounceService.for(this._providers, 'Linked Editing', { min: 200 });
+		this._debounceInformation = languageFeatureDebounceService.for(this._providers, 'Linked Editing', { max: 200 });
 
 		this._currentDecorations = this._editor.createDecorationsCollection();
 		this._languageWordPattern = null;
@@ -177,7 +177,7 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 	}
 
 	private _syncRanges(token: number): void {
-		// dalayed invocation, make sure we're still on
+		// delayed invocation, make sure we're still on
 		if (!this._editor.hasModel() || token !== this._syncRangesToken || this._currentDecorations.length === 0) {
 			// nothing to do
 			return;
@@ -299,6 +299,9 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 				}
 			}
 		}
+
+		// Clear existing decorations while we compute new ones
+		this.clearRanges();
 
 		this._currentRequestPosition = position;
 		this._currentRequestModelVersion = modelVersionId;

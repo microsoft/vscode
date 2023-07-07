@@ -16,6 +16,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { generateUuid } from 'vs/base/common/uuid';
+import { compare } from 'vs/base/common/strings';
 
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 const ViewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
@@ -662,6 +663,58 @@ suite('ViewDescriptorService', () => {
 		assert.deepStrictEqual(testObject.getViewContainerLocation(generateViewContainer), ViewContainerLocation.AuxiliaryBar);
 		const generatedViewContainerModel = testObject.getViewContainerModel(generateViewContainer);
 		assert.deepStrictEqual(generatedViewContainerModel.allViewDescriptors.map(v => v.id), ['view1']);
+	});
+
+	test('storage change move views and retain visibility state', async function () {
+		const storageService = instantiationService.get(IStorageService);
+		const testObject = aViewDescriptorService();
+
+		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewDescriptors: IViewDescriptor[] = [
+			{
+				id: 'view1',
+				ctorDescriptor: null!,
+				name: 'Test View 1',
+				canMoveView: true,
+				canToggleVisibility: true
+			},
+			{
+				id: 'view2',
+				ctorDescriptor: null!,
+				name: 'Test View 2',
+				canMoveView: true
+			}
+		];
+		ViewsRegistry.registerViews(viewDescriptors, viewContainer);
+
+		testObject.whenExtensionsRegistered();
+
+		const viewContainer1Views = testObject.getViewContainerModel(viewContainer);
+		viewContainer1Views.setVisible('view1', false);
+
+		const generateViewContainerId = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar)}.${generateUuid()}`;
+		const viewsCustomizations = {
+			viewContainerLocations: {
+				[generateViewContainerId]: ViewContainerLocation.AuxiliaryBar,
+			},
+			viewLocations: {
+				'view1': generateViewContainerId
+			}
+		};
+		storageService.store('views.customizations', JSON.stringify(viewsCustomizations), StorageScope.PROFILE, StorageTarget.USER);
+
+		const generateViewContainer = testObject.getViewContainerById(generateViewContainerId)!;
+		const generatedViewContainerModel = testObject.getViewContainerModel(generateViewContainer);
+
+		assert.deepStrictEqual(viewContainer1Views.allViewDescriptors.map(v => v.id), ['view2']);
+		assert.deepStrictEqual(testObject.getViewContainerLocation(generateViewContainer), ViewContainerLocation.AuxiliaryBar);
+		assert.deepStrictEqual(generatedViewContainerModel.allViewDescriptors.map(v => v.id), ['view1']);
+
+		storageService.store('views.customizations', JSON.stringify({}), StorageScope.PROFILE, StorageTarget.USER);
+
+		assert.deepStrictEqual(viewContainer1Views.allViewDescriptors.map(v => v.id).sort((a, b) => compare(a, b)), ['view1', 'view2']);
+		assert.deepStrictEqual(viewContainer1Views.visibleViewDescriptors.map(v => v.id), ['view2']);
+		assert.deepStrictEqual(generatedViewContainerModel.allViewDescriptors.map(v => v.id), []);
 	});
 
 });

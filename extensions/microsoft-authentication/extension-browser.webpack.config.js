@@ -21,7 +21,7 @@ module.exports = withBrowserDefaults({
 		extension: './src/extension.ts',
 	},
 	externals: {
-		'keytar': 'commonjs keytar'
+		'keytar': 'commonjs keytar',
 	},
 	resolve: {
 		alias: {

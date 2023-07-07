@@ -8,6 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./renameInputField';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IDimension } from 'vs/editor/common/core/dimension';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -79,13 +80,6 @@ export class RenameInputField implements IContentWidget {
 			this._label = document.createElement('div');
 			this._label.className = 'rename-label';
 			this._domNode.appendChild(this._label);
-			const updateLabel = () => {
-				const [accept, preview] = this._acceptKeybindings;
-				this._keybindingService.lookupKeybinding(accept);
-				this._label!.innerText = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Rename, Shift+F2 to Preview"'] }, "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
-			};
-			updateLabel();
-			this._disposables.add(this._keybindingService.onDidUpdateKeybindings(updateLabel));
 
 			this._updateFont();
 			this._updateStyles(this._themeService.getColorTheme());
@@ -134,6 +128,12 @@ export class RenameInputField implements IContentWidget {
 			position: this._position!,
 			preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
 		};
+	}
+
+	beforeRender(): IDimension | null {
+		const [accept, preview] = this._acceptKeybindings;
+		this._label!.innerText = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Rename, Shift+F2 to Preview"'] }, "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
+		return null;
 	}
 
 	afterRender(position: ContentWidgetPositionPreference | null): void {

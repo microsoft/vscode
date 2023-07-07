@@ -66,10 +66,13 @@ export class BaseIssueContribution implements IWorkbenchContribution {
 
 		CommandsRegistry.registerCommand({
 			id: OpenIssueReporterActionId,
-			handler: function (accessor, args?: [string] | OpenIssueReporterArgs) {
-				const data: Partial<IssueReporterData> = Array.isArray(args)
-					? { extensionId: args[0] }
-					: args || {};
+			handler: function (accessor, args?: string | [string] | OpenIssueReporterArgs) {
+				const data: Partial<IssueReporterData> =
+					typeof args === 'string'
+						? { extensionId: args }
+						: Array.isArray(args)
+							? { extensionId: args[0] }
+							: args ?? {};
 
 				return accessor.get(IWorkbenchIssueService).openReporter(data);
 			},
@@ -78,10 +81,13 @@ export class BaseIssueContribution implements IWorkbenchContribution {
 
 		CommandsRegistry.registerCommand({
 			id: OpenIssueReporterApiId,
-			handler: function (accessor, args?: [string] | OpenIssueReporterArgs) {
-				const data: Partial<IssueReporterData> = Array.isArray(args)
-					? { extensionId: args[0] }
-					: args || {};
+			handler: function (accessor, args?: string | [string] | OpenIssueReporterArgs) {
+				const data: Partial<IssueReporterData> =
+					typeof args === 'string'
+						? { extensionId: args }
+						: Array.isArray(args)
+							? { extensionId: args[0] }
+							: args ?? {};
 
 				return accessor.get(IWorkbenchIssueService).openReporter(data);
 			},

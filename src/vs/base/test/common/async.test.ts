@@ -155,6 +155,40 @@ suite('Async', () => {
 
 			return Promise.all(promises);
 		});
+
+		test('disposal after queueing', async () => {
+			let factoryCalls = 0;
+			const factory = async () => {
+				factoryCalls++;
+				return async.timeout(0);
+			};
+
+			const throttler = new async.Throttler();
+			const promises: Promise<any>[] = [];
+
+			promises.push(throttler.queue(factory));
+			promises.push(throttler.queue(factory));
+			throttler.dispose();
+
+			await Promise.all(promises);
+			assert.strictEqual(factoryCalls, 1);
+		});
+
+		test('disposal before queueing', async () => {
+			let factoryCalls = 0;
+			const factory = async () => {
+				factoryCalls++;
+				return async.timeout(0);
+			};
+
+			const throttler = new async.Throttler();
+			const promises: Promise<any>[] = [];
+
+			throttler.dispose();
+			assert.throws(() => promises.push(throttler.queue(factory)));
+			assert.strictEqual(factoryCalls, 0);
+			await Promise.all(promises);
+		});
 	});
 
 	suite('Delayer', function () {
@@ -220,6 +254,12 @@ suite('Async', () => {
 				} catch (err) {
 					// OK
 				}
+			});
+
+			test('trigger after dispose throws', async () => {
+				const throttledDelayer = new async.ThrottledDelayer<void>(100);
+				throttledDelayer.dispose();
+				await assert.rejects(() => throttledDelayer.trigger(async () => { }, 0));
 			});
 		});
 
@@ -395,51 +435,6 @@ suite('Async', () => {
 	});
 
 	suite('Limiter', () => {
-		test('sync', function () {
-			const factoryFactory = (n: number) => () => {
-				return Promise.resolve(n);
-			};
-
-			let limiter = new async.Limiter(1);
-
-			let promises: Promise<any>[] = [];
-			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
-
-			return Promise.all(promises).then((res) => {
-				assert.strictEqual(10, res.length);
-
-				limiter = new async.Limiter(100);
-
-				promises = [];
-				[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
-
-				return Promise.all(promises).then((res) => {
-					assert.strictEqual(10, res.length);
-				});
-			});
-		});
-
-		test('async', function () {
-			const factoryFactory = (n: number) => () => async.timeout(0).then(() => n);
-
-			let limiter = new async.Limiter(1);
-			let promises: Promise<any>[] = [];
-			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
-
-			return Promise.all(promises).then((res) => {
-				assert.strictEqual(10, res.length);
-
-				limiter = new async.Limiter(100);
-
-				promises = [];
-				[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
-
-				return Promise.all(promises).then((res) => {
-					assert.strictEqual(10, res.length);
-				});
-			});
-		});
-
 		test('assert degree of paralellism', function () {
 			let activePromises = 0;
 			const factoryFactory = (n: number) => () => {

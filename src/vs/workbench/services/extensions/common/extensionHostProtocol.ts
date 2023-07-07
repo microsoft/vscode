@@ -8,7 +8,6 @@ import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IExtensionDescriptionDelta {
 	readonly toRemove: ExtensionIdentifier[];
@@ -20,6 +19,7 @@ export interface IExtensionDescriptionDelta {
 
 export interface IExtensionHostInitData {
 	version: string;
+	quality: string | undefined;
 	commit?: string;
 	/**
 	 * When set to `0`, no polling for the parent process still running will happen.
@@ -31,7 +31,12 @@ export interface IExtensionHostInitData {
 	allExtensions: IExtensionDescription[];
 	myExtensions: ExtensionIdentifier[];
 	nlsBaseUrl?: URI;
-	telemetryInfo: ITelemetryInfo;
+	telemetryInfo: {
+		readonly sessionId: string;
+		readonly machineId: string;
+		readonly firstSessionDate: string;
+		readonly msftInternal?: boolean;
+	};
 	logLevel: LogLevel;
 	loggers: UriDto<ILoggerResource>[];
 	logsLocation: URI;

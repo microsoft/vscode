@@ -574,7 +574,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 		// Execute View Movements
 		for (const { views, from, to } of viewsToMove) {
-			this.moveViewsWithoutSaving(views, from, to);
+			this.moveViewsWithoutSaving(views, from, to, ViewVisibilityState.Default);
 		}
 
 		this.viewContainersCustomLocations = newViewContainerCustomizations;

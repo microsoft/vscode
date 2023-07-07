@@ -14,35 +14,8 @@ steps:
   - pwsh: Write-Host "##vso[build.addbuildtag]🚀"
     displayName: Add build tag
 
-  - script: |
-      set -e
-      cat << EOF > ~/.netrc
-      machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
-      EOF
-
-      git config user.email "vscode@microsoft.com"
-      git config user.name "VSCode"
-    displayName: Prepare tooling
-
-  - script: |
-      set -e
-      git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-      echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-      git checkout FETCH_HEAD
-    condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-    displayName: Checkout override commit
-
-  - script: |
-      set -e
-      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-    displayName: Merge distro
-
-  - pwsh: |
-      . build/azure-pipelines/win32/exec.ps1
-      cd build
-      exec { yarn }
+  - pwsh: yarn
+    workingDirectory: build
     displayName: Install build dependencies
 
   - download: current
@@ -79,24 +52,24 @@ steps:
         return
       }
 
-      $env:AZURE_TENANT_ID = "$(AZURE_TENANT_ID)"
-      $env:AZURE_CLIENT_ID = "$(AZURE_CLIENT_ID)"
-      $env:AZURE_CLIENT_SECRET = "$(AZURE_CLIENT_SECRET)"
       $VERSION = node -p "require('./package.json').version"
       Write-Host "Creating build with version: $VERSION"
       exec { node build/azure-pipelines/common/createBuild.js $VERSION }
+    env:
+      AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
+      AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
+      AZURE_CLIENT_SECRET: "$(AZURE_CLIENT_SECRET)"
     displayName: Create build if it hasn't been created before
 
-  - pwsh: |
-      $env:VSCODE_MIXIN_PASSWORD = "$(github-distro-mixin-password)"
-      $env:AZURE_TENANT_ID = "$(AZURE_TENANT_ID)"
-      $env:AZURE_CLIENT_ID = "$(AZURE_CLIENT_ID)"
-      $env:AZURE_CLIENT_SECRET = "$(AZURE_CLIENT_SECRET)"
-      $env:AZURE_MOONCAKE_TENANT_ID = "$(AZURE_MOONCAKE_TENANT_ID)"
-      $env:AZURE_MOONCAKE_CLIENT_ID = "$(AZURE_MOONCAKE_CLIENT_ID)"
-      $env:AZURE_MOONCAKE_CLIENT_SECRET = "$(AZURE_MOONCAKE_CLIENT_SECRET)"
-      build/azure-pipelines/product-publish.ps1
+  - pwsh: build/azure-pipelines/product-publish.ps1
     env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
+      AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
+      AZURE_CLIENT_SECRET: "$(AZURE_CLIENT_SECRET)"
+      AZURE_MOONCAKE_TENANT_ID: "$(AZURE_MOONCAKE_TENANT_ID)"
+      AZURE_MOONCAKE_CLIENT_ID: "$(AZURE_MOONCAKE_CLIENT_ID)"
+      AZURE_MOONCAKE_CLIENT_SECRET: "$(AZURE_MOONCAKE_CLIENT_SECRET)"
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Process artifacts
 

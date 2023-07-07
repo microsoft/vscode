@@ -42,8 +42,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
-import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-sandbox/experimentService.test';
-import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestEnvironmentService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -99,7 +97,7 @@ function setupTest() {
 		onDidChangeProfile: Event.None,
 		onDidUpdateExtensionMetadata: Event.None,
 		async getInstalled() { return []; },
-		async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
+		async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
 		async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
 			local.identifier.uuid = metadata.id;
 			local.publisherDisplayName = metadata.publisherDisplayName!;
@@ -129,7 +127,6 @@ function setupTest() {
 	instantiationService.stub(ILabelService, { onDidChangeFormatters: new Emitter<IFormatterChangeEvent>().event });
 
 	instantiationService.stub(ILifecycleService, new TestLifecycleService());
-	instantiationService.stub(IExperimentService, instantiationService.createInstance(TestExperimentService));
 	instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(TestExtensionTipsService));
 	instantiationService.stub(IExtensionRecommendationsService, {});
 	instantiationService.stub(IURLService, NativeURLService);
@@ -153,14 +150,14 @@ suite('ExtensionsActions', () => {
 	teardown(() => disposables.dispose());
 
 	test('Install action is disabled when there is no extension', () => {
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, false);
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false });
 
 		assert.ok(!testObject.enabled);
 	});
 
 	test('Test Install action when state is installed', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, false);
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false });
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
@@ -196,7 +193,7 @@ suite('ExtensionsActions', () => {
 
 	test('Test Install action when state is uninstalled', async () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, false);
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false });
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
@@ -209,7 +206,7 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test Install action when extension is system action', () => {
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, false);
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false });
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const local = aLocalExtension('a', {}, { type: ExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
@@ -224,7 +221,7 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test Install action when extension doesnot has gallery', () => {
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, false);
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false });
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
@@ -2641,7 +2638,7 @@ function createExtensionManagementService(installed: ILocalExtension[] = []): IP
 			return local;
 		},
 		async getTargetPlatform() { return getTargetPlatform(platform, arch); },
-		async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {} }; },
+		async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {}, search: [] }; },
 	};
 }
 

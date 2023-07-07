@@ -11,7 +11,7 @@ import { Extensions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuic
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 interface IHelpQuickAccessPickItem extends IQuickPickItem {
-	prefix: string;
+	readonly prefix: string;
 }
 
 export class HelpQuickAccessProvider implements IQuickAccessProvider {
@@ -75,4 +75,3 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		});
 	}
 }
-
