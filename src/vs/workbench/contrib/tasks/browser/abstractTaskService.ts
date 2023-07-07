@@ -370,6 +370,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// update tasks so an incomplete list isn't returned when getWorkspaceTasks is called
 		this._workspaceTasksPromise = undefined;
 		this._onDidRegisterSupportedExecutions.fire();
+		if (custom && shell && process) {
+			this._onDidRegisterAllSupportedExecutions.fire();
+		}
 	}
 
 	private _attemptTaskReconnection(): void {
@@ -2208,7 +2211,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		await this._waitForSupportedExecutions;
 		if (runSource === TaskRunSource.Reconnect) {
-			await raceTimeout(this._waitForAllSupportedExecutions, 3000, () => {
+			await raceTimeout(this._waitForAllSupportedExecutions, 500, () => {
 				console.warn('Timed out waiting for all supported executions for task reconnection');
 			});
 		}
