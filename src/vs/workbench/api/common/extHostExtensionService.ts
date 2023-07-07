@@ -841,7 +841,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		let resolvers;
 		try {
 			resolvers = await Promise.all(chain.map(getResolver)).catch(async (e: Error) => {
-				if (e instanceof RemoteAuthorityResolverError && e._code !== RemoteAuthorityResolverErrorCode.InvalidAuthority) { throw e; }
+				if (!(e instanceof RemoteAuthorityResolverError) || e._code !== RemoteAuthorityResolverErrorCode.InvalidAuthority) { throw e; }
 				logWarning(`resolving nested authorities failed: ${e.message}`);
 				return [await getResolver(remoteAuthorityChain)];
 			});
