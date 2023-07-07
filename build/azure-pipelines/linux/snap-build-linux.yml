@@ -27,7 +27,7 @@ steps:
       sudo apt-get install -y yarn
 
       # Define variables
-      SNAP_ROOT=".build/linux/snap/$(VSCODE_ARCH)"
+      SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
 
       # Install build dependencies
       (cd build && yarn)
