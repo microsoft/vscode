@@ -102,10 +102,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
 		return this._proxy.updateProperty(this.id, type, value);
 	}
-	getLatency(): Promise<number> {
-		// TODO: The idea here was to add the result plus the time it took to get the latency
-		return this._proxy.getLatency(this.id);
-	}
 	acknowledgeDataEvent(charCount: number): void {
 		if (this._inReplay) {
 			return;

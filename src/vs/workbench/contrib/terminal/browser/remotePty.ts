@@ -209,8 +209,4 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	handleOrphanQuestion() {
 		this._remoteTerminalChannel.orphanQuestionReply(this.id);
 	}
-
-	async getLatency(): Promise<number> {
-		return 0;
-	}
 }
