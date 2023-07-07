@@ -224,8 +224,7 @@ export class DesktopMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(mainProcessService, utilityProcessWorkerWorkbenchService, logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
-		// Use FileUserDataProvider for user data to
-		// enable atomic read / write operations.
+		// User Data Provider
 		fileService.registerProvider(Schemas.vscodeUserData, this._register(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, logService)));
 
 		// URI Identity
