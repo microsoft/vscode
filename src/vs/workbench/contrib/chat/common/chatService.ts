@@ -67,6 +67,7 @@ export interface ISlashCommandProvider {
 
 export interface ISlashCommand {
 	command: string;
+	shouldRepopulate?: boolean;
 	provider?: ISlashCommandProvider;
 	sortText?: string;
 	detail?: string;
