@@ -317,43 +317,41 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 		// Revive processes if needed
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
-		const parsed = this._deserializeTerminalState(serializedState);
-		if (!parsed) {
-			return undefined;
-		}
+		const reviveBufferState = this._deserializeTerminalState(serializedState);
+		if (reviveBufferState && reviveBufferState.length > 0) {
+			try {
+				// Create variable resolver
+				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+				const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+				const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority), this._configurationResolverService);
 
-		try {
-			// Create variable resolver
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-			const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-			const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority), this._configurationResolverService);
+				// Re-resolve the environments and replace it on the state so local terminals use a fresh
+				// environment
+				mark('code/terminal/willGetReviveEnvironments');
+				await Promise.all(reviveBufferState.map(state => new Promise<void>(r => {
+					this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig).then(freshEnv => {
+						state.processLaunchConfig.env = freshEnv;
+						r();
+					});
+				})));
+				mark('code/terminal/didGetReviveEnvironments');
 
-			// Re-resolve the environments and replace it on the state so local terminals use a fresh
-			// environment
-			mark('code/terminal/willGetReviveEnvironments');
-			await Promise.all(parsed.map(state => new Promise<void>(r => {
-				this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig).then(freshEnv => {
-					state.processLaunchConfig.env = freshEnv;
-					r();
-				});
-			})));
-			mark('code/terminal/didGetReviveEnvironments');
-
-			mark('code/terminal/willReviveTerminalProcesses');
-			await this._proxy.reviveTerminalProcesses(workspaceId, parsed, Intl.DateTimeFormat().resolvedOptions().locale);
-			mark('code/terminal/didReviveTerminalProcesses');
-			this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
-			// If reviving processes, send the terminal layout info back to the pty host as it
-			// will not have been persisted on application exit
-			const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
-			if (layoutInfo) {
-				mark('code/terminal/willSetTerminalLayoutInfo');
-				await this._proxy.setTerminalLayoutInfo(JSON.parse(layoutInfo));
-				mark('code/terminal/didSetTerminalLayoutInfo');
-				this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
+				mark('code/terminal/willReviveTerminalProcesses');
+				await this._proxy.reviveTerminalProcesses(workspaceId, reviveBufferState, Intl.DateTimeFormat().resolvedOptions().locale);
+				mark('code/terminal/didReviveTerminalProcesses');
+				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
+				// If reviving processes, send the terminal layout info back to the pty host as it
+				// will not have been persisted on application exit
+				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
+				if (layoutInfo) {
+					mark('code/terminal/willSetTerminalLayoutInfo');
+					await this._proxy.setTerminalLayoutInfo(JSON.parse(layoutInfo));
+					mark('code/terminal/didSetTerminalLayoutInfo');
+					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
+				}
+			} catch (e: unknown) {
+				this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
 			}
-		} catch (e: unknown) {
-			this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
 		}
 
 		return this._proxy.getTerminalLayoutInfo(layoutArgs);
