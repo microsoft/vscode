@@ -132,6 +132,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.registerListeners();
 	}
 
+	withSilentShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
+		this.shutdownReason = HostShutdownReason.Api;
+		return expectedShutdownTask().finally(() => this.shutdownReason = HostShutdownReason.Unknown);
+	}
+
 	private registerListeners(): void {
 
 		// Veto shutdown depending on `window.confirmBeforeClose` setting
