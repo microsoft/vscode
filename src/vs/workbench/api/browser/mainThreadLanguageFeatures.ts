@@ -8,8 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { createStringDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { MultiMap } from 'vs/base/common/map';
+import { combinedDisposable, Disposable, DisposableMap, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { mixin } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
@@ -40,7 +39,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	private readonly _proxy: ExtHostLanguageFeaturesShape;
 	private readonly _registrations = this._register(new DisposableMap<number>());
-	private readonly _registeredInlineCompletionsProvidersPerExtensionId = new MultiMap</* extensionId */ string, languages.InlineCompletionsProvider<any>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -577,28 +575,13 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
 				this._proxy.$freeInlineCompletionsList(handle, completions.pid);
 			},
-			getPreferredProviders: () => {
-				const result = new Set<languages.InlineCompletionsProvider<any>>();
-				for (const extId of yieldsToExtensionIds) {
-					const yieldsTo = this._registeredInlineCompletionsProvidersPerExtensionId.get(extId);
-					for (const v of yieldsTo) {
-						result.add(v);
-					}
-				}
-				return [...result];
-			},
+			groupId: extensionId,
+			yieldsToGroupIds: yieldsToExtensionIds,
 			toString() {
 				return `InlineCompletionsProvider(${extensionId})`;
 			}
 		};
-
-		const store = new DisposableStore();
-		store.add(this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
-		this._registeredInlineCompletionsProvidersPerExtensionId.add(extensionId, provider);
-		store.add(toDisposable(() => {
-			this._registeredInlineCompletionsProvidersPerExtensionId.delete(extensionId, provider);
-		}));
-		this._registrations.set(handle, store);
+		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
 	}
 
 	// --- parameter hints

@@ -7090,6 +7090,8 @@ declare namespace monaco.languages {
 		readonly enableForwardStability?: boolean | undefined;
 	}
 
+	export type InlineCompletionProviderGroupId = string;
+
 	export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
 		provideInlineCompletions(model: editor.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 		/**
@@ -7106,11 +7108,15 @@ declare namespace monaco.languages {
 		*/
 		freeInlineCompletions(completions: T): void;
 		/**
-		 * Returns a list of preferred providers.
-		 * The current provider is only requested for completions if none of the preferred providers returned a result.
-		 * A preferred provider is only asked if it is registered and applies to the current document.
+		 * Only used for {@link yieldsToGroupIds}.
+		 * Multiple providers can have the same group id.
 		 */
-		getPreferredProviders?(): InlineCompletionsProvider<T>[];
+		groupId?: InlineCompletionProviderGroupId;
+		/**
+		 * Returns a list of preferred provider {@link groupId}s.
+		 * The current provider is only requested for completions if no provider with a preferred group id returned a result.
+		 */
+		yieldsToGroupIds?: InlineCompletionProviderGroupId[];
 		toString?(): string;
 	}
 

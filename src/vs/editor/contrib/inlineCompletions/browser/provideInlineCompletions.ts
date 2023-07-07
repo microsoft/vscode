@@ -6,13 +6,14 @@
 import { assertNever } from 'vs/base/common/assert';
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { SetMap } from 'vs/base/common/collections';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { Command, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from 'vs/editor/common/languages';
+import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionProviderGroupId, InlineCompletions, InlineCompletionsProvider } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 import { fixBracketsInLine } from 'vs/editor/common/model/bracketPairsTextModelPart/fixBrackets';
@@ -32,25 +33,39 @@ export async function provideInlineCompletions(
 	const defaultReplaceRange = getDefaultRange(position, model);
 	const providers = registry.all(model);
 
+	const multiMap = new SetMap<InlineCompletionProviderGroupId, InlineCompletionsProvider<any>>();
+	for (const provider of providers) {
+		if (provider.groupId) {
+			multiMap.add(provider.groupId, provider);
+		}
+	}
+
+	function getPreferredProviders(provider: InlineCompletionsProvider<any>): InlineCompletionsProvider<any>[] {
+		if (!provider.yieldsToGroupIds) { return []; }
+		const result: InlineCompletionsProvider<any>[] = [];
+		for (const groupId of provider.yieldsToGroupIds || []) {
+			const providers = multiMap.get(groupId);
+			for (const p of providers) {
+				result.push(p);
+			}
+		}
+		return result;
+	}
+
 	type Result = Promise<InlineCompletions<InlineCompletion> | null | undefined>;
 	const states = new Map<InlineCompletionsProvider<InlineCompletions<InlineCompletion>>, Result>();
 
 	const seen = new Set<InlineCompletionsProvider<InlineCompletions<InlineCompletion>>>();
 	function findPreferredProviderCircle(provider: InlineCompletionsProvider<any>, stack: InlineCompletionsProvider[]): InlineCompletionsProvider[] | undefined {
 		stack = [...stack, provider];
-
-		if (seen.has(provider)) {
-			return stack;
-		}
+		if (seen.has(provider)) { return stack; }
 
 		seen.add(provider);
 		try {
-			if (provider.getPreferredProviders) {
-				const preferred = provider.getPreferredProviders();
-				for (const p of preferred) {
-					const c = findPreferredProviderCircle(p, stack);
-					if (c) { return c; }
-				}
+			const preferred = getPreferredProviders(provider);
+			for (const p of preferred) {
+				const c = findPreferredProviderCircle(p, stack);
+				if (c) { return c; }
 			}
 		} finally {
 			seen.delete(provider);
@@ -73,8 +88,8 @@ export async function provideInlineCompletions(
 		states.set(provider, deferredPromise.p);
 
 		(async () => {
-			if (provider.getPreferredProviders && !circle) {
-				const preferred = provider.getPreferredProviders();
+			if (!circle) {
+				const preferred = getPreferredProviders(provider);
 				for (const p of preferred) {
 					const result = await processProvider(p);
 					if (result && result.items.length > 0) {
