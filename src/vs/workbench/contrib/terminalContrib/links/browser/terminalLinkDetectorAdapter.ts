@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
@@ -24,6 +26,10 @@ export interface IShowHoverEvent {
 	modifierUpCallback?: () => void;
 }
 
+const enum Constants {
+	DetectTimeBudget = 2000
+}
+
 /**
  * Wrap a link detector object so it can be used in xterm.js
  */
@@ -38,6 +44,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 	constructor(
 		private readonly _detector: ITerminalLinkDetector,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		super();
 	}
@@ -90,7 +97,10 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			endLine++;
 		}
 
-		const detectedLinks = await this._detector.detect(lines, startLine, endLine);
+		const detectResult = this._detector.detect(lines, startLine, endLine);
+		const detectedLinks = Array.isArray(detectResult) ? detectResult : (await raceTimeout(detectResult, Constants.DetectTimeBudget, () => {
+			this._logService.warn(`Link detector exceeded ${Constants.DetectTimeBudget}ms time budget, ignoring`, this._detector);
+		}) ?? []);
 		for (const link of detectedLinks) {
 			links.push(this._createTerminalLink(link, async (event) => {
 				this._onDidActivateLink.fire({ link, event });
