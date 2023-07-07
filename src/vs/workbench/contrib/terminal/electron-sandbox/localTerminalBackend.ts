@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ILocalPtyService, IProcessPropertyMap, IPtyService, IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ILocalPtyService, IProcessPropertyMap, IPtyHostLatencyMeasurement, IPtyService, IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -36,6 +36,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { DeferredPromise } from 'vs/base/common/async';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { memoize } from 'vs/base/common/decorators';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
@@ -243,6 +244,30 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	async listProcesses(): Promise<IProcessDetails[]> {
 		await this._connectToDirectProxy();
 		return this._proxy.listProcesses();
+	}
+
+	async getLatency(): Promise<IPtyHostLatencyMeasurement[]> {
+		const measurements: IPtyHostLatencyMeasurement[] = [];
+		const sw = new StopWatch();
+		if (this._directProxy) {
+			await this._directProxy.getLatency();
+			sw.stop();
+			measurements.push({
+				label: 'window<->ptyhost (message port)',
+				latency: sw.elapsed()
+			});
+			sw.reset();
+		}
+		const results = await this._localPtyService.getLatency();
+		sw.stop();
+		measurements.push({
+			label: 'window<->ptyhostservice<->ptyhost',
+			latency: sw.elapsed()
+		});
+		return [
+			...measurements,
+			...results
+		];
 	}
 
 	async getPerformanceMarks(): Promise<PerformanceMark[]> {
