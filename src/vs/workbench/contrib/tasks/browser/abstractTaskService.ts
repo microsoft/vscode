@@ -2937,8 +2937,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				});
 			};
 
-			buildTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build, true);
 			const usesDefaultGlobDetection = this._configurationService.getValue('task.defaultGlobDetection');
+			buildTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build, !usesDefaultGlobDetection);
 			// This will activate all extensions that register a task provider, so only do it
 			// if enabled. Otherwise, activation will only occur for the configured defaults.
 			if (usesDefaultGlobDetection) {
