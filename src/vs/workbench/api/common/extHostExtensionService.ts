@@ -824,20 +824,25 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			throw err;
 		};
 
+		const getResolver = async (remoteAuthority: string) => {
+			logInfo(`activating resolver for ${remoteAuthority}...`);
+			const { resolver, authorityPrefix } = await this._activateAndGetResolver(remoteAuthority);
+			if (!resolver) {
+				logError(`no resolver for ${authorityPrefix}`);
+				throw new RemoteAuthorityResolverError(`No remote extension installed to resolve ${authorityPrefix}.`, RemoteAuthorityResolverErrorCode.NoResolverFound);
+			}
+			return { resolver, authorityPrefix, remoteAuthority };
+		}
+
 		const chain = remoteAuthorityChain.split(/@|%40/g).reverse();
 		logInfo(`activating remote resolvers ${chain.join(' -> ')}`);
 
 		let resolvers;
 		try {
-			resolvers = await Promise.all(chain.map(async remoteAuthority => {
-				logInfo(`activating resolver...`);
-				const { resolver, authorityPrefix } = await this._activateAndGetResolver(remoteAuthority);
-				if (!resolver) {
-					logError(`no resolver`);
-					throw new RemoteAuthorityResolverError(`No remote extension installed to resolve ${authorityPrefix}.`, RemoteAuthorityResolverErrorCode.NoResolverFound);
-				}
-				return { resolver, authorityPrefix, remoteAuthority };
-			}));
+			resolvers = await Promise.all(chain.map(getResolver)).catch(async e => {
+				if (e instanceof RemoteAuthorityResolverError) { throw e };
+				return [await getResolver(remoteAuthorityChain)];
+			});
 		} catch (e) {
 			return normalizeError(e);
 		}
