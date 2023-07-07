@@ -150,4 +150,7 @@
 	"editor.experimental.asyncTokenization": true,
 	"editor.experimental.asyncTokenizationVerification": true,
 	"diffEditor.experimental.useVersion2": true,
+	"editor.codeActionsOnSave": {
+		"source.organizeImports": true,
+	}
 }
