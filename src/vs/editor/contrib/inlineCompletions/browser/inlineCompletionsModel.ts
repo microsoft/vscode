@@ -306,20 +306,28 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		if (completion.command) {
-			await this._commandService
-				.executeCommand(completion.command.id, ...(completion.command.arguments || []))
-				.then(undefined, onUnexpectedExternalError);
+			// Make sure the completion list will not be disposed.
+			completion.source.addRef();
 		}
+
+		// Reset before invoking the command, since the command might cause a follow up trigger.
 		transaction(tx => {
 			this._source.clear(tx);
 			// Potentially, isActive will get set back to true by the typing or accept inline suggest event
 			// if automatic inline suggestions are enabled.
 			this._isActive.set(false, tx);
 		});
+
+		if (completion.command) {
+			await this._commandService
+				.executeCommand(completion.command.id, ...(completion.command.arguments || []))
+				.then(undefined, onUnexpectedExternalError);
+			completion.source.removeRef();
+		}
 	}
 
-	public acceptNextWord(editor: ICodeEditor): void {
-		this._acceptNext(editor, (pos, text) => {
+	public async acceptNextWord(editor: ICodeEditor): Promise<void> {
+		await this._acceptNext(editor, (pos, text) => {
 			const langId = this.textModel.getLanguageIdAtPosition(pos.lineNumber, pos.column);
 			const config = this._languageConfigurationService.getLanguageConfiguration(langId);
 			const wordRegExp = new RegExp(config.wordDefinition.source, config.wordDefinition.flags.replace('g', ''));
@@ -347,8 +355,8 @@ export class InlineCompletionsModel extends Disposable {
 		});
 	}
 
-	public acceptNextLine(editor: ICodeEditor): void {
-		this._acceptNext(editor, (pos, text) => {
+	public async acceptNextLine(editor: ICodeEditor): Promise<void> {
+		await this._acceptNext(editor, (pos, text) => {
 			const m = text.match(/\n/);
 			if (m && m.index !== undefined) {
 				return m.index + 1;
@@ -357,7 +365,7 @@ export class InlineCompletionsModel extends Disposable {
 		});
 	}
 
-	private _acceptNext(editor: ICodeEditor, getAcceptUntilIndex: (position: Position, text: string) => number): void {
+	private async _acceptNext(editor: ICodeEditor, getAcceptUntilIndex: (position: Position, text: string) => number): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
 		}
@@ -370,7 +378,7 @@ export class InlineCompletionsModel extends Disposable {
 
 		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
 			// not in WYSIWYG mode, partial commit might change completion, thus it is not supported
-			this.accept(editor);
+			await this.accept(editor);
 			return;
 		}
 
