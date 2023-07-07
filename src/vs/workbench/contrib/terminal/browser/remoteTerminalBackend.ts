@@ -267,7 +267,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		sw.stop();
 		return [
 			{
-				label: 'window<->ptyhost',
+				label: 'window<->ptyhostservice<->ptyhost',
 				latency: sw.elapsed()
 			},
 			...results

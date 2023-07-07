@@ -261,7 +261,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		const results = await this._localPtyService.getLatency();
 		sw.stop();
 		measurements.push({
-			label: 'window<->main<->ptyhost',
+			label: 'window<->ptyhostservice<->ptyhost',
 			latency: sw.elapsed()
 		});
 		return [
