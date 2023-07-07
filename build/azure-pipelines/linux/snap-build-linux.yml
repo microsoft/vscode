@@ -11,6 +11,10 @@ steps:
 
   - script: |
       set -e
+      ls -la .build/linux/snap-tarball
+
+  - script: |
+      set -e
 
       # Get snapcraft version
       snapcraft --version
