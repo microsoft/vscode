@@ -58,10 +58,10 @@
   resolved "https://registry.yarnpkg.com/@vscode/iconv-lite-umd/-/iconv-lite-umd-0.7.0.tgz#d2f1e0664ee6036408f9743fee264ea0699b0e48"
   integrity sha512-bRRFxLfg5dtAyl5XyiVWz/ZBPahpOpPrNYnnHpOpUZvam4tKH35wdhP4Kj6PbM0+KdliOsPzbGWpkxcdpNB/sg==
 
-"@vscode/proxy-agent@^0.14.1":
-  version "0.14.1"
-  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.14.1.tgz#61866221a8fbd5143f73a14c29deccdf85f13113"
-  integrity sha512-bJxCO9E6zDpy90TiViAZgFjAgo83gS0Lh5CUIu/JZ8p5UwwQ37Y6LZH2f2l6kBr2RGdNSRbORTFrfmLtr1faRA==
+"@vscode/proxy-agent@^0.15.0":
+  version "0.15.0"
+  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.15.0.tgz#b8fb8b89180a71295a8f8682775f69ab1dcf6860"
+  integrity sha512-HpD4A9CUOwKbC6vLa0+MEsCo/qlgbue9U9s8Z7NzJDdf2YEGjUaYf9Mvj5T1LhJX20Hv1COvkGcc7zPhtIbgbA==
   dependencies:
     "@tootallnate/once" "^1.1.2"
     agent-base "^6.0.2"
