@@ -33,6 +33,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
+import { Schemas } from 'vs/base/common/network';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -330,8 +331,20 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	// --- quick fix
 
 	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void {
+
 		const provider: languages.CodeActionProvider = {
 			provideCodeActions: async (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: languages.CodeActionContext, token: CancellationToken): Promise<languages.CodeActionList | undefined> => {
+
+				// if provideCodeActions was trigged by an INVOKE, do not filter notebook CA providers
+				if (context.trigger !== languages.CodeActionTriggerType.Invoke) {
+					// provide was automatic, notebook codeActions should NOT be provided, so check:
+					// - if the model is a notebook
+					// - if the provider provides anything that is NOT nb kind
+					if (model.uri.scheme === Schemas.vscodeNotebookCell && metadata.providedKinds && !metadata.providedKinds.find(kind => !kind.startsWith('notebook.'))) {
+						return undefined;
+					}
+				}
+
 				const listDto = await this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token);
 				if (!listDto) {
 					return undefined;
