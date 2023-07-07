@@ -137,13 +137,18 @@ class InputEditorSlashCommandFollowups extends Disposable {
 
 	constructor(
 		private readonly widget: IChatWidget,
-		private readonly chatService: IChatService
+		@IChatService private readonly chatService: IChatService
 	) {
 		super();
-		if (this.widget.viewModel?.sessionId) {
+		this._register(this.chatService.onDidCompleteSlashCommand(({ slashCommand, sessionId }) => this.repopulateSlashCommand(slashCommand, sessionId)));
+	}
+
+	private getSlashCommands() {
+		if (!this.slashCommands && this.widget.viewModel?.sessionId) {
 			this.slashCommands = this.chatService.getSlashCommands(this.widget.viewModel?.sessionId, new CancellationTokenSource().token);
 		}
-		this._register(this.chatService.onDidCompleteSlashCommand(({ slashCommand, sessionId }) => this.repopulateSlashCommand(slashCommand, sessionId)));
+
+		return this.slashCommands;
 	}
 
 	private async repopulateSlashCommand(slashCommand: string, sessionId: string) {
@@ -151,7 +156,7 @@ class InputEditorSlashCommandFollowups extends Disposable {
 			return;
 		}
 
-		const slashCommands = await this.slashCommands;
+		const slashCommands = await this.getSlashCommands();
 
 		if (this.widget.inputEditor.getValue().trim().length === 0) {
 			return;
