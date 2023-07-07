@@ -524,5 +524,10 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'always',
 		},
+		[TaskSettingId.DefaultGlobDetection]: {
+			type: 'boolean',
+			description: nls.localize('task.defaultGlobDetection', "Whether a task can be specified as the default task using file globs. Note that this will activate any extension which registers a task provider."),
+			default: false
+		}
 	}
 });
