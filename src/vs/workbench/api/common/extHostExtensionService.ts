@@ -809,6 +809,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const sw = StopWatch.create(false);
 		const prefix = () => `[resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthorityChain)},${resolveAttempt})][${sw.elapsed()}ms] `;
 		const logInfo = (msg: string) => this._logService.info(`${prefix()}${msg}`);
+		const logWarning = (msg: string) => this._logService.warn(`${prefix()}${msg}`);
 		const logError = (msg: string, err: any = undefined) => this._logService.error(`${prefix()}${msg}`, err);
 		const normalizeError = (err: unknown) => {
 			if (err instanceof RemoteAuthorityResolverError) {
@@ -839,8 +840,9 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		let resolvers;
 		try {
-			resolvers = await Promise.all(chain.map(getResolver)).catch(async e => {
+			resolvers = await Promise.all(chain.map(getResolver)).catch(async (e: Error) => {
 				if (e instanceof RemoteAuthorityResolverError) { throw e; }
+				logWarning(`resolving nested authorities failed: ${e.message}`);
 				return [await getResolver(remoteAuthorityChain)];
 			});
 		} catch (e) {
