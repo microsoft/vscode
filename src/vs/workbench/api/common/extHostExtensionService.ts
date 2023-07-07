@@ -795,7 +795,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private async _activateAndGetResolver(remoteAuthority: string): Promise<{ authorityPrefix: string; resolver: vscode.RemoteAuthorityResolver | undefined }> {
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
-			throw new Error(`Not an authority that can be resolved!`);
+			throw new RemoteAuthorityResolverError(`Not an authority that can be resolved!`, RemoteAuthorityResolverErrorCode.InvalidAuthority);
 		}
 		const authorityPrefix = remoteAuthority.substr(0, authorityPlusIndex);
 
@@ -841,7 +841,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		let resolvers;
 		try {
 			resolvers = await Promise.all(chain.map(getResolver)).catch(async (e: Error) => {
-				if (e instanceof RemoteAuthorityResolverError) { throw e; }
+				if (e instanceof RemoteAuthorityResolverError && e._code !== RemoteAuthorityResolverErrorCode.InvalidAuthority) { throw e; }
 				logWarning(`resolving nested authorities failed: ${e.message}`);
 				return [await getResolver(remoteAuthorityChain)];
 			});
