@@ -277,7 +277,7 @@ export class DiffReview2 extends Disposable {
 		}
 	}
 
-	private hide(): void {
+	public hide(): void {
 		this._isVisibleObs.set(false, undefined);
 		this._diffEditor.focus();
 		this.layout();

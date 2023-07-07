@@ -315,6 +315,11 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	override getModel(): IDiffEditorModel | null { return this._diffModel.get()?.model ?? null; }
 
 	override setModel(model: IDiffEditorModel | null | IDiffEditorViewModel): void {
+		if (!model && this._diffModel.get()) {
+			// Transitioning from a model to no-model
+			this._reviewPane.hide();
+		}
+
 		const vm = model ? ('model' in model) ? model : this.createViewModel(model) : undefined;
 		this._editors.original.setModel(vm ? vm.model.original : null);
 		this._editors.modified.setModel(vm ? vm.model.modified : null);
