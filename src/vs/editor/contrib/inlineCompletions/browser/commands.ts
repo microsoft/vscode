@@ -97,7 +97,7 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
-		controller?.model.get()?.acceptNextWord(controller.editor);
+		await controller?.model.get()?.acceptNextWord(controller.editor);
 	}
 }
 
@@ -122,7 +122,7 @@ export class AcceptNextLineOfInlineCompletion extends EditorAction {
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
-		controller?.model.get()?.acceptNextLine(controller.editor);
+		await controller?.model.get()?.acceptNextLine(controller.editor);
 	}
 }
 
