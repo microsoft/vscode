@@ -750,15 +750,22 @@ export class CommandCenter {
 
 		if (uri !== undefined) {
 			// Launch desktop client if currently in web
+			let target = `${env.uriScheme}://vscode.git/clone?url=${encodeURIComponent(uri)}`;
 			if (env.uiKind === UIKind.Web) {
-				let target = `${env.uriScheme}://vscode.git/clone?url=${encodeURIComponent(uri)}`;
 				if (ref !== undefined) {
 					target += `&ref=${encodeURIComponent(ref)}`;
 				}
 				return Uri.parse(target);
 			}
 
-			// If already in desktop client, directly clone
+			// If already in desktop client but in a remote window, we need to force a new window
+			// so that the git extension can access the local filesystem for cloning
+			if (env.remoteName !== undefined) {
+				target += `&windowId=_blank`;
+				return Uri.parse(target);
+			}
+
+			// Otherwise, directly clone
 			void this.clone(uri, undefined, { ref: ref });
 		}
 	}
