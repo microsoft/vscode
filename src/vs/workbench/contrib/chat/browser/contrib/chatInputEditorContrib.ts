@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
@@ -21,7 +21,7 @@ import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/brows
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
@@ -133,17 +133,32 @@ class InputEditorDecorations extends Disposable {
 }
 
 class InputEditorSlashCommandFollowups extends Disposable {
+	private slashCommands: Promise<ISlashCommand[] | undefined> | undefined;
+
 	constructor(
 		private readonly widget: IChatWidget,
 		private readonly chatService: IChatService
 	) {
 		super();
-		this._register(this.chatService.onDidCompleteSlashCommand((command) => this.prependSlashCommand(command)));
+		if (this.widget.viewModel?.sessionId) {
+			this.slashCommands = this.chatService.getSlashCommands(this.widget.viewModel?.sessionId, new CancellationTokenSource().token);
+		}
+		this._register(this.chatService.onDidCompleteSlashCommand(({ slashCommand, sessionId }) => this.repopulateSlashCommand(slashCommand, sessionId)));
 	}
 
-	private prependSlashCommand(command: string) {
+	private async repopulateSlashCommand(slashCommand: string, sessionId: string) {
+		if (this.widget.viewModel?.sessionId !== sessionId) {
+			return;
+		}
+
+		const slashCommands = await this.slashCommands;
+
 		if (this.widget.inputEditor.getValue().trim().length === 0) {
-			this.widget.inputEditor.setValue(`/${command}`);
+			return;
+		}
+
+		if (slashCommands?.find(c => c.command === slashCommand)?.shouldRepopulate) {
+			this.widget.inputEditor.setValue(`/${slashCommand}`);
 		}
 	}
 }
