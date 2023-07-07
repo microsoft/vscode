@@ -337,29 +337,27 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 		// Revive processes if needed
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
-		const parsed = this._deserializeTerminalState(serializedState);
-		if (!parsed) {
-			return undefined;
-		}
+		const reviveBufferState = this._deserializeTerminalState(serializedState);
+		if (reviveBufferState && reviveBufferState.length > 0) {
+			try {
+				// Note that remote terminals do not get their environment re-resolved unlike in local terminals
 
-		try {
-			// Note that remote terminals do not get their environment re-resolved unlike in local terminals
-
-			mark('code/terminal/willReviveTerminalProcessesRemote');
-			await this._remoteTerminalChannel.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);
-			mark('code/terminal/didReviveTerminalProcessesRemote');
-			this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
-			// If reviving processes, send the terminal layout info back to the pty host as it
-			// will not have been persisted on application exit
-			const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
-			if (layoutInfo) {
-				mark('code/terminal/willSetTerminalLayoutInfoRemote');
-				await this._remoteTerminalChannel.setTerminalLayoutInfo(JSON.parse(layoutInfo));
-				mark('code/terminal/didSetTerminalLayoutInfoRemote');
-				this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
+				mark('code/terminal/willReviveTerminalProcessesRemote');
+				await this._remoteTerminalChannel.reviveTerminalProcesses(reviveBufferState, Intl.DateTimeFormat().resolvedOptions().locale);
+				mark('code/terminal/didReviveTerminalProcessesRemote');
+				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
+				// If reviving processes, send the terminal layout info back to the pty host as it
+				// will not have been persisted on application exit
+				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
+				if (layoutInfo) {
+					mark('code/terminal/willSetTerminalLayoutInfoRemote');
+					await this._remoteTerminalChannel.setTerminalLayoutInfo(JSON.parse(layoutInfo));
+					mark('code/terminal/didSetTerminalLayoutInfoRemote');
+					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
+				}
+			} catch (e: unknown) {
+				this._logService.warn('RemoteTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
 			}
-		} catch (e: unknown) {
-			this._logService.warn('RemoteTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
 		}
 
 		return this._remoteTerminalChannel.getTerminalLayoutInfo();

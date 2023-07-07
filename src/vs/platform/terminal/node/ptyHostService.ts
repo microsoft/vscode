@@ -326,7 +326,10 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		return this._proxy.setTerminalLayoutInfo(args);
 	}
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
-		return await this._proxy.getTerminalLayoutInfo(args);
+		// This is optional as we want reconnect requests to go through only if the pty host exists.
+		// Revive is handled specially as reviveTerminalProcesses is guaranteed to be called before
+		// the request for layout info.
+		return this._optionalProxy?.getTerminalLayoutInfo(args);
 	}
 
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
