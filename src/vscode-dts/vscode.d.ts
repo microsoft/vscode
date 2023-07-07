@@ -6857,6 +6857,11 @@ declare module 'vscode' {
 		 * Provide terminal links for the given context. Note that this can be called multiple times
 		 * even before previous calls resolve, make sure to not share global objects (eg. `RegExp`)
 		 * that could have problems when asynchronous usage may overlap.
+		 *
+		 * The current threshold is 2 seconds as overall time budget for all link providers before
+		 * it will be ignored, this includes transport time between the window and the extension
+		 * host.
+		 *
 		 * @param context Information about what links are being provided for.
 		 * @param token A cancellation token.
 		 * @return A list of terminal links for the given line.
