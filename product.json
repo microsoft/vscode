@@ -36,8 +36,8 @@
 	"builtInExtensions": [
 		{
 			"name": "ms-vscode.js-debug-companion",
-			"version": "1.1.1",
-			"sha256": "095dc6d5d45490966dfa74d24add92036b42bf02a37d88c4b0f510dc91deeee6",
+			"version": "1.1.2",
+			"sha256": "e034b8b41beb4e97e02c70f7175bd88abe66048374c2bd629f54bb33354bc2aa",
 			"repo": "https://github.com/microsoft/vscode-js-debug-companion",
 			"metadata": {
 				"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",

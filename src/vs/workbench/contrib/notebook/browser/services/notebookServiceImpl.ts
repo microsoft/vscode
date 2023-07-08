@@ -279,8 +279,9 @@ export class NotebookProviderInfoStore extends Disposable {
 		}
 		this._contributedEditors.set(info.id, info);
 		let editorRegistration: IDisposable | undefined;
-		// Don't overwrite editor contributions if they come from elsewhere
-		if (!info.externalEditor) {
+
+		// built-in notebook providers contribute their own editors
+		if (info.extension) {
 			editorRegistration = this._registerContributionPoint(info);
 			this._contributedEditorDisposables.add(editorRegistration);
 		}
@@ -640,8 +641,7 @@ export class NotebookService extends Disposable implements INotebookService {
 			providerDisplayName: data.providerDisplayName,
 			exclusive: data.exclusive,
 			priority: RegisteredEditorPriority.default,
-			selectors: [],
-			externalEditor: !!data.externalEditor
+			selectors: []
 		});
 
 		info.update({ selectors: data.filenamePattern });

@@ -6,8 +6,9 @@
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { revive } from 'vs/base/common/marshalling';
-import { PerformanceMark } from 'vs/base/common/performance';
+import { PerformanceMark, mark } from 'vs/base/common/performance';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,14 +16,14 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ISerializedTerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IPtyHostLatencyMeasurement, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { BaseTerminalBackend } from 'vs/workbench/contrib/terminal/browser/baseTerminalBackend';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remote/remoteTerminalChannel';
 import { ICompleteTerminalConfiguration, ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -260,6 +261,19 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		return this._remoteTerminalChannel.listProcesses();
 	}
 
+	async getLatency(): Promise<IPtyHostLatencyMeasurement[]> {
+		const sw = new StopWatch();
+		const results = await this._remoteTerminalChannel.getLatency();
+		sw.stop();
+		return [
+			{
+				label: 'window<->ptyhostservice<->ptyhost',
+				latency: sw.elapsed()
+			},
+			...results
+		];
+	}
+
 	async updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: any): Promise<void> {
 		await this._remoteTerminalChannel.updateProperty(id, property, value);
 	}
@@ -323,22 +337,26 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 		// Revive processes if needed
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
-		const parsed = this._deserializeTerminalState(serializedState);
-		if (parsed) {
+		const reviveBufferState = this._deserializeTerminalState(serializedState);
+		if (reviveBufferState && reviveBufferState.length > 0) {
 			try {
 				// Note that remote terminals do not get their environment re-resolved unlike in local terminals
 
-				await this._remoteTerminalChannel.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);
+				mark('code/terminal/willReviveTerminalProcessesRemote');
+				await this._remoteTerminalChannel.reviveTerminalProcesses(reviveBufferState, Intl.DateTimeFormat().resolvedOptions().locale);
+				mark('code/terminal/didReviveTerminalProcessesRemote');
 				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 				// If reviving processes, send the terminal layout info back to the pty host as it
 				// will not have been persisted on application exit
 				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				if (layoutInfo) {
+					mark('code/terminal/willSetTerminalLayoutInfoRemote');
 					await this._remoteTerminalChannel.setTerminalLayoutInfo(JSON.parse(layoutInfo));
+					mark('code/terminal/didSetTerminalLayoutInfoRemote');
 					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				}
-			} catch {
-				// no-op
+			} catch (e: unknown) {
+				this._logService.warn('RemoteTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
 			}
 		}
 

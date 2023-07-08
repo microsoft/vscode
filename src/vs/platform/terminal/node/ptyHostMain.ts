@@ -88,6 +88,7 @@ async function startPtyHost() {
 
 	// Clean up
 	process.once('exit', () => {
+		logService.trace('Pty host exiting');
 		logService.dispose();
 		heartbeatService.dispose();
 		ptyService.dispose();
