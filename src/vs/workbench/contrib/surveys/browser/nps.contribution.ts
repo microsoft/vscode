@@ -76,7 +76,7 @@ class NPSContribution implements IWorkbenchContribution {
 					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 			}, {
-				label: nls.localize('remindLater', "Remind Me later"),
+				label: nls.localize('remindLater', "Remind Me Later"),
 				run: () => storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.APPLICATION, StorageTarget.USER)
 			}, {
 				label: nls.localize('neverAgain', "Don't Show Again"),

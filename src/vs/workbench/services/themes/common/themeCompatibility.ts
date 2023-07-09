@@ -64,8 +64,8 @@ addSettingMapping('lineHighlight', editorColorRegistry.editorLineHighlight);
 addSettingMapping('rangeHighlight', editorColorRegistry.editorRangeHighlight);
 addSettingMapping('caret', editorColorRegistry.editorCursorForeground);
 addSettingMapping('invisibles', editorColorRegistry.editorWhitespaces);
-addSettingMapping('guide', editorColorRegistry.editorIndentGuides);
-addSettingMapping('activeGuide', editorColorRegistry.editorActiveIndentGuides);
+addSettingMapping('guide', editorColorRegistry.editorIndentGuide1);
+addSettingMapping('activeGuide', editorColorRegistry.editorActiveIndentGuide1);
 
 const ansiColorMap = ['ansiBlack', 'ansiRed', 'ansiGreen', 'ansiYellow', 'ansiBlue', 'ansiMagenta', 'ansiCyan', 'ansiWhite',
 	'ansiBrightBlack', 'ansiBrightRed', 'ansiBrightGreen', 'ansiBrightYellow', 'ansiBrightBlue', 'ansiBrightMagenta', 'ansiBrightCyan', 'ansiBrightWhite'

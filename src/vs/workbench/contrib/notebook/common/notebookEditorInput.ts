@@ -24,7 +24,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -214,6 +214,14 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		return await this._editorModelReference.object.saveAs(target);
+	}
+
+	override isSaving(): boolean {
+		if (this.isDirty() && !this.hasCapability(EditorInputCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			return true; // will be saved soon
+		}
+
+		return super.isSaving();
 	}
 
 	private async _suggestName(provider: NotebookProviderInfo, suggestedFilename: string) {

@@ -139,6 +139,10 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 
 		// when test states change, reflect in the tree
 		this._register(results.onTestChanged(ev => {
+			if (ev.reason === TestResultItemChangeReason.NewMessage) {
+				return; // no effect in the tree
+			}
+
 			let result = ev.item;
 			// if the state is unset, or the latest run is not making the change,
 			// double check that it's valid. Retire calls might cause previous
