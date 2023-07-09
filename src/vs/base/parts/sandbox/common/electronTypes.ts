@@ -22,7 +22,7 @@ export interface MessageBoxOptions {
 	 * the `"icon"` option. On macOS, both `"warning"` and `"error"` display the same
 	 * warning icon.
 	 */
-	type?: string;
+	type?: ('none' | 'info' | 'error' | 'question' | 'warning');
 	/**
 	 * Array of texts for buttons. On Windows, an empty array will result in one button
 	 * labeled "OK".
