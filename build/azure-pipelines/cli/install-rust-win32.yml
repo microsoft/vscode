@@ -1,7 +1,7 @@
 parameters:
   - name: channel
     type: string
-    default: 1.65.0
+    default: 1.70.0
   - name: targets
     default: []
     type: object
@@ -27,7 +27,7 @@ steps:
       [source.crates-io]
       replace-with = 'vscode'
       "@ -Force
-      
+
       Get-Content "$env:USERPROFILE\.cargo\config.toml"
     condition: and(succeeded(), ne(variables['CARGO_REGISTRY'], 'none'))
     displayName: Setup Cargo Registry
