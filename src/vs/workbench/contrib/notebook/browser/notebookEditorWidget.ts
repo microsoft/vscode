@@ -90,6 +90,7 @@ import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/no
 import { Schemas } from 'vs/base/common/network';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
+import { NotebookEditorStickyScroll } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll';
 
 const $ = DOM.$;
 
@@ -169,6 +170,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _overlayContainer!: HTMLElement;
 	private _notebookTopToolbarContainer!: HTMLElement;
 	private _notebookTopToolbar!: NotebookEditorWorkbenchToolbar;
+	private _notebookStickyScrollContainer!: HTMLElement;
+	private _notebookStickyScroll!: NotebookEditorStickyScroll;
 	private _notebookOverviewRulerContainer!: HTMLElement;
 	private _notebookOverviewRuler!: NotebookOverviewRuler;
 	private _body!: HTMLElement;
@@ -562,6 +565,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._notebookTopToolbarContainer.classList.add('notebook-toolbar-container');
 		this._notebookTopToolbarContainer.style.display = 'none';
 		DOM.append(parent, this._notebookTopToolbarContainer);
+
+		this._notebookStickyScrollContainer = document.createElement('div');
+		this._notebookStickyScrollContainer.classList.add('notebook-sticky-scroll-container');
+		this._notebookStickyScrollContainer.style.display = 'none';
+		DOM.append(parent, this._notebookStickyScrollContainer);
+
 		this._body = document.createElement('div');
 		DOM.append(parent, this._body);
 
@@ -995,6 +1004,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		this._registerNotebookActionsToolbar();
+		this._registerNotebookStickyScroll();
 	}
 
 	private showListContextMenu(e: IListContextMenuEvent<CellViewModel>) {
@@ -1016,6 +1026,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this.layout(this._dimension);
 			}
 		}));
+	}
+
+	private _registerNotebookStickyScroll() {
+		this._notebookStickyScroll = this._register(this.instantiationService.createInstance(NotebookEditorStickyScroll, this._notebookOptions, this._notebookStickyScrollContainer));
 	}
 
 	private _updateOutputRenderers() {
@@ -1796,6 +1810,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		this._notebookTopToolbar.layout(this._dimension);
+		this._notebookStickyScroll.layout(this._dimension);
 		this._notebookOverviewRuler.layout();
 
 		this._viewContext?.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);

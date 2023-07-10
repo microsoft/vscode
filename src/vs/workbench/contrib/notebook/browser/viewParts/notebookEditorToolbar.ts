@@ -223,6 +223,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 	private _buildBody() {
 		this._notebookTopLeftToolbarContainer = document.createElement('div');
 		this._notebookTopLeftToolbarContainer.classList.add('notebook-toolbar-left');
+
 		this._leftToolbarScrollable = new DomScrollableElement(this._notebookTopLeftToolbarContainer, {
 			vertical: ScrollbarVisibility.Hidden,
 			horizontal: ScrollbarVisibility.Visible,
