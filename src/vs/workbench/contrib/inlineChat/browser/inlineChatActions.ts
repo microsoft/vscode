@@ -56,7 +56,7 @@ export class StartSessionAction extends EditorAction2 {
 			typeof message !== 'undefined' && typeof message !== 'string'
 			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
 			|| typeof initialRange !== 'undefined' && !Range.isIRange(initialRange)
-			|| typeof position !== 'undefined' && typeof !Position.isIPosition(position)) {
+			|| typeof position !== 'undefined' && !Position.isIPosition(position)) {
 			return false;
 		}
 		return true;
@@ -68,7 +68,6 @@ export class StartSessionAction extends EditorAction2 {
 		if (arg && this._isInteractivEditorOptions(arg)) {
 			options = arg;
 		}
-		console.log('options inside of run editor command : ', options);
 		InlineChatController.get(editor)?.run(options);
 	}
 }

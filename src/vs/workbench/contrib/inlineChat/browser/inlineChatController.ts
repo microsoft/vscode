@@ -185,8 +185,6 @@ export class InlineChatController implements IEditorContribution {
 
 	// ---- state machine
 
-	// TODO: maybe should instead use the position inside of the line number?
-	// Makes the code more difficult but more coherent
 	private _showWidget(initialRender: boolean = false, position?: IPosition) {
 		assertType(this._editor.hasModel());
 
@@ -222,7 +220,6 @@ export class InlineChatController implements IEditorContribution {
 
 		let session: Session | undefined = options.existingSession;
 
-		console.log('options : ', options);
 		this._showWidget(true, options.position);
 		this._zone.value.widget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
@@ -311,7 +308,6 @@ export class InlineChatController implements IEditorContribution {
 			}
 		});
 
-		console.log('options : ', options);
 		this._showWidget(true, options.position);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
