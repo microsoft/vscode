@@ -215,10 +215,14 @@ export class InlineChatController implements IEditorContribution {
 
 	private async [State.CREATE_SESSION](options: InlineChatRunOptions): Promise<State.CANCEL | State.INIT_UI | State.PAUSE> {
 		if (this._activeSession) {
+			console.log('before clearing the session store');
 			this._sessionStore.clear();
+			console.log('before releasing teh session');
 			this._inlineChatSessionService.releaseSession(this._activeSession);
+			console.log('before calling pause');
 			await this[State.PAUSE]();
 		}
+		console.log('this._activeSession after the cleaning : ', this._activeSession);
 		assertType(this._activeSession === undefined);
 		assertType(this._editor.hasModel());
 
@@ -282,6 +286,8 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async [State.INIT_UI](options: InlineChatRunOptions): Promise<State.WAIT_FOR_INPUT | State.SHOW_RESPONSE | State.APPLY_RESPONSE> {
+		console.log('inside of init ui');
+		console.log('this._activeSession : ', this._activeSession);
 		assertType(this._activeSession);
 
 		// hide/cancel inline completions when invoking IE
@@ -347,11 +353,14 @@ export class InlineChatController implements IEditorContribution {
 		}));
 
 		if (!this._activeSession.lastExchange) {
+			console.log('before waiting for input');
 			return State.WAIT_FOR_INPUT;
 		} else if (options.isUnstashed) {
 			delete options.isUnstashed;
+			console.log('before apply response');
 			return State.APPLY_RESPONSE;
 		} else {
+			console.log('before show response');
 			return State.SHOW_RESPONSE;
 		}
 	}
@@ -631,6 +640,8 @@ export class InlineChatController implements IEditorContribution {
 
 	private async [State.PAUSE]() {
 
+		console.log('entered into pause state');
+
 		this._ctxDidEdit.reset();
 		this._ctxUserDidEdit.reset();
 		this._ctxLastResponseType.reset();
@@ -650,6 +661,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async [State.ACCEPT]() {
+		console.log('inside of accept');
 		assertType(this._activeSession);
 		assertType(this._strategy);
 		this._sessionStore.clear();
