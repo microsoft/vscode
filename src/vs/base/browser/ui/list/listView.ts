@@ -281,7 +281,6 @@ export class ListView<T> implements IListView<T> {
 	private items: IItem<T>[];
 	private itemId: number;
 	private rangeMap: RangeMap;
-	private paddingTop: number;
 	private cache: RowCache<T>;
 	private renderers = new Map<string, IListRenderer<any /* TODO@joao */, any>>();
 	private lastRenderTop: number;
@@ -366,8 +365,7 @@ export class ListView<T> implements IListView<T> {
 
 		this.items = [];
 		this.itemId = 0;
-		this.paddingTop = options.paddingTop ?? 0;
-		this.rangeMap = new RangeMap(this.paddingTop);
+		this.rangeMap = new RangeMap(options.paddingTop ?? 0);
 
 		for (const renderer of renderers) {
 			this.renderers.set(renderer.templateId, renderer);
@@ -475,9 +473,8 @@ export class ListView<T> implements IListView<T> {
 			this.scrollableElement.updateOptions(scrollableOptions);
 		}
 
-		if (options.paddingTop !== undefined && options.paddingTop !== this.paddingTop) {
+		if (options.paddingTop !== undefined && options.paddingTop !== this.rangeMap.paddingTop) {
 			// trigger a rerender
-			this.paddingTop = options.paddingTop;
 			const lastRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 			const offset = options.paddingTop - this.rangeMap.paddingTop;
 			this.rangeMap.paddingTop = options.paddingTop;
@@ -622,7 +619,7 @@ export class ListView<T> implements IListView<T> {
 
 		// TODO@joao: improve this optimization to catch even more cases
 		if (start === 0 && deleteCount >= this.items.length) {
-			this.rangeMap = new RangeMap(this.paddingTop);
+			this.rangeMap = new RangeMap(this.rangeMap.paddingTop);
 			this.rangeMap.splice(0, 0, inserted);
 			deleted = this.items;
 			this.items = inserted;
