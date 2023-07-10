@@ -335,8 +335,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		const provider: languages.CodeActionProvider = {
 			provideCodeActions: async (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: languages.CodeActionContext, token: CancellationToken): Promise<languages.CodeActionList | undefined> => {
 
-				// if provideCodeActions was trigged by an INVOKE, do not filter notebook CA providers
-				if (context.trigger !== languages.CodeActionTriggerType.Invoke) {
+				// if provideCodeActions was trigged automatically (lightbulb, doc load, etc) filter notebook CA providers
+				if (context.trigger === languages.CodeActionTriggerType.Auto) {
 					// provide was automatic, notebook codeActions should NOT be provided, so check:
 					// - if the model is a notebook
 					// - if the provider provides anything that is NOT nb kind
