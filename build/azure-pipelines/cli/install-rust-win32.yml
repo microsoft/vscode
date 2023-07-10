@@ -19,6 +19,20 @@ steps:
     displayName: "Install Rust"
 
   - powershell: |
+      mkdir -Force "$env:USERPROFILE\.cargo"
+      Set-Content -Path "$env:USERPROFILE\.cargo\config.toml" -Value @"
+      [registries]
+      vscode = { index = "$($env:CARGO_REGISTRY)" }
+
+      [source.crates-io]
+      replace-with = 'vscode'
+      "@ -Force
+      
+      Get-Content "$env:USERPROFILE\.cargo\config.toml"
+    condition: and(succeeded(), ne(variables['CARGO_REGISTRY'], 'none'))
+    displayName: Setup Cargo Registry
+
+  - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       exec { rustup default $RUSTUP_TOOLCHAIN }
       exec { rustup update $RUSTUP_TOOLCHAIN }
