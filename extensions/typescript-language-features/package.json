@@ -35,7 +35,7 @@
   "dependencies": {
     "@vscode/extension-telemetry": "0.7.5",
     "jsonc-parser": "^3.2.0",
-    "semver": "5.5.1",
+    "semver": "7.5.2",
     "vscode-tas-client": "^0.1.63",
     "@vscode/sync-api-client": "^0.7.2",
     "@vscode/sync-api-common": "^0.7.2",
