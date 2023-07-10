@@ -135,6 +135,7 @@
 		"git",
 		"sash"
 	],
+	"githubPullRequests.experimental.createView": true,
 	"debug.javascript.terminalOptions": {
 		"outFiles": [
 			"${workspaceFolder}/out/**/*.js",
