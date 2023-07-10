@@ -65,8 +65,7 @@
 			],
 			"group": {
 				"kind": "build",
-				"isDefault": true,
-				"glob": ""
+				"isDefault": true
 			},
 			"problemMatcher": []
 		},
