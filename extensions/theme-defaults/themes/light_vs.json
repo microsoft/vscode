@@ -62,11 +62,7 @@
 			}
 		},
 		{
-			"name": "Comments",
-			"scope": [
-				"comment",
-				"string.quoted.docstring"
-			],
+			"scope": "comment",
 			"settings": {
 				"foreground": "#008000"
 			}
