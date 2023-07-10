@@ -265,12 +265,20 @@ function scrollingEnabled(output: OutputItem, options: RenderOptions) {
 		metadata.scrollable : options.outputScrolling;
 }
 
+interface OutputWithAppend extends OutputItem {
+	appendedText?(): string | undefined;
+}
+
 //  div.cell_container
 //    div.output_container
 //      div.output.output-stream		<-- outputElement parameter
 //        div.scrollable? tabindex="0" 	<-- contentParent
 //          div output-item-id="{guid}"	<-- content from outputItem parameter
-function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
+function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
+	const appendedText = outputInfo.appendedText?.();
+	if (appendedText) {
+		console.log(`appending output version ${appendedText}`);
+	}
 	const disposableStore = createDisposableStore();
 	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
 
@@ -301,6 +309,9 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 		const existingContent = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
 		let contentParent = existingContent?.parentElement;
 		if (existingContent && contentParent) {
+			if (appendedText){
+				existingContent
+			}
 			existingContent.replaceWith(newContent);
 			while (newContent.nextSibling) {
 				// clear out any stale content if we had previously combined streaming outputs into this one

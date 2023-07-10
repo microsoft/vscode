@@ -1506,6 +1506,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		if (content.type === RenderOutputType.Extension) {
 			const output = content.source.model;
 			const firstBuffer = output.outputs.find(op => op.mime === content.mimeType)!;
+			const appenededData = output.appendedSinceVersion(outputCache.versionId, content.mimeType);
+			const appended = appenededData ? { valueBytes: appenededData.buffer, previousVersion: outputCache.versionId } : undefined;
 
 			const valueBytes = copyBufferIfNeeded(firstBuffer.data.buffer, transfer);
 			updatedContent = {
@@ -1515,6 +1517,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				output: {
 					mime: content.mimeType,
 					valueBytes,
+					appended: appended
 				},
 				allOutputs: output.outputs.map(output => ({ mime: output.mime }))
 			};
