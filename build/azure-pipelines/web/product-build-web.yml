@@ -139,7 +139,11 @@ steps:
         node build/azure-pipelines/upload-nlsmetadata
     displayName: Upload NLS Metadata
 
+  - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
+    condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
+    displayName: Generate artifact prefix
+
   - publish: $(WEB_PATH)
-    artifact: vscode_web_linux_standalone_archive-unsigned
+    artifact: $(ARTIFACT_PREFIX)vscode_web_linux_standalone_archive-unsigned
     condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
     displayName: Publish web archive

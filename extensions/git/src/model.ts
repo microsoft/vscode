@@ -493,8 +493,9 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	@sequentialize
 	async openRepository(repoPath: string, openIfClosed = false): Promise<void> {
 		this.logger.trace(`Opening repository: ${repoPath}`);
-		if (this.getRepositoryExact(repoPath)) {
-			this.logger.trace(`Repository for path ${repoPath} already exists`);
+		const existingRepository = await this.getRepositoryExact(repoPath);
+		if (existingRepository) {
+			this.logger.trace(`Repository for path ${repoPath} already exists: ${existingRepository.root})`);
 			return;
 		}
 
@@ -524,8 +525,9 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			const { repositoryRoot, unsafeRepositoryMatch } = await this.getRepositoryRoot(repoPath);
 			this.logger.trace(`Repository root for path ${repoPath} is: ${repositoryRoot}`);
 
-			if (this.getRepositoryExact(repositoryRoot)) {
-				this.logger.trace(`Repository for path ${repositoryRoot} already exists`);
+			const existingRepository = await this.getRepositoryExact(repositoryRoot);
+			if (existingRepository) {
+				this.logger.trace(`Repository for path ${repositoryRoot} already exists: ${existingRepository.root}`);
 				return;
 			}
 
@@ -763,9 +765,12 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		return liveRepository && liveRepository.repository;
 	}
 
-	private getRepositoryExact(repoPath: string): Repository | undefined {
-		const openRepository = this.openRepositories
-			.find(r => pathEquals(r.repository.root, repoPath));
+	private async getRepositoryExact(repoPath: string): Promise<Repository | undefined> {
+		const repoPathCanonical = await fs.promises.realpath(repoPath, { encoding: 'utf8' });
+		const openRepository = this.openRepositories.find(async r => {
+			const rootPathCanonical = await fs.promises.realpath(r.repository.root, { encoding: 'utf8' });
+			return pathEquals(rootPathCanonical, repoPathCanonical);
+		});
 		return openRepository?.repository;
 	}
 
