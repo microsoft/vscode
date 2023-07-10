@@ -96,11 +96,15 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 			});
 			this.outputs.length = 0;
 			mimeTypes.forEach(mime => {
-				const compressed = compressOutputItemStreams(mimeOutputs.get(mime)!);
+				const compressionResult = compressOutputItemStreams(mimeOutputs.get(mime)!);
 				this.outputs.push({
 					mime,
-					data: compressed
+					data: compressionResult.data
 				});
+				if (compressionResult.didCompression) {
+					// we can't rely on knowing buffer lengths if we've erased previous lines
+					this.versionedBufferLengths = {};
+				}
 			});
 		}
 	}
