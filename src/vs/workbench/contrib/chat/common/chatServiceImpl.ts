@@ -135,8 +135,8 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
-	private readonly _onDidCompleteSlashCommand = this._register(new Emitter<{ slashCommand: string; sessionId: string }>());
-	public readonly onDidCompleteSlashCommand = this._onDidCompleteSlashCommand.event;
+	private readonly _onDidSubmitSlashCommand = this._register(new Emitter<{ slashCommand: string; sessionId: string }>());
+	public readonly onDidSubmitSlashCommand = this._onDidSubmitSlashCommand.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -446,6 +446,9 @@ export class ChatService extends Disposable implements IChatService {
 
 				model.cancelRequest(request);
 			});
+			if (usedSlashCommand?.command) {
+				this._onDidSubmitSlashCommand.fire({ slashCommand: usedSlashCommand.command, sessionId: model.sessionId });
+			}
 			let rawResponse = await provider.provideReply({ session: model.session!, message: resolvedCommand }, progressCallback, token);
 			if (token.isCancellationRequested) {
 				return;
@@ -475,15 +478,9 @@ export class ChatService extends Disposable implements IChatService {
 					Promise.resolve(provider.provideFollowups(model.session!, CancellationToken.None)).then(followups => {
 						model.setFollowups(request, withNullAsUndefined(followups));
 						model.completeResponse(request);
-						if (usedSlashCommand?.command) {
-							this._onDidCompleteSlashCommand.fire({ slashCommand: usedSlashCommand.command, sessionId: model.sessionId });
-						}
 					});
 				} else {
 					model.completeResponse(request);
-					if (usedSlashCommand?.command) {
-						this._onDidCompleteSlashCommand.fire({ slashCommand: usedSlashCommand.command, sessionId: model.sessionId });
-					}
 				}
 			}
 		});
