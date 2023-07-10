@@ -66,6 +66,7 @@ const glob = require('glob');
 const util = require('util');
 const bootstrap = require('../../../src/bootstrap');
 const coverage = require('../coverage');
+const sinon = require('sinon');
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
@@ -121,36 +122,40 @@ function loadWorkbenchTestingUtilsModule() {
 	});
 }
 
-function loadTestModules(opts) {
+async function loadTestModules(opts) {
+
+	let modules;
 
 	if (opts.run) {
 		const files = Array.isArray(opts.run) ? opts.run : [opts.run];
-		const modules = files.map(file => {
+		modules = files.map(file => {
 			file = file.replace(/^src/, 'out');
 			file = file.replace(/\.ts$/, '.js');
 			return path.relative(_out, file).replace(/\.js$/, '');
 		});
-		return new Promise((resolve, reject) => {
-			loader.require(modules, resolve, reject);
+	}
+
+	else {
+		const pattern = opts.runGlob || _tests_glob;
+		modules = await new Promise((resolve, reject) => {
+			glob(pattern, { cwd: _out }, (err, files) => {
+				if (err) {
+					reject(err);
+					return;
+				}
+				const modules = files.map(file => file.replace(/\.js$/, ''));
+				resolve(modules);
+			});
 		});
 	}
 
-	const pattern = opts.runGlob || _tests_glob;
+	for (const module of modules) {
+		await new Promise((resolve, reject) => {
+			loader.require([module], resolve, reject);
+		});
+		sinon.restore();
+	}
 
-	return new Promise((resolve, reject) => {
-		glob(pattern, { cwd: _out }, (err, files) => {
-			if (err) {
-				reject(err);
-				return;
-			}
-			const modules = files.map(file => file.replace(/\.js$/, ''));
-			resolve(modules);
-		});
-	}).then(modules => {
-		return new Promise((resolve, reject) => {
-			loader.require(modules, resolve, reject);
-		});
-	});
 }
 
 function loadTests(opts) {
