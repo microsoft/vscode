@@ -138,7 +138,7 @@ class InputEditorSlashCommandFollowups extends Disposable {
 		@IChatService private readonly chatService: IChatService
 	) {
 		super();
-		this._register(this.chatService.onDidCompleteSlashCommand(({ slashCommand, sessionId }) => this.repopulateSlashCommand(slashCommand, sessionId)));
+		this._register(this.chatService.onDidSubmitSlashCommand(({ slashCommand, sessionId }) => this.repopulateSlashCommand(slashCommand, sessionId)));
 	}
 
 	private async repopulateSlashCommand(slashCommand: string, sessionId: string) {
