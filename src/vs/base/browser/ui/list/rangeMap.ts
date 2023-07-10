@@ -97,13 +97,13 @@ export class RangeMap {
 		return this._paddingTop;
 	}
 
-	set paddingTop(topPadding: number) {
-		this._paddingTop = topPadding;
-		this._size = this._paddingTop + this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
+	set paddingTop(paddingTop: number) {
+		this._size = this._size + paddingTop - this._paddingTop;
+		this._paddingTop = paddingTop;
 	}
 
 	constructor(topPadding?: number) {
-		this._paddingTop = topPadding || 0;
+		this._paddingTop = topPadding ?? 0;
 		this._size = this._paddingTop;
 	}
 
