@@ -2878,7 +2878,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	/**
 	 *
 	 * @param tasks - The tasks which need to be filtered
-	 * @param tasksInList - This tells splitPerGroupType to filter out globbed tasks (into defaults)
+	 * @param taskGlobsInList - This tells splitPerGroupType to filter out globbed tasks (into defaults)
 	 * @returns
 	 */
 	private _getDefaultTasks(tasks: Task[], taskGlobsInList: boolean = false): Task[] {
