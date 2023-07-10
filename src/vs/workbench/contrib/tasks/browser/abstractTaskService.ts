@@ -2908,7 +2908,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: strings.fetching
 		};
 		const promise = (async () => {
-			let taskGroupTasks: (Task | ConfiguringTask)[] = [];
+			let groupTasks: (Task | ConfiguringTask)[] = [];
 
 			async function runSingleTask(task: Task | undefined, problemMatcherOptions: IProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
 				that.run(task, problemMatcherOptions, TaskRunSource.User).then(undefined, reason => {
@@ -2942,27 +2942,29 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (absoluteURI) {
 				const workspaceFolder = this._contextService.getWorkspaceFolder(absoluteURI);
 				if (workspaceFolder) {
-					const config = this._getConfiguration(workspaceFolder);
-					globTasksDetected = ((config?.config?.tasks) || []).filter(task => task.group && typeof task.group !== 'string' && typeof task.group.isDefault === 'string').length > 0;
+					const configuredTasks = this._getConfiguration(workspaceFolder)?.config?.tasks;
+					if (configuredTasks) {
+						globTasksDetected = configuredTasks.filter(task => task.group && typeof task.group !== 'string' && typeof task.group.isDefault === 'string').length > 0;
+						// This will activate extensions, so only do so if necessary #185960
+						if (globTasksDetected) {
+							// Fallback to absolute path of the file if it is not in a workspace or relative path cannot be found
+							const relativePath = workspaceFolder?.uri ? (resources.relativePath(workspaceFolder.uri, absoluteURI) ?? absoluteURI.path) : absoluteURI.path;
 
-					if (globTasksDetected) {
-						// fallback to absolute path of the file if it is not in a workspace or relative path cannot be found
-						const relativePath = workspaceFolder?.uri ? (resources.relativePath(workspaceFolder.uri, absoluteURI) ?? absoluteURI.path) : absoluteURI.path;
+							groupTasks = await this._findWorkspaceTasks((task) => {
+								const currentTaskGroup = task.configurationProperties.group;
+								if (currentTaskGroup && typeof currentTaskGroup !== 'string' && typeof currentTaskGroup.isDefault === 'string') {
+									return (currentTaskGroup._id === taskGroup._id && glob.match(currentTaskGroup.isDefault, relativePath));
+								}
 
-						taskGroupTasks = await this._findWorkspaceTasks((task) => {
-							const currentTaskGroup = task.configurationProperties.group;
-							if (currentTaskGroup && typeof currentTaskGroup !== 'string' && typeof currentTaskGroup.isDefault === 'string') {
-								return (currentTaskGroup._id === taskGroup._id && glob.match(currentTaskGroup.isDefault, relativePath));
-							}
-
-							return false;
-						});
+								return false;
+							});
+						}
 					}
 				}
 			}
 
-			if (!globTasksDetected && taskGroupTasks.length === 0) {
-				taskGroupTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build, true);
+			if (!globTasksDetected && groupTasks.length === 0) {
+				groupTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build, true);
 			}
 
 			const handleMultipleTasks = (areGlobTasks: boolean) => {
@@ -2995,25 +2997,25 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			};
 
 			// A single default glob task was returned, just run it directly
-			if (taskGroupTasks.length === 1) {
-				return resolveTaskAndRun(taskGroupTasks[0]);
+			if (groupTasks.length === 1) {
+				return resolveTaskAndRun(groupTasks[0]);
 			}
 
 			// If there's multiple globs that match we want to show the quick picker for those tasks
 			// We will need to call splitPerGroupType putting globs in defaults and the remaining tasks in none.
 			// We don't need to carry on after here
-			if (globTasksDetected && taskGroupTasks.length > 1) {
+			if (globTasksDetected && groupTasks.length > 1) {
 				return handleMultipleTasks(true);
 			}
 
 			// If no globs are found or matched fallback to checking for default tasks of the task group
-			if (!taskGroupTasks.length) {
-				taskGroupTasks = await this._findWorkspaceTasksInGroup(taskGroup, false);
+			if (!groupTasks.length) {
+				groupTasks = await this._findWorkspaceTasksInGroup(taskGroup, false);
 			}
 
 			// A single default task was returned, just run it directly
-			if (taskGroupTasks.length === 1) {
-				return resolveTaskAndRun(taskGroupTasks[0]);
+			if (groupTasks.length === 1) {
+				return resolveTaskAndRun(groupTasks[0]);
 			}
 
 			// Multiple default tasks returned, show the quickPicker
