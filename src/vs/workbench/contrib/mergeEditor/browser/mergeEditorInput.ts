@@ -19,6 +19,7 @@ import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/text
 import { IMergeEditorInputModel, TempFileMergeEditorModeFactory, WorkspaceMergeEditorModeFactory } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
 import { MergeEditorTelemetry } from 'vs/workbench/contrib/mergeEditor/browser/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILanguageSupport, ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class MergeEditorInputData {
@@ -59,8 +60,9 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(result, undefined, editorService, textFileService, labelService, fileService);
+		super(result, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService);
 	}
 
 	override dispose(): void {

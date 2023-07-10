@@ -311,10 +311,10 @@ suite('FileUserDataProvider - Watching', () => {
 	const rootFileResource = joinPath(ROOT, 'User');
 	const rootUserDataResource = rootFileResource.with({ scheme: Schemas.vscodeUserData });
 
-	const fileEventEmitter: Emitter<readonly IFileChange[]> = new Emitter<readonly IFileChange[]>();
-	disposables.add(fileEventEmitter);
+	let fileEventEmitter: Emitter<readonly IFileChange[]>;
 
 	setup(() => {
+		fileEventEmitter = disposables.add(new Emitter<readonly IFileChange[]>());
 		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.vscodeUserData, new NullLogService()));
 	});
 

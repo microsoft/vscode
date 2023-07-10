@@ -5,6 +5,7 @@
 
 import { promises as fs } from 'fs';
 import { createServer, Server } from 'net';
+import { dirname } from 'path';
 import * as vscode from 'vscode';
 
 const enum State {
@@ -72,8 +73,7 @@ export function activate(context: vscode.ExtensionContext): void {
 				e.affectsConfiguration(`${SETTING_SECTION}.${SETTING_STATE}`) ||
 				[...SETTINGS_CAUSE_REFRESH].some(setting => e.affectsConfiguration(setting))
 			) {
-				updateAutoAttach(State.Disabled);
-				updateAutoAttach(readCurrentState());
+				refreshAutoAttachVars();
 			}
 		}),
 	);
@@ -83,6 +83,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export async function deactivate(): Promise<void> {
 	await destroyAttachServer();
+}
+
+function refreshAutoAttachVars() {
+	updateAutoAttach(State.Disabled);
+	updateAutoAttach(readCurrentState());
 }
 
 function getDefaultScope(info: ReturnType<vscode.WorkspaceConfiguration['inspect']>) {
@@ -204,8 +209,22 @@ async function createAttachServer(context: vscode.ExtensionContext) {
 		return undefined;
 	}
 
-	server = createServerInner(ipcAddress).catch(err => {
-		console.error(err);
+	server = createServerInner(ipcAddress).catch(async err => {
+		console.error('[debug-auto-launch] Error creating auto attach server: ', err);
+
+		if (process.platform !== 'win32') {
+			// On macOS, and perhaps some Linux distros, the temporary directory can
+			// sometimes change. If it looks like that's the cause of a listener
+			// error, automatically refresh the auto attach vars.
+			try {
+				await fs.access(dirname(ipcAddress));
+			} catch {
+				console.error('[debug-auto-launch] Refreshing variables from error');
+				refreshAutoAttachVars();
+				return undefined;
+			}
+		}
+
 		return undefined;
 	});
 

@@ -35,7 +35,7 @@
   "dependencies": {
     "@vscode/extension-telemetry": "0.7.5",
     "jsonc-parser": "^3.2.0",
-    "semver": "5.5.1",
+    "semver": "7.5.2",
     "vscode-tas-client": "^0.1.63",
     "@vscode/sync-api-client": "^0.7.2",
     "@vscode/sync-api-common": "^0.7.2",
@@ -143,6 +143,12 @@
       "title": "%configuration.typescript%",
       "order": 20,
       "properties": {
+        "typescript.experimental.aiQuickFix": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.experimental.aiQuickFix%",
+          "scope": "resource"
+        },
         "typescript.tsdk": {
           "type": "string",
           "markdownDescription": "%typescript.tsdk.desc%",
@@ -231,17 +237,6 @@
           "default": [],
           "description": "%typescript.tsserver.pluginPaths%",
           "scope": "machine"
-        },
-        "typescript.tsserver.trace": {
-          "type": "string",
-          "enum": [
-            "off",
-            "messages",
-            "verbose"
-          ],
-          "default": "off",
-          "description": "%typescript.tsserver.trace%",
-          "scope": "window"
         },
         "javascript.suggest.completeFunctionCalls": {
           "type": "boolean",
@@ -524,6 +519,12 @@
             "%format.semicolons.insert%",
             "%format.semicolons.remove%"
           ]
+        },
+        "typescript.format.indentSwitchCase": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.indentSwitchCase%",
+          "scope": "resource"
         },
         "javascript.validate.enable": {
           "type": "boolean",
@@ -900,6 +901,12 @@
             "index",
             "js"
           ],
+          "enumItemLabels": [
+            null,
+            null,
+            null,
+            "%typescript.preferences.importModuleSpecifierEnding.label.js%"
+          ],
           "markdownEnumDescriptions": [
             "%typescript.preferences.importModuleSpecifierEnding.auto%",
             "%typescript.preferences.importModuleSpecifierEnding.minimal%",
@@ -917,6 +924,12 @@
             "minimal",
             "index",
             "js"
+          ],
+          "enumItemLabels": [
+            null,
+            null,
+            null,
+            "%typescript.preferences.importModuleSpecifierEnding.label.js%"
           ],
           "markdownEnumDescriptions": [
             "%typescript.preferences.importModuleSpecifierEnding.auto%",
@@ -1016,6 +1029,18 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.preferences.useAliasesForRenames%",
+          "scope": "language-overridable"
+        },
+        "javascript.preferences.renameMatchingJsxTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameMatchingJsxTags%",
+          "scope": "language-overridable"
+        },
+        "typescript.preferences.renameMatchingJsxTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameMatchingJsxTags%",
           "scope": "language-overridable"
         },
         "typescript.updateImportsOnFileMove.enabled": {
@@ -1213,14 +1238,29 @@
           "description": "%configuration.suggest.objectLiteralMethodSnippets.enabled%",
           "scope": "resource"
         },
-        "typescript.experimental.tsserver.web.enableProjectWideIntellisense": {
+        "typescript.tsserver.web.projectWideIntellisense.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.tsserver.web.projectWideIntellisense.enabled%",
+          "scope": "window"
+        },
+        "typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors%",
+          "scope": "window"
+        },
+        "typescript.preferGoToSourceDefinition": {
           "type": "boolean",
           "default": false,
-          "description": "%typescript.experimental.tsserver.web.enableProjectWideIntellisense%",
-          "scope": "window",
-          "tags": [
-            "experimental"
-          ]
+          "description": "%configuration.preferGoToSourceDefinition%",
+          "scope": "window"
+        },
+        "javascript.preferGoToSourceDefinition": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.preferGoToSourceDefinition%",
+          "scope": "window"
         }
       }
     },
@@ -1242,12 +1282,12 @@
       },
       {
         "command": "typescript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
+        "title": "%typescript.goToProjectConfig.title%",
         "category": "TypeScript"
       },
       {
         "command": "javascript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
+        "title": "%javascript.goToProjectConfig.title%",
         "category": "JavaScript"
       },
       {
@@ -1559,59 +1599,6 @@
           {
             "kind": "source.organizeImports",
             "title": "%codeActions.source.organizeImports.title%"
-          }
-        ]
-      }
-    ],
-    "walkthroughs": [
-      {
-        "id": "nodejsWelcome",
-        "title": "%walkthroughs.nodejsWelcome.title%",
-        "icon": "media/nodejsWalkthroughIcon.png",
-        "description": "%walkthroughs.nodejsWelcome.description%",
-        "when": "false",
-        "steps": [
-          {
-            "id": "walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows",
-            "title": "%walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows.title%",
-            "description": "%walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows.description%",
-            "media": {
-              "svg": "resources/walkthroughs/install-node-js.svg"
-            },
-            "when": "isWindows || isMac"
-          },
-          {
-            "id": "walkthroughs.nodejsWelcome.downloadNode.forLinux",
-            "title": "%walkthroughs.nodejsWelcome.downloadNode.forLinux.title%",
-            "description": "%walkthroughs.nodejsWelcome.downloadNode.forLinux.description%",
-            "media": {
-              "svg": "resources/walkthroughs/install-node-js.svg"
-            },
-            "when": "isLinux"
-          },
-          {
-            "id": "walkthroughs.nodejsWelcome.makeJsFile",
-            "title": "%walkthroughs.nodejsWelcome.makeJsFile.title%",
-            "description": "%walkthroughs.nodejsWelcome.makeJsFile.description%",
-            "media": {
-              "svg": "resources/walkthroughs/create-a-js-file.svg"
-            }
-          },
-          {
-            "id": "walkthroughs.nodejsWelcome.debugJsFile",
-            "title": "%walkthroughs.nodejsWelcome.debugJsFile.title%",
-            "description": "%walkthroughs.nodejsWelcome.debugJsFile.description%",
-            "media": {
-              "svg": "resources/walkthroughs/debug-and-run.svg"
-            }
-          },
-          {
-            "id": "walkthroughs.nodejsWelcome.learnMoreAboutJs",
-            "title": "%walkthroughs.nodejsWelcome.learnMoreAboutJs.title%",
-            "description": "%walkthroughs.nodejsWelcome.learnMoreAboutJs.description%",
-            "media": {
-              "svg": "resources/walkthroughs/learn-more.svg"
-            }
           }
         ]
       }

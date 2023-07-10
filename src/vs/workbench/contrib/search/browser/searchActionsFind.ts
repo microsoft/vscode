@@ -355,6 +355,7 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 
 	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
 	const viewsService = accessor.get(IViewsService);
+	const commandService = accessor.get(ICommandService);
 	const args: IFindInFilesArgs = {};
 	if (Object.keys(_args).length !== 0) {
 		// resolve variables in the same way as in
@@ -362,8 +363,9 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 		const configurationResolverService = accessor.get(IConfigurationResolverService);
 		const historyService = accessor.get(IHistoryService);
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot();
+		const filteredActiveWorkspaceRootUri = activeWorkspaceRootUri?.scheme === Schemas.file || activeWorkspaceRootUri?.scheme === Schemas.vscodeRemote ? activeWorkspaceRootUri : undefined;
+		const lastActiveWorkspaceRoot = filteredActiveWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(filteredActiveWorkspaceRootUri)) : undefined;
 
 		for (const entry of Object.entries(_args)) {
 			const name = entry[0];
@@ -402,7 +404,7 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 			onlyOpenEditors: args.onlyOpenEditors,
 			showIncludesExcludes: !!(args.filesToExclude || args.filesToExclude || !args.useExcludeSettingsAndIgnoreFiles),
 		});
-		accessor.get(ICommandService).executeCommand(SearchEditorConstants.OpenEditorCommandId, convertArgs(args));
+		commandService.executeCommand(SearchEditorConstants.OpenEditorCommandId, convertArgs(args));
 	}
 }
 //#endregion

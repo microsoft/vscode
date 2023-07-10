@@ -7,28 +7,28 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { DiagnosticKind, DiagnosticsManager } from './languageFeatures/diagnostics';
-import * as Proto from './protocol';
-import { EventName } from './protocol.const';
+import * as Proto from './tsServer/protocol/protocol';
+import { EventName } from './tsServer/protocol/protocol.const';
+import { API } from './tsServer/api';
 import BufferSyncSupport from './tsServer/bufferSyncSupport';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
+import { TypeScriptPluginPathsProvider } from './tsServer/pluginPathsProvider';
 import { ITypeScriptServer, TsServerLog, TsServerProcessFactory, TypeScriptServerExitEvent } from './tsServer/server';
 import { TypeScriptServerError } from './tsServer/serverError';
 import { TypeScriptServerSpawner } from './tsServer/spawner';
 import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
-import API from './utils/api';
-import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './utils/configuration';
+import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
 import { Disposable } from './utils/dispose';
-import * as fileSchemes from './utils/fileSchemes';
-import { Logger } from './utils/logger';
+import * as fileSchemes from './configuration/fileSchemes';
+import { Logger } from './logging/logger';
 import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
-import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
-import { PluginManager, TypeScriptServerPlugin } from './utils/plugins';
-import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './utils/telemetry';
-import Tracer from './utils/tracer';
-import { ProjectType, inferredProjectCompilerOptions } from './utils/tsconfig';
+import { PluginManager, TypeScriptServerPlugin } from './tsServer/plugins';
+import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './logging/telemetry';
+import Tracer from './logging/tracer';
+import { ProjectType, inferredProjectCompilerOptions } from './tsconfig';
 
 
 export interface TsDiagnostics {
@@ -91,10 +91,12 @@ namespace ServerState {
 	export type State = typeof None | Running | Errored;
 }
 
+export const emptyAuthority = 'ts-nul-authority';
+
+export const inMemoryResourcePrefix = '^';
+
 export default class TypeScriptServiceClient extends Disposable implements ITypeScriptServiceClient {
 
-	private readonly emptyAuthority = 'ts-nul-authority';
-	private readonly inMemoryResourcePrefix = '^';
 
 	private readonly _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void };
 	private _configuration: TypeScriptServiceConfiguration;
@@ -111,7 +113,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private _isPromptingAfterCrash = false;
 	private isRestarting: boolean = false;
 	private hasServerFatallyCrashedTooManyTimes = false;
-	private readonly loadingIndicator = new ServerInitializingIndicator();
+	private readonly loadingIndicator = this._register(new ServerInitializingIndicator());
 
 	public readonly telemetryReporter: TelemetryReporter;
 	public readonly bufferSyncSupport: BufferSyncSupport;
@@ -190,7 +192,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.versionProvider.updateConfiguration(this._configuration);
 			this._versionManager.updateConfiguration(this._configuration);
 			this.pluginPathsProvider.updateConfiguration(this._configuration);
-			this.tracer.updateConfiguration();
 
 			if (this.serverState.type === ServerState.Type.Running) {
 				if (!this._configuration.implicitProjectConfiguration.isEqualTo(oldConfiguration.implicitProjectConfiguration)) {
@@ -259,7 +260,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
 
 	private isProjectWideIntellisenseOnWebEnabled(): boolean {
-		return isWebAndHasSharedArrayBuffers() && this._configuration.enableProjectWideIntellisenseOnWeb;
+		return isWebAndHasSharedArrayBuffers() && this._configuration.webProjectWideIntellisenseEnabled;
 	}
 
 	private cancelInflightRequestsForResource(resource: vscode.Uri): void {
@@ -470,10 +471,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		});
 
 		handle.onEvent(event => this.dispatchEvent(event));
-
-		if (apiVersion.gte(API.v300) && this.capabilities.has(ClientCapability.Semantic)) {
-			this.loadingIndicator.startedLoadingProject(undefined /* projectName */);
-		}
 
 		this.serviceStarted(resendModels);
 
@@ -700,9 +697,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return resource.fsPath;
 		}
 
-		return (this.isProjectWideIntellisenseOnWebEnabled() ? '' : this.inMemoryResourcePrefix)
+		return (this.isProjectWideIntellisenseOnWebEnabled() ? '' : inMemoryResourcePrefix)
 			+ '/' + resource.scheme
-			+ '/' + (resource.authority || this.emptyAuthority)
+			+ '/' + (resource.authority || emptyAuthority)
 			+ (resource.path.startsWith('/') ? resource.path : '/' + resource.path)
 			+ (resource.fragment ? '#' + resource.fragment : '');
 	}
@@ -724,15 +721,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		switch (capability) {
-			case ClientCapability.Semantic:
-				{
-					return fileSchemes.semanticSupportedSchemes.includes(resource.scheme);
-				}
+			case ClientCapability.Semantic: {
+				return fileSchemes.getSemanticSupportedSchemes().includes(resource.scheme);
+			}
 			case ClientCapability.Syntax:
-			case ClientCapability.EnhancedSyntax:
-				{
-					return true;
-				}
+			case ClientCapability.EnhancedSyntax: {
+				return true;
+			}
 		}
 	}
 
@@ -746,46 +741,36 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 			const parts = filepath.match(/^\/([^\/]+)\/([^\/]*)\/(.+)$/);
 			if (parts) {
-				const resource = vscode.Uri.parse(parts[1] + '://' + (parts[2] === this.emptyAuthority ? '' : parts[2]) + '/' + parts[3]);
+				const resource = vscode.Uri.parse(parts[1] + '://' + (parts[2] === emptyAuthority ? '' : parts[2]) + '/' + parts[3]);
 				return this.bufferSyncSupport.toVsCodeResource(resource);
 			}
 		}
 
-		if (filepath.startsWith(this.inMemoryResourcePrefix)) {
+		if (filepath.startsWith(inMemoryResourcePrefix)) {
 			const parts = filepath.match(/^\^\/([^\/]+)\/([^\/]*)\/(.+)$/);
 			if (parts) {
-				const resource = vscode.Uri.parse(parts[1] + '://' + (parts[2] === this.emptyAuthority ? '' : parts[2]) + '/' + parts[3]);
+				const resource = vscode.Uri.parse(parts[1] + '://' + (parts[2] === emptyAuthority ? '' : parts[2]) + '/' + parts[3]);
 				return this.bufferSyncSupport.toVsCodeResource(resource);
 			}
 		}
 		return this.bufferSyncSupport.toResource(filepath);
 	}
 
-	public getWorkspaceRootForResource(resource: vscode.Uri): string | undefined {
+	public getWorkspaceRootForResource(resource: vscode.Uri): vscode.Uri | undefined {
 		const roots = vscode.workspace.workspaceFolders ? Array.from(vscode.workspace.workspaceFolders) : undefined;
 		if (!roots?.length) {
-			if (resource.scheme === fileSchemes.officeScript) {
-				return '/';
-			}
 			return undefined;
 		}
 
-		let tsRootPath: string | undefined;
 		for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
 			if (root.uri.scheme === resource.scheme && root.uri.authority === resource.authority) {
 				if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
-					tsRootPath = this.toTsFilePath(root.uri);
-					break;
+					return root.uri;
 				}
 			}
 		}
 
-		tsRootPath ??= this.toTsFilePath(roots[0].uri);
-		if (!tsRootPath || tsRootPath.startsWith(this.inMemoryResourcePrefix)) {
-			return undefined;
-		}
-
-		return tsRootPath;
+		return undefined;
 	}
 
 	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {
@@ -907,7 +892,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				const diagnosticEvent = event as Proto.DiagnosticEvent;
 				if (diagnosticEvent.body?.diagnostics) {
 					this._onDiagnosticsReceived.fire({
-						kind: getDignosticsKind(event),
+						kind: getDiagnosticsKind(event),
 						resource: this.toResource(diagnosticEvent.body.file),
 						diagnostics: diagnosticEvent.body.diagnostics
 					});
@@ -1094,7 +1079,7 @@ ${error.serverStack}
 	};
 }
 
-function getDignosticsKind(event: Proto.Event) {
+function getDiagnosticsKind(event: Proto.Event) {
 	switch (event.event) {
 		case 'syntaxDiag': return DiagnosticKind.Syntax;
 		case 'semanticDiag': return DiagnosticKind.Semantic;

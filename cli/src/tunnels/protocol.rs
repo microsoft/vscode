@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use crate::{
 	constants::{PROTOCOL_VERSION, VSCODE_CLI_VERSION},
 	options::Quality,
+	update_service::Platform,
 };
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +18,7 @@ pub enum ClientRequestMethod<'a> {
 	servermsg(RefServerMessageParams<'a>),
 	serverlog(ServerLog<'a>),
 	makehttpreq(HttpRequestParams<'a>),
-	version(VersionParams),
+	version(VersionResponse),
 }
 
 #[derive(Deserialize, Debug)]
@@ -55,14 +56,6 @@ pub struct UnforwardParams {
 #[derive(Serialize)]
 pub struct ForwardResult {
 	pub uri: String,
-}
-
-/// The `install_local` method in the wsl control server
-#[derive(Deserialize, Debug)]
-pub struct InstallFromLocalFolderParams {
-	pub archive_path: String,
-	#[serde(flatten)]
-	pub inner: ServeParams,
 }
 
 #[derive(Deserialize, Debug)]
@@ -127,6 +120,26 @@ pub struct GetHostnameResponse {
 	pub value: String,
 }
 
+#[derive(Serialize)]
+pub struct GetEnvResponse {
+	pub env: HashMap<String, String>,
+	pub os_platform: &'static str,
+	pub os_release: String,
+}
+
+#[derive(Deserialize)]
+pub struct FsStatRequest {
+	pub path: String,
+}
+
+#[derive(Serialize, Default)]
+pub struct FsStatResponse {
+	pub exists: bool,
+	pub size: Option<u64>,
+	#[serde(rename = "type")]
+	pub kind: Option<&'static str>,
+}
+
 #[derive(Deserialize, Debug)]
 pub struct CallServerHttpParams {
 	pub path: String,
@@ -144,18 +157,56 @@ pub struct CallServerHttpResult {
 }
 
 #[derive(Serialize, Debug)]
-pub struct VersionParams {
+pub struct VersionResponse {
 	pub version: &'static str,
 	pub protocol_version: u32,
 }
 
-impl Default for VersionParams {
+impl Default for VersionResponse {
 	fn default() -> Self {
 		Self {
 			version: VSCODE_CLI_VERSION.unwrap_or("dev"),
 			protocol_version: PROTOCOL_VERSION,
 		}
 	}
+}
+
+#[derive(Deserialize)]
+pub struct SpawnParams {
+	pub command: String,
+	pub args: Vec<String>,
+	#[serde(default)]
+	pub cwd: Option<String>,
+	#[serde(default)]
+	pub env: HashMap<String, String>,
+}
+
+#[derive(Deserialize)]
+pub struct AcquireCliParams {
+	pub platform: Platform,
+	pub quality: Quality,
+	pub commit_id: Option<String>,
+	#[serde(flatten)]
+	pub spawn: SpawnParams,
+}
+
+#[derive(Serialize)]
+pub struct SpawnResult {
+	pub message: String,
+	pub exit_code: i32,
+}
+
+pub const METHOD_CHALLENGE_ISSUE: &str = "challenge_issue";
+pub const METHOD_CHALLENGE_VERIFY: &str = "challenge_verify";
+
+#[derive(Serialize, Deserialize)]
+pub struct ChallengeIssueResponse {
+	pub challenge: String,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct ChallengeVerifyParams {
+	pub response: String,
 }
 
 pub mod singleton {

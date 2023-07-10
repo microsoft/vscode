@@ -10,7 +10,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostNotebookDocumentSaveParticipantShape, IWorkspaceEditDto, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { NotebookDocumentSaveReason, WorkspaceEdit as WorksapceEditConverter } from 'vs/workbench/api/common/extHostTypeConverters';
+import { TextDocumentSaveReason, WorkspaceEdit as WorksapceEditConverter } from 'vs/workbench/api/common/extHostTypeConverters';
 import { WorkspaceEdit } from 'vs/workbench/api/common/extHostTypes';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { NotebookDocumentWillSaveEvent } from 'vscode';
@@ -53,7 +53,7 @@ export class ExtHostNotebookDocumentSaveParticipant implements ExtHostNotebookDo
 
 		const edits: WorkspaceEdit[] = [];
 
-		await this._onWillSaveNotebookDocumentEvent.fireAsync({ document: document.apiNotebook, reason: NotebookDocumentSaveReason.to(reason) }, token, async (thenable: Promise<unknown>, listener) => {
+		await this._onWillSaveNotebookDocumentEvent.fireAsync({ notebook: document.apiNotebook, reason: TextDocumentSaveReason.to(reason) }, token, async (thenable: Promise<unknown>, listener) => {
 			const now = Date.now();
 			const data = await await Promise.resolve(thenable);
 			if (Date.now() - now > this._thresholds.timeout) {
@@ -64,15 +64,12 @@ export class ExtHostNotebookDocumentSaveParticipant implements ExtHostNotebookDo
 				return;
 			}
 
-			if (data && Array.isArray(data)) {
-				// data can be an array of WorkspaceEdit
-				for (const edit of data) {
-					if (edit instanceof WorkspaceEdit) {
-						edits.push(edit);
-					} else {
-						// ignore invalid data
-						this._logService.warn('onWillSaveNotebookDocument-listener from extension', (<IExtensionListener<NotebookDocumentWillSaveEvent>>listener).extension.identifier, 'ignored due to invalid data');
-					}
+			if (data) {
+				if (data instanceof WorkspaceEdit) {
+					edits.push(data);
+				} else {
+					// ignore invalid data
+					this._logService.warn('onWillSaveNotebookDocument-listener from extension', (<IExtensionListener<NotebookDocumentWillSaveEvent>>listener).extension.identifier, 'ignored due to invalid data');
 				}
 			}
 

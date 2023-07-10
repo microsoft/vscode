@@ -33,7 +33,6 @@ export interface IUserDataSyncWorkbenchService {
 	readonly onDidChangeAccountStatus: Event<AccountStatus>;
 
 	turnOn(): Promise<void>;
-	turnOnUsingCurrentAccount(): Promise<void>;
 	turnoff(everyWhere: boolean): Promise<void>;
 	signIn(): Promise<void>;
 
@@ -56,6 +55,7 @@ export function getSyncAreaLabel(source: SyncResource): string {
 		case SyncResource.Extensions: return localize('extensions', "Extensions");
 		case SyncResource.GlobalState: return localize('ui state label', "UI State");
 		case SyncResource.Profiles: return localize('profiles', "Profiles");
+		case SyncResource.WorkspaceState: return localize('workspace state label', "Workspace State");
 	}
 }
 

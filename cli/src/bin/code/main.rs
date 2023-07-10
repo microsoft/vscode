@@ -8,7 +8,7 @@ use std::process::Command;
 
 use clap::Parser;
 use cli::{
-	commands::{args, internal_wsl, tunnels, update, version, CommandContext},
+	commands::{args, tunnels, update, version, CommandContext},
 	constants::get_default_user_agent,
 	desktop, log,
 	state::LauncherPaths,
@@ -36,7 +36,7 @@ async fn main() -> Result<(), std::convert::Infallible> {
 		});
 
 	let core = parsed.core();
-	let context_paths = LauncherPaths::new(&core.global_options.cli_data_dir).unwrap();
+	let context_paths = LauncherPaths::migrate(core.global_options.cli_data_dir.clone()).unwrap();
 	let context_args = core.clone();
 
 	// gets a command context without installing the global logger
@@ -65,9 +65,6 @@ async fn main() -> Result<(), std::convert::Infallible> {
 			..
 		}) => match cmd {
 			args::StandaloneCommands::Update(args) => update::update(context!(), args).await,
-			args::StandaloneCommands::Wsl(args) => match args.command {
-				args::WslCommands::Serve => internal_wsl::serve(context!()).await,
-			},
 		},
 		args::AnyCli::Standalone(args::StandaloneCli { core: c, .. })
 		| args::AnyCli::Integrated(args::IntegratedCli { core: c, .. }) => match c.subcommand {
@@ -97,6 +94,8 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				}
 				args::VersionSubcommand::Show => version::show(context!()).await,
 			},
+
+			Some(args::Commands::CommandShell) => tunnels::command_shell(context!()).await,
 
 			Some(args::Commands::Tunnel(tunnel_args)) => match tunnel_args.subcommand {
 				Some(args::TunnelSubcommand::Prune) => tunnels::prune(context!()).await,
@@ -134,7 +133,8 @@ fn make_logger(core: &args::CliCore) -> log::Logger {
 	let tracer = SdkTracerProvider::builder().build().tracer("codecli");
 	let mut log = log::Logger::new(tracer, log_level);
 	if let Some(f) = &core.global_options.log_to_file {
-		log = log.tee(log::FileLogSink::new(log_level, f).expect("expected to make file logger"))
+		log = log
+			.with_sink(log::FileLogSink::new(log_level, f).expect("expected to make file logger"))
 	}
 
 	log

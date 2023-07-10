@@ -94,18 +94,21 @@ export function raceCancellationError<T>(promise: Promise<T>, token: Cancellatio
 }
 
 /**
- * Returns as soon as one of the promises is resolved and cancels remaining promises
+ * Returns as soon as one of the promises resolves or rejects and cancels remaining promises
  */
 export async function raceCancellablePromises<T>(cancellablePromises: CancelablePromise<T>[]): Promise<T> {
 	let resolvedPromiseIndex = -1;
 	const promises = cancellablePromises.map((promise, index) => promise.then(result => { resolvedPromiseIndex = index; return result; }));
-	const result = await Promise.race(promises);
-	cancellablePromises.forEach((cancellablePromise, index) => {
-		if (index !== resolvedPromiseIndex) {
-			cancellablePromise.cancel();
-		}
-	});
-	return result;
+	try {
+		const result = await Promise.race(promises);
+		return result;
+	} finally {
+		cancellablePromises.forEach((cancellablePromise, index) => {
+			if (index !== resolvedPromiseIndex) {
+				cancellablePromise.cancel();
+			}
+		});
+	}
 }
 
 export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?: () => void): Promise<T | undefined> {
@@ -163,11 +166,13 @@ export interface ITask<T> {
  * 			throttler.queue(deliver);
  * 		}
  */
-export class Throttler {
+export class Throttler implements IDisposable {
 
 	private activePromise: Promise<any> | null;
 	private queuedPromise: Promise<any> | null;
 	private queuedPromiseFactory: ITask<Promise<any>> | null;
+
+	private isDisposed = false;
 
 	constructor() {
 		this.activePromise = null;
@@ -176,12 +181,20 @@ export class Throttler {
 	}
 
 	queue<T>(promiseFactory: ITask<Promise<T>>): Promise<T> {
+		if (this.isDisposed) {
+			throw new Error('Throttler is disposed');
+		}
+
 		if (this.activePromise) {
 			this.queuedPromiseFactory = promiseFactory;
 
 			if (!this.queuedPromise) {
 				const onComplete = () => {
 					this.queuedPromise = null;
+
+					if (this.isDisposed) {
+						return;
+					}
 
 					const result = this.queue(this.queuedPromiseFactory!);
 					this.queuedPromiseFactory = null;
@@ -210,6 +223,10 @@ export class Throttler {
 				reject(err);
 			});
 		});
+	}
+
+	dispose(): void {
+		this.isDisposed = true;
 	}
 }
 
@@ -400,6 +417,7 @@ export class ThrottledDelayer<T> {
 
 	dispose(): void {
 		this.delayer.dispose();
+		this.throttler.dispose();
 	}
 }
 
@@ -1403,6 +1421,11 @@ export class IntervalCounter {
 
 export type ValueCallback<T = unknown> = (value: T | Promise<T>) => void;
 
+const enum DeferredOutcome {
+	Resolved,
+	Rejected
+}
+
 /**
  * Creates a promise whose resolution or rejection can be controlled imperatively.
  */
@@ -1410,19 +1433,22 @@ export class DeferredPromise<T> {
 
 	private completeCallback!: ValueCallback<T>;
 	private errorCallback!: (err: unknown) => void;
-	private rejected = false;
-	private resolved = false;
+	private outcome?: { outcome: DeferredOutcome.Rejected; value: any } | { outcome: DeferredOutcome.Resolved; value: T };
 
 	public get isRejected() {
-		return this.rejected;
+		return this.outcome?.outcome === DeferredOutcome.Rejected;
 	}
 
 	public get isResolved() {
-		return this.resolved;
+		return this.outcome?.outcome === DeferredOutcome.Resolved;
 	}
 
 	public get isSettled() {
-		return this.rejected || this.resolved;
+		return !!this.outcome;
+	}
+
+	public get value() {
+		return this.outcome?.outcome === DeferredOutcome.Resolved ? this.outcome?.value : undefined;
 	}
 
 	public readonly p: Promise<T>;
@@ -1437,7 +1463,7 @@ export class DeferredPromise<T> {
 	public complete(value: T) {
 		return new Promise<void>(resolve => {
 			this.completeCallback(value);
-			this.resolved = true;
+			this.outcome = { outcome: DeferredOutcome.Resolved, value };
 			resolve();
 		});
 	}
@@ -1445,17 +1471,13 @@ export class DeferredPromise<T> {
 	public error(err: unknown) {
 		return new Promise<void>(resolve => {
 			this.errorCallback(err);
-			this.rejected = true;
+			this.outcome = { outcome: DeferredOutcome.Rejected, value: err };
 			resolve();
 		});
 	}
 
 	public cancel() {
-		new Promise<void>(resolve => {
-			this.errorCallback(new CancellationError());
-			this.rejected = true;
-			resolve();
-		});
+		return this.error(new CancellationError());
 	}
 }
 

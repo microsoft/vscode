@@ -31,7 +31,8 @@
           ".jslintrc",
           ".jsonld",
           ".geojson",
-		  ".ipynb"
+		      ".ipynb",
+          ".vuerc"
         ],
         "filenames": [
           "composer.lock",
@@ -65,6 +66,17 @@
           "typedoc.json"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "jsonl",
+        "aliases": [
+          "JSON Lines"
+        ],
+        "extensions": [
+          ".jsonl"
+        ],
+        "filenames": [],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -77,6 +89,11 @@
         "language": "jsonc",
         "scopeName": "source.json.comments",
         "path": "./syntaxes/JSONC.tmLanguage.json"
+      },
+      {
+        "language": "jsonl",
+        "scopeName": "source.json.lines",
+        "path": "./syntaxes/JSONL.tmLanguage.json"
       }
     ]
   },

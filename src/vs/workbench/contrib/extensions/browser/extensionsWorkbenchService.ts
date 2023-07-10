@@ -857,9 +857,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		// Check for updates
 		this.eventuallyCheckForUpdates(true);
 
-		// Always auto update builtin extensions in web
-		if (isWeb && !this.isAutoUpdateEnabled()) {
-			this.autoUpdateBuiltinExtensions();
+		if (isWeb) {
+			this.syncPinnedBuiltinExtensions();
+			// Always auto update builtin extensions in web
+			if (!this.isAutoUpdateEnabled()) {
+				this.autoUpdateBuiltinExtensions();
+			}
 		}
 	}
 
@@ -1333,7 +1336,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				// Skip if check updates only for builtin extensions and current extension is not builtin.
 				continue;
 			}
-			if (installed.isBuiltin && (installed.type === ExtensionType.System || !installed.local?.identifier.uuid)) {
+			if (installed.isBuiltin && !installed.pinned && (installed.type === ExtensionType.System || !installed.local?.identifier.uuid)) {
 				// Skip checking updates for a builtin extension if it is a system extension or if it does not has Marketplace identifier
 				continue;
 			}
@@ -1412,6 +1415,21 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		await Promises.settled(toUpdate.map(e => this.install(e, e.local?.preRelease ? { installPreReleaseVersion: true } : undefined)));
 	}
 
+	private async syncPinnedBuiltinExtensions(): Promise<void> {
+		const infos: IExtensionInfo[] = [];
+		for (const installed of this.local) {
+			if (installed.isBuiltin && installed.pinned && installed.local?.identifier.uuid) {
+				infos.push({ ...installed.identifier, version: installed.version });
+			}
+		}
+		if (infos.length) {
+			const galleryExtensions = await this.galleryService.getExtensions(infos, CancellationToken.None);
+			if (galleryExtensions.length) {
+				await this.syncInstalledExtensionsWithGallery(galleryExtensions);
+			}
+		}
+	}
+
 	private autoUpdateExtensions(): Promise<any> {
 		if (!this.isAutoUpdateEnabled()) {
 			return Promise.resolve();
@@ -1480,23 +1498,23 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	async installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void> {
 		await this.doInstall(extension, async () => {
+			const local = extension.local;
+			if (!local) {
+				throw new Error('Extension not found');
+			}
 			if (!extension.gallery) {
-				extension = (await this.getExtensions([extension.identifier], CancellationToken.None))[0] ?? extension;
+				extension = (await this.getExtensions([{ ...extension.identifier, preRelease: local.preRelease }], CancellationToken.None))[0] ?? extension;
 			}
 			if (extension.gallery) {
-				return server.extensionManagementService.installFromGallery(extension.gallery);
-			}
-
-			if (!extension.local) {
-				throw new Error('Extension not found');
+				return server.extensionManagementService.installFromGallery(extension.gallery, { installPreReleaseVersion: local.preRelease });
 			}
 
 			const targetPlatform = await server.extensionManagementService.getTargetPlatform();
-			if (!isTargetPlatformCompatible(extension.local.targetPlatform, [extension.local.targetPlatform], targetPlatform)) {
+			if (!isTargetPlatformCompatible(local.targetPlatform, [local.targetPlatform], targetPlatform)) {
 				throw new Error(nls.localize('incompatible', "Can't install '{0}' extension because it is not compatible.", extension.identifier.id));
 			}
 
-			const vsix = await this.extensionManagementService.zip(extension.local);
+			const vsix = await this.extensionManagementService.zip(local);
 			try {
 				return await server.extensionManagementService.install(vsix);
 			} finally {

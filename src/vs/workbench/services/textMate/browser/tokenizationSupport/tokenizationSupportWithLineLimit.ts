@@ -11,6 +11,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, keepAlive } from 'vs/base/common/observable';
 
 export class TokenizationSupportWithLineLimit extends Disposable implements ITokenizationSupport {
+	get backgroundTokenizerShouldOnlyVerifyTokens(): boolean | undefined {
+		return this._actual.backgroundTokenizerShouldOnlyVerifyTokens;
+	}
+
 	constructor(
 		private readonly _encodedLanguageId: LanguageId,
 		private readonly _actual: ITokenizationSupport,

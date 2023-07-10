@@ -41,8 +41,7 @@ module.exports = [withBrowserDefaults({
 			patterns: [
 				{
 					from: '../node_modules/typescript/lib/*.d.ts',
-					to: 'typescript/',
-					flatten: true
+					to: 'typescript/[name][ext]',
 				},
 				{
 					from: '../node_modules/typescript/lib/typesMap.json',
@@ -50,9 +49,14 @@ module.exports = [withBrowserDefaults({
 				},
 				...languages.map(lang => ({
 					from: `../node_modules/typescript/lib/${lang}/**/*`,
-					to: 'typescript/',
-					transformPath: (targetPath) => {
-						return targetPath.replace(/\.\.[\/\\]node_modules[\/\\]typescript[\/\\]lib/, '');
+					to: (pathData) => {
+						const normalizedFileName = pathData.absoluteFilename.replace(/[\\/]/g, '/');
+						const match = normalizedFileName.match(/typescript\/lib\/(.*)/);
+						if (match) {
+							return `typescript/${match[1]}`;
+						}
+						console.log(`Did not find typescript/lib in ${normalizedFileName}`);
+						return 'typescript/';
 					}
 				}))
 			],

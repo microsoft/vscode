@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-native-private */
+
 import { mapFind } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -23,9 +25,11 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostTestItemCollection, TestItemImpl, TestItemRootImpl, toItemFromContext } from 'vs/workbench/api/common/extHostTestItem';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { TestRunProfileKind, TestRunRequest } from 'vs/workbench/api/common/extHostTypes';
+import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
 import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestItem, ITestItemContext, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 interface ControllerInfo {
@@ -64,6 +68,24 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				const controller = this.controllers.get(TestId.root(targetTest));
 				return controller?.collection.tree.get(targetTest)?.actual ?? toItemFromContext(arg);
 			}
+		});
+
+		commands.registerCommand(false, 'testing.getExplorerSelection', async (): Promise<any> => {
+			const inner = await commands.executeCommand<{
+				include: string[];
+				exclude: string[];
+			}>(TestCommandId.GetExplorerSelection);
+
+			const lookup = (i: string) => {
+				const controller = this.controllers.get(TestId.root(i));
+				if (!controller) { return undefined; }
+				return TestId.isRoot(i) ? controller.controller : controller.collection.tree.get(i)?.actual;
+			};
+
+			return {
+				include: inner?.include.map(lookup).filter(isDefined) || [],
+				exclude: inner?.exclude.map(lookup).filter(isDefined) || [],
+			};
 		});
 	}
 
@@ -117,6 +139,13 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			},
 			createTestRun: (request, name, persist = true) => {
 				return this.runTracker.createTestRun(controllerId, collection, request, name, persist);
+			},
+			invalidateTestResults: items => {
+				checkProposedApiEnabled(extension, 'testInvalidateResults');
+				for (const item of items instanceof Array ? items : [items]) {
+					const id = item ? TestId.fromExtHostTestItem(item, controllerId).toString() : controllerId;
+					this.proxy.$markTestRetired(id);
+				}
 			},
 			set resolveHandler(fn) {
 				collection.resolveHandler = fn;
@@ -1063,4 +1092,3 @@ const profileGroupToBitset: { [K in TestRunProfileKind]: TestRunProfileBitset } 
 	[TestRunProfileKind.Debug]: TestRunProfileBitset.Debug,
 	[TestRunProfileKind.Run]: TestRunProfileBitset.Run,
 };
-

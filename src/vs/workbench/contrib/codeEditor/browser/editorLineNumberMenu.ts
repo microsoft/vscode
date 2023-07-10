@@ -9,7 +9,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
@@ -17,7 +17,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export interface IGutterActionsGenerator {
-	(context: { lineNumber: number; editor: ICodeEditor; accessor: ServicesAccessor }, result: { push(action: IAction): void }): void;
+	(context: { lineNumber: number; editor: ICodeEditor; accessor: ServicesAccessor }, result: { push(action: IAction, group?: string): void }): void;
 }
 
 export class GutterActionsRegistryImpl {
@@ -83,17 +83,27 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 		const contextKeyService = this.contextKeyService.createOverlay([['editorLineNumber', lineNumber]]);
 		const menu = this.menuService.createMenu(MenuId.EditorLineNumberContext, contextKeyService);
 
-		const actions: IAction[][] = [];
+		const allActions: [string, (IAction | MenuItemAction | SubmenuItemAction)[]][] = [];
 
 		this.instantiationService.invokeFunction(accessor => {
 			for (const generator of GutterActionsRegistry.getGutterActionsGenerators()) {
-				const collectedActions: IAction[] = [];
-				generator({ lineNumber, editor: this.editor, accessor }, { push: (action: IAction) => collectedActions.push(action) });
-				actions.push(collectedActions);
+				const collectedActions = new Map<string, IAction[]>();
+				generator({ lineNumber, editor: this.editor, accessor }, {
+					push: (action: IAction, group: string = 'navigation') => {
+						const actions = (collectedActions.get(group) ?? []);
+						actions.push(action);
+						collectedActions.set(group, actions);
+					}
+				});
+				for (const [group, actions] of collectedActions.entries()) {
+					allActions.push([group, actions]);
+				}
 			}
 
+			allActions.sort((a, b) => a[0].localeCompare(b[0]));
+
 			const menuActions = menu.getActions({ arg: { lineNumber, uri: model.uri }, shouldForwardArgs: true });
-			actions.push(...menuActions.map(a => a[1]));
+			allActions.push(...menuActions);
 
 			// if the current editor selections do not contain the target line number,
 			// set the selection to the clicked line number
@@ -113,7 +123,7 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
-				getActions: () => Separator.join(...actions),
+				getActions: () => Separator.join(...allActions.map((a) => a[1])),
 				onHide: () => menu.dispose(),
 			});
 		});

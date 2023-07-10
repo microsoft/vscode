@@ -9,6 +9,24 @@ import { BugIndicatingError } from 'vs/base/common/errors';
  * A range of offsets (0-based).
 */
 export class OffsetRange {
+	public static addRange(range: OffsetRange, sortedRanges: OffsetRange[]): void {
+		let i = 0;
+		while (i < sortedRanges.length && sortedRanges[i].endExclusive < range.start) {
+			i++;
+		}
+		let j = i;
+		while (j < sortedRanges.length && sortedRanges[j].start <= range.endExclusive) {
+			j++;
+		}
+		if (i === j) {
+			sortedRanges.splice(i, 0, range);
+		} else {
+			const start = Math.min(range.start, sortedRanges[i].start);
+			const end = Math.max(range.endExclusive, sortedRanges[j - 1].endExclusive);
+			sortedRanges.splice(i, j - i, new OffsetRange(start, end));
+		}
+	}
+
 	public static tryCreate(start: number, endExclusive: number): OffsetRange | undefined {
 		if (start > endExclusive) {
 			return undefined;
@@ -64,9 +82,9 @@ export class OffsetRange {
 	 * The resulting range is empty if the ranges do not intersect, but touch.
 	 * If the ranges don't even touch, the result is undefined.
 	 */
-	public intersect(seq1Range: OffsetRange): OffsetRange | undefined {
-		const start = Math.max(this.start, seq1Range.start);
-		const end = Math.min(this.endExclusive, seq1Range.endExclusive);
+	public intersect(other: OffsetRange): OffsetRange | undefined {
+		const start = Math.max(this.start, other.start);
+		const end = Math.min(this.endExclusive, other.endExclusive);
 		if (start <= end) {
 			return new OffsetRange(start, end);
 		}

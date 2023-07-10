@@ -89,11 +89,8 @@ export interface IProductConfiguration {
 	readonly tasConfig?: {
 		endpoint: string;
 		telemetryEventName: string;
-		featuresTelemetryPropertyName: string;
 		assignmentContextTelemetryPropertyName: string;
 	};
-
-	readonly experimentsUrl?: string;
 
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
@@ -139,6 +136,7 @@ export interface IProductConfiguration {
 	};
 
 	readonly documentationUrl?: string;
+	readonly serverDocumentationUrl?: string;
 	readonly releaseNotesUrl?: string;
 	readonly keyboardShortcutsUrlMac?: string;
 	readonly keyboardShortcutsUrlLinux?: string;
@@ -151,6 +149,7 @@ export interface IProductConfiguration {
 	readonly reportIssueUrl?: string;
 	readonly reportMarketplaceIssueUrl?: string;
 	readonly licenseUrl?: string;
+	readonly serverLicenseUrl?: string;
 	readonly privacyStatementUrl?: string;
 	readonly showTelemetryOptOut?: boolean;
 
@@ -189,6 +188,9 @@ export interface IProductConfiguration {
 
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
+	readonly profileTemplatesUrl?: string;
+
+	readonly commonlyUsedSettings?: string[];
 }
 
 export interface ITunnelApplicationConfig {
@@ -199,6 +201,11 @@ export interface ITunnelApplicationConfig {
 
 export interface IExtensionRecommendations {
 	readonly onFileOpen: IFileOpenCondition[];
+	readonly onSettingsEditorOpen?: ISettingsEditorOpenCondition;
+}
+
+export interface ISettingsEditorOpenCondition {
+	readonly prerelease: boolean | string;
 }
 
 export interface IExtensionRecommendationCondition {
@@ -250,14 +257,24 @@ export interface IRemoteExtensionTip {
 	friendlyName: string;
 	extensionId: string;
 	supportedPlatforms?: PlatformName[];
-	showInStartEntry?: boolean;
+	startEntry?: {
+		helpLink: string;
+		startConnectLabel: string;
+		startCommand: string;
+		priority: number;
+	};
 }
 
 export interface IVirtualWorkspaceExtensionTip {
 	friendlyName: string;
 	extensionId: string;
 	supportedPlatforms?: PlatformName[];
-	showInStartEntry?: boolean;
+	startEntry: {
+		helpLink: string;
+		startConnectLabel: string;
+		startCommand: string;
+		priority: number;
+	};
 }
 
 export interface ISurveyData {

@@ -23,8 +23,9 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { asJson, asText, asTextOrError, IRequestService, isSuccess as isSuccessContext } from 'vs/platform/request/common/request';
 import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { CONFIGURATION_SYNC_STORE_KEY, HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
+import { HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 
+const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 const SYNC_PREVIOUS_STORE = 'sync.previous.store';
 const DONOT_MAKE_REQUESTS_UNTIL_KEY = 'sync.donot-make-requests-until';
 const USER_SESSION_ID_KEY = 'sync.user-session-id';
@@ -61,27 +62,27 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	}
 
 	protected updateUserDataSyncStore(): void {
-		this._userDataSyncStore = this.toUserDataSyncStore(this.productService[CONFIGURATION_SYNC_STORE_KEY], this.configurationService.getValue<ConfigurationSyncStore>(CONFIGURATION_SYNC_STORE_KEY));
+		this._userDataSyncStore = this.toUserDataSyncStore(this.productService[CONFIGURATION_SYNC_STORE_KEY]);
 		this._onDidChangeUserDataSyncStore.fire();
 	}
 
-	protected toUserDataSyncStore(productStore: ConfigurationSyncStore & { web?: ConfigurationSyncStore } | undefined, configuredStore?: ConfigurationSyncStore): UserDataSyncStore | undefined {
+	protected toUserDataSyncStore(configurationSyncStore: ConfigurationSyncStore & { web?: ConfigurationSyncStore } | undefined): UserDataSyncStore | undefined {
+		if (!configurationSyncStore) {
+			return undefined;
+		}
 		// Check for web overrides for backward compatibility while reading previous store
-		productStore = isWeb && productStore?.web ? { ...productStore, ...productStore.web } : productStore;
-		const value: Partial<ConfigurationSyncStore> = { ...(productStore || {}), ...(configuredStore || {}) };
-		if (value
-			&& isString(value.url)
-			&& isObject(value.authenticationProviders)
-			&& Object.keys(value.authenticationProviders).every(authenticationProviderId => Array.isArray(value!.authenticationProviders![authenticationProviderId].scopes))
+		configurationSyncStore = isWeb && configurationSyncStore.web ? { ...configurationSyncStore, ...configurationSyncStore.web } : configurationSyncStore;
+		if (isString(configurationSyncStore.url)
+			&& isObject(configurationSyncStore.authenticationProviders)
+			&& Object.keys(configurationSyncStore.authenticationProviders).every(authenticationProviderId => Array.isArray(configurationSyncStore!.authenticationProviders![authenticationProviderId].scopes))
 		) {
-			const syncStore = value as ConfigurationSyncStore;
-			const canSwitch = !!syncStore.canSwitch && !configuredStore?.url;
+			const syncStore = configurationSyncStore as ConfigurationSyncStore;
+			const canSwitch = !!syncStore.canSwitch;
 			const defaultType: UserDataSyncStoreType = syncStore.url === syncStore.insidersUrl ? 'insiders' : 'stable';
 			const type: UserDataSyncStoreType = (canSwitch ? this.userDataSyncStoreType : undefined) || defaultType;
-			const url = configuredStore?.url ||
-				(type === 'insiders' ? syncStore.insidersUrl
-					: type === 'stable' ? syncStore.stableUrl
-						: syncStore.url);
+			const url = type === 'insiders' ? syncStore.insidersUrl
+				: type === 'stable' ? syncStore.stableUrl
+					: syncStore.url;
 			return {
 				url: URI.parse(url),
 				type,
@@ -148,8 +149,8 @@ export class UserDataSyncStoreClient extends Disposable {
 	private readonly commonHeadersPromise: Promise<{ [key: string]: string }>;
 	private readonly session: RequestsSession;
 
-	private _onTokenFailed: Emitter<void> = this._register(new Emitter<void>());
-	readonly onTokenFailed: Event<void> = this._onTokenFailed.event;
+	private _onTokenFailed = this._register(new Emitter<UserDataSyncErrorCode>());
+	readonly onTokenFailed = this._onTokenFailed.event;
 
 	private _onTokenSucceed: Emitter<void> = this._register(new Emitter<void>());
 	readonly onTokenSucceed: Event<void> = this._onTokenSucceed.event;
@@ -528,7 +529,7 @@ export class UserDataSyncStoreClient extends Disposable {
 
 		const operationId = context.res.headers[HEADER_OPERATION_ID];
 		const requestInfo = { url, status: context.res.statusCode, 'execution-id': options.headers[HEADER_EXECUTION_ID], 'operation-id': operationId };
-		const isSuccess = isSuccessContext(context) || (context.res.statusCode && successCodes.indexOf(context.res.statusCode) !== -1);
+		const isSuccess = isSuccessContext(context) || (context.res.statusCode && successCodes.includes(context.res.statusCode));
 		let failureMessage = '';
 		if (isSuccess) {
 			this.logService.trace('Request succeeded', requestInfo);
@@ -537,10 +538,16 @@ export class UserDataSyncStoreClient extends Disposable {
 			failureMessage = await asText(context) || '';
 		}
 
-		if (context.res.statusCode === 401) {
+		if (context.res.statusCode === 401 || context.res.statusCode === 403) {
 			this.authToken = undefined;
-			this._onTokenFailed.fire();
-			throw new UserDataSyncStoreError(`Request '${url}' failed because of Unauthorized (401).`, url, UserDataSyncErrorCode.Unauthorized, context.res.statusCode, operationId);
+			if (context.res.statusCode === 401) {
+				this._onTokenFailed.fire(UserDataSyncErrorCode.Unauthorized);
+				throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of Unauthorized (401).`, url, UserDataSyncErrorCode.Unauthorized, context.res.statusCode, operationId);
+			}
+			if (context.res.statusCode === 403) {
+				this._onTokenFailed.fire(UserDataSyncErrorCode.Forbidden);
+				throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because the access is forbidden (403).`, url, UserDataSyncErrorCode.Forbidden, context.res.statusCode, operationId);
+			}
 		}
 
 		this._onTokenSucceed.fire();

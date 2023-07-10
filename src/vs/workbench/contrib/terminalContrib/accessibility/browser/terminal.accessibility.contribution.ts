@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -13,21 +12,20 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { terminalTabFocusContextKey } from 'vs/platform/terminal/common/terminal';
-import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerTerminalAction, revealActiveTerminal } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { AccessibilityHelpWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
-import { AccessibleBufferWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
-import { Terminal } from 'xterm';
-
-const category = terminalStrings.actionCategory;
+import { TerminalAccessibleContentProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
+import { AccessibleBufferWidget, NavigationType } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
+import type { Terminal } from 'xterm';
 
 class AccessibleBufferContribution extends DisposableStore implements ITerminalContribution {
-	static readonly ID: 'terminal.accessible-buffer';
+	static readonly ID = 'terminal.accessible-buffer';
 	static get(instance: ITerminalInstance): AccessibleBufferContribution | null {
 		return instance.getContribution<AccessibleBufferContribution>(AccessibleBufferContribution.ID);
 	}
@@ -53,38 +51,38 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 	async createCommandQuickPick(): Promise<IQuickPick<IQuickPickItem> | undefined> {
 		return this._accessibleBufferWidget?.createQuickPick();
 	}
+
+	navigateToCommand(type: NavigationType): void {
+		return this._accessibleBufferWidget?.navigateToCommand(type);
+	}
 }
 registerTerminalContribution(AccessibleBufferContribution.ID, AccessibleBufferContribution);
 
-registerTerminalAction({
-	id: TerminalCommandId.ShowTerminalAccessibilityHelp,
-	title: { value: localize('workbench.action.terminal.showAccessibilityHelp', "Show Terminal Accessibility Help"), original: 'Show Terminal Accessibility Help' },
-	keybinding: {
-		primary: KeyMod.Alt | KeyCode.F1,
-		weight: KeybindingWeight.WorkbenchContrib,
-		linux: {
-			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
-			secondary: [KeyMod.Alt | KeyCode.F1]
-		},
-		when: TerminalContextKeys.focus
-	},
-	run: async (c, accessor: ServicesAccessor) => {
-		const instantiationService = accessor.get(IInstantiationService);
-		const instance = await c.service.getActiveOrCreateInstance();
-		await revealActiveTerminal(instance, c);
-		const widget = instantiationService.createInstance(AccessibilityHelpWidget, instance);
-		instance.registerChildElement({
-			element: widget.element
-		});
-		widget.show();
+export class TerminalAccessibilityHelpContribution extends Disposable {
+	static ID: 'terminalAccessibilityHelpContribution';
+	constructor() {
+		super();
+
+		this._register(AccessibilityHelpAction.addImplementation(105, 'terminal', async accessor => {
+			const instantiationService = accessor.get(IInstantiationService);
+			const terminalService = accessor.get(ITerminalService);
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const instance = await terminalService.getActiveOrCreateInstance();
+			await terminalService.revealActiveTerminal();
+			const terminal = instance?.xterm;
+			if (!terminal) {
+				return;
+			}
+			accessibleViewService.registerProvider(instantiationService.createInstance(TerminalAccessibleContentProvider, instance, terminal));
+			accessibleViewService.show('terminal');
+		}, TerminalContextKeys.focus));
 	}
-});
+}
+registerTerminalContribution(TerminalAccessibilityHelpContribution.ID, TerminalAccessibilityHelpContribution);
 
 registerTerminalAction({
 	id: TerminalCommandId.FocusAccessibleBuffer,
 	title: { value: localize('workbench.action.terminal.focusAccessibleBuffer', 'Focus Accessible Buffer'), original: 'Focus Accessible Buffer' },
-	f1: true,
-	category,
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	keybinding: [
 		{
@@ -95,7 +93,7 @@ registerTerminalAction({
 	],
 	run: async (c) => {
 		const instance = await c.service.getActiveOrCreateInstance();
-		await revealActiveTerminal(instance, c);
+		await c.service.revealActiveTerminal();
 		if (!instance) {
 			return;
 		}
@@ -106,8 +104,6 @@ registerTerminalAction({
 registerTerminalAction({
 	id: TerminalCommandId.NavigateAccessibleBuffer,
 	title: { value: localize('workbench.action.terminal.navigateAccessibleBuffer', 'Navigate Accessible Buffer'), original: 'Navigate Accessible Buffer' },
-	f1: true,
-	category,
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	keybinding: [
 		{
@@ -118,11 +114,54 @@ registerTerminalAction({
 	],
 	run: async (c) => {
 		const instance = await c.service.getActiveOrCreateInstance();
-		await revealActiveTerminal(instance, c);
+		await c.service.revealActiveTerminal();
 		if (!instance) {
 			return;
 		}
 		const quickPick = await AccessibleBufferContribution.get(instance)?.createCommandQuickPick();
 		quickPick?.show();
+	}
+});
+
+registerTerminalAction({
+	id: TerminalCommandId.AccessibleBufferGoToNextCommand,
+	title: { value: localize('workbench.action.terminal.accessibleBufferGoToNextCommand', 'Accessible Buffer Go to Next Command'), original: 'Accessible Buffer Go to Next Command' },
+	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated, TerminalContextKeys.accessibleBufferFocus),
+	keybinding: [
+		{
+			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+			weight: KeybindingWeight.WorkbenchContrib + 2,
+			when: TerminalContextKeys.accessibleBufferFocus
+		}
+	],
+	run: async (c) => {
+		const instance = await c.service.getActiveOrCreateInstance();
+		await c.service.revealActiveTerminal();
+		if (!instance) {
+			return;
+		}
+		await AccessibleBufferContribution.get(instance)?.navigateToCommand(NavigationType.Next);
+	}
+});
+
+
+registerTerminalAction({
+	id: TerminalCommandId.AccessibleBufferGoToPreviousCommand,
+	title: { value: localize('workbench.action.terminal.accessibleBufferGoToPreviousCommand', 'Accessible Buffer Go to Previous Command'), original: 'Accessible Buffer Go to Previous Command' },
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.accessibleBufferFocus),
+	keybinding: [
+		{
+			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+			weight: KeybindingWeight.WorkbenchContrib + 2,
+			when: TerminalContextKeys.accessibleBufferFocus
+		}
+	],
+	run: async (c) => {
+		const instance = await c.service.getActiveOrCreateInstance();
+		await c.service.revealActiveTerminal();
+		if (!instance) {
+			return;
+		}
+		await AccessibleBufferContribution.get(instance)?.navigateToCommand(NavigationType.Previous);
 	}
 });

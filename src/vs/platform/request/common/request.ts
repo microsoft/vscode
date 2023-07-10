@@ -55,12 +55,11 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 	private counter = 0;
 
 	constructor(
-		remote: boolean,
 		loggerService: ILoggerService
 	) {
 		super();
-		this.logger = loggerService.createLogger(remote ? 'remotenetwork' : 'network', {
-			name: remote ? localize('remote request', "Network Requests (Remote)") : localize('request', "Network Requests"),
+		this.logger = loggerService.createLogger('network', {
+			name: localize('request', "Network Requests"),
 			when: CONTEXT_LOG_LEVEL.isEqualTo(LogLevelToString(LogLevel.Trace)).serialize()
 		});
 	}
@@ -139,7 +138,7 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 		properties: {
 			'http.proxy': {
 				type: 'string',
-				pattern: '^(https?|socks5?)://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
+				pattern: '^(https?|socks|socks4a?|socks5h?)://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
 				markdownDescription: localize('proxy', "The proxy setting to use. If not set, will be inherited from the `http_proxy` and `https_proxy` environment variables."),
 				restricted: true
 			},

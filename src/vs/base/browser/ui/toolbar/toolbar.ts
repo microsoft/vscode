@@ -30,6 +30,7 @@ export interface IToolBarOptions {
 	renderDropdownAsChildElement?: boolean;
 	moreIcon?: ThemeIcon;
 	allowContextMenu?: boolean;
+	skipTelemetry?: boolean;
 }
 
 /**
@@ -78,7 +79,8 @@ export class ToolBar extends Disposable {
 							keybindingProvider: this.options.getKeyBinding,
 							classNames: ThemeIcon.asClassNameArray(options.moreIcon ?? Codicon.toolBarMore),
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
-							menuAsChild: !!this.options.renderDropdownAsChildElement
+							menuAsChild: !!this.options.renderDropdownAsChildElement,
+							skipTelemetry: this.options.skipTelemetry
 						}
 					);
 					this.toggleMenuActionViewItem.setActionContext(this.actionBar.context);
@@ -106,7 +108,8 @@ export class ToolBar extends Disposable {
 							keybindingProvider: this.options.getKeyBinding,
 							classNames: action.class,
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
-							menuAsChild: !!this.options.renderDropdownAsChildElement
+							menuAsChild: !!this.options.renderDropdownAsChildElement,
+							skipTelemetry: this.options.skipTelemetry
 						}
 					);
 					result.setActionContext(this.actionBar.context);

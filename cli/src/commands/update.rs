@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+use std::sync::Arc;
+
 use indicatif::ProgressBar;
 
 use crate::{
@@ -17,7 +19,7 @@ use super::{args::StandaloneUpdateArgs, CommandContext};
 pub async fn update(ctx: CommandContext, args: StandaloneUpdateArgs) -> Result<i32, AnyError> {
 	let update_service = UpdateService::new(
 		ctx.log.clone(),
-		ReqwestSimpleHttp::with_client(ctx.http.clone()),
+		Arc::new(ReqwestSimpleHttp::with_client(ctx.http.clone())),
 	);
 	let update_service = SelfUpdate::new(&update_service)?;
 

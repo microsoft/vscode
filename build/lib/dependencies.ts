@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as path from 'path';
 import * as cp from 'child_process';
 const parseSemver = require('parse-semver');
+const root = fs.realpathSync(path.dirname(path.dirname(__dirname)));
 
 interface Tree {
 	readonly name: string;
@@ -54,8 +56,8 @@ function asYarnDependency(prefix: string, tree: Tree): Dependency | null {
 	return { name, version, path: dependencyPath, children };
 }
 
-function getYarnProductionDependencies(cwd: string): Dependency[] {
-	const raw = cp.execSync('yarn list --json', { cwd, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, 'inherit'] });
+function getYarnProductionDependencies(folderPath: string): Dependency[] {
+	const raw = cp.execSync('yarn list --json', { cwd: folderPath, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, 'inherit'] });
 	const match = /^{"type":"tree".*$/m.exec(raw);
 
 	if (!match || match.length !== 1) {
@@ -65,19 +67,37 @@ function getYarnProductionDependencies(cwd: string): Dependency[] {
 	const trees = JSON.parse(match[0]).data.trees as Tree[];
 
 	return trees
-		.map(tree => asYarnDependency(path.join(cwd, 'node_modules'), tree))
+		.map(tree => asYarnDependency(path.join(folderPath, 'node_modules'), tree))
 		.filter<Dependency>((dep): dep is Dependency => !!dep);
 }
 
-export function getProductionDependencies(cwd: string): FlatDependency[] {
+export function getProductionDependencies(folderPath: string): FlatDependency[] {
 	const result: FlatDependency[] = [];
-	const deps = getYarnProductionDependencies(cwd);
+	const deps = getYarnProductionDependencies(folderPath);
 	const flatten = (dep: Dependency) => { result.push({ name: dep.name, version: dep.version, path: dep.path }); dep.children.forEach(flatten); };
 	deps.forEach(flatten);
+
+	// Account for distro npm dependencies
+	const realFolderPath = fs.realpathSync(folderPath);
+	const relativeFolderPath = path.relative(root, realFolderPath);
+	const distroPackageJsonPath = `${root}/.build/distro/npm/${relativeFolderPath}/package.json`;
+
+	if (fs.existsSync(distroPackageJsonPath)) {
+		const distroPackageJson = JSON.parse(fs.readFileSync(distroPackageJsonPath, 'utf8'));
+		const distroDependencyNames = Object.keys(distroPackageJson.dependencies ?? {});
+
+		for (const name of distroDependencyNames) {
+			result.push({
+				name,
+				version: distroPackageJson.dependencies[name],
+				path: path.join(realFolderPath, 'node_modules', name)
+			});
+		}
+	}
+
 	return [...new Set(result)];
 }
 
 if (require.main === module) {
-	const root = path.dirname(path.dirname(__dirname));
 	console.log(JSON.stringify(getProductionDependencies(root), null, '  '));
 }

@@ -13,8 +13,8 @@ import { ProgressLocation, UnmanagedProgress } from 'vs/platform/progress/common
 import { IViewsService } from 'vs/workbench/common/views';
 import { AutoOpenTesting, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { LiveTestResult, TestResultItemChangeReason, TestStateCount } from 'vs/workbench/contrib/testing/common/testResult';
+import { isFailedState, TestStateCount } from 'vs/workbench/contrib/testing/common/testingStates';
+import { LiveTestResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
@@ -82,7 +82,7 @@ export class TestingProgressTrigger extends Disposable {
 	}
 
 	private openTestView() {
-		this.viewsService.openView(Testing.ExplorerViewId, false);
+		this.viewsService.openView(Testing.ResultsViewId, false);
 	}
 }
 
@@ -100,7 +100,7 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 
 	constructor(
 		@ITestResultService private readonly resultService: ITestResultService,
-		@IInstantiationService private readonly instantiaionService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 	}
@@ -126,11 +126,11 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 		}
 
 		if (!this.windowProg.value) {
-			this.windowProg.value = this.instantiaionService.createInstance(UnmanagedProgress, {
+			this.windowProg.value = this.instantiationService.createInstance(UnmanagedProgress, {
 				location: ProgressLocation.Window,
 				type: 'loading'
 			});
-			this.testViewProg.value = this.instantiaionService.createInstance(UnmanagedProgress, {
+			this.testViewProg.value = this.instantiationService.createInstance(UnmanagedProgress, {
 				location: Testing.ViewletId,
 				total: 1000,
 			});
@@ -148,7 +148,7 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 	}
 }
 
-type CountSummary = ReturnType<typeof collectTestStateCounts>;
+export type CountSummary = ReturnType<typeof collectTestStateCounts>;
 
 
 const collectTestStateCounts = (isRunning: boolean, ...counts: ReadonlyArray<TestStateCount>) => {

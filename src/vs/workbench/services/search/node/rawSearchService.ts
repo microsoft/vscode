@@ -12,7 +12,7 @@ import { compareItemsByFuzzyScore, FuzzyScorerCache, IItemAccessor, prepareQuery
 import { basename, dirname, join, sep } from 'vs/base/common/path';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Arch, getPlatformFileLimits } from 'vs/platform/files/common/files';
+import { ByteSize } from 'vs/platform/files/common/files';
 import { ICachedSearchStats, IFileQuery, IFileSearchProgressItem, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, IRawFileQuery, IRawQuery, IRawSearchService, IRawTextQuery, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFilePatternMatch, ITextQuery } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
@@ -73,10 +73,16 @@ export class SearchService implements IRawSearchService {
 	}
 
 	private ripgrepTextSearch(config: ITextQuery, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchSuccess> {
-		config.maxFileSize = getPlatformFileLimits(process.arch === 'ia32' ? Arch.IA32 : Arch.OTHER).maxFileSize;
+		config.maxFileSize = this.getPlatformFileLimits().maxFileSize;
 		const engine = new TextSearchEngineAdapter(config);
 
 		return engine.search(token, progressCallback, progressCallback);
+	}
+
+	private getPlatformFileLimits(): { readonly maxFileSize: number } {
+		return {
+			maxFileSize: process.arch === 'ia32' ? 300 * ByteSize.MB : 16 * ByteSize.GB
+		};
 	}
 
 	doFileSearch(config: IFileQuery, progressCallback: IProgressCallback, token?: CancellationToken): Promise<ISerializedSearchSuccess> {

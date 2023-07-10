@@ -157,7 +157,7 @@ abstract class StickyModelCandidateProvider<T> implements IStickyModelCandidateP
 	public abstract get provider(): LanguageFeatureRegistry<object> | null;
 
 	public computeStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): { statusPromise: Promise<Status> | Status; modelPromise: CancelablePromise<T | null> | null } {
-		if (!this.isProviderValid(textModel)) {
+		if (token.isCancellationRequested || !this.isProviderValid(textModel)) {
 			return { statusPromise: this._invalid(), modelPromise: null };
 		}
 		const providerModelPromise = createCancelablePromise(token => this.createModelFromProvider(textModel, modelVersionId, token));

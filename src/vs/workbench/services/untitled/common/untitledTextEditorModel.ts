@@ -243,6 +243,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return this.dirty;
 	}
 
+	isModified(): boolean {
+		return this.isDirty();
+	}
+
 	private setDirty(dirty: boolean): void {
 		if (this.dirty === dirty) {
 			return;
@@ -268,6 +272,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	async revert(): Promise<void> {
+
+		// No longer dirty
 		this.setDirty(false);
 
 		// Emit as event

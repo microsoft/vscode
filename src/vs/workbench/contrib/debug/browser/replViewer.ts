@@ -245,6 +245,7 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 	protected renderExpression(expression: IExpression | ReplVariableElement, data: IExpressionTemplateData, highlights: IHighlight[]): void {
 		const isReplVariable = expression instanceof ReplVariableElement;
 		if (isReplVariable || !expression.name) {
+			data.label.set('');
 			renderExpressionValue(isReplVariable ? expression.expr : expression, data.value, { showHover: false, colorize: true, linkDetector: this.linkDetector });
 			data.expression.classList.remove('nested-variable');
 		} else {

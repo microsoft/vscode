@@ -5,7 +5,6 @@
 
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -77,7 +76,7 @@ export class UtilityProcessWorkerWorkbenchService extends Disposable implements 
 	private _utilityProcessWorkerService: IUtilityProcessWorkerService | undefined = undefined;
 	private get utilityProcessWorkerService(): IUtilityProcessWorkerService {
 		if (!this._utilityProcessWorkerService) {
-			const channel = this.useUtilityProcess ? this.mainProcessService.getChannel(ipcUtilityProcessWorkerChannelName) : this.sharedProcessService.getChannel(ipcUtilityProcessWorkerChannelName);
+			const channel = this.mainProcessService.getChannel(ipcUtilityProcessWorkerChannelName);
 			this._utilityProcessWorkerService = ProxyChannel.toService<IUtilityProcessWorkerService>(channel);
 		}
 
@@ -88,9 +87,7 @@ export class UtilityProcessWorkerWorkbenchService extends Disposable implements 
 
 	constructor(
 		readonly windowId: number,
-		private readonly useUtilityProcess: boolean,
 		@ILogService private readonly logService: ILogService,
-		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
 		@IMainProcessService private readonly mainProcessService: IMainProcessService
 	) {
 		super();

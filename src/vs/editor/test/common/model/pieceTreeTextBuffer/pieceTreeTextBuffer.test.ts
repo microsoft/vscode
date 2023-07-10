@@ -1595,6 +1595,12 @@ suite('buffer api', () => {
 		assert(!a.equal(d));
 	});
 
+	test('equal with more chunks', () => {
+		const a = createTextBuffer(['ab', 'cd', 'e']);
+		const b = createTextBuffer(['ab', 'c', 'de']);
+		assert(a.equal(b));
+	});
+
 	test('equal 2, empty buffer', () => {
 		const a = createTextBuffer(['']);
 		const b = createTextBuffer(['']);

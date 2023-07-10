@@ -49,7 +49,7 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 	//#endregion
 
 	async getPassword(service: string, account: string): Promise<string | null> {
-		this.logService.trace('Getting password from keytar:', service, account);
+		this.logService.trace('Going to get password from keytar:', service, account);
 		let keytar: KeytarModule;
 		try {
 			keytar = await this.withKeytar();
@@ -62,6 +62,7 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 	}
 
 	private async doGetPassword(keytar: KeytarModule, service: string, account: string): Promise<string | null> {
+		this.logService.trace('Doing get password from keytar:', service, account);
 		const password = await retry(() => keytar.getPassword(service, account), 50, 3);
 		if (!password) {
 			this.logService.trace('Did not get a password from keytar for account:', account);
@@ -103,7 +104,7 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 	}
 
 	async setPassword(service: string, account: string, password: string): Promise<void> {
-		this.logService.trace('Setting password using keytar:', service, account);
+		this.logService.trace('Going to set password using keytar:', service, account);
 		let keytar: KeytarModule;
 		try {
 			keytar = await this.withKeytar();
@@ -117,6 +118,7 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 	}
 
 	private async doSetPassword(keytar: KeytarModule, service: string, account: string, password: string): Promise<void> {
+		this.logService.trace('Doing set password from keytar:', service, account);
 		if (!isWindows) {
 			await retry(() => keytar.setPassword(service, account, password), 50, 3);
 			this.logService.trace('Set password from keytar for account:', account);
@@ -140,7 +142,6 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 		let index = 0;
 		let chunk = 0;
 		let hasNextChunk = true;
-		const promises = [];
 		while (hasNextChunk) {
 			const passwordChunk = password.substring(index, index + BaseCredentialsMainService.PASSWORD_CHUNK_SIZE);
 			index += BaseCredentialsMainService.PASSWORD_CHUNK_SIZE;
@@ -150,17 +151,15 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 				content: passwordChunk,
 				hasNextChunk: hasNextChunk
 			};
-			promises.push(retry(() => keytar.setPassword(service, chunk ? `${account}-${chunk}` : account, JSON.stringify(content)), 50, 3));
+			await retry(() => keytar.setPassword(service, chunk ? `${account}-${chunk}` : account, JSON.stringify(content)), 50, 3);
 			chunk++;
 		}
-
-		await Promise.all(promises);
 
 		this.logService.trace(`Set${chunk ? ` ${chunk}-chunked` : ''} password from keytar for account:`, account);
 	}
 
 	async deletePassword(service: string, account: string): Promise<boolean> {
-		this.logService.trace('Deleting password using keytar:', service, account);
+		this.logService.trace('Going to delete password using keytar:', service, account);
 		let keytar: KeytarModule;
 		try {
 			keytar = await this.withKeytar();
@@ -177,6 +176,7 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 	}
 
 	private async doDeletePassword(keytar: KeytarModule, service: string, account: string): Promise<boolean> {
+		this.logService.trace('Doing delete password from keytar:', service, account);
 		const password = await keytar.getPassword(service, account);
 		if (!password) {
 			this.logService.trace('Did not get a password to delete from keytar for account:', account);

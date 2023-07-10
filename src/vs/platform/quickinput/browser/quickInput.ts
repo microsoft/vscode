@@ -27,7 +27,7 @@ import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { isString, withNullAsUndefined } from 'vs/base/common/types';
+import { isString, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
@@ -35,12 +35,12 @@ import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickIn
 import { QuickInputBox } from './quickInputBox';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { getIconClass, renderQuickInputDescription } from './quickInputUtils';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
 	container: HTMLElement;
 	ignoreFocusOut(): boolean;
-	isScreenReaderOptimized(): boolean;
 	backKeybindingLabel(): string | undefined;
 	setContextKey(id?: string): void;
 	linkOpenerDelegate(content: string): void;
@@ -66,6 +66,7 @@ export interface IQuickInputStyles {
 	readonly keybindingLabel: IKeybindingLabelStyles;
 	readonly list: IListStyles;
 	readonly pickerGroup: { pickerGroupBorder: string | undefined; pickerGroupForeground: string | undefined };
+	readonly colorScheme: ColorScheme;
 }
 
 export interface IQuickInputWidgetStyles {
@@ -94,6 +95,7 @@ interface QuickInputUI {
 	title: HTMLElement;
 	description1: HTMLElement;
 	description2: HTMLElement;
+	widget: HTMLElement;
 	rightActionBar: ActionBar;
 	checkAll: HTMLInputElement;
 	filterContainer: HTMLElement;
@@ -114,10 +116,8 @@ interface QuickInputUI {
 	onDidTriggerButton: Event<IQuickInputButton>;
 	ignoreFocusOut: boolean;
 	keyMods: Writeable<IKeyMods>;
-	isScreenReaderOptimized(): boolean;
 	show(controller: QuickInput): void;
 	setVisibilities(visibilities: Visibilities): void;
-	setComboboxAccessibility(enabled: boolean): void;
 	setEnabled(enabled: boolean): void;
 	setContextKey(contextKey?: string): void;
 	linkOpenerDelegate(content: string): void;
@@ -144,6 +144,8 @@ class QuickInput extends Disposable implements IQuickInput {
 
 	private _title: string | undefined;
 	private _description: string | undefined;
+	private _widget: HTMLElement | undefined;
+	private _widgetUpdated = false;
 	private _steps: number | undefined;
 	private _totalSteps: number | undefined;
 	protected visible = false;
@@ -190,6 +192,21 @@ class QuickInput extends Disposable implements IQuickInput {
 	set description(description: string | undefined) {
 		this._description = description;
 		this.update();
+	}
+
+	get widget() {
+		return this._widget;
+	}
+
+	set widget(widget: unknown | undefined) {
+		if (!(widget instanceof HTMLElement)) {
+			return;
+		}
+		if (this._widget !== widget) {
+			this._widget = widget;
+			this._widgetUpdated = true;
+			this.update();
+		}
 	}
 
 	get step() {
@@ -353,6 +370,14 @@ class QuickInput extends Disposable implements IQuickInput {
 		}
 		if (this.ui.description2.textContent !== description) {
 			this.ui.description2.textContent = description;
+		}
+		if (this._widgetUpdated) {
+			this._widgetUpdated = false;
+			if (this._widget) {
+				dom.reset(this.ui.widget, this._widget);
+			} else {
+				dom.reset(this.ui.widget);
+			}
 		}
 		if (this.busy && !this.busyDelay) {
 			this.busyDelay = new TimeoutTimer();
@@ -928,7 +953,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.visibleDisposables.add(this.registerQuickNavigation());
 			this.valueSelectionUpdated = true;
 		}
-		super.show(); // TODO: Why have show() bubble up while update() trickles down? (Could move setComboboxAccessibility() here.)
+		super.show(); // TODO: Why have show() bubble up while update() trickles down?
 	}
 
 	private handleAccept(inBackground: boolean): void {
@@ -1032,15 +1057,16 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 
 		let ariaLabel = this.ariaLabel;
-		if (!ariaLabel) {
+		// Only set aria label to the input box placeholder if we actually have an input box.
+		if (!ariaLabel && visibilities.inputBox) {
 			ariaLabel = this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
 			// If we have a title, include it in the aria label.
 			if (this.title) {
 				ariaLabel += ` - ${this.title}`;
 			}
 		}
-		if (this.ui.inputBox.ariaLabel !== ariaLabel) {
-			this.ui.inputBox.ariaLabel = ariaLabel;
+		if (this.ui.list.ariaLabel !== ariaLabel) {
+			this.ui.list.ariaLabel = withUndefinedAsNull(ariaLabel);
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
@@ -1054,10 +1080,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
-			// Ensure no item is focused when using a screenreader when items update (#57501 & #166920 & #176848)
-			if (this.ui.isScreenReaderOptimized() && ariaLabel && visibilities.inputBox) {
-				this._itemActivation = ItemActivation.NONE;
-			}
 			switch (this._itemActivation) {
 				case ItemActivation.NONE:
 					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
@@ -1104,7 +1126,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
-		this.ui.setComboboxAccessibility(true);
 		if (!visibilities.inputBox) {
 			// we need to move focus into the tree to detect keybindings
 			// properly when the input box is not visible (quick nav)
@@ -1235,7 +1256,6 @@ export class QuickInputController extends Disposable {
 	private ui: QuickInputUI | undefined;
 	private dimension?: dom.IDimension;
 	private titleBarOffset?: number;
-	private comboboxAccessibility = false;
 	private enabled = true;
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
@@ -1345,7 +1365,15 @@ export class QuickInputController extends Disposable {
 		const progressBar = new ProgressBar(container, this.styles.progressBar);
 		progressBar.getContainer().classList.add('quick-input-progress');
 
-		const list = this._register(new QuickInputList(container, this.idPrefix + 'list', this.options));
+		const widget = dom.append(container, $('.quick-input-html-widget'));
+		widget.tabIndex = -1;
+
+		const listId = this.idPrefix + 'list';
+		const list = this._register(new QuickInputList(container, listId, this.options));
+		inputBox.setAttribute('aria-controls', listId);
+		this._register(list.onDidChangeFocus(() => {
+			inputBox.setAttribute('aria-activedescendant', list.getActiveDescendant() ?? '');
+		}));
 		this._register(list.onChangedAllVisibleChecked(checked => {
 			checkAll.checked = checked;
 		}));
@@ -1363,11 +1391,6 @@ export class QuickInputController extends Disposable {
 					list.clearFocus();
 				}
 			}, 0);
-		}));
-		this._register(list.onDidChangeFocus(() => {
-			if (this.comboboxAccessibility) {
-				this.getUI().inputBox.setAttribute('aria-activedescendant', this.getUI().list.getActiveDescendant() || '');
-			}
 		}));
 
 		const focusTracker = dom.trackFocus(container);
@@ -1399,7 +1422,13 @@ export class QuickInputController extends Disposable {
 					break;
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
-						const selectors = ['.action-label.codicon'];
+						// detect only visible actions
+						const selectors = [
+							'.quick-input-list .monaco-action-bar .always-visible',
+							'.quick-input-list-entry:hover .monaco-action-bar',
+							'.monaco-list-row.focused .monaco-action-bar'
+						];
+
 						if (container.classList.contains('show-checkboxes')) {
 							selectors.push('input');
 						} else {
@@ -1412,11 +1441,21 @@ export class QuickInputController extends Disposable {
 						if (this.getUI().message) {
 							selectors.push('.quick-input-message a');
 						}
+
+						if (this.getUI().widget) {
+							if (dom.isAncestor(event.target, this.getUI().widget)) {
+								// let the widget control tab
+								break;
+							}
+							selectors.push('.quick-input-html-widget');
+						}
 						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
 						if (event.shiftKey && event.target === stops[0]) {
+							// Clear the focus from the list in order to allow
+							// screen readers to read operations in the input box.
 							dom.EventHelper.stop(e, true);
-							stops[stops.length - 1].focus();
-						} else if (!event.shiftKey && event.target === stops[stops.length - 1]) {
+							list.clearFocus();
+						} else if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
 							dom.EventHelper.stop(e, true);
 							stops[0].focus();
 						}
@@ -1439,6 +1478,7 @@ export class QuickInputController extends Disposable {
 			title,
 			description1,
 			description2,
+			widget,
 			rightActionBar,
 			checkAll,
 			filterContainer,
@@ -1459,11 +1499,9 @@ export class QuickInputController extends Disposable {
 			onDidTriggerButton: this.onDidTriggerButtonEmitter.event,
 			ignoreFocusOut: false,
 			keyMods: this.keyMods,
-			isScreenReaderOptimized: () => this.options.isScreenReaderOptimized(),
 			show: controller => this.show(controller),
 			hide: () => this.hide(),
 			setVisibilities: visibilities => this.setVisibilities(visibilities),
-			setComboboxAccessibility: enabled => this.setComboboxAccessibility(enabled),
 			setEnabled: enabled => this.setEnabled(enabled),
 			setContextKey: contextKey => this.options.setContextKey(contextKey),
 			linkOpenerDelegate: content => this.options.linkOpenerDelegate(content)
@@ -1678,6 +1716,7 @@ export class QuickInputController extends Disposable {
 		ui.title.textContent = '';
 		ui.description1.textContent = '';
 		ui.description2.textContent = '';
+		dom.reset(ui.widget);
 		ui.rightActionBar.clear();
 		ui.checkAll.checked = false;
 		// ui.inputBox.value = ''; Avoid triggering an event.
@@ -1694,8 +1733,6 @@ export class QuickInputController extends Disposable {
 		ui.list.matchOnLabel = true;
 		ui.list.sortByLabel = true;
 		ui.ignoreFocusOut = false;
-		this.setComboboxAccessibility(false);
-		ui.inputBox.ariaLabel = '';
 		ui.inputBox.toggles = undefined;
 
 		const backKeybindingLabel = this.options.backKeybindingLabel();
@@ -1723,24 +1760,6 @@ export class QuickInputController extends Disposable {
 		ui.container.classList.toggle('show-checkboxes', !!visibilities.checkBox);
 		ui.container.classList.toggle('hidden-input', !visibilities.inputBox && !visibilities.description);
 		this.updateLayout(); // TODO
-	}
-
-	private setComboboxAccessibility(enabled: boolean) {
-		if (enabled !== this.comboboxAccessibility) {
-			const ui = this.getUI();
-			this.comboboxAccessibility = enabled;
-			if (this.comboboxAccessibility) {
-				ui.inputBox.setAttribute('role', 'combobox');
-				ui.inputBox.setAttribute('aria-haspopup', 'true');
-				ui.inputBox.setAttribute('aria-autocomplete', 'list');
-				ui.inputBox.setAttribute('aria-activedescendant', ui.list.getActiveDescendant() || '');
-			} else {
-				ui.inputBox.removeAttribute('role');
-				ui.inputBox.removeAttribute('aria-haspopup');
-				ui.inputBox.removeAttribute('aria-autocomplete');
-				ui.inputBox.removeAttribute('aria-activedescendant');
-			}
-		}
 	}
 
 	private setEnabled(enabled: boolean) {

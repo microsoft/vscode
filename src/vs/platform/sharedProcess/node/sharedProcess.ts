@@ -4,24 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
 import { UriComponents, UriDto } from 'vs/base/common/uri';
 
-export interface ISharedProcess {
-
-	/**
-	 * Toggles the visibility of the otherwise hidden
-	 * shared process window.
-	 */
-	toggle(): Promise<void>;
-}
-
-export interface ISharedProcessConfiguration extends ISandboxConfiguration {
+export interface ISharedProcessConfiguration {
 	readonly machineId: string;
+
+	readonly codeCachePath: string | undefined;
 
 	readonly args: NativeParsedArgs;
 

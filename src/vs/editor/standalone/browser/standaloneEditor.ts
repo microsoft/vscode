@@ -23,7 +23,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { createWebWorker as actualCreateWebWorker, IWebWorkerOptions, MonacoWebWorker } from 'vs/editor/browser/services/webWorker';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
-import { createTextModel, IActionDescriptor, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor, StandaloneEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+import { createTextModel, IActionDescriptor, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor, StandaloneDiffEditor2, StandaloneEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { IEditorOverrideServices, StandaloneKeybindingService, StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
@@ -34,10 +34,13 @@ import { EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensi
 import { IMenuItem, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { LineRangeMapping, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IRange } from 'vs/editor/common/core/range';
+import { IPosition } from 'vs/editor/common/core/position';
+import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 /**
  * Create a new editor under `domElement`.
@@ -95,6 +98,9 @@ export function getDiffEditors(): readonly IDiffEditor[] {
  */
 export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor {
 	const instantiationService = StandaloneServices.initialize(override || {});
+	if ((options?.experimental as any)?.useVersion2) {
+		return instantiationService.createInstance(StandaloneDiffEditor2, domElement, options);
+	}
 	return instantiationService.createInstance(StandaloneDiffEditor, domElement, options);
 }
 
@@ -457,6 +463,49 @@ export function registerLinkOpener(opener: ILinkOpener): IDisposable {
 }
 
 /**
+ * Represents an object that can handle editor open operations (e.g. when "go to definition" is called
+ * with a resource other than the current model).
+ */
+export interface ICodeEditorOpener {
+	/**
+	 * Callback that is invoked when a resource other than the current model should be opened (e.g. when "go to definition" is called).
+	 * The callback should return `true` if the request was handled and `false` otherwise.
+	 * @param source The code editor instance that initiated the request.
+	 * @param resource The URI of the resource that should be opened.
+	 * @param selectionOrPosition An optional position or selection inside the model corresponding to `resource` that can be used to set the cursor.
+	 */
+	openCodeEditor(source: ICodeEditor, resource: URI, selectionOrPosition?: IRange | IPosition): boolean | Promise<boolean>;
+}
+
+/**
+ * Registers a handler that is called when a resource other than the current model should be opened in the editor (e.g. "go to definition").
+ * The handler callback should return `true` if the request was handled and `false` otherwise.
+ *
+ * Returns a disposable that can unregister the opener again.
+ *
+ * If no handler is registered the default behavior is to do nothing for models other than the currently attached one.
+ */
+export function registerEditorOpener(opener: ICodeEditorOpener): IDisposable {
+	const codeEditorService = StandaloneServices.get(ICodeEditorService);
+	return codeEditorService.registerCodeEditorOpenHandler(async (input: ITextResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean) => {
+		if (!source) {
+			return null;
+		}
+		const selection = input.options?.selection;
+		let selectionOrPosition: IRange | IPosition | undefined;
+		if (selection && typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
+			selectionOrPosition = <IRange>selection;
+		} else if (selection) {
+			selectionOrPosition = { lineNumber: selection.startLineNumber, column: selection.startColumn };
+		}
+		if (await opener.openCodeEditor(source, input.resource, selectionOrPosition)) {
+			return source; // return source editor to indicate that this handler has successfully handled the opening
+		}
+		return null; // fallback to other registered handlers
+	});
+}
+
+/**
  * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
@@ -499,6 +548,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		registerCommand: registerCommand,
 
 		registerLinkOpener: registerLinkOpener,
+		registerEditorOpener: <any>registerEditorOpener,
 
 		// enums
 		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
@@ -513,6 +563,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		MouseTargetType: standaloneEnums.MouseTargetType,
 		OverlayWidgetPositionPreference: standaloneEnums.OverlayWidgetPositionPreference,
 		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
+		GlyphMarginLane: standaloneEnums.GlyphMarginLane,
 		RenderLineNumbersType: standaloneEnums.RenderLineNumbersType,
 		RenderMinimap: standaloneEnums.RenderMinimap,
 		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
@@ -535,6 +586,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		LineRangeMapping: <any>LineRangeMapping,
 		RangeMapping: <any>RangeMapping,
 		EditorZoom: <any>EditorZoom,
+		MovedText: <any>MovedText,
+		SimpleLineRangeMapping: <any>SimpleLineRangeMapping,
 
 		// vars
 		EditorType: EditorType,

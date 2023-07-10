@@ -349,6 +349,9 @@ export abstract class AbstractTunnelService implements ITunnelService {
 			if (tunnel.tunnelRemoteHost !== remoteHost || tunnel.tunnelRemotePort !== remotePort) {
 				this.logService.warn('ForwardedPorts: (TunnelService) Created tunnel does not match requirements of requested tunnel. Host or port mismatch.');
 			}
+			if (privacy && tunnel.privacy !== privacy) {
+				this.logService.warn('ForwardedPorts: (TunnelService) Created tunnel does not match requirements of requested tunnel. Privacy mismatch.');
+			}
 			this._onTunnelOpened.fire(newTunnel);
 			return newTunnel;
 		});
@@ -413,7 +416,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		const hostMap = this._tunnels.get(remoteHost);
 		if (hostMap) {
 			const tunnel = hostMap.get(remotePort);
-			const tunnelResult = await tunnel;
+			const tunnelResult = tunnel ? await tunnel.value : undefined;
 			if (!tunnelResult) {
 				hostMap.delete(remotePort);
 			}

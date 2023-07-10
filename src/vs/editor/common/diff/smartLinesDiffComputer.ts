@@ -75,14 +75,24 @@ export class SmartLinesDiffComputer implements ILinesDiffComputer {
 			);
 		});
 
-		return new LinesDiff(changes, result.quitEarly);
+		return new LinesDiff(changes, [], result.quitEarly);
 	}
 }
 
 export interface IDiffComputationResult {
 	quitEarly: boolean;
 	identical: boolean;
+
+	/**
+	 * The changes as (legacy) line change array.
+	 * @deprecated Use `changes2` instead.
+	 */
 	changes: ILineChange[];
+
+	/**
+	 * The changes as (modern) line range mapping array.
+	 */
+	changes2: readonly LineRangeMapping[];
 }
 
 /**

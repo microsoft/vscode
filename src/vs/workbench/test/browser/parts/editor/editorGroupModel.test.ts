@@ -814,6 +814,7 @@ suite('EditorGroupModel', () => {
 
 		assert.strictEqual(group.count, 1);
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 1);
+		assert.strictEqual(group.findEditor(input1)![0], input1);
 		assert.strictEqual(group.activeEditor, input1);
 		assert.strictEqual(group.isActive(input1), true);
 		assert.strictEqual(group.isPinned(input1), true);
@@ -827,6 +828,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(events.activated[0].editorIndex, 0);
 
 		const index = group.indexOf(input1);
+		assert.strictEqual(group.findEditor(input1)![1], index);
 		let event = group.closeEditor(input1, EditorCloseContext.UNPIN);
 		assert.strictEqual(event?.editor, input1);
 		assert.strictEqual(event?.editorIndex, index);

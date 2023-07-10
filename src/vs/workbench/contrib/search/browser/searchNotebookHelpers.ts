@@ -4,98 +4,73 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FindMatch } from 'vs/editor/common/model';
-import { CellFindMatchWithIndex, ICellViewModel, CellWebviewFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-
-import { ISearchRange, ITextSearchPreviewOptions, TextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { CellWebviewFindMatch, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IFileMatch, ITextSearchMatch, TextSearchMatch } from 'vs/workbench/services/search/common/search';
 import { Range } from 'vs/editor/common/core/range';
 
-export interface NotebookMatchInfo {
-	cellIndex: number;
-	matchStartIndex: number;
-	matchEndIndex: number;
+export interface IFileMatchWithCells extends IFileMatch {
+	cellResults: ICellMatch[];
+}
+
+export interface ICellMatch {
 	cell: ICellViewModel;
-	webviewMatchInfo?: {
-		index: number;
-	};
+	index: number;
+	contentResults: ITextSearchMatch[];
+	webviewResults: ITextSearchMatch[];
+}
+export function isIFileMatchWithCells(object: IFileMatch): object is IFileMatchWithCells {
+	return 'cellResults' in object;
 }
 
-interface CellFindMatchInfoForTextModel {
-	notebookMatchInfo: NotebookMatchInfo;
-	matches: FindMatch[] | CellWebviewFindMatch;
-}
+// to text search results
 
-export class NotebookTextSearchMatch extends TextSearchMatch {
-	constructor(text: string, range: ISearchRange | ISearchRange[], public notebookMatchInfo: NotebookMatchInfo, previewOptions?: ITextSearchPreviewOptions) {
-		super(text, range, previewOptions);
-	}
-}
-
-function notebookEditorMatchToTextSearchResult(cellInfo: CellFindMatchInfoForTextModel, previewOptions?: ITextSearchPreviewOptions): NotebookTextSearchMatch | undefined {
-	const matches = cellInfo.matches;
-
-	if (Array.isArray(matches)) {
-		if (matches.length > 0) {
-			const lineTexts: string[] = [];
-			const firstLine = matches[0].range.startLineNumber;
-			const lastLine = matches[matches.length - 1].range.endLineNumber;
-			for (let i = firstLine; i <= lastLine; i++) {
-				lineTexts.push(cellInfo.notebookMatchInfo.cell.textBuffer.getLineContent(i));
-			}
-
-			return new NotebookTextSearchMatch(
-				lineTexts.join('\n') + '\n',
-				matches.map(m => new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endLineNumber - 1, m.range.endColumn - 1)),
-				cellInfo.notebookMatchInfo,
-				previewOptions);
-		}
-	}
-	else {
-		// TODO: this is a placeholder for webview matches
-		const searchPreviewInfo = matches.searchPreviewInfo ?? {
-			line: '', range: { start: 0, end: 0 }
-		};
-
-		return new NotebookTextSearchMatch(
-			searchPreviewInfo.line,
-			new Range(0, searchPreviewInfo.range.start, 0, searchPreviewInfo.range.end),
-			cellInfo.notebookMatchInfo,
-			previewOptions);
-	}
-	return undefined;
-}
-export function notebookEditorMatchesToTextSearchResults(cellFindMatches: CellFindMatchWithIndex[], previewOptions?: ITextSearchPreviewOptions): NotebookTextSearchMatch[] {
+export function contentMatchesToTextSearchMatches(contentMatches: FindMatch[], cell: ICellViewModel): ITextSearchMatch[] {
 	let previousEndLine = -1;
-	const groupedMatches: CellFindMatchInfoForTextModel[] = [];
-	let currentMatches: FindMatch[] = [];
-	let startIndexOfCurrentMatches = 0;
+	const contextGroupings: FindMatch[][] = [];
+	let currentContextGrouping: FindMatch[] = [];
 
-
-	cellFindMatches.forEach((cellFindMatch) => {
-		const cellIndex = cellFindMatch.index;
-		cellFindMatch.contentMatches.forEach((match, index) => {
-			if (match.range.startLineNumber !== previousEndLine) {
-				if (currentMatches.length > 0) {
-					groupedMatches.push({ matches: [...currentMatches], notebookMatchInfo: { cellIndex, matchStartIndex: startIndexOfCurrentMatches, matchEndIndex: index, cell: cellFindMatch.cell } });
-					currentMatches = [];
-				}
-				startIndexOfCurrentMatches = cellIndex + 1;
+	contentMatches.forEach((match) => {
+		if (match.range.startLineNumber !== previousEndLine) {
+			if (currentContextGrouping.length > 0) {
+				contextGroupings.push([...currentContextGrouping]);
+				currentContextGrouping = [];
 			}
-
-			currentMatches.push(match);
-			previousEndLine = match.range.endLineNumber;
-		});
-
-		if (currentMatches.length > 0) {
-			groupedMatches.push({ matches: [...currentMatches], notebookMatchInfo: { cellIndex, matchStartIndex: startIndexOfCurrentMatches, matchEndIndex: cellFindMatch.contentMatches.length - 1, cell: cellFindMatch.cell } });
-			currentMatches = [];
 		}
 
-		cellFindMatch.webviewMatches.forEach((match, index) => {
-			groupedMatches.push({ matches: match, notebookMatchInfo: { cellIndex, matchStartIndex: index, matchEndIndex: index, cell: cellFindMatch.cell, webviewMatchInfo: { index: match.index } } });
-		});
+		currentContextGrouping.push(match);
+		previousEndLine = match.range.endLineNumber;
 	});
 
-	return groupedMatches.map(sameLineMatches => {
-		return notebookEditorMatchToTextSearchResult(sameLineMatches, previewOptions);
-	}).filter((elem): elem is NotebookTextSearchMatch => !!elem);
+	if (currentContextGrouping.length > 0) {
+		contextGroupings.push([...currentContextGrouping]);
+	}
+
+	const textSearchResults = contextGroupings.map((grouping) => {
+		const lineTexts: string[] = [];
+		const firstLine = grouping[0].range.startLineNumber;
+		const lastLine = grouping[grouping.length - 1].range.endLineNumber;
+		for (let i = firstLine; i <= lastLine; i++) {
+			lineTexts.push(cell.textBuffer.getLineContent(i));
+		}
+		return new TextSearchMatch(
+			lineTexts.join('\n') + '\n',
+			grouping.map(m => new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endLineNumber - 1, m.range.endColumn - 1)),
+		);
+	});
+
+	return textSearchResults;
 }
+
+export function webviewMatchesToTextSearchMatches(webviewMatches: CellWebviewFindMatch[]): ITextSearchMatch[] {
+	return webviewMatches
+		.map(rawMatch =>
+			(rawMatch.searchPreviewInfo) ?
+				new TextSearchMatch(
+					rawMatch.searchPreviewInfo.line,
+					new Range(0, rawMatch.searchPreviewInfo.range.start, 0, rawMatch.searchPreviewInfo.range.end),
+					undefined,
+					rawMatch.index) : undefined
+		).filter((e): e is ITextSearchMatch => !!e);
+}
+
+
