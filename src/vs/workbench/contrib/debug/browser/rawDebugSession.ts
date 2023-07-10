@@ -331,9 +331,7 @@ export class RawDebugSession implements IDisposable {
 		this.stoppedSinceLastStep = false;
 		const response = await this.send('next', args);
 		if (!this.stoppedSinceLastStep) {
-			if (!this.stoppedSinceLastStep) {
-				this.fireSimulatedContinuedEvent(args.threadId);
-			}
+			this.fireSimulatedContinuedEvent(args.threadId);
 		}
 		return response;
 	}
