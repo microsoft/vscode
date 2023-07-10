@@ -136,6 +136,8 @@ variables:
     value: true
   - name: Codeql.SkipTaskAutoInjection
     value: true
+  - name: ARTIFACT_PREFIX
+    value: ''
 
 name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 
