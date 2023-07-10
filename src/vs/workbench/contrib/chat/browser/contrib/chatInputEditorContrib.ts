@@ -148,7 +148,7 @@ class InputEditorSlashCommandFollowups extends Disposable {
 
 		const slashCommands = await this.widget.getSlashCommands();
 
-		if (this.widget.inputEditor.getValue().trim().length === 0) {
+		if (this.widget.inputEditor.getValue().trim().length !== 0) {
 			return;
 		}
 
