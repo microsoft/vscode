@@ -36,9 +36,10 @@ suite('DecorationAddon', async () => {
 
 	let decorationAddon: DecorationAddon;
 	let xterm: TestTerminal;
+	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		const instantiationService = new TestInstantiationService();
+		instantiationService = new TestInstantiationService();
 		const configurationService = new TestConfigurationService({
 			workbench: {
 				hover: { delay: 5 },
@@ -65,6 +66,10 @@ suite('DecorationAddon', async () => {
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		decorationAddon = instantiationService.createInstance(DecorationAddon, capabilities);
 		xterm.loadAddon(decorationAddon);
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	suite('registerDecoration', async () => {
