@@ -523,6 +523,6 @@ configurationRegistry.registerConfiguration({
 				nls.localize('task.SaveBeforeRun.prompt', 'Prompts whether to save editors before running.'),
 			],
 			default: 'always',
-		}
+		},
 	}
 });
