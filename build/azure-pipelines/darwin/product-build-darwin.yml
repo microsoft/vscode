@@ -202,6 +202,10 @@ steps:
       condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT'], 'true'))
       displayName: Package client
 
+    - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
+      condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
+      displayName: Generate artifact prefix
+
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (client)
       inputs:
@@ -210,7 +214,7 @@ steps:
 
     - publish: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/_manifest
       displayName: Publish SBOM (client)
-      artifact: vscode_client_darwin_$(VSCODE_ARCH)_sbom
+      artifact: $(ARTIFACT_PREFIX)sbom_client_darwin_$(VSCODE_ARCH)_sbom
 
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (server)
@@ -220,19 +224,19 @@ steps:
 
     - publish: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)/_manifest
       displayName: Publish SBOM (server)
-      artifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
+      artifact: $(ARTIFACT_PREFIX)sbom_server_darwin_$(VSCODE_ARCH)_sbom
 
     - publish: $(CLIENT_PATH)
-      artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+      artifact: $(ARTIFACT_PREFIX)unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
       condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
       displayName: Publish client archive
 
     - publish: $(SERVER_PATH)
-      artifact: vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
+      artifact: $(ARTIFACT_PREFIX)vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
       condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
       displayName: Publish server archive
 
     - publish: $(WEB_PATH)
-      artifact: vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
+      artifact: $(ARTIFACT_PREFIX)vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
       condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
       displayName: Publish web server archive

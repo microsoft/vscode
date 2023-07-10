@@ -235,7 +235,7 @@ steps:
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - task: DownloadPipelineArtifact@2
       inputs:
-        artifact: vscode_cli_linux_$(VSCODE_ARCH)_cli
+        artifact: $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
         patterns: "**"
         path: $(Build.ArtifactStagingDirectory)/cli
       displayName: Download VS Code CLI
@@ -280,8 +280,9 @@ steps:
     - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll rpm $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
       displayName: Codesign rpm
 
-    # - script: ./build/azure-pipelines/linux/prepare-publish.sh
-    #   displayName: Prepare for Publish
+    - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
+      condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
+      displayName: Generate artifact prefix
 
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (client)
@@ -291,7 +292,7 @@ steps:
 
     - publish: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/_manifest
       displayName: Publish SBOM (client)
-      artifact: vscode_client_linux_$(VSCODE_ARCH)_sbom
+      artifact: $(ARTIFACT_PREFIX)sbom_vscode_client_linux_$(VSCODE_ARCH)
 
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (server)
@@ -301,35 +302,35 @@ steps:
 
     - publish: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)/_manifest
       displayName: Publish SBOM (server)
-      artifact: vscode_server_linux_$(VSCODE_ARCH)_sbom
+      artifact: $(ARTIFACT_PREFIX)sbom_vscode_server_linux_$(VSCODE_ARCH)
 
     - publish: $(CLIENT_PATH)
-      artifact: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+      artifact: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
       condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
       displayName: Publish client archive
 
     - publish: $(SERVER_PATH)
-      artifact: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+      artifact: $(ARTIFACT_PREFIX)vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
       condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
       displayName: Publish server archive
 
     - publish: $(WEB_PATH)
-      artifact: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+      artifact: $(ARTIFACT_PREFIX)vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
       condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
       displayName: Publish web server archive
 
     - publish: $(DEB_PATH)
-      artifact: vscode_client_linux_$(VSCODE_ARCH)_deb-package
+      artifact: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_deb-package
       condition: and(succeededOrFailed(), ne(variables['DEB_PATH'], ''))
       displayName: Publish deb package
 
     - publish: $(RPM_PATH)
-      artifact: vscode_client_linux_$(VSCODE_ARCH)_rpm-package
+      artifact: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_rpm-package
       condition: and(succeededOrFailed(), ne(variables['RPM_PATH'], ''))
       displayName: Publish rpm package
 
     - publish: $(SNAP_PATH)
-      artifact: snap-$(VSCODE_ARCH)
+      artifact: $(ARTIFACT_PREFIX)snap-$(VSCODE_ARCH)
       condition: and(succeededOrFailed(), ne(variables['SNAP_PATH'], ''))
       displayName: Publish snap pre-package
 
