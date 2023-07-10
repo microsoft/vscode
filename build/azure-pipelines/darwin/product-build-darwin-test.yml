@@ -84,13 +84,13 @@ steps:
           INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
           ./scripts/test-integration.sh --build --tfs "Integration Tests"
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-darwin-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
       - script: ./scripts/test-web-integration.sh --browser webkit
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-web-darwin-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
         displayName: Run integration tests (Browser, Webkit)
         timeoutInMinutes: 20
 
@@ -101,7 +101,7 @@ steps:
           INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
           ./scripts/test-remote-integration.sh
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-darwin-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
 
@@ -133,7 +133,7 @@ steps:
 
       - script: yarn smoketest-no-compile --web --tracing --headless
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-web-darwin-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
         timeoutInMinutes: 20
         displayName: Run smoke tests (Browser, Chromium)
 
@@ -144,7 +144,7 @@ steps:
           APP_NAME="`ls $APP_ROOT | head -n 1`"
           yarn smoketest-no-compile --tracing --remote --build "$APP_ROOT/$APP_NAME"
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-darwin-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
         timeoutInMinutes: 20
         displayName: Run smoke tests (Remote)
 

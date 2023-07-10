@@ -14,7 +14,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
@@ -66,6 +66,7 @@ export interface InlineChatRunOptions {
 	autoSend?: boolean;
 	existingSession?: Session;
 	isUnstashed?: boolean;
+	position?: IPosition;
 }
 
 export class InlineChatController implements IEditorContribution {
@@ -184,12 +185,12 @@ export class InlineChatController implements IEditorContribution {
 
 	// ---- state machine
 
-	private _showWidget(initialRender: boolean = false) {
+	private _showWidget(initialRender: boolean = false, position?: IPosition) {
 		assertType(this._editor.hasModel());
 
 		let widgetPosition: Position;
 		if (initialRender) {
-			widgetPosition = this._editor.getSelection().getEndPosition();
+			widgetPosition = position ? Position.lift(position) : this._editor.getSelection().getEndPosition();
 			this._zone.value.setContainerMargins();
 			this._zone.value.setWidgetMargins(widgetPosition);
 		} else {
@@ -219,7 +220,7 @@ export class InlineChatController implements IEditorContribution {
 
 		let session: Session | undefined = options.existingSession;
 
-		this._showWidget(true);
+		this._showWidget(true, options.position);
 		this._zone.value.widget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
 
@@ -307,7 +308,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 		});
 
-		this._showWidget(true);
+		this._showWidget(true, options.position);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange

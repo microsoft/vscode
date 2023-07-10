@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, asCSSUrl, EventType, IModifierKeyStatus, ModifierKeyEmitter, prepend } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, asCSSUrl, EventType, ModifierKeyEmitter, prepend } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionViewItem, BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
@@ -160,8 +160,13 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		}
 
 		if (this._menuItemAction.alt) {
-			const updateAltState = (keyStatus: IModifierKeyStatus) => {
-				const wantsAltCommand = !!this._commandAction.alt?.enabled && (keyStatus.altKey || ((isWindows || isLinux) && keyStatus.shiftKey));
+			let mouseOverOnWindowsOrLinux = false;
+
+			const updateAltState = () => {
+				const wantsAltCommand = !!this._menuItemAction.alt?.enabled && (
+					this._altKey.keyStatus.altKey
+					|| (this._altKey.keyStatus.shiftKey && mouseOverOnWindowsOrLinux)
+				);
 
 				if (wantsAltCommand !== this._wantsAltCommand) {
 					this._wantsAltCommand = wantsAltCommand;
@@ -172,7 +177,20 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			};
 
 			this._register(this._altKey.event(updateAltState));
-			updateAltState(this._altKey.keyStatus);
+
+			if (isWindows || isLinux) {
+				this._register(addDisposableListener(container, 'mouseleave', _ => {
+					mouseOverOnWindowsOrLinux = false;
+					updateAltState();
+				}));
+
+				this._register(addDisposableListener(container, 'mouseenter', _ => {
+					mouseOverOnWindowsOrLinux = true;
+					updateAltState();
+				}));
+			}
+
+			updateAltState();
 		}
 	}
 

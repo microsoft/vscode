@@ -62,6 +62,7 @@ import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement
 import { LogService } from 'vs/platform/log/common/logService';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { localize } from 'vs/nls';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 
 class CliMain extends Disposable {
 
@@ -144,6 +145,10 @@ class CliMain extends Disposable {
 
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+
+		// Use FileUserDataProvider for user data to
+		// enable atomic read / write operations.
+		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, logService));
 
 		// Uri Identity
 		const uriIdentityService = new UriIdentityService(fileService);

@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { getSystemShell } from 'vs/base/node/shell';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { Terminal as XtermTerminal } from 'xterm-headless';
@@ -399,8 +399,8 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).setUnicodeVersion(version);
 	}
 	@traceRpc
-	async getLatency(id: number): Promise<number> {
-		return 0;
+	async getLatency(): Promise<IPtyHostLatencyMeasurement[]> {
+		return [];
 	}
 	@traceRpc
 	async orphanQuestionReply(id: number): Promise<void> {
@@ -552,8 +552,9 @@ export class PtyService extends Disposable implements IPtyService {
 			};
 		} catch (e) {
 			this._logService.warn(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
-			this._logService.info('Reattach to wrong terminal debug info - layout info by id', t);
-			this._logService.info('Reattach to wrong terminal debug info - _revivePtyIdMap', Array.from(this._revivedPtyIdMap.values()));
+			this._logService.debug('Reattach to wrong terminal debug info - layout info by id', t);
+			this._logService.debug('Reattach to wrong terminal debug info - _revivePtyIdMap', Array.from(this._revivedPtyIdMap.values()));
+			this._logService.debug('Reattach to wrong terminal debug info - _ptys ids', Array.from(this._ptys.keys()));
 			// this will be filtered out and not reconnected
 			return {
 				terminal: null,
@@ -873,9 +874,6 @@ class PersistentTerminalProcess extends Disposable {
 	}
 	getCwd(): Promise<string> {
 		return this._terminalProcess.getCwd();
-	}
-	getLatency(): Promise<number> {
-		return this._terminalProcess.getLatency();
 	}
 
 	async triggerReplay(): Promise<void> {
