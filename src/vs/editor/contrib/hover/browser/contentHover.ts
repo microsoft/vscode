@@ -726,12 +726,15 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!this._visibleData) {
 			return;
 		}
+		const stoleFocus = this._visibleData.stoleFocus || this._hoverFocusedKey.get();
 		this._setHoverData(undefined);
 		this._resizableNode.maxSize = new dom.Dimension(Infinity, Infinity);
 		this._resizableNode.clearSashHoverState();
 		this._hoverFocusedKey.set(false);
 		this._editor.layoutContentWidget(this);
-		this._editor.focus();
+		if (stoleFocus) {
+			this._editor.focus();
+		}
 	}
 
 	private _removeConstraintsRenderNormally(): void {
