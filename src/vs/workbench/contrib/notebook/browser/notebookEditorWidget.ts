@@ -869,10 +869,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				multipleSelectionSupport: true,
 				selectionNavigation: true,
 				typeNavigationEnabled: true,
+				paddingTop: this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType),
 				paddingBottom: 0,
 				transformOptimization: false, //(isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				initialSize: this._dimension,
-				paddingTop: this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType),
 				styleController: (_suffix: string) => { return this._list; },
 				overrideStyles: {
 					listBackground: notebookEditorBackground,
