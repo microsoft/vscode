@@ -19,8 +19,8 @@ steps:
     displayName: "Install Rust"
 
   - powershell: |
-      mkdir -Force "$env:USERPROFILE\.cargo"
-      Set-Content -Path "$env:USERPROFILE\.cargo\config.toml" -Value @"
+      mkdir -Force ".cargo"
+      Set-Content -Path ".cargo\config.toml" -Value @"
       [registries]
       vscode = { index = "$($env:CARGO_REGISTRY)" }
 
@@ -28,7 +28,11 @@ steps:
       replace-with = 'vscode'
       "@ -Force
 
-      Get-Content "$env:USERPROFILE\.cargo\config.toml"
+      Get-Content ".cargo\config.toml"
+
+      Write-Host "##vso[task.setvariable variable=CARGO_REGISTRIES_VSCODE_TOKEN;issecret=true]Bearer $env:SYSTEM_ACCESSTOKEN"
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     condition: and(succeeded(), ne(variables['CARGO_REGISTRY'], 'none'))
     displayName: Setup Cargo Registry
 

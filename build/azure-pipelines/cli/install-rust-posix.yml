@@ -19,11 +19,14 @@ steps:
 
   - script: |
       set -e
-      mkdir -p ~/.cargo
-      echo "[registries]" > ~/.cargo/config.yoml
-      echo "vscode = { index = \"${CARGO_REGISTRY}\" }" >> ~/.cargo/config.yoml
-      echo "[source.crates-io]" >> ~/.cargo/config.yoml
-      echo "replace-with = 'vscode'" >> ~/.cargo/config.yoml
+      mkdir -p .cargo
+      echo "[registries]" > .cargo/config.toml
+      echo "vscode = { index = \"${CARGO_REGISTRY}\" }" >> .cargo/config.toml
+      echo "[source.crates-io]" >> .cargo/config.toml
+      echo "replace-with = 'vscode'" >> .cargo/config.toml
+      echo "##vso[task.setvariable variable=CARGO_REGISTRIES_VSCODE_TOKEN;issecret=true]Bearer $SYSTEM_ACCESSTOKEN"
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     condition: and(succeeded(), ne(variables['CARGO_REGISTRY'], 'none'))
     displayName: Setup Cargo Registry
 
