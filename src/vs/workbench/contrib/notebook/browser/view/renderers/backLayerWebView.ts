@@ -1413,15 +1413,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		// create new output
-		const createOutput = () => {
-			const { message, renderer, transfer: transferable } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, false, false);
-			this._sendMessageToWebview(message, transferable);
-			this.insetMapping.set(content.source, { outputId: message.outputId, versionId: content.source.model.versionId, cellInfo: cellInfo, renderer, cachedCreation: message });
-			this.hiddenInsetMapping.delete(content.source);
-			this.reversedInsetMapping.set(message.outputId, content.source);
-		};
-
-		createOutput();
+		const { message, renderer, transfer: transferable } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, false, false);
+		this._sendMessageToWebview(message, transferable);
+		this.insetMapping.set(content.source, { outputId: message.outputId, versionId: content.source.model.versionId, cellInfo: cellInfo, renderer, cachedCreation: message });
+		this.hiddenInsetMapping.delete(content.source);
+		this.reversedInsetMapping.set(message.outputId, content.source);
 	}
 
 	private createMetadata(output: ICellOutput, mimeType: string) {

@@ -311,6 +311,58 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
+	test('appending streaming outputs', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			],
+			(editor) => {
+				const textModel = editor.textModel;
+
+				textModel.applyEdits([
+					{
+						index: 0,
+						editType: CellEditType.Output,
+						append: true,
+						outputs: [{
+							outputId: 'append1',
+							outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('append 1') }]
+						}]
+					}], true, undefined, () => undefined, undefined, true);
+				const [output] = textModel.cells[0].outputs;
+				assert.strictEqual(output.versionId, 0, 'initial output version is 0');
+
+				textModel.applyEdits([
+					{
+						editType: CellEditType.OutputItems,
+						append: true,
+						outputId: 'append1',
+						items: [{
+							mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('append 2')
+						}]
+					}], true, undefined, () => undefined, undefined, true);
+				assert.strictEqual(output.versionId, 1, 'version should bump per append');
+
+				textModel.applyEdits([
+					{
+						editType: CellEditType.OutputItems,
+						append: true,
+						outputId: 'append1',
+						items: [{
+							mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('append 3')
+						}]
+					}], true, undefined, () => undefined, undefined, true);
+				assert.strictEqual(output.versionId, 2, 'version should bump per append');
+
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs.length, 1, 'has 1 output');
+				assert.strictEqual(output.outputId, 'append1');
+				assert.strictEqual(output.outputs.length, 1, 'outputs are compressed');
+				assert.strictEqual(output.outputs[0].data.toString(), 'append 1append 2append 3');
+			}
+		);
+	});
+
 	test('metadata', async function () {
 		await withTestNotebook(
 			[

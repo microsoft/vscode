@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ICellOutput, IOutputDto, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellOutput, IOutputDto, IOutputItemDto, compressOutputItemStreams, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellOutputTextModel extends Disposable implements ICellOutput {
 
@@ -38,15 +38,44 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 
 	replaceData(rawData: IOutputDto) {
 		this._rawOutput = rawData;
+		this.optimizeOutputItems();
 		this._versionId = this._versionId + 1;
-
 		this._onDidChangeData.fire();
 	}
 
 	appendData(items: IOutputItemDto[]) {
 		this._rawOutput.outputs.push(...items);
+		this.optimizeOutputItems();
 		this._versionId = this._versionId + 1;
 		this._onDidChangeData.fire();
+	}
+
+	private optimizeOutputItems() {
+		if (this.outputs.length > 1 && this.outputs.every(item => isTextStreamMime(item.mime))) {
+			// Look for the mimes in the items, and keep track of their order.
+			// Merge the streams into one output item, per mime type.
+			const mimeOutputs = new Map<string, Uint8Array[]>();
+			const mimeTypes: string[] = [];
+			this.outputs.forEach(item => {
+				let items: Uint8Array[];
+				if (mimeOutputs.has(item.mime)) {
+					items = mimeOutputs.get(item.mime)!;
+				} else {
+					items = [];
+					mimeOutputs.set(item.mime, items);
+					mimeTypes.push(item.mime);
+				}
+				items.push(item.data.buffer);
+			});
+			this.outputs.length = 0;
+			mimeTypes.forEach(mime => {
+				const compressed = compressOutputItemStreams(mimeOutputs.get(mime)!);
+				this.outputs.push({
+					mime,
+					data: compressed
+				});
+			});
+		}
 	}
 
 	toJSON(): IOutputDto {
@@ -57,4 +86,6 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 			outputId: this._rawOutput.outputId
 		};
 	}
+
+
 }
