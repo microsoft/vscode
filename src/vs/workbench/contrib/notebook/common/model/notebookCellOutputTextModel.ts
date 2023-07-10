@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICellOutput, IOutputDto, IOutputItemDto, compressOutputItemStreams, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -37,6 +38,7 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 	}
 
 	replaceData(rawData: IOutputDto) {
+		this.versionedBufferLengths = {};
 		this._rawOutput = rawData;
 		this.optimizeOutputItems();
 		this._versionId = this._versionId + 1;
@@ -44,10 +46,35 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 	}
 
 	appendData(items: IOutputItemDto[]) {
+		this.trackBufferLengths();
 		this._rawOutput.outputs.push(...items);
 		this.optimizeOutputItems();
 		this._versionId = this._versionId + 1;
 		this._onDidChangeData.fire();
+	}
+
+	private trackBufferLengths() {
+		this.outputs.forEach(output => {
+			if (isTextStreamMime(output.mime)) {
+				if (!this.versionedBufferLengths[output.mime]) {
+					this.versionedBufferLengths[output.mime] = {};
+				}
+				this.versionedBufferLengths[output.mime][this.versionId] = output.data.byteLength;
+			}
+		});
+	}
+
+	// mime: versionId: buffer length
+	private versionedBufferLengths: Record<string, Record<number, number>> = {};
+
+	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined {
+		const bufferLength = this.versionedBufferLengths[mime]?.[versionId];
+		const output = this.outputs.find(output => output.mime === mime);
+		if (bufferLength && output) {
+			return output.data.slice(bufferLength);
+		}
+
+		return undefined;
 	}
 
 	private optimizeOutputItems() {

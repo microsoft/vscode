@@ -217,6 +217,7 @@ export interface ICellOutput {
 	onDidChangeData: Event<void>;
 	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
+	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
 }
 
 export interface CellInternalMetadataChangedEvent {
