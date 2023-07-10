@@ -86,7 +86,7 @@ export class PreviewStrategy extends EditModeStrategy {
 	}
 
 	async apply() {
-
+		console.log('at the beginning of the apply method of preview strategy');
 		if (!(this._session.lastExchange?.response instanceof EditResponse)) {
 			return;
 		}
@@ -107,6 +107,7 @@ export class PreviewStrategy extends EditModeStrategy {
 				modelN.pushStackElement();
 			}
 		}
+		console.log('at the end of the apply method of preview strategy');
 	}
 
 	async cancel(): Promise<void> {
@@ -279,6 +280,7 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	async apply() {
+		console.log('inside of apply of live strategy');
 		if (this._editCount > 0) {
 			this._editor.pushUndoStop();
 		}
@@ -286,6 +288,7 @@ export class LiveStrategy extends EditModeStrategy {
 			await this._bulkEditService.apply(this._lastResponse.workspaceEdits);
 			this._instaService.invokeFunction(showSingleCreateFile, this._lastResponse);
 		}
+		console.log('at the end of apply for live strategy');
 	}
 
 	async cancel() {

@@ -134,6 +134,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 
 			this._log('session RESUMING', e);
+			console.log('before calling create session of the constructor');
 			await this._nextState(State.CREATE_SESSION, { existingSession });
 			this._log('session done or paused');
 		}));
@@ -141,6 +142,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	dispose(): void {
+		console.log('inside of dispose');
 		this._stashedSession.clear();
 		this.finishExistingSession();
 		this._store.dispose();
@@ -174,10 +176,10 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
-		this._log('session starting');
+		this._log('session starting inside of run');
 		await this.finishExistingSession();
 		this._stashedSession.clear();
-
+		console.log('before calling create session inside of run');
 		await this._nextState(State.CREATE_SESSION, options);
 		this._log('session done or paused');
 	}
@@ -214,6 +216,8 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async [State.CREATE_SESSION](options: InlineChatRunOptions): Promise<State.CANCEL | State.INIT_UI | State.PAUSE> {
+		console.log('inside of CREATE_SESSION');
+		console.log('this._activeSession : ', this._activeSession);
 		if (this._activeSession) {
 			console.log('before clearing the session store');
 			this._sessionStore.clear();
@@ -235,6 +239,7 @@ export class InlineChatController implements IEditorContribution {
 		if (!session) {
 			const createSessionCts = new CancellationTokenSource();
 			const msgListener = Event.once(this._messages.event)(m => {
+				console.log('inside of the msgListener code of CREATE_SESSION');
 				this._log('state=_createSession) message received', m);
 				if (m === Message.ACCEPT_INPUT) {
 					// user accepted the input before having a session
@@ -348,6 +353,7 @@ export class InlineChatController implements IEditorContribution {
 
 			if (editIsOutsideOfWholeRange) {
 				this._log('text changed outside of whole range, FINISH session');
+				console.log('before the third finish existing session');
 				this.finishExistingSession();
 			}
 		}));
@@ -379,7 +385,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 
-	private async [State.WAIT_FOR_INPUT](options: InlineChatRunOptions): Promise<State.ACCEPT | State.CANCEL | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
+	private async [State.WAIT_FOR_INPUT](options: InlineChatRunOptions): Promise<void | State.ACCEPT | State.CANCEL | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
@@ -400,6 +406,7 @@ export class InlineChatController implements IEditorContribution {
 		} else {
 			const barrier = new Barrier();
 			const msgListener = Event.once(this._messages.event)(m => {
+				console.log('inside of msgListener of WAIT FOR INPUT');
 				this._log('state=_waitForInput) message received', m);
 				message = m;
 				barrier.open();
@@ -411,11 +418,19 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.selectAll();
 
 		if (message & (Message.CANCEL_INPUT | Message.CANCEL_SESSION)) {
-			return State.CANCEL;
+			console.log('inside of wait for input');
+			console.log('entered into the case when message cancel session');
+			await this[State.CANCEL]();
+			return;
+			// return State.CANCEL;
 		}
 
 		if (message & Message.ACCEPT_SESSION) {
-			return State.ACCEPT;
+			console.log('inside of wait for input');
+			console.log('entered into the case when message accept');
+			await this[State.ACCEPT]();
+			return;
+			// return State.ACCEPT;
 		}
 
 		if (message & Message.PAUSE_SESSION) {
@@ -467,6 +482,7 @@ export class InlineChatController implements IEditorContribution {
 
 		let message = Message.NONE;
 		const msgListener = Event.once(this._messages.event)(m => {
+			console.log('inside of msgListener of MAKE REQUEST');
 			this._log('state=_makeRequest) message received', m);
 			message = m;
 			requestCts.cancel();
@@ -521,10 +537,14 @@ export class InlineChatController implements IEditorContribution {
 		this._activeSession.addExchange(new SessionExchange(this._activeSession.lastInput, response));
 
 		if (message & Message.CANCEL_SESSION) {
+			console.log('inside of make request');
+			console.log('cancelling the session');
 			return State.CANCEL;
 		} else if (message & Message.PAUSE_SESSION) {
 			return State.PAUSE;
 		} else if (message & Message.ACCEPT_SESSION) {
+			console.log('inside of make request');
+			console.log('accepting');
 			return State.ACCEPT;
 		} else {
 			return State.APPLY_RESPONSE;
@@ -665,21 +685,31 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 		this._sessionStore.clear();
+		console.log('after assert type');
 
 		try {
+			console.log('before strategy apply');
 			await this._strategy.apply();
+			console.log('after strategy apply');
+			// TODO: ASK WHY DESPITE AWAIT AFTER STRATEFY NOT PRINTED BEFORE CREATE SESSION
 		} catch (err) {
+			console.log('when error obtained');
 			this._dialogService.error(localize('err.apply', "Failed to apply changes.", toErrorMessage(err)));
 			this._log('FAILED to apply changes');
 			this._log(err);
 		}
 
-		this._inlineChatSessionService.releaseSession(this._activeSession);
+		console.log('before release session');
 
-		this[State.PAUSE]();
+		await this._inlineChatSessionService.releaseSession(this._activeSession);
+
+		console.log('before state pause');
+		await this[State.PAUSE]();
 	}
 
 	private async [State.CANCEL]() {
+		console.log('inside of cancel the session');
+
 		assertType(this._activeSession);
 		assertType(this._strategy);
 		this._sessionStore.clear();
@@ -694,7 +724,7 @@ export class InlineChatController implements IEditorContribution {
 			this._log(err);
 		}
 
-		this[State.PAUSE]();
+		await this[State.PAUSE]();
 
 		this._stashedSession.clear();
 		if (!mySession.isUnstashed && mySession.lastExchange) {
@@ -780,10 +810,12 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	acceptSession(): void {
+		console.log('inside of acceptSession method');
 		this._messages.fire(Message.ACCEPT_SESSION);
 	}
 
 	cancelSession() {
+		console.log('inside of cancelSession');
 		let result: string | undefined;
 		if (this._strategy && this._activeSession) {
 			const changedText = this._activeSession.asChangedText();
@@ -798,6 +830,8 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	async finishExistingSession(): Promise<void> {
+		console.log('inside of finish existing session');
+		console.log(this._activeSession);
 		if (this._activeSession) {
 			if (this._activeSession.editMode === EditMode.Preview) {
 				this._log('finishing existing session, using CANCEL', this._activeSession.editMode);
