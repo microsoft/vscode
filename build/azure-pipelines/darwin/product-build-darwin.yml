@@ -203,7 +203,7 @@ steps:
       displayName: Package client
 
     - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
-      condition: and(succeededOrFailed(), ne(variables['Agent.JobStatus'], 'Succeeded'))
+      condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
       displayName: Generate artifact prefix
 
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
