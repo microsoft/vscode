@@ -13,13 +13,14 @@ import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IPtyHostService, IPtyService, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, ITerminalLaunchError, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ProcessPropertyType, TerminalIcon, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IPtyHostLatencyMeasurement, IPtyHostService, IPtyService, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, ITerminalLaunchError, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ProcessPropertyType, TerminalIcon, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
 import * as performance from 'vs/base/common/performance';
 import { getSystemShell } from 'vs/base/node/shell';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 enum Constants {
 	MaxRestarts = 5
@@ -272,8 +273,17 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	getCwd(id: number): Promise<string> {
 		return this._proxy.getCwd(id);
 	}
-	getLatency(id: number): Promise<number> {
-		return this._proxy.getLatency(id);
+	async getLatency(): Promise<IPtyHostLatencyMeasurement[]> {
+		const sw = new StopWatch();
+		const results = await this._proxy.getLatency();
+		sw.stop();
+		return [
+			{
+				label: 'ptyhostservice<->ptyhost',
+				latency: sw.elapsed()
+			},
+			...results
+		];
 	}
 	orphanQuestionReply(id: number): Promise<void> {
 		return this._proxy.orphanQuestionReply(id);
@@ -316,7 +326,10 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		return this._proxy.setTerminalLayoutInfo(args);
 	}
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
-		return await this._proxy.getTerminalLayoutInfo(args);
+		// This is optional as we want reconnect requests to go through only if the pty host exists.
+		// Revive is handled specially as reviveTerminalProcesses is guaranteed to be called before
+		// the request for layout info.
+		return this._optionalProxy?.getTerminalLayoutInfo(args);
 	}
 
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {

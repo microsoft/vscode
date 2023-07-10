@@ -38,6 +38,7 @@ import Severity from 'vs/base/common/severity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { generateUuid } from 'vs/base/common/uuid';
+import { runWhenIdle } from 'vs/base/common/async';
 
 const enum ProcessConstants {
 	/**
@@ -79,8 +80,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _process: ITerminalChildProcess | null = null;
 	private _processType: ProcessType = ProcessType.Process;
 	private _preLaunchInputQueue: string[] = [];
-	private _latency: number = -1;
-	private _latencyLastMeasured: number = 0;
 	private _initialCwd: string | undefined;
 	private _extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 	private _ackDataBufferer: AckDataBufferer;
@@ -152,7 +151,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		super();
 		this._cwdWorkspaceFolder = terminalEnvironment.getWorkspaceForTerminal(cwd, this._workspaceContextService, this._historyService);
 		this.ptyProcessReady = this._createPtyProcessReadyPromise();
-		this.getLatency();
 		this._ackDataBufferer = new AckDataBufferer(e => this._process?.acknowledgeDataEvent(e));
 		this._dataFilter = this._instantiationService.createInstance(SeamlessRelaunchDataFilter);
 		this._dataFilter.onProcessData(ev => {
@@ -394,6 +392,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// Error
 			return result;
 		}
+
+		// Report the latency to the pty host when idle
+		runWhenIdle(() => {
+			this.backend?.getLatency().then(measurements => {
+				this._logService.info(`Latency measurements for ${this.remoteAuthority ?? 'local'} backend\n${measurements.map(e => `${e.label}: ${e.latency.toFixed(2)}ms`).join('\n')}`);
+			});
+		});
+
 		return undefined;
 	}
 
@@ -603,19 +609,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	get initialCwd(): string {
 		return this._initialCwd ?? '';
-	}
-
-	async getLatency(): Promise<number> {
-		await this.ptyProcessReady;
-		if (!this._process) {
-			return Promise.resolve(0);
-		}
-		if (this._latencyLastMeasured === 0 || this._latencyLastMeasured + ProcessConstants.LatencyMeasuringInterval < Date.now()) {
-			const latencyRequest = this._process.getLatency();
-			this._latency = await latencyRequest;
-			this._latencyLastMeasured = Date.now();
-		}
-		return Promise.resolve(this._latency);
 	}
 
 	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {

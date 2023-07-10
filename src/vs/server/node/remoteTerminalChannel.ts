@@ -22,7 +22,7 @@ import { CLIServerBase, ICommandsExecuter } from 'vs/workbench/api/node/extHostC
 import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
 import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
-import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IWorkspaceFolderData } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IWorkspaceFolderData, RemoteTerminalChannelEvent, RemoteTerminalChannelRequest } from 'vs/workbench/contrib/terminal/common/remote/terminal';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { buildUserEnvironment } from 'vs/server/node/extensionHostConnection';
@@ -105,79 +105,81 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		super();
 	}
 
-	async call(ctx: RemoteAgentConnectionContext, command: string, args?: any): Promise<any> {
+	async call(ctx: RemoteAgentConnectionContext, command: RemoteTerminalChannelRequest, args?: any): Promise<any> {
 		switch (command) {
-			case '$restartPtyHost': return this._ptyHostService.restartPtyHost.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.RestartPtyHost: return this._ptyHostService.restartPtyHost.apply(this._ptyHostService, args);
 
-			case '$createProcess': {
+			case RemoteTerminalChannelRequest.CreateProcess: {
 				const uriTransformer = createURITransformer(ctx.remoteAuthority);
 				return this._createProcess(uriTransformer, <ICreateTerminalProcessArguments>args);
 			}
-			case '$attachToProcess': return this._ptyHostService.attachToProcess.apply(this._ptyHostService, args);
-			case '$detachFromProcess': return this._ptyHostService.detachFromProcess.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.AttachToProcess: return this._ptyHostService.attachToProcess.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.DetachFromProcess: return this._ptyHostService.detachFromProcess.apply(this._ptyHostService, args);
 
-			case '$listProcesses': return this._ptyHostService.listProcesses.apply(this._ptyHostService, args);
-			case '$getPerformanceMarks': return this._ptyHostService.getPerformanceMarks.apply(this._ptyHostService, args);
-			case '$orphanQuestionReply': return this._ptyHostService.orphanQuestionReply.apply(this._ptyHostService, args);
-			case '$acceptPtyHostResolvedVariables': return this._ptyHostService.acceptPtyHostResolvedVariables.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.ListProcesses: return this._ptyHostService.listProcesses.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.GetLatency: return this._ptyHostService.getLatency.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.GetPerformanceMarks: return this._ptyHostService.getPerformanceMarks.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.OrphanQuestionReply: return this._ptyHostService.orphanQuestionReply.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.AcceptPtyHostResolvedVariables: return this._ptyHostService.acceptPtyHostResolvedVariables.apply(this._ptyHostService, args);
 
-			case '$start': return this._ptyHostService.start.apply(this._ptyHostService, args);
-			case '$input': return this._ptyHostService.input.apply(this._ptyHostService, args);
-			case '$acknowledgeDataEvent': return this._ptyHostService.acknowledgeDataEvent.apply(this._ptyHostService, args);
-			case '$shutdown': return this._ptyHostService.shutdown.apply(this._ptyHostService, args);
-			case '$resize': return this._ptyHostService.resize.apply(this._ptyHostService, args);
-			case '$clearBuffer': return this._ptyHostService.clearBuffer.apply(this._ptyHostService, args);
-			case '$getInitialCwd': return this._ptyHostService.getInitialCwd.apply(this._ptyHostService, args);
-			case '$getCwd': return this._ptyHostService.getCwd.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.Start: return this._ptyHostService.start.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.Input: return this._ptyHostService.input.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.AcknowledgeDataEvent: return this._ptyHostService.acknowledgeDataEvent.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.Shutdown: return this._ptyHostService.shutdown.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.Resize: return this._ptyHostService.resize.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.ClearBuffer: return this._ptyHostService.clearBuffer.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.GetInitialCwd: return this._ptyHostService.getInitialCwd.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.GetCwd: return this._ptyHostService.getCwd.apply(this._ptyHostService, args);
 
-			case '$processBinary': return this._ptyHostService.processBinary.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.ProcessBinary: return this._ptyHostService.processBinary.apply(this._ptyHostService, args);
 
-			case '$sendCommandResult': return this._sendCommandResult(args[0], args[1], args[2]);
-			case '$installAutoReply': return this._ptyHostService.installAutoReply.apply(this._ptyHostService, args);
-			case '$uninstallAllAutoReplies': return this._ptyHostService.uninstallAllAutoReplies.apply(this._ptyHostService, args);
-			case '$getDefaultSystemShell': return this._getDefaultSystemShell.apply(this, args);
-			case '$getProfiles': return this._getProfiles.apply(this, args);
-			case '$getEnvironment': return this._getEnvironment();
-			case '$getWslPath': return this._getWslPath(args[0], args[1]);
-			case '$getTerminalLayoutInfo': return this._ptyHostService.getTerminalLayoutInfo(<IGetTerminalLayoutInfoArgs>args);
-			case '$setTerminalLayoutInfo': return this._ptyHostService.setTerminalLayoutInfo(<ISetTerminalLayoutInfoArgs>args);
-			case '$serializeTerminalState': return this._ptyHostService.serializeTerminalState.apply(this._ptyHostService, args);
-			case '$reviveTerminalProcesses': return this._ptyHostService.reviveTerminalProcesses.apply(this._ptyHostService, args);
-			case '$getRevivedPtyNewId': return this._ptyHostService.getRevivedPtyNewId.apply(this._ptyHostService, args);
-			case '$setUnicodeVersion': return this._ptyHostService.setUnicodeVersion.apply(this._ptyHostService, args);
-			case '$reduceConnectionGraceTime': return this._reduceConnectionGraceTime();
-			case '$updateIcon': return this._ptyHostService.updateIcon.apply(this._ptyHostService, args);
-			case '$updateTitle': return this._ptyHostService.updateTitle.apply(this._ptyHostService, args);
-			case '$updateProperty': return this._ptyHostService.updateProperty.apply(this._ptyHostService, args);
-			case '$refreshProperty': return this._ptyHostService.refreshProperty.apply(this._ptyHostService, args);
-			case '$requestDetachInstance': return this._ptyHostService.requestDetachInstance(args[0], args[1]);
-			case '$acceptDetachedInstance': return this._ptyHostService.acceptDetachInstanceReply(args[0], args[1]);
-			case '$freePortKillProcess': return this._ptyHostService.freePortKillProcess.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.SendCommandResult: return this._sendCommandResult(args[0], args[1], args[2]);
+			case RemoteTerminalChannelRequest.InstallAutoReply: return this._ptyHostService.installAutoReply.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.UninstallAllAutoReplies: return this._ptyHostService.uninstallAllAutoReplies.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.GetDefaultSystemShell: return this._getDefaultSystemShell.apply(this, args);
+			case RemoteTerminalChannelRequest.GetProfiles: return this._getProfiles.apply(this, args);
+			case RemoteTerminalChannelRequest.GetEnvironment: return this._getEnvironment();
+			case RemoteTerminalChannelRequest.GetWslPath: return this._getWslPath(args[0], args[1]);
+			case RemoteTerminalChannelRequest.GetTerminalLayoutInfo: return this._ptyHostService.getTerminalLayoutInfo(<IGetTerminalLayoutInfoArgs>args);
+			case RemoteTerminalChannelRequest.SetTerminalLayoutInfo: return this._ptyHostService.setTerminalLayoutInfo(<ISetTerminalLayoutInfoArgs>args);
+			case RemoteTerminalChannelRequest.SerializeTerminalState: return this._ptyHostService.serializeTerminalState.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.ReviveTerminalProcesses: return this._ptyHostService.reviveTerminalProcesses.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.GetRevivedPtyNewId: return this._ptyHostService.getRevivedPtyNewId.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.SetUnicodeVersion: return this._ptyHostService.setUnicodeVersion.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.ReduceConnectionGraceTime: return this._reduceConnectionGraceTime();
+			case RemoteTerminalChannelRequest.UpdateIcon: return this._ptyHostService.updateIcon.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.UpdateTitle: return this._ptyHostService.updateTitle.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.UpdateProperty: return this._ptyHostService.updateProperty.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.RefreshProperty: return this._ptyHostService.refreshProperty.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.RequestDetachInstance: return this._ptyHostService.requestDetachInstance(args[0], args[1]);
+			case RemoteTerminalChannelRequest.AcceptDetachedInstance: return this._ptyHostService.acceptDetachInstanceReply(args[0], args[1]);
+			case RemoteTerminalChannelRequest.FreePortKillProcess: return this._ptyHostService.freePortKillProcess.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.AcceptDetachInstanceReply: return this._ptyHostService.acceptDetachInstanceReply.apply(this._ptyHostService, args);
 		}
 
+		// @ts-expect-error Assert command is the `never` type to ensure all messages are handled
 		throw new Error(`IPC Command ${command} not found`);
 	}
 
-	listen(_: any, event: string, arg: any): Event<any> {
+	listen(_: any, event: RemoteTerminalChannelEvent, arg: any): Event<any> {
 		switch (event) {
-			case '$onPtyHostExitEvent': return this._ptyHostService.onPtyHostExit || Event.None;
-			case '$onPtyHostStartEvent': return this._ptyHostService.onPtyHostStart || Event.None;
-			case '$onPtyHostUnresponsiveEvent': return this._ptyHostService.onPtyHostUnresponsive || Event.None;
-			case '$onPtyHostResponsiveEvent': return this._ptyHostService.onPtyHostResponsive || Event.None;
-			case '$onPtyHostRequestResolveVariablesEvent': return this._ptyHostService.onPtyHostRequestResolveVariables || Event.None;
-			case '$onProcessDataEvent': return this._ptyHostService.onProcessData;
-			case '$onProcessReadyEvent': return this._ptyHostService.onProcessReady;
-			case '$onProcessExitEvent': return this._ptyHostService.onProcessExit;
-			case '$onProcessReplayEvent': return this._ptyHostService.onProcessReplay;
-			case '$onProcessOrphanQuestion': return this._ptyHostService.onProcessOrphanQuestion;
-			case '$onExecuteCommand': return this.onExecuteCommand;
-			case '$onDidRequestDetach': return this._ptyHostService.onDidRequestDetach || Event.None;
-			case '$onDidChangeProperty': return this._ptyHostService.onDidChangeProperty;
-			default:
-				break;
+			case RemoteTerminalChannelEvent.OnPtyHostExitEvent: return this._ptyHostService.onPtyHostExit || Event.None;
+			case RemoteTerminalChannelEvent.OnPtyHostStartEvent: return this._ptyHostService.onPtyHostStart || Event.None;
+			case RemoteTerminalChannelEvent.OnPtyHostUnresponsiveEvent: return this._ptyHostService.onPtyHostUnresponsive || Event.None;
+			case RemoteTerminalChannelEvent.OnPtyHostResponsiveEvent: return this._ptyHostService.onPtyHostResponsive || Event.None;
+			case RemoteTerminalChannelEvent.OnPtyHostRequestResolveVariablesEvent: return this._ptyHostService.onPtyHostRequestResolveVariables || Event.None;
+			case RemoteTerminalChannelEvent.OnProcessDataEvent: return this._ptyHostService.onProcessData;
+			case RemoteTerminalChannelEvent.OnProcessReadyEvent: return this._ptyHostService.onProcessReady;
+			case RemoteTerminalChannelEvent.OnProcessExitEvent: return this._ptyHostService.onProcessExit;
+			case RemoteTerminalChannelEvent.OnProcessReplayEvent: return this._ptyHostService.onProcessReplay;
+			case RemoteTerminalChannelEvent.OnProcessOrphanQuestion: return this._ptyHostService.onProcessOrphanQuestion;
+			case RemoteTerminalChannelEvent.OnExecuteCommand: return this.onExecuteCommand;
+			case RemoteTerminalChannelEvent.OnDidRequestDetach: return this._ptyHostService.onDidRequestDetach || Event.None;
+			case RemoteTerminalChannelEvent.OnDidChangeProperty: return this._ptyHostService.onDidChangeProperty;
 		}
 
-		throw new Error('Not supported');
+		// @ts-expect-error Assert event is the `never` type to ensure all messages are handled
+		throw new Error(`IPC Command ${event} not found`);
 	}
 
 	private async _createProcess(uriTransformer: IURITransformer, args: ICreateTerminalProcessArguments): Promise<ICreateTerminalProcessResult> {

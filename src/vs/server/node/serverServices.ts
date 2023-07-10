@@ -60,7 +60,7 @@ import { RemoteTerminalChannel } from 'vs/server/node/remoteTerminalChannel';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { ServerConnectionToken } from 'vs/server/node/serverConnectionToken';
 import { ServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
-import { REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remote/remoteTerminalChannel';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
 import { ExtensionHostStatusService, IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';

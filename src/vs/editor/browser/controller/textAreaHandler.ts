@@ -177,6 +177,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('autocomplete', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		this.textArea.setAttribute('role', 'textbox');
 		this.textArea.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
@@ -601,6 +602,7 @@ export class TextAreaHandler extends ViewPart {
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this.textArea.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
 		if (e.hasChanged(EditorOption.domReadOnly) || e.hasChanged(EditorOption.readOnly)) {

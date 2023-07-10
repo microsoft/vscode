@@ -984,6 +984,11 @@ configurationRegistry.registerConfiguration({
 				codeOutput: true
 			},
 			tags: ['notebookLayout']
+		},
+		[NotebookSetting.remoteSaving]: {
+			markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks in Remote environment. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),
+			type: 'boolean',
+			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
 		}
 	}
 });

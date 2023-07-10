@@ -300,6 +300,10 @@ export interface IPtyService {
 	 */
 	listProcesses(): Promise<IProcessDetails[]>;
 	getPerformanceMarks(): Promise<performance.PerformanceMark[]>;
+	/**
+	 * Measures and returns the latency of the current and all other processes to the pty host.
+	 */
+	getLatency(): Promise<IPtyHostLatencyMeasurement[]>;
 
 	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
@@ -308,7 +312,6 @@ export interface IPtyService {
 	clearBuffer(id: number): Promise<void>;
 	getInitialCwd(id: number): Promise<string>;
 	getCwd(id: number): Promise<string>;
-	getLatency(id: number): Promise<number>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
 	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void>;
 	processBinary(id: number, data: string): Promise<void>;
@@ -365,6 +368,11 @@ export interface IPtyHostController {
  * process) and is able to launch and forward requests to the pty host.
 */
 export interface IPtyHostService extends IPtyService, IPtyHostController {
+}
+
+export interface IPtyHostLatencyMeasurement {
+	label: string;
+	latency: number;
 }
 
 /**
@@ -739,7 +747,6 @@ export interface ITerminalChildProcess {
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
-	getLatency(): Promise<number>;
 	refreshProperty<T extends ProcessPropertyType>(property: T): Promise<IProcessPropertyMap[T]>;
 	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): Promise<void>;
 }
@@ -992,6 +999,7 @@ export interface ITerminalBackend {
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
+	getLatency(): Promise<IPtyHostLatencyMeasurement[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string>;
