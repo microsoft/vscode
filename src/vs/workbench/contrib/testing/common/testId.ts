@@ -138,6 +138,13 @@ export class TestId {
 	/**
 	 * Gets the ID of the parent test.
 	 */
+	public get rootId(): TestId {
+		return new TestId(this.path, 1);
+	}
+
+	/**
+	 * Gets the ID of the parent test.
+	 */
 	public get parentId(): TestId | undefined {
 		return this.viewEnd > 1 ? new TestId(this.path, this.viewEnd - 1) : undefined;
 	}

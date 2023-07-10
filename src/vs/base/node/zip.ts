@@ -36,7 +36,6 @@ export type ExtractErrorType = 'CorruptZip' | 'Incomplete';
 export class ExtractError extends Error {
 
 	readonly type?: ExtractErrorType;
-	readonly cause: Error;
 
 	constructor(type: ExtractErrorType | undefined, cause: Error) {
 		let message = cause.message;

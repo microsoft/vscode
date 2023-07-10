@@ -39,6 +39,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { isDiffEditorInput } from 'vs/workbench/common/editor';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 
 type AccountQuickPickItem = { label: string; authenticationProvider: IAuthenticationProvider; account?: UserDataSyncAccount; description?: string };
 
@@ -105,6 +106,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
+		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -169,7 +171,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async initialize(): Promise<void> {
-		const authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
+		const authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.secretStorageService, this.productService);
 		if (this.currentSessionId === undefined && authenticationSession?.id) {
 			if (this.environmentService.options?.settingsSyncOptions?.authenticationProvider && this.environmentService.options.settingsSyncOptions.enabled) {
 				this.currentSessionId = authenticationSession.id;

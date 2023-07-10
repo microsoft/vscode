@@ -314,7 +314,7 @@
 				},
 				{
 					"match": "(?!when|and|or\\b)\\b([\\w0-9'`^._]+)",
-					"comments": "Here we need the \\w modifier in order to check that the words are allowed",
+					"comments": "Here we need the \\w modifier in order to check that the words isn't blacklisted",
 					"captures": {
 						"1": {
 							"name": "entity.name.type.fsharp"
@@ -677,7 +677,7 @@
 				},
 				{
 					"match": "(?!with|get|set\\b)\\b([\\w0-9'`^._]+)",
-					"comments": "Here we need the \\w modifier in order to check that the words are allowed",
+					"comments": "Here we need the \\w modifier in order to check that the words isn't blacklisted",
 					"captures": {
 						"1": {
 							"name": "entity.name.type.fsharp"
@@ -1658,7 +1658,7 @@
 								},
 								{
 									"match": "([\\w0-9'`^._]+)",
-									"comments": "Here we need the \\w modifier in order to check that the words are allowed",
+									"comments": "Here we need the \\w modifier in order to check that the words isn't blacklisted",
 									"captures": {
 										"1": {
 											"name": "entity.name.type.fsharp"
