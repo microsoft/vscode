@@ -266,7 +266,6 @@ suite('SearchModel', () => {
 		});
 		restoreStubs.push(notebookSearch);
 
-
 		await model.search({ contentPattern: { pattern: 'test' }, type: QueryType.Text, folderQueries });
 		const actual = model.searchResult.matches();
 
@@ -331,6 +330,7 @@ suite('SearchModel', () => {
 		const target2 = sinon.spy();
 		stub(nullEvent, 'stop', target2);
 		const target1 = sinon.stub().returns(nullEvent);
+		restoreStubs.push(target1);
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
 		instantiationService.stub(ISearchService, searchServiceWithResults([]));
@@ -350,6 +350,7 @@ suite('SearchModel', () => {
 		const target2 = sinon.spy();
 		stub(nullEvent, 'stop', target2);
 		const target1 = sinon.stub().returns(nullEvent);
+		restoreStubs.push(target1);
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
 		instantiationService.stub(ISearchService, searchServiceWithResults(
@@ -375,6 +376,7 @@ suite('SearchModel', () => {
 		stub(nullEvent, 'stop', target2);
 		const target1 = sinon.stub().returns(nullEvent);
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
+		restoreStubs.push(target1);
 
 		instantiationService.stub(ISearchService, searchServiceWithError(new Error('error')));
 
@@ -395,6 +397,7 @@ suite('SearchModel', () => {
 		stub(nullEvent, 'stop', target2);
 		const target1 = sinon.stub().returns(nullEvent);
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
+		restoreStubs.push(target1);
 
 		const deferredPromise = new DeferredPromise<ISearchComplete>();
 		instantiationService.stub(ISearchService, 'textSearch', deferredPromise.p);
@@ -435,7 +438,7 @@ suite('SearchModel', () => {
 		const tokenSource = new CancellationTokenSource();
 		instantiationService.stub(ISearchService, canceleableSearchService(tokenSource));
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
-		sinon.stub(testObject, "notebookSearch").callsFake((_, token) => {
+		const notebookSearch = sinon.stub(testObject, "notebookSearch").callsFake((_, token) => {
 			token?.onCancellationRequested(() => tokenSource.cancel());
 
 			return new Promise(resolve => {
@@ -444,6 +447,7 @@ suite('SearchModel', () => {
 				});
 			});
 		});
+		restoreStubs.push(notebookSearch);
 
 		testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 		instantiationService.stub(ISearchService, searchServiceWithResults([]));
