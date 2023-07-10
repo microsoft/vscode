@@ -153,7 +153,10 @@ class InputEditorSlashCommandFollowups extends Disposable {
 		}
 
 		if (slashCommands?.find(c => c.command === slashCommand)?.shouldRepopulate) {
-			this.widget.inputEditor.setValue(`/${slashCommand} `);
+			const value = `/${slashCommand} `;
+			this.widget.inputEditor.setValue(value);
+			this.widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
+
 		}
 	}
 }
