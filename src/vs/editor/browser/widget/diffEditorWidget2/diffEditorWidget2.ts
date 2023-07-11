@@ -159,7 +159,6 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._reviewPane = this._register(this._instantiationService.createInstance(DiffReview2, this));
 		this.elements.root.appendChild(this._reviewPane.domNode.domNode);
-		this.elements.root.appendChild(this._reviewPane.shadow.domNode);
 		this.elements.root.appendChild(this._reviewPane.actionBarContainer.domNode);
 		reviewPaneObservable.set(this._reviewPane, undefined);
 
