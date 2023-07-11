@@ -69,7 +69,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		uninstallEvent = suiteDisposables.add(new Emitter<UninstallExtensionEvent>());
 		didUninstallEvent = suiteDisposables.add(new Emitter<DidUninstallExtensionEvent>());
 
-		instantiationService = new TestInstantiationService();
+		instantiationService = suiteDisposables.add(new TestInstantiationService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IProgressService, ProgressService);
