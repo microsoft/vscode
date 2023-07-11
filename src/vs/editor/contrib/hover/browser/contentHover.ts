@@ -548,7 +548,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	private _setContentsDomNodeMaxDimensions(width: number | string, height: number | string): void {
 		const contentsDomNode = this._hover.contentsDomNode;
 		ContentHoverWidget._applyMaxDimensions(contentsDomNode, width, height);
-		console.log('contentsDomNode : ', contentsDomNode);
 	}
 
 	private _setContainerDomNodeMaxDimensions(width: number | string, height: number | string): void {
@@ -557,12 +556,9 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _setHoverWidgetMaxDimensions(width: number | string, height: number | string): void {
-		console.log('inside of set hover widget max dimensions');
-		console.log('width : ', width);
-		console.log('height : ', height);
 		this._setContentsDomNodeMaxDimensions(width, height);
 		this._setContainerDomNodeMaxDimensions(width, height);
-		this._setHoverContainerMaxWidth(width);
+		this._setHoverTextMaxWidth(width);
 		this._layoutContentWidget();
 	}
 
@@ -582,7 +578,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _setAdjustedHoverWidgetDimensions(size: dom.Dimension): void {
 		this._setHoverWidgetMaxDimensions('none', 'none');
-		// this._setContentsDomNodeMaxDimensions('none', 'none');
 		const width = size.width;
 		const height = size.height;
 		this._setHoverWidgetDimensions(width, height);
@@ -594,18 +589,13 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _setResizableNodeMaxDimensions(): void {
-		console.log('inside of set resizable node max dimensions');
 		const maxRenderingWidth = this._findMaximumRenderingWidth() ?? Infinity;
 		const maxRenderingHeight = this._findMaximumRenderingHeight() ?? Infinity;
-		console.log('maxRenderingWidth : ', maxRenderingWidth);
-		console.log('maxRenderingHeight : ', maxRenderingHeight);
 		this._resizableNode.maxSize = new dom.Dimension(maxRenderingWidth, maxRenderingHeight);
-		// this._setContentsDomNodeMaxDimensions(maxRenderingWidth, maxRenderingHeight);
 		this._setHoverWidgetMaxDimensions(maxRenderingWidth, maxRenderingHeight);
 	}
 
 	protected override _resize(size: dom.Dimension): void {
-		console.log('size : ', size);
 		ContentHoverWidget._lastDimensions = new dom.Dimension(size.width, size.height);
 		this._setAdjustedHoverWidgetDimensions(size);
 		this._resizableNode.layout(size.height, size.width);
@@ -679,15 +669,11 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _layout(): void {
-		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250, ContentHoverWidget._lastDimensions.height);
-		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500, ContentHoverWidget._lastDimensions.width);
 		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
 		const contentsDomNode = this._hover.contentsDomNode;
 		contentsDomNode.style.fontSize = `${fontSize}px`;
 		contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
-		console.log('inside of _layout');
-		// this._setContentsDomNodeMaxDimensions(width, height);
-		this._setHoverWidgetMaxDimensions(width, height);
+		this._updateMaxDimensions();
 	}
 
 	private _updateFont(): void {
@@ -707,25 +693,22 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._hover.onContentsChanged();
 	}
 
-	private _setHoverContainerMaxWidth(width: number | string) {
+	private _setHoverTextMaxWidth(width: number | string) {
 		const transformedWidth = typeof width === 'number' ? `${width}px` : width;
-		this._hover.containerDomNode.style.setProperty('--vscode-hover-contents-max-width', transformedWidth);
+		this._hover.containerDomNode.style.setProperty('--vscode-hover-text-max-width', transformedWidth);
 	}
 
-	private _updateContentsDomNodeMaxDimensions() {
+	private _updateMaxDimensions() {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250, ContentHoverWidget._lastDimensions.height);
 		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500, ContentHoverWidget._lastDimensions.width);
-		// this._setContentsDomNodeMaxDimensions(width, height);
-		console.log('inside of _updateContentsDomNodeMaxDimensions');
 		this._setHoverWidgetMaxDimensions(width, height);
-
 	}
 
 	private _render(node: DocumentFragment, hoverData: ContentHoverVisibleData) {
 		this._setHoverData(hoverData);
 		this._updateFont();
 		this._updateContent(node);
-		this._updateContentsDomNodeMaxDimensions();
+		this._updateMaxDimensions();
 		this.onContentsChanged();
 		// Simply force a synchronous render on the editor
 		// such that the widget does not really render with left = '0px'
