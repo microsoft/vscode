@@ -306,7 +306,7 @@
 		"--vscode-extensionIcon-verifiedForeground",
 		"--vscode-focusBorder",
 		"--vscode-foreground",
-		"--vscode-hover-text-max-width",
+		"--vscode-hover-maxWidth",
 		"--vscode-icon-foreground",
 		"--vscode-inlineChat-background",
 		"--vscode-inlineChat-border",

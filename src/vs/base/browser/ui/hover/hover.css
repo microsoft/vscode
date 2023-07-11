@@ -27,7 +27,7 @@
 }
 
 .monaco-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
-	max-width: var(--vscode-hover-text-max-width);
+	max-width: var(--vscode-hover-maxWidth);
 	word-wrap: break-word;
 }
 
