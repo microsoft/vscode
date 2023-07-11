@@ -38,8 +38,9 @@ suite('QuickFixAddon', () => {
 	let openerService: OpenerService;
 	let labelService: LabelService;
 	let terminal: Terminal;
+	let instantiationService: TestInstantiationService;
 	setup(async () => {
-		const instantiationService = new TestInstantiationService();
+		instantiationService = new TestInstantiationService();
 		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
 		terminal = new TerminalCtor({
 			allowProposedApi: true,
@@ -67,6 +68,9 @@ suite('QuickFixAddon', () => {
 
 		quickFixAddon = instantiationService.createInstance(TerminalQuickFixAddon, [], capabilities);
 		terminal.loadAddon(quickFixAddon);
+	});
+	teardown(() => {
+		instantiationService.dispose();
 	});
 	suite('registerCommandFinishedListener & getMatchActions', () => {
 		suite('gitSimilarCommand', async () => {

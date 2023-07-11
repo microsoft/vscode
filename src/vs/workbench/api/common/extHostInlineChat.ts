@@ -17,6 +17,7 @@ import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IRange } from 'vs/editor/common/core/range';
+import { IPosition } from 'vs/editor/common/core/position';
 
 class ProviderWrapper {
 
@@ -59,12 +60,14 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			initialRange?: vscode.Range;
 			message?: string;
 			autoSend?: boolean;
+			position?: vscode.Position;
 		};
 
 		type InteractiveEditorRunOptions = {
 			initialRange?: IRange;
 			message?: string;
 			autoSend?: boolean;
+			position?: IPosition;
 		};
 
 		extHostCommands.registerApiCommand(new ApiCommand(
@@ -78,7 +81,8 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 				return {
 					initialRange: v.initialRange ? typeConvert.Range.from(v.initialRange) : undefined,
 					message: v.message,
-					autoSend: v.autoSend
+					autoSend: v.autoSend,
+					position: v.position ? typeConvert.Position.from(v.position) : undefined,
 				};
 			})],
 			ApiCommandResult.Void
