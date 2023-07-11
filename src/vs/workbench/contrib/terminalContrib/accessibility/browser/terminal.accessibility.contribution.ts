@@ -92,7 +92,7 @@ registerTerminalAction({
 		{
 			primary: KeyMod.Shift | KeyCode.Tab,
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, terminalTabFocusContextKey, TerminalContextKeys.accessibleBufferFocus.negate())
+			when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(terminalTabFocusContextKey, TerminalContextKeys.accessibleBufferFocus.negate()))
 		}
 	],
 	run: async (c) => {
