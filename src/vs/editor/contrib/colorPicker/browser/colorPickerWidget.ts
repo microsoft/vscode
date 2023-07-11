@@ -22,13 +22,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
-function elementsOverlap(el1: HTMLElement, el2: HTMLElement) {
+function elementsOverlapHorizontally(el1: HTMLElement, el2: HTMLElement) {
 	const domRect1 = el1.getBoundingClientRect();
 	const domRect2 = el2.getBoundingClientRect();
 	return !(
-		domRect1.top > domRect2.bottom ||
 		domRect1.right < domRect2.left ||
-		domRect1.bottom < domRect2.top ||
 		domRect1.left > domRect2.right
 	);
 }
@@ -83,7 +81,7 @@ export class ColorPickerHeader extends Disposable {
 
 		const resizeObserver = new ResizeObserver(() => {
 			this._pickedColorRepresentation.style.display = 'block';
-			if (elementsOverlap(this._pickedColorRepresentation, icon)) {
+			if (elementsOverlapHorizontally(this._pickedColorRepresentation, icon)) {
 				this._pickedColorRepresentation.style.display = 'none';
 			} else {
 				this._pickedColorRepresentation.style.display = 'block';
