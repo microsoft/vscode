@@ -401,13 +401,13 @@ export interface IFindMessage {
 }
 
 
-export interface IFindHighlightMessage {
-	readonly type: 'findHighlight';
+export interface IFindHighlightCurrentMessage {
+	readonly type: 'findHighlightCurrent';
 	readonly index: number;
 }
 
-export interface IFindUnHighlightMessage {
-	readonly type: 'findUnHighlight';
+export interface IFindUnHighlightCurrentMessage {
+	readonly type: 'findUnHighlightCurrent';
 	readonly index: number;
 }
 
@@ -436,8 +436,8 @@ export interface IDidFindMessage extends BaseToWebviewMessage {
 	readonly matches: IFindMatch[];
 }
 
-export interface IDidFindHighlightMessage extends BaseToWebviewMessage {
-	readonly type: 'didFindHighlight';
+export interface IDidFindHighlightCurrentMessage extends BaseToWebviewMessage {
+	readonly type: 'didFindHighlightCurrent';
 	readonly offset: number;
 }
 
@@ -502,7 +502,7 @@ export type FromWebviewMessage = WebviewInitialized |
 	IRenderedMarkupMessage |
 	IRenderedCellOutputMessage |
 	IDidFindMessage |
-	IDidFindHighlightMessage |
+	IDidFindHighlightCurrentMessage |
 	IOutputResizedMessage |
 	IGetOutputItemMessage |
 	ILogRendererDebugMessage |
@@ -534,8 +534,8 @@ export type ToWebviewMessage = IClearMessage |
 	ITokenizedCodeBlockMessage |
 	ITokenizedStylesChangedMessage |
 	IFindMessage |
-	IFindHighlightMessage |
-	IFindUnHighlightMessage |
+	IFindHighlightCurrentMessage |
+	IFindUnHighlightCurrentMessage |
 	IFindStopMessage |
 	IReturnOutputItemMessage;
 

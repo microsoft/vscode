@@ -961,7 +961,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				match.highlightResult?.update(currentMatchColor, match.isShadow ? undefined : 'current-find-match');
 
 				document.getSelection()?.removeAllRanges();
-				postNotebookMessage('didFindHighlight', {
+				postNotebookMessage('didFindHighlightCurrent', {
 					offset
 				});
 			}
@@ -1015,7 +1015,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					match.originalRange.startContainer.parentElement?.scrollIntoView({ behavior: 'auto', block: 'end', inline: 'nearest' });
 					const rangeOffset = match.originalRange.getBoundingClientRect().top;
 					offset = rangeOffset - outputOffset;
-					postNotebookMessage('didFindHighlight', {
+					postNotebookMessage('didFindHighlightCurrent', {
 						offset
 					});
 				} catch (e) {
@@ -1452,11 +1452,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 				find(event.data.query, event.data.options);
 				break;
 			}
-			case 'findHighlight': {
+			case 'findHighlightCurrent': {
 				_highlighter?.highlightCurrentMatch(event.data.index);
 				break;
 			}
-			case 'findUnHighlight': {
+			case 'findUnHighlightCurrent': {
 				_highlighter?.unHighlightCurrentMatch(event.data.index);
 				break;
 			}

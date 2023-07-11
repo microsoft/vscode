@@ -1638,10 +1638,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 	}
 
-	async findHighlight(index: number): Promise<number> {
+	async findHighlightCurrent(index: number): Promise<number> {
 		const p = new Promise<number>(resolve => {
 			const sub = this.webview?.onMessage(e => {
-				if (e.message.type === 'didFindHighlight') {
+				if (e.message.type === 'didFindHighlightCurrent') {
 					resolve(e.message.offset);
 					sub?.dispose();
 				}
@@ -1649,7 +1649,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 
 		this._sendMessageToWebview({
-			type: 'findHighlight',
+			type: 'findHighlightCurrent',
 			index
 		});
 
@@ -1657,9 +1657,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return ret;
 	}
 
-	async findUnHighlight(index: number): Promise<void> {
+	async findUnHighlightCurrent(index: number): Promise<void> {
 		this._sendMessageToWebview({
-			type: 'findUnHighlight',
+			type: 'findUnHighlightCurrent',
 			index
 		});
 	}
