@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
+import { equals } from 'vs/base/common/arrays';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./stickyScroll';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
@@ -23,9 +24,7 @@ export class StickyScrollWidgetState {
 	) { }
 
 	public equals(other: StickyScrollWidgetState | undefined): boolean {
-		return !!other && this.lastLineRelativePosition === other.lastLineRelativePosition
-			&& this.lineNumbers.length === other.lineNumbers.length
-			&& this.lineNumbers.every((lineNumber, index) => lineNumber === other.lineNumbers[index]);
+		return !!other && this.lastLineRelativePosition === other.lastLineRelativePosition && equals(this.lineNumbers, other.lineNumbers);
 	}
 }
 
