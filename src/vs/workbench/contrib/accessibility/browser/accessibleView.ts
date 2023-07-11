@@ -145,7 +145,7 @@ class AccessibleView extends Disposable {
 			);
 			if (accessibilitySupport && provider.id === 'editor') {
 				message = AccessibilityHelpNLS.auto_on;
-			} else {
+			} else if (!accessibilitySupport) {
 				message = AccessibilityHelpNLS.auto_off + '\n' + turnOnMessage;
 			}
 			message += '\n';
