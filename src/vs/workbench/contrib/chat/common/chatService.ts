@@ -178,7 +178,7 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionId: string | undefined;
 
-	onDidSubmitSlashCommand: Event<{ slashCommand: string }>;
+	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
 	registerSlashCommandProvider(provider: ISlashCommandProvider): IDisposable;
 	getProviderInfos(): IChatProviderInfo[];

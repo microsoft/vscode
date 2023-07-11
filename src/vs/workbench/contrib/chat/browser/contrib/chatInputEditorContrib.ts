@@ -21,7 +21,11 @@ import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/brows
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Selection } from 'vs/editor/common/core/selection';
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
@@ -109,7 +113,8 @@ class InputEditorDecorations extends Disposable {
 					renderOptions: {
 						after: {
 							contentText: command.detail,
-							color: this.getPlaceholderColor()
+							color: this.getPlaceholderColor(),
+							padding: '0 0 0 5px'
 						}
 					}
 				}
@@ -177,7 +182,53 @@ class InputEditorDecorations extends Disposable {
 	}
 }
 
-ChatWidget.CONTRIBS.push(InputEditorDecorations);
+class InputEditorSlashCommandFollowups extends Disposable {
+	constructor(
+		private readonly widget: IChatWidget,
+		@IChatService private readonly chatService: IChatService
+	) {
+		super();
+		this._register(this.chatService.onDidSubmitSlashCommand(({ slashCommand, sessionId }) => this.repopulateSlashCommand(slashCommand, sessionId)));
+		this._register(this.widget.inputEditor.onKeyUp((e) => this.handleKeyUp(e)));
+	}
+
+	private async repopulateSlashCommand(slashCommand: string, sessionId: string) {
+		if (this.widget.viewModel?.sessionId !== sessionId) {
+			return;
+		}
+
+		const slashCommands = await this.widget.getSlashCommands();
+
+		if (this.widget.inputEditor.getValue().trim().length !== 0) {
+			return;
+		}
+
+		if (slashCommands?.find(c => c.command === slashCommand)?.shouldRepopulate) {
+			const value = `/${slashCommand} `;
+			this.widget.inputEditor.setValue(value);
+			this.widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
+
+		}
+	}
+
+	private handleKeyUp(e: IKeyboardEvent) {
+		if (e.keyCode !== KeyCode.Backspace) {
+			return;
+		}
+
+		const value = this.widget.inputEditor.getValue().split(' ')[0];
+		const currentSelection = this.widget.inputEditor.getSelection();
+		if (!value.startsWith('/') || !currentSelection?.isEmpty() || currentSelection?.startLineNumber !== 1 || currentSelection?.startColumn !== value.length + 1) {
+			return;
+		}
+
+		if (this.widget.getSlashCommandsSync()?.find((command) => `/${command.command}` === value)) {
+			this.widget.inputEditor.executeEdits('chat-input-editor-slash-commands', [{ range: new Range(1, 1, 1, currentSelection.startColumn), text: null }], [new Selection(1, 1, 1, 1)]);
+		}
+	}
+}
+
+ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandFollowups);
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
