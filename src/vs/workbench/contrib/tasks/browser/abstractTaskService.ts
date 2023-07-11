@@ -2210,7 +2210,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!(await this._trust())) {
 			return new Map();
 		}
-		await this._waitForOneSupportedExecution;
 		await raceTimeout(this._waitForAllSupportedExecutions, 2000, () => {
 			this._logService.warn('Timed out waiting for all supported executions');
 		});
