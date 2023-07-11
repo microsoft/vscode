@@ -135,16 +135,14 @@ class ChatAccessibleViewContribution extends Disposable {
 			if (!responseContent) {
 				return false;
 			}
-			const provider = accessibleViewService.registerProvider({
+			accessibleViewService.show({
 				id: 'panelChat',
 				provideContent(): string { return responseContent; },
 				onClose() {
 					widget.focus(focusedItem);
-					provider.dispose();
 				},
 				options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript', type: AccessibleViewType.View }
 			});
-			accessibleViewService.show('panelChat');
 			return true;
 		}, CONTEXT_IN_CHAT_SESSION));
 	}
