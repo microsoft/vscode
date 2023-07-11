@@ -67,6 +67,7 @@ export interface ISlashCommandProvider {
 
 export interface ISlashCommand {
 	command: string;
+	shouldRepopulate?: boolean;
 	provider?: ISlashCommandProvider;
 	sortText?: string;
 	detail?: string;
@@ -176,6 +177,8 @@ export const IChatService = createDecorator<IChatService>('IChatService');
 export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionId: string | undefined;
+
+	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
 	registerSlashCommandProvider(provider: ISlashCommandProvider): IDisposable;
 	getProviderInfos(): IChatProviderInfo[];
