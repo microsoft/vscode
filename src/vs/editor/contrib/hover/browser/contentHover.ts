@@ -562,6 +562,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		console.log('height : ', height);
 		this._setContentsDomNodeMaxDimensions(width, height);
 		this._setContainerDomNodeMaxDimensions(width, height);
+		this._setHoverContainerMaxWidth(width);
 		this._layoutContentWidget();
 	}
 
@@ -706,12 +707,18 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._hover.onContentsChanged();
 	}
 
+	private _setHoverContainerMaxWidth(width: number | string) {
+		const transformedWidth = typeof width === 'number' ? `${width}px` : width;
+		this._hover.containerDomNode.style.setProperty('--vscode-hover-contents-max-width', transformedWidth);
+	}
+
 	private _updateContentsDomNodeMaxDimensions() {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250, ContentHoverWidget._lastDimensions.height);
 		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500, ContentHoverWidget._lastDimensions.width);
 		// this._setContentsDomNodeMaxDimensions(width, height);
 		console.log('inside of _updateContentsDomNodeMaxDimensions');
 		this._setHoverWidgetMaxDimensions(width, height);
+
 	}
 
 	private _render(node: DocumentFragment, hoverData: ContentHoverVisibleData) {
