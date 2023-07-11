@@ -659,7 +659,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 }
 
 export function isProfileUsingDefaultStorage(profile: IUserDataProfile): boolean {
-	return profile.isDefault || !!profile.useDefaultFlags?.uiState;
+	return profile.isDefault || !!profile.useDefaultFlags?.globalState;
 }
 
 export class InMemoryStorageService extends AbstractStorageService {

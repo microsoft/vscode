@@ -13,10 +13,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface IProfileExtension {
 	identifier: IExtensionIdentifier;
@@ -275,6 +275,7 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 		return extensions.length > 0;
 	}
 
+	abstract isFromDefaultProfile(): boolean;
 	abstract getContent(): Promise<string>;
 	protected abstract getExtensions(): Promise<IProfileExtension[]>;
 
@@ -288,6 +289,10 @@ export class ExtensionsResourceExportTreeItem extends ExtensionsResourceTreeItem
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+	}
+
+	isFromDefaultProfile(): boolean {
+		return !this.profile.isDefault && !!this.profile.useDefaultFlags?.extensions;
 	}
 
 	protected getExtensions(): Promise<IProfileExtension[]> {
@@ -307,6 +312,10 @@ export class ExtensionsResourceImportTreeItem extends ExtensionsResourceTreeItem
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+	}
+
+	isFromDefaultProfile(): boolean {
+		return false;
 	}
 
 	protected getExtensions(): Promise<IProfileExtension[]> {

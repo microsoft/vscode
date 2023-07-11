@@ -10,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as DOM from 'vs/base/browser/dom';
-import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, PROFILES_TITLE, defaultUserDataProfileIcon, IUserDataProfileService, IProfileResourceTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, ProfileResourceType, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ISaveProfileResult, IProfileImportOptions, PROFILE_URL_AUTHORITY, toUserDataProfileUri } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, PROFILES_TITLE, defaultUserDataProfileIcon, IUserDataProfileService, IProfileResourceTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ISaveProfileResult, IProfileImportOptions, PROFILE_URL_AUTHORITY, toUserDataProfileUri } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IDialogService, IFileDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -18,7 +18,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Extensions, ITreeItem, ITreeViewDataProvider, ITreeViewDescriptor, IViewContainersRegistry, IViewDescriptorService, IViewsRegistry, IViewsService, TreeItemCollapsibleState, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService, ProfileResourceType, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -878,34 +878,23 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 	private readonly _onDidChangeRoots = this._register(new Emitter<void>());
 	readonly onDidChangeRoots = this._onDidChangeRoots.event;
 
-	private readonly descriptions = new Map<ProfileResourceType, string>();
-
 	constructor(
 		@IQuickInputService protected readonly quickInputService: IQuickInputService,
 	) {
 		super();
 	}
 
-	private _canSelect = true;
-	get canSelect(): boolean {
-		return this._canSelect;
-	}
-	set canSelect(canSelect: boolean) {
-		this._canSelect = canSelect;
-		this.rootsPromise = undefined;
-	}
-
-	setDescription(type: ProfileResourceType, description: string | undefined): void {
-		if (description) {
-			this.descriptions.set(type, description);
-		} else {
-			this.descriptions.delete(type);
-		}
-	}
-
 	async getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined> {
 		if (element) {
-			return (<IProfileResourceTreeItem>element).getChildren();
+			const children = await (<IProfileResourceTreeItem>element).getChildren();
+			if (children) {
+				for (const child of children) {
+					child.checkbox = child.parent.checkbox && child.checkbox
+						? { isChecked: child.parent.checkbox.isChecked ? child.checkbox.isChecked : false }
+						: undefined;
+				}
+			}
+			return children;
 		} else {
 			this.rootsPromise = undefined;
 			this._onDidChangeRoots.fire();
@@ -920,12 +909,10 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 			this.rootsPromise = (async () => {
 				this.roots = await this.fetchRoots();
 				for (const root of this.roots) {
-					if (this.canSelect) {
-						root.checkbox = { isChecked: true, tooltip: localize('select', "Select {0}", root.label.label) };
-					} else {
-						root.checkbox = undefined;
+					root.checkbox = { isChecked: !root.isFromDefaultProfile(), tooltip: localize('select', "Select {0}", root.label.label) };
+					if (root.isFromDefaultProfile()) {
+						root.description = localize('from default', "From Default Profile");
 					}
-					root.description = this.descriptions.get(root.type);
 				}
 				return this.roots;
 			})();
