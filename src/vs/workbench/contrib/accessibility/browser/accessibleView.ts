@@ -22,6 +22,7 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 const enum DEFAULT {
 	WIDTH = 800,
@@ -142,6 +143,7 @@ class AccessibleView extends Disposable {
 				// Delay to allow the context view to hide #186514
 				setTimeout(() => provider.onClose(), 100);
 			} else if (e.keyCode === KeyCode.KeyD && this._configurationService.getValue(settingKey)) {
+				alert(localize('disableAccessibilityHelp', '{0} accessibility verbosity is now disabled', provider.id));
 				this._configurationService.updateValue(settingKey, false);
 			}
 			e.stopPropagation();
