@@ -21,7 +21,6 @@ import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/brows
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
 
 const decorationDescription = 'chat';
@@ -178,36 +177,7 @@ class InputEditorDecorations extends Disposable {
 	}
 }
 
-class InputEditorSlashCommandFollowups extends Disposable {
-	constructor(
-		private readonly widget: IChatWidget,
-		@IChatService private readonly chatService: IChatService
-	) {
-		super();
-		this._register(this.chatService.onDidSubmitSlashCommand(({ slashCommand, sessionId }) => this.repopulateSlashCommand(slashCommand, sessionId)));
-	}
-
-	private async repopulateSlashCommand(slashCommand: string, sessionId: string) {
-		if (this.widget.viewModel?.sessionId !== sessionId) {
-			return;
-		}
-
-		const slashCommands = await this.widget.getSlashCommands();
-
-		if (this.widget.inputEditor.getValue().trim().length !== 0) {
-			return;
-		}
-
-		if (slashCommands?.find(c => c.command === slashCommand)?.shouldRepopulate) {
-			const value = `/${slashCommand} `;
-			this.widget.inputEditor.setValue(value);
-			this.widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
-
-		}
-	}
-}
-
-ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandFollowups);
+ChatWidget.CONTRIBS.push(InputEditorDecorations);
 
 class SlashCommandCompletions extends Disposable {
 	constructor(

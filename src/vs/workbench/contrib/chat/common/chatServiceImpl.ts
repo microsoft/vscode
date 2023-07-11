@@ -135,7 +135,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
-	private readonly _onDidSubmitSlashCommand = this._register(new Emitter<{ slashCommand: string; sessionId: string }>());
+	private readonly _onDidSubmitSlashCommand = this._register(new Emitter<{ slashCommand: string }>());
 	public readonly onDidSubmitSlashCommand = this._onDidSubmitSlashCommand.event;
 
 	constructor(
@@ -447,7 +447,7 @@ export class ChatService extends Disposable implements IChatService {
 				model.cancelRequest(request);
 			});
 			if (usedSlashCommand?.command) {
-				this._onDidSubmitSlashCommand.fire({ slashCommand: usedSlashCommand.command, sessionId: model.sessionId });
+				this._onDidSubmitSlashCommand.fire({ slashCommand: usedSlashCommand.command });
 			}
 			let rawResponse = await provider.provideReply({ session: model.session!, message: resolvedCommand }, progressCallback, token);
 			if (token.isCancellationRequested) {

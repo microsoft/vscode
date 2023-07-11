@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -106,6 +107,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private lastSlashCommands: ISlashCommand[] | undefined;
 	private slashCommandsPromise: Promise<ISlashCommand[] | undefined> | undefined;
 
+	private allowBackspaceToDeleteSlashCommand = false;
+
 	constructor(
 		readonly viewContext: IChatWidgetViewContext,
 		private readonly styles: IChatWidgetStyles,
@@ -121,6 +124,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.requestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._register((chatWidgetService as ChatWidgetService).register(this));
+		this._register(this.chatService.onDidSubmitSlashCommand(({ slashCommand }) => this.repopulateSlashCommand(slashCommand)));
 	}
 
 	get providerId(): string {
@@ -470,6 +474,34 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	getViewState(): IViewState {
 		this.inputPart.saveState();
 		return { inputValue: this.inputPart.inputEditor.getValue() };
+	}
+
+	private async repopulateSlashCommand(slashCommand: string) {
+		const slashCommands = await this.getSlashCommands();
+
+		if (this.inputEditor.getValue().trim().length !== 0) {
+			return;
+		}
+
+		if (slashCommands?.find(c => c.command === slashCommand)?.shouldRepopulate) {
+			const value = `/${slashCommand} `;
+			this.inputEditor.setValue(value);
+			this.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
+			this.allowBackspaceToDeleteSlashCommand = true;
+			const disposable = this.inputEditor.onKeyUp((e) => {
+				if (this.allowBackspaceToDeleteSlashCommand) {
+					if (this.inputEditor.getValue() === `/${slashCommand}` && e.keyCode === KeyCode.Backspace) {
+						this.inputEditor.setValue('');
+						this.allowBackspaceToDeleteSlashCommand = false;
+						disposable.dispose();
+					} else if (this.inputEditor.getValue() === value && !e.ctrlKey && !e.altKey && e.shiftKey) {
+						this.allowBackspaceToDeleteSlashCommand = false;
+						disposable.dispose();
+					}
+				}
+			});
+			this._register(disposable);
+		}
 	}
 }
 
