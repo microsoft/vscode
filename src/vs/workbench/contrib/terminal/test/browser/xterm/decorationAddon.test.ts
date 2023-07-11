@@ -21,7 +21,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { importAMDNodeModule } from 'vs/amdX';
 
-suite('DecorationAddon', async () => {
+suite('DecorationAddon', () => {
 	let decorationAddon: DecorationAddon;
 	let xterm: any;
 	let instantiationService: TestInstantiationService;
