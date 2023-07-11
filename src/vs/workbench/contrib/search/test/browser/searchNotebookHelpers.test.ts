@@ -115,6 +115,11 @@ suite('searchNotebookHelpers', () => {
 		);
 
 	});
+
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	suite('notebookEditorMatchesToTextSearchResults', () => {
 
 		function assertRangesEqual(actual: ISearchRange | ISearchRange[], expected: ISearchRange[]) {

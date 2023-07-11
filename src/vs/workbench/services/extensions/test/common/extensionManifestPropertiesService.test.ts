@@ -106,7 +106,10 @@ if (!isWeb) {
 			instantiationService.stub(IConfigurationService, testConfigurationService);
 		});
 
-		teardown(() => testObject.dispose());
+		teardown(() => {
+			testObject.dispose();
+			instantiationService.dispose();
+		});
 
 		function assertUntrustedWorkspaceSupport(extensionManifest: IExtensionManifest, expected: ExtensionUntrustedWorkspaceSupportType): void {
 			testObject = instantiationService.createInstance(ExtensionManifestPropertiesService);
