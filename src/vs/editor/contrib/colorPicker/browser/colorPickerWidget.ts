@@ -22,10 +22,22 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
+function elementsOverlap(el1: HTMLElement, el2: HTMLElement) {
+	const domRect1 = el1.getBoundingClientRect();
+	const domRect2 = el2.getBoundingClientRect();
+	return !(
+		domRect1.top > domRect2.bottom ||
+		domRect1.right < domRect2.left ||
+		domRect1.bottom < domRect2.top ||
+		domRect1.left > domRect2.right
+	);
+}
+
 export class ColorPickerHeader extends Disposable {
 
 	private readonly _domNode: HTMLElement;
 	private readonly _pickedColorNode: HTMLElement;
+	private readonly _pickedColorRepresentation: HTMLElement;
 	private readonly _originalColorNode: HTMLElement;
 	private readonly _closeButton: CloseButton | null = null;
 	private backgroundColor: Color;
@@ -37,6 +49,8 @@ export class ColorPickerHeader extends Disposable {
 		dom.append(container, this._domNode);
 
 		this._pickedColorNode = dom.append(this._domNode, $('.picked-color'));
+		this._pickedColorRepresentation = dom.append(this._pickedColorNode, document.createElement('div'));
+		const icon = dom.append(this._pickedColorNode, $('.codicon.codicon-color-mode'));
 
 		const tooltip = localize('clickToToggleColorOptions', "Click to toggle color options (rgb/hsl/hex)");
 		this._pickedColorNode.setAttribute('title', tooltip);
@@ -66,6 +80,16 @@ export class ColorPickerHeader extends Disposable {
 			this._domNode.classList.add('standalone-colorpicker');
 			this._closeButton = this._register(new CloseButton(this._domNode));
 		}
+
+		const resizeObserver = new ResizeObserver(() => {
+			this._pickedColorRepresentation.style.display = 'block';
+			if (elementsOverlap(this._pickedColorRepresentation, icon)) {
+				this._pickedColorRepresentation.style.display = 'none';
+			} else {
+				this._pickedColorRepresentation.style.display = 'block';
+			}
+		});
+		resizeObserver.observe(this._domNode);
 	}
 
 	public get domNode(): HTMLElement {
@@ -91,8 +115,7 @@ export class ColorPickerHeader extends Disposable {
 	}
 
 	private onDidChangePresentation(): void {
-		this._pickedColorNode.textContent = this.model.presentation ? this.model.presentation.label : '';
-		this._pickedColorNode.prepend($('.codicon.codicon-color-mode'));
+		this._pickedColorRepresentation.textContent = this.model.presentation ? this.model.presentation.label : '';
 	}
 }
 
