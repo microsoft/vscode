@@ -51,7 +51,6 @@ export class OverviewRulerPart extends Disposable {
 		const scrollTopObservable = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
 		const scrollHeightObservable = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollHeight());
 
-		// overview ruler
 		this._register(autorunWithStore2('create diff editor overview ruler if enabled', (reader, store) => {
 			if (!this._options.renderOverviewRuler.read(reader)) {
 				return;

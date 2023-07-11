@@ -14,7 +14,7 @@ import { ModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IFileMatch, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, ITextQuery, ITextSearchMatch, OneLineRange, QueryType, TextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, ITextSearchMatch, OneLineRange, QueryType, TextSearchMatch } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { CellMatch, MatchInNotebook, SearchModel } from 'vs/workbench/contrib/search/browser/searchModel';
@@ -35,6 +35,8 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookSearchService } from 'vs/workbench/contrib/search/browser/notebookSearch';
 
 const nullEvent = new class {
 	id: number = -1;
@@ -82,6 +84,7 @@ suite('SearchModel', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => '' });
+		instantiationService.stub(INotebookService, { getNotebookTextModels: () => [] });
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(INotebookEditorService, stubNotebookEditorService(instantiationService));
 		instantiationService.stub(ISearchService, {});
@@ -101,6 +104,14 @@ suite('SearchModel', () => {
 						resolve(complete!);
 					});
 				});
+			},
+			fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
+				return new Promise(resolve => {
+					queueMicrotask(() => {
+						resolve({ results: results, messages: [] });
+					});
+
+				});
 			}
 		};
 	}
@@ -110,6 +121,13 @@ suite('SearchModel', () => {
 			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 				return new Promise((resolve, reject) => {
 					reject(error);
+				});
+			},
+			fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
+				return new Promise((resolve, reject) => {
+					queueMicrotask(() => {
+						reject(error);
+					});
 				});
 			}
 		};
@@ -125,6 +143,43 @@ suite('SearchModel', () => {
 						resolve(<any>{});
 					});
 				});
+			},
+			fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
+				token?.onCancellationRequested(() => tokenSource.cancel());
+				return new Promise(resolve => {
+					queueMicrotask(() => {
+						resolve(<any>{});
+					});
+				});
+			}
+		};
+	}
+
+
+
+	function notebookSearchServiceWithInfo(results: IFileMatchWithCells[], tokenSource: CancellationTokenSource | undefined): INotebookSearchService {
+		return <INotebookSearchService>{
+			_serviceBrand: undefined,
+			notebookSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void, notebookURIs?: ResourceSet): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> {
+				token?.onCancellationRequested(() => tokenSource?.cancel());
+				const localResults = new ResourceMap<IFileMatchWithCells | null>(uri => uri.path);
+
+				results.forEach(r => {
+					localResults.set(r.resource, r);
+				});
+
+				if (onProgress) {
+					arrays.coalesce([...localResults.values()]).forEach(onProgress);
+				}
+				return Promise.resolve(
+					{
+						completeData: {
+							messages: [],
+							results: arrays.coalesce([...localResults.values()]),
+							limitHit: false
+						},
+						scannedFiles: new ResourceSet([...localResults.keys()]),
+					});
 			}
 		};
 	}
@@ -136,6 +191,7 @@ suite('SearchModel', () => {
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
 			aRawMatch('/2', new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
@@ -238,26 +294,9 @@ suite('SearchModel', () => {
 			webviewResults: webviewMatchesToTextSearchMatches(webviewMatches),
 		};
 
+		const notebookSearchService = instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([aRawMatchWithCells('/1', cellMatchMd, cellMatchCode)], undefined));
+		const notebookSearch = sinon.spy(notebookSearchService, "notebookSearch");
 		const model: SearchModel = instantiationService.createInstance(SearchModel);
-		const notebookSearch = sinon.stub(model, "notebookSearch").callsFake((query: ITextQuery, token: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> => {
-			const localResults = new ResourceMap<IFileMatchWithCells | null>(uri => uri.path);
-			const fileMatch = aRawMatchWithCells('/1', cellMatchMd, cellMatchCode);
-			localResults.set(notebookUri, fileMatch);
-
-			if (onProgress) {
-				arrays.coalesce([...localResults.values()]).forEach(onProgress);
-			}
-			return Promise.resolve(
-				{
-					completeData: {
-						messages: [],
-						results: arrays.coalesce([...localResults.values()]),
-						limitHit: false
-					},
-					scannedFiles: new ResourceSet([...localResults.keys()]),
-				});
-		});
-
 		await model.search({ contentPattern: { pattern: 'test' }, type: QueryType.Text, folderQueries });
 		const actual = model.searchResult.matches();
 
@@ -309,6 +348,7 @@ suite('SearchModel', () => {
 			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
@@ -325,6 +365,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
 		instantiationService.stub(ISearchService, searchServiceWithResults([]));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject = instantiationService.createInstance(SearchModel);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
@@ -346,6 +387,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, searchServiceWithResults(
 			[aRawMatch('/1', new TextSearchMatch('some preview', lineOneRange))],
 			{ results: [], stats: testSearchStats, messages: [] }));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject = instantiationService.createInstance(SearchModel);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
@@ -412,6 +454,7 @@ suite('SearchModel', () => {
 			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 		assert.ok(!testObject.searchResult.isEmpty());
@@ -425,19 +468,11 @@ suite('SearchModel', () => {
 	test('Search Model: Previous search is cancelled when new search is called', async () => {
 		const tokenSource = new CancellationTokenSource();
 		instantiationService.stub(ISearchService, canceleableSearchService(tokenSource));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], tokenSource));
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
-		sinon.stub(testObject, "notebookSearch").callsFake((_, token) => {
-			token?.onCancellationRequested(() => tokenSource.cancel());
-
-			return new Promise(resolve => {
-				queueMicrotask(() => {
-					resolve(<any>{});
-				});
-			});
-		});
-
 		testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 		instantiationService.stub(ISearchService, searchServiceWithResults([]));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 		testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 
 		assert.ok(tokenSource.token.isCancellationRequested);
@@ -449,6 +484,7 @@ suite('SearchModel', () => {
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
 		await testObject.search({ contentPattern: { pattern: 're' }, type: QueryType.Text, folderQueries });
@@ -494,5 +530,5 @@ suite('SearchModel', () => {
 		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
 		return instantiationService.createInstance(NotebookEditorWidgetService);
 	}
-
 });
+

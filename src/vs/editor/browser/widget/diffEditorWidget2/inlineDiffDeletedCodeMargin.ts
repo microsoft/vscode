@@ -94,8 +94,10 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 						actions.push(new Action(
 							'diff.clipboard.copyDeletedLineContent',
 							isDeletion
-								? localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line ({0})", _diff.originalRange.startLineNumber + currentLineNumberOffset)
-								: localize('diff.clipboard.copyChangedLineContent.label', "Copy changed line ({0})", _diff.originalRange.startLineNumber + currentLineNumberOffset),
+								? localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line ({0})",
+									_diff.originalRange.startLineNumber + currentLineNumberOffset)
+								: localize('diff.clipboard.copyChangedLineContent.label', "Copy changed line ({0})",
+									_diff.originalRange.startLineNumber + currentLineNumberOffset),
 							undefined,
 							true,
 							async () => {
@@ -111,9 +113,15 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 					}
 					const readOnly = _modifiedEditor.getOption(EditorOption.readOnly);
 					if (!readOnly) {
-						actions.push(new Action('diff.inline.revertChange', localize('diff.inline.revertChange.label', "Revert this change"), undefined, true, async () => {
-							this._editor.revert(this._diff);
-						}));
+						actions.push(new Action(
+							'diff.inline.revertChange',
+							localize('diff.inline.revertChange.label', "Revert this change"),
+							undefined,
+							true,
+							async () => {
+								this._editor.revert(this._diff);
+							})
+						);
 					}
 					return actions;
 				},

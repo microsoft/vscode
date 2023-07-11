@@ -88,8 +88,7 @@ class EditorAccessibilityHelpContribution extends Disposable {
 				await commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
 				codeEditor = codeEditorService.getActiveCodeEditor()!;
 			}
-			accessibleViewService.registerProvider(instantiationService.createInstance(AccessibilityHelpProvider, codeEditor));
-			accessibleViewService.show('editor');
+			accessibleViewService.show(instantiationService.createInstance(AccessibilityHelpProvider, codeEditor));
 		}));
 	}
 }
@@ -115,18 +114,16 @@ class HoverAccessibleViewContribution extends Disposable {
 			if (!controller || !content) {
 				return false;
 			}
-			const provider = accessibleViewService.registerProvider({
+			accessibleViewService.show({
 				id: 'hover',
 				provideContent() { return content; },
 				onClose() {
-					provider.dispose();
 					controller.focus();
 				},
 				options: {
 					ariaLabel: localize('hoverAccessibleView', "Hover Accessible View"), language: 'typescript', type: AccessibleViewType.View
 				}
 			});
-			accessibleViewService.show('hover');
 			return true;
 		}));
 	}
