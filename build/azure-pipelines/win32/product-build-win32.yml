@@ -1,6 +1,8 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_ARCH
+    type: string
   - name: VSCODE_CIBUILD
     type: boolean
   - name: VSCODE_RUN_UNIT_TESTS
@@ -188,6 +190,7 @@ steps:
     - template: product-build-win32-test.yml
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+        VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
