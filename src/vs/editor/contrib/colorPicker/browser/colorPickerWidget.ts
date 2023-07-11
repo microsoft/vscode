@@ -26,7 +26,7 @@ export class ColorPickerHeader extends Disposable {
 
 	private readonly _domNode: HTMLElement;
 	private readonly _pickedColorNode: HTMLElement;
-	private readonly _pickedColorRepresentation: HTMLElement;
+	private readonly _pickedColorPresentation: HTMLElement;
 	private readonly _originalColorNode: HTMLElement;
 	private readonly _closeButton: CloseButton | null = null;
 	private backgroundColor: Color;
@@ -38,8 +38,8 @@ export class ColorPickerHeader extends Disposable {
 		dom.append(container, this._domNode);
 
 		this._pickedColorNode = dom.append(this._domNode, $('.picked-color'));
-		this._pickedColorRepresentation = dom.append(this._pickedColorNode, document.createElement('div'));
-		this._pickedColorRepresentation.classList.add('picked-color-representation');
+		this._pickedColorPresentation = dom.append(this._pickedColorNode, document.createElement('div'));
+		this._pickedColorPresentation.classList.add('picked-color-presentation');
 		dom.append(this._pickedColorNode, $('.codicon.codicon-color-mode'));
 
 		const tooltip = localize('clickToToggleColorOptions', "Click to toggle color options (rgb/hsl/hex)");
@@ -95,7 +95,7 @@ export class ColorPickerHeader extends Disposable {
 	}
 
 	private onDidChangePresentation(): void {
-		this._pickedColorRepresentation.textContent = this.model.presentation ? this.model.presentation.label : '';
+		this._pickedColorPresentation.textContent = this.model.presentation ? this.model.presentation.label : '';
 	}
 }
 
