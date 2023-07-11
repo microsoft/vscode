@@ -145,10 +145,11 @@ class AccessibleView extends Disposable {
 			);
 			if (accessibilitySupport && provider.id === 'editor') {
 				message = AccessibilityHelpNLS.auto_on;
+				message += '\n';
 			} else if (!accessibilitySupport) {
 				message = AccessibilityHelpNLS.auto_off + '\n' + turnOnMessage;
+				message += '\n';
 			}
-			message += '\n';
 		}
 
 		const fragment = message + provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', 'Exit this menu via the Escape key.');
