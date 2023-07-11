@@ -25,7 +25,7 @@ import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, U
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { mark } from 'vs/base/common/performance';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -42,8 +42,6 @@ import { localize } from 'vs/nls';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
@@ -709,12 +707,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private onUserDataProfileChanged(e: DidChangeUserDataProfileEvent): void {
 		e.join((async () => {
-			if (e.preserveData) {
-				await Promise.all([
-					this.copyProfileSettings(e.previous.settingsResource, e.profile.settingsResource),
-					this.copyProfileTasks(e.previous.tasksResource, e.profile.tasksResource)
-				]);
-			}
 			const promises: Promise<ConfigurationModel>[] = [];
 			promises.push(this.localUserConfiguration.reset(e.profile.settingsResource, e.profile.tasksResource, getLocalUserConfigurationScopes(e.profile, !!this.remoteUserConfiguration)));
 			if (e.previous.isDefault !== e.profile.isDefault) {
@@ -726,30 +718,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			const [localUser, application] = await Promise.all(promises);
 			await this.loadConfiguration(application ?? this._configuration.applicationConfiguration, localUser, this._configuration.remoteUserConfiguration, true);
 		})());
-	}
-
-	private async copyProfileSettings(from: URI, to: URI): Promise<void> {
-		let fromContent: string | undefined;
-		try {
-			fromContent = (await this.fileService.readFile(from)).value.toString();
-		} catch (error) {
-			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-				throw error;
-			}
-		}
-		if (!fromContent) {
-			return;
-		}
-		const allSettings = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		const applicationSettings = Object.keys(allSettings).filter(key => allSettings[key]?.scope === ConfigurationScope.APPLICATION);
-		const toContent = updateIgnoredSettings(fromContent, '{}', applicationSettings, {});
-		await this.fileService.writeFile(to, VSBuffer.fromString(toContent));
-	}
-
-	private async copyProfileTasks(from: URI, to: URI): Promise<void> {
-		if (await this.fileService.exists(from)) {
-			await this.fileService.copy(from, to);
-		}
 	}
 
 	private onDefaultConfigurationChanged(configurationModel: ConfigurationModel, properties?: string[]): void {
@@ -1013,7 +981,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		await this.configurationEditing.writeConfiguration(editableConfigurationTarget, { key, value }, { scopes: overrides, ...options });
 		switch (editableConfigurationTarget) {
 			case EditableConfigurationTarget.USER_LOCAL:
-				if (this.applicationConfiguration && this.configurationRegistry.getConfigurationProperties()[key].scope === ConfigurationScope.APPLICATION) {
+				if (this.applicationConfiguration && this.configurationRegistry.getConfigurationProperties()[key]?.scope === ConfigurationScope.APPLICATION) {
 					await this.reloadApplicationConfiguration();
 				} else {
 					await this.reloadLocalUserConfiguration();
@@ -1122,6 +1090,16 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	) {
 		super();
 
+		this.registerSchemas({
+			defaultSettingsSchema: {},
+			userSettingsSchema: {},
+			profileSettingsSchema: {},
+			machineSettingsSchema: {},
+			workspaceSettingsSchema: {},
+			folderSettingsSchema: {},
+			configDefaultsSchema: {},
+		});
+
 		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			this.registerConfigurationSchemas();
 
@@ -1133,8 +1111,6 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	}
 
 	private registerConfigurationSchemas(): void {
-		const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-
 		const allSettingsSchema: IJSONSchema = {
 			properties: allSettings.properties,
 			patternProperties: allSettings.patternProperties,
@@ -1195,7 +1171,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 			allowComments: true
 		};
 
-		jsonRegistry.registerSchema(defaultSettingsSchemaId, {
+		const defaultSettingsSchema = {
 			properties: Object.keys(allSettings.properties).reduce<IJSONSchemaMap>((result, key) => {
 				result[key] = Object.assign({ deprecationMessage: undefined }, allSettings.properties[key]);
 				return result;
@@ -1207,13 +1183,10 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 			additionalProperties: true,
 			allowTrailingCommas: true,
 			allowComments: true
-		});
-		jsonRegistry.registerSchema(userSettingsSchemaId, userSettingsSchema);
-		jsonRegistry.registerSchema(profileSettingsSchemaId, profileSettingsSchema);
-		jsonRegistry.registerSchema(machineSettingsSchemaId, machineSettingsSchema);
+		};
 
-		if (WorkbenchState.WORKSPACE === this.workspaceContextService.getWorkbenchState()) {
-			const folderSettingsSchema: IJSONSchema = {
+		const folderSettingsSchema: IJSONSchema = WorkbenchState.WORKSPACE === this.workspaceContextService.getWorkbenchState() ?
+			{
 				properties: Object.assign({},
 					this.checkAndFilterPropertiesRequiringTrust(machineOverridableSettings.properties),
 					this.checkAndFilterPropertiesRequiringTrust(resourceSettings.properties)
@@ -1222,15 +1195,9 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 				additionalProperties: true,
 				allowTrailingCommas: true,
 				allowComments: true
-			};
-			jsonRegistry.registerSchema(workspaceSettingsSchemaId, workspaceSettingsSchema);
-			jsonRegistry.registerSchema(folderSettingsSchemaId, folderSettingsSchema);
-		} else {
-			jsonRegistry.registerSchema(workspaceSettingsSchemaId, workspaceSettingsSchema);
-			jsonRegistry.registerSchema(folderSettingsSchemaId, workspaceSettingsSchema);
-		}
+			} : workspaceSettingsSchema;
 
-		jsonRegistry.registerSchema(configurationDefaultsSchemaId, {
+		const configDefaultsSchema: IJSONSchema = {
 			type: 'object',
 			description: localize('configurationDefaults.description', 'Contribute defaults for configurations'),
 			properties: Object.assign({},
@@ -1246,7 +1213,35 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 				}
 			},
 			additionalProperties: false
+		};
+		this.registerSchemas({
+			defaultSettingsSchema,
+			userSettingsSchema,
+			profileSettingsSchema,
+			machineSettingsSchema,
+			workspaceSettingsSchema,
+			folderSettingsSchema,
+			configDefaultsSchema,
 		});
+	}
+
+	private registerSchemas(schemas: {
+		defaultSettingsSchema: IJSONSchema;
+		userSettingsSchema: IJSONSchema;
+		profileSettingsSchema: IJSONSchema;
+		machineSettingsSchema: IJSONSchema;
+		workspaceSettingsSchema: IJSONSchema;
+		folderSettingsSchema: IJSONSchema;
+		configDefaultsSchema: IJSONSchema;
+	}): void {
+		const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+		jsonRegistry.registerSchema(defaultSettingsSchemaId, schemas.defaultSettingsSchema);
+		jsonRegistry.registerSchema(userSettingsSchemaId, schemas.userSettingsSchema);
+		jsonRegistry.registerSchema(profileSettingsSchemaId, schemas.profileSettingsSchema);
+		jsonRegistry.registerSchema(machineSettingsSchemaId, schemas.machineSettingsSchema);
+		jsonRegistry.registerSchema(workspaceSettingsSchemaId, schemas.workspaceSettingsSchema);
+		jsonRegistry.registerSchema(folderSettingsSchemaId, schemas.folderSettingsSchema);
+		jsonRegistry.registerSchema(configurationDefaultsSchemaId, schemas.configDefaultsSchema);
 	}
 
 	private checkAndFilterPropertiesRequiringTrust(properties: IStringDictionary<IConfigurationPropertySchema>): IStringDictionary<IConfigurationPropertySchema> {

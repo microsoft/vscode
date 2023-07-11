@@ -141,7 +141,7 @@ export class RemoteStorageService extends AbstractStorageService {
 		]);
 	}
 
-	protected async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
+	protected async switchToProfile(toProfile: IUserDataProfile): Promise<void> {
 		if (!this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
 			return;
 		}
@@ -160,7 +160,7 @@ export class RemoteStorageService extends AbstractStorageService {
 		await this.profileStorage.init();
 
 		// Handle data switch and eventing
-		this.switchData(oldItems, this.profileStorage, StorageScope.PROFILE, preserveData);
+		this.switchData(oldItems, this.profileStorage, StorageScope.PROFILE);
 	}
 
 	protected async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
@@ -175,7 +175,7 @@ export class RemoteStorageService extends AbstractStorageService {
 		await this.workspaceStorage.init();
 
 		// Handle data switch and eventing
-		this.switchData(oldItems, this.workspaceStorage, StorageScope.WORKSPACE, preserveData);
+		this.switchData(oldItems, this.workspaceStorage, StorageScope.WORKSPACE);
 	}
 
 	hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean {

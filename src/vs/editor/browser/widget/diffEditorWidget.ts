@@ -298,6 +298,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			experimental: {
 				collapseUnchangedRegions: false,
 			},
+			isInEmbeddedEditor: false,
 		});
 
 		this.isEmbeddedDiffEditorKey = EditorContextKeys.isEmbeddedDiffEditor.bindTo(this._contextKeyService);
@@ -1030,7 +1031,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const modifiedViewState = this._modifiedEditor.saveViewState();
 		return {
 			original: originalViewState,
-			modified: modifiedViewState
+			modified: modifiedViewState,
 		};
 	}
 
@@ -2741,6 +2742,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		experimental: {
 			collapseUnchangedRegions: false,
 		},
+		isInEmbeddedEditor: validateBooleanOption(options.isInEmbeddedEditor, defaults.isInEmbeddedEditor),
 	};
 }
 

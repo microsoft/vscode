@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityHelpAction, AccessibilityViewAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityHelpAction, AccessibleViewAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { AccessibleViewService, AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import * as strings from 'vs/base/common/strings';
 import * as platform from 'vs/base/common/platform';
@@ -34,18 +34,13 @@ class AccessibilityHelpProvider extends Disposable implements IAccessibleContent
 		this._editor.focus();
 		this.dispose();
 	}
-	options: IAccessibleViewOptions = { type: AccessibleViewType.HelpMenu, ariaLabel: localize('terminal-help-label', "terminal accessibility help") };
+	options: IAccessibleViewOptions = { type: AccessibleViewType.HelpMenu, ariaLabel: localize('editor-help', "editor accessibility help"), readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
 	id: string = 'editor';
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
-		let url = (this._editor.getRawOptions() as any).accessibilityHelpUrl;
-		if (typeof url === 'undefined') {
-			url = 'https://go.microsoft.com/fwlink/?linkid=852450';
-		}
-		this.options.readMoreUrl = url;
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
@@ -129,7 +124,7 @@ class HoverAccessibleViewContribution extends Disposable {
 	static ID: 'hoverAccessibleViewContribution';
 	constructor() {
 		super();
-		this._register(AccessibilityViewAction.addImplementation(90, 'hover', accessor => {
+		this._register(AccessibleViewAction.addImplementation(90, 'hover', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();

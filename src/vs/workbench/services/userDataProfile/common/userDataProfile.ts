@@ -19,7 +19,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export interface DidChangeUserDataProfileEvent {
-	readonly preserveData: boolean;
 	readonly previous: IUserDataProfile;
 	readonly profile: IUserDataProfile;
 	join(promise: Promise<void>): void;
@@ -31,7 +30,7 @@ export interface IUserDataProfileService {
 	readonly onDidUpdateCurrentProfile: Event<void>;
 	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	readonly currentProfile: IUserDataProfile;
-	updateCurrentProfile(currentProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
+	updateCurrentProfile(currentProfile: IUserDataProfile): Promise<void>;
 	getShortName(profile: IUserDataProfile): string;
 }
 
@@ -39,7 +38,7 @@ export const IUserDataProfileManagementService = createDecorator<IUserDataProfil
 export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
 
-	createAndEnterProfile(name: string, options?: IUserDataProfileOptions, fromExisting?: boolean): Promise<IUserDataProfile>;
+	createAndEnterProfile(name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile>;
 	createAndEnterTransientProfile(): Promise<IUserDataProfile>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<void>;
@@ -89,7 +88,7 @@ export interface IUserDataProfileImportExportService {
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
 	createFromCurrentProfile(name: string): Promise<void>;
-	createTemporaryProfile(from: IUserDataProfile, name: string, extensionsDisabled: boolean): Promise<void>;
+	createTroubleshootProfile(): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 

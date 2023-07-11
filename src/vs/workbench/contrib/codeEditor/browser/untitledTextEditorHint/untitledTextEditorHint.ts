@@ -21,7 +21,6 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IContentActionHandler, renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { ApplyFileSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/fileTemplateSnippets';
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { isEqual } from 'vs/base/common/resources';
 
 const $ = dom.$;
 
@@ -49,8 +48,8 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 				this.update();
 			}
 		}));
-		this.toDispose.push(inlineChatSessionService.onWillStartSession(uri => {
-			if (isEqual(uri, this.editor.getModel()?.uri)) {
+		this.toDispose.push(inlineChatSessionService.onWillStartSession(editor => {
+			if (this.editor === editor) {
 				this.untitledTextHintContentWidget?.dispose();
 			}
 		}));

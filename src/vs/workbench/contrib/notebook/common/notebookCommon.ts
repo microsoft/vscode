@@ -533,8 +533,6 @@ export interface INotebookContributionData {
 	displayName: string;
 	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
 	exclusive: boolean;
-	/// Editor contribution is handled elswhere e.g. interactive
-	externalEditor?: boolean;
 }
 
 
@@ -954,6 +952,7 @@ export const NotebookSetting = {
 	findScope: 'notebook.find.scope',
 	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
+	remoteSaving: 'notebook.experimental.remoteSave'
 } as const;
 
 export const enum CellStatusbarAlignment {

@@ -62,7 +62,6 @@ const lineOneRange = new OneLineRange(1, 0, 1);
 suite('SearchModel', () => {
 
 	let instantiationService: TestInstantiationService;
-	let restoreStubs: sinon.SinonStub[];
 
 	const testSearchStats: IFileSearchStats = {
 		fromCache: false,
@@ -82,7 +81,6 @@ suite('SearchModel', () => {
 	];
 
 	setup(() => {
-		restoreStubs = [];
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => '' });
@@ -95,11 +93,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 	});
 
-	teardown(() => {
-		restoreStubs.forEach(element => {
-			element.restore();
-		});
-	});
+	teardown(() => sinon.restore());
 
 	function searchServiceWithResults(results: IFileMatch[], complete: ISearchComplete | null = null): ISearchService {
 		return <ISearchService>{
@@ -230,8 +224,7 @@ suite('SearchModel', () => {
 				new TextSearchMatch('this is a test', new OneLineRange(1, 11, 15))),
 			aRawMatch('/3', new TextSearchMatch('test', lineOneRange))];
 		const searchService = instantiationService.stub(ISearchService, searchServiceWithResults(results));
-		const addContext = sinon.stub(CellMatch.prototype, 'addContext');
-		restoreStubs.push(addContext);
+		sinon.stub(CellMatch.prototype, 'addContext');
 
 		const textSearch = sinon.spy(searchService, 'textSearch');
 		const mdInputCell = {
@@ -367,7 +360,7 @@ suite('SearchModel', () => {
 
 	test('Search Model: Search reports timed telemetry on search when progress is not called', () => {
 		const target2 = sinon.spy();
-		stub(nullEvent, 'stop', target2);
+		sinon.stub(nullEvent, 'stop').callsFake(target2);
 		const target1 = sinon.stub().returns(nullEvent);
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
@@ -387,7 +380,7 @@ suite('SearchModel', () => {
 
 	test('Search Model: Search reports timed telemetry on search when progress is called', () => {
 		const target2 = sinon.spy();
-		stub(nullEvent, 'stop', target2);
+		sinon.stub(nullEvent, 'stop').callsFake(target2);
 		const target1 = sinon.stub().returns(nullEvent);
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
@@ -412,7 +405,7 @@ suite('SearchModel', () => {
 
 	test('Search Model: Search reports timed telemetry on search when error is called', () => {
 		const target2 = sinon.spy();
-		stub(nullEvent, 'stop', target2);
+		sinon.stub(nullEvent, 'stop').callsFake(target2);
 		const target1 = sinon.stub().returns(nullEvent);
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
@@ -432,7 +425,7 @@ suite('SearchModel', () => {
 
 	test('Search Model: Search reports timed telemetry on search when error is cancelled error', () => {
 		const target2 = sinon.spy();
-		stub(nullEvent, 'stop', target2);
+		sinon.stub(nullEvent, 'stop').callsFake(target2);
 		const target1 = sinon.stub().returns(nullEvent);
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
@@ -523,12 +516,6 @@ suite('SearchModel', () => {
 
 	function aRawMatchWithCells(resource: string, ...cells: ICellMatch[]) {
 		return { resource: createFileUriFromPathFromRoot(resource), cellResults: cells };
-	}
-
-	function stub(arg1: any, arg2: any, arg3: any): sinon.SinonStub {
-		const stub = sinon.stub(arg1, arg2).callsFake(arg3);
-		restoreStubs.push(stub);
-		return stub;
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {

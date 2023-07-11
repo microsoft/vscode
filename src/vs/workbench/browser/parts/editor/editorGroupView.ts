@@ -665,15 +665,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.disposedEditorsWorker.work(editor);
 	}
 
-	private handleDisposedEditors(editors: EditorInput[]): void {
+	private handleDisposedEditors(disposedEditors: EditorInput[]): void {
 
 		// Split between visible and hidden editors
 		let activeEditor: EditorInput | undefined;
 		const inactiveEditors: EditorInput[] = [];
-		for (const editor of editors) {
+		for (const disposedEditor of disposedEditors) {
+			const editorFindResult = this.model.findEditor(disposedEditor);
+			if (!editorFindResult) {
+				continue; // not part of the model anymore
+			}
+
+			const editor = editorFindResult[0];
+			if (!editor.isDisposed()) {
+				continue; // editor got reopened meanwhile
+			}
+
 			if (this.model.isActive(editor)) {
 				activeEditor = editor;
-			} else if (this.model.contains(editor)) {
+			} else {
 				inactiveEditors.push(editor);
 			}
 		}

@@ -10,7 +10,8 @@ use crate::{
 	trace,
 	util::{
 		errors::{
-			wrap, AnyError, OAuthError, RefreshTokenNotAvailableError, StatusError, WrappedError,
+			wrap, AnyError, CodeError, OAuthError, RefreshTokenNotAvailableError, StatusError,
+			WrappedError,
 		},
 		input::prompt_options,
 	},
@@ -172,9 +173,9 @@ pub struct Auth {
 }
 
 trait StorageImplementation: Send + Sync {
-	fn read(&mut self) -> Result<Option<StoredCredential>, WrappedError>;
-	fn store(&mut self, value: StoredCredential) -> Result<(), WrappedError>;
-	fn clear(&mut self) -> Result<(), WrappedError>;
+	fn read(&mut self) -> Result<Option<StoredCredential>, AnyError>;
+	fn store(&mut self, value: StoredCredential) -> Result<(), AnyError>;
+	fn clear(&mut self) -> Result<(), AnyError>;
 }
 
 // unseal decrypts and deserializes the value
@@ -217,16 +218,34 @@ struct ThreadKeyringStorage {
 }
 
 impl ThreadKeyringStorage {
-	fn thread_op<R, Fn>(&mut self, f: Fn) -> R
+	fn thread_op<R, Fn>(&mut self, f: Fn) -> Result<R, AnyError>
 	where
-		Fn: 'static + Send + FnOnce(&mut KeyringStorage) -> R,
+		Fn: 'static + Send + FnOnce(&mut KeyringStorage) -> Result<R, AnyError>,
 		R: 'static + Send,
 	{
-		let mut s = self.s.take().unwrap();
-		let handler = thread::spawn(move || (f(&mut s), s));
-		let (r, s) = handler.join().unwrap();
-		self.s = Some(s);
-		r
+		let mut s = match self.s.take() {
+			Some(s) => s,
+			None => return Err(CodeError::KeyringTimeout.into()),
+		};
+
+		// It seems like on Linux communication to the keyring can block indefinitely.
+		// Fall back after a 5 second timeout.
+		let (sender, receiver) = std::sync::mpsc::channel();
+		let tsender = sender.clone();
+
+		thread::spawn(move || sender.send(Some((f(&mut s), s))));
+		thread::spawn(move || {
+			thread::sleep(std::time::Duration::from_secs(5));
+			let _ = tsender.send(None);
+		});
+
+		match receiver.recv().unwrap() {
+			Some((r, s)) => {
+				self.s = Some(s);
+				r
+			}
+			None => Err(CodeError::KeyringTimeout.into()),
+		}
 	}
 }
 
@@ -239,15 +258,15 @@ impl Default for ThreadKeyringStorage {
 }
 
 impl StorageImplementation for ThreadKeyringStorage {
-	fn read(&mut self) -> Result<Option<StoredCredential>, WrappedError> {
+	fn read(&mut self) -> Result<Option<StoredCredential>, AnyError> {
 		self.thread_op(|s| s.read())
 	}
 
-	fn store(&mut self, value: StoredCredential) -> Result<(), WrappedError> {
+	fn store(&mut self, value: StoredCredential) -> Result<(), AnyError> {
 		self.thread_op(move |s| s.store(value))
 	}
 
-	fn clear(&mut self) -> Result<(), WrappedError> {
+	fn clear(&mut self) -> Result<(), AnyError> {
 		self.thread_op(|s| s.clear())
 	}
 }
@@ -273,7 +292,7 @@ macro_rules! get_next_entry {
 }
 
 impl StorageImplementation for KeyringStorage {
-	fn read(&mut self) -> Result<Option<StoredCredential>, WrappedError> {
+	fn read(&mut self) -> Result<Option<StoredCredential>, AnyError> {
 		let mut str = String::new();
 
 		for i in 0.. {
@@ -281,7 +300,7 @@ impl StorageImplementation for KeyringStorage {
 			let next_chunk = match entry.get_password() {
 				Ok(value) => value,
 				Err(keyring::Error::NoEntry) => return Ok(None), // missing entries?
-				Err(e) => return Err(wrap(e, "error reading keyring")),
+				Err(e) => return Err(wrap(e, "error reading keyring").into()),
 			};
 
 			if next_chunk.ends_with(CONTINUE_MARKER) {
@@ -295,7 +314,7 @@ impl StorageImplementation for KeyringStorage {
 		Ok(unseal(&str))
 	}
 
-	fn store(&mut self, value: StoredCredential) -> Result<(), WrappedError> {
+	fn store(&mut self, value: StoredCredential) -> Result<(), AnyError> {
 		let sealed = seal(&value);
 		let step_size = KEYCHAIN_ENTRY_LIMIT - CONTINUE_MARKER.len();
 
@@ -312,14 +331,14 @@ impl StorageImplementation for KeyringStorage {
 			};
 
 			if let Err(e) = stored {
-				return Err(wrap(e, "error updating keyring"));
+				return Err(wrap(e, "error updating keyring").into());
 			}
 		}
 
 		Ok(())
 	}
 
-	fn clear(&mut self) -> Result<(), WrappedError> {
+	fn clear(&mut self) -> Result<(), AnyError> {
 		self.read().ok(); // make sure component parts are available
 		for entry in self.entries.iter() {
 			entry
@@ -335,16 +354,16 @@ impl StorageImplementation for KeyringStorage {
 struct FileStorage(PersistedState<Option<String>>);
 
 impl StorageImplementation for FileStorage {
-	fn read(&mut self) -> Result<Option<StoredCredential>, WrappedError> {
+	fn read(&mut self) -> Result<Option<StoredCredential>, AnyError> {
 		Ok(self.0.load().and_then(|s| unseal(&s)))
 	}
 
-	fn store(&mut self, value: StoredCredential) -> Result<(), WrappedError> {
-		self.0.save(Some(seal(&value)))
+	fn store(&mut self, value: StoredCredential) -> Result<(), AnyError> {
+		self.0.save(Some(seal(&value))).map_err(|e| e.into())
 	}
 
-	fn clear(&mut self) -> Result<(), WrappedError> {
-		self.0.save(None)
+	fn clear(&mut self) -> Result<(), AnyError> {
+		self.0.save(None).map_err(|e| e.into())
 	}
 }
 
@@ -374,7 +393,7 @@ impl Auth {
 		let mut file_storage = FileStorage(PersistedState::new(self.file_storage_path.clone()));
 
 		let keyring_storage_result = match std::env::var("VSCODE_CLI_USE_FILE_KEYCHAIN") {
-			Ok(_) => Err(wrap("", "user prefers file storage")),
+			Ok(_) => Err(wrap("", "user prefers file storage").into()),
 			_ => keyring_storage.read(),
 		};
 
@@ -383,10 +402,17 @@ impl Auth {
 				last_read: Cell::new(Ok(v)),
 				storage: Box::new(keyring_storage),
 			},
-			Err(_) => StorageWithLastRead {
-				last_read: Cell::new(file_storage.read()),
-				storage: Box::new(file_storage),
-			},
+			Err(e) => {
+				debug!(self.log, "Using file keychain storage due to: {}", e);
+				StorageWithLastRead {
+					last_read: Cell::new(
+						file_storage
+							.read()
+							.map_err(|e| wrap(e, "could not read from file storage")),
+					),
+					storage: Box::new(file_storage),
+				}
+			}
 		};
 
 		let out = op(&mut storage);
@@ -419,7 +445,7 @@ impl Auth {
 	}
 
 	/// Clears login info from the keyring.
-	pub fn clear_credentials(&self) -> Result<(), WrappedError> {
+	pub fn clear_credentials(&self) -> Result<(), AnyError> {
 		self.with_storage(|storage| {
 			storage.storage.clear()?;
 			storage.last_read.set(Ok(None));

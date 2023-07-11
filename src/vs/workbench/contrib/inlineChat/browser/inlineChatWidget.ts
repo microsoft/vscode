@@ -336,7 +336,7 @@ export class InlineChatWidget {
 		}
 		let label = defaultAriaLabel;
 		if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InlineChat)) {
-			const kbLabel = this._keybindingService.lookupKeybinding('inlineChat.accessibilityHelp')?.getLabel();
+			const kbLabel = this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
 			label = kbLabel ? localize('inlineChat.accessibilityHelp', "Inline Chat Input, Use {0} for Inline Chat Accessibility Help.", kbLabel) : localize('inlineChat.accessibilityHelpNoKb', "Inline Chat Input, Run the Inline Chat Accessibility Help command for more information.");
 		}
 		_inputEditorOptions.ariaLabel = label;
@@ -719,7 +719,11 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this.create();
 
 
-		this._disposables.add(addDisposableListener(this.domNode, 'click', e => this.widget.focus()));
+		this._disposables.add(addDisposableListener(this.domNode, 'click', e => {
+			if (!this.widget.hasFocus()) {
+				this.widget.focus();
+			}
+		}));
 
 		// todo@jrieken listen ONLY when showing
 		const updateCursorIsAboveContextKey = () => {

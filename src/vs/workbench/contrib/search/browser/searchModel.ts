@@ -732,10 +732,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 			}
 			this._notebookUpdateScheduler.schedule();
 		}) ?? null;
-
-		this._findMatchDecorationModel?.stopWebviewFind();
-		this._findMatchDecorationModel?.dispose();
-		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditorWidget);
+		this._addNotebookHighlights();
 	}
 
 	unbindNotebookEditorWidget(widget?: NotebookEditorWidget) {
@@ -747,13 +744,34 @@ export class FileMatch extends Disposable implements IFileMatch {
 			this._notebookUpdateScheduler.cancel();
 			this._editorWidgetListener?.dispose();
 		}
+		this._removeNotebookHighlights();
+		this._notebookEditorWidget = null;
+	}
 
+	updateNotebookHighlights(): void {
+		if (this.parent().showHighlights) {
+			this._addNotebookHighlights();
+			this.setNotebookFindMatchDecorationsUsingCellMatches(Array.from(this._cellMatches.values()));
+		} else {
+			this._removeNotebookHighlights();
+		}
+	}
+
+	private _addNotebookHighlights(): void {
+		if (!this._notebookEditorWidget) {
+			return;
+		}
+		this._findMatchDecorationModel?.stopWebviewFind();
+		this._findMatchDecorationModel?.dispose();
+		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditorWidget);
+	}
+
+	private _removeNotebookHighlights(): void {
 		if (this._findMatchDecorationModel) {
 			this._findMatchDecorationModel?.stopWebviewFind();
 			this._findMatchDecorationModel?.dispose();
 			this._findMatchDecorationModel = undefined;
 		}
-		this._notebookEditorWidget = null;
 	}
 
 	private updateNotebookMatches(matches: CellFindMatchWithIndex[], modelChange: boolean): void {
@@ -1276,6 +1294,8 @@ export class FolderMatch extends Disposable {
 
 export class FolderMatchWithResource extends FolderMatch {
 
+	protected _normalizedResource: Lazy<URI>;
+
 	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: SearchResult | FolderMatch, _searchModel: SearchModel, _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -1283,10 +1303,16 @@ export class FolderMatchWithResource extends FolderMatch {
 		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
 		super(_resource, _id, _index, _query, _parent, _searchModel, _closestRoot, replaceService, instantiationService, labelService, uriIdentityService);
+		this._normalizedResource = new Lazy(() => this.uriIdentityService.extUri.removeTrailingPathSeparator(this.uriIdentityService.extUri.normalizePath(
+			this.resource)));
 	}
 
 	override get resource(): URI {
 		return this._resource!;
+	}
+
+	get normalizedResource(): URI {
+		return this._normalizedResource.value;
 	}
 }
 
@@ -1335,15 +1361,14 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		}
 
 		const fileMatchParentParts: URI[] = [];
-		const normalizedResource = this.uriIdentityService.extUri.normalizePath(this.resource);
 		let uri = this.normalizedUriParent(rawFileMatch.resource);
 
-		while (!this.uriEquals(normalizedResource, uri)) {
+		while (!this.uriEquals(this.normalizedResource, uri)) {
 			fileMatchParentParts.unshift(uri);
 			const prevUri = uri;
-			uri = this.normalizedUriParent(uri);
+			uri = this.uriIdentityService.extUri.removeTrailingPathSeparator(this.normalizedUriParent(uri));
 			if (this.uriEquals(prevUri, uri)) {
-				throw Error(`${rawFileMatch.resource} is not correctly configured as a child of ${normalizedResource}`);
+				throw Error(`${rawFileMatch.resource} is not correctly configured as a child of ${this.normalizedResource}`);
 			}
 		}
 
@@ -1827,6 +1852,7 @@ export class SearchResult extends Disposable {
 		let selectedMatch: Match | null = null;
 		this.matches().forEach((fileMatch: FileMatch) => {
 			fileMatch.updateHighlights();
+			fileMatch.updateNotebookHighlights();
 			if (!selectedMatch) {
 				selectedMatch = fileMatch.getSelectedMatch();
 			}

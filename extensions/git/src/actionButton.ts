@@ -126,7 +126,7 @@ export class ActionButtonCommand {
 		const commandGroups: Command[][] = [];
 		for (const commands of this.postCommitCommandCenter.getSecondaryCommands()) {
 			commandGroups.push(commands.map(c => {
-				return { command: 'git.commit', title: c.title, tooltip: c.tooltip, arguments: c.arguments };
+				return { command: c.command, title: c.title, tooltip: c.tooltip, arguments: c.arguments };
 			}));
 		}
 
