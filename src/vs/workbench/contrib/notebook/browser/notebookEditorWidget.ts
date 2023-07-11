@@ -1029,7 +1029,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private _registerNotebookStickyScroll() {
-		this._notebookStickyScroll = this._register(this.instantiationService.createInstance(NotebookEditorStickyScroll, this._notebookOptions, this._notebookStickyScrollContainer));
+		this._notebookStickyScroll = this._register(this.instantiationService.createInstance(NotebookEditorStickyScroll, this._notebookStickyScrollContainer, this));
 	}
 
 	private _updateOutputRenderers() {
