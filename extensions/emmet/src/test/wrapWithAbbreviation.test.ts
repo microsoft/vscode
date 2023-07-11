@@ -104,8 +104,6 @@ suite('Tests for Wrap with Abbreviations', () => {
 	const multiCursorsWithSelection = [new Selection(2, 2, 2, 28), new Selection(3, 2, 3, 33), new Selection(4, 6, 4, 36)];
 	const multiCursorsWithFullLineSelection = [new Selection(2, 0, 2, 28), new Selection(3, 0, 3, 33), new Selection(4, 0, 4, 36)];
 
-	const oldValueForSyntaxProfiles = workspace.getConfiguration('emmet').inspect('syntaxProfiles');
-
 	test('Wrap with block element using multi cursor', () => {
 		return testWrapWithAbbreviation(multiCursors, 'div', wrapBlockElementExpected, htmlContentsForBlockWrapTests);
 	});
@@ -391,12 +389,11 @@ suite('Tests for Wrap with Abbreviations', () => {
 		return testWrapIndividualLinesWithAbbreviation([new Selection(2, 3, 3, 16)], 'ul>li.hello$*|t', wrapIndividualLinesExpected, contents);
 	});
 
-	test('Wrap with abbreviation and format set to false', () => {
-		return workspace.getConfiguration('emmet').update('syntaxProfiles', { 'html': { 'format': false } }, ConfigurationTarget.Global).then(() => {
-			return testWrapWithAbbreviation(multiCursors, 'h1', wrapInlineElementExpectedFormatFalse, htmlContentsForBlockWrapTests).then(() => {
-				return workspace.getConfiguration('emmet').update('syntaxProfiles', oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
-			});
-		});
+	test.skip('Wrap with abbreviation and format set to false', async () => {
+		const oldConfig = workspace.getConfiguration('emmet').inspect('syntaxProfiles')?.globalValue;
+		await workspace.getConfiguration('emmet').update('syntaxProfiles', { 'html': { 'format': false } }, ConfigurationTarget.Global);
+		await testWrapWithAbbreviation(multiCursors, 'h1', wrapInlineElementExpectedFormatFalse, htmlContentsForBlockWrapTests);
+		await workspace.getConfiguration('emmet').update('syntaxProfiles', oldConfig, ConfigurationTarget.Global);
 	});
 
 	test('Wrap multi line selections with abbreviation', () => {

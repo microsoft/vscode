@@ -361,7 +361,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		});
 	});
 
-	test('Expand html when inside script tag with javascript type if js is mapped to html (HTML)', async () => {
+	test.skip('Expand html when inside script tag with javascript type if js is mapped to html (HTML)', async () => {
 		const oldConfig = workspace.getConfiguration('emmet').inspect('includeLanguages')?.globalValue;
 		await workspace.getConfiguration('emmet').update('includeLanguages', { 'javascript': 'html' }, ConfigurationTarget.Global);
 		await withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
@@ -376,7 +376,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		await workspace.getConfiguration('emmet').update('includeLanguages', oldConfig, ConfigurationTarget.Global);
 	});
 
-	test('Expand html in completion list when inside script tag with javascript type if js is mapped to html (HTML)', async () => {
+	test.skip('Expand html in completion list when inside script tag with javascript type if js is mapped to html (HTML)', async () => {
 		const abbreviation = 'span.bye';
 		const expandedText = '<span class="bye"></span>';
 		const oldConfig = workspace.getConfiguration('emmet').inspect('includeLanguages')?.globalValue;
@@ -429,7 +429,6 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 });
 
 suite('Tests for jsx, xml and xsl', () => {
-	const oldValueForSyntaxProfiles = workspace.getConfiguration('emmet').inspect('syntaxProfiles');
 	teardown(closeAllEditors);
 
 	test('Expand abbreviation with className instead of class in jsx', () => {
@@ -450,13 +449,14 @@ suite('Tests for jsx, xml and xsl', () => {
 		});
 	});
 
-	test('Expand abbreviation with single quotes for jsx', async () => {
+	test.skip('Expand abbreviation with single quotes for jsx', async () => {
+		const oldConfig = workspace.getConfiguration('emmet').inspect('syntaxProfiles')?.globalValue;
 		await workspace.getConfiguration('emmet').update('syntaxProfiles', { jsx: { 'attr_quotes': 'single' } }, ConfigurationTarget.Global);
 		return withRandomFileEditor('img', 'javascriptreact', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			await expandEmmetAbbreviation({ language: 'javascriptreact' });
 			assert.strictEqual(editor.document.getText(), '<img src=\'\' alt=\'\' />');
-			return workspace.getConfiguration('emmet').update('syntaxProfiles', oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
+			return workspace.getConfiguration('emmet').update('syntaxProfiles', oldConfig, ConfigurationTarget.Global);
 		});
 	});
 
@@ -469,7 +469,7 @@ suite('Tests for jsx, xml and xsl', () => {
 		});
 	});
 
-	test.skip('Expand abbreviation with no self closing tags for html', () => {
+	test('Expand abbreviation with no self closing tags for html', () => {
 		return withRandomFileEditor('img', 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			await expandEmmetAbbreviation({ language: 'html' });

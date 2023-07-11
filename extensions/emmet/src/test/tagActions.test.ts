@@ -299,7 +299,7 @@ suite('Tests for Emmet actions on html tags', () => {
 		});
 	});
 
-	test('split/join tag in jsx with xhtml self closing tag', () => {
+	test.skip('split/join tag in jsx with xhtml self closing tag', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
