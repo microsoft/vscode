@@ -459,6 +459,8 @@ const CONTAINER_HEIGHT_PADDING = 6;
 export class ContentHoverWidget extends ResizableContentWidget {
 
 	public static ID = 'editor.contrib.resizableContentHoverWidget';
+	private static _lastHeight: number = 0;
+	private static _lastWidth: number = 0;
 
 	private _visibleData: ContentHoverVisibleData | undefined;
 	private _positionPreference: ContentWidgetPositionPreference | undefined;
@@ -582,6 +584,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	protected override _resize(size: dom.Dimension): void {
+		ContentHoverWidget._lastHeight = size.height;
+		ContentHoverWidget._lastWidth = size.width;
 		this._setAdjustedHoverWidgetDimensions(size);
 		this._resizableNode.layout(size.height, size.width);
 		this._setResizableNodeMaxDimensions();
@@ -654,12 +658,13 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _layout(): void {
-		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
+		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250, ContentHoverWidget._lastHeight);
+		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500, ContentHoverWidget._lastWidth);
 		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
 		const contentsDomNode = this._hover.contentsDomNode;
 		contentsDomNode.style.fontSize = `${fontSize}px`;
 		contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
-		this._setContentsDomNodeMaxDimensions(Math.max(this._editor.getLayoutInfo().width * 0.66, 500), height);
+		this._setContentsDomNodeMaxDimensions(width, height);
 	}
 
 	private _updateFont(): void {
@@ -680,8 +685,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _updateContentsDomNodeMaxDimensions() {
-		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500);
-		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
+		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500, ContentHoverWidget._lastWidth);
+		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250, ContentHoverWidget._lastHeight);
 		this._setContentsDomNodeMaxDimensions(width, height);
 	}
 
