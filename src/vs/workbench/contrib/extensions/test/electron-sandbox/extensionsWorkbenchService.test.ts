@@ -135,7 +135,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
 	});
 
-	teardown(() => {
+	suiteTeardown(() => {
 		(<ExtensionsWorkbenchService>testObject).dispose();
 	});
 

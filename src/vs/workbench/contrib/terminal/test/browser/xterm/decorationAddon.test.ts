@@ -22,23 +22,22 @@ import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestSer
 import { importAMDNodeModule } from 'vs/amdX';
 
 suite('DecorationAddon', async () => {
-
-	const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
-	class TestTerminal extends TerminalCtor {
-		override registerDecoration(decorationOptions: IDecorationOptions): IDecoration | undefined {
-			if (decorationOptions.marker.isDisposed) {
-				return undefined;
-			}
-			const element = document.createElement('div');
-			return { marker: decorationOptions.marker, element, onDispose: () => { }, isDisposed: false, dispose: () => { }, onRender: (element: HTMLElement) => { return element; } } as unknown as IDecoration;
-		}
-	}
-
 	let decorationAddon: DecorationAddon;
-	let xterm: TestTerminal;
+	let xterm: any;
 	let instantiationService: TestInstantiationService;
 
-	setup(() => {
+	setup(async () => {
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		class TestTerminal extends TerminalCtor {
+			override registerDecoration(decorationOptions: IDecorationOptions): IDecoration | undefined {
+				if (decorationOptions.marker.isDisposed) {
+					return undefined;
+				}
+				const element = document.createElement('div');
+				return { marker: decorationOptions.marker, element, onDispose: () => { }, isDisposed: false, dispose: () => { }, onRender: (element: HTMLElement) => { return element; } } as unknown as IDecoration;
+			}
+		}
+
 		instantiationService = new TestInstantiationService();
 		const configurationService = new TestConfigurationService({
 			workbench: {
