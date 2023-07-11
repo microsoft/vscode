@@ -103,6 +103,11 @@ class AccessibleView extends Disposable {
 				this.show(this._currentProvider);
 			}
 		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (this._currentProvider && this._accessiblityHelpIsShown.get() && e.affectsConfiguration(`accessibility.verbosity.${this._currentProvider.id}`)) {
+				this.show(this._currentProvider);
+			}
+		}));
 	}
 
 	show(provider: IAccessibleContentProvider): void {
