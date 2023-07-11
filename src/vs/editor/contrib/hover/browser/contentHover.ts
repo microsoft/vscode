@@ -504,6 +504,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			this._hoverFocusedKey.set(false);
 		}));
 		this._setHoverData(undefined);
+		this._setMinimumDimensions();
 		this._layout();
 		this._editor.addContentWidget(this);
 	}
@@ -516,6 +517,15 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	public getId(): string {
 		return ContentHoverWidget.ID;
+	}
+
+	private _setMinimumDimensions(): void {
+		const width = 50;
+		const height = this._editor.getOption(EditorOption.lineHeight) + 8;
+		const contentsDomNode = this._hover.contentsDomNode;
+		contentsDomNode.style.minWidth = width + 'px';
+		contentsDomNode.style.minHeight = height + 'px';
+		this._resizableNode.minSize = new dom.Dimension(width, height);
 	}
 
 	private static _applyDimensions(container: HTMLElement, width: number | string, height: number | string): void {
