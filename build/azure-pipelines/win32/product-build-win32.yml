@@ -299,6 +299,10 @@ steps:
           echo "##vso[task.setvariable variable=USER_SETUP_PATH]$SetupPath"
         displayName: Build user setup
 
+      - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
+        condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
+        displayName: Generate artifact prefix
+
       - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
         displayName: Generate SBOM (client)
         inputs:
@@ -307,7 +311,7 @@ steps:
 
       - publish: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/_manifest
         displayName: Publish SBOM (client)
-        artifact: vscode_client_win32_$(VSCODE_ARCH)_sbom
+        artifact: $(ARTIFACT_PREFIX)sbom_client_win32_$(VSCODE_ARCH)
 
       - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
         displayName: Generate SBOM (server)
@@ -318,30 +322,30 @@ steps:
 
       - publish: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)/_manifest
         displayName: Publish SBOM (server)
-        artifact: vscode_server_win32_$(VSCODE_ARCH)_sbom
+        artifact: $(ARTIFACT_PREFIX)sbom_server_win32_$(VSCODE_ARCH)
         condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
       - publish: $(CLIENT_PATH)
-        artifact: vscode_client_win32_$(VSCODE_ARCH)_archive
+        artifact: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_archive
         condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
         displayName: Publish archive
 
       - publish: $(SERVER_PATH)
-        artifact: vscode_server_win32_$(VSCODE_ARCH)_archive
+        artifact: $(ARTIFACT_PREFIX)vscode_server_win32_$(VSCODE_ARCH)_archive
         condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), ne(variables['VSCODE_ARCH'], 'arm64'))
         displayName: Publish server archive
 
       - publish: $(WEB_PATH)
-        artifact: vscode_web_win32_$(VSCODE_ARCH)_archive
+        artifact: $(ARTIFACT_PREFIX)vscode_web_win32_$(VSCODE_ARCH)_archive
         condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), ne(variables['VSCODE_ARCH'], 'arm64'))
         displayName: Publish web server archive
 
       - publish: $(SYSTEM_SETUP_PATH)
-        artifact: vscode_client_win32_$(VSCODE_ARCH)_setup
+        artifact: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
         condition: and(succeededOrFailed(), ne(variables['SYSTEM_SETUP_PATH'], ''))
         displayName: Publish system setup
 
       - publish: $(USER_SETUP_PATH)
-        artifact: vscode_client_win32_$(VSCODE_ARCH)_user-setup
+        artifact: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_user-setup
         condition: and(succeededOrFailed(), ne(variables['USER_SETUP_PATH'], ''))
         displayName: Publish user setup

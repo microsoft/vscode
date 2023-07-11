@@ -278,11 +278,11 @@ export class InlineCompletionsModel extends Disposable {
 			throw new BugIndicatingError();
 		}
 
-		const ghostText = this.ghostText.get();
-		const completion = this.selectedInlineCompletion.get()?.toInlineCompletion(undefined);
-		if (!ghostText || !completion) {
+		const state = this.state.get();
+		if (!state || state.ghostText.isEmpty() || !state.completion) {
 			return;
 		}
+		const completion = state.completion.toInlineCompletion(undefined);
 
 		editor.pushUndoStop();
 		if (completion.snippetInfo) {
@@ -370,11 +370,12 @@ export class InlineCompletionsModel extends Disposable {
 			throw new BugIndicatingError();
 		}
 
-		const ghostText = this.ghostText.get();
-		const completion = this.selectedInlineCompletion.get()?.toInlineCompletion(undefined);
-		if (!ghostText || !completion) {
+		const state = this.state.get();
+		if (!state || state.ghostText.isEmpty() || !state.completion) {
 			return;
 		}
+		const ghostText = state.ghostText;
+		const completion = state.completion.toInlineCompletion(undefined);
 
 		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
 			// not in WYSIWYG mode, partial commit might change completion, thus it is not supported
@@ -382,9 +383,6 @@ export class InlineCompletionsModel extends Disposable {
 			return;
 		}
 
-		if (ghostText.parts.length === 0) {
-			return;
-		}
 		const firstPart = ghostText.parts[0];
 		const position = new Position(ghostText.lineNumber, firstPart.column);
 		const line = firstPart.lines.join('\n');

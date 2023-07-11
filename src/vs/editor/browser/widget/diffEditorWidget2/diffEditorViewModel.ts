@@ -59,6 +59,50 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		const contentChangedSignal = observableSignal('contentChangedSignal');
 		const debouncer = this._register(new RunOnceScheduler(() => contentChangedSignal.trigger(undefined), 200));
 
+		const updateUnchangedRegions = (result: IDocumentDiff, tx: ITransaction) => {
+			const newUnchangedRegions = UnchangedRegion.fromDiffs(result.changes, model.original.getLineCount(), model.modified.getLineCount());
+
+			// Transfer state from cur state
+			const lastUnchangedRegions = this._unchangedRegions.get();
+			const lastUnchangedRegionsOrigRanges = lastUnchangedRegions.originalDecorationIds
+				.map(id => model.original.getDecorationRange(id))
+				.filter(r => !!r)
+				.map(r => LineRange.fromRange(r!));
+			const lastUnchangedRegionsModRanges = lastUnchangedRegions.modifiedDecorationIds
+				.map(id => model.modified.getDecorationRange(id))
+				.filter(r => !!r)
+				.map(r => LineRange.fromRange(r!));
+
+			const originalDecorationIds = model.original.deltaDecorations(
+				lastUnchangedRegions.originalDecorationIds,
+				newUnchangedRegions.map(r => ({ range: r.originalRange.toInclusiveRange()!, options: { description: 'unchanged' } }))
+			);
+			const modifiedDecorationIds = model.modified.deltaDecorations(
+				lastUnchangedRegions.modifiedDecorationIds,
+				newUnchangedRegions.map(r => ({ range: r.modifiedRange.toInclusiveRange()!, options: { description: 'unchanged' } }))
+			);
+
+
+			for (const r of newUnchangedRegions) {
+				for (let i = 0; i < lastUnchangedRegions.regions.length; i++) {
+					if (r.originalRange.intersectsStrict(lastUnchangedRegionsOrigRanges[i])
+						&& r.modifiedRange.intersectsStrict(lastUnchangedRegionsModRanges[i])) {
+						r.setHiddenModifiedRange(lastUnchangedRegions.regions[i].getHiddenModifiedRange(undefined), tx);
+						break;
+					}
+				}
+			}
+			this._unchangedRegions.set(
+				{
+					regions: newUnchangedRegions,
+					originalDecorationIds,
+					modifiedDecorationIds
+				},
+				tx
+			);
+		};
+
+
 		this._register(model.modified.onDidChangeContent((e) => {
 			const diff = this._diff.get();
 			if (!diff) {
@@ -69,9 +113,12 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			const result = applyModifiedEdits(this._lastDiff!, textEdits, model.original, model.modified);
 			if (result) {
 				this._lastDiff = result;
-				this._diff.set(DiffState.fromDiffResult(this._lastDiff), undefined);
-				const currentSyncedMovedText = this.syncedMovedTexts.get();
-				this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, undefined);
+				transaction(tx => {
+					this._diff.set(DiffState.fromDiffResult(this._lastDiff!), tx);
+					updateUnchangedRegions(result, tx);
+					const currentSyncedMovedText = this.syncedMovedTexts.get();
+					this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, tx);
+				});
 			}
 
 			debouncer.schedule();
@@ -86,9 +133,12 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			const result = applyOriginalEdits(this._lastDiff!, textEdits, model.original, model.modified);
 			if (result) {
 				this._lastDiff = result;
-				this._diff.set(DiffState.fromDiffResult(this._lastDiff), undefined);
-				const currentSyncedMovedText = this.syncedMovedTexts.get();
-				this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, undefined);
+				transaction(tx => {
+					this._diff.set(DiffState.fromDiffResult(this._lastDiff!), tx);
+					updateUnchangedRegions(result, tx);
+					const currentSyncedMovedText = this.syncedMovedTexts.get();
+					this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, tx);
+				});
 			}
 
 			debouncer.schedule();
@@ -124,38 +174,9 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			result = applyOriginalEdits(result, originalTextEditInfos, model.original, model.modified) ?? result;
 			result = applyModifiedEdits(result, modifiedTextEditInfos, model.original, model.modified) ?? result;
 
-			const newUnchangedRegions = UnchangedRegion.fromDiffs(result.changes, model.original.getLineCount(), model.modified.getLineCount());
-
-			// Transfer state from cur state
-			const lastUnchangedRegions = this._unchangedRegions.get();
-			const lastUnchangedRegionsOrigRanges = lastUnchangedRegions.originalDecorationIds
-				.map(id => model.original.getDecorationRange(id))
-				.filter(r => !!r)
-				.map(r => LineRange.fromRange(r!));
-			const lastUnchangedRegionsModRanges = lastUnchangedRegions.modifiedDecorationIds
-				.map(id => model.modified.getDecorationRange(id))
-				.filter(r => !!r)
-				.map(r => LineRange.fromRange(r!));
-
-			const originalDecorationIds = model.original.deltaDecorations(
-				lastUnchangedRegions.originalDecorationIds,
-				newUnchangedRegions.map(r => ({ range: r.originalRange.toInclusiveRange()!, options: { description: 'unchanged' } }))
-			);
-			const modifiedDecorationIds = model.modified.deltaDecorations(
-				lastUnchangedRegions.modifiedDecorationIds,
-				newUnchangedRegions.map(r => ({ range: r.modifiedRange.toInclusiveRange()!, options: { description: 'unchanged' } }))
-			);
 
 			transaction(tx => {
-				for (const r of newUnchangedRegions) {
-					for (let i = 0; i < lastUnchangedRegions.regions.length; i++) {
-						if (r.originalRange.intersectsStrict(lastUnchangedRegionsOrigRanges[i])
-							&& r.modifiedRange.intersectsStrict(lastUnchangedRegionsModRanges[i])) {
-							r.setHiddenModifiedRange(lastUnchangedRegions.regions[i].getHiddenModifiedRange(undefined), tx);
-							break;
-						}
-					}
-				}
+				updateUnchangedRegions(result, tx);
 
 				this._lastDiff = result;
 				const state = DiffState.fromDiffResult(result);
@@ -163,15 +184,6 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				this._isDiffUpToDate.set(true, tx);
 				const currentSyncedMovedText = this.syncedMovedTexts.get();
 				this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, tx);
-
-				this._unchangedRegions.set(
-					{
-						regions: newUnchangedRegions,
-						originalDecorationIds,
-						modifiedDecorationIds
-					},
-					tx
-				);
 			});
 		}));
 	}
