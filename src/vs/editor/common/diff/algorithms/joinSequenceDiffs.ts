@@ -45,14 +45,16 @@ export function smoothenSequenceDiffs(sequence1: ISequence, sequence2: ISequence
  * Improved diff: [{Add ", Foo" after Bar}]
  */
 export function joinSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
-	const result: SequenceDiff[] = [];
-	if (sequenceDiffs.length > 0) {
-		result.push(sequenceDiffs[0]);
+	if (sequenceDiffs.length === 0) {
+		return sequenceDiffs;
 	}
+
+	const result: SequenceDiff[] = [];
+	result.push(sequenceDiffs[0]);
 
 	// First move them all to the left as much as possible and join them if possible
 	for (let i = 1; i < sequenceDiffs.length; i++) {
-		const prevResult = sequenceDiffs[i - 1];
+		const prevResult = result[result.length - 1];
 		let cur = sequenceDiffs[i];
 
 		if (cur.seq1Range.isEmpty || cur.seq2Range.isEmpty) {
