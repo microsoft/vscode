@@ -54,7 +54,6 @@ suite('Buffer Content Tracker', () => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
 		instantiationService = new TestInstantiationService();
 		themeService = new TestThemeService();
-		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(ITerminalLogService, new NullLogService());
@@ -74,6 +73,9 @@ suite('Buffer Content Tracker', () => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
 		configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!);
 		bufferTracker = instantiationService.createInstance(BufferContentTracker, xterm);
+	});
+	teardown(() => {
+		instantiationService.dispose();
 	});
 	test('should not clear the prompt line', async () => {
 		assert.strictEqual(bufferTracker.lines.length, 0);

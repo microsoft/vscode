@@ -425,6 +425,7 @@ export class ExtensionsScanner extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -582,7 +583,9 @@ export class ExtensionsScanner extends Disposable {
 
 	private async deleteExtensionFromLocation(id: string, location: URI, type: string): Promise<void> {
 		this.logService.trace(`Deleting ${type} extension from disk`, id, location.fsPath);
-		await this.fileService.del(location, { recursive: true, atomic: { postfix: `.${hash(generateUuid()).toString(16)}${DELETED_FOLDER_POSTFIX}` } });
+		const renamedLocation = this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(location), `${this.uriIdentityService.extUri.basename(location)}.${hash(generateUuid()).toString(16)}${DELETED_FOLDER_POSTFIX}`);
+		await this.rename({ id }, location.fsPath, renamedLocation.fsPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+		await this.fileService.del(renamedLocation, { recursive: true });
 		this.logService.info(`Deleted ${type} extension from disk`, id, location.fsPath);
 	}
 

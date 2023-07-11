@@ -309,6 +309,10 @@ suite('ExtensionRecommendationsService Test', () => {
 
 	teardown(() => (<ExtensionRecommendationsService>testObject).dispose());
 
+	suiteTeardown(() => {
+		instantiationService.dispose();
+	});
+
 	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
 		return setUpFolder(folderName, recommendedExtensions, ignoredRecommendations);
 	}

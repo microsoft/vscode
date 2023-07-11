@@ -499,10 +499,20 @@
           ]
         },
         "markdown.editor.pasteUrlAsFormattedLink.enabled": {
-          "type": "boolean",
+          "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
-          "default": true
+          "default":"smart",
+          "enum": [
+            "always",
+            "smart",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.pasteUrlAsFormattedLink.always%",
+            "%configuration.pasteUrlAsFormattedLink.smart%",
+            "%configuration.pasteUrlAsFormattedLink.never%"
+          ]
         },
         "markdown.validate.enabled": {
           "type": "boolean",

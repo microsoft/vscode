@@ -136,6 +136,8 @@ variables:
     value: true
   - name: Codeql.SkipTaskAutoInjection
     value: true
+  - name: ARTIFACT_PREFIX
+    value: ''
 
 name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 
@@ -282,6 +284,7 @@ stages:
               - template: win32/product-build-win32.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_RUN_UNIT_TESTS: true
                   VSCODE_RUN_INTEGRATION_TESTS: false
@@ -295,6 +298,7 @@ stages:
               - template: win32/product-build-win32.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_RUN_UNIT_TESTS: false
                   VSCODE_RUN_INTEGRATION_TESTS: true
@@ -308,6 +312,7 @@ stages:
               - template: win32/product-build-win32.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_RUN_UNIT_TESTS: false
                   VSCODE_RUN_INTEGRATION_TESTS: false
@@ -322,6 +327,7 @@ stages:
               - template: win32/product-build-win32.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -345,10 +351,11 @@ stages:
               - template: win32/product-build-win32.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_ARCH: ia32
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                  VSCODE_RUN_UNIT_TESTS: true
+                  VSCODE_RUN_INTEGRATION_TESTS: true
+                  VSCODE_RUN_SMOKE_TESTS: true
 
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
           - job: WindowsARM64
@@ -359,6 +366,7 @@ stages:
               - template: win32/product-build-win32.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_ARCH: arm64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_RUN_UNIT_TESTS: false
                   VSCODE_RUN_INTEGRATION_TESTS: false

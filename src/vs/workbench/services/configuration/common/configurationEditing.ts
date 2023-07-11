@@ -29,6 +29,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 
 export const enum ConfigurationEditingErrorCode {
 
@@ -103,7 +104,7 @@ export const enum ConfigurationEditingErrorCode {
 	ERROR_INTERNAL
 }
 
-export class ConfigurationEditingError extends Error {
+export class ConfigurationEditingError extends ErrorNoTelemetry {
 	constructor(message: string, public code: ConfigurationEditingErrorCode) {
 		super(message);
 	}
@@ -210,7 +211,7 @@ export class ConfigurationEditing {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_MODIFIED_SINCE, operation.target, operation);
 			}
-			throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INTERNAL, operation.target, operation);
+			throw new ConfigurationEditingError(nls.localize('fsError', "Error while writing to {0}. {1}", this.stringifyTarget(operation.target), error.message), ConfigurationEditingErrorCode.ERROR_INTERNAL);
 		}
 	}
 

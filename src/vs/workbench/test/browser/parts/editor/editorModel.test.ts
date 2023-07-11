@@ -75,6 +75,10 @@ suite('EditorModel', () => {
 		languageService = instantiationService.stub(ILanguageService, LanguageService);
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	test('basics', async () => {
 		let counter = 0;
 

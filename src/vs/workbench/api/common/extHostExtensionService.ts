@@ -795,7 +795,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private async _activateAndGetResolver(remoteAuthority: string): Promise<{ authorityPrefix: string; resolver: vscode.RemoteAuthorityResolver | undefined }> {
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
-			throw new Error(`Not an authority that can be resolved!`);
+			throw new RemoteAuthorityResolverError(`Not an authority that can be resolved!`, RemoteAuthorityResolverErrorCode.InvalidAuthority);
 		}
 		const authorityPrefix = remoteAuthority.substr(0, authorityPlusIndex);
 
@@ -809,6 +809,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const sw = StopWatch.create(false);
 		const prefix = () => `[resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthorityChain)},${resolveAttempt})][${sw.elapsed()}ms] `;
 		const logInfo = (msg: string) => this._logService.info(`${prefix()}${msg}`);
+		const logWarning = (msg: string) => this._logService.warn(`${prefix()}${msg}`);
 		const logError = (msg: string, err: any = undefined) => this._logService.error(`${prefix()}${msg}`, err);
 		const normalizeError = (err: unknown) => {
 			if (err instanceof RemoteAuthorityResolverError) {
@@ -824,20 +825,26 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			throw err;
 		};
 
+		const getResolver = async (remoteAuthority: string) => {
+			logInfo(`activating resolver for ${remoteAuthority}...`);
+			const { resolver, authorityPrefix } = await this._activateAndGetResolver(remoteAuthority);
+			if (!resolver) {
+				logError(`no resolver for ${authorityPrefix}`);
+				throw new RemoteAuthorityResolverError(`No remote extension installed to resolve ${authorityPrefix}.`, RemoteAuthorityResolverErrorCode.NoResolverFound);
+			}
+			return { resolver, authorityPrefix, remoteAuthority };
+		};
+
 		const chain = remoteAuthorityChain.split(/@|%40/g).reverse();
 		logInfo(`activating remote resolvers ${chain.join(' -> ')}`);
 
 		let resolvers;
 		try {
-			resolvers = await Promise.all(chain.map(async remoteAuthority => {
-				logInfo(`activating resolver...`);
-				const { resolver, authorityPrefix } = await this._activateAndGetResolver(remoteAuthority);
-				if (!resolver) {
-					logError(`no resolver`);
-					throw new RemoteAuthorityResolverError(`No remote extension installed to resolve ${authorityPrefix}.`, RemoteAuthorityResolverErrorCode.NoResolverFound);
-				}
-				return { resolver, authorityPrefix, remoteAuthority };
-			}));
+			resolvers = await Promise.all(chain.map(getResolver)).catch(async (e: Error) => {
+				if (!(e instanceof RemoteAuthorityResolverError) || e._code !== RemoteAuthorityResolverErrorCode.InvalidAuthority) { throw e; }
+				logWarning(`resolving nested authorities failed: ${e.message}`);
+				return [await getResolver(remoteAuthorityChain)];
+			});
 		} catch (e) {
 			return normalizeError(e);
 		}

@@ -204,12 +204,14 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 			if (err instanceof AuthenticationError) {
 				// A GitHub authentication session could be missing if the user has not yet
-				// signed in with their GitHub account or they have signed out. In this case
-				// we have to clear the branch protection information.
-				this.branchProtection = branchProtection;
-				this._onDidChangeBranchProtection.fire(this.repository.rootUri);
+				// signed in with their GitHub account or they have signed out. If there is
+				// branch protection information we have to clear it.
+				if (this.branchProtection.length !== 0) {
+					this.branchProtection = branchProtection;
+					this._onDidChangeBranchProtection.fire(this.repository.rootUri);
 
-				await this.globalState.update(this.globalStateKey, undefined);
+					await this.globalState.update(this.globalStateKey, undefined);
+				}
 			}
 		}
 	}

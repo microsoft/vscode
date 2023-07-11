@@ -45,6 +45,10 @@ suite('Search - Viewlet', () => {
 		instantiation.stub(ILogService, new NullLogService());
 	});
 
+	teardown(() => {
+		instantiation.dispose();
+	});
+
 	test('Data Source', function () {
 		const result: SearchResult = aSearchResult();
 		result.query = {

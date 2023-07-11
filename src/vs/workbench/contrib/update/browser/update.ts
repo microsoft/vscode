@@ -461,6 +461,23 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
 		});
 
+		CommandsRegistry.registerCommand('update.showUpdateReleaseNotes', () => {
+			if (this.updateService.state.type !== StateType.Ready) {
+				return;
+			}
+
+			const version = this.updateService.state.update.version;
+			this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, version));
+		});
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			group: '7_update',
+			command: {
+				id: 'update.showUpdateReleaseNotes',
+				title: nls.localize('showUpdateReleaseNotes', "Show Update Release Notes")
+			},
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
+		});
+
 		CommandsRegistry.registerCommand('_update.state', () => {
 			return this.state;
 		});

@@ -65,15 +65,26 @@ export async function getMarkdownLink(document: vscode.TextDocument, ranges: rea
 	if (ranges.length === 0) {
 		return;
 	}
+	const enabled = vscode.workspace.getConfiguration('markdown', document).get<'always' | 'smart' | 'never'>('editor.pasteUrlAsFormattedLink.enabled', 'always');
 
 	const edits: vscode.SnippetTextEdit[] = [];
 	let placeHolderValue: number = ranges.length;
 	let label: string = '';
+	let smartPaste: boolean = false;
 	for (let i = 0; i < ranges.length; i++) {
-		const snippet = await tryGetUriListSnippet(document, urlList, token, document.getText(ranges[i]), placeHolderValue);
+		if (enabled === 'smart') {
+			const inMarkdownLink = checkPaste(document, ranges, /\[([^\]]*)\]\(([^)]*)\)/g, i);
+			const inFencedCode = checkPaste(document, ranges, /^```[\s\S]*?```$/gm, i);
+			const inFencedMath = checkPaste(document, ranges, /^\$\$[\s\S]*?\$\$$/gm, i);
+			smartPaste = (inMarkdownLink || inFencedCode || inFencedMath);
+		}
+
+		const snippet = await tryGetUriListSnippet(document, urlList, token, document.getText(ranges[i]), placeHolderValue, smartPaste);
 		if (!snippet) {
 			return;
 		}
+
+		smartPaste = false;
 		placeHolderValue--;
 		edits.push(new vscode.SnippetTextEdit(ranges[i], snippet.snippet));
 		label = snippet.label;
@@ -85,7 +96,20 @@ export async function getMarkdownLink(document: vscode.TextDocument, ranges: rea
 	return { additionalEdits, label };
 }
 
-export async function tryGetUriListSnippet(document: vscode.TextDocument, urlList: String, token: vscode.CancellationToken, title = '', placeHolderValue = 0): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
+function checkPaste(document: vscode.TextDocument, ranges: readonly vscode.Range[], regex: RegExp, index: number): boolean {
+	const rangeStartOffset = document.offsetAt(ranges[index].start);
+	const rangeEndOffset = document.offsetAt(ranges[index].end);
+	const matches = [...document.getText().matchAll(regex)];
+	for (const match of matches) {
+		if (match.index !== undefined && rangeStartOffset > match.index && rangeEndOffset < match.index + match[0].length) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+export async function tryGetUriListSnippet(document: vscode.TextDocument, urlList: String, token: vscode.CancellationToken, title = '', placeHolderValue = 0, smartPaste = false): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
 	if (token.isCancellationRequested) {
 		return undefined;
 	}
@@ -99,7 +123,7 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, urlLis
 		}
 	}
 
-	return createUriListSnippet(document, uris, title, placeHolderValue);
+	return createUriListSnippet(document, uris, title, placeHolderValue, smartPaste);
 }
 
 interface UriListSnippetOptions {
@@ -122,6 +146,7 @@ export function createUriListSnippet(
 	uris: readonly vscode.Uri[],
 	title = '',
 	placeholderValue = 0,
+	smartPaste = false,
 	options?: UriListSnippetOptions,
 ): { snippet: vscode.SnippetString; label: string } | undefined {
 	if (!uris.length) {
@@ -164,13 +189,21 @@ export function createUriListSnippet(
 				snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
 			} else {
 				insertedLinkCount++;
-				snippet.appendText('[');
-				snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
-				if (externalUriSchemes.includes(uri.scheme)) {
-					const uriString = uri.toString(true);
-					snippet.appendText(`](${uriString})`);
+				if (smartPaste) {
+					if (externalUriSchemes.includes(uri.scheme)) {
+						snippet.appendText(uri.toString(true));
+					} else {
+						snippet.appendText(escapeMarkdownLinkPath(mdPath));
+					}
 				} else {
-					snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
+					snippet.appendText('[');
+					snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
+					if (externalUriSchemes.includes(uri.scheme)) {
+						const uriString = uri.toString(true);
+						snippet.appendText(`](${uriString})`);
+					} else {
+						snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
+					}
 				}
 			}
 		}
