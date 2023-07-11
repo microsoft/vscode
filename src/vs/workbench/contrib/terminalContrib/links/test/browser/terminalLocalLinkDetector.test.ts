@@ -192,6 +192,10 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	suite('platform independent', () => {
 		setup(() => {
 			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {

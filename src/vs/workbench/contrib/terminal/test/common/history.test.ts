@@ -56,6 +56,10 @@ suite('Terminal history', () => {
 			history = instantiationService.createInstance(TerminalPersistedHistory<number>, 'test');
 		});
 
+		teardown(() => {
+			instantiationService.dispose();
+		});
+
 		test('should support adding items to the cache and respect LRU', () => {
 			history.add('foo', 1);
 			deepStrictEqual(Array.from(history.entries), [
@@ -151,6 +155,10 @@ suite('Terminal history', () => {
 			} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
 		});
 
+		teardown(() => {
+			instantiationService.dispose();
+		});
+
 		if (!isWindows) {
 			suite('local', async () => {
 				let originalEnvValues: { HOME: string | undefined };
@@ -237,6 +245,10 @@ suite('Terminal history', () => {
 				async getEnvironment() { return remoteEnvironment; },
 				getConnection() { return remoteConnection; }
 			} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
+		});
+
+		teardown(() => {
+			instantiationService.dispose();
 		});
 
 		if (!isWindows) {
@@ -326,6 +338,10 @@ suite('Terminal history', () => {
 				async getEnvironment() { return remoteEnvironment; },
 				getConnection() { return remoteConnection; }
 			} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
+		});
+
+		teardown(() => {
+			instantiationService.dispose();
 		});
 
 		suite('local', async () => {
@@ -431,6 +447,10 @@ suite('Terminal history', () => {
 				async getEnvironment() { return remoteEnvironment; },
 				getConnection() { return remoteConnection; }
 			} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
+		});
+
+		teardown(() => {
+			instantiationService.dispose();
 		});
 
 		if (!isWindows) {

@@ -72,7 +72,7 @@ function setupTest() {
 	uninstallEvent = new Emitter<UninstallExtensionEvent>();
 	didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 
-	instantiationService = new TestInstantiationService();
+	instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);

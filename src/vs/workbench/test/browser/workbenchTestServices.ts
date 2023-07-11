@@ -243,7 +243,7 @@ export function workbenchInstantiationService(
 	},
 	disposables: DisposableStore = new DisposableStore()
 ): TestInstantiationService {
-	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
+	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()])));
 
 	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
 	instantiationService.stub(IWorkingCopyService, disposables.add(new TestWorkingCopyService()));

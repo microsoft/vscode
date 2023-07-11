@@ -48,12 +48,13 @@ suite('debugConfigurationManager', () => {
 	const configurationService = new TestConfigurationService();
 	setup(() => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([IPreferencesService, preferencesService], [IConfigurationService, configurationService])));
 		_debugConfigurationManager = new ConfigurationManager(
 			adapterManager,
 			new TestContextService(),
 			configurationService,
 			new TestQuickInputService(),
-			new TestInstantiationService(new ServiceCollection([IPreferencesService, preferencesService], [IConfigurationService, configurationService])),
+			instantiationService,
 			new TestStorageService(),
 			new TestExtensionService(),
 			new TestHistoryService(),

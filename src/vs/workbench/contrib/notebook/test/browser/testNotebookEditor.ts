@@ -169,7 +169,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 }
 
 export function setupInstantiationService(disposables = new DisposableStore()) {
-	const instantiationService = new TestInstantiationService();
+	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(ILanguageService, disposables.add(new LanguageService()));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
