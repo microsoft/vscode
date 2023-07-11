@@ -183,6 +183,10 @@
 	border-bottom-width: 2px;
 }
 
+.test-output-peek-message-container {
+	overflow: hidden;
+}
+
 .test-output-peek-message-container,
 .test-output-peek-tree {
 	height: 100%;
@@ -227,10 +231,6 @@
 
 .testing-filter-action-bar .testing-filter-action-item {
 	max-width: none;
-}
-
-.testing-filter-wrapper {
-	height: 27px;
 }
 
 .testing-filter-action-item .testing-filter-wrapper {

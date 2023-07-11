@@ -71,6 +71,10 @@ suite('Chat', () => {
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 	});
 
+	suiteTeardown(() => {
+		instantiationService.dispose();
+	});
+
 	teardown(() => {
 		testDisposables.clear();
 	});

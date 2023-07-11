@@ -128,6 +128,7 @@ declare module 'vscode' {
 
 	export interface InteractiveSessionSlashCommand {
 		command: string;
+		shouldRepopulate?: boolean;
 		kind: CompletionItemKind;
 		detail?: string;
 	}

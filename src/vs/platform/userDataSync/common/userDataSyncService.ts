@@ -622,6 +622,10 @@ class ProfileSynchronizer extends Disposable {
 		if (syncResource === SyncResource.WorkspaceState) {
 			return;
 		}
+		if (syncResource !== SyncResource.Profiles && this.profile.useDefaultFlags?.[syncResource]) {
+			this.logService.debug(`Skipping syncing ${syncResource} in ${this.profile.name} because it is already synced by default profile`);
+			return;
+		}
 		const disposables = new DisposableStore();
 		const synchronizer = disposables.add(this.createSynchronizer(syncResource));
 		disposables.add(synchronizer.onDidChangeStatus(() => this.updateStatus()));

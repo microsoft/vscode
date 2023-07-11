@@ -499,10 +499,20 @@
           ]
         },
         "markdown.editor.pasteUrlAsFormattedLink.enabled": {
-          "type": "boolean",
+          "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
-          "default": true
+          "default":"smart",
+          "enum": [
+            "always",
+            "smart",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.pasteUrlAsFormattedLink.always%",
+            "%configuration.pasteUrlAsFormattedLink.smart%",
+            "%configuration.pasteUrlAsFormattedLink.never%"
+          ]
         },
         "markdown.validate.enabled": {
           "type": "boolean",
@@ -713,7 +723,7 @@
   "dependencies": {
     "@vscode/extension-telemetry": "0.7.5",
     "dompurify": "^2.4.1",
-    "highlight.js": "^11.4.0",
+    "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.1",
     "morphdom": "^2.6.1",

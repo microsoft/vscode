@@ -11,7 +11,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ConfigureSnippets } from 'vs/workbench/contrib/snippets/browser/commands/configureSnippets';
+import { ConfigureSnippetsActions } from 'vs/workbench/contrib/snippets/browser/commands/configureSnippets';
 import { ApplyFileSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/fileTemplateSnippets';
 import { InsertSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/insertSnippet';
 import { SurroundWithSnippetEditorAction } from 'vs/workbench/contrib/snippets/browser/commands/surroundWithSnippet';
@@ -31,12 +31,12 @@ registerSingleton(ISnippetsService, SnippetsService, InstantiationType.Delayed);
 registerAction2(InsertSnippetAction);
 CommandsRegistry.registerCommandAlias('editor.action.showSnippets', 'editor.action.insertSnippet');
 registerAction2(SurroundWithSnippetEditorAction);
-registerAction2(ConfigureSnippets);
 registerAction2(ApplyFileSnippetAction);
 
 // workbench contribs
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SnippetCodeActions, LifecyclePhase.Restored);
+const workbenchContribRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchContribRegistry.registerWorkbenchContribution(ConfigureSnippetsActions, LifecyclePhase.Restored);
+workbenchContribRegistry.registerWorkbenchContribution(SnippetCodeActions, LifecyclePhase.Restored);
 
 // config
 Registry

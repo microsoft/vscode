@@ -395,42 +395,42 @@
 		"c": "'''",
 		"t": "source.python string.quoted.docstring.multi.python punctuation.definition.string.begin.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
 		"c": "Make the monkey eat N bananas!",
 		"t": "source.python string.quoted.docstring.multi.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
 		"c": "'''",
 		"t": "source.python string.quoted.docstring.multi.python punctuation.definition.string.end.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
@@ -3181,42 +3181,42 @@
 		"c": "\"\"\"",
 		"t": "source.python string.quoted.docstring.multi.python punctuation.definition.string.begin.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
 		"c": "Berechnung der zu zahlenden Steuern fuer ein zu versteuerndes Einkommen von x",
 		"t": "source.python string.quoted.docstring.multi.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
 		"c": "\"\"\"",
 		"t": "source.python string.quoted.docstring.multi.python punctuation.definition.string.end.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
@@ -7423,56 +7423,56 @@
 		"c": "'''",
 		"t": "source.python string.quoted.docstring.raw.multi.python punctuation.definition.string.begin.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
 		"c": "Module docstring",
 		"t": "source.python string.quoted.docstring.raw.multi.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
 		"c": "    Some text followed by code sample:",
 		"t": "source.python string.quoted.docstring.raw.multi.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
 		"c": "    ",
 		"t": "source.python string.quoted.docstring.raw.multi.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
@@ -7493,28 +7493,28 @@
 		"c": "for a in foo(2, b=1,",
 		"t": "source.python string.quoted.docstring.raw.multi.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
 		"c": "    ",
 		"t": "source.python string.quoted.docstring.raw.multi.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
@@ -7535,28 +7535,28 @@
 		"c": "                c=3):",
 		"t": "source.python string.quoted.docstring.raw.multi.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
 		"c": "    ",
 		"t": "source.python string.quoted.docstring.raw.multi.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
@@ -7577,56 +7577,56 @@
 		"c": "  print(a)",
 		"t": "source.python string.quoted.docstring.raw.multi.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
 		"c": "    0",
 		"t": "source.python string.quoted.docstring.raw.multi.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
 		"c": "    1",
 		"t": "source.python string.quoted.docstring.raw.multi.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
 		"c": "'''",
 		"t": "source.python string.quoted.docstring.raw.multi.python punctuation.definition.string.end.python",
 		"r": {
-			"dark_plus": "string.quoted.docstring: #6A9955",
-			"light_plus": "string.quoted.docstring: #008000",
-			"dark_vs": "string.quoted.docstring: #6A9955",
-			"light_vs": "string.quoted.docstring: #008000",
-			"hc_black": "string.quoted.docstring: #7CA668",
-			"dark_modern": "string.quoted.docstring: #6A9955",
-			"hc_light": "string.quoted.docstring: #515151",
-			"light_modern": "string.quoted.docstring: #008000"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
 		}
 	}
 ]

@@ -122,13 +122,13 @@ steps:
           INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
           ./scripts/test-integration.sh --build --tfs "Integration Tests"
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
       - script: ./scripts/test-web-integration.sh --browser chromium
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
         displayName: Run integration tests (Browser, Chromium)
         timeoutInMinutes: 20
 
@@ -140,7 +140,7 @@ steps:
           INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
           ./scripts/test-remote-integration.sh
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
 
@@ -180,7 +180,7 @@ steps:
 
       - script: yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
         timeoutInMinutes: 20
         displayName: Run smoke tests (Browser, Chromium)
 
@@ -188,7 +188,7 @@ steps:
           set -e
           yarn gulp compile-extension:vscode-test-resolver
           APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-          VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
+          VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)" \
           yarn smoketest-no-compile --tracing --remote --build "$APP_PATH"
         timeoutInMinutes: 20
         displayName: Run smoke tests (Remote)

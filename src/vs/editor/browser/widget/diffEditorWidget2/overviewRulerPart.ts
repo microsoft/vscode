@@ -6,6 +6,7 @@
 import { EventType, addDisposableListener, addStandardDisposableListener, h } from 'vs/base/browser/dom';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { Color } from 'vs/base/common/color';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, derived, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
@@ -14,7 +15,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { appendRemoveOnDispose } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
-import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
+import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
@@ -50,7 +51,6 @@ export class OverviewRulerPart extends Disposable {
 		const scrollTopObservable = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
 		const scrollHeightObservable = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollHeight());
 
-		// overview ruler
 		this._register(autorunWithStore2('create diff editor overview ruler if enabled', (reader, store) => {
 			if (!this._options.renderOverviewRuler.read(reader)) {
 				return;
@@ -146,15 +146,18 @@ export class OverviewRulerPart extends Disposable {
 						const scrollTop = scrollTopObservable.read(reader);
 						const scrollHeight = scrollHeightObservable.read(reader);
 
-						const computedAvailableSize = Math.max(0, layoutInfo.height);
-						const computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * 0);
-						const computedRatio = scrollHeight > 0 ? (computedRepresentableSize / scrollHeight) : 0;
+						const scrollBarOptions = this._editors.modified.getOption(EditorOption.scrollbar);
+						const state = new ScrollbarState(
+							scrollBarOptions.verticalHasArrows ? scrollBarOptions.arrowSize : 0,
+							scrollBarOptions.verticalScrollbarSize,
+							0,
+							layoutInfo.height,
+							scrollHeight,
+							scrollTop
+						);
 
-						const computedSliderSize = Math.max(0, Math.floor(layoutInfo.height * computedRatio));
-						const computedSliderPosition = Math.floor(scrollTop * computedRatio);
-
-						viewportDomElement.setTop(computedSliderPosition);
-						viewportDomElement.setHeight(computedSliderSize);
+						viewportDomElement.setTop(state.getSliderPosition());
+						viewportDomElement.setHeight(state.getSliderSize());
 					} else {
 						viewportDomElement.setTop(0);
 						viewportDomElement.setHeight(0);

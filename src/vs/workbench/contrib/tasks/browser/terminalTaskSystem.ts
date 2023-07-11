@@ -8,7 +8,7 @@ import * as Async from 'vs/base/common/async';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { isUNC } from 'vs/base/common/extpath';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import * as Objects from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
@@ -49,7 +49,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IDisposable } from 'xterm';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;

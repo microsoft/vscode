@@ -135,6 +135,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
+	private readonly _onDidSubmitSlashCommand = this._register(new Emitter<{ slashCommand: string; sessionId: string }>());
+	public readonly onDidSubmitSlashCommand = this._onDidSubmitSlashCommand.event;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -152,10 +155,11 @@ export class ChatService extends Disposable implements IChatService {
 		if (sessionData) {
 			this._persistedSessions = this.deserializeChats(sessionData);
 			const countsForLog = Object.keys(this._persistedSessions).length;
-			this.trace('constructor', `Restored ${countsForLog} persisted sessions`);
+			if (countsForLog > 0) {
+				this.trace('constructor', `Restored ${countsForLog} persisted sessions`);
+			}
 		} else {
 			this._persistedSessions = {};
-			this.trace('constructor', 'No persisted sessions');
 		}
 
 		this._transferred = this.getTransferredSession();
@@ -176,10 +180,16 @@ export class ChatService extends Disposable implements IChatService {
 				.filter(session => session.requests.length));
 		allSessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
 		allSessions = allSessions.slice(0, maxPersistedSessions);
-		this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
+		if (allSessions.length) {
+			this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
+		}
 
 		const serialized = JSON.stringify(allSessions);
-		this.trace('onWillSaveState', `Persisting ${serialized.length} chars`);
+
+		if (allSessions.length) {
+			this.trace('onWillSaveState', `Persisting ${serialized.length} chars`);
+		}
+
 		this.storageService.store(serializedChatKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
@@ -436,6 +446,9 @@ export class ChatService extends Disposable implements IChatService {
 
 				model.cancelRequest(request);
 			});
+			if (usedSlashCommand?.command) {
+				this._onDidSubmitSlashCommand.fire({ slashCommand: usedSlashCommand.command, sessionId: model.sessionId });
+			}
 			let rawResponse = await provider.provideReply({ session: model.session!, message: resolvedCommand }, progressCallback, token);
 			if (token.isCancellationRequested) {
 				return;

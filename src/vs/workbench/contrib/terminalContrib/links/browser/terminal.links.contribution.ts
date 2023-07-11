@@ -21,7 +21,7 @@ import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/termin
 import { TerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkProviderService';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkQuickpick';
 import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
-import { Terminal as RawXtermTerminal } from 'xterm';
+import type { Terminal as RawXtermTerminal } from 'xterm';
 
 registerSingleton(ITerminalLinkProviderService, TerminalLinkProviderService, InstantiationType.Delayed);
 
@@ -54,7 +54,7 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 		this._processManager.onProcessReady(() => {
 			linkManager.setWidgetManager(this._widgetManager);
 		});
-		this._linkManager = linkManager;
+		this._linkManager = this.add(linkManager);
 
 		// Attach the link provider(s) to the instance and listen for changes
 		for (const linkProvider of this._terminalLinkProviderService.linkProviders) {

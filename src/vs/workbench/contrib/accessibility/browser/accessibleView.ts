@@ -5,7 +5,7 @@
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -22,11 +22,11 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IDisposable } from 'xterm';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
-const enum DIMENSION_DEFAULT {
-	WIDTH = .6,
-	HEIGHT = 200
+const enum DEFAULT {
+	WIDTH = 800,
+	TOP = 25
 }
 
 export interface IAccessibleContentProvider {
@@ -41,8 +41,7 @@ export const IAccessibleViewService = createDecorator<IAccessibleViewService>('a
 
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
-	show(providerId: string): AccessibleView;
-	registerProvider(provider: IAccessibleContentProvider): IDisposable;
+	show(provider: IAccessibleContentProvider): void;
 }
 
 export const enum AccessibleViewType {
@@ -89,14 +88,15 @@ class AccessibleView extends Disposable {
 			quickSuggestions: false,
 			renderWhitespace: 'none',
 			dropIntoEditor: { enabled: true },
-			readOnly: true
+			readOnly: true,
+			fontFamily: 'var(--monaco-monospace-font)'
 		};
 		this._editorWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions));
 	}
 
 	show(provider: IAccessibleContentProvider): void {
 		const delegate: IContextViewDelegate = {
-			getAnchor: () => this._editorContainer,
+			getAnchor: () => { return { x: (window.innerWidth / 2) - (DEFAULT.WIDTH / 2), y: DEFAULT.TOP }; },
 			render: (container) => {
 				return this._render(provider, container);
 			},
@@ -142,6 +142,7 @@ class AccessibleView extends Disposable {
 				// Delay to allow the context view to hide #186514
 				setTimeout(() => provider.onClose(), 100);
 			} else if (e.keyCode === KeyCode.KeyD && this._configurationService.getValue(settingKey)) {
+				alert(localize('disableAccessibilityHelp', '{0} accessibility verbosity is now disabled', provider.id));
 				this._configurationService.updateValue(settingKey, false);
 			}
 			e.stopPropagation();
@@ -162,11 +163,7 @@ class AccessibleView extends Disposable {
 	}
 
 	private _layout(): void {
-		const windowWidth = window.innerWidth;
-		const width = windowWidth * DIMENSION_DEFAULT.WIDTH;
-		this._editorWidget.layout({ width, height: this._editorWidget.getContentHeight() });
-		const left = Math.round((windowWidth - width) / 2);
-		this._editorContainer.style.left = `${left}px`;
+		this._editorWidget.layout({ width: DEFAULT.WIDTH, height: this._editorWidget.getContentHeight() });
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
@@ -180,9 +177,6 @@ class AccessibleView extends Disposable {
 
 export class AccessibleViewService extends Disposable implements IAccessibleViewService {
 	declare readonly _serviceBrand: undefined;
-
-	private _providers: Map<string, IAccessibleContentProvider> = new Map();
-
 	private _accessibleView: AccessibleView | undefined;
 
 	constructor(
@@ -191,22 +185,10 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		super();
 	}
 
-	registerProvider(provider: IAccessibleContentProvider): IDisposable {
-		this._providers.set(provider.id, provider);
-		return toDisposable(() => {
-			this._providers.delete(provider.id);
-		});
-	}
-
-	show(providerId: string): AccessibleView {
+	show(provider: IAccessibleContentProvider): void {
 		if (!this._accessibleView) {
 			this._accessibleView = this._register(this._instantiationService.createInstance(AccessibleView));
 		}
-		const provider = this._providers.get(providerId);
-		if (!provider) {
-			throw new Error(`No accessible view provider with id: ${providerId}`);
-		}
 		this._accessibleView.show(provider);
-		return this._accessibleView;
 	}
 }

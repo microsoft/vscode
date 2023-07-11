@@ -156,7 +156,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private createApplicationConfiguration(): void {
 		this.applicationConfigurationDisposables.clear();
-		if (this.userDataProfileService.currentProfile.isDefault) {
+		if (this.userDataProfileService.currentProfile.isDefault || this.userDataProfileService.currentProfile.useDefaultFlags?.settings) {
 			this.applicationConfiguration = null;
 		} else {
 			this.applicationConfiguration = this.applicationConfigurationDisposables.add(this._register(new UserConfiguration(this.userDataProfilesService.defaultProfile.settingsResource, undefined, [ConfigurationScope.APPLICATION], this.fileService, this.uriIdentityService, this.logService)));
@@ -981,7 +981,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		await this.configurationEditing.writeConfiguration(editableConfigurationTarget, { key, value }, { scopes: overrides, ...options });
 		switch (editableConfigurationTarget) {
 			case EditableConfigurationTarget.USER_LOCAL:
-				if (this.applicationConfiguration && this.configurationRegistry.getConfigurationProperties()[key].scope === ConfigurationScope.APPLICATION) {
+				if (this.applicationConfiguration && this.configurationRegistry.getConfigurationProperties()[key]?.scope === ConfigurationScope.APPLICATION) {
 					await this.reloadApplicationConfiguration();
 				} else {
 					await this.reloadLocalUserConfiguration();
