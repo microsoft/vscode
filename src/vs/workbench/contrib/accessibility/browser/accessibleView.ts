@@ -5,7 +5,7 @@
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -41,8 +41,7 @@ export const IAccessibleViewService = createDecorator<IAccessibleViewService>('a
 
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
-	show(providerId: string): AccessibleView;
-	registerProvider(provider: IAccessibleContentProvider): IDisposable;
+	show(provider: IAccessibleContentProvider): void;
 }
 
 export const enum AccessibleViewType {
@@ -178,9 +177,6 @@ class AccessibleView extends Disposable {
 
 export class AccessibleViewService extends Disposable implements IAccessibleViewService {
 	declare readonly _serviceBrand: undefined;
-
-	private _providers: Map<string, IAccessibleContentProvider> = new Map();
-
 	private _accessibleView: AccessibleView | undefined;
 
 	constructor(
@@ -189,22 +185,10 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		super();
 	}
 
-	registerProvider(provider: IAccessibleContentProvider): IDisposable {
-		this._providers.set(provider.id, provider);
-		return toDisposable(() => {
-			this._providers.delete(provider.id);
-		});
-	}
-
-	show(providerId: string): AccessibleView {
+	show(provider: IAccessibleContentProvider): void {
 		if (!this._accessibleView) {
 			this._accessibleView = this._register(this._instantiationService.createInstance(AccessibleView));
 		}
-		const provider = this._providers.get(providerId);
-		if (!provider) {
-			throw new Error(`No accessible view provider with id: ${providerId}`);
-		}
 		this._accessibleView.show(provider);
-		return this._accessibleView;
 	}
 }

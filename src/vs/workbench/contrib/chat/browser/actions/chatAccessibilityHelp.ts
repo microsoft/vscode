@@ -71,7 +71,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type);
-	const provider = accessibleViewService.registerProvider({
+	accessibleViewService.show({
 		id: type,
 		provideContent: () => helpText,
 		onClose: () => {
@@ -81,9 +81,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 			} else if (type === 'inlineChat') {
 				InlineChatController.get(editor)?.focus();
 			}
-			provider.dispose();
 		},
 		options: { type: AccessibleViewType.HelpMenu, ariaLabel: type === 'panelChat' ? localize('chat-help-label', "Chat accessibility help") : localize('inline-chat-label', "Inline chat accessibility help") }
 	});
-	accessibleViewService.show(type);
 }
