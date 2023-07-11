@@ -510,7 +510,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		quickPick.hideCheckAll = true;
 		quickPick.ignoreFocusOut = true;
 		quickPick.customLabel = localize('create', "Create Profile");
-		quickPick.description = localize('customise the profile', "Choose the customizations you want to include in the new profile.");
+		quickPick.description = localize('customise the profile', "Choose the data that should be scoped to the new profile.");
 
 		const disposables = new DisposableStore();
 		const update = () => {
@@ -523,7 +523,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			let needUpdate = false;
 			for (const resource of resources) {
 				resource.picked = items.includes(resource);
-				const description = resource.picked ? undefined : localize('use default profile', "Use Default Profile");
+				const description = resource.picked ? undefined : localize('use default profile', "From Default Profile");
 				if (resource.description !== description) {
 					resource.description = description;
 					needUpdate = true;
