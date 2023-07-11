@@ -555,6 +555,11 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		ContentHoverWidget._applyMaxDimensions(containerDomNode, width, height);
 	}
 
+	private _setHoverTextMaxWidth(width: number | string) {
+		const transformedWidth = typeof width === 'number' ? `${width}px` : width;
+		this._hover.containerDomNode.style.setProperty('--vscode-hover-maxWidth', transformedWidth);
+	}
+
 	private _setHoverWidgetMaxDimensions(width: number | string, height: number | string): void {
 		this._setContentsDomNodeMaxDimensions(width, height);
 		this._setContainerDomNodeMaxDimensions(width, height);
@@ -691,11 +696,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	private _layoutContentWidget(): void {
 		this._editor.layoutContentWidget(this);
 		this._hover.onContentsChanged();
-	}
-
-	private _setHoverTextMaxWidth(width: number | string) {
-		const transformedWidth = typeof width === 'number' ? `${width}px` : width;
-		this._hover.containerDomNode.style.setProperty('--vscode-hover-maxWidth', transformedWidth);
 	}
 
 	private _updateMaxDimensions() {
