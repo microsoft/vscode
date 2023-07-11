@@ -55,6 +55,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _isHoverEnabled!: boolean;
 	private _isHoverSticky!: boolean;
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
+	private _quickActionOpened: boolean = false;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -147,9 +148,10 @@ export class ModesHoverController implements IEditorContribution {
 			// when the mouse is inside hover widget
 			return;
 		}
-		if (!_sticky) {
+		if (!_sticky && !this._quickActionOpened) {
 			this._hideWidgets();
 		}
+		this._quickActionOpened = false;
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
@@ -227,11 +229,13 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		const resolvedKeyboardEvent = this._keybindingService.softDispatch(e, this._editor.getDomNode());
+
+		this._quickActionOpened = (resolvedKeyboardEvent.kind === ResultKind.KbFound && resolvedKeyboardEvent.commandId === 'workbench.action.quickOpen');
 		// If the beginning of a multi-chord keybinding is pressed, or the command aims to focus the hover, set the variable to true, otherwise false
 		const mightTriggerFocus = (resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded || (resolvedKeyboardEvent.kind === ResultKind.KbFound && resolvedKeyboardEvent.commandId === 'editor.action.showHover' && this._contentWidget?.isVisible()));
 
 		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift
-			&& !mightTriggerFocus) {
+			&& !mightTriggerFocus && !this._quickActionOpened) {
 			// Do not hide hover when a modifier key is pressed
 			this._hideWidgets();
 		}
