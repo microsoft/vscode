@@ -223,7 +223,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
-	private _waitForOneSupportedExecution: Promise<void>;
 	private _waitForAllSupportedExecutions: Promise<void>;
 	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
 	private _onDidRegisterAllSupportedExecutions: Emitter<void> = new Emitter();
@@ -335,9 +334,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._setPersistentTask(e.__task);
 			}
 		}));
-		this._waitForOneSupportedExecution = new Promise(resolve => {
-			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
-		});
 		this._waitForAllSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterAllSupportedExecutions.event)(() => resolve());
 		});
@@ -1957,6 +1953,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _getGroupedTasks(filter?: ITaskFilter): Promise<TaskMap> {
+		await this._waitForAllSupportedExecutions;
 		const type = filter?.type;
 		const needsRecentTasksMigration = this._needsRecentTasksMigration();
 		await this._activateTaskProviders(filter?.type);
@@ -2209,12 +2206,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!(await this._trust())) {
 			return new Map();
 		}
-		await this._waitForOneSupportedExecution;
-		if (runSource === TaskRunSource.Reconnect) {
-			await raceTimeout(this._waitForAllSupportedExecutions, 2000, () => {
-				this._logService.warn('Timed out waiting for all supported executions for task reconnection');
-			});
-		}
+		await raceTimeout(this._waitForAllSupportedExecutions, 2000, () => {
+			this._logService.warn('Timed out waiting for all supported executions');
+		});
 		await this._whenTaskSystemReady;
 		if (this._workspaceTasksPromise) {
 			return this._workspaceTasksPromise;
