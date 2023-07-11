@@ -223,7 +223,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
-	private _waitForOneSupportedExecution: Promise<void>;
 	private _waitForAllSupportedExecutions: Promise<void>;
 	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
 	private _onDidRegisterAllSupportedExecutions: Emitter<void> = new Emitter();
@@ -335,9 +334,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._setPersistentTask(e.__task);
 			}
 		}));
-		this._waitForOneSupportedExecution = new Promise(resolve => {
-			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
-		});
 		this._waitForAllSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterAllSupportedExecutions.event)(() => resolve());
 		});
