@@ -68,8 +68,8 @@ export class ViewZoneManager extends Disposable {
 			state.set(state.get() + 1, undefined);
 		}, 0));
 
-		this._register(this._editors.original.onDidChangeViewZones((args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
-		this._register(this._editors.modified.onDidChangeViewZones((args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
+		this._register(this._editors.original.onDidChangeViewZones((_args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
+		this._register(this._editors.modified.onDidChangeViewZones((_args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
 		this._register(this._editors.original.onDidChangeConfiguration((args) => { if (args.hasChanged(EditorOption.wrappingInfo)) { updateImmediately.schedule(); } }));
 		this._register(this._editors.modified.onDidChangeConfiguration((args) => { if (args.hasChanged(EditorOption.wrappingInfo)) { updateImmediately.schedule(); } }));
 
