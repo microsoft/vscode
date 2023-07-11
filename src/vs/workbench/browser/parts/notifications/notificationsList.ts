@@ -21,7 +21,7 @@ import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
-	widgetAriaLabel?: string;
+	readonly widgetAriaLabel?: string;
 }
 
 export class NotificationsList extends Disposable {

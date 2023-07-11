@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEvent, Terminal } from 'xterm';
+import type { IEvent, Terminal } from 'xterm';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -18,7 +18,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Emitter } from 'vs/base/common/event';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { WebglAddon } from 'xterm-addon-webgl';
+import type { WebglAddon } from 'xterm-addon-webgl';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -28,6 +28,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { importAMDNodeModule } from 'vs/amdX';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -97,8 +98,9 @@ suite('XtermTerminal', () => {
 	let viewDescriptorService: TestViewDescriptorService;
 	let xterm: TestXtermTerminal;
 	let configHelper: TerminalConfigHelper;
+	let XTermBaseCtor: typeof Terminal;
 
-	setup(() => {
+	setup(async () => {
 		configurationService = new TestConfigurationService({
 			editor: {
 				fastScrollSensitivity: 2,
@@ -122,10 +124,16 @@ suite('XtermTerminal', () => {
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, { getBackgroundColor: () => undefined }, new TerminalCapabilityStore(), '', new MockContextKeyService().createKey('', true)!, true);
+		XTermBaseCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+
+		xterm = instantiationService.createInstance(TestXtermTerminal, XTermBaseCtor, configHelper, 80, 30, { getBackgroundColor: () => undefined }, new TerminalCapabilityStore(), '', new MockContextKeyService().createKey('', true)!, true);
 
 		TestWebglAddon.shouldThrow = false;
 		TestWebglAddon.isEnabled = false;
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	test('should use fallback dimensions of 80x30', () => {
@@ -139,7 +147,7 @@ suite('XtermTerminal', () => {
 				[PANEL_BACKGROUND]: '#ff0000',
 				[SIDE_BAR_BACKGROUND]: '#00ff00'
 			}));
-			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, { getBackgroundColor: () => new Color(new RGBA(255, 0, 0)) }, new TerminalCapabilityStore(), '', new MockContextKeyService().createKey('', true)!, true);
+			xterm = instantiationService.createInstance(XtermTerminal, XTermBaseCtor, configHelper, 80, 30, { getBackgroundColor: () => new Color(new RGBA(255, 0, 0)) }, new TerminalCapabilityStore(), '', new MockContextKeyService().createKey('', true)!, true);
 			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
 		});
 		test('should react to and apply theme changes', () => {
@@ -168,7 +176,7 @@ suite('XtermTerminal', () => {
 				'terminal.ansiBrightCyan': '#150000',
 				'terminal.ansiBrightWhite': '#160000',
 			}));
-			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, { getBackgroundColor: () => undefined }, new TerminalCapabilityStore(), '', new MockContextKeyService().createKey('', true)!, true);
+			xterm = instantiationService.createInstance(XtermTerminal, XTermBaseCtor, configHelper, 80, 30, { getBackgroundColor: () => undefined }, new TerminalCapabilityStore(), '', new MockContextKeyService().createKey('', true)!, true);
 			deepStrictEqual(xterm.raw.options.theme, {
 				background: undefined,
 				foreground: '#000200',

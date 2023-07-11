@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { safeStorage as safeStorageElectron } from 'electron';
+import { safeStorage as safeStorageElectron, app } from 'electron';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { KnownStorageProvider, IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -23,10 +23,23 @@ export class EncryptionMainService implements IEncryptionMainService {
 	constructor(
 		private readonly machineId: string,
 		@ILogService private readonly logService: ILogService
-	) { }
+	) {
+		// if this commandLine switch is set, the user has opted in to using basic text encryption
+		if (app.commandLine.getSwitchValue('password-store') === 'basic_text') {
+			safeStorage.setUsePlainTextEncryption?.(true);
+		}
+	}
 
 	async encrypt(value: string): Promise<string> {
-		return JSON.stringify(safeStorage.encryptString(value));
+		this.logService.trace('[EncryptionMainService] Encrypting value.');
+		try {
+			const result = JSON.stringify(safeStorage.encryptString(value));
+			this.logService.trace('[EncryptionMainService] Encrypted value.');
+			return result;
+		} catch (e) {
+			this.logService.error(e);
+			throw e;
+		}
 	}
 
 	async decrypt(value: string): Promise<string> {
@@ -44,7 +57,14 @@ export class EncryptionMainService implements IEncryptionMainService {
 		const bufferToDecrypt = Buffer.from(parsedValue.data);
 
 		this.logService.trace('[EncryptionMainService] Decrypting value.');
-		return safeStorage.decryptString(bufferToDecrypt);
+		try {
+			const result = safeStorage.decryptString(bufferToDecrypt);
+			this.logService.trace('[EncryptionMainService] Decrypted value.');
+			return result;
+		} catch (e) {
+			this.logService.error(e);
+			throw e;
+		}
 	}
 
 	isEncryptionAvailable(): Promise<boolean> {

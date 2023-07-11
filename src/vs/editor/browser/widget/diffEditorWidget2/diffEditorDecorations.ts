@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, derived } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
-import { arrowRevertChange, diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineAddDecorationBackground, diffLineAddDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackground, diffLineDeleteDecorationBackgroundWithIndicator } from 'vs/editor/browser/widget/diffEditorWidget2/decorations';
+import { arrowRevertChange, diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineAddDecorationBackground, diffLineAddDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackground, diffLineDeleteDecorationBackgroundWithIndicator, diffWholeLineAddDecoration, diffWholeLineDeleteDecoration } from 'vs/editor/browser/widget/diffEditorWidget2/decorations';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
 import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorOptions';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
@@ -37,6 +37,7 @@ export class DiffEditorDecorations extends Disposable {
 
 		const currentMove = this._diffModel.read(reader)!.syncedMovedTexts.read(reader);
 		const renderIndicators = this._options.renderIndicators.read(reader);
+		const showEmptyDecorations = this._options.showEmptyDecorations.read(reader);
 
 		const originalDecorations: IModelDeltaDecoration[] = [];
 		const modifiedDecorations: IModelDeltaDecoration[] = [];
@@ -53,15 +54,29 @@ export class DiffEditorDecorations extends Disposable {
 				modifiedDecorations.push({ range, options: renderIndicators ? diffLineAddDecorationBackgroundWithIndicator : diffLineAddDecorationBackground });
 			}
 
-			for (const i of m.lineRangeMapping.innerChanges || []) {
-				if (currentMove
-					&& (currentMove.lineRangeMapping.originalRange.intersect(new LineRange(i.originalRange.startLineNumber, i.originalRange.endLineNumber))
-						|| currentMove.lineRangeMapping.modifiedRange.intersect(new LineRange(i.modifiedRange.startLineNumber, i.modifiedRange.endLineNumber)))) {
-					continue;
+			if (m.lineRangeMapping.modifiedRange.isEmpty || m.lineRangeMapping.originalRange.isEmpty) {
+				for (const range of fullRangeOriginal) {
+					originalDecorations.push({ range, options: diffWholeLineDeleteDecoration });
 				}
+				for (const range of fullRangeModified) {
+					modifiedDecorations.push({ range, options: diffWholeLineAddDecoration });
+				}
+			} else {
+				for (const i of m.lineRangeMapping.innerChanges || []) {
+					if (currentMove
+						&& (currentMove.lineRangeMapping.originalRange.intersect(new LineRange(i.originalRange.startLineNumber, i.originalRange.endLineNumber))
+							|| currentMove.lineRangeMapping.modifiedRange.intersect(new LineRange(i.modifiedRange.startLineNumber, i.modifiedRange.endLineNumber)))) {
+						continue;
+					}
 
-				originalDecorations.push({ range: i.originalRange, options: i.originalRange.isEmpty() ? diffDeleteDecorationEmpty : diffDeleteDecoration });
-				modifiedDecorations.push({ range: i.modifiedRange, options: i.modifiedRange.isEmpty() ? diffAddDecorationEmpty : diffAddDecoration });
+					// Don't show empty markers outside the line range
+					if (m.lineRangeMapping.originalRange.contains(i.originalRange.startLineNumber)) {
+						originalDecorations.push({ range: i.originalRange, options: (i.originalRange.isEmpty() && showEmptyDecorations) ? diffDeleteDecorationEmpty : diffDeleteDecoration });
+					}
+					if (m.lineRangeMapping.modifiedRange.contains(i.modifiedRange.startLineNumber)) {
+						modifiedDecorations.push({ range: i.modifiedRange, options: (i.modifiedRange.isEmpty() && showEmptyDecorations) ? diffAddDecorationEmpty : diffAddDecoration });
+					}
+				}
 			}
 
 			if (!m.lineRangeMapping.modifiedRange.isEmpty && this._options.shouldRenderRevertArrows.read(reader) && !currentMove) {

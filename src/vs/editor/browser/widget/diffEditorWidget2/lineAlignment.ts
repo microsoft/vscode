@@ -5,9 +5,10 @@
 
 import { $ } from 'vs/base/browser/dom';
 import { ArrayQueue } from 'vs/base/common/arrays';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IObservable, derived, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
+import { IObservable, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { autorun, autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -61,15 +62,16 @@ export class ViewZoneManager extends Disposable {
 		super();
 
 		let isChangingViewZones = false;
+		const state = observableValue('state', 0);
 
-		const originalViewZonesChanged = observableSignalFromEvent(
-			'origViewZonesChanged',
-			e => this._editors.original.onDidChangeViewZones((args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { e(args); } })
-		);
-		const modifiedViewZonesChanged = observableSignalFromEvent(
-			'modViewZonesChanged',
-			e => this._editors.modified.onDidChangeViewZones((args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { e(args); } })
-		);
+		const updateImmediately = this._register(new RunOnceScheduler(() => {
+			state.set(state.get() + 1, undefined);
+		}, 0));
+
+		this._register(this._editors.original.onDidChangeViewZones((args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
+		this._register(this._editors.modified.onDidChangeViewZones((args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
+		this._register(this._editors.original.onDidChangeConfiguration((args) => { if (args.hasChanged(EditorOption.wrappingInfo)) { updateImmediately.schedule(); } }));
+		this._register(this._editors.modified.onDidChangeConfiguration((args) => { if (args.hasChanged(EditorOption.wrappingInfo)) { updateImmediately.schedule(); } }));
 
 		const originalModelTokenizationCompleted = this._diffModel.map(m =>
 			m ? observableFromEvent(m.model.original.onDidChangeTokens, () => m.model.original.tokenization.backgroundTokenizationState === BackgroundTokenizationState.Completed) : undefined
@@ -82,16 +84,14 @@ export class ViewZoneManager extends Disposable {
 			const diffModel = this._diffModel.read(reader);
 			const diff = diffModel?.diff.read(reader);
 			if (!diffModel || !diff) { return null; }
-			originalViewZonesChanged.read(reader);
-			modifiedViewZonesChanged.read(reader);
+			state.read(reader);
 			return computeRangeAlignment(this._editors.original, this._editors.modified, diff.mappings, alignmentViewZoneIdsOrig, alignmentViewZoneIdsMod);
 		});
 
 		const alignmentsSyncedMovedText = derived<ILineRangeAlignment[] | null>('alignments', (reader) => {
 			const syncedMovedText = this._diffModel.read(reader)?.syncedMovedTexts.read(reader);
 			if (!syncedMovedText) { return null; }
-			originalViewZonesChanged.read(reader);
-			modifiedViewZonesChanged.read(reader);
+			state.read(reader);
 			const mappings = syncedMovedText.changes.map(c => new DiffMapping(c));
 			// TODO dont include alignments outside syncedMovedText
 			return computeRangeAlignment(this._editors.original, this._editors.modified, mappings, alignmentViewZoneIdsOrig, alignmentViewZoneIdsMod);

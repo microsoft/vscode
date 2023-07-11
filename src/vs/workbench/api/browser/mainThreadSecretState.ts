@@ -110,6 +110,7 @@ class OldMainThreadSecretState extends Disposable implements MainThreadSecretSta
 export class MainThreadSecretState extends Disposable implements MainThreadSecretStateShape {
 	private readonly _proxy: ExtHostSecretStateShape;
 
+	// TODO: Remove this when all known embedders implement a secret storage provider
 	private readonly _oldMainThreadSecretState: OldMainThreadSecretState | undefined;
 
 	private readonly _sequencer = new SequencerByKey<string>();
@@ -131,7 +132,11 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSecretState);
 
-		if (environmentService.options?.credentialsProvider) {
+		// If the embedder doesn't implement a secret storage provider, then we need to use the old API
+		// to ensure that secrets are still stored in a secure way. This is only temporary until all
+		// embedders implement a secret storage provider.
+		// TODO: Remove this when all known embedders implement a secret storage provider
+		if (environmentService.options?.credentialsProvider && !environmentService.options?.secretStorageProvider) {
 			this._oldMainThreadSecretState = this._register(new OldMainThreadSecretState(
 				this._proxy,
 				credentialsService,
@@ -158,7 +163,7 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 	}
 
 	private async doGetPassword(extensionId: string, key: string): Promise<string | undefined> {
-		// TODO: Remove this when we remove the old API
+		// TODO: Remove this when all known embedders implement a secret storage provider
 		if (this._oldMainThreadSecretState) {
 			return await this._oldMainThreadSecretState.$getPassword(extensionId, key);
 		}
@@ -184,7 +189,7 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 	}
 
 	private async doSetPassword(extensionId: string, key: string, value: string): Promise<void> {
-		// TODO: Remove this when we remove the old API
+		// TODO: Remove this when all known embedders implement a secret storage provider
 		if (this._oldMainThreadSecretState) {
 			return await this._oldMainThreadSecretState.$setPassword(extensionId, key, value);
 		}
@@ -200,7 +205,7 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 	}
 
 	private async doDeletePassword(extensionId: string, key: string): Promise<void> {
-		// TODO: Remove this when we remove the old API
+		// TODO: Remove this when all known embedders implement a secret storage provider
 		if (this._oldMainThreadSecretState) {
 			return await this._oldMainThreadSecretState.$deletePassword(extensionId, key);
 		}

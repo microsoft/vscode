@@ -6,10 +6,11 @@
 import { Barrier } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { mark } from 'vs/base/common/performance';
 import { URI } from 'vs/base/common/uri';
 import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, IProcessReadyEvent, ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remote/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class RemotePty extends Disposable implements ITerminalChildProcess {
@@ -32,6 +33,8 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 
 	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
 	readonly onProcessData = this._onProcessData.event;
+	private readonly _onProcessReplayComplete = this._register(new Emitter<void>());
+	readonly onProcessReplayComplete = this._onProcessReplayComplete.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
@@ -176,6 +179,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	}
 
 	async handleReplay(e: IPtyHostProcessReplayEvent) {
+		mark(`code/terminal/willHandleReplay/${this.id}`);
 		try {
 			this._inReplay = true;
 			for (const innerEvent of e.events) {
@@ -197,13 +201,12 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 
 		// remove size override
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.OverrideDimensions, value: undefined });
+
+		mark(`code/terminal/didHandleReplay/${this.id}`);
+		this._onProcessReplayComplete.fire();
 	}
 
 	handleOrphanQuestion() {
 		this._remoteTerminalChannel.orphanQuestionReply(this.id);
-	}
-
-	async getLatency(): Promise<number> {
-		return 0;
 	}
 }

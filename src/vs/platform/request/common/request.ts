@@ -138,7 +138,7 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 		properties: {
 			'http.proxy': {
 				type: 'string',
-				pattern: '^(https?|socks5?)://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
+				pattern: '^(https?|socks|socks4a?|socks5h?)://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
 				markdownDescription: localize('proxy', "The proxy setting to use. If not set, will be inherited from the `http_proxy` and `https_proxy` environment variables."),
 				restricted: true
 			},

@@ -1041,15 +1041,20 @@ class CompletionsAdapter {
 			return undefined;
 		}
 
-		if (CompletionsAdapter._insertTextIdent(item.insertText) !== CompletionsAdapter._insertTextIdent(resolvedItem.insertText)) {
+		const dto2 = this._convertCompletionItem(resolvedItem, id);
+
+		if (dto1[extHostProtocol.ISuggestDataDtoField.insertText] !== dto2[extHostProtocol.ISuggestDataDtoField.insertText]
+			|| dto1[extHostProtocol.ISuggestDataDtoField.insertTextRules] !== dto2[extHostProtocol.ISuggestDataDtoField.insertTextRules]
+		) {
 			this._apiDeprecation.report('CompletionItem.insertText', this._extension, 'extension MAY NOT change \'insertText\' of a CompletionItem during resolve');
 		}
 
-		if (!equals(item.command, resolvedItem.command)) {
+		if (dto1[extHostProtocol.ISuggestDataDtoField.commandIdent] !== dto2[extHostProtocol.ISuggestDataDtoField.commandIdent]
+			|| dto1[extHostProtocol.ISuggestDataDtoField.commandId] !== dto2[extHostProtocol.ISuggestDataDtoField.commandId]
+			|| !equals(dto1[extHostProtocol.ISuggestDataDtoField.commandArguments], dto2[extHostProtocol.ISuggestDataDtoField.commandArguments])
+		) {
 			this._apiDeprecation.report('CompletionItem.command', this._extension, 'extension MAY NOT change \'command\' of a CompletionItem during resolve');
 		}
-
-		const dto2 = this._convertCompletionItem(resolvedItem, id);
 
 		return {
 			...dto1,
@@ -1066,14 +1071,6 @@ class CompletionsAdapter {
 			[extHostProtocol.ISuggestDataDtoField.commandId]: dto2[extHostProtocol.ISuggestDataDtoField.commandId],
 			[extHostProtocol.ISuggestDataDtoField.commandArguments]: dto2[extHostProtocol.ISuggestDataDtoField.commandArguments],
 		};
-	}
-
-	private static _insertTextIdent(insertText: string | vscode.SnippetString | undefined) {
-		switch (typeof insertText) {
-			case 'string': return insertText;
-			case 'undefined': return undefined;
-			case 'object': return insertText.value;
-		}
 	}
 
 	releaseCompletionItems(id: number): any {
@@ -2252,10 +2249,11 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- ghost test
 
-	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider): vscode.Disposable {
+	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider, metadata: vscode.InlineCompletionItemProviderMetadata | undefined): vscode.Disposable {
 		const adapter = new InlineCompletionAdapter(extension, this._documents, provider, this._commands.converter);
 		const handle = this._addNewAdapter(adapter, extension);
-		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector, extension), adapter.supportsHandleEvents);
+		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector, extension), adapter.supportsHandleEvents,
+			ExtensionIdentifier.toKey(extension.identifier.value), metadata?.yieldTo?.map(extId => ExtensionIdentifier.toKey(extId)) || []);
 		return this._createDisposable(handle);
 	}
 

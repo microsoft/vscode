@@ -806,7 +806,7 @@ export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INote
 	const input = editorPane.input;
 
 	if (input && isCompositeNotebookEditorInput(input)) {
-		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined }).notebookEditor;
+		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined } | undefined)?.notebookEditor;
 	}
 
 	return undefined;

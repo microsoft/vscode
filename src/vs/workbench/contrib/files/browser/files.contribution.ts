@@ -323,9 +323,11 @@ configurationRegistry.registerConfiguration({
 			'default': 'askUser',
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
-		'files.dialog.homePath': {
+		'files.dialog.defaultPath': {
 			'type': 'string',
-			'description': nls.localize('fileDialogHomePath', "Default path for file dialogs, overriding user's home path. Only used in the absence of a context-specific path, such as most recently opened file or folder."),
+			'pattern': '^((\\/|\\\\\\\\|[a-zA-Z]:\\\\).*)?$', // slash OR UNC-root OR drive-root OR undefined
+			'patternErrorMessage': nls.localize('defaultPathErrorMessage', "Default path for file dialogs must be an absolute path (e.g. C:\\\\myFolder or /myFolder)."),
+			'description': nls.localize('fileDialogDefaultPath', "Default path for file dialogs, overriding user's home path. Only used in the absence of a context-specific path, such as most recently opened file or folder."),
 			'scope': ConfigurationScope.MACHINE
 		},
 		'files.simpleDialog.enable': {

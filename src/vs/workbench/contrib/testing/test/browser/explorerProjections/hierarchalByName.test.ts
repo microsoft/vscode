@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
-import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
+import { ListProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/listProjection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestResultItemChange } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testTypes';
@@ -13,7 +13,7 @@ import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/t
 import { TestTestItem } from 'vs/workbench/contrib/testing/test/common/testStubs';
 
 suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
-	let harness: TestTreeTestHarness<HierarchicalByNameProjection>;
+	let harness: TestTreeTestHarness<ListProjection>;
 	let onTestChanged: Emitter<TestResultItemChange>;
 	let resultsService: any;
 
@@ -25,7 +25,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
 		};
 
-		harness = new TestTreeTestHarness(l => new HierarchicalByNameProjection({}, l, resultsService as any));
+		harness = new TestTreeTestHarness(l => new ListProjection({}, l, resultsService as any));
 	});
 
 	teardown(() => {

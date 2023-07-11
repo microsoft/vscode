@@ -29,6 +29,7 @@ import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/co
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { Position } from 'vs/editor/common/core/position';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 
@@ -50,11 +51,12 @@ export class StartSessionAction extends EditorAction2 {
 	}
 
 	private _isInteractivEditorOptions(options: any): options is InlineChatRunOptions {
-		const { initialRange, message, autoSend } = options;
+		const { initialRange, message, autoSend, position } = options;
 		if (
 			typeof message !== 'undefined' && typeof message !== 'string'
 			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
-			|| typeof initialRange !== 'undefined' && !Range.isIRange(initialRange)) {
+			|| typeof initialRange !== 'undefined' && !Range.isIRange(initialRange)
+			|| typeof position !== 'undefined' && !Position.isIPosition(position)) {
 			return false;
 		}
 		return true;

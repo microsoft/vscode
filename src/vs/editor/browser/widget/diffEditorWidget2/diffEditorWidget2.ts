@@ -34,6 +34,7 @@ import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { EditorType, IDiffEditorModel, IDiffEditorViewModel, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -95,6 +96,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
 
+		const reviewPaneObservable = observableValue<undefined | DiffReview2>('reviewPane', undefined);
 		this._editors = this._register(this._instantiationService.createInstance(
 			DiffEditorEditors,
 			this.elements.original,
@@ -102,6 +104,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			this._options,
 			codeEditorWidgetOptions,
 			(i, c, o, o2) => this._createInnerEditor(i, c, o, o2),
+			reviewPaneObservable.map((r, reader) => r?.isVisible.read(reader) ?? false),
 		));
 
 		this._sash = derivedWithStore('sash', (reader, store) => {
@@ -126,11 +129,11 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		});
 		this._register(keepAlive(this._sash, true));
 
-		this._register(autorunWithStore2('unchangedRangesFeature', (reader, store) => {
+		this._register(autorunWithStore2('UnchangedRangesFeature', (reader, store) => {
 			this.unchangedRangesFeature = store.add(new (readHotReloadableExport(UnchangedRangesFeature, reader))(this._editors, this._diffModel, this._options));
 		}));
 
-		this._register(autorunWithStore2('decorations', (reader, store) => {
+		this._register(autorunWithStore2('DiffEditorDecorations', (reader, store) => {
 			store.add(new (readHotReloadableExport(DiffEditorDecorations, reader))(this._editors, this._diffModel, this._options));
 		}));
 
@@ -143,21 +146,22 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			() => this.unchangedRangesFeature.isUpdatingViewZones,
 		));
 
-		this._register(this._instantiationService.createInstance(
-			OverviewRulerPart,
-			this._editors,
-			this.elements.root,
-			this._diffModel,
-			this._rootSizeObserver.width,
-			this._rootSizeObserver.height,
-			this._layoutInfo.map(i => i.modifiedEditor),
-			this._options,
-		));
+		this._register(autorunWithStore2('OverviewRulerPart', (reader, store) => {
+			store.add(this._instantiationService.createInstance(readHotReloadableExport(OverviewRulerPart, reader), this._editors,
+				this.elements.root,
+				this._diffModel,
+				this._rootSizeObserver.width,
+				this._rootSizeObserver.height,
+				this._layoutInfo.map(i => i.modifiedEditor),
+				this._options,
+			));
+		}));
 
 		this._reviewPane = this._register(this._instantiationService.createInstance(DiffReview2, this));
 		this.elements.root.appendChild(this._reviewPane.domNode.domNode);
 		this.elements.root.appendChild(this._reviewPane.shadow.domNode);
 		this.elements.root.appendChild(this._reviewPane.actionBarContainer.domNode);
+		reviewPaneObservable.set(this._reviewPane, undefined);
 
 		this._createDiffEditorContributions();
 
@@ -311,6 +315,11 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	override getModel(): IDiffEditorModel | null { return this._diffModel.get()?.model ?? null; }
 
 	override setModel(model: IDiffEditorModel | null | IDiffEditorViewModel): void {
+		if (!model && this._diffModel.get()) {
+			// Transitioning from a model to no-model
+			this._reviewPane.hide();
+		}
+
 		const vm = model ? ('model' in model) ? model : this.createViewModel(model) : undefined;
 		this._editors.original.setModel(vm ? vm.model.original : null);
 		this._editors.modified.setModel(vm ? vm.model.modified : null);
@@ -366,13 +375,21 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 	revert(diff: LineRangeMapping): void {
 		const model = this._diffModel.get()?.model;
-		if (!model) {
-			return;
-		}
-		const originalText = model.original.getValueInRange(diff.originalRange.toExclusiveRange());
-		this._editors.modified.executeEdits('diffEditor', [
-			{ range: diff.modifiedRange.toExclusiveRange(), text: originalText }
-		]);
+		if (!model) { return; }
+
+		const changes: IIdentifiedSingleEditOperation[] = diff.innerChanges
+			? diff.innerChanges.map<IIdentifiedSingleEditOperation>(c => ({
+				range: c.modifiedRange,
+				text: model.original.getValueInRange(c.originalRange)
+			}))
+			: [
+				{
+					range: diff.modifiedRange.toExclusiveRange(),
+					text: model.original.getValueInRange(diff.originalRange.toExclusiveRange())
+				}
+			];
+
+		this._editors.modified.executeEdits('diffEditor', changes);
 	}
 
 	private _goTo(diff: DiffMapping): void {

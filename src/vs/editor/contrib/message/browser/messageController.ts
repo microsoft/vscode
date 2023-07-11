@@ -5,7 +5,7 @@
 
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { TimeoutTimer } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -38,7 +38,7 @@ export class MessageController implements IEditorContribution {
 	private readonly _messageWidget = new MutableDisposable<MessageWidget>();
 	private readonly _messageListeners = new DisposableStore();
 	private _message: { element: HTMLElement; dispose: () => void } | undefined;
-	private _focus: boolean = false;
+	private _mouseOverMessage: boolean = false;
 
 	constructor(
 		editor: ICodeEditor,
@@ -76,21 +76,24 @@ export class MessageController implements IEditorContribution {
 		}) : undefined;
 		this._messageWidget.value = new MessageWidget(this._editor, position, typeof message === 'string' ? message : this._message!.element);
 
-		// close on blur, cursor, model change, dispose
-		this._messageListeners.add(this._editor.onDidBlurEditorText(() => {
-			if (!this._focus) {
-				this.closeMessage();
+		// close on blur (debounced to allow to tab into the message), cursor, model change, dispose
+		this._messageListeners.add(Event.debounce(this._editor.onDidBlurEditorText, (last, event) => event, 0)(() => {
+			if (this._mouseOverMessage) {
+				return; // override when mouse over message
 			}
+
+			if (this._messageWidget.value && dom.isAncestor(document.activeElement, this._messageWidget.value.getDomNode())) {
+				return; // override when focus is inside the message
+			}
+
+			this.closeMessage();
 		}
 		));
 		this._messageListeners.add(this._editor.onDidChangeCursorPosition(() => this.closeMessage()));
 		this._messageListeners.add(this._editor.onDidDispose(() => this.closeMessage()));
 		this._messageListeners.add(this._editor.onDidChangeModel(() => this.closeMessage()));
-		this._messageListeners.add(dom.addDisposableListener(this._messageWidget.value.getDomNode(), dom.EventType.MOUSE_ENTER, () => this._focus = true, true));
-		this._messageListeners.add(dom.addDisposableListener(this._messageWidget.value.getDomNode(), dom.EventType.MOUSE_LEAVE, () => this._focus = false, true));
-
-		// 3sec
-		this._messageListeners.add(new TimeoutTimer(() => this.closeMessage(), 3000));
+		this._messageListeners.add(dom.addDisposableListener(this._messageWidget.value.getDomNode(), dom.EventType.MOUSE_ENTER, () => this._mouseOverMessage = true, true));
+		this._messageListeners.add(dom.addDisposableListener(this._messageWidget.value.getDomNode(), dom.EventType.MOUSE_LEAVE, () => this._mouseOverMessage = false, true));
 
 		// close on mouse move
 		let bounds: Range;
