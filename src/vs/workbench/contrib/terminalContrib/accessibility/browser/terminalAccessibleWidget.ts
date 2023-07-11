@@ -118,7 +118,6 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 			this._terminalService.setActiveInstance(this._instance as ITerminalInstance);
 			this._xtermElement.classList.add(ClassName.Hide);
 		}));
-		this.layout();
 	}
 
 	registerListeners(): void {
