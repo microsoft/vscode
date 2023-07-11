@@ -6,6 +6,7 @@
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -15,6 +16,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -22,6 +24,7 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 const enum DEFAULT {
 	WIDTH = 800,
@@ -62,13 +65,16 @@ class AccessibleView extends Disposable {
 	private _accessiblityHelpIsShown: IContextKey<boolean>;
 	get editorWidget() { return this._editorWidget; }
 	private _editorContainer: HTMLElement;
+	private _currentProvider: IAccessibleContentProvider | undefined;
+
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 		this._accessiblityHelpIsShown = accessibilityHelpIsShown.bindTo(this._contextKeyService);
@@ -92,6 +98,11 @@ class AccessibleView extends Disposable {
 			fontFamily: 'var(--monaco-monospace-font)'
 		};
 		this._editorWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions));
+		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			if (this._currentProvider && this._accessiblityHelpIsShown.get()) {
+				this.show(this._currentProvider);
+			}
+		}));
 	}
 
 	show(provider: IAccessibleContentProvider): void {
@@ -104,6 +115,7 @@ class AccessibleView extends Disposable {
 				if (provider.options.type === AccessibleViewType.HelpMenu) {
 					this._accessiblityHelpIsShown.reset();
 				}
+				this._currentProvider = undefined;
 			}
 		};
 		this._contextViewService.showContextView(delegate);
@@ -113,11 +125,28 @@ class AccessibleView extends Disposable {
 	}
 
 	private _render(provider: IAccessibleContentProvider, container: HTMLElement): IDisposable {
+		this._currentProvider = provider;
 		const settingKey = `accessibility.verbosity.${provider.id}`;
 		const value = this._configurationService.getValue(settingKey);
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\nPress H now to open a browser window with more information related to accessibility.\n") : '';
 		const disableHelpHint = provider.options.type === AccessibleViewType.HelpMenu && !!value ? localize('disable-help-hint', '\nTo disable the `accessibility.verbosity` hint for this feature, press D now.\n') : '\n';
-		const fragment = provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', 'Exit this menu via the Escape key.');
+		const accessibilitySupport = this._accessibilityService.isScreenReaderOptimized();
+		let message = '';
+		if (provider.options.type === AccessibleViewType.HelpMenu) {
+			const turnOnMessage = (
+				isMacintosh
+					? AccessibilityHelpNLS.changeConfigToOnMac
+					: AccessibilityHelpNLS.changeConfigToOnWinLinux
+			);
+			if (accessibilitySupport) {
+				message = AccessibilityHelpNLS.auto_on;
+			} else {
+				message = AccessibilityHelpNLS.auto_off + '\n' + turnOnMessage;
+			}
+			message += '\n';
+		}
+
+		const fragment = message + provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', 'Exit this menu via the Escape key.');
 
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.id}`, scheme: 'accessible-view', fragment })).then((model) => {
 			if (!model) {
