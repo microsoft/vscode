@@ -22,15 +22,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
-function elementsOverlapHorizontally(el1: HTMLElement, el2: HTMLElement) {
-	const domRect1 = el1.getBoundingClientRect();
-	const domRect2 = el2.getBoundingClientRect();
-	return !(
-		domRect1.right < domRect2.left ||
-		domRect1.left > domRect2.right
-	);
-}
-
 export class ColorPickerHeader extends Disposable {
 
 	private readonly _domNode: HTMLElement;
@@ -48,7 +39,8 @@ export class ColorPickerHeader extends Disposable {
 
 		this._pickedColorNode = dom.append(this._domNode, $('.picked-color'));
 		this._pickedColorRepresentation = dom.append(this._pickedColorNode, document.createElement('div'));
-		const icon = dom.append(this._pickedColorNode, $('.codicon.codicon-color-mode'));
+		this._pickedColorRepresentation.classList.add('picked-color-representation');
+		dom.append(this._pickedColorNode, $('.codicon.codicon-color-mode'));
 
 		const tooltip = localize('clickToToggleColorOptions', "Click to toggle color options (rgb/hsl/hex)");
 		this._pickedColorNode.setAttribute('title', tooltip);
@@ -78,16 +70,6 @@ export class ColorPickerHeader extends Disposable {
 			this._domNode.classList.add('standalone-colorpicker');
 			this._closeButton = this._register(new CloseButton(this._domNode));
 		}
-
-		const resizeObserver = new ResizeObserver(() => {
-			this._pickedColorRepresentation.style.display = 'block';
-			if (elementsOverlapHorizontally(this._pickedColorRepresentation, icon)) {
-				this._pickedColorRepresentation.style.display = 'none';
-			} else {
-				this._pickedColorRepresentation.style.display = 'block';
-			}
-		});
-		resizeObserver.observe(this._domNode);
 	}
 
 	public get domNode(): HTMLElement {
