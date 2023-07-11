@@ -15,19 +15,24 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorForeground, textCodeBlockBackground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
+const slashCommandContentWidgetId = 'chat-session-content-widget';
 
 class InputEditorDecorations extends Disposable {
+
+	private _slashCommandDomNode = document.createElement('div');
+	private _slashCommandContentWidget: IContentWidget | undefined;
 
 	constructor(
 		private readonly widget: IChatWidget,
@@ -47,10 +52,10 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private updateRegisteredDecorationTypes() {
-		const theme = this.themeService.getColorTheme();
 		this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
+		this.updateInputEditorContentWidgets({ hide: true });
 		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
-			color: theme.getColor(textLinkForeground)?.toString()
+			opacity: '0'
 		});
 		this.updateInputEditorDecorations();
 	}
@@ -88,6 +93,7 @@ class InputEditorDecorations extends Disposable {
 				}
 			];
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, decoration);
+			this.updateInputEditorContentWidgets({ hide: true });
 			return;
 		}
 
@@ -114,6 +120,12 @@ class InputEditorDecorations extends Disposable {
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, []);
 		}
 
+		if (command && value.startsWith(`/${command.command} `)) {
+			this.updateInputEditorContentWidgets({ command: command.command });
+		} else {
+			this.updateInputEditorContentWidgets({ hide: true });
+		}
+
 		if (command && command.detail) {
 			const textDecoration: IDecorationOptions[] = [
 				{
@@ -128,6 +140,40 @@ class InputEditorDecorations extends Disposable {
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecoration);
 		} else {
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, []);
+		}
+	}
+
+	private async updateInputEditorContentWidgets(arg: { command: string } | { hide: true }) {
+		const domNode = this._slashCommandDomNode;
+
+		if (this._slashCommandContentWidget && 'hide' in arg) {
+			domNode.toggleAttribute('hidden', true);
+			this.widget.inputEditor.removeContentWidget(this._slashCommandContentWidget);
+			return;
+		} else if ('command' in arg) {
+			const theme = this.themeService.getColorTheme();
+			domNode.style.padding = '0 0.4em';
+			domNode.style.borderRadius = '3px';
+			domNode.style.backgroundColor = theme.getColor(textCodeBlockBackground)?.toString() ?? '';
+			domNode.style.color = theme.getColor(textLinkForeground)?.toString() ?? '';
+			domNode.innerText = `${arg.command} `;
+			domNode.toggleAttribute('hidden', false);
+
+			this._slashCommandContentWidget = {
+				getId() { return slashCommandContentWidgetId; },
+				getDomNode() { return domNode; },
+				getPosition() {
+					return {
+						position: {
+							lineNumber: 1,
+							column: 1
+						},
+						preference: [ContentWidgetPositionPreference.EXACT]
+					};
+				},
+			};
+
+			this.widget.inputEditor.addContentWidget(this._slashCommandContentWidget);
 		}
 	}
 }
