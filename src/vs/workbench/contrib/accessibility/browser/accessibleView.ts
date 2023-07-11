@@ -23,8 +23,9 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
-const enum DIMENSION_DEFAULT {
-	WIDTH = 800
+const enum DEFAULT {
+	WIDTH = 800,
+	TOP = 25
 }
 
 export interface IAccessibleContentProvider {
@@ -94,7 +95,7 @@ class AccessibleView extends Disposable {
 
 	show(provider: IAccessibleContentProvider): void {
 		const delegate: IContextViewDelegate = {
-			getAnchor: () => { return { x: (window.innerWidth / 2) - (DIMENSION_DEFAULT.WIDTH / 2), y: (window.innerHeight / 2) - (this.editorWidget.getContentHeight() / 2) }; },
+			getAnchor: () => { return { x: (window.innerWidth / 2) - (DEFAULT.WIDTH / 2), y: DEFAULT.TOP }; },
 			render: (container) => {
 				return this._render(provider, container);
 			},
@@ -160,7 +161,7 @@ class AccessibleView extends Disposable {
 	}
 
 	private _layout(): void {
-		this._editorWidget.layout({ width: DIMENSION_DEFAULT.WIDTH, height: this._editorWidget.getContentHeight() });
+		this._editorWidget.layout({ width: DEFAULT.WIDTH, height: this._editorWidget.getContentHeight() });
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
