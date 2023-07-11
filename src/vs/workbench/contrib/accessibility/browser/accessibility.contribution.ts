@@ -10,13 +10,11 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 import { localize } from 'vs/nls';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityHelpAction, AccessibleViewAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { AccessibleViewService, AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import * as strings from 'vs/base/common/strings';
-import * as platform from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -29,10 +27,9 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
 
-class AccessibilityHelpProvider extends Disposable implements IAccessibleContentProvider {
+class AccessibilityHelpProvider implements IAccessibleContentProvider {
 	onClose() {
 		this._editor.focus();
-		this.dispose();
 	}
 	options: IAccessibleViewOptions = { type: AccessibleViewType.HelpMenu, ariaLabel: localize('editor-help', "editor accessibility help"), readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
 	id: string = 'editor';
@@ -40,7 +37,6 @@ class AccessibilityHelpProvider extends Disposable implements IAccessibleContent
 		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
-		super();
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
@@ -67,23 +63,6 @@ class AccessibilityHelpProvider extends Disposable implements IAccessibleContent
 			} else {
 				content.push(AccessibilityHelpNLS.editableEditor);
 			}
-		}
-
-		const turnOnMessage = (
-			platform.isMacintosh
-				? AccessibilityHelpNLS.changeConfigToOnMac
-				: AccessibilityHelpNLS.changeConfigToOnWinLinux
-		);
-		switch (options.get(EditorOption.accessibilitySupport)) {
-			case AccessibilitySupport.Unknown:
-				content.push(turnOnMessage);
-				break;
-			case AccessibilitySupport.Enabled:
-				content.push(AccessibilityHelpNLS.auto_on);
-				break;
-			case AccessibilitySupport.Disabled:
-				content.push(AccessibilityHelpNLS.auto_off, turnOnMessage);
-				break;
 		}
 
 		if (options.get(EditorOption.tabFocusMode)) {
