@@ -143,7 +143,7 @@ class AccessibleView extends Disposable {
 					? AccessibilityHelpNLS.changeConfigToOnMac
 					: AccessibilityHelpNLS.changeConfigToOnWinLinux
 			);
-			if (accessibilitySupport) {
+			if (accessibilitySupport && provider.id === 'editor') {
 				message = AccessibilityHelpNLS.auto_on;
 			} else {
 				message = AccessibilityHelpNLS.auto_off + '\n' + turnOnMessage;
