@@ -1207,7 +1207,7 @@ declare module 'vscode' {
 		 * or accept the snippet.
 		 *
 		 * @param snippet The snippet to insert in this edit.
-		 * @param location Position o r range at which to insert the snippet, defaults to the current editor selection or selections.
+		 * @param location Position or range at which to insert the snippet, defaults to the current editor selection or selections.
 		 * @param options The undo/redo behavior around this edit. By default, undo stops will be created before and after this edit.
 		 * @return A promise that resolves with a value indicating if the snippet could be inserted. Note that the promise does not signal
 		 * that the snippet is completely filled-in or accepted.
@@ -15232,8 +15232,6 @@ declare module 'vscode' {
 		 */
 		export const selectedConfiguration: SelectedDebugConfiguration | undefined;
 
-		export function setSelectedConfiguration(name: string): void;
-
 		/**
 		 * An {@link Event} which fires when the {@link debug.activeDebugSession active debug session}
 		 * has changed. *Note* that the event also fires when the active debug session changes
@@ -15345,6 +15343,13 @@ declare module 'vscode' {
 		 * @return A uri that can be used to load the contents of the source.
 		 */
 		export function asDebugSourceUri(source: DebugProtocolSource, session?: DebugSession): Uri;
+
+		/**
+		 * Change selected debug configuration by name. This will also fire a 'onDidChangeConfiguration' event.
+		 *
+		 * @param name Name
+		 */
+		export function setSelectedConfiguration(name: string): void;
 	}
 
 	/**
