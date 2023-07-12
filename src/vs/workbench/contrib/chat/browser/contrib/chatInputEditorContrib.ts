@@ -53,7 +53,10 @@ class InputEditorDecorations extends Disposable {
 
 		this.updateInputEditorDecorations();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.updateInputEditorDecorations()));
-		this._register(this.widget.onDidChangeViewModel(() => this.updateInputEditorDecorations()));
+		this._register(this.widget.onDidChangeViewModel(() => {
+			this._previouslyUsedSlashCommands.clear();
+			this.updateInputEditorDecorations();
+		}));
 		this._register(this.chatService.onDidSubmitSlashCommand((e) => {
 			if (e.sessionId === this.widget.viewModel?.sessionId && !this._previouslyUsedSlashCommands.has(e.slashCommand)) {
 				this._previouslyUsedSlashCommands.add(e.slashCommand);
