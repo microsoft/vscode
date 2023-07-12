@@ -436,8 +436,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						try {
 							compatible = await this.checkAndGetCompatibleVersion(galleryExtension, false, installPreRelease);
 						} catch (error) {
-							if (error instanceof ExtensionManagementError && error.code === ExtensionManagementErrorCode.IncompatibleTargetPlatform && !isDependency) {
-								this.logService.info('Skipping the packed extension as it cannot be installed', galleryExtension.identifier.id);
+							if (!isDependency) {
+								this.logService.info('Skipping the packed extension as it cannot be installed', galleryExtension.identifier.id, getErrorMessage(error));
 								continue;
 							} else {
 								throw error;
