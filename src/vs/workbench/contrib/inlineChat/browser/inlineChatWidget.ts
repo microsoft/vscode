@@ -49,6 +49,7 @@ import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineCh
 import { IdleValue } from 'vs/base/common/async';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IMenuWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -679,7 +680,7 @@ export class InlineChatWidget {
 						}
 					});
 
-					this._slashCommandContentWidget.setCommandText(`${command.command} `);
+					this._slashCommandContentWidget.setCommandText(`${command.command}`);
 					this._slashCommandContentWidget.show();
 
 					// inject detail when otherwise empty
@@ -708,12 +709,32 @@ export class InlineChatWidget {
 
 class SlashCommandContentWidget extends Disposable implements IContentWidget {
 	private _domNode = document.createElement('div');
+	private _lastSlashCommandText: string | undefined;
 
 	constructor(private _editor: ICodeEditor) {
 		super();
 
 		this._domNode.toggleAttribute('hidden', true);
 		this._domNode.classList.add('inline-chat-slash-command-content-widget');
+
+		// If backspace at a slash command boundary, remove the slash command
+		this._register(this._editor.onKeyUp((e) => {
+			if (e.keyCode !== KeyCode.Backspace) {
+				return;
+			}
+
+			const firstLine = this._editor.getModel()?.getLineContent(1);
+			const selection = this._editor.getSelection();
+			const withSlash = `/${this._lastSlashCommandText}`;
+			if (!firstLine?.startsWith(withSlash) || !selection?.isEmpty() || selection?.startLineNumber !== 1 || selection?.startColumn !== withSlash.length + 1) {
+				return;
+			}
+
+			this._editor.executeEdits('inline-chat-slash-command', [{
+				range: new Range(1, 1, 1, selection.startColumn),
+				text: null
+			}]);
+		}));
 	}
 
 	show() {
@@ -726,7 +747,10 @@ class SlashCommandContentWidget extends Disposable implements IContentWidget {
 		this._editor.removeContentWidget(this);
 	}
 
-	setCommandText(slashCommand: string) { this._domNode.innerText = `${slashCommand} `; }
+	setCommandText(slashCommand: string) {
+		this._domNode.innerText = `${slashCommand} `;
+		this._lastSlashCommandText = slashCommand;
+	}
 
 	getId() { return 'inline-chat-slash-command-content-widget'; }
 	getDomNode() { return this._domNode; }
