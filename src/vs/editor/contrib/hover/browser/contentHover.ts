@@ -459,6 +459,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _visibleData: ContentHoverVisibleData | undefined;
 	private _positionPreference: ContentWidgetPositionPreference | undefined;
+	private _initialWidth: number | undefined;
 
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
@@ -612,13 +613,29 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		return Math.min(availableSpace, maximumHeight);
 	}
 
+	private _isHoverTextOverflowing(): boolean {
+		let overflowing = false;
+		Array.from(this._hover.contentsDomNode.children).forEach((hoverPart) => {
+			overflowing = overflowing || hoverPart.scrollWidth > hoverPart.clientWidth;
+		});
+		return overflowing;
+	}
+
 	private _findMaximumRenderingWidth(): number | undefined {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
-		const bodyBoxWidth = dom.getClientArea(document.body).width;
-		const horizontalPadding = 14;
-		return bodyBoxWidth - horizontalPadding;
+		this._setWhiteSpaceProperties('nowrap', 'nowrap');
+		const overflowing = this._isHoverTextOverflowing();
+		this._setWhiteSpaceProperties('normal', 'pre-wrap');
+
+		if (overflowing || this._initialWidth && this._hover.containerDomNode.clientWidth < this._initialWidth) {
+			const bodyBoxWidth = dom.getClientArea(document.body).width;
+			const horizontalPadding = 14;
+			return bodyBoxWidth - horizontalPadding;
+		} else {
+			return this._hover.containerDomNode.clientWidth + 2;
+		}
 	}
 
 	public isMouseGettingCloser(posx: number, posy: number): boolean {
@@ -707,10 +724,16 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		};
 	}
 
+	private _setWhiteSpaceProperties(hoverWhiteSpace: 'normal' | 'nowrap', hoverSourceWhiteSpace: 'pre-wrap' | 'nowrap') {
+		this._hover.containerDomNode.style.setProperty('--vscode-hover-whiteSpace', hoverWhiteSpace);
+		this._hover.containerDomNode.style.setProperty('--vscode-hoverSource-whiteSpace', hoverSourceWhiteSpace);
+	}
+
 	public showAt(node: DocumentFragment, hoverData: ContentHoverVisibleData): void {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
+		this._setWhiteSpaceProperties('normal', 'pre-wrap');
 		this._render(node, hoverData);
 		const widgetHeight = dom.getTotalHeight(this._hover.containerDomNode);
 		const widgetPosition = hoverData.showAtPosition;
@@ -774,6 +797,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			this._adjustHoverHeightForScrollbar(height);
 		}
 		this._layoutContentWidget();
+		this._initialWidth = this._hover.containerDomNode.clientWidth;
 	}
 
 	public focus(): void {

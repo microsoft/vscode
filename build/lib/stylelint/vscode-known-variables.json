@@ -306,6 +306,8 @@
 		"--vscode-extensionIcon-verifiedForeground",
 		"--vscode-focusBorder",
 		"--vscode-foreground",
+		"--vscode-hover-whiteSpace",
+		"--vscode-hoverSource-whiteSpace",
 		"--vscode-icon-foreground",
 		"--vscode-inlineChat-background",
 		"--vscode-inlineChat-border",

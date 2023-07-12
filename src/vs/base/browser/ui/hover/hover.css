@@ -12,6 +12,7 @@
 	box-sizing: border-box;
 	animation: fadein 100ms linear;
 	line-height: 1.5em;
+	white-space: var(--vscode-hover-whiteSpace);
 }
 
 .monaco-hover.hidden {
@@ -105,7 +106,7 @@
 }
 
 .monaco-hover .monaco-tokenized-source {
-	white-space: pre-wrap;
+	white-space: var(--vscode-hoverSource-whiteSpace);
 }
 
 .monaco-hover .hover-row.status-bar {
