@@ -13,7 +13,6 @@ import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'v
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
@@ -38,6 +37,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Lazy } from 'vs/base/common/lazy';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { generateUuid } from 'vs/base/common/uuid';
+import { TextEdit } from 'vs/editor/common/languages';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -472,18 +472,25 @@ export class InlineChatController implements IEditorContribution {
 			attempt: this._activeSession.lastInput.attempt,
 			selection: this._editor.getSelection(),
 			wholeRange: this._activeSession.wholeRange.value,
+			live: this._activeSession.editMode !== EditMode.Preview // TODO@jrieken let extension know what document is used for previewing
 		};
 		this._chatAccessibilityService.acceptRequest();
-		const progress = new Progress<IInlineChatProgressItem>(data => {
+
+		const progressEdits: TextEdit[][] = [];
+		const progress = new Progress<IInlineChatProgressItem>(async data => {
 			this._log('received chunk', data, request);
+			if (!request.live) {
+				throw new Error('Progress in NOT supported in non-live mode');
+			}
 			if (data.message) {
+				this._zone.value.widget.updateToolbar(false);
 				this._zone.value.widget.updateInfo(data.message);
 			}
 			if (data.edits) {
-				const edits = data.edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-				this._strategy!.makeChanges(edits);
+				progressEdits.push(data.edits);
+				await this._makeChanges(progressEdits);
 			}
-		});
+		}, { async: true });
 		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, progress, requestCts.token);
 		this._log('request started', this._activeSession.provider.debugName, this._activeSession.session, request);
 
@@ -495,10 +502,14 @@ export class InlineChatController implements IEditorContribution {
 			this._ctxHasActiveRequest.set(true);
 			reply = await raceCancellationError(Promise.resolve(task), requestCts.token);
 
-			if (reply?.type === 'message') {
+			if (reply?.type === InlineChatResponseType.Message) {
 				response = new MarkdownResponse(this._activeSession.textModelN.uri, reply);
 			} else if (reply) {
-				response = new EditResponse(this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), reply);
+				const editResponse = new EditResponse(this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), reply, progressEdits);
+				if (editResponse.allLocalEdits.length > progressEdits.length) {
+					await this._makeChanges(editResponse.allLocalEdits);
+				}
+				response = editResponse;
 			} else {
 				response = new EmptyResponse();
 			}
@@ -544,27 +555,41 @@ export class InlineChatController implements IEditorContribution {
 			if (!canContinue) {
 				return State.ACCEPT;
 			}
-			const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(this._activeSession.textModelN.uri, response.localEdits));
-			const editOperations = (moreMinimalEdits ?? response.localEdits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-			this._log('edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, response.localEdits, moreMinimalEdits);
+		}
+		return State.SHOW_RESPONSE;
+	}
 
+	private async _makeChanges(allEdits: TextEdit[][]) {
+		assertType(this._activeSession);
+		assertType(this._strategy);
+
+		if (allEdits.length === 0) {
+			return;
+		}
+
+		// diff-changes from model0 -> modelN+1
+		for (const edits of allEdits) {
 			const textModelNplus1 = this._modelService.createModel(createTextBufferFactoryFromSnapshot(this._activeSession.textModelN.createSnapshot()), null, undefined, true);
-			textModelNplus1.applyEdits(editOperations);
+			textModelNplus1.applyEdits(edits.map(TextEdit.asEditOperation));
 			const diff = await this._editorWorkerService.computeDiff(this._activeSession.textModel0.uri, textModelNplus1.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
 			this._activeSession.lastTextModelChanges = diff?.changes ?? [];
 			textModelNplus1.dispose();
-
-			try {
-				this._ignoreModelContentChanged = true;
-				this._activeSession.wholeRange.trackEdits(editOperations);
-				await this._strategy.makeChanges(editOperations);
-				this._ctxDidEdit.set(this._activeSession.hasChangedText);
-			} finally {
-				this._ignoreModelContentChanged = false;
-			}
 		}
 
-		return State.SHOW_RESPONSE;
+		// make changes from modelN -> modelN+1
+		const lastEdits = allEdits[allEdits.length - 1];
+		const moreMinimalEdits = await this._editorWorkerService.computeHumanReadableDiff(this._activeSession.textModelN.uri, lastEdits);
+		const editOperations = (moreMinimalEdits ?? lastEdits).map(TextEdit.asEditOperation);
+		this._log('edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, lastEdits, moreMinimalEdits);
+
+		try {
+			this._ignoreModelContentChanged = true;
+			this._activeSession.wholeRange.trackEdits(editOperations);
+			await this._strategy.makeChanges(editOperations);
+			this._ctxDidEdit.set(this._activeSession.hasChangedText);
+		} finally {
+			this._ignoreModelContentChanged = false;
+		}
 	}
 
 	private async [State.SHOW_RESPONSE](): Promise<State.WAIT_FOR_INPUT | State.ACCEPT> {

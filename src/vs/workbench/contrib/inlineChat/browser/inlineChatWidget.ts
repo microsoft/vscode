@@ -535,7 +535,7 @@ export class InlineChatWidget {
 
 	// --- preview
 
-	showEditsPreview(textModelv0: ITextModel, edits: ISingleEditOperation[], changes: readonly LineRangeMapping[]) {
+	showEditsPreview(textModelv0: ITextModel, allEdits: ISingleEditOperation[][], changes: readonly LineRangeMapping[]) {
 		if (changes.length === 0) {
 			this.hideEditsPreview();
 			return;
@@ -545,7 +545,9 @@ export class InlineChatWidget {
 
 		const languageSelection: ILanguageSelection = { languageId: textModelv0.getLanguageId(), onDidChange: Event.None };
 		const modified = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModelv0.createSnapshot()), languageSelection, undefined, true);
-		modified.applyEdits(edits, false);
+		for (const edits of allEdits) {
+			modified.applyEdits(edits, false);
+		}
 		this._previewDiffEditor.value.setModel({ original: textModelv0, modified });
 
 		// joined ranges

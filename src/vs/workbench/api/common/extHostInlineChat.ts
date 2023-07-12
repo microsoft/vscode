@@ -145,12 +145,16 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			selection: typeConvert.Selection.to(request.selection),
 			wholeRange: typeConvert.Range.to(request.wholeRange),
 			attempt: request.attempt,
+			live: request.live,
 		};
 
 
 		let done = false;
 		const progress: vscode.Progress<{ message?: string; edits?: vscode.TextEdit[] }> = {
 			report: value => {
+				if (!request.live) {
+					throw new Error('Progress reporting is only supported for live sessions');
+				}
 				if (done || token.isCancellationRequested) {
 					return;
 				}

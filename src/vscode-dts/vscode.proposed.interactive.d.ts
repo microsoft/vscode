@@ -28,6 +28,7 @@ declare module 'vscode' {
 		selection: Selection;
 		wholeRange: Range;
 		attempt: number;
+		live: boolean;
 	}
 
 	// todo@API make classes

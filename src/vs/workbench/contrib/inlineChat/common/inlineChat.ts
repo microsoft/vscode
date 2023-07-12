@@ -41,6 +41,7 @@ export interface IInlineChatRequest {
 	wholeRange: IRange;
 	attempt: number;
 	requestId: string;
+	live: boolean;
 }
 
 export type IInlineChatResponse = IInlineChatEditResponse | IInlineChatBulkEditResponse | IInlineChatMessageResponse;
