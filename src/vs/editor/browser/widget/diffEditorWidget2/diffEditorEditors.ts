@@ -16,6 +16,7 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { IObservable, IReader } from 'vs/base/common/observable';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class DiffEditorEditors extends Disposable {
 	public readonly modified: CodeEditorWidget;
@@ -31,7 +32,8 @@ export class DiffEditorEditors extends Disposable {
 		codeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
 		private readonly _createInnerEditor: (instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>, editorWidgetOptions: ICodeEditorWidgetOptions) => CodeEditorWidget,
 		private readonly _modifiedReadOnlyOverride: IObservable<boolean>,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -150,7 +152,10 @@ export class DiffEditorEditors extends Disposable {
 	}
 
 	private _updateAriaLabel(ariaLabel: string | undefined): string | undefined {
-		const ariaNavigationTip = localize('diff-aria-navigation-tip', ' use Shift + F7 to navigate changes');
+		if (!ariaLabel) {
+			ariaLabel = '';
+		}
+		const ariaNavigationTip = localize('diff-aria-navigation-tip', ' use {0} to open the accessibility help.', this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel());
 		if (this._options.accessibilityVerbose.get()) {
 			return ariaLabel + ariaNavigationTip;
 		} else if (ariaLabel) {
