@@ -195,6 +195,7 @@ export interface IChatService {
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
+	onDidClearSession: Event<{ sessionId: string }>;
 	clearSession(sessionId: string): void;
 	addRequest(context: any): void;
 	addCompleteRequest(sessionId: string, message: string, response: IChatCompleteResponse): void;

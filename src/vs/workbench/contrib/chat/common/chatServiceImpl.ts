@@ -138,6 +138,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidSubmitSlashCommand = this._register(new Emitter<{ slashCommand: string; sessionId: string }>());
 	public readonly onDidSubmitSlashCommand = this._onDidSubmitSlashCommand.event;
 
+	private readonly _onDidClearSession = this._register(new Emitter<{ sessionId: string }>());
+	public readonly onDidClearSession = this._onDidClearSession.event;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
