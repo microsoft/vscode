@@ -604,8 +604,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		}
 		// Padding needed in order to stop the resizing down to a smaller height
 		let maximumHeight = CONTAINER_HEIGHT_PADDING;
-		Array.from(this._hover.contentsDomNode.children).forEach((hoverPart) => {
-			maximumHeight += hoverPart.clientHeight;
+		Array.from(this._hover.contentsDomNode.children).forEach((hoverElement) => {
+			maximumHeight += hoverElement.clientHeight;
 		});
 		if (this._hasHorizontalScrollbar()) {
 			maximumHeight += SCROLLBAR_WIDTH;
@@ -615,8 +615,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _isHoverTextOverflowing(): boolean {
 		let overflowing = false;
-		Array.from(this._hover.contentsDomNode.children).forEach((hoverPart) => {
-			overflowing = overflowing || hoverPart.scrollWidth > hoverPart.clientWidth;
+		Array.from(this._hover.contentsDomNode.children).forEach((hoverElement) => {
+			overflowing = overflowing || hoverElement.scrollWidth > hoverElement.clientWidth;
 		});
 		return overflowing;
 	}
