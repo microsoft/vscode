@@ -849,6 +849,15 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 				alt = !alt;
 			}
 
+			const upIndexes = range(index, -1);
+			const downIndexes = range(index + 1, this.viewItems.length);
+			const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);
+			const snapAfterIndex = this.findFirstSnapIndex(downIndexes);
+
+			if (typeof snapBeforeIndex === 'number' || typeof snapAfterIndex === 'number') {
+				alt = false; // when snapping, disable alt resizing
+			}
+
 			if (alt) {
 				// When we're using the last sash with Alt, we're resizing
 				// the view to the left/up, instead of right/down as usual
@@ -870,16 +879,12 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			let snapAfter: ISashDragSnapState | undefined;
 
 			if (!alt) {
-				const upIndexes = range(index, -1);
-				const downIndexes = range(index + 1, this.viewItems.length);
 				const minDeltaUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].minimumSize - sizes[i]), 0);
 				const maxDeltaUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].viewMaximumSize - sizes[i]), 0);
 				const maxDeltaDown = downIndexes.length === 0 ? Number.POSITIVE_INFINITY : downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].minimumSize), 0);
 				const minDeltaDown = downIndexes.length === 0 ? Number.NEGATIVE_INFINITY : downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].viewMaximumSize), 0);
 				const minDelta = Math.max(minDeltaUp, minDeltaDown);
 				const maxDelta = Math.min(maxDeltaDown, maxDeltaUp);
-				const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);
-				const snapAfterIndex = this.findFirstSnapIndex(downIndexes);
 
 				if (typeof snapBeforeIndex === 'number') {
 					const viewItem = this.viewItems[snapBeforeIndex];
