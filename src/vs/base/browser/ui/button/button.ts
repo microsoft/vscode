@@ -74,7 +74,7 @@ export class Button extends Disposable implements IButton {
 	protected _labelElement: HTMLElement | undefined;
 	protected _labelShortElement: HTMLElement | undefined;
 
-	private _onDidClick = this._register(new Emitter<Event>());
+	private _onDidClick = dthis._register(new Emitter<Event>());
 	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
 
 	private focusTracker: IFocusTracker;
