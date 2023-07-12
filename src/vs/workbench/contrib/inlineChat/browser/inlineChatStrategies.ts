@@ -24,7 +24,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
 import { EditResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_SHOWING_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export abstract class EditModeStrategy {
@@ -220,7 +220,6 @@ export class LiveStrategy extends EditModeStrategy {
 	protected _diffEnabled: boolean = false;
 
 	private readonly _inlineDiffDecorations: InlineDiffDecorations;
-	private readonly _ctxShowingDiff: IContextKey<boolean>;
 	private readonly _store: DisposableStore = new DisposableStore();
 
 	private _lastResponse?: EditResponse;
@@ -241,14 +240,11 @@ export class LiveStrategy extends EditModeStrategy {
 		this._diffEnabled = configService.getValue<boolean>('inlineChat.showDiff');
 
 		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._diffEnabled);
-		this._ctxShowingDiff = CTX_INLINE_CHAT_SHOWING_DIFF.bindTo(contextKeyService);
-		this._ctxShowingDiff.set(this._diffEnabled);
 		this._inlineDiffDecorations.visible = this._diffEnabled;
 
 		this._store.add(configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('inlineChat.showDiff')) {
 				this._diffEnabled = !this._diffEnabled;
-				this._ctxShowingDiff.set(this._diffEnabled);
 				this._doToggleDiff();
 			}
 		}));
@@ -256,7 +252,6 @@ export class LiveStrategy extends EditModeStrategy {
 
 	override dispose(): void {
 		this._inlineDiffDecorations.clear();
-		this._ctxShowingDiff.reset();
 		this._store.dispose();
 	}
 
