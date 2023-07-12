@@ -227,7 +227,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			) {
 				// store the fact that we prompted the user
 				this.storageService.store(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-				await this.editSessionsStorageService.initialize();
+				await this.editSessionsStorageService.initialize('read');
 				if (this.editSessionsStorageService.isSignedIn) {
 					await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, undefined, progress));
 				} else {
@@ -491,7 +491,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		this.logService.info(ref !== undefined ? `Resuming changes from cloud with ref ${ref}...` : 'Checking for pending cloud changes...');
 
-		if (silent && !(await this.editSessionsStorageService.initialize(true))) {
+		if (silent && !(await this.editSessionsStorageService.initialize('read', true))) {
 			return;
 		}
 
@@ -838,7 +838,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				return continueWithCloudChanges;
 			}
 
-			const initialized = await this.editSessionsStorageService.initialize();
+			const initialized = await this.editSessionsStorageService.initialize('write');
 			if (!initialized) {
 				this.telemetryService.publicLog2<EditSessionsAuthCheckEvent, EditSessionsAuthCheckClassification>('continueOn.editSessions.canStore.outcome', { outcome: 'didNotEnableEditSessionsWhenPrompted' });
 			}
