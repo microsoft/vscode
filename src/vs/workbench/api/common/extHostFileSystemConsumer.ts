@@ -250,6 +250,10 @@ export class ExtHostConsumerFileSystem {
 		this._fileSystemProvider.set(scheme, { impl: provider, extUri: options?.isCaseSensitive ? extUri : extUriIgnorePathCase, isReadonly: !!options?.isReadonly });
 		return toDisposable(() => this._fileSystemProvider.delete(scheme));
 	}
+
+	getFileSystemProviderExtUri(scheme: string) {
+		return this._fileSystemProvider.get(scheme)?.extUri ?? extUri;
+	}
 }
 
 export interface IExtHostConsumerFileSystem extends ExtHostConsumerFileSystem { }

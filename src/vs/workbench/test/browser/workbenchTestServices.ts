@@ -243,7 +243,7 @@ export function workbenchInstantiationService(
 	},
 	disposables: DisposableStore = new DisposableStore()
 ): TestInstantiationService {
-	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
+	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()])));
 
 	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
 	instantiationService.stub(IWorkingCopyService, disposables.add(new TestWorkingCopyService()));
@@ -561,6 +561,7 @@ export class TestFileDialogService implements IFileDialogService {
 	async defaultFilePath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
 	async defaultFolderPath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
 	async defaultWorkspacePath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
+	async preferredHome(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
 	pickFileFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
 	pickFileAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
 	pickFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }

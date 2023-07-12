@@ -20,6 +20,25 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 	private readonly myersDiffingAlgorithm = new MyersDiffAlgorithm();
 
 	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): LinesDiff {
+		if (originalLines.length === 1 && originalLines[0].length === 0 || modifiedLines.length === 1 && modifiedLines[0].length === 0) {
+			return {
+				changes: [
+					new LineRangeMapping(
+						new LineRange(1, originalLines.length + 1),
+						new LineRange(1, modifiedLines.length + 1),
+						[
+							new RangeMapping(
+								new Range(1, 1, originalLines.length, originalLines[0].length + 1),
+								new Range(1, 1, modifiedLines.length, modifiedLines[0].length + 1)
+							)
+						]
+					)
+				],
+				hitTimeout: false,
+				moves: [],
+			};
+		}
+
 		const timeout = options.maxComputationTimeMs === 0 ? InfiniteTimeout.instance : new DateTimeout(options.maxComputationTimeMs);
 		const considerWhitespaceChanges = !options.ignoreTrimWhitespace;
 
@@ -142,7 +161,7 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 						new OffsetRange(deletion.range.startLineNumber - 1, deletion.range.endLineNumberExclusive - 1),
 						new OffsetRange(best.range.startLineNumber - 1, best.range.endLineNumberExclusive - 1),
 					), timeout, considerWhitespaceChanges);
-					const mappings = lineRangeMappingFromRangeMappings(moveChanges.mappings, originalLines, modifiedLines);
+					const mappings = lineRangeMappingFromRangeMappings(moveChanges.mappings, originalLines, modifiedLines, true);
 
 					insertions.delete(best);
 					moves.push(new MovedText(new SimpleLineRangeMapping(deletion.range, best.range), mappings));
@@ -278,7 +297,7 @@ function mergeSequenceDiffs(sequenceDiffs1: SequenceDiff[], sequenceDiffs2: Sequ
 	return result;
 }
 
-export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[], originalLines: string[], modifiedLines: string[]): LineRangeMapping[] {
+export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[], originalLines: string[], modifiedLines: string[], dontAssertStartLine: boolean = false): LineRangeMapping[] {
 	const changes: LineRangeMapping[] = [];
 	for (const g of group(
 		alignments.map(a => getLineRangeMapping(a, originalLines, modifiedLines)),
@@ -297,8 +316,10 @@ export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[], or
 	}
 
 	assertFn(() => {
-		if (changes.length > 0 && changes[0].originalRange.startLineNumber !== changes[0].modifiedRange.startLineNumber) {
-			return false;
+		if (!dontAssertStartLine) {
+			if (changes.length > 0 && changes[0].originalRange.startLineNumber !== changes[0].modifiedRange.startLineNumber) {
+				return false;
+			}
 		}
 		return checkAdjacentItems(changes,
 			(m1, m2) => m2.originalRange.startLineNumber - m1.originalRange.endLineNumberExclusive === m2.modifiedRange.startLineNumber - m1.modifiedRange.endLineNumberExclusive &&

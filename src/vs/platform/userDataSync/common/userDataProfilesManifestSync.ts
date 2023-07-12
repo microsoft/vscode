@@ -29,7 +29,7 @@ interface IUserDataProfilesManifestResourcePreview extends IResourcePreview {
 
 export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
-	protected readonly version: number = 1;
+	protected readonly version: number = 2;
 	readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'profiles.json');
 	readonly baseResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' });
 	readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
@@ -190,7 +190,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			for (const profile of local.added) {
 				promises.push((async () => {
 					this.logService.trace(`${this.syncResourceLogLabel}: Creating '${profile.name}' profile...`);
-					await this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName });
+					await this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName, useDefaultFlags: profile.useDefaultFlags });
 					this.logService.info(`${this.syncResourceLogLabel}: Created profile '${profile.name}'.`);
 				})());
 			}
@@ -224,7 +224,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 				for (const profile of remote?.added || []) {
 					const collection = await this.userDataSyncStoreService.createCollection(this.syncHeaders);
 					addedCollections.push(collection);
-					remoteProfiles.push({ id: profile.id, name: profile.name, collection, shortName: profile.shortName });
+					remoteProfiles.push({ id: profile.id, name: profile.name, collection, shortName: profile.shortName, useDefaultFlags: profile.useDefaultFlags });
 				}
 			} else {
 				this.logService.info(`${this.syncResourceLogLabel}: Could not create remote profiles as there are too many profiles.`);
@@ -235,7 +235,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			for (const profile of remote?.updated || []) {
 				const profileToBeUpdated = remoteProfiles.find(({ id }) => profile.id === id);
 				if (profileToBeUpdated) {
-					remoteProfiles.splice(remoteProfiles.indexOf(profileToBeUpdated), 1, { id: profile.id, name: profile.name, collection: profileToBeUpdated.collection, shortName: profile.shortName });
+					remoteProfiles.splice(remoteProfiles.indexOf(profileToBeUpdated), 1, { ...profileToBeUpdated, id: profile.id, name: profile.name, shortName: profile.shortName, useDefaultFlags: profile.useDefaultFlags });
 				}
 			}
 

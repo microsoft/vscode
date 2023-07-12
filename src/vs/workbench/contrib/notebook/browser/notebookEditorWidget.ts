@@ -15,7 +15,6 @@ import 'vs/css!./media/notebookCellOutput';
 import { PixelRatio } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { DeferredPromise, runWhenIdle, SequencerByKey } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -91,7 +90,6 @@ import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/no
 import { Schemas } from 'vs/base/common/network';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 const $ = DOM.$;
 
@@ -562,7 +560,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _createBody(parent: HTMLElement): void {
 		this._notebookTopToolbarContainer = document.createElement('div');
 		this._notebookTopToolbarContainer.classList.add('notebook-toolbar-container');
-		this._notebookTopToolbarContainer.tabIndex = 0;
 		this._notebookTopToolbarContainer.style.display = 'none';
 		DOM.append(parent, this._notebookTopToolbarContainer);
 		this._body = document.createElement('div');
@@ -757,15 +754,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}`);
 		}
 
-		// top insert toolbar
-		const topInsertToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
-		styleSheets.push(`.notebookOverlay .cell-list-top-cell-toolbar-container { top: -${topInsertToolbarHeight - 3}px }`);
-		styleSheets.push(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element,
-		.notebookOverlay > .cell-list-container > .notebook-gutter > .monaco-list > .monaco-scrollable-element {
-			padding-top: ${topInsertToolbarHeight}px !important;
-			box-sizing: border-box;
-		}`);
-
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .code-cell-row div.cell.code { margin-left: ${codeCellLeftMargin + cellRunGutter}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell { margin-right: ${cellRightMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .cell-inner-container { padding-top: ${cellTopMargin}px; }`);
@@ -881,7 +869,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				multipleSelectionSupport: true,
 				selectionNavigation: true,
 				typeNavigationEnabled: true,
-				additionalScrollHeight: 0,
+				paddingTop: this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType),
+				paddingBottom: 0,
 				transformOptimization: false, //(isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				initialSize: this._dimension,
 				styleController: (_suffix: string) => { return this._list; },
@@ -1480,8 +1469,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		if (this._dimension) {
-			const topInserToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
-			this._list.layout(this._dimension.height - topInserToolbarHeight, this._dimension.width);
+			this._list.layout(this._dimension.height, this._dimension.width);
 		} else {
 			this._list.layout();
 		}
@@ -1775,15 +1763,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		DOM.size(this._body, dimension.width, newBodyHeight);
 
 		const topInserToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
-		const newCellListHeight = Math.max(newBodyHeight - topInserToolbarHeight, 0);
+		const newCellListHeight = newBodyHeight;
 		if (this._list.getRenderHeight() < newCellListHeight) {
 			// the new dimension is larger than the list viewport, update its additional height first, otherwise the list view will move down a bit (as the `scrollBottom` will move down)
-			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : topInserToolbarHeight });
+			this._list.updateOptions({ paddingBottom: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : 0, paddingTop: topInserToolbarHeight });
 			this._list.layout(newCellListHeight, dimension.width);
 		} else {
 			// the new dimension is smaller than the list viewport, if we update the additional height, the `scrollBottom` will move up, which moves the whole list view upwards a bit. So we run a layout first.
 			this._list.layout(newCellListHeight, dimension.width);
-			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : topInserToolbarHeight });
+			this._list.updateOptions({ paddingBottom: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : 0, paddingTop: topInserToolbarHeight });
 		}
 
 		this._overlayContainer.style.visibility = 'visible';
@@ -2239,28 +2227,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return undefined;
 	}
 
-	private _cellFocusAria(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
-		const index = this._notebookViewModel?.getCellIndex(cell);
-		const verboseLabel = this.configurationService.getValue(AccessibilityVerbositySettingId.Notebook);
-		if (index !== undefined && index >= 0) {
-			let position = '';
-			switch (focusItem) {
-				case 'editor':
-					position = `the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor is focused` + (verboseLabel ? `, press escape to focus the cell container` : '');
-					break;
-				case 'output':
-					position = `the cell output is focused` + (verboseLabel ? `, press escape to focus the cell container` : '');
-					break;
-				case 'container':
-					position = `the ${cell.cellKind === CellKind.Markup ? 'markdown preview' : 'cell container'} is focused` + (verboseLabel ? `, press enter to focus the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor` : '');
-					break;
-				default:
-					break;
-			}
-			aria.alert(`Cell ${this._notebookViewModel?.getCellIndex(cell)}, ${position} `);
-		}
-	}
-
 	private _toggleNotebookCellSelection(selectedCell: ICellViewModel, selectFromPrevious: boolean): void {
 		const currentSelections = this._list.getSelectedElements();
 		const isSelected = currentSelections.includes(selectedCell);
@@ -2300,7 +2266,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		if (focusItem === 'editor') {
 			this.focusElement(cell);
-			this._cellFocusAria(cell, focusItem);
 			this._list.focusView();
 
 			cell.updateEditState(CellEditState.Editing, 'focusNotebookCell');
@@ -2330,7 +2295,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		} else if (focusItem === 'output') {
 			this.focusElement(cell);
-			this._cellFocusAria(cell, focusItem);
 
 			if (!this.hasEditorFocus()) {
 				this._list.focusView();
@@ -2359,7 +2323,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			cell.focusMode = CellFocusMode.Container;
 
 			this.focusElement(cell);
-			this._cellFocusAria(cell, focusItem);
 			if (!options?.skipReveal) {
 				if (typeof options?.focusEditorLine === 'number') {
 					this._cursorNavMode.set(true);

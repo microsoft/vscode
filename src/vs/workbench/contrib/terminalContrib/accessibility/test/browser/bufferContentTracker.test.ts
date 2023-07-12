@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { importAMDNodeModule } from 'vs/amdX';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -26,7 +27,7 @@ import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/acces
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -49,11 +50,10 @@ suite('Buffer Content Tracker', () => {
 	let bufferTracker: BufferContentTracker;
 	const prompt = 'vscode-git:(prompt/more-tests)';
 	const promptPlusData = 'vscode-git:(prompt/more-tests) ' + 'some data';
-	setup(() => {
+	setup(async () => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
 		instantiationService = new TestInstantiationService();
 		themeService = new TestThemeService();
-		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(ITerminalLogService, new NullLogService());
@@ -66,12 +66,16 @@ suite('Buffer Content Tracker', () => {
 		if (!isWindows) {
 			capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 		}
-		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilities, '', new MockContextKeyService().createKey('', true)!, true);
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		xterm = instantiationService.createInstance(XtermTerminal, TerminalCtor, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilities, '', new MockContextKeyService().createKey('', true)!, true);
 		const container = document.createElement('div');
 		xterm.raw.open(container);
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
 		configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!);
 		bufferTracker = instantiationService.createInstance(BufferContentTracker, xterm);
+	});
+	teardown(() => {
+		instantiationService.dispose();
 	});
 	test('should not clear the prompt line', async () => {
 		assert.strictEqual(bufferTracker.lines.length, 0);
@@ -137,4 +141,3 @@ async function writeAndAssertBufferState(data: string, rows: number, terminal: T
 	assert.strictEqual(bufferTracker.lines.length, rows);
 	assert.deepStrictEqual(bufferTracker.lines, content.split('\r\n'));
 }
-

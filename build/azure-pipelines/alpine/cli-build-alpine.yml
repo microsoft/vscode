@@ -30,7 +30,7 @@ steps:
       workingDirectory: build
       displayName: Install pipeline build
 
-    - script: node build/azure-pipelines/distro/apply-cli-patches
+    - script: node .build/distro/cli-patches/index.js
       displayName: Apply distro patches
 
   - task: Npm@1

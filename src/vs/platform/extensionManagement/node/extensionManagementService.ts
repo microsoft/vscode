@@ -10,6 +10,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
+import { hash } from 'vs/base/common/hash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceSet } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
@@ -19,7 +20,7 @@ import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
 import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid, isUUID } from 'vs/base/common/uuid';
+import { generateUuid } from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import { extract, ExtractError, IFile, zip } from 'vs/base/node/zip';
 import * as nls from 'vs/nls';
@@ -61,6 +62,8 @@ export interface INativeServerExtensionManagementService extends IExtensionManag
 	scanInstalledExtensionAtLocation(location: URI): Promise<ILocalExtension | null>;
 	markAsUninstalled(...extensions: IExtension[]): Promise<void>;
 }
+
+const DELETED_FOLDER_POSTFIX = '.vsctmp';
 
 export class ExtensionManagementService extends AbstractExtensionManagementService implements INativeServerExtensionManagementService {
 
@@ -417,8 +420,6 @@ export class ExtensionsScanner extends Disposable {
 	private readonly _onExtract = this._register(new Emitter<URI>());
 	readonly onExtract = this._onExtract.event;
 
-	private cleanUpGeneratedFoldersPromise: Promise<void> = Promise.resolve();
-
 	constructor(
 		private readonly beforeRemovingExtension: (e: ILocalExtension) => Promise<void>,
 		@IFileService private readonly fileService: IFileService,
@@ -433,9 +434,8 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async cleanUp(): Promise<void> {
+		await this.removeTemporarilyDeletedFolders();
 		await this.removeUninstalledExtensions();
-		this.cleanUpGeneratedFoldersPromise = this.cleanUpGeneratedFoldersPromise.then(() => this.removeGeneratedFolders());
-		await this.cleanUpGeneratedFoldersPromise;
 	}
 
 	async scanExtensions(type: ExtensionType | null, profileLocation: URI): Promise<ILocalExtension[]> {
@@ -468,45 +468,65 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async extractUserExtension(extensionKey: ExtensionKey, zipPath: string, metadata: Metadata, removeIfExists: boolean, token: CancellationToken): Promise<ILocalExtension> {
-		await this.cleanUpGeneratedFoldersPromise.catch(() => undefined);
-
 		const folderName = extensionKey.toString();
-		const tempPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, `.${generateUuid()}`);
-		const extensionPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, folderName);
+		const tempLocation = URI.file(path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, `.${generateUuid()}`));
+		const extensionLocation = URI.file(path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, folderName));
 
-		let exists = await this.fileService.exists(URI.file(extensionPath));
+		let exists = await this.fileService.exists(extensionLocation);
 
 		if (exists && removeIfExists) {
 			try {
-				await pfs.Promises.rm(extensionPath);
+				await this.deleteExtensionFromLocation(extensionKey.id, extensionLocation, 'removeExisting');
 			} catch (error) {
-				throw new ExtensionManagementError(nls.localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, extensionKey.id), ExtensionManagementErrorCode.Delete);
+				throw new ExtensionManagementError(nls.localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionLocation.fsPath, extensionKey.id), ExtensionManagementErrorCode.Delete);
 			}
 			exists = false;
 		}
 
 		if (!exists) {
-			await this.extractAtLocation(extensionKey, zipPath, tempPath, token);
-			await this.extensionsScannerService.updateMetadata(URI.file(tempPath), metadata);
-
 			try {
-				this._onExtract.fire(URI.file(extensionPath));
-				await this.rename(extensionKey, tempPath, extensionPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
-				this.logService.info('Renamed to', extensionPath);
-			} catch (error) {
+				// Extract
 				try {
-					await pfs.Promises.rm(tempPath);
-				} catch (e) { /* ignore */ }
-				if (error.code === 'ENOTEMPTY') {
-					this.logService.info(`Rename failed because extension was installed by another source. So ignoring renaming.`, extensionKey.id);
-				} else {
-					this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted from extracted location`, tempPath);
-					throw error;
+					this.logService.trace(`Started extracting the extension from ${zipPath} to ${extensionLocation.fsPath}`);
+					await extract(zipPath, tempLocation.fsPath, { sourcePath: 'extension', overwrite: true }, token);
+					this.logService.info(`Extracted extension to ${extensionLocation}:`, extensionKey.id);
+				} catch (e) {
+					let errorCode = ExtensionManagementErrorCode.Extract;
+					if (e instanceof ExtractError) {
+						if (e.type === 'CorruptZip') {
+							errorCode = ExtensionManagementErrorCode.CorruptZip;
+						} else if (e.type === 'Incomplete') {
+							errorCode = ExtensionManagementErrorCode.IncompleteZip;
+						}
+					}
+					throw new ExtensionManagementError(e.message, errorCode);
 				}
+
+				await this.extensionsScannerService.updateMetadata(tempLocation, metadata);
+
+				// Rename
+				try {
+					this.logService.trace(`Started renaming the extension from ${tempLocation.fsPath} to ${extensionLocation.fsPath}`);
+					await this.rename(extensionKey, tempLocation.fsPath, extensionLocation.fsPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+					this.logService.info('Renamed to', extensionLocation.fsPath);
+				} catch (error) {
+					if (error.code === 'ENOTEMPTY') {
+						this.logService.info(`Rename failed because extension was installed by another source. So ignoring renaming.`, extensionKey.id);
+					} else {
+						this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted from extracted location`, tempLocation);
+						throw error;
+					}
+				}
+
+				this._onExtract.fire(extensionLocation);
+
+			} catch (error) {
+				try { await this.fileService.del(tempLocation, { recursive: true }); } catch (e) { /* ignore */ }
+				throw error;
 			}
 		}
 
-		return this.scanLocalExtension(URI.file(extensionPath), ExtensionType.User);
+		return this.scanLocalExtension(extensionLocation, ExtensionType.User);
 	}
 
 	async scanMetadata(local: ILocalExtension, profileLocation?: URI): Promise<Metadata | undefined> {
@@ -544,12 +564,8 @@ export class ExtensionsScanner extends Disposable {
 		await this.withUninstalledExtensions(uninstalled => delete uninstalled[extensionKey.toString()]);
 	}
 
-	async removeExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
-		this.logService.trace(`Deleting ${type} extension from disk`, extension.identifier.id, extension.location.fsPath);
-		const renamedLocation = this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(extension.location), `._${generateUuid()}`);
-		await this.rename(extension.identifier, extension.location.fsPath, renamedLocation.fsPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
-		await this.fileService.del(renamedLocation, { recursive: true });
-		this.logService.info('Deleted from disk', extension.identifier.id, extension.location.fsPath);
+	removeExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
+		return this.deleteExtensionFromLocation(extension.identifier.id, extension.location, type);
 	}
 
 	async removeUninstalledExtension(extension: ILocalExtension | IScannedExtension): Promise<void> {
@@ -563,6 +579,14 @@ export class ExtensionsScanner extends Disposable {
 			.filter(e => !e.isApplicationScoped) /* remove application scoped extensions */
 			.map(async e => ([e, await this.scanMetadata(e, fromProfileLocation)])));
 		await this.extensionsProfileScannerService.addExtensionsToProfile(extensions, toProfileLocation);
+	}
+
+	private async deleteExtensionFromLocation(id: string, location: URI, type: string): Promise<void> {
+		this.logService.trace(`Deleting ${type} extension from disk`, id, location.fsPath);
+		const renamedLocation = this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(location), `${this.uriIdentityService.extUri.basename(location)}.${hash(generateUuid()).toString(16)}${DELETED_FOLDER_POSTFIX}`);
+		await this.rename({ id }, location.fsPath, renamedLocation.fsPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+		await this.fileService.del(renamedLocation, { recursive: true });
+		this.logService.info(`Deleted ${type} extension from disk`, id, location.fsPath);
 	}
 
 	private async withUninstalledExtensions(updateFn?: (uninstalled: IStringDictionary<boolean>) => void): Promise<IStringDictionary<boolean>> {
@@ -595,33 +619,6 @@ export class ExtensionsScanner extends Disposable {
 
 			return uninstalled;
 		});
-	}
-
-	private async extractAtLocation(identifier: IExtensionIdentifier, zipPath: string, location: string, token: CancellationToken): Promise<void> {
-		this.logService.trace(`Started extracting the extension from ${zipPath} to ${location}`);
-
-		// Clean the location
-		try {
-			await pfs.Promises.rm(location);
-		} catch (e) {
-			throw new ExtensionManagementError(this.joinErrors(e).message, ExtensionManagementErrorCode.Delete);
-		}
-
-		try {
-			await extract(zipPath, location, { sourcePath: 'extension', overwrite: true }, token);
-			this.logService.info(`Extracted extension to ${location}:`, identifier.id);
-		} catch (e) {
-			try { await pfs.Promises.rm(location); } catch (e) { /* Ignore */ }
-			let errorCode = ExtensionManagementErrorCode.Extract;
-			if (e instanceof ExtractError) {
-				if (e.type === 'CorruptZip') {
-					errorCode = ExtensionManagementErrorCode.CorruptZip;
-				} else if (e.type === 'Incomplete') {
-					errorCode = ExtensionManagementErrorCode.IncompleteZip;
-				}
-			}
-			throw new ExtensionManagementError(e.message, errorCode);
-		}
 	}
 
 	private async rename(identifier: IExtensionIdentifier, extractPath: string, renamePath: string, retryUntil: number): Promise<void> {
@@ -709,9 +706,9 @@ export class ExtensionsScanner extends Disposable {
 		await Promise.allSettled(toRemove.map(e => this.removeUninstalledExtension(e)));
 	}
 
-	private async removeGeneratedFolders(): Promise<void> {
-		this.logService.trace('ExtensionManagementService#removeGeneratedFolders');
-		const promises: Promise<any>[] = [];
+	private async removeTemporarilyDeletedFolders(): Promise<void> {
+		this.logService.trace('ExtensionManagementService#removeTempDeleteFolders');
+
 		let stat;
 		try {
 			stat = await this.fileService.resolve(this.extensionsScannerService.userExtensionsLocation);
@@ -719,31 +716,29 @@ export class ExtensionsScanner extends Disposable {
 			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 				this.logService.error(error);
 			}
+			return;
 		}
-		for (const child of stat?.children ?? []) {
-			if (child.isDirectory && child.name.startsWith('._') && isUUID(child.name.substring(2))) {
-				promises.push((async () => {
-					this.logService.trace('Deleting the generated extension folder', child.resource.toString());
-					try {
-						await this.fileService.del(child.resource, { recursive: true });
-						this.logService.info('Deleted the generated extension folder', child.resource.toString());
-					} catch (error) {
+
+		if (!stat?.children) {
+			return;
+		}
+
+		try {
+			await Promise.allSettled(stat.children.map(async child => {
+				if (!child.isDirectory || !child.name.endsWith(DELETED_FOLDER_POSTFIX)) {
+					return;
+				}
+				this.logService.trace('Deleting the temporarily deleted folder', child.resource.toString());
+				try {
+					await this.fileService.del(child.resource, { recursive: true });
+					this.logService.trace('Deleted the temporarily deleted folder', child.resource.toString());
+				} catch (error) {
+					if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 						this.logService.error(error);
 					}
-				})());
-			}
-		}
-		await Promise.allSettled(promises);
-	}
-
-	private joinErrors(errorOrErrors: (Error | string) | (Array<Error | string>)): Error {
-		const errors = Array.isArray(errorOrErrors) ? errorOrErrors : [errorOrErrors];
-		if (errors.length === 1) {
-			return errors[0] instanceof Error ? <Error>errors[0] : new Error(<string>errors[0]);
-		}
-		return errors.reduce<Error>((previousValue: Error, currentValue: Error | string) => {
-			return new Error(`${previousValue.message}${previousValue.message ? ',' : ''}${currentValue instanceof Error ? currentValue.message : currentValue}`);
-		}, new Error(''));
+				}
+			}));
+		} catch (error) { /* ignore */ }
 	}
 
 }

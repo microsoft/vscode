@@ -26,7 +26,6 @@ import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsServ
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { SharedProcessEnvironmentService } from 'vs/platform/sharedProcess/node/sharedProcessEnvironmentService';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -112,6 +111,7 @@ import { RemoteStorageService } from 'vs/platform/storage/common/storageService'
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 
 class SharedProcessMain extends Disposable {
 
@@ -191,7 +191,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IPolicyService, policyService);
 
 		// Environment
-		const environmentService = new SharedProcessEnvironmentService(this.configuration.args, productService);
+		const environmentService = new NativeEnvironmentService(this.configuration.args, productService);
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Logger

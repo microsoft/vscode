@@ -6,7 +6,7 @@
 import { deepStrictEqual } from 'assert';
 import { ITerminalLinkDetector, TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { URI } from 'vs/base/common/uri';
-import { IBufferLine } from 'xterm';
+import type { IBufferLine } from 'xterm';
 
 export async function assertLinkHelper(
 	text: string,

@@ -1031,7 +1031,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const modifiedViewState = this._modifiedEditor.saveViewState();
 		return {
 			original: originalViewState,
-			modified: modifiedViewState
+			modified: modifiedViewState,
 		};
 	}
 

@@ -991,12 +991,13 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly scrollByPage?: boolean;
-	readonly additionalScrollHeight?: number;
 	readonly transformOptimization?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly scrollableElementChangeOptions?: ScrollableElementChangeOptions;
 	readonly alwaysConsumeMouseWheel?: boolean;
 	readonly initialSize?: Dimension;
+	readonly paddingTop?: number;
+	readonly paddingBottom?: number;
 }
 
 export interface IListStyles {

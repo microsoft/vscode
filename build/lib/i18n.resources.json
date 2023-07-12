@@ -75,7 +75,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/experiments",
+			"name": "vs/workbench/services/assignment",
 			"project": "vscode-workbench"
 		},
 		{
@@ -528,6 +528,10 @@
 		},
 		{
 			"name": "vs/workbench/services/issue",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/secrets",
 			"project": "vscode-workbench"
 		}
 	]

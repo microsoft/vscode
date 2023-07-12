@@ -119,6 +119,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		if (this.widget.viewModel) {
 			this.chatService.clearSession(this.widget.viewModel.sessionId);
 		}
+		this.viewState.inputValue = '';
 		this.updateModel();
 	}
 
