@@ -30,6 +30,8 @@ import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/brow
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Position } from 'vs/editor/common/core/position';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 
@@ -453,18 +455,22 @@ export class ToggleInlineDiff extends AbstractInlineChatAction {
 			title: localize('toggleDiff', 'Toggle Diff'),
 			icon: Codicon.diff,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE),
-			toggled: { condition: CTX_INLINE_CHAT_SHOWING_DIFF, title: localize('toggleDiff2', "Show Inline Diff") },
+			category: Categories.View,
+			toggled: {
+				condition: CTX_INLINE_CHAT_SHOWING_DIFF,
+				title: localize('toggleDiff2', "Show Inline Diff")
+			},
 			menu: {
 				id: MENU_INLINE_CHAT_WIDGET_TOGGLE,
-				when: CTX_INLINE_CHAT_EDIT_MODE.notEqualsTo(EditMode.Preview),
-				group: '1_config',
-				order: 9
+				when: CTX_INLINE_CHAT_EDIT_MODE.notEqualsTo(EditMode.Preview)
 			}
 		});
 	}
 
-	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController): void {
-		ctrl.toggleDiff();
+	override runInlineChatCommand(accessor: ServicesAccessor, _ctrl: InlineChatController): void {
+		const configurationService = accessor.get(IConfigurationService);
+		const newValue = !configurationService.getValue('inlineChat.showDiff');
+		configurationService.updateValue('inlineChat.showDiff', newValue);
 	}
 }
 
