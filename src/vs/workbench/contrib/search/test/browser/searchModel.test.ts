@@ -160,7 +160,7 @@ suite('SearchModel', () => {
 	function notebookSearchServiceWithInfo(results: IFileMatchWithCells[], tokenSource: CancellationTokenSource | undefined): INotebookSearchService {
 		return <INotebookSearchService>{
 			_serviceBrand: undefined,
-			notebookSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void, notebookURIs?: ResourceSet): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> {
+			notebookSearch(query: ISearchQuery, token: CancellationToken, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void, notebookURIs?: ResourceSet): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> {
 				token?.onCancellationRequested(() => tokenSource?.cancel());
 				const localResults = new ResourceMap<IFileMatchWithCells | null>(uri => uri.path);
 
