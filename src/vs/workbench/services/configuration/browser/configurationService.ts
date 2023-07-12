@@ -1363,7 +1363,6 @@ configurationRegistry.registerConfiguration({
 			'scope': ConfigurationScope.APPLICATION,
 			additionalProperties: true,
 			uniqueItems: true,
-			disallowSyncIgnore: true,
 		}
 	}
 });

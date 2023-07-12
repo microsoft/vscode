@@ -1529,6 +1529,11 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 			'id': '_test',
 			'type': 'object',
 			'properties': {
+				[APPLY_ALL_PROFILES_SETTING]: {
+					'type': 'array',
+					'default': [],
+					'scope': ConfigurationScope.APPLICATION,
+				},
 				'configurationService.profiles.applicationSetting': {
 					'type': 'string',
 					'default': 'isSet',
@@ -1685,7 +1690,7 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 	test('initialize with custom all profiles settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
 
-		testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
+		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
 
 		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting2'), 'applicationValue');
 		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'userValue');
