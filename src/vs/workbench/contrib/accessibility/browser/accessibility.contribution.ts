@@ -32,7 +32,7 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 		this._editor.focus();
 	}
 	options: IAccessibleViewOptions = { type: AccessibleViewType.HelpMenu, ariaLabel: localize('editor-help', "editor accessibility help"), readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
-	id: string = 'editor';
+	verbositySettingKey: string = 'editor';
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
@@ -115,7 +115,7 @@ class HoverAccessibleViewContribution extends Disposable {
 				return false;
 			}
 			accessibleViewService.show({
-				id: 'hover',
+				verbositySettingKey: 'hover',
 				provideContent() { return content; },
 				onClose() {
 					controller.focus();
