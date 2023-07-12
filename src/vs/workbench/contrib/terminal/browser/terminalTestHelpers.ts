@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from 'vs/base/common/async';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 
 export async function writeP(terminal: Terminal, data: string): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
@@ -16,4 +16,3 @@ export async function writeP(terminal: Terminal, data: string): Promise<void> {
 		});
 	});
 }
-

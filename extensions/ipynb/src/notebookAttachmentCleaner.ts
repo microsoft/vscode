@@ -232,7 +232,7 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 		if (cell.index > -1 && !objectEquals(markdownAttachmentsInUse, cell.metadata.attachments)) {
 			const updateMetadata: { [key: string]: any } = deepClone(cell.metadata);
 			if (Object.keys(markdownAttachmentsInUse).length === 0) {
-				updateMetadata.attachments = null;
+				updateMetadata.attachments = undefined;
 			} else {
 				updateMetadata.attachments = markdownAttachmentsInUse;
 			}

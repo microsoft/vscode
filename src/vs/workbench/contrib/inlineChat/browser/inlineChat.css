@@ -143,7 +143,7 @@
 }
 
 .monaco-editor .inline-chat .markdownMessage {
-	padding-top: 10px;
+	padding: 10px 5px;
 }
 
 .monaco-editor .inline-chat .markdownMessage.hidden {
@@ -155,7 +155,6 @@
 }
 
 .monaco-editor .inline-chat .markdownMessage .message {
-	margin-left: 5px;
 	-webkit-line-clamp: initial;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
@@ -170,10 +169,6 @@
 
 .monaco-editor .inline-chat .markdownMessage .message[state="expanded"] {
 	-webkit-line-clamp: var(--vscode-inline-chat-expanded, 10);
-}
-
-.monaco-editor .inline-chat .markdownMessage .messageActions {
-	direction: rtl;
 }
 
 .monaco-editor .inline-chat .status .label A {
@@ -213,7 +208,8 @@
 }
 
 .monaco-editor .inline-chat .status .actions .monaco-text-button {
-	padding: 2px 4px
+	padding: 2px 4px;
+	white-space: nowrap;
 }
 
 .monaco-editor .inline-chat .status .monaco-toolbar .action-item {
@@ -308,5 +304,8 @@
 }
 
 .monaco-editor .inline-chat-newfile-widget .title {
-	padding: 3px 0;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 3px 6px 3px 0;
 }

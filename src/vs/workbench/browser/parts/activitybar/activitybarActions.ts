@@ -41,6 +41,7 @@ import { ICredentialsService } from 'vs/platform/credentials/common/credentials'
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -235,7 +236,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 	private readonly problematicProviders: Set<string> = new Set();
 
 	private initialized = false;
-	private sessionFromEmbedder = getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
+	private sessionFromEmbedder = getCurrentAuthenticationSessionInfo(this.credentialsService, this.secretStorageService, this.productService);
 
 	constructor(
 		action: ActivityAction,
@@ -253,6 +254,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
 		@ILogService private readonly logService: ILogService
 	) {

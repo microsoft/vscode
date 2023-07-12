@@ -13,7 +13,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -584,9 +584,12 @@ export interface CompletionContext {
 export interface CompletionItemProvider {
 
 	/**
+	 * Used to identify completions in the (debug) UI and telemetry. This isn't the extension identifier because extensions
+	 * often contribute multiple completion item providers.
+	 *
 	 * @internal
 	 */
-	_debugDisplayName?: string;
+	_debugDisplayName: string;
 
 	triggerCharacters?: string[];
 	/**
@@ -700,6 +703,8 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	readonly enableForwardStability?: boolean | undefined;
 }
 
+export type InlineCompletionProviderGroupId = string;
+
 export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
 	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 
@@ -718,6 +723,20 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
 	*/
 	freeInlineCompletions(completions: T): void;
+
+	/**
+	 * Only used for {@link yieldsToGroupIds}.
+	 * Multiple providers can have the same group id.
+	 */
+	groupId?: InlineCompletionProviderGroupId;
+
+	/**
+	 * Returns a list of preferred provider {@link groupId}s.
+	 * The current provider is only requested for completions if no provider with a preferred group id returned a result.
+	 */
+	yieldsToGroupIds?: InlineCompletionProviderGroupId[];
+
+	toString?(): string;
 }
 
 export interface CodeAction {
@@ -1201,6 +1220,13 @@ export interface TextEdit {
 	range: IRange;
 	text: string;
 	eol?: model.EndOfLineSequence;
+}
+
+/** @internal */
+export abstract class TextEdit {
+	static asEditOperation(edit: TextEdit): ISingleEditOperation {
+		return EditOperation.replace(Range.lift(edit.range), edit.text);
+	}
 }
 
 /**

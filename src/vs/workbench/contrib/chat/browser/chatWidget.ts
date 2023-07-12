@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { status } from 'vs/base/browser/ui/aria/aria';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
@@ -16,7 +15,6 @@ import 'vs/css!./media/chat';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { AudioCue, AudioCueGroupId, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -380,6 +378,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.reveal(item);
 	}
 
+	focus(item: ChatTreeItem): void {
+		const items = this.tree.getNode(null).children;
+		const node = items.find(i => i.element?.id === item.id);
+		if (!node) {
+			return;
+		}
+
+		this.tree.setFocus([node.element]);
+		this.tree.domFocus();
+	}
+
 	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
 		if (this.viewModel) {
 			const editorValue = this.inputPart.inputEditor.getValue();
@@ -392,18 +401,24 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this._chatAccessibilityService.acceptRequest();
 			const input = query ?? editorValue;
-			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
+			const usedSlashCommand = this.lookupSlashCommand(typeof input === 'string' ? input : input.message);
+			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, usedSlashCommand);
 
 			if (result) {
 				this.inputPart.acceptInput(query);
 				result.responseCompletePromise.then(async () => {
-
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
 					this._chatAccessibilityService.acceptResponse(lastResponse);
 				});
+			} else {
+				this._chatAccessibilityService.acceptResponse();
 			}
 		}
+	}
+
+	private lookupSlashCommand(input: string): ISlashCommand | undefined {
+		return this.lastSlashCommands?.find(sc => input.startsWith(`/${sc.command}`));
 	}
 
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
@@ -504,32 +519,6 @@ export class ChatWidgetService implements IChatWidgetService {
 			newWidget.onDidFocus(() => this.setLastFocusedWidget(newWidget)),
 			toDisposable(() => this._widgets.splice(this._widgets.indexOf(newWidget), 1))
 		);
-	}
-}
-
-
-const CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS = 7000;
-export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
-
-	declare readonly _serviceBrand: undefined;
-
-	private _responsePendingAudioCue: IDisposable | undefined;
-
-	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService) {
-		super();
-	}
-	acceptRequest(): void {
-		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
-		this._responsePendingAudioCue = this._audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
-	}
-	acceptResponse(response?: IChatResponseViewModel): void {
-		this._responsePendingAudioCue?.dispose();
-		this._audioCueService.playRandomAudioCue(AudioCueGroupId.chatResponseReceived, true);
-		if (!response) {
-			return;
-		}
-		const errorDetails = response.errorDetails ? ` ${response.errorDetails.message}` : '';
-		status(response.response.value + errorDetails);
 	}
 }
 

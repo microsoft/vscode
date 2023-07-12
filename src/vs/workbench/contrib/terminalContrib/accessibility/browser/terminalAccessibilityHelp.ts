@@ -10,10 +10,10 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShellIntegrationStatus, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { IAccessibleContentProvider, IAccessibleViewOptions } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 
 export const enum ClassName {
 	AccessibleBuffer = 'terminal-accessibility-help',
@@ -29,7 +29,11 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 		this._instance.focus();
 		this.dispose();
 	}
-	options: IAccessibleViewOptions = { ariaLabel: localize('terminal-help-label', "terminal accessibility help") };
+	options: IAccessibleViewOptions = {
+		type: AccessibleViewType.HelpMenu,
+		ariaLabel: localize('terminal-help-label', "terminal accessibility help"),
+		readMoreUrl: 'https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility'
+	};
 	id: string = 'terminal';
 
 	constructor(
@@ -75,7 +79,6 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 		content.push(this._descriptionForCommand(TerminalCommandId.OpenDetectedLink, localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.'), localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.')));
 		content.push(this._descriptionForCommand(TerminalCommandId.NewWithProfile, localize('newWithProfile', 'The Create New Terminal (With Profile) ({0}) command allows for easy terminal creation using a specific profile.'), localize('newWithProfileNoKb', 'The Create New Terminal (With Profile) command allows for easy terminal creation using a specific profile and is currently not triggerable by a keybinding.')));
 		content.push(localize('accessibilitySettings', 'Access accessibility settings such as `terminal.integrated.tabFocusMode` via the Preferences: Open Accessibility Settings command.'));
-		content.push(localize('readMore', '[Read more about terminal accessibility](https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility)'));
 		return content.join('\n');
 	}
 }

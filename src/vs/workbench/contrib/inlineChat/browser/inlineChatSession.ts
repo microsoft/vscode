@@ -179,6 +179,10 @@ export class Session {
 		this._teldata.rounds += `${newLen}|`;
 	}
 
+	get exchanges(): Iterable<SessionExchange> {
+		return this._exchange;
+	}
+
 	get lastExchange(): SessionExchange | undefined {
 		return this._exchange[this._exchange.length - 1];
 	}
@@ -292,7 +296,7 @@ export class MarkdownResponse {
 
 export class EditResponse {
 
-	readonly localEdits: TextEdit[] = [];
+	readonly allLocalEdits: TextEdit[][] = [];
 	readonly singleCreateFileEdit: { uri: URI; edits: Promise<TextEdit>[] } | undefined;
 	readonly workspaceEdits: ResourceEdit[] | undefined;
 	readonly workspaceEditsIncludeLocalEdits: boolean = false;
@@ -300,11 +304,15 @@ export class EditResponse {
 	constructor(
 		localUri: URI,
 		readonly modelAltVersionId: number,
-		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse
+		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse,
+		progressEdits: TextEdit[][],
 	) {
+
+		this.allLocalEdits.push(...progressEdits);
+
 		if (raw.type === 'editorEdit') {
 			//
-			this.localEdits = raw.edits;
+			this.allLocalEdits.push(raw.edits);
 			this.singleCreateFileEdit = undefined;
 			this.workspaceEdits = undefined;
 
@@ -314,6 +322,7 @@ export class EditResponse {
 			this.workspaceEdits = edits;
 
 			let isComplexEdit = false;
+			const localEdits: TextEdit[] = [];
 
 			for (const edit of edits) {
 				if (edit instanceof ResourceFileEdit) {
@@ -332,7 +341,7 @@ export class EditResponse {
 				} else if (edit instanceof ResourceTextEdit) {
 					//
 					if (isEqual(edit.resource, localUri)) {
-						this.localEdits.push(edit.textEdit);
+						localEdits.push(edit.textEdit);
 						this.workspaceEditsIncludeLocalEdits = true;
 
 					} else if (isEqual(this.singleCreateFileEdit?.uri, edit.resource)) {
@@ -342,7 +351,9 @@ export class EditResponse {
 					}
 				}
 			}
-
+			if (localEdits.length > 0) {
+				this.allLocalEdits.push(localEdits);
+			}
 			if (isComplexEdit) {
 				this.singleCreateFileEdit = undefined;
 			}
@@ -359,7 +370,7 @@ export const IInlineChatSessionService = createDecorator<IInlineChatSessionServi
 export interface IInlineChatSessionService {
 	_serviceBrand: undefined;
 
-	onWillStartSession: Event<URI>;
+	onWillStartSession: Event<IActiveCodeEditor>;
 
 	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
 
@@ -383,8 +394,8 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _onWillStartSession = new Emitter<URI>();
-	readonly onWillStartSession: Event<URI> = this._onWillStartSession.event;
+	private readonly _onWillStartSession = new Emitter<IActiveCodeEditor>();
+	readonly onWillStartSession: Event<IActiveCodeEditor> = this._onWillStartSession.event;
 
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
@@ -412,7 +423,7 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 			return undefined;
 		}
 
-		this._onWillStartSession.fire(editor.getModel().uri);
+		this._onWillStartSession.fire(editor);
 
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();

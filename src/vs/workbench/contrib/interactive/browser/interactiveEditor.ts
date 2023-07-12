@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-native-private */
+
 import 'vs/css!./media/interactive';
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
@@ -425,7 +427,7 @@ export class InteractiveEditor extends EditorPane {
 		}
 
 		if (model === null) {
-			throw new Error('?');
+			throw new Error('The Interactive Window model could not be resolved');
 		}
 
 		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);
@@ -457,7 +459,9 @@ export class InteractiveEditor extends EditorPane {
 			}
 		}));
 
-		const editorModel = await input.resolveInput(this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID);
+		const languageId = this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? input.language ?? PLAINTEXT_LANGUAGE_ID;
+		const editorModel = await input.resolveInput(languageId);
+		editorModel.setLanguage(languageId);
 		this.#codeEditorWidget.setModel(editorModel);
 		if (viewState?.input) {
 			this.#codeEditorWidget.restoreViewState(viewState.input);
@@ -568,7 +572,6 @@ export class InteractiveEditor extends EditorPane {
 		}
 	}
 
-
 	#syncWithKernel() {
 		const notebook = this.#notebookWidget.value?.textModel;
 		const textModel = this.#codeEditorWidget.getModel();
@@ -581,8 +584,11 @@ export class InteractiveEditor extends EditorPane {
 
 			if (selectedOrSuggested) {
 				const language = selectedOrSuggested.supportedLanguages[0];
-				const newMode = language ? this.#languageService.createById(language).languageId : PLAINTEXT_LANGUAGE_ID;
-				textModel.setLanguage(newMode);
+				// All kernels will initially list plaintext as the supported language before they properly initialized.
+				if (language && language !== 'plaintext') {
+					const newMode = this.#languageService.createById(language).languageId;
+					textModel.setLanguage(newMode);
+				}
 
 				NOTEBOOK_KERNEL.bindTo(this.#contextKeyService).set(selectedOrSuggested.id);
 			}

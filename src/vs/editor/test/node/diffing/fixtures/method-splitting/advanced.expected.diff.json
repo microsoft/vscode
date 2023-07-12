@@ -37,8 +37,12 @@
 					"modifiedRange": "[7,50 -> 7,85]"
 				},
 				{
-					"originalRange": "[7,112 -> 10,1]",
-					"modifiedRange": "[7,92 -> 8,1]"
+					"originalRange": "[7,112 -> 8,10]",
+					"modifiedRange": "[7,92 -> 7,130]"
+				},
+				{
+					"originalRange": "[8,15 -> 10,1]",
+					"modifiedRange": "[7,135 -> 8,1]"
 				}
 			]
 		},
