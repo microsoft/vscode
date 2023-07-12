@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./inlineChat';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
@@ -180,6 +180,8 @@ export class InlineChatWidget {
 	private _preferredExpansionState: ExpansionState | undefined;
 	private _expansionState: ExpansionState = ExpansionState.NOT_CROPPED;
 
+	private _slashCommandContentWidget: SlashCommandContentWidget;
+
 	constructor(
 		private readonly parentEditor: ICodeEditor,
 		@IModelService private readonly _modelService: IModelService,
@@ -277,6 +279,11 @@ export class InlineChatWidget {
 		};
 		this._store.add(this._inputModel.onDidChangeContent(togglePlaceholder));
 		togglePlaceholder();
+
+		// slash command content widget
+
+		this._slashCommandContentWidget = new SlashCommandContentWidget(this._inputEditor);
+		this._store.add(this._slashCommandContentWidget);
 
 		// toolbars
 
@@ -654,6 +661,8 @@ export class InlineChatWidget {
 		const decorations = this._inputEditor.createDecorationsCollection();
 
 		const updateSlashDecorations = () => {
+			this._slashCommandContentWidget.hide();
+
 			const newDecorations: IModelDeltaDecoration[] = [];
 			for (const command of commands) {
 				const withSlash = `/${command.command}`;
@@ -664,8 +673,14 @@ export class InlineChatWidget {
 						options: {
 							description: 'inline-chat-slash-command',
 							inlineClassName: 'inline-chat-slash-command',
+							after: {
+								content: ' '
+							}
 						}
 					});
+
+					this._slashCommandContentWidget.setCommandText(`${command.command} `);
+					this._slashCommandContentWidget.show();
 
 					// inject detail when otherwise empty
 					if (firstLine === `/${command.command} `) {
@@ -689,6 +704,33 @@ export class InlineChatWidget {
 		this._slashCommands.add(this._inputEditor.onDidChangeModelContent(updateSlashDecorations));
 		updateSlashDecorations();
 	}
+}
+
+class SlashCommandContentWidget extends Disposable implements IContentWidget {
+	private _domNode = document.createElement('div');
+
+	constructor(private _editor: ICodeEditor) {
+		super();
+
+		this._domNode.toggleAttribute('hidden', true);
+		this._domNode.classList.add('inline-chat-slash-command-content-widget');
+	}
+
+	show() {
+		this._domNode.toggleAttribute('hidden', false);
+		this._editor.addContentWidget(this);
+	}
+
+	hide() {
+		this._domNode.toggleAttribute('hidden', true);
+		this._editor.removeContentWidget(this);
+	}
+
+	setCommandText(slashCommand: string) { this._domNode.innerText = `${slashCommand} `; }
+
+	getId() { return 'inline-chat-slash-command-content-widget'; }
+	getDomNode() { return this._domNode; }
+	getPosition() { return { position: { lineNumber: 1, column: 1 }, preference: [ContentWidgetPositionPreference.EXACT] }; }
 }
 
 export class InlineChatZoneWidget extends ZoneWidget {
