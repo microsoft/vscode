@@ -128,7 +128,7 @@ export function appendScrollableOutput(element: HTMLElement, id: string, appende
 		outputLengths[id] = Math.min(fullBuffer.length, softScrollableLineLimit);
 		const newElement = scrollableArrayOfString(id, fullBuffer.slice(-1 * softScrollableLineLimit), trustHtml);
 		newElement.setAttribute('output-item-id', id);
-		element.replaceWith();
+		element.replaceWith(newElement);
 	}
 	else {
 		element.appendChild(handleANSIOutput(buffer.join('\n'), trustHtml));

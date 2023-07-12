@@ -282,12 +282,17 @@ function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, 
 	const previousOutputParent = getPreviousMatchingContentGroup(outputElement);
 	// If the previous output item for the same cell was also a stream, append this output to the previous
 	if (previousOutputParent) {
-		const newContent = createContent(outputInfo, ctx, outputScrolling, error);
 		const existingContent = previousOutputParent.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
 		if (existingContent) {
-			existingContent.replaceWith(newContent);
-
+			if (appendedText && outputScrolling) {
+				appendScrollableOutput(existingContent, outputInfo.id, appendedText, outputInfo.text(), false);
+			}
+			else {
+				const newContent = createContent(outputInfo, ctx, outputScrolling, error);
+				existingContent.replaceWith(newContent);
+			}
 		} else {
+			const newContent = createContent(outputInfo, ctx, outputScrolling, error);
 			previousOutputParent.appendChild(newContent);
 		}
 		previousOutputParent.classList.toggle('scrollbar-visible', previousOutputParent.scrollHeight > previousOutputParent.clientHeight);
