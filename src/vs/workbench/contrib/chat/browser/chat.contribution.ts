@@ -40,8 +40,10 @@ import { registerClearActions } from 'vs/workbench/contrib/chat/browser/actions/
 import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -125,8 +127,18 @@ class ChatAccessibleViewContribution extends Disposable {
 		this._register(AccessibleViewAction.addImplementation(100, 'panelChat', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const widgetService = accessor.get(IChatWidgetService);
-			const widget: IChatWidget | undefined = widgetService.lastFocusedWidget;
-			const focusedItem: ChatTreeItem | undefined = widget?.getFocus();
+			const contextKeyService = accessor.get(IContextKeyService);
+			const commandService = accessor.get(ICommandService);
+			let widget: IChatWidget | undefined = widgetService.lastFocusedWidget;
+			let focusedItem: ChatTreeItem | undefined = widget?.getFocus();
+			let focusedInput = false;
+			if (!contextKeyService.getContextKeyValue(CONTEXT_RESPONSE.key)) {
+				// focus is in the input box, so we need to focus the last widget first
+				commandService.executeCommand('chat.action.focus');
+				widget = widgetService.lastFocusedWidget;
+				focusedItem = widget?.getFocus();
+				focusedInput = true;
+			}
 			if (!widget || !focusedItem || !isResponseVM(focusedItem)) {
 				return false;
 			}
@@ -139,7 +151,11 @@ class ChatAccessibleViewContribution extends Disposable {
 				verbositySettingKey: 'panelChat',
 				provideContent(): string { return responseContent; },
 				onClose() {
-					widget.focus(focusedItem);
+					if (focusedInput) {
+						widget?.focusInput();
+					} else {
+						widget!.focus(focusedItem!);
+					}
 				},
 				options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript', type: AccessibleViewType.View }
 			});
