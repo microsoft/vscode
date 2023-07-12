@@ -169,6 +169,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		parent: SettingsTreeGroupElement,
 		inspectResult: IInspectResult,
 		isWorkspaceTrusted: boolean,
+		readonly settingsTarget: SettingsTarget,
 		private readonly languageService: ILanguageService,
 		private readonly productService: IProductService
 	) {
@@ -544,17 +545,21 @@ export class SettingsTreeModel {
 		this.updateSettings([...this._treeElementsBySettingName.values()].flat().filter(s => s.isUntrusted));
 	}
 
-	private getTargetToInspect(settingScope: ConfigurationScope | undefined): SettingsTarget {
-		if (!this._userDataProfileService.currentProfile.isDefault && settingScope === ConfigurationScope.APPLICATION) {
-			return ConfigurationTarget.APPLICATION;
-		} else {
-			return this._viewState.settingsTarget;
+	private getTargetToInspect(setting: ISetting): SettingsTarget {
+		if (!this._userDataProfileService.currentProfile.isDefault) {
+			if (setting.scope === ConfigurationScope.APPLICATION) {
+				return ConfigurationTarget.APPLICATION;
+			}
+			if (this._configurationService.isSettingAppliedForAllProfiles(setting.key) && this._viewState.settingsTarget === ConfigurationTarget.USER_LOCAL) {
+				return ConfigurationTarget.APPLICATION;
+			}
 		}
+		return this._viewState.settingsTarget;
 	}
 
 	private updateSettings(settings: SettingsTreeSettingElement[]): void {
 		for (const element of settings) {
-			const target = this.getTargetToInspect(element.setting.scope);
+			const target = this.getTargetToInspect(element.setting);
 			const inspectResult = inspectSetting(element.setting.key, target, this._viewState.languageFilter, this._configurationService);
 			element.update(inspectResult, this._isWorkspaceTrusted);
 		}
@@ -591,9 +596,9 @@ export class SettingsTreeModel {
 	}
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
-		const target = this.getTargetToInspect(setting.scope);
+		const target = this.getTargetToInspect(setting);
 		const inspectResult = inspectSetting(setting.key, target, this._viewState.languageFilter, this._configurationService);
-		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted, this._languageService, this._productService);
+		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted, this._viewState.settingsTarget, this._languageService, this._productService);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
 		nameElements.push(element);
