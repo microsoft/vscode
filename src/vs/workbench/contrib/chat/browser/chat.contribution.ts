@@ -40,10 +40,9 @@ import { registerClearActions } from 'vs/workbench/contrib/chat/browser/actions/
 import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -127,14 +126,19 @@ class ChatAccessibleViewContribution extends Disposable {
 		this._register(AccessibleViewAction.addImplementation(100, 'panelChat', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const widgetService = accessor.get(IChatWidgetService);
-			const contextKeyService = accessor.get(IContextKeyService);
-			const commandService = accessor.get(ICommandService);
+			const codeEditorService = accessor.get(ICodeEditorService);
+
 			let widget: IChatWidget | undefined = widgetService.lastFocusedWidget;
 			let focusedItem: ChatTreeItem | undefined = widget?.getFocus();
 			let focusedInput = false;
-			if (!contextKeyService.getContextKeyValue(CONTEXT_RESPONSE.key)) {
+			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
+			if (editor) {
 				// focus is in the input box, so we need to focus the last widget first
-				commandService.executeCommand('chat.action.focus');
+				const editorUri = editor.getModel()?.uri;
+				if (!editorUri) {
+					return false;
+				}
+				widgetService.getWidgetByInputUri(editorUri)?.focusLastMessage();
 				widget = widgetService.lastFocusedWidget;
 				focusedItem = widget?.getFocus();
 				focusedInput = true;
