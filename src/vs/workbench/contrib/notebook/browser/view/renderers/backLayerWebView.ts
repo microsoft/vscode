@@ -33,7 +33,7 @@ import { editorFindMatch, editorFindMatchHighlight } from 'vs/platform/theme/com
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { CellEditState, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookEditorFindHandle, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NOTEBOOK_WEBVIEW_BOUNDARY } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
@@ -149,6 +149,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	private initializeMarkupPromise?: { readonly requestId: string; readonly p: DeferredPromise<void>; readonly isFirstInit: boolean };
 
 	private readonly nonce = UUID.generateUuid();
+
+	private _findHandle: INotebookEditorFindHandle = {
+		timestamp: NaN,
+	};
+	get findHandle() { return this._findHandle; }
 
 	constructor(
 		public notebookEditor: INotebookDelegateForWebview,
@@ -1616,6 +1621,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		const p = new Promise<IFindMatch[]>(resolve => {
 			const sub = this.webview?.onMessage(e => {
 				if (e.message.type === 'didFind') {
+					this._findHandle = { timestamp: e.message.findHandleTimestamp };
 					resolve(e.message.matches);
 					sub?.dispose();
 				}
@@ -1632,9 +1638,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return ret;
 	}
 
-	findStop() {
+	findStop(handle: INotebookEditorFindHandle) {
 		this._sendMessageToWebview({
-			type: 'findStop'
+			type: 'findStop',
+			findHandleTimestamp: handle.timestamp,
 		});
 	}
 

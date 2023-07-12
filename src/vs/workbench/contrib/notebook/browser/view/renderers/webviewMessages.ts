@@ -413,6 +413,7 @@ export interface IFindUnHighlightMessage {
 
 export interface IFindStopMessage {
 	readonly type: 'findStop';
+	readonly findHandleTimestamp: number;
 }
 
 export interface ISearchPreviewInfo {

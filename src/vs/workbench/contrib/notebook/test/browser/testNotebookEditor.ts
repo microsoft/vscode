@@ -41,7 +41,7 @@ import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { CellFindMatchWithIndex, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatchWithIndex, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellViewModel, INotebookEditorDelegate, INotebookEditorFindHandle } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellStateChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/services/notebookCellStatusBarServiceImpl';
 import { ListViewInfoAccessor, NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
@@ -282,6 +282,9 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override async find(query: string, options: INotebookSearchOptions): Promise<CellFindMatchWithIndex[]> {
 			const findMatches = viewModel.find(query, options).filter(match => match.length > 0);
 			return findMatches;
+		}
+		override getFindHandle(): INotebookEditorFindHandle {
+			return { timestamp: NaN };
 		}
 		override deltaCellDecorations() { return []; }
 		override onDidChangeVisibleRanges = Event.None;

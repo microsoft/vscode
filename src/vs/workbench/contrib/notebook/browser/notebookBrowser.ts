@@ -674,13 +674,18 @@ export interface INotebookEditor {
 	getNextVisibleCellIndex(index: number): number | undefined;
 	getPreviousVisibleCellIndex(index: number): number | undefined;
 	find(query: string, options: INotebookSearchOptions, token: CancellationToken): Promise<CellFindMatchWithIndex[]>;
+	getFindHandle(): INotebookEditorFindHandle;
 	highlightFind(matchIndex: number): Promise<number>;
 	unHighlightFind(matchIndex: number): Promise<void>;
-	findStop(): void;
+	findStop(handle: INotebookEditorFindHandle): void;
 	showProgress(): void;
 	hideProgress(): void;
 
 	getAbsoluteTopOfElement(cell: ICellViewModel): number;
+}
+
+export interface INotebookEditorFindHandle {
+	readonly timestamp: number;
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {

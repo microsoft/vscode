@@ -303,7 +303,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		super.hide();
 		this._state.change({ isRevealed: false }, false);
 		this._findModel.clear();
-		this._notebookEditor.findStop();
+		this._notebookEditor.findStop(this._notebookEditor.getFindHandle());
 		this._progressBar.stop();
 
 		if (this._hideTimeout === null) {

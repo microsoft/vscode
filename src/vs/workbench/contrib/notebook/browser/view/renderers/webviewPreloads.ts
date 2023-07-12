@@ -1126,6 +1126,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return offset + getSelectionOffsetRelativeTo(parentElement, currentNode.parentNode);
 	}
 
+	let findHandleTimestamp = NaN;
 	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean }) => {
 		let find = true;
 		const matches: IFindMatch[] = [];
@@ -1254,6 +1255,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			console.log(e);
 		}
 
+		findHandleTimestamp = Date.now();
 		if (matches.length && CSS.highlights) {
 			_highlighter = new CSSHighlighter(matches);
 		} else {
@@ -1273,7 +1275,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 				cellId: match.cellId,
 				index,
 				searchPreviewInfo: match.searchPreviewInfo,
-			}))
+			})),
+			findHandleTimestamp,
 		});
 	};
 
@@ -1461,7 +1464,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'findStop': {
-				_highlighter?.dispose();
+				if (findHandleTimestamp === event.data.findHandleTimestamp) {
+					_highlighter?.dispose();
+				}
 				break;
 			}
 			case 'returnOutputItem': {

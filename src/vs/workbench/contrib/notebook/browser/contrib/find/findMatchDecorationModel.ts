@@ -8,18 +8,20 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { FindDecorations } from 'vs/editor/contrib/find/browser/findDecorations';
 import { Range } from 'vs/editor/common/core/range';
 import { overviewRulerSelectionHighlightForeground, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
-import { CellFindMatchWithIndex, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, INotebookDeltaDecoration, INotebookEditor, NotebookOverviewRulerLane, } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatchWithIndex, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, INotebookDeltaDecoration, INotebookEditor, INotebookEditorFindHandle, NotebookOverviewRulerLane, } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class FindMatchDecorationModel extends Disposable {
 	private _allMatchesDecorations: ICellModelDecorations[] = [];
 	private _currentMatchCellDecorations: string[] = [];
 	private _allMatchesCellDecorations: string[] = [];
 	private _currentMatchDecorations: { kind: 'input'; decorations: ICellModelDecorations[] } | { kind: 'output'; index: number } | null = null;
+	private readonly _findHandle: INotebookEditorFindHandle;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor
 	) {
 		super();
+		this._findHandle = _notebookEditor.getFindHandle();
 	}
 
 	public get currentMatchDecorations() {
@@ -145,7 +147,7 @@ export class FindMatchDecorationModel extends Disposable {
 	}
 
 	stopWebviewFind() {
-		this._notebookEditor.findStop();
+		this._notebookEditor.findStop(this._findHandle);
 	}
 
 	override dispose() {
