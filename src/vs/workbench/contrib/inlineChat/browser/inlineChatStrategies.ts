@@ -43,8 +43,6 @@ export abstract class EditModeStrategy {
 
 	abstract renderChanges(response: EditResponse): Promise<void>;
 
-	abstract toggleDiff(): void;
-
 	abstract hasFocus(): boolean;
 
 	abstract getWidgetPosition(): Position | undefined;
@@ -135,10 +133,6 @@ export class PreviewStrategy extends EditModeStrategy {
 		} else {
 			this._widget.hideCreatePreview();
 		}
-	}
-
-	toggleDiff(): void {
-		// nothing to do
 	}
 
 	getWidgetPosition(): Position | undefined {
@@ -253,7 +247,9 @@ export class LiveStrategy extends EditModeStrategy {
 
 		this._store.add(configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('inlineChat.showDiff')) {
-				this.toggleDiff();
+				this._diffEnabled = !this._diffEnabled;
+				this._ctxShowingDiff.set(this._diffEnabled);
+				this._doToggleDiff();
 			}
 		}));
 	}
@@ -262,12 +258,6 @@ export class LiveStrategy extends EditModeStrategy {
 		this._inlineDiffDecorations.clear();
 		this._ctxShowingDiff.reset();
 		this._store.dispose();
-	}
-
-	toggleDiff(): void {
-		this._diffEnabled = !this._diffEnabled;
-		this._ctxShowingDiff.set(this._diffEnabled);
-		this._doToggleDiff();
 	}
 
 	protected _doToggleDiff(): void {

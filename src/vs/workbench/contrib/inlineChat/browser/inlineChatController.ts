@@ -713,10 +713,6 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	toggleDiff(): void {
-		this._strategy?.toggleDiff();
-	}
-
 	focus(): void {
 		this._zone.value.widget.focus();
 	}
