@@ -1356,9 +1356,11 @@ export class SettingsEditor2 extends EditorPane {
 				keys.forEach(key => this.settingsTreeModel.updateElementsByName(key));
 			}
 
-			keys.forEach(key => this.renderTree(key));
+			// Attempt to render the tree once rather than
+			// once for each key to avoid redundant calls to this.refreshTree()
+			this.renderTree();
 		} else {
-			return this.renderTree();
+			this.renderTree();
 		}
 	}
 
