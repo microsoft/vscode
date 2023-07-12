@@ -44,7 +44,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { isEqual } from 'vs/base/common/resources';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
@@ -622,7 +622,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 						severity: MarkerSeverity.Hint,
 						tags: [MarkerTag.Unnecessary],
 						...setting.range,
-						message: nls.localize('allProfileSettingWhileInNonDefaultProfileSetting', "This setting cannot be applied because it is configured to be applied in all profiles. Value from the default profile will be used instead.")
+						message: nls.localize('allProfileSettingWhileInNonDefaultProfileSetting', "This setting cannot be applied because it is configured to be applied in all profiles using setting {0}. Value from the default profile will be used instead.", APPLY_ALL_PROFILES_SETTING)
 					});
 				}
 			}

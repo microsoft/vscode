@@ -776,24 +776,24 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const currentAllProfilesSettings = this.getValue<string[]>(APPLY_ALL_PROFILES_SETTING) ?? [];
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
 		const changedKeys: string[] = [];
-		for (const key of change.keys) {
-			if (configurationProperties[key]?.scope === ConfigurationScope.APPLICATION) {
-				changedKeys.push(key);
-				if (key === APPLY_ALL_PROFILES_SETTING) {
-					for (const key of previousAllProfilesSettings) {
-						if (!currentAllProfilesSettings.includes(key)) {
-							changedKeys.push(key);
+		for (const changedKey of change.keys) {
+			if (configurationProperties[changedKey]?.scope === ConfigurationScope.APPLICATION) {
+				changedKeys.push(changedKey);
+				if (changedKey === APPLY_ALL_PROFILES_SETTING) {
+					for (const previousAllProfileSetting of previousAllProfilesSettings) {
+						if (!currentAllProfilesSettings.includes(previousAllProfileSetting)) {
+							changedKeys.push(previousAllProfileSetting);
 						}
 					}
-					for (const key of currentAllProfilesSettings) {
-						if (!previousAllProfilesSettings.includes(key)) {
-							changedKeys.push(key);
+					for (const currentAllProfileSetting of currentAllProfilesSettings) {
+						if (!previousAllProfilesSettings.includes(currentAllProfileSetting)) {
+							changedKeys.push(currentAllProfileSetting);
 						}
 					}
 				}
 			}
-			else if (currentAllProfilesSettings.includes(key)) {
-				changedKeys.push(key);
+			else if (currentAllProfilesSettings.includes(changedKey)) {
+				changedKeys.push(changedKey);
 			}
 		}
 		change.keys = changedKeys;
