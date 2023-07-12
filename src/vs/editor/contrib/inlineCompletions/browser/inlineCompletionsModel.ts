@@ -44,9 +44,6 @@ export class InlineCompletionsModel extends Disposable {
 	private _isAcceptingPartially = false;
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
 
-	private _isNavigatingCurrentInlineCompletion = false;
-	public get isNavigatingCurrentInlineCompletion() { return this._isNavigatingCurrentInlineCompletion; }
-
 	constructor(
 		public readonly textModel: ITextModel,
 		public readonly selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
@@ -251,17 +248,12 @@ export class InlineCompletionsModel extends Disposable {
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
 		await this.triggerExplicitly();
 
-		this._isNavigatingCurrentInlineCompletion = true;
-		try {
-			const completions = this._filteredInlineCompletionItems.get() || [];
-			if (completions.length > 0) {
-				const newIdx = (this.selectedInlineCompletionIndex.get() + delta + completions.length) % completions.length;
-				this._selectedInlineCompletionId.set(completions[newIdx].semanticId, undefined);
-			} else {
-				this._selectedInlineCompletionId.set(undefined, undefined);
-			}
-		} finally {
-			this._isNavigatingCurrentInlineCompletion = false;
+		const completions = this._filteredInlineCompletionItems.get() || [];
+		if (completions.length > 0) {
+			const newIdx = (this.selectedInlineCompletionIndex.get() + delta + completions.length) % completions.length;
+			this._selectedInlineCompletionId.set(completions[newIdx].semanticId, undefined);
+		} else {
+			this._selectedInlineCompletionId.set(undefined, undefined);
 		}
 	}
 
