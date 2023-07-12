@@ -129,13 +129,14 @@ export class DiffEditorEditors extends Disposable {
 		};
 		clonedOptions.inDiffEditor = true;
 		clonedOptions.automaticLayout = false;
+
 		// Clone scrollbar options before changing them
 		clonedOptions.scrollbar = { ...(clonedOptions.scrollbar || {}) };
 		clonedOptions.scrollbar.vertical = 'visible';
 		clonedOptions.folding = false;
 		clonedOptions.codeLens = this._options.diffCodeLens.get();
 		clonedOptions.fixedOverflowWidgets = true;
-		// clonedOptions.lineDecorationsWidth = '2ch';
+
 		// Clone minimap options before changing them
 		clonedOptions.minimap = { ...(clonedOptions.minimap || {}) };
 		clonedOptions.minimap.enabled = false;

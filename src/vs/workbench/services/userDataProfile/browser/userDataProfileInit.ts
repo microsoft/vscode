@@ -10,7 +10,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Barrier, Promises } from 'vs/base/common/async';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IUserDataInitializer } from 'vs/workbench/services/userData/browser/userDataInit';
-import { IProfileResourceInitializer, IUserDataProfileService, IUserDataProfileTemplate, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResourceInitializer, IUserDataProfileService, IUserDataProfileTemplate } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { SettingsResourceInitializer } from 'vs/workbench/services/userDataProfile/browser/settingsResource';
 import { GlobalStateResourceInitializer } from 'vs/workbench/services/userDataProfile/browser/globalStateResource';
 import { KeybindingsResourceInitializer } from 'vs/workbench/services/userDataProfile/browser/keybindingsResource';
@@ -22,6 +22,7 @@ import { isString } from 'vs/base/common/types';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
+import { ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class UserDataProfileInitializer implements IUserDataInitializer {
 

@@ -11,7 +11,7 @@ import { localize } from 'vs/nls';
 import { Action2, IMenuService, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService, ProfileResourceType, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { RenameProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -31,16 +31,16 @@ import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 
-const CREATE_EMPTY_PROFILE_ACTION_ID = 'workbench.profiles.actions.createEmptyProfile';
-const CREATE_EMPTY_PROFILE_ACTION_TITLE = {
-	value: localize('create empty profile', "Create an Empty Profile..."),
-	original: 'Create an Empty Profile...'
-};
-
 const CREATE_FROM_CURRENT_PROFILE_ACTION_ID = 'workbench.profiles.actions.createFromCurrentProfile';
 const CREATE_FROM_CURRENT_PROFILE_ACTION_TITLE = {
 	value: localize('save profile as', "Create from Current Profile..."),
 	original: 'Create from Current Profile...'
+};
+
+const CREATE_NEW_PROFILE_ACTION_ID = 'workbench.profiles.actions.createNewProfile';
+const CREATE_NEW_PROFILE_ACTION_TITLE = {
+	value: localize('create new profile', "Create New Profile..."),
+	original: 'Create New Profile...'
 };
 
 interface IProfileTemplateInfo {
@@ -110,6 +110,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 		this.registerCreateEmptyProfileAction();
 		this.registerCreateFromCurrentProfileAction();
+		this.registerCreateNewProfileAction();
 		this.registerCreateProfileAction();
 		this.registerDeleteProfileAction();
 		this.registerCreateProfileFromTemplatesAction();
@@ -415,7 +416,26 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			}
 
 			run(accessor: ServicesAccessor) {
-				return that.createProfile(true);
+				return that.createFromCurrentProfile();
+			}
+		}));
+	}
+
+	private registerCreateNewProfileAction(): void {
+		const that = this;
+		this._register(registerAction2(class CreateFromCurrentProfileAction extends Action2 {
+			constructor() {
+				super({
+					id: CREATE_NEW_PROFILE_ACTION_ID,
+					title: CREATE_NEW_PROFILE_ACTION_TITLE,
+					category: PROFILES_CATEGORY,
+					f1: true,
+					precondition: PROFILES_ENABLEMENT_CONTEXT
+				});
+			}
+
+			run() {
+				return that.createNewProfile();
 			}
 		}));
 	}
@@ -425,8 +445,11 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this._register(registerAction2(class CreateEmptyProfileAction extends Action2 {
 			constructor() {
 				super({
-					id: CREATE_EMPTY_PROFILE_ACTION_ID,
-					title: CREATE_EMPTY_PROFILE_ACTION_TITLE,
+					id: 'workbench.profiles.actions.createEmptyProfile',
+					title: {
+						value: localize('create empty profile', "Create an Empty Profile..."),
+						original: 'Create an Empty Profile...'
+					},
 					category: PROFILES_CATEGORY,
 					f1: true,
 					precondition: PROFILES_ENABLEMENT_CONTEXT
@@ -434,15 +457,121 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			}
 
 			run(accessor: ServicesAccessor) {
-				return that.createProfile(false);
+				return that.createEmptyProfile();
 			}
 		}));
 	}
 
-	private async createProfile(fromExisting: boolean): Promise<void> {
-		const name = await this.quickInputService.input({
+	private async createEmptyProfile(): Promise<void> {
+		const name = await this.getNameForProfile(localize('create empty profile', "Create an Empty Profile..."));
+		if (!name) {
+			return;
+		}
+		try {
+			await this.userDataProfileManagementService.createAndEnterProfile(name, undefined);
+		} catch (error) {
+			this.notificationService.error(error);
+		}
+	}
+
+	private async createFromCurrentProfile(): Promise<void> {
+		const name = await this.getNameForProfile(localize('create from current profle', "Create from Current Profile..."));
+		if (!name) {
+			return;
+		}
+		try {
+			await this.userDataProfileImportExportService.createFromCurrentProfile(name);
+		} catch (error) {
+			this.notificationService.error(error);
+		}
+	}
+
+	private async createNewProfile(): Promise<void> {
+		const title = localize('create new profle', "Create New Profile...");
+
+		const name = await this.getNameForProfile(title);
+		if (!name) {
+			return;
+		}
+
+		const settings: IQuickPickItem = { id: ProfileResourceType.Settings, label: localize('settings', "Settings"), picked: true };
+		const keybindings: IQuickPickItem = { id: ProfileResourceType.Keybindings, label: localize('keybindings', "Keyboard Shortcuts"), picked: false };
+		const snippets: IQuickPickItem = { id: ProfileResourceType.Snippets, label: localize('snippets', "User Snippets"), picked: true };
+		const tasks: IQuickPickItem = { id: ProfileResourceType.Tasks, label: localize('tasks', "User Tasks"), picked: true };
+		const extensions: IQuickPickItem = { id: ProfileResourceType.Extensions, label: localize('extensions', "Extensions"), picked: true };
+		const resources = [settings, keybindings, snippets, tasks, extensions];
+
+		const quickPick = this.quickInputService.createQuickPick();
+		quickPick.title = title;
+		quickPick.hideInput = true;
+		quickPick.canSelectMany = true;
+		quickPick.ok = false;
+		quickPick.customButton = true;
+		quickPick.hideCheckAll = true;
+		quickPick.ignoreFocusOut = true;
+		quickPick.customLabel = localize('create', "Create Profile");
+		quickPick.description = localize('customise the profile', "Choose the data that should be scoped to the new profile.");
+
+		const disposables = new DisposableStore();
+		const update = () => {
+			quickPick.items = resources;
+			quickPick.selectedItems = resources.filter(item => item.picked);
+		};
+		update();
+
+		disposables.add(quickPick.onDidChangeSelection(items => {
+			let needUpdate = false;
+			for (const resource of resources) {
+				resource.picked = items.includes(resource);
+				const description = resource.picked ? undefined : localize('use default profile', "From Default Profile");
+				if (resource.description !== description) {
+					resource.description = description;
+					needUpdate = true;
+				}
+			}
+			if (needUpdate) {
+				update();
+			}
+		}));
+
+		let result: ReadonlyArray<IQuickPickItem> | undefined;
+		disposables.add(quickPick.onDidCustom(async () => {
+			if (resources.some(resource => quickPick.selectedItems.includes(resource))) {
+				result = quickPick.selectedItems;
+				quickPick.hide();
+			}
+		}));
+		quickPick.show();
+
+		await new Promise<void>((c, e) => {
+			disposables.add(quickPick.onDidHide(() => {
+				disposables.dispose();
+				c();
+			}));
+		});
+
+		if (!result) {
+			return;
+		}
+
+		try {
+			const useDefaultFlags: UseDefaultProfileFlags | undefined = result.length !== resources.length ? {
+				settings: !result.includes(settings),
+				keybindings: !result.includes(keybindings),
+				snippets: !result.includes(snippets),
+				tasks: !result.includes(tasks),
+				extensions: !result.includes(extensions)
+			} : undefined;
+			await this.userDataProfileManagementService.createAndEnterProfile(name, { useDefaultFlags });
+		} catch (error) {
+			this.notificationService.error(error);
+		}
+	}
+
+	private async getNameForProfile(title: string): Promise<string | undefined> {
+		return this.quickInputService.input({
 			placeHolder: localize('name', "Profile name"),
-			title: fromExisting ? localize('create from current profle', "Create from Current Profile...") : localize('create empty profile', "Create an Empty Profile..."),
+			title,
 			validateInput: async (value: string) => {
 				if (this.userDataProfilesService.profiles.some(p => p.name === value)) {
 					return localize('profileExists', "Profile with name {0} already exists.", value);
@@ -450,18 +579,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				return undefined;
 			}
 		});
-		if (!name) {
-			return;
-		}
-		try {
-			if (fromExisting) {
-				await this.userDataProfileImportExportService.createFromCurrentProfile(name);
-			} else {
-				await this.userDataProfileManagementService.createAndEnterProfile(name);
-			}
-		} catch (error) {
-			this.notificationService.error(error);
-		}
 	}
 
 	private registerCreateProfileAction(): void {
@@ -492,11 +609,11 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				const commandService = accessor.get(ICommandService);
 				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
 				const quickPickItems: QuickPickItem[] = [{
-					id: CREATE_EMPTY_PROFILE_ACTION_ID,
-					label: localize('empty', "Empty Profile"),
+					id: CREATE_NEW_PROFILE_ACTION_ID,
+					label: localize('new profile', "New Profile..."),
 				}, {
 					id: CREATE_FROM_CURRENT_PROFILE_ACTION_ID,
-					label: localize('using current', "Using Current Profile"),
+					label: localize('using current', "From Current Profile..."),
 				}];
 				const profileTemplateQuickPickItems = await that.getProfileTemplatesQuickPickItems();
 				if (profileTemplateQuickPickItems.length) {

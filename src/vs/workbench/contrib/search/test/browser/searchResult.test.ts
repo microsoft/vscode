@@ -51,7 +51,9 @@ suite('SearchResult', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 	});
 
-	teardown(() => sinon.restore());
+	teardown(() => {
+		instantiationService.dispose();
+	});
 
 	test('Line Match', function () {
 		const fileMatch = aFileMatch('folder/file.txt', null!);

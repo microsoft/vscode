@@ -9,7 +9,6 @@ html, body {
 	padding: 0 26px;
 	line-height: var(--markdown-line-height, 22px);
 	word-wrap: break-word;
-	overscroll-behavior-x: none;
 }
 
 body {

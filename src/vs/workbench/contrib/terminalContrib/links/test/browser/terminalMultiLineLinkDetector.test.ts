@@ -151,6 +151,10 @@ suite('Workbench - TerminalMultiLineLinkDetector', () => {
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	suite('macOS/Linux', () => {
 		setup(() => {
 			detector = instantiationService.createInstance(TerminalMultiLineLinkDetector, xterm, {

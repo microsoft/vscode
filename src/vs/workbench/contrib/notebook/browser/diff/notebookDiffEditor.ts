@@ -268,7 +268,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				mouseSupport: true,
 				multipleSelectionSupport: false,
 				typeNavigationEnabled: true,
-				additionalScrollHeight: 0,
+				paddingBottom: 0,
 				// transformOptimization: (isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				styleController: (_suffix: string) => { return this._list!; },
 				overrideStyles: {

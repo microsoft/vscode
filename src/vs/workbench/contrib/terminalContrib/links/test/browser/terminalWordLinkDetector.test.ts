@@ -18,9 +18,10 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 	let configurationService: TestConfigurationService;
 	let detector: TerminalWordLinkDetector;
 	let xterm: Terminal;
+	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
-		const instantiationService = new TestInstantiationService();
+		instantiationService = new TestInstantiationService();
 		configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: '' } });
 
@@ -30,6 +31,10 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
 		detector = instantiationService.createInstance(TerminalWordLinkDetector, xterm);
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	async function assertLink(

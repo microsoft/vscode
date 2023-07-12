@@ -201,7 +201,7 @@ export function createCodeEditorServices(disposables: DisposableStore, services:
 	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
 	define(ILanguageFeaturesService, LanguageFeaturesService);
 
-	const instantiationService = new TestInstantiationService(services, true);
+	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 	disposables.add(toDisposable(() => {
 		for (const id of serviceIdentifiers) {
 			const instanceOrDescriptor = services.get(id);

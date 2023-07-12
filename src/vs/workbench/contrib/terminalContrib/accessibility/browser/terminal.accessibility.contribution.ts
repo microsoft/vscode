@@ -73,8 +73,7 @@ export class TerminalAccessibilityHelpContribution extends Disposable {
 			if (!terminal) {
 				return;
 			}
-			accessibleViewService.registerProvider(instantiationService.createInstance(TerminalAccessibleContentProvider, instance, terminal));
-			accessibleViewService.show('terminal');
+			accessibleViewService.show(instantiationService.createInstance(TerminalAccessibleContentProvider, instance, terminal));
 		}, TerminalContextKeys.focus));
 	}
 }

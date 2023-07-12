@@ -1861,15 +1861,19 @@ export class SearchView extends ViewPane {
 		const oldParentMatches = element instanceof Match ? element.parent().matches() : [];
 		const resource = resourceInput ?? (element instanceof Match ? element.parent().resource : (<FileMatch>element).resource);
 		let editor: IEditorPane | undefined;
+
+		const options = {
+			preserveFocus,
+			pinned,
+			selection,
+			revealIfVisible: true,
+			indexedCellOptions: element instanceof MatchInNotebook ? { cellIndex: element.cellIndex, selection: element.range } : undefined,
+		};
+
 		try {
 			editor = await this.editorService.openEditor({
 				resource: resource,
-				options: {
-					preserveFocus,
-					pinned,
-					selection,
-					revealIfVisible: true
-				}
+				options,
 			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 
 			const editorControl = editor?.getControl();
