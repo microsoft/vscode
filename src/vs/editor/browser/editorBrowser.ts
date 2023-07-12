@@ -1089,7 +1089,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * Is called when the model has been set, view state was restored and options are updated.
-	 * This is the best place to render UI.
+	 * This is the best place to compute data for the viewport (such as tokens).
 	 */
 	handleInitialized?(): void;
 }
