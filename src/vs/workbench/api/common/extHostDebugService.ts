@@ -36,6 +36,9 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	onDidStartDebugSession: Event<vscode.DebugSession>;
 	onDidTerminateDebugSession: Event<vscode.DebugSession>;
 	onDidChangeActiveDebugSession: Event<vscode.DebugSession | undefined>;
+	onDidChangeSelectedConfiguration: Event<void>;
+	setSelectedConfiguration(name: string | undefined): void;
+	selectedConfigurationName: string | undefined;
 	activeDebugSession: vscode.DebugSession | undefined;
 	activeDebugConsole: vscode.DebugConsole;
 	onDidReceiveDebugSessionCustomEvent: Event<vscode.DebugSessionCustomEvent>;
@@ -85,8 +88,13 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	private readonly _onDidReceiveDebugSessionCustomEvent: Emitter<vscode.DebugSessionCustomEvent>;
 	get onDidReceiveDebugSessionCustomEvent(): Event<vscode.DebugSessionCustomEvent> { return this._onDidReceiveDebugSessionCustomEvent.event; }
 
+	private readonly _onDidChangeSelectedConfiguration: Emitter<void>;
+	get onDidChangeSelectedConfiguration(): Event<void> { return this._onDidChangeSelectedConfiguration.event; }
+
 	private _activeDebugConsole: ExtHostDebugConsole;
 	get activeDebugConsole(): vscode.DebugConsole { return this._activeDebugConsole.value; }
+
+	public selectedConfigurationName: string | undefined;
 
 	private _breakpoints: Map<string, vscode.Breakpoint>;
 
@@ -124,6 +132,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		this._onDidTerminateDebugSession = new Emitter<vscode.DebugSession>();
 		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession | undefined>();
 		this._onDidReceiveDebugSessionCustomEvent = new Emitter<vscode.DebugSessionCustomEvent>();
+		this._onDidChangeSelectedConfiguration = new Emitter<void>();
 
 		this._debugServiceProxy = extHostRpcService.getProxy(MainContext.MainThreadDebugService);
 
@@ -263,6 +272,10 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 		// send DTOs to VS Code
 		return this._debugServiceProxy.$registerBreakpoints(dtos);
+	}
+
+	public setSelectedConfiguration(name: string) {
+		this._debugServiceProxy.$setSelectedConfiguration(name);
 	}
 
 	public removeBreakpoints(breakpoints0: vscode.Breakpoint[]): Promise<void> {
@@ -583,6 +596,13 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		}
 
 		this.fireBreakpointChanges(a, r, c);
+	}
+
+	public async $signalActiveConfigurationChanged(fireEvent: boolean, configurationName: string): Promise<void> {
+		this.selectedConfigurationName = configurationName;
+		if (fireEvent) {
+			this._onDidChangeSelectedConfiguration.fire();
+		}
 	}
 
 	public async $acceptStackFrameFocus(focusDto: IThreadFocusDto | IStackFrameFocusDto): Promise<void> {

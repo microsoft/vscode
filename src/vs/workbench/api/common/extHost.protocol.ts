@@ -1406,6 +1406,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$appendDebugConsole(value: string): void;
 	$registerBreakpoints(breakpoints: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void>;
 	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[], dataBreakpointIds: string[]): Promise<void>;
+	$setSelectedConfiguration(name: string): void;
 }
 
 export interface IOpenUriOptions {
@@ -2143,6 +2144,7 @@ export interface ExtHostDebugServiceShape {
 	$acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void;
 	$acceptDebugSessionNameChanged(session: IDebugSessionDto, name: string): void;
 	$acceptStackFrameFocus(focus: IThreadFocusDto | IStackFrameFocusDto | undefined): void;
+	$signalActiveConfigurationChanged(fireEvent: boolean, configurationName: string | undefined): void;
 }
 
 

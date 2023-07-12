@@ -1154,6 +1154,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get stackFrameFocus() {
 				return extHostDebugService.stackFrameFocus;
 			},
+			get selectedConfiguration() {
+				const selectedConfigurationName = extHostDebugService.selectedConfigurationName;
+				return selectedConfigurationName ? { name: selectedConfigurationName } : undefined;
+			},
 			onDidStartDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidStartDebugSession(listener, thisArg, disposables);
 			},
@@ -1168,6 +1172,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidChangeBreakpoints(listener, thisArgs?, disposables?) {
 				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
+			},
+			onDidChangeSelectedConfiguration(listener, thisArgs?, disposables?) {
+				return extHostDebugService.onDidChangeSelectedConfiguration(listener, thisArgs, disposables);
 			},
 			onDidChangeStackFrameFocus(listener, thisArg?, disposables?) {
 				checkProposedApiEnabled(extension, 'debugFocus');
@@ -1199,6 +1206,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri {
 				return extHostDebugService.asDebugSourceUri(source, session);
+			},
+			setSelectedConfiguration(name) {
+				return extHostDebugService.setSelectedConfiguration(name);
 			}
 		};
 

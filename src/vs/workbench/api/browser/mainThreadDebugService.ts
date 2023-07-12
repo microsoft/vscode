@@ -83,6 +83,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				this._proxy.$acceptStackFrameFocus(dto);
 			}
 		}));
+		this._proxy.$signalActiveConfigurationChanged(false, this.debugService.getConfigurationManager().selectedConfiguration?.name);
+		this.debugService.getConfigurationManager().onDidSelectConfiguration(() => {
+			this._proxy.$signalActiveConfigurationChanged(true, this.debugService.getConfigurationManager().selectedConfiguration?.name);
+		});
 		this.sendBreakpointsAndListen();
 	}
 
@@ -169,6 +173,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			}
 		}
 		return Promise.resolve();
+	}
+
+	public $setSelectedConfiguration(name: string) {
+		this.debugService.getConfigurationManager().selectConfiguration(undefined, name);
 	}
 
 	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[], dataBreakpointIds: string[]): Promise<void> {

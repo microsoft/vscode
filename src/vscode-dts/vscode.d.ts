@@ -1207,7 +1207,7 @@ declare module 'vscode' {
 		 * or accept the snippet.
 		 *
 		 * @param snippet The snippet to insert in this edit.
-		 * @param location Position or range at which to insert the snippet, defaults to the current editor selection or selections.
+		 * @param location Position o r range at which to insert the snippet, defaults to the current editor selection or selections.
 		 * @param options The undo/redo behavior around this edit. By default, undo stops will be created before and after this edit.
 		 * @return A promise that resolves with a value indicating if the snippet could be inserted. Note that the promise does not signal
 		 * that the snippet is completely filled-in or accepted.
@@ -15200,6 +15200,10 @@ declare module 'vscode' {
 		Dynamic = 2
 	}
 
+	export interface SelectedDebugConfiguration {
+		name: string;
+	}
+
 	/**
 	 * Namespace for debug functionality.
 	 */
@@ -15222,6 +15226,13 @@ declare module 'vscode' {
 		 * List of breakpoints.
 		 */
 		export let breakpoints: readonly Breakpoint[];
+
+		/**
+		 * The debug configuration, which is currently selected by the user.
+		 */
+		export const selectedConfiguration: SelectedDebugConfiguration | undefined;
+
+		export function setSelectedConfiguration(name: string): void;
 
 		/**
 		 * An {@link Event} which fires when the {@link debug.activeDebugSession active debug session}
@@ -15249,6 +15260,11 @@ declare module 'vscode' {
 		 * An {@link Event} that is emitted when the set of breakpoints is added, removed, or changed.
 		 */
 		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
+
+		/**
+		 * An {@link Event} that is emitted when the set of breakpoints is added, removed, or changed.
+		 */
+		export const onDidChangeSelectedConfiguration: Event<void>;
 
 		/**
 		 * Register a {@link DebugConfigurationProvider debug configuration provider} for a specific debug type.
