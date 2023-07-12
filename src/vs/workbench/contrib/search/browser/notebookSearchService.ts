@@ -266,7 +266,7 @@ export class NotebookSearchService implements INotebookSearchService {
 					includeMarkupPreview: query.contentPattern.notebookInfo?.isInNotebookMarkdownPreview,
 					includeCodeInput: query.contentPattern.notebookInfo?.isInNotebookCellInput,
 					includeOutput: query.contentPattern.notebookInfo?.isInNotebookCellOutput,
-				}, token, false, true);
+				}, token, false, true, 'TEMP_SEARCH_ID');
 
 
 			if (matches.length) {

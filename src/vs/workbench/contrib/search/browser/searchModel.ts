@@ -763,7 +763,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		}
 		this._findMatchDecorationModel?.stopWebviewFind();
 		this._findMatchDecorationModel?.dispose();
-		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditorWidget);
+		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditorWidget, 'TEMP_SEARCH_ID');
 	}
 
 	private _removeNotebookHighlights(): void {
@@ -851,7 +851,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 				includeMarkupPreview: this._query.notebookInfo?.isInNotebookMarkdownPreview,
 				includeCodeInput: this._query.notebookInfo?.isInNotebookCellInput,
 				includeOutput: this._query.notebookInfo?.isInNotebookCellOutput,
-			}, CancellationToken.None, false, true);
+			}, CancellationToken.None, false, true, 'TEMP_SEARCH_ID');
 
 		this.updateNotebookMatches(allMatches, true);
 	}

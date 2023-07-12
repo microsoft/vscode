@@ -2439,15 +2439,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return Promise.all(requests);
 	}
 
-	async find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup: boolean = false, shouldGetSearchPreviewInfo = false): Promise<CellFindMatchWithIndex[]> {
+	async find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup: boolean = false, shouldGetSearchPreviewInfo = false, ownerID?: string): Promise<CellFindMatchWithIndex[]> {
 		if (!this._notebookViewModel) {
 			return [];
+		}
+
+		if (!ownerID) {
+			ownerID = this.getId();
 		}
 
 		const findMatches = this._notebookViewModel.find(query, options).filter(match => match.length > 0);
 
 		if (!options.includeMarkupPreview && !options.includeOutput) {
-			this._webview?.findStop();
+			this._webview?.findStop(ownerID);
 			return findMatches;
 		}
 
@@ -2470,7 +2474,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return [];
 			}
 
-			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo });
+			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo, ownerID });
 
 			if (token.isCancellationRequested) {
 				return [];
@@ -2526,24 +2530,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return ret;
 	}
 
-	async highlightFind(matchIndex: number): Promise<number> {
+	async highlightFind(matchIndex: number, ownerID?: string): Promise<number> {
 		if (!this._webview) {
 			return 0;
 		}
 
-		return this._webview?.findHighlightCurrent(matchIndex);
+		return this._webview?.findHighlightCurrent(matchIndex, ownerID ?? this.getId());
 	}
 
-	async unHighlightFind(matchIndex: number): Promise<void> {
+	async unHighlightFind(matchIndex: number, ownerID?: string): Promise<void> {
 		if (!this._webview) {
 			return;
 		}
 
-		return this._webview?.findUnHighlightCurrent(matchIndex);
+		return this._webview?.findUnHighlightCurrent(matchIndex, ownerID ?? this.getId());
 	}
 
-	findStop() {
-		this._webview?.findStop();
+	findStop(ownerID?: string) {
+		this._webview?.findStop(ownerID ?? this.getId());
 	}
 
 	//#endregion
