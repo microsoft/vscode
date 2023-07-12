@@ -560,7 +560,19 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		await Promise.allSettled(this.servers.map(server => server.extensionManagementService.cleanUp()));
 	}
 
+	copyExtensions(from: URI, to: URI): Promise<void> {
+		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+			throw new Error('Not Supported');
+		}
+		if (this.extensionManagementServerService.localExtensionManagementServer) {
+			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.copyExtensions(from, to);
+		}
+		if (this.extensionManagementServerService.webExtensionManagementServer) {
+			return this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.copyExtensions(from, to);
+		}
+		return Promise.resolve();
+	}
+
 	registerParticipant() { throw new Error('Not Supported'); }
-	copyExtensions(): Promise<void> { throw new Error('Not Supported'); }
 	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
 }
