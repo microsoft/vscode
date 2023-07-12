@@ -560,7 +560,7 @@ export class TextAreaHandler extends ViewPart {
 	private _setAccessibilityOptions(options: IComputedEditorOptions): void {
 		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
-		if (this._accessibilitySupport === AccessibilitySupport.Enabled && accessibilityPageSize === EditorOptions.accessibilityPageSize.defaultValue) {
+		if (this._accessibilitySupport === AccessibilitySupport.Enabled && accessibilityPageSize === EditorOptions.accessibility.accessibilityPageSize.defaultValue) {
 			// If a screen reader is attached and the default value is not set we should automatically increase the page size to 500 for a better experience
 			this._accessibilityPageSize = 500;
 		} else {
