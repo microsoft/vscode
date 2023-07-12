@@ -73,6 +73,8 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 			await this.updateEditor();
 			this.element.classList.add(ClassName.Active);
 		}));
+		// xterm's initial layout call has already happened
+		this.layout();
 	}
 
 	navigateToCommand(type: NavigationType): void {

@@ -655,7 +655,7 @@ export class InlineChatController implements IEditorContribution {
 			if (!canContinue) {
 				return State.ACCEPT;
 			}
-			status = localize('editResponseMessage', "Use tab to navigate to the diff editor and review proposed changes.");
+			status = this._configurationService.getValue('accessibility.verbosity.inlineChat') === true ? localize('editResponseMessage', "Use tab to navigate to the diff editor and review proposed changes.") : '';
 			await this._strategy.renderChanges(response);
 		}
 		this._chatAccessibilityService.acceptResponse(status);
