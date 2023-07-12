@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
-import { createOutputContent, scrollableClass } from './textHelper';
+import { appendOutput, createOutputContent, scrollableClass } from './textHelper';
 import { HtmlRenderingHook, IDisposable, IRichRenderContext, JavaScriptRenderingHook, RenderOptions } from './rendererTypes';
 import { ttPolicy } from './htmlHelper';
 
@@ -172,7 +172,7 @@ function renderError(
 		outputElement.classList.add('traceback');
 
 		const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-		const content = createOutputContent(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, outputScrolling, trustHTML);
+		const content = createOutputContent(outputInfo.id, err.stack ?? '', ctx.settings.lineLimit, outputScrolling, trustHTML);
 		const contentParent = document.createElement('div');
 		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
@@ -276,26 +276,19 @@ interface OutputWithAppend extends OutputItem {
 //          div output-item-id="{guid}"	<-- content from outputItem parameter
 function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
 	const appendedText = outputInfo.appendedText?.();
-	if (appendedText) {
-		console.log(`appending output version ${appendedText}`);
-	}
 	const disposableStore = createDisposableStore();
 	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
 
 	outputElement.classList.add('output-stream');
 
-	const text = outputInfo.text();
-	const newContent = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, false);
-	newContent.setAttribute('output-item-id', outputInfo.id);
-	if (error) {
-		newContent.classList.add('error');
-	}
+
 
 	const scrollTop = outputScrolling ? findScrolledHeight(outputElement) : undefined;
 
 	const previousOutputParent = getPreviousMatchingContentGroup(outputElement);
 	// If the previous output item for the same cell was also a stream, append this output to the previous
 	if (previousOutputParent) {
+		const newContent = createContent(outputInfo, ctx, outputScrolling, error);
 		const existingContent = previousOutputParent.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
 		if (existingContent) {
 			existingContent.replaceWith(newContent);
@@ -309,15 +302,19 @@ function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, 
 		const existingContent = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
 		let contentParent = existingContent?.parentElement;
 		if (existingContent && contentParent) {
-			if (appendedText){
-				existingContent
+			if (appendedText) {
+				appendOutput(existingContent, outputInfo.id, appendedText, ctx.settings.lineLimit, outputScrolling, false);
 			}
-			existingContent.replaceWith(newContent);
-			while (newContent.nextSibling) {
-				// clear out any stale content if we had previously combined streaming outputs into this one
-				newContent.nextSibling.remove();
+			else {
+				const newContent = createContent(outputInfo, ctx, outputScrolling, error);
+				existingContent.replaceWith(newContent);
+				while (newContent.nextSibling) {
+					// clear out any stale content if we had previously combined streaming outputs into this one
+					newContent.nextSibling.remove();
+				}
 			}
 		} else {
+			const newContent = createContent(outputInfo, ctx, outputScrolling, error);
 			contentParent = document.createElement('div');
 			contentParent.appendChild(newContent);
 			while (outputElement.firstChild) {
@@ -338,13 +335,23 @@ function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, 
 	return disposableStore;
 }
 
+function createContent(outputInfo: OutputWithAppend, ctx: IRichRenderContext, outputScrolling: boolean, error: boolean) {
+	const text = outputInfo.text();
+	const newContent = createOutputContent(outputInfo.id, text, ctx.settings.lineLimit, outputScrolling, false);
+	newContent.setAttribute('output-item-id', outputInfo.id);
+	if (error) {
+		newContent.classList.add('error');
+	}
+	return newContent;
+}
+
 function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRichRenderContext): IDisposable {
 	const disposableStore = createDisposableStore();
 	clearContainer(outputElement);
 
 	const text = outputInfo.text();
 	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, false);
+	const content = createOutputContent(outputInfo.id, text, ctx.settings.lineLimit, outputScrolling, false);
 	content.classList.add('output-plaintext');
 	if (ctx.settings.outputWordWrap) {
 		content.classList.add('word-wrap');
