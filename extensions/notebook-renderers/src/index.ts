@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
-import { appendOutput, createOutputContent, scrollableClass } from './textHelper';
-import { HtmlRenderingHook, IDisposable, IRichRenderContext, JavaScriptRenderingHook, RenderOptions } from './rendererTypes';
+import { appendScrollableOutput, createOutputContent, scrollableClass } from './textHelper';
+import { HtmlRenderingHook, IDisposable, IRichRenderContext, JavaScriptRenderingHook, OutputWithAppend, RenderOptions } from './rendererTypes';
 import { ttPolicy } from './htmlHelper';
 
 function clearContainer(container: HTMLElement) {
@@ -265,10 +265,6 @@ function scrollingEnabled(output: OutputItem, options: RenderOptions) {
 		metadata.scrollable : options.outputScrolling;
 }
 
-interface OutputWithAppend extends OutputItem {
-	appendedText?(): string | undefined;
-}
-
 //  div.cell_container
 //    div.output_container
 //      div.output.output-stream		<-- outputElement parameter
@@ -302,7 +298,7 @@ function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, 
 		if (existingContent && contentParent) {
 			// appending output only in scrollable ouputs currently
 			if (appendedText && outputScrolling) {
-				appendOutput(existingContent, appendedText, false);
+				appendScrollableOutput(existingContent, outputInfo.id, appendedText, outputInfo.text(), false);
 			}
 			else {
 				const newContent = createContent(outputInfo, ctx, outputScrolling, error);

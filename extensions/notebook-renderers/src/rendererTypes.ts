@@ -35,3 +35,7 @@ export interface RenderOptions {
 }
 
 export type IRichRenderContext = RendererContext<void> & { readonly settings: RenderOptions; readonly onDidChangeSettings: Event<RenderOptions> };
+
+export interface OutputWithAppend extends OutputItem {
+	appendedText?(): string | undefined;
+}

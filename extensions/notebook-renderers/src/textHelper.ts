@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { handleANSIOutput } from './ansi';
-
 export const scrollableClass = 'scrollable';
+
+const softScrollableLineLimit = 5000;
+const hardScrollableLineLimit = 8000;
 
 /**
  * Output is Truncated. View as a [scrollable element] or open in a [text editor]. Adjust cell output [settings...]
@@ -91,11 +93,11 @@ function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number
 
 function scrollableArrayOfString(id: string, buffer: string[], trustHtml: boolean) {
 	const element = document.createElement('div');
-	if (buffer.length > 5000) {
+	if (buffer.length > softScrollableLineLimit) {
 		element.appendChild(generateNestedViewAllElement(id));
 	}
 
-	element.appendChild(handleANSIOutput(buffer.slice(-5000).join('\n'), trustHtml));
+	element.appendChild(handleANSIOutput(buffer.slice(-1 * softScrollableLineLimit).join('\n'), trustHtml));
 
 	return element;
 }
@@ -111,8 +113,26 @@ export function createOutputContent(id: string, outputText: string, linesLimit: 
 	}
 }
 
-export function appendOutput(element: HTMLElement, outputText: string, trustHtml: boolean) {
-	const buffer = outputText.split(/\r\n|\r|\n/g);
-	const newContent = handleANSIOutput(buffer.join('\n'), trustHtml);
-	element.appendChild(newContent);
+const outputLengths: Record<string, number> = {};
+
+export function appendScrollableOutput(element: HTMLElement, id: string, appended: string, fullText: string, trustHtml: boolean) {
+	if (!outputLengths[id]) {
+		outputLengths[id] = 0;
+	}
+
+	const buffer = appended.split(/\r\n|\r|\n/g);
+	const appendedLength = buffer.length + outputLengths[id];
+	// Allow the output to grow to the hard limit then replace it with the last softLimit number of lines if it grows too large
+	if (buffer.length + outputLengths[id] > hardScrollableLineLimit) {
+		const fullBuffer = fullText.split(/\r\n|\r|\n/g);
+		outputLengths[id] = Math.min(fullBuffer.length, softScrollableLineLimit);
+		const newElement = scrollableArrayOfString(id, fullBuffer.slice(-1 * softScrollableLineLimit), trustHtml);
+		newElement.setAttribute('output-item-id', id);
+		element.replaceWith();
+	}
+	else {
+		element.appendChild(handleANSIOutput(buffer.join('\n'), trustHtml));
+		outputLengths[id] = appendedLength;
+	}
 }
+
