@@ -36,11 +36,13 @@ class InputEditorDecorations extends Disposable {
 
 	private _slashCommandDomNode = document.createElement('div');
 	private _slashCommandContentWidget: IContentWidget | undefined;
+	private _previouslyUsedSlashCommands = new Set<string>();
 
 	constructor(
 		private readonly widget: IChatWidget,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -52,6 +54,11 @@ class InputEditorDecorations extends Disposable {
 		this.updateInputEditorDecorations();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.updateInputEditorDecorations()));
 		this._register(this.widget.onDidChangeViewModel(() => this.updateInputEditorDecorations()));
+		this._register(this.chatService.onDidSubmitSlashCommand((e) => {
+			if (e.sessionId === this.widget.viewModel?.sessionId && !this._previouslyUsedSlashCommands.has(e.slashCommand)) {
+				this._previouslyUsedSlashCommands.add(e.slashCommand);
+			}
+		}));
 	}
 
 	private updateRegisteredDecorationTypes() {
@@ -73,10 +80,10 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private async updateInputEditorDecorations() {
-		const value = this.widget.inputEditor.getValue();
+		const inputValue = this.widget.inputEditor.getValue();
 		const slashCommands = await this.widget.getSlashCommands(); // TODO this async call can lead to a flicker of the placeholder text when switching editor tabs
 
-		if (!value) {
+		if (!inputValue) {
 			const extensionPlaceholder = this.widget.viewModel?.inputPlaceholder;
 			const defaultPlaceholder = slashCommands?.length ?
 				localize('interactive.input.placeholderWithCommands', "Ask a question or type '/' for topics") :
@@ -103,31 +110,35 @@ class InputEditorDecorations extends Disposable {
 			return;
 		}
 
-		const command = value && slashCommands?.find(c => value.startsWith(`/${c.command} `));
-		if (command && command.detail && value === `/${command.command} `) {
-			const decoration: IDecorationOptions[] = [
-				{
+		let slashCommandPlaceholderDecoration: IDecorationOptions[] | undefined;
+		const command = inputValue && slashCommands?.find(c => inputValue.startsWith(`/${c.command} `));
+		if (command && inputValue === `/${command.command} `) {
+			const isFollowupSlashCommand = this._previouslyUsedSlashCommands.has(command.command);
+			const shouldRenderFollowupPlaceholder = command.followupPlaceholder && isFollowupSlashCommand;
+			if (shouldRenderFollowupPlaceholder || command.detail) {
+				slashCommandPlaceholderDecoration = [{
 					range: {
 						startLineNumber: 1,
 						endLineNumber: 1,
-						startColumn: command.command.length + 2,
+						startColumn: command && typeof command !== 'string' ? (command?.command.length + 2) : 1,
 						endColumn: 1000
 					},
 					renderOptions: {
 						after: {
-							contentText: command.detail,
+							contentText: shouldRenderFollowupPlaceholder ? command.followupPlaceholder : command.detail,
 							color: this.getPlaceholderColor(),
 							padding: '0 0 0 5px'
 						}
 					}
-				}
-			];
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, decoration);
-		} else {
+				}];
+				this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, slashCommandPlaceholderDecoration);
+			}
+		}
+		if (!slashCommandPlaceholderDecoration) {
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, []);
 		}
 
-		if (command && value.startsWith(`/${command.command} `)) {
+		if (command && inputValue.startsWith(`/${command.command} `)) {
 			this.updateInputEditorContentWidgets({ command: command.command });
 		} else {
 			this.updateInputEditorContentWidgets({ hide: true });

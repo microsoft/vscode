@@ -131,6 +131,7 @@ declare module 'vscode' {
 		shouldRepopulate?: boolean;
 		kind: CompletionItemKind;
 		detail?: string;
+		followupPlaceholder?: string;
 	}
 
 	export interface InteractiveSessionReplyFollowup {
