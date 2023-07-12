@@ -65,7 +65,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 			const keys = ['audioCues.diffLineDeleted', 'audioCues.diffLineInserted', 'audioCues.diffLineModified'];
 
 			accessibleViewService.show({
-				id: 'diffEditor',
+				verbositySettingKey: 'diffEditor',
 				provideContent: () => [
 					nls.localize('msg1', "You are in a diff editor."),
 					nls.localize('msg2', "Press {0} or {1} to view the next or previous diff in the diff review mode that is optimized for screen readers.", next, previous),

@@ -72,7 +72,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type);
 	accessibleViewService.show({
-		id: type,
+		verbositySettingKey: type,
 		provideContent: () => helpText,
 		onClose: () => {
 			if (type === 'panelChat' && cachedPosition) {
