@@ -281,8 +281,6 @@ function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, 
 
 	outputElement.classList.add('output-stream');
 
-
-
 	const scrollTop = outputScrolling ? findScrolledHeight(outputElement) : undefined;
 
 	const previousOutputParent = getPreviousMatchingContentGroup(outputElement);
@@ -302,8 +300,9 @@ function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, 
 		const existingContent = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
 		let contentParent = existingContent?.parentElement;
 		if (existingContent && contentParent) {
-			if (appendedText) {
-				appendOutput(existingContent, outputInfo.id, appendedText, ctx.settings.lineLimit, outputScrolling, false);
+			// appending output only in scrollable ouputs currently
+			if (appendedText && outputScrolling) {
+				appendOutput(existingContent, appendedText, false);
 			}
 			else {
 				const newContent = createContent(outputInfo, ctx, outputScrolling, error);

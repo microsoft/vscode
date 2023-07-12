@@ -1499,6 +1499,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		const outputCache = this.insetMapping.get(content.source)!;
+
+		if (outputCache.versionId === content.source.model.versionId) {
+			// already sent this output version to the renderer
+			return;
+		}
+
 		this.hiddenInsetMapping.delete(content.source);
 		let updatedContent: ICreationContent | undefined = undefined;
 

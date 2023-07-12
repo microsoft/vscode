@@ -111,32 +111,8 @@ export function createOutputContent(id: string, outputText: string, linesLimit: 
 	}
 }
 
-export function appendOutput(element: HTMLElement, id: string, outputText: string, linesLimit: number, scrollable: boolean, trustHtml: boolean) {
+export function appendOutput(element: HTMLElement, outputText: string, trustHtml: boolean) {
 	const buffer = outputText.split(/\r\n|\r|\n/g);
-	let newContent: HTMLDivElement;
-	if (scrollable) {
-		newContent = scrollableArrayOfString(id, buffer, trustHtml);
-		element.appendChild(newContent);
-		// contains 1 span per line
-		// const innerContainer = element.childNodes[0].childNodes[0];
-		// const linesToAdd = newContent.childNodes[0].childNodes[0].childNodes;
-
-		// linesToAdd.forEach(span => {
-		// 	innerContainer.appendChild(span);
-		// 	while (innerContainer.childNodes.length > 5000) {
-		// 		innerContainer.firstChild?.remove();
-		// 	}
-		// });
-	} else {
-		newContent = truncatedArrayOfString(id, buffer, linesLimit, trustHtml);
-
-		// contains 1 span per line
-		const innerContainer = element.childNodes[0].childNodes[0];
-		const linesToAdd = newContent.childNodes[0].childNodes[0].childNodes;
-
-		linesToAdd.forEach(span => {
-			innerContainer.appendChild(span);
-
-		});
-	}
+	const newContent = handleANSIOutput(buffer.join('\n'), trustHtml);
+	element.appendChild(newContent);
 }
