@@ -28,7 +28,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 
 const enum DEFAULT {
 	WIDTH = 800,
-	TOP = 25
+	TOP = 3
 }
 
 export interface IAccessibleContentProvider {
