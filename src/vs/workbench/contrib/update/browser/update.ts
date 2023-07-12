@@ -451,16 +451,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
 		});
 
-		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.restart',
-				title: nls.localize('restartToUpdate', "Restart to Update (1)")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
-		});
-
 		CommandsRegistry.registerCommand('update.showUpdateReleaseNotes', () => {
 			if (this.updateService.state.type !== StateType.Ready) {
 				return;
@@ -474,6 +464,16 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			command: {
 				id: 'update.showUpdateReleaseNotes',
 				title: nls.localize('showUpdateReleaseNotes', "Show Update Release Notes")
+			},
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
+		});
+
+		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			group: '7_update',
+			command: {
+				id: 'update.restart',
+				title: nls.localize('restartToUpdate', "Restart to Update (1)")
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
 		});
