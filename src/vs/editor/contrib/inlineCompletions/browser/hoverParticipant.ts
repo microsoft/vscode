@@ -103,7 +103,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			comment: 'This event tracks whenever an inline completion hover is shown.';
 		}>('inlineCompletionHover.shown');
 
-		if (this.accessibilityService.isScreenReaderOptimized()) {
+		if (this.accessibilityService.isScreenReaderOptimized() && !this._editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
 			this.renderScreenReaderText(context, part, disposableStore);
 		}
 
