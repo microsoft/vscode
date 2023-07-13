@@ -118,7 +118,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		await Promise.allSettled(extensions.map(async ({ extension, options }) => {
 			try {
-				const compatible = await this.checkAndGetCompatibleVersion(extension, !!options?.installGivenVersion, !!options?.installPreReleaseVersion);
+				const compatible = await this.checkAndGetCompatibleVersion(extension, !!options?.installGivenVersion, !!options?.installPreReleaseVersion, false);
 				installableExtensions.push({ ...compatible, options });
 			} catch (error) {
 				results.push({ identifier: extension.identifier, operation: InstallOperation.Install, source: extension, error });
@@ -434,10 +434,10 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						const isDependency = dependecies.some(id => areSameExtensions({ id }, galleryExtension.identifier));
 						let compatible;
 						try {
-							compatible = await this.checkAndGetCompatibleVersion(galleryExtension, false, installPreRelease);
+							compatible = await this.checkAndGetCompatibleVersion(galleryExtension, false, installPreRelease, true);
 						} catch (error) {
-							if (error instanceof ExtensionManagementError && error.code === ExtensionManagementErrorCode.IncompatibleTargetPlatform && !isDependency) {
-								this.logService.info('Skipping the packed extension as it cannot be installed', galleryExtension.identifier.id);
+							if (!isDependency) {
+								this.logService.info('Skipping the packed extension as it cannot be installed', galleryExtension.identifier.id, getErrorMessage(error));
 								continue;
 							} else {
 								throw error;
@@ -454,7 +454,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return allDependenciesAndPacks;
 	}
 
-	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, installPreRelease: boolean): Promise<{ extension: IGalleryExtension; manifest: IExtensionManifest }> {
+	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, installPreRelease: boolean, fallbackToRelease: boolean): Promise<{ extension: IGalleryExtension; manifest: IExtensionManifest }> {
 		const extensionsControlManifest = await this.getExtensionsControlManifest();
 		if (extensionsControlManifest.malicious.some(identifier => areSameExtensions(extension.identifier, identifier))) {
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), ExtensionManagementErrorCode.Malicious);
@@ -467,7 +467,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		const compatibleExtension = await this.getCompatibleVersion(extension, sameVersion, installPreRelease);
 		if (compatibleExtension) {
-			if (installPreRelease && !sameVersion && extension.hasPreReleaseVersion && !compatibleExtension.properties.isPreReleaseVersion) {
+			if (!fallbackToRelease && installPreRelease && !sameVersion && extension.hasPreReleaseVersion && !compatibleExtension.properties.isPreReleaseVersion) {
 				throw new ExtensionManagementError(nls.localize('notFoundCompatiblePrereleaseDependency', "Can't install pre-release version of '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.IncompatiblePreRelease);
 			}
 		} else {

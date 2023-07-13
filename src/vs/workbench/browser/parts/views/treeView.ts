@@ -344,13 +344,20 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 				async getChildren(node?: ITreeItem): Promise<ITreeItem[]> {
 					let children: ITreeItem[];
+					const checkboxesUpdated: ITreeItem[] = [];
 					if (node && node.children) {
 						children = node.children;
 					} else {
 						node = node ?? self.root;
 						node.children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
 						children = node.children ?? [];
-						children.forEach(child => child.parent = node);
+						children.forEach(child => {
+							child.parent = node;
+							if (!self.manuallyManageCheckboxes && (node?.checkbox?.isChecked === true) && (child.checkbox?.isChecked === false)) {
+								child.checkbox.isChecked = true;
+								checkboxesUpdated.push(child);
+							}
+						});
 					}
 					if (node instanceof Root) {
 						const oldEmpty = this._isEmpty;
@@ -358,6 +365,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						if (oldEmpty !== this._isEmpty) {
 							this._onDidChangeEmpty.fire();
 						}
+					}
+					if (checkboxesUpdated.length > 0) {
+						self._onDidChangeCheckboxState.fire(checkboxesUpdated);
 					}
 					return children;
 				}
@@ -620,68 +630,6 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this._register(focusTracker.onDidBlur(() => this.focused = false));
 	}
 
-	private updateCheckboxes(items: ITreeItem[]) {
-		const additionalItems: ITreeItem[] = [];
-
-		if (!this.manuallyManageCheckboxes) {
-			for (const item of items) {
-				if (item.checkbox !== undefined) {
-
-					function checkChildren(currentItem: ITreeItem) {
-						for (const child of (currentItem.children ?? [])) {
-							if ((child.checkbox !== undefined) && (currentItem.checkbox !== undefined) && (child.checkbox.isChecked !== currentItem.checkbox.isChecked)) {
-								child.checkbox.isChecked = currentItem.checkbox.isChecked;
-								additionalItems.push(child);
-								checkChildren(child);
-							}
-						}
-					}
-					checkChildren(item);
-
-					const visitedParents: Set<ITreeItem> = new Set();
-					function checkParents(currentItem: ITreeItem) {
-						if (currentItem.parent && (currentItem.parent.checkbox !== undefined) && currentItem.parent.children) {
-							if (visitedParents.has(currentItem.parent)) {
-								return;
-							} else {
-								visitedParents.add(currentItem.parent);
-							}
-
-							let someUnchecked = false;
-							let someChecked = false;
-							for (const child of currentItem.parent.children) {
-								if (someUnchecked && someChecked) {
-									break;
-								}
-								if (child.checkbox !== undefined) {
-									if (child.checkbox.isChecked) {
-										someChecked = true;
-									} else {
-										someUnchecked = true;
-									}
-								}
-							}
-							if (someChecked && !someUnchecked && (currentItem.parent.checkbox.isChecked !== true)) {
-								currentItem.parent.checkbox.isChecked = true;
-								additionalItems.push(currentItem.parent);
-								checkParents(currentItem.parent);
-							} else if (someUnchecked && (currentItem.parent.checkbox.isChecked !== false)) {
-								currentItem.parent.checkbox.isChecked = false;
-								additionalItems.push(currentItem.parent);
-								checkParents(currentItem.parent);
-							}
-						}
-					}
-					checkParents(item);
-				}
-			}
-		}
-		items = items.concat(additionalItems);
-		items.forEach(item => this.tree?.rerender(item));
-		this._onDidChangeCheckboxState.fire(items);
-	}
-
-
 	protected createTree() {
 		const actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
 		const treeMenus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
@@ -689,10 +637,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
 		const aligner = new Aligner(this.themeService);
 		const checkboxStateHandler = this._register(new CheckboxStateHandler());
-		this._register(checkboxStateHandler.onDidChangeCheckboxState(items => {
-			this.updateCheckboxes(items);
-		}));
-		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler);
+		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, this.manuallyManageCheckboxes);
+		this._register(renderer.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e)));
+
 		const widgetAriaLabel = this._title;
 
 		this.tree = this._register(this.instantiationService.createInstance(Tree, this.id, this.treeContainer!, new TreeViewDelegate(), [renderer],
@@ -1115,10 +1062,13 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	static readonly ITEM_HEIGHT = 22;
 	static readonly TREE_TEMPLATE_ID = 'treeExplorer';
 
+	private readonly _onDidChangeCheckboxState: Emitter<readonly ITreeItem[]> = this._register(new Emitter<readonly ITreeItem[]>());
+	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]> = this._onDidChangeCheckboxState.event;
+
 	private _actionRunner: MultipleSelectionActionRunner | undefined;
 	private _hoverDelegate: IHoverDelegate;
 	private _hasCheckbox: boolean = false;
-	private _renderedElements = new Map<ITreeNode<ITreeItem, FuzzyScore>, ITreeExplorerTemplateData>();
+	private _renderedElements = new Map<string, { original: ITreeNode<ITreeItem, FuzzyScore>; rendered: ITreeExplorerTemplateData }>(); // tree item handle to template data
 
 	constructor(
 		private treeViewId: string,
@@ -1127,6 +1077,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		private actionViewItemProvider: IActionViewItemProvider,
 		private aligner: Aligner,
 		private checkboxStateHandler: CheckboxStateHandler,
+		private readonly manuallyManageCheckboxes: boolean,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -1141,6 +1092,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		};
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.rerender()));
 		this._register(this.themeService.onDidColorThemeChange(() => this.rerender()));
+		this._register(checkboxStateHandler.onDidChangeCheckboxState(items => {
+			this.updateCheckboxes(items);
+		}));
 	}
 
 	get templateId(): string {
@@ -1292,7 +1246,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		this.treeViewsService.addRenderedTreeItemElement(node, templateData.container);
 
 		// remember rendered element
-		this._renderedElements.set(element, templateData);
+		this._renderedElements.set(element.element.handle, { original: element, rendered: templateData });
 	}
 
 	private rerender() {
@@ -1302,8 +1256,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		for (const key of keys) {
 			const value = this._renderedElements.get(key);
 			if (value) {
-				this.disposeElement(key, 0, value);
-				this.renderElement(key, 0, value);
+				this.disposeElement(value.original, 0, value.rendered);
+				this.renderElement(value.original, 0, value.rendered);
 			}
 		}
 	}
@@ -1371,10 +1325,76 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		return node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE;
 	}
 
+	private updateCheckboxes(items: ITreeItem[]) {
+		const additionalItems: ITreeItem[] = [];
+
+		if (!this.manuallyManageCheckboxes) {
+			for (const item of items) {
+				if (item.checkbox !== undefined) {
+
+					function checkChildren(currentItem: ITreeItem) {
+						for (const child of (currentItem.children ?? [])) {
+							if ((child.checkbox !== undefined) && (currentItem.checkbox !== undefined) && (child.checkbox.isChecked !== currentItem.checkbox.isChecked)) {
+								child.checkbox.isChecked = currentItem.checkbox.isChecked;
+								additionalItems.push(child);
+								checkChildren(child);
+							}
+						}
+					}
+					checkChildren(item);
+
+					const visitedParents: Set<ITreeItem> = new Set();
+					function checkParents(currentItem: ITreeItem) {
+						if (currentItem.parent && (currentItem.parent.checkbox !== undefined) && currentItem.parent.children) {
+							if (visitedParents.has(currentItem.parent)) {
+								return;
+							} else {
+								visitedParents.add(currentItem.parent);
+							}
+
+							let someUnchecked = false;
+							let someChecked = false;
+							for (const child of currentItem.parent.children) {
+								if (someUnchecked && someChecked) {
+									break;
+								}
+								if (child.checkbox !== undefined) {
+									if (child.checkbox.isChecked) {
+										someChecked = true;
+									} else {
+										someUnchecked = true;
+									}
+								}
+							}
+							if (someChecked && !someUnchecked && (currentItem.parent.checkbox.isChecked !== true)) {
+								currentItem.parent.checkbox.isChecked = true;
+								additionalItems.push(currentItem.parent);
+								checkParents(currentItem.parent);
+							} else if (someUnchecked && (currentItem.parent.checkbox.isChecked !== false)) {
+								currentItem.parent.checkbox.isChecked = false;
+								additionalItems.push(currentItem.parent);
+								checkParents(currentItem.parent);
+							}
+						}
+					}
+					checkParents(item);
+				}
+			}
+		}
+		items = items.concat(additionalItems);
+		items.forEach(item => {
+			const renderedItem = this._renderedElements.get(item.handle);
+			if (renderedItem) {
+				renderedItem.rendered.checkbox?.render(item);
+			}
+		});
+		this._onDidChangeCheckboxState.fire(items);
+	}
+
 	disposeElement(resource: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
 		templateData.elementDisposable.clear();
 
-		this._renderedElements.delete(resource);
+		this._renderedElements.delete(resource.element.handle);
 		this.treeViewsService.removeRenderedTreeItemElement(resource.element);
 
 		templateData.checkbox?.dispose();

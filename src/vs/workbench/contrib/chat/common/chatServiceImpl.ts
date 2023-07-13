@@ -135,6 +135,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
+	private readonly _onDidSubmitSlashCommand = this._register(new Emitter<{ slashCommand: string; sessionId: string }>());
+	public readonly onDidSubmitSlashCommand = this._onDidSubmitSlashCommand.event;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -152,10 +155,11 @@ export class ChatService extends Disposable implements IChatService {
 		if (sessionData) {
 			this._persistedSessions = this.deserializeChats(sessionData);
 			const countsForLog = Object.keys(this._persistedSessions).length;
-			this.trace('constructor', `Restored ${countsForLog} persisted sessions`);
+			if (countsForLog > 0) {
+				this.trace('constructor', `Restored ${countsForLog} persisted sessions`);
+			}
 		} else {
 			this._persistedSessions = {};
-			this.trace('constructor', 'No persisted sessions');
 		}
 
 		this._transferred = this.getTransferredSession();
@@ -176,10 +180,16 @@ export class ChatService extends Disposable implements IChatService {
 				.filter(session => session.requests.length));
 		allSessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
 		allSessions = allSessions.slice(0, maxPersistedSessions);
-		this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
+		if (allSessions.length) {
+			this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
+		}
 
 		const serialized = JSON.stringify(allSessions);
-		this.trace('onWillSaveState', `Persisting ${serialized.length} chars`);
+
+		if (allSessions.length) {
+			this.trace('onWillSaveState', `Persisting ${serialized.length} chars`);
+		}
+
 		this.storageService.store(serializedChatKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
@@ -287,13 +297,8 @@ export class ChatService extends Disposable implements IChatService {
 	private _startSession(providerId: string, someSessionHistory: ISerializableChatData | undefined, token: CancellationToken): ChatModel {
 		const model = this.instantiationService.createInstance(ChatModel, providerId, someSessionHistory);
 		this._sessionModels.set(model.sessionId, model);
-		const modelInitPromise = this.initializeSession(model, someSessionHistory, token);
-		modelInitPromise.then(resolvedModel => {
-			if (!resolvedModel) {
-				model.dispose();
-				this._sessionModels.delete(model.sessionId);
-			}
-		}).catch(err => {
+		const modelInitPromise = this.initializeSession(model, token);
+		modelInitPromise.catch(err => {
 			this.trace('startSession', `initializeSession failed: ${err}`);
 			model.setInitializationError(err);
 			model.dispose();
@@ -303,7 +308,22 @@ export class ChatService extends Disposable implements IChatService {
 		return model;
 	}
 
-	private async initializeSession(model: ChatModel, sessionHistory: ISerializableChatData | undefined, token: CancellationToken): Promise<ChatModel | undefined> {
+	private reinitializeModel(model: ChatModel): void {
+		model.startReinitialize();
+		this.startSessionInit(model, CancellationToken.None);
+	}
+
+	private startSessionInit(model: ChatModel, token: CancellationToken): void {
+		const modelInitPromise = this.initializeSession(model, token);
+		modelInitPromise.catch(err => {
+			this.trace('startSession', `initializeSession failed: ${err}`);
+			model.setInitializationError(err);
+			model.dispose();
+			this._sessionModels.delete(model.sessionId);
+		});
+	}
+
+	private async initializeSession(model: ChatModel, token: CancellationToken): Promise<void> {
 		await this.extensionService.activateByEvent(`onInteractiveSession:${model.providerId}`);
 
 		const provider = this._providers.get(model.providerId);
@@ -319,18 +339,16 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		if (!session) {
-			this.trace('startSession', 'Provider returned no session');
-			return undefined;
+			throw new Error('Provider returned no session');
 		}
 
 		this.trace('startSession', `Provider returned session`);
 
-		const welcomeMessage = sessionHistory ? undefined : withNullAsUndefined(await provider.provideWelcomeMessage?.(token));
+		const welcomeMessage = model.welcomeMessage ? undefined : withNullAsUndefined(await provider.provideWelcomeMessage?.(token));
 		const welcomeModel = welcomeMessage && new ChatWelcomeMessageModel(
 			welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item as IChatReplyFollowup[]), session.responderUsername, session.responderAvatarIconUri);
 
 		model.initialize(session, welcomeModel);
-		return model;
 	}
 
 	getSession(sessionId: string): IChatModel | undefined {
@@ -428,6 +446,9 @@ export class ChatService extends Disposable implements IChatService {
 
 				model.cancelRequest(request);
 			});
+			if (usedSlashCommand?.command) {
+				this._onDidSubmitSlashCommand.fire({ slashCommand: usedSlashCommand.command, sessionId: model.sessionId });
+			}
 			let rawResponse = await provider.provideReply({ session: model.session!, message: resolvedCommand }, progressCallback, token);
 			if (token.isCancellationRequested) {
 				return;
@@ -617,6 +638,10 @@ export class ChatService extends Disposable implements IChatService {
 
 		this._providers.set(provider.id, provider);
 		this._hasProvider.set(true);
+
+		Array.from(this._sessionModels.values())
+			.filter(model => model.providerId === provider.id)
+			.forEach(model => this.reinitializeModel(model));
 
 		return toDisposable(() => {
 			this.trace('registerProvider', `Disposing chat provider`);

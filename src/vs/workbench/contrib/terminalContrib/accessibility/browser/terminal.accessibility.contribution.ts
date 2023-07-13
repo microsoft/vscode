@@ -22,7 +22,7 @@ import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { TerminalAccessibleContentProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
 import { AccessibleBufferWidget, NavigationType } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 
 class AccessibleBufferContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.accessible-buffer';
@@ -73,8 +73,7 @@ export class TerminalAccessibilityHelpContribution extends Disposable {
 			if (!terminal) {
 				return;
 			}
-			accessibleViewService.registerProvider(instantiationService.createInstance(TerminalAccessibleContentProvider, instance, terminal));
-			accessibleViewService.show('terminal');
+			accessibleViewService.show(instantiationService.createInstance(TerminalAccessibleContentProvider, instance, terminal));
 		}, TerminalContextKeys.focus));
 	}
 }
@@ -130,8 +129,14 @@ registerTerminalAction({
 	keybinding: [
 		{
 			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-			weight: KeybindingWeight.WorkbenchContrib + 2,
-			when: TerminalContextKeys.accessibleBufferFocus
+			when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+			weight: KeybindingWeight.WorkbenchContrib + 2
+		},
+		{
+			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+			mac: { primary: KeyMod.Alt | KeyCode.DownArrow },
+			when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+			weight: KeybindingWeight.WorkbenchContrib + 2
 		}
 	],
 	run: async (c) => {
@@ -152,8 +157,14 @@ registerTerminalAction({
 	keybinding: [
 		{
 			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-			weight: KeybindingWeight.WorkbenchContrib + 2,
-			when: TerminalContextKeys.accessibleBufferFocus
+			when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+			weight: KeybindingWeight.WorkbenchContrib + 2
+		},
+		{
+			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+			mac: { primary: KeyMod.Alt | KeyCode.UpArrow },
+			when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+			weight: KeybindingWeight.WorkbenchContrib + 2
 		}
 	],
 	run: async (c) => {

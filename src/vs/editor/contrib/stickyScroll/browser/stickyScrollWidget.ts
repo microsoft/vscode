@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
+import { equals } from 'vs/base/common/arrays';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./stickyScroll';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
@@ -21,6 +22,10 @@ export class StickyScrollWidgetState {
 		readonly lineNumbers: number[],
 		readonly lastLineRelativePosition: number
 	) { }
+
+	public equals(other: StickyScrollWidgetState | undefined): boolean {
+		return !!other && this.lastLineRelativePosition === other.lastLineRelativePosition && equals(this.lineNumbers, other.lineNumbers);
+	}
 }
 
 const _ttPolicy = createTrustedTypesPolicy('stickyScrollViewLayer', { createHTML: value => value });
@@ -35,6 +40,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lastLineRelativePosition: number = 0;
 	private _hoverOnLine: number = -1;
 	private _hoverOnColumn: number = -1;
+	private _state: StickyScrollWidgetState | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -68,6 +74,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	setState(state: StickyScrollWidgetState): void {
+		if (state.equals(this._state)) {
+			return;
+		}
+		this._state = state;
 		dom.clearNode(this._rootDomNode);
 		this._disposableStore.clear();
 		this._lineNumbers.length = 0;

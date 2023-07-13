@@ -36,6 +36,10 @@ suite('Search Actions', () => {
 		counter = 0;
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	test('get next element to focus after removing a match when it has next sibling file', function () {
 		const fileMatch1 = aFileMatch();
 		const fileMatch2 = aFileMatch();

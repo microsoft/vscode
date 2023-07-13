@@ -9,12 +9,16 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import { ExtHostContext, ExtHostInlineChatShape, MainContext, MainThreadInlineChatShape as MainThreadInlineChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { TextEdit } from 'vs/editor/common/languages';
+import { IProgress } from 'vs/platform/progress/common/progress';
 
 @extHostNamedCustomer(MainContext.MainThreadInlineChat)
 export class MainThreadInlineChat implements MainThreadInlineChatShape {
 
 	private readonly _registrations = new DisposableMap<number>();
 	private readonly _proxy: ExtHostInlineChatShape;
+
+	private readonly _progresses = new Map<string, IProgress<any>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -43,12 +47,17 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 					}
 				};
 			},
-			provideResponse: async (item, request, token) => {
-				const result = await this._proxy.$provideResponse(handle, item, request, token);
-				if (result?.type === 'bulkEdit') {
-					(<IInlineChatBulkEditResponse>result).edits = reviveWorkspaceEditDto(result.edits, this._uriIdentService);
+			provideResponse: async (item, request, progress, token) => {
+				this._progresses.set(request.requestId, progress);
+				try {
+					const result = await this._proxy.$provideResponse(handle, item, request, token);
+					if (result?.type === 'bulkEdit') {
+						(<IInlineChatBulkEditResponse>result).edits = reviveWorkspaceEditDto(result.edits, this._uriIdentService);
+					}
+					return <IInlineChatResponse | undefined>result;
+				} finally {
+					this._progresses.delete(request.requestId);
 				}
-				return <IInlineChatResponse | undefined>result;
 			},
 			handleInlineChatResponseFeedback: !supportsFeedback ? undefined : async (session, response, kind) => {
 				this._proxy.$handleFeedback(handle, session.id, response.id, kind);
@@ -56,6 +65,10 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 		});
 
 		this._registrations.set(handle, unreg);
+	}
+
+	async $handleProgressChunk(requestId: string, chunk: { message?: string | undefined; edits?: TextEdit[] | undefined }): Promise<void> {
+		this._progresses.get(requestId)?.report(chunk);
 	}
 
 	async $unregisterInteractiveEditorProvider(handle: number): Promise<void> {

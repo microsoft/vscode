@@ -13,7 +13,7 @@ import { ShellIntegrationStatus, WindowsShellType } from 'vs/platform/terminal/c
 import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 
 export const enum ClassName {
 	AccessibleBuffer = 'terminal-accessibility-help',
@@ -34,7 +34,7 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 		ariaLabel: localize('terminal-help-label', "terminal accessibility help"),
 		readMoreUrl: 'https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility'
 	};
-	id: string = 'terminal';
+	verbositySettingKey: string = 'terminal';
 
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'focus'>,

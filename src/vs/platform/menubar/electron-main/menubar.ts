@@ -596,9 +596,6 @@ export class Menubar {
 		const state = this.updateService.state;
 
 		switch (state.type) {
-			case StateType.Uninitialized:
-				return [];
-
 			case StateType.Idle:
 				return [new MenuItem({
 					label: this.mnemonicLabel(nls.localize('miCheckForUpdates', "Check for &&Updates...")), click: () => setTimeout(() => {
@@ -638,6 +635,9 @@ export class Menubar {
 						this.updateService.quitAndInstall();
 					}
 				})];
+
+			default:
+				return [];
 		}
 	}
 
