@@ -201,7 +201,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	id: 'editor',
 	properties: {
 		'inlineChat.showDiff': {
-			description: localize('showDiff', "Enable/disable showing the diff when edits are generated."),
+			description: localize('showDiff', "Enable/disable showing the diff when edits are generated. Works only with inlineChat.mode equal to live or livePreview."),
 			default: true,
 			type: 'boolean'
 		}
