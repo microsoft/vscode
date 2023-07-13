@@ -507,7 +507,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		quickPick.hideCheckAll = true;
 		quickPick.ignoreFocusOut = true;
 		quickPick.customLabel = localize('create', "Create Profile");
-		quickPick.description = localize('customise the profile', "Choose what you want to customize in the profile. Unselected items are shared from the default profile.");
+		quickPick.description = localize('customise the profile', "Choose what you want to configure in the profile. Unselected items are shared from the default profile.");
 		quickPick.items = resources;
 		quickPick.selectedItems = resources.filter(item => item.picked);
 
