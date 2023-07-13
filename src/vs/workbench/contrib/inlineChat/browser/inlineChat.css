@@ -285,13 +285,6 @@
 	opacity: 0.5;
 }
 
-.monaco-editor .inline-chat-slash-command-content-widget {
-	padding: 0 0.4em;
-	border-radius: 3px;
-	background-color: var(--vscode-textCodeBlock-background);
-	color: var(--vscode-textLink-foreground);
-}
-
 /* diff zone */
 
 .monaco-editor .inline-chat-diff-widget {
