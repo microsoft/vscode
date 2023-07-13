@@ -24,6 +24,9 @@ import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { getNotificationFromContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
@@ -133,3 +136,43 @@ class HoverAccessibleViewContribution extends Disposable {
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(HoverAccessibleViewContribution, LifecyclePhase.Eventually);
 
+
+class NotificationAccessibleViewContribution extends Disposable {
+	static ID: 'notificationAccessibleViewContribution';
+	constructor() {
+		super();
+		this._register(AccessibleViewAction.addImplementation(90, 'notifications', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const listService = accessor.get(IListService);
+			const notification = getNotificationFromContext(listService);
+			if (!notification) {
+				return false;
+			}
+			let notificationIndex: number | undefined;
+			const list = listService.lastFocusedList;
+			if (list instanceof WorkbenchList) {
+				notificationIndex = list.indexOf(notification);
+			}
+			if (notificationIndex === undefined) {
+				return false;
+			}
+			accessibleViewService.show({
+				provideContent: () => { return notification.message.original.toString() || ''; },
+				onClose(): void {
+					if (list && notificationIndex !== undefined) {
+						list.domFocus();
+						list.setFocus([notificationIndex]);
+					}
+				},
+				verbositySettingKey: 'notifications',
+				options: {
+					ariaLabel: localize('notification', "Notification Accessible View"),
+					type: AccessibleViewType.View
+				}
+			});
+			return true;
+		}, NotificationFocusedContext));
+	}
+}
+
+workbenchContributionsRegistry.registerWorkbenchContribution(NotificationAccessibleViewContribution, LifecyclePhase.Eventually);
