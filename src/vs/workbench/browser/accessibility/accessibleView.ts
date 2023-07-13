@@ -174,8 +174,8 @@ class AccessibleView extends Disposable {
 				alert(localize('disableAccessibilityHelp', '{0} accessibility verbosity is now disabled', provider.verbositySettingKey));
 				this._configurationService.updateValue(settingKey, false);
 			}
-			e.stopPropagation();
 			provider.onKeyDown?.(e);
+			e.stopPropagation();
 		}));
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Escape) {
