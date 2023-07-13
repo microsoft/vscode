@@ -278,7 +278,7 @@
 }
 
 .monaco-editor .inline-chat-slash-command {
-	color: var(--vscode-textLink-foreground)
+	opacity: 0;
 }
 
 .monaco-editor .inline-chat-slash-command-detail {

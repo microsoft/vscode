@@ -312,16 +312,16 @@ steps:
           BuildDropPath: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)
           PackageName: Visual Studio Code
 
-      - publish: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/_manifest
-        displayName: Publish SBOM (client)
-        artifact: $(ARTIFACT_PREFIX)sbom_client_win32_$(VSCODE_ARCH)
-
       - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
         displayName: Generate SBOM (server)
         inputs:
           BuildDropPath: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)
           PackageName: Visual Studio Code Server
         condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+      - publish: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/_manifest
+        displayName: Publish SBOM (client)
+        artifact: $(ARTIFACT_PREFIX)sbom_client_win32_$(VSCODE_ARCH)
 
       - publish: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)/_manifest
         displayName: Publish SBOM (server)

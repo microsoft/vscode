@@ -78,7 +78,7 @@ suite('Search - Viewlet', () => {
 					endColumn: 1
 				}
 			}]
-		}]);
+		}], '');
 
 		const fileMatch = result.matches()[0];
 		const lineMatch = fileMatch.matches()[0];
@@ -181,7 +181,7 @@ suite('Search - Viewlet', () => {
 		};
 		return instantiation.createInstance(FileMatch, {
 			pattern: ''
-		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null);
+		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null, '');
 	}
 
 	function aFolderMatch(path: string, index: number, parent?: SearchResult): FolderMatch {

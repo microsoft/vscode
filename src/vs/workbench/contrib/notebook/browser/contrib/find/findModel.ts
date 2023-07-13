@@ -111,7 +111,7 @@ export class FindModel extends Disposable {
 			this._registerModelListener(this._notebookEditor.textModel);
 		}
 
-		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditor);
+		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditor, this._notebookEditor.getId());
 	}
 
 	private _updateCellStates(e: FindReplaceStateChangedEvent) {

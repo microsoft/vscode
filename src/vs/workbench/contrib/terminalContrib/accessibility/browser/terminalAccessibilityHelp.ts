@@ -34,7 +34,7 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 		ariaLabel: localize('terminal-help-label', "terminal accessibility help"),
 		readMoreUrl: 'https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility'
 	};
-	id: string = 'terminal';
+	verbositySettingKey: string = 'terminal';
 
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'focus'>,

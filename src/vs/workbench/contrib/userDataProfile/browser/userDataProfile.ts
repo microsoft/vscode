@@ -30,11 +30,18 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
+import Severity from 'vs/base/common/severity';
+
+const CREATE_EMPTY_PROFILE_ACTION_ID = 'workbench.profiles.actions.createEmptyProfile';
+const CREATE_EMPTY_PROFILE_ACTION_TITLE = {
+	value: localize('create empty profile', "Create an Empty Profile..."),
+	original: 'Create an Empty Profile...'
+};
 
 const CREATE_FROM_CURRENT_PROFILE_ACTION_ID = 'workbench.profiles.actions.createFromCurrentProfile';
 const CREATE_FROM_CURRENT_PROFILE_ACTION_TITLE = {
-	value: localize('save profile as', "Create from Current Profile..."),
-	original: 'Create from Current Profile...'
+	value: localize('save profile as', "Save Current Profile As..."),
+	original: 'Save Current Profile As...'
 };
 
 const CREATE_NEW_PROFILE_ACTION_ID = 'workbench.profiles.actions.createNewProfile';
@@ -113,7 +120,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.registerCreateNewProfileAction();
 		this.registerCreateProfileAction();
 		this.registerDeleteProfileAction();
-		this.registerCreateProfileFromTemplatesAction();
 
 		this.registerHelpAction();
 	}
@@ -445,11 +451,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this._register(registerAction2(class CreateEmptyProfileAction extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.profiles.actions.createEmptyProfile',
-					title: {
-						value: localize('create empty profile', "Create an Empty Profile..."),
-						original: 'Create an Empty Profile...'
-					},
+					id: CREATE_EMPTY_PROFILE_ACTION_ID,
+					title: CREATE_EMPTY_PROFILE_ACTION_TITLE,
 					category: PROFILES_CATEGORY,
 					f1: true,
 					precondition: PROFILES_ENABLEMENT_CONTEXT
@@ -480,7 +483,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			return;
 		}
 		try {
-			await this.userDataProfileImportExportService.createFromCurrentProfile(name);
+			await this.userDataProfileImportExportService.SaveCurrentProfileAs(name);
 		} catch (error) {
 			this.notificationService.error(error);
 		}
@@ -489,13 +492,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	private async createNewProfile(): Promise<void> {
 		const title = localize('create new profle', "Create New Profile...");
 
-		const name = await this.getNameForProfile(title);
-		if (!name) {
-			return;
-		}
-
 		const settings: IQuickPickItem = { id: ProfileResourceType.Settings, label: localize('settings', "Settings"), picked: true };
-		const keybindings: IQuickPickItem = { id: ProfileResourceType.Keybindings, label: localize('keybindings', "Keyboard Shortcuts"), picked: false };
+		const keybindings: IQuickPickItem = { id: ProfileResourceType.Keybindings, label: localize('keybindings', "Keyboard Shortcuts"), picked: true };
 		const snippets: IQuickPickItem = { id: ProfileResourceType.Snippets, label: localize('snippets', "User Snippets"), picked: true };
 		const tasks: IQuickPickItem = { id: ProfileResourceType.Tasks, label: localize('tasks', "User Tasks"), picked: true };
 		const extensions: IQuickPickItem = { id: ProfileResourceType.Extensions, label: localize('extensions', "Extensions"), picked: true };
@@ -503,43 +501,52 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 		const quickPick = this.quickInputService.createQuickPick();
 		quickPick.title = title;
-		quickPick.hideInput = true;
+		quickPick.placeholder = localize('name placeholder', "Name the new profile");
 		quickPick.canSelectMany = true;
+		quickPick.matchOnDescription = false;
+		quickPick.matchOnDetail = false;
+		quickPick.matchOnLabel = false;
+		quickPick.sortByLabel = false;
+		quickPick.hideCountBadge = true;
 		quickPick.ok = false;
 		quickPick.customButton = true;
 		quickPick.hideCheckAll = true;
 		quickPick.ignoreFocusOut = true;
 		quickPick.customLabel = localize('create', "Create Profile");
-		quickPick.description = localize('customise the profile', "Choose the data that should be scoped to the new profile.");
+		quickPick.description = localize('customise the profile', "Choose what to configure in the profile. Unselected items are shared from the default profile.");
+		quickPick.items = resources;
+		quickPick.selectedItems = resources.filter(item => item.picked);
 
 		const disposables = new DisposableStore();
-		const update = () => {
-			quickPick.items = resources;
-			quickPick.selectedItems = resources.filter(item => item.picked);
-		};
-		update();
-
 		disposables.add(quickPick.onDidChangeSelection(items => {
-			let needUpdate = false;
 			for (const resource of resources) {
 				resource.picked = items.includes(resource);
-				const description = resource.picked ? undefined : localize('use default profile', "From Default Profile");
-				if (resource.description !== description) {
-					resource.description = description;
-					needUpdate = true;
-				}
-			}
-			if (needUpdate) {
-				update();
 			}
 		}));
 
-		let result: ReadonlyArray<IQuickPickItem> | undefined;
+		disposables.add(quickPick.onDidChangeValue(value => {
+			if (this.userDataProfilesService.profiles.some(p => p.name === value)) {
+				quickPick.validationMessage = localize('profileExists', "Profile with name {0} already exists.", value);
+				quickPick.severity = Severity.Error;
+			} else {
+				quickPick.severity = Severity.Ignore;
+				quickPick.validationMessage = undefined;
+			}
+		}));
+
+		let result: { name: string; items: ReadonlyArray<IQuickPickItem> } | undefined;
 		disposables.add(quickPick.onDidCustom(async () => {
+			if (!quickPick.value) {
+				quickPick.validationMessage = localize('name required', "Provide a name for the new profile");
+				quickPick.severity = Severity.Error;
+				return;
+			}
 			if (resources.some(resource => quickPick.selectedItems.includes(resource))) {
-				result = quickPick.selectedItems;
+				result = { name: quickPick.value, items: quickPick.selectedItems };
 				quickPick.hide();
 			}
+			quickPick.severity = Severity.Ignore;
+			quickPick.validationMessage = undefined;
 		}));
 		quickPick.show();
 
@@ -554,13 +561,14 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			return;
 		}
 
+		const { name, items } = result;
 		try {
-			const useDefaultFlags: UseDefaultProfileFlags | undefined = result.length !== resources.length ? {
-				settings: !result.includes(settings),
-				keybindings: !result.includes(keybindings),
-				snippets: !result.includes(snippets),
-				tasks: !result.includes(tasks),
-				extensions: !result.includes(extensions)
+			const useDefaultFlags: UseDefaultProfileFlags | undefined = items.length !== resources.length ? {
+				settings: !items.includes(settings),
+				keybindings: !items.includes(keybindings),
+				snippets: !items.includes(snippets),
+				tasks: !items.includes(tasks),
+				extensions: !items.includes(extensions)
 			} : undefined;
 			await this.userDataProfileManagementService.createAndEnterProfile(name, { useDefaultFlags });
 		} catch (error) {
@@ -609,11 +617,16 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				const commandService = accessor.get(ICommandService);
 				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
 				const quickPickItems: QuickPickItem[] = [{
+					id: CREATE_EMPTY_PROFILE_ACTION_ID,
+					label: localize('empty profile', "Empty Profile..."),
+				}, {
 					id: CREATE_NEW_PROFILE_ACTION_ID,
 					label: localize('new profile', "New Profile..."),
 				}, {
+					type: 'separator',
+				}, {
 					id: CREATE_FROM_CURRENT_PROFILE_ACTION_ID,
-					label: localize('using current', "From Current Profile..."),
+					label: localize('using current', "Save Current Profile As..."),
 				}];
 				const profileTemplateQuickPickItems = await that.getProfileTemplatesQuickPickItems();
 				if (profileTemplateQuickPickItems.length) {
@@ -643,7 +656,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						};
 						that.telemetryService.publicLog2<ProfileCreationFromTemplateActionEvent, ProfileCreationFromTemplateActionClassification>('profileCreationAction:builtinTemplate', { profileName: (<IProfileTemplateQuickPickItem>pick).name });
 						const uri = URI.parse((<IProfileTemplateQuickPickItem>pick).url);
-						return userDataProfileImportExportService.importProfile(uri);
+						return userDataProfileImportExportService.importProfile(uri, { mode: 'apply' });
 					}
 				}
 			}
@@ -703,44 +716,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				}
 			}
 		});
-	}
-
-	private registerCreateProfileFromTemplatesAction(): void {
-		const that = this;
-		this._register(registerAction2(class CreateProfileFromTemplatesAction extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.profiles.actions.createProfileFromTemplates',
-					title: {
-						value: localize('create profile from templates', "Create Profile from Templates..."),
-						original: 'Create Profile from Templates...'
-					},
-					category: PROFILES_CATEGORY,
-					precondition: PROFILES_ENABLEMENT_CONTEXT,
-				});
-			}
-
-			async run(accessor: ServicesAccessor) {
-				const quickInputService = accessor.get(IQuickInputService);
-				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
-				const notificationService = accessor.get(INotificationService);
-				const profileTemplateQuickPickItems = await that.getProfileTemplatesQuickPickItems();
-				if (profileTemplateQuickPickItems.length) {
-					const pick = await quickInputService.pick(profileTemplateQuickPickItems,
-						{
-							hideInput: true,
-							canPickMany: false,
-							title: localize('create profile from template title', "{0}: Create...", PROFILES_CATEGORY.value)
-						});
-					if ((<IProfileTemplateQuickPickItem>pick)?.url) {
-						const uri = URI.parse((<IProfileTemplateQuickPickItem>pick).url);
-						return userDataProfileImportExportService.importProfile(uri);
-					}
-				} else {
-					notificationService.info(localize('no templates', "There are no templates to create from"));
-				}
-			}
-		}));
 	}
 
 	private registerHelpAction(): void {

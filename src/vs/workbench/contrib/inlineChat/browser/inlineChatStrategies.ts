@@ -9,11 +9,11 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
+import { TextEdit } from 'vs/editor/common/languages';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { localize } from 'vs/nls';
@@ -102,8 +102,9 @@ export class PreviewStrategy extends EditModeStrategy {
 
 			if (modelN.equalsTextBuffer(this._session.textModel0.getTextBuffer())) {
 				modelN.pushStackElement();
-				const edits = editResponse.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-				modelN.pushEditOperations(null, edits, () => null);
+				for (const edits of editResponse.allLocalEdits) {
+					modelN.pushEditOperations(null, edits.map(TextEdit.asEditOperation), () => null);
+				}
 				modelN.pushStackElement();
 			}
 		}
@@ -122,9 +123,9 @@ export class PreviewStrategy extends EditModeStrategy {
 	}
 
 	override async renderChanges(response: EditResponse): Promise<void> {
-		if (response.localEdits.length > 0) {
-			const edits = response.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-			this._widget.showEditsPreview(this._session.textModel0, edits, this._session.lastTextModelChanges);
+		if (response.allLocalEdits.length > 0) {
+			const allEditOperation = response.allLocalEdits.map(edits => edits.map(TextEdit.asEditOperation));
+			this._widget.showEditsPreview(this._session.textModel0, allEditOperation, this._session.lastTextModelChanges);
 		} else {
 			this._widget.hideEditsPreview();
 		}
@@ -297,7 +298,7 @@ export class LiveStrategy extends EditModeStrategy {
 		LiveStrategy._undoModelUntil(modelN, targetAltVersion);
 	}
 
-	override async makeChanges(edits: ISingleEditOperation[], ignoreInlineDiff?: boolean): Promise<void> {
+	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
@@ -311,7 +312,7 @@ export class LiveStrategy extends EditModeStrategy {
 		if (++this._editCount === 1) {
 			this._editor.pushUndoStop();
 		}
-		this._editor.executeEdits('inline-chat-live', edits, ignoreInlineDiff ? undefined : cursorStateComputerAndInlineDiffCollection);
+		this._editor.executeEdits('inline-chat-live', edits, cursorStateComputerAndInlineDiffCollection);
 	}
 
 	override async undoChanges(response: EditResponse): Promise<void> {

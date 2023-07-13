@@ -49,6 +49,7 @@ import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineCh
 import { IdleValue } from 'vs/base/common/async';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IMenuWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
+import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -179,6 +180,9 @@ export class InlineChatWidget {
 	private _isLayouting: boolean = false;
 	private _preferredExpansionState: ExpansionState | undefined;
 	private _expansionState: ExpansionState = ExpansionState.NOT_CROPPED;
+	private _slashCommandDetails: { command: string; detail: string }[] = [];
+
+	private _slashCommandContentWidget: SlashCommandContentWidget;
 
 	constructor(
 		private readonly parentEditor: ICodeEditor,
@@ -277,6 +281,11 @@ export class InlineChatWidget {
 		};
 		this._store.add(this._inputModel.onDidChangeContent(togglePlaceholder));
 		togglePlaceholder();
+
+		// slash command content widget
+
+		this._slashCommandContentWidget = new SlashCommandContentWidget(this._inputEditor);
+		this._store.add(this._slashCommandContentWidget);
 
 		// toolbars
 
@@ -418,9 +427,12 @@ export class InlineChatWidget {
 	}
 
 	readPlaceholder(): void {
+		const slashCommand = this._slashCommandDetails.find(c => `${c.command} ` === this._inputModel.getValue().substring(1));
 		const hasText = this._inputModel.getValueLength() > 0;
 		if (!hasText) {
 			aria.status(this._elements.placeholder.innerText);
+		} else if (slashCommand) {
+			aria.status(slashCommand.detail);
 		}
 	}
 
@@ -535,7 +547,7 @@ export class InlineChatWidget {
 
 	// --- preview
 
-	showEditsPreview(textModelv0: ITextModel, edits: ISingleEditOperation[], changes: readonly LineRangeMapping[]) {
+	showEditsPreview(textModelv0: ITextModel, allEdits: ISingleEditOperation[][], changes: readonly LineRangeMapping[]) {
 		if (changes.length === 0) {
 			this.hideEditsPreview();
 			return;
@@ -545,7 +557,9 @@ export class InlineChatWidget {
 
 		const languageSelection: ILanguageSelection = { languageId: textModelv0.getLanguageId(), onDidChange: Event.None };
 		const modified = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModelv0.createSnapshot()), languageSelection, undefined, true);
-		modified.applyEdits(edits, false);
+		for (const edits of allEdits) {
+			modified.applyEdits(edits, false);
+		}
 		this._previewDiffEditor.value.setModel({ original: textModelv0, modified });
 
 		// joined ranges
@@ -619,6 +633,7 @@ export class InlineChatWidget {
 		if (commands.length === 0) {
 			return;
 		}
+		this._slashCommandDetails = commands.filter(c => c.command && c.detail).map(c => { return { command: c.command!, detail: c.detail! }; });
 
 		const selector: LanguageSelector = { scheme: this._inputModel.uri.scheme, pattern: this._inputModel.uri.path, language: this._inputModel.getLanguageId() };
 		this._slashCommands.add(this._languageFeaturesService.completionProvider.register(selector, new class implements CompletionItemProvider {
@@ -652,6 +667,8 @@ export class InlineChatWidget {
 		const decorations = this._inputEditor.createDecorationsCollection();
 
 		const updateSlashDecorations = () => {
+			this._slashCommandContentWidget.hide();
+
 			const newDecorations: IModelDeltaDecoration[] = [];
 			for (const command of commands) {
 				const withSlash = `/${command.command}`;
@@ -662,8 +679,15 @@ export class InlineChatWidget {
 						options: {
 							description: 'inline-chat-slash-command',
 							inlineClassName: 'inline-chat-slash-command',
+							after: {
+								// Force some space between slash command and placeholder
+								content: ' '
+							}
 						}
 					});
+
+					this._slashCommandContentWidget.setCommandText(command.command);
+					this._slashCommandContentWidget.show();
 
 					// inject detail when otherwise empty
 					if (firstLine === `/${command.command} `) {

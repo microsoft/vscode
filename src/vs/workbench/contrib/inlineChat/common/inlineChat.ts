@@ -15,6 +15,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IProgress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
@@ -39,6 +40,8 @@ export interface IInlineChatRequest {
 	selection: ISelection;
 	wholeRange: IRange;
 	attempt: number;
+	requestId: string;
+	live: boolean;
 }
 
 export type IInlineChatResponse = IInlineChatEditResponse | IInlineChatBulkEditResponse | IInlineChatMessageResponse;
@@ -79,6 +82,11 @@ export interface IInlineChatMessageResponse {
 	wholeRange?: IRange;
 }
 
+export interface IInlineChatProgressItem {
+	edits?: TextEdit[];
+	message?: string;
+}
+
 export const enum InlineChatResponseFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
@@ -91,7 +99,7 @@ export interface IInlineChatSessionProvider {
 
 	prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): ProviderResult<IInlineChatSession>;
 
-	provideResponse(item: IInlineChatSession, request: IInlineChatRequest, token: CancellationToken): ProviderResult<IInlineChatResponse>;
+	provideResponse(item: IInlineChatSession, request: IInlineChatRequest, progress: IProgress<IInlineChatProgressItem>, token: CancellationToken): ProviderResult<IInlineChatResponse>;
 
 	handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void;
 }
