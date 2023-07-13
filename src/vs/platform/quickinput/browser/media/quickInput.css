@@ -93,7 +93,8 @@
 	flex-grow: 1;
 }
 
-.quick-input-widget.show-checkboxes .quick-input-box {
+.quick-input-widget.show-checkboxes .quick-input-box,
+.quick-input-widget.show-checkboxes .quick-input-message {
 	margin-left: 5px;
 }
 
@@ -135,7 +136,7 @@
 	margin-top: 24px;
 	padding: 5px;
 	overflow-wrap: break-word;
-	width: calc(100% - 12px);
+	width: calc(100% - 17px);
 }
 
 .quick-input-message>.codicon {
