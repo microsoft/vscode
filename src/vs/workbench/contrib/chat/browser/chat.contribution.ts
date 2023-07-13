@@ -43,12 +43,7 @@ import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-
-export const enum QuickQuestionMode {
-	SingleQuestion = 'singleQuestion',
-	InputOnTopChat = 'inputOnTopChat',
-	InputOnBottomChat = 'inputOnBottomChat',
-}
+import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

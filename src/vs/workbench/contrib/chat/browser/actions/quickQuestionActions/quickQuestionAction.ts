@@ -11,10 +11,15 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/chat.contribution';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 
 export const ASK_QUICK_QUESTION_ACTION_ID = 'chat.action.askQuickQuestion';
+
+export const enum QuickQuestionMode {
+	SingleQuestion = 'singleQuestion',
+	InputOnTopChat = 'inputOnTopChat',
+	InputOnBottomChat = 'inputOnBottomChat',
+}
 
 export interface IQuickQuestionMode {
 	run(accessor: ServicesAccessor, query: string): void;

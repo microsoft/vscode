@@ -20,10 +20,9 @@ import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/chat.contribution';
-import { AskQuickQuestionAction, IQuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
+import { AskQuickQuestionAction, IQuickQuestionMode, QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
 
-class AskSingleQuickQuestionAction implements IQuickQuestionMode {
+class AskSingleQuickQuestionMode implements IQuickQuestionMode {
 
 	private _currentSession: InteractiveQuickPickSession | undefined;
 	private _currentQuery: string | undefined;
@@ -259,4 +258,4 @@ class InteractiveQuickPickSession extends Disposable {
 	}
 }
 
-AskQuickQuestionAction.registerMode(QuickQuestionMode.SingleQuestion, AskSingleQuickQuestionAction);
+AskQuickQuestionAction.registerMode(QuickQuestionMode.SingleQuestion, AskSingleQuickQuestionMode);

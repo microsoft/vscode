@@ -15,9 +15,8 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { editorForeground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { AskQuickQuestionAction, IQuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
+import { AskQuickQuestionAction, IQuickQuestionMode, QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/chat.contribution';
 import { IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
