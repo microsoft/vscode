@@ -21,10 +21,56 @@ import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPa
 import { reflectCssValue } from './reflectCssValue';
 import { addFileToParseCache, clearParseCache, removeFileFromParseCache } from './parseDocument';
 
+const emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
+
+function getLanguageArgs(editor?: vscode.TextEditor) {
+	const selection = editor.selection;
+
+	if (!selection) {
+		return null;
+	}
+
+	const position = selection.getStartPosition();
+	const languageId = vscode.languages.getLanguageAtPosition(editor, position);
+	const syntax = languageId.split('.').pop();
+
+	if (!syntax) {
+		return null;
+	}
+
+	const checkParentMode = (): string => {
+		const languageGrammar = vscode.languages.getScopeName(syntax);
+		if (!languageGrammar) {
+			return syntax;
+		}
+		const languages = languageGrammar.split('.');
+		if (languages.length < 2) {
+			return syntax;
+		}
+		for (let i = 1; i < languages.length; i++) {
+			const language = languages[languages.length - i];
+			if (emmetSupportedModes.indexOf(language) !== -1) {
+				return language;
+			}
+		}
+		return syntax;
+	};
+
+	return {
+		language: syntax,
+		parentMode: checkParentMode()
+	};
+}
+
+
 export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	migrateEmmetExtensionsPath();
 	refreshCompletionProviders(context);
 	updateEmmetExtensionsPath();
+
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.expandAbbreviation', (args) => {
+		expandEmmetAbbreviation(getLanguageArgs(vscode.window.activeTextEditor));
+	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.wrapWithAbbreviation', (args) => {
 		wrapWithAbbreviation(args);

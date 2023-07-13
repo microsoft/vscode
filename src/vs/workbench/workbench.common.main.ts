@@ -268,9 +268,6 @@ import 'vs/workbench/contrib/tasks/browser/task.contribution';
 import 'vs/workbench/contrib/remote/common/remote.contribution';
 import 'vs/workbench/contrib/remote/browser/remote.contribution';
 
-// Emmet
-import 'vs/workbench/contrib/emmet/browser/emmet.contribution';
-
 // CodeEditor Contributions
 import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
 

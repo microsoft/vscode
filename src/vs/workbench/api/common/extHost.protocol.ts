@@ -427,6 +427,8 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 export interface MainThreadLanguagesShape extends IDisposable {
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
 	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: StandardTokenType; range: IRange }>;
+	$languageAtPosition(resource: UriComponents, position: IPosition): Promise<string | undefined>;
+	$scopeName(languageId: string): Promise<string | undefined>;
 	$setLanguageStatus(handle: number, status: ILanguageStatus): void;
 	$removeLanguageStatus(handle: number): void;
 }

@@ -615,6 +615,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'tokenInformation');
 				return extHostLanguages.tokenAtPosition(doc, pos);
 			},
+			getLanguageAtPosition(doc: vscode.TextDocument, pos: vscode.Position) {
+				checkProposedApiEnabled(extension, 'languageInfo');
+				return extHostLanguages.languageAtPosition(doc, pos);
+			},
+			getScopeName(languageId: string) {
+				checkProposedApiEnabled(extension, 'languageInfo');
+				return extHostLanguages.scopeName(languageId);
+			},
 			registerInlayHintsProvider(selector: vscode.DocumentSelector, provider: vscode.InlayHintsProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerInlayHintsProvider(extension, selector, provider);
 			},

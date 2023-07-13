@@ -74,6 +74,21 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 		return result;
 	}
 
+	async languageAtPosition(document: vscode.TextDocument, position: vscode.Position): Promise<string> {
+		const versionNow = document.version;
+		const pos = typeConvert.Position.from(position);
+		const languageId = await this._proxy.$languageAtPosition(document.uri, pos);
+		if (languageId === undefined || versionNow !== document.version) {
+			// concurrent change
+			return document.language;
+		}
+		return languageId;
+	}
+
+	scopeName(languageId: string): Promise<string | undefined> {
+		return this._proxy.$scopeName(languageId);
+	}
+
 	private _handlePool: number = 0;
 	private _ids = new Set<string>();
 

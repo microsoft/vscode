@@ -110,6 +110,12 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'menuBar/edit',
+		id: MenuId.MenubarHomeMenu,
+		description: localize('menus.edit', "The top level Edit menu"),
+		proposed: 'contribMenuBar'
+	},
+	{
 		key: 'menuBar/edit/copy',
 		id: MenuId.MenubarCopy,
 		description: localize('menus.opy', "'Copy as' submenu in the top level Edit menu")
