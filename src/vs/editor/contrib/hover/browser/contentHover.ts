@@ -52,10 +52,10 @@ export class ContentHoverController extends Disposable {
 	) {
 		super();
 
-		const initialHeight = this._editor.getOption(EditorOption.lineHeight) + 8;
-		const initialWidth = 4 / 3 * initialHeight;
-		const initialSize = new dom.Dimension(initialWidth, initialHeight);
-		this._widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor, initialSize));
+		const minimumHeight = this._editor.getOption(EditorOption.lineHeight) + 8;
+		const minimumWidth = 4 / 3 * minimumHeight;
+		const minimumSize = new dom.Dimension(minimumWidth, minimumHeight);
+		this._widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor, minimumSize));
 
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
@@ -486,10 +486,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		initialSize: dom.Dimension,
+		minimumSize: dom.Dimension,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(editor, initialSize);
+		super(editor, minimumSize);
 		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(contextKeyService);
 		this._hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(contextKeyService);
 
