@@ -453,14 +453,14 @@ export class ToggleInlineDiff extends AbstractInlineChatAction {
 		super({
 			id: 'inlineChat.toggleDiff',
 			title: {
-				value: localize('toggleDiff', 'Toggle Diff'),
-				mnemonicTitle: localize({ key: 'miToggleDiff', comment: ['&& denotes a mnemonic'] }, "&&Toggle Diff"),
-				original: 'Toggle Diff',
+				original: 'Show Diff',
+				value: localize('showDiff', 'Show Diff'),
+				mnemonicTitle: localize({ key: 'miShowDiff', comment: ['&& denotes a mnemonic'] }, "&&Show Diff"),
 			},
 			toggled: {
 				condition: ContextKeyExpr.equals('config.inlineChat.showDiff', true),
-				title: localize('toggleDiff2', "Toggle Diff"),
-				mnemonicTitle: localize({ key: 'miToggleDiff2', comment: ['&& denotes a mnemonic'] }, "&&Toggle Diff")
+				title: localize('showDiff2', "Show Diff"),
+				mnemonicTitle: localize({ key: 'miShowDiff2', comment: ['&& denotes a mnemonic'] }, "&&Show Diff")
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },
