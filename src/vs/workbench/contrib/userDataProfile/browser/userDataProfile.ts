@@ -30,6 +30,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
+import Severity from 'vs/base/common/severity';
 
 const CREATE_EMPTY_PROFILE_ACTION_ID = 'workbench.profiles.actions.createEmptyProfile';
 const CREATE_EMPTY_PROFILE_ACTION_TITLE = {
@@ -500,14 +501,19 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 		const quickPick = this.quickInputService.createQuickPick();
 		quickPick.title = title;
-		quickPick.hideInput = true;
+		quickPick.placeholder = localize('name placeholder', "Name the new profile");
 		quickPick.canSelectMany = true;
+		quickPick.matchOnDescription = false;
+		quickPick.matchOnDetail = false;
+		quickPick.matchOnLabel = false;
+		quickPick.sortByLabel = false;
+		quickPick.hideCountBadge = true;
 		quickPick.ok = false;
 		quickPick.customButton = true;
 		quickPick.hideCheckAll = true;
 		quickPick.ignoreFocusOut = true;
 		quickPick.customLabel = localize('create', "Create Profile");
-		quickPick.description = localize('customise the profile', "Choose what you want to configure in the profile. Unselected items are shared from the default profile.");
+		quickPick.description = localize('customise the profile', "Choose what to configure in the profile. Unselected items are shared from the default profile.");
 		quickPick.items = resources;
 		quickPick.selectedItems = resources.filter(item => item.picked);
 
@@ -518,12 +524,29 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			}
 		}));
 
-		let result: ReadonlyArray<IQuickPickItem> | undefined;
+		disposables.add(quickPick.onDidChangeValue(value => {
+			if (this.userDataProfilesService.profiles.some(p => p.name === value)) {
+				quickPick.validationMessage = localize('profileExists', "Profile with name {0} already exists.", value);
+				quickPick.severity = Severity.Error;
+			} else {
+				quickPick.severity = Severity.Ignore;
+				quickPick.validationMessage = undefined;
+			}
+		}));
+
+		let result: { name: string; items: ReadonlyArray<IQuickPickItem> } | undefined;
 		disposables.add(quickPick.onDidCustom(async () => {
+			if (!quickPick.value) {
+				quickPick.validationMessage = localize('name required', "Provide a name for the new profile");
+				quickPick.severity = Severity.Error;
+				return;
+			}
 			if (resources.some(resource => quickPick.selectedItems.includes(resource))) {
-				result = quickPick.selectedItems;
+				result = { name: quickPick.value, items: quickPick.selectedItems };
 				quickPick.hide();
 			}
+			quickPick.severity = Severity.Ignore;
+			quickPick.validationMessage = undefined;
 		}));
 		quickPick.show();
 
@@ -538,18 +561,14 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			return;
 		}
 
-		const name = await this.getNameForProfile(title);
-		if (!name) {
-			return;
-		}
-
+		const { name, items } = result;
 		try {
-			const useDefaultFlags: UseDefaultProfileFlags | undefined = result.length !== resources.length ? {
-				settings: !result.includes(settings),
-				keybindings: !result.includes(keybindings),
-				snippets: !result.includes(snippets),
-				tasks: !result.includes(tasks),
-				extensions: !result.includes(extensions)
+			const useDefaultFlags: UseDefaultProfileFlags | undefined = items.length !== resources.length ? {
+				settings: !items.includes(settings),
+				keybindings: !items.includes(keybindings),
+				snippets: !items.includes(snippets),
+				tasks: !items.includes(tasks),
+				extensions: !items.includes(extensions)
 			} : undefined;
 			await this.userDataProfileManagementService.createAndEnterProfile(name, { useDefaultFlags });
 		} catch (error) {
