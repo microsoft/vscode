@@ -948,6 +948,7 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 export interface PullOptions {
 	unshallow?: boolean;
 	tags?: boolean;
+	autoStash?: boolean;
 	readonly cancellationToken?: CancellationToken;
 }
 
@@ -1813,6 +1814,10 @@ export class Repository {
 
 		if (options.unshallow) {
 			args.push('--unshallow');
+		}
+
+		if (options.autoStash) {
+			args.push('--autostash');
 		}
 
 		if (rebase) {
