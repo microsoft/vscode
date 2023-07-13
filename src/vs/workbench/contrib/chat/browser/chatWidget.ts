@@ -136,13 +136,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	render(parent: HTMLElement): void {
-		this.container = dom.append(parent, $('.interactive-session'));
-		this.listContainer = dom.append(this.container, $(`.interactive-list`));
-
 		const viewId = 'viewId' in this.viewContext ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(ChatEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
+		const renderInputOnTop = this.viewContext.renderInputOnTop ?? false;
+
+		this.container = dom.append(parent, $('.interactive-session'));
+		if (renderInputOnTop) {
+			this.createInput(this.container, { renderFollowupsBelow: true });
+			this.listContainer = dom.append(this.container, $(`.interactive-list`));
+		} else {
+			this.listContainer = dom.append(this.container, $(`.interactive-list`));
+			this.createInput(this.container);
+		}
+
 		this.createList(this.listContainer);
-		this.createInput(this.container);
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
 		this.onDidStyleChange();
@@ -327,8 +334,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.previousTreeScrollHeight = this.tree.scrollHeight;
 	}
 
-	private createInput(container: HTMLElement): void {
-		this.inputPart = this.instantiationService.createInstance(ChatInputPart);
+	private createInput(container: HTMLElement, options?: { renderFollowupsBelow: boolean }): void {
+		this.inputPart = this.instantiationService.createInstance(ChatInputPart, { renderFollowupsBelow: options?.renderFollowupsBelow ?? false });
 		this.inputPart.render(container, '', this);
 
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
