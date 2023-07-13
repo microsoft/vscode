@@ -457,7 +457,6 @@ export class ToggleInlineDiff extends AbstractInlineChatAction {
 				mnemonicTitle: localize({ key: 'miToggleDiff', comment: ['&& denotes a mnemonic'] }, "&&Toggle Diff"),
 				original: 'Toggle Diff',
 			},
-			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.inlineChat.showDiff', true),
 				title: localize('toggleDiff2', "Toggle Diff"),
