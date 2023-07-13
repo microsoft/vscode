@@ -11,7 +11,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { terminalTabFocusContextKey } from 'vs/platform/terminal/common/terminal';
+import { terminalTabFocusModeContextKey } from 'vs/platform/terminal/common/terminal';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -26,6 +26,7 @@ import type { Terminal } from 'xterm';
 
 class AccessibleBufferContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.accessible-buffer';
+	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
 	static get(instance: ITerminalInstance): AccessibleBufferContribution | null {
 		return instance.getContribution<AccessibleBufferContribution>(AccessibleBufferContribution.ID);
 	}
@@ -40,12 +41,16 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 		super();
 	}
 	layout(xterm: IXtermTerminal & { raw: Terminal }): void {
-		if (!this._accessibleBufferWidget) {
-			this._accessibleBufferWidget = this.add(this._instantiationService.createInstance(AccessibleBufferWidget, this._instance, xterm));
-		}
+		this._xterm = xterm;
 	}
 	async show(): Promise<void> {
-		await this._accessibleBufferWidget?.show();
+		if (!this._xterm) {
+			return;
+		}
+		if (!this._accessibleBufferWidget) {
+			this._accessibleBufferWidget = this.add(this._instantiationService.createInstance(AccessibleBufferWidget, this._instance, this._xterm));
+		}
+		await this._accessibleBufferWidget.show();
 	}
 
 	async createCommandQuickPick(): Promise<IQuickPick<IQuickPickItem> | undefined> {
@@ -87,7 +92,7 @@ registerTerminalAction({
 		{
 			primary: KeyMod.Shift | KeyCode.Tab,
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, terminalTabFocusContextKey, TerminalContextKeys.accessibleBufferFocus.negate())
+			when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(terminalTabFocusModeContextKey, TerminalContextKeys.accessibleBufferFocus.negate()))
 		}
 	],
 	run: async (c) => {
