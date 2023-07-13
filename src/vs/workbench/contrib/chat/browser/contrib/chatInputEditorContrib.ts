@@ -15,24 +15,34 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorForeground, textCodeBlockBackground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Selection } from 'vs/editor/common/core/selection';
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
+const slashCommandContentWidgetId = 'chat-session-content-widget';
 
 class InputEditorDecorations extends Disposable {
+
+	private _slashCommandDomNode = document.createElement('div');
+	private _slashCommandContentWidget: IContentWidget | undefined;
+	private _previouslyUsedSlashCommands = new Set<string>();
 
 	constructor(
 		private readonly widget: IChatWidget,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -43,14 +53,25 @@ class InputEditorDecorations extends Disposable {
 
 		this.updateInputEditorDecorations();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.updateInputEditorDecorations()));
-		this._register(this.widget.onDidChangeViewModel(() => this.updateInputEditorDecorations()));
+		this._register(this.widget.onDidChangeViewModel(() => {
+			this._previouslyUsedSlashCommands.clear();
+			this.updateInputEditorDecorations();
+		}));
+		this._register(this.chatService.onDidSubmitSlashCommand((e) => {
+			if (e.sessionId === this.widget.viewModel?.sessionId && !this._previouslyUsedSlashCommands.has(e.slashCommand)) {
+				this._previouslyUsedSlashCommands.add(e.slashCommand);
+			}
+		}));
 	}
 
 	private updateRegisteredDecorationTypes() {
-		const theme = this.themeService.getColorTheme();
 		this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
+		this.updateInputEditorContentWidgets({ hide: true });
 		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
-			color: theme.getColor(textLinkForeground)?.toString()
+			opacity: '0',
+			after: {
+				contentText: ' ',
+			}
 		});
 		this.updateInputEditorDecorations();
 	}
@@ -62,10 +83,10 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private async updateInputEditorDecorations() {
-		const value = this.widget.inputEditor.getValue();
+		const inputValue = this.widget.inputEditor.getValue();
 		const slashCommands = await this.widget.getSlashCommands(); // TODO this async call can lead to a flicker of the placeholder text when switching editor tabs
 
-		if (!value) {
+		if (!inputValue) {
 			const extensionPlaceholder = this.widget.viewModel?.inputPlaceholder;
 			const defaultPlaceholder = slashCommands?.length ?
 				localize('interactive.input.placeholderWithCommands', "Ask a question or type '/' for topics") :
@@ -88,30 +109,42 @@ class InputEditorDecorations extends Disposable {
 				}
 			];
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, decoration);
+			this.updateInputEditorContentWidgets({ hide: true });
 			return;
 		}
 
-		const command = value && slashCommands?.find(c => value.startsWith(`/${c.command} `));
-		if (command && command.detail && value === `/${command.command} `) {
-			const decoration: IDecorationOptions[] = [
-				{
+		let slashCommandPlaceholderDecoration: IDecorationOptions[] | undefined;
+		const command = inputValue && slashCommands?.find(c => inputValue.startsWith(`/${c.command} `));
+		if (command && inputValue === `/${command.command} `) {
+			const isFollowupSlashCommand = this._previouslyUsedSlashCommands.has(command.command);
+			const shouldRenderFollowupPlaceholder = command.followupPlaceholder && isFollowupSlashCommand;
+			if (shouldRenderFollowupPlaceholder || command.detail) {
+				slashCommandPlaceholderDecoration = [{
 					range: {
 						startLineNumber: 1,
 						endLineNumber: 1,
-						startColumn: command.command.length + 2,
+						startColumn: command && typeof command !== 'string' ? (command?.command.length + 2) : 1,
 						endColumn: 1000
 					},
 					renderOptions: {
 						after: {
-							contentText: command.detail,
-							color: this.getPlaceholderColor()
+							contentText: shouldRenderFollowupPlaceholder ? command.followupPlaceholder : command.detail,
+							color: this.getPlaceholderColor(),
+							padding: '0 0 0 5px'
 						}
 					}
-				}
-			];
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, decoration);
-		} else {
+				}];
+				this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, slashCommandPlaceholderDecoration);
+			}
+		}
+		if (!slashCommandPlaceholderDecoration) {
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, []);
+		}
+
+		if (command && inputValue.startsWith(`/${command.command} `)) {
+			this.updateInputEditorContentWidgets({ command: command.command });
+		} else {
+			this.updateInputEditorContentWidgets({ hide: true });
 		}
 
 		if (command && command.detail) {
@@ -130,6 +163,40 @@ class InputEditorDecorations extends Disposable {
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, []);
 		}
 	}
+
+	private async updateInputEditorContentWidgets(arg: { command: string } | { hide: true }) {
+		const domNode = this._slashCommandDomNode;
+
+		if (this._slashCommandContentWidget && 'hide' in arg) {
+			domNode.toggleAttribute('hidden', true);
+			this.widget.inputEditor.removeContentWidget(this._slashCommandContentWidget);
+			return;
+		} else if ('command' in arg) {
+			const theme = this.themeService.getColorTheme();
+			domNode.style.padding = '0 0.4em';
+			domNode.style.borderRadius = '3px';
+			domNode.style.backgroundColor = theme.getColor(textCodeBlockBackground)?.toString() ?? '';
+			domNode.style.color = theme.getColor(textLinkForeground)?.toString() ?? '';
+			domNode.innerText = `${arg.command} `;
+			domNode.toggleAttribute('hidden', false);
+
+			this._slashCommandContentWidget = {
+				getId() { return slashCommandContentWidgetId; },
+				getDomNode() { return domNode; },
+				getPosition() {
+					return {
+						position: {
+							lineNumber: 1,
+							column: 1
+						},
+						preference: [ContentWidgetPositionPreference.EXACT]
+					};
+				},
+			};
+
+			this.widget.inputEditor.addContentWidget(this._slashCommandContentWidget);
+		}
+	}
 }
 
 class InputEditorSlashCommandFollowups extends Disposable {
@@ -139,6 +206,7 @@ class InputEditorSlashCommandFollowups extends Disposable {
 	) {
 		super();
 		this._register(this.chatService.onDidSubmitSlashCommand(({ slashCommand, sessionId }) => this.repopulateSlashCommand(slashCommand, sessionId)));
+		this._register(this.widget.inputEditor.onKeyUp((e) => this.handleKeyUp(e)));
 	}
 
 	private async repopulateSlashCommand(slashCommand: string, sessionId: string) {
@@ -157,6 +225,22 @@ class InputEditorSlashCommandFollowups extends Disposable {
 			this.widget.inputEditor.setValue(value);
 			this.widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
 
+		}
+	}
+
+	private handleKeyUp(e: IKeyboardEvent) {
+		if (e.keyCode !== KeyCode.Backspace) {
+			return;
+		}
+
+		const value = this.widget.inputEditor.getValue().split(' ')[0];
+		const currentSelection = this.widget.inputEditor.getSelection();
+		if (!value.startsWith('/') || !currentSelection?.isEmpty() || currentSelection?.startLineNumber !== 1 || currentSelection?.startColumn !== value.length + 1) {
+			return;
+		}
+
+		if (this.widget.getSlashCommandsSync()?.find((command) => `/${command.command}` === value)) {
+			this.widget.inputEditor.executeEdits('chat-input-editor-slash-commands', [{ range: new Range(1, 1, 1, currentSelection.startColumn), text: null }], [new Selection(1, 1, 1, 1)]);
 		}
 	}
 }
