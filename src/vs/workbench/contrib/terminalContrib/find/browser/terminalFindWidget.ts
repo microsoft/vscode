@@ -84,7 +84,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	override hide() {
 		super.hide();
 		this._findWidgetVisible.reset();
-		this._instance.focus();
+		this._instance.focus(true);
 		this._instance.xterm?.clearSearchDecorations();
 	}
 
