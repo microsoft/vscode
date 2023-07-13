@@ -675,12 +675,13 @@ export class InlineChatWidget {
 							description: 'inline-chat-slash-command',
 							inlineClassName: 'inline-chat-slash-command',
 							after: {
+								// Force some space between slash command and placeholder
 								content: ' '
 							}
 						}
 					});
 
-					this._slashCommandContentWidget.setCommandText(`${command.command}`);
+					this._slashCommandContentWidget.setCommandText(command.command);
 					this._slashCommandContentWidget.show();
 
 					// inject detail when otherwise empty
@@ -730,6 +731,7 @@ class SlashCommandContentWidget extends Disposable implements IContentWidget {
 				return;
 			}
 
+			// Allow to undo the backspace
 			this._editor.executeEdits('inline-chat-slash-command', [{
 				range: new Range(1, 1, 1, selection.startColumn),
 				text: null
