@@ -38,7 +38,7 @@ export class TextMateWorkerHost implements IDisposable {
 	private _grammarDefinitions: IValidGrammarDefinition[] = [];
 
 	constructor(
-		private readonly _reportTokenizationTime: (timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number) => void,
+		private readonly _reportTokenizationTime: (timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean) => void,
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
@@ -204,8 +204,8 @@ export class TextMateWorkerHost implements IDisposable {
 		}
 	}
 
-	public reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number): void {
-		this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength);
+	public reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void {
+		this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample);
 	}
 
 	// #endregion

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./inlineChat';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
@@ -49,6 +49,7 @@ import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineCh
 import { IdleValue } from 'vs/base/common/async';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IMenuWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
@@ -180,6 +181,9 @@ export class InlineChatWidget {
 	private _isLayouting: boolean = false;
 	private _preferredExpansionState: ExpansionState | undefined;
 	private _expansionState: ExpansionState = ExpansionState.NOT_CROPPED;
+	private _slashCommandDetails: { command: string; detail: string }[] = [];
+
+	private _slashCommandContentWidget: SlashCommandContentWidget;
 
 	constructor(
 		private readonly parentEditor: ICodeEditor,
@@ -279,6 +283,11 @@ export class InlineChatWidget {
 		};
 		this._store.add(this._inputModel.onDidChangeContent(togglePlaceholder));
 		togglePlaceholder();
+
+		// slash command content widget
+
+		this._slashCommandContentWidget = new SlashCommandContentWidget(this._inputEditor);
+		this._store.add(this._slashCommandContentWidget);
 
 		// toolbars
 
@@ -431,9 +440,12 @@ export class InlineChatWidget {
 	}
 
 	readPlaceholder(): void {
+		const slashCommand = this._slashCommandDetails.find(c => `${c.command} ` === this._inputModel.getValue().substring(1));
 		const hasText = this._inputModel.getValueLength() > 0;
 		if (!hasText) {
 			aria.status(this._elements.placeholder.innerText);
+		} else if (slashCommand) {
+			aria.status(slashCommand.detail);
 		}
 	}
 
@@ -634,6 +646,7 @@ export class InlineChatWidget {
 		if (commands.length === 0) {
 			return;
 		}
+		this._slashCommandDetails = commands.filter(c => c.command && c.detail).map(c => { return { command: c.command!, detail: c.detail! }; });
 
 		const selector: LanguageSelector = { scheme: this._inputModel.uri.scheme, pattern: this._inputModel.uri.path, language: this._inputModel.getLanguageId() };
 		this._slashCommands.add(this._languageFeaturesService.completionProvider.register(selector, new class implements CompletionItemProvider {
@@ -667,6 +680,8 @@ export class InlineChatWidget {
 		const decorations = this._inputEditor.createDecorationsCollection();
 
 		const updateSlashDecorations = () => {
+			this._slashCommandContentWidget.hide();
+
 			const newDecorations: IModelDeltaDecoration[] = [];
 			for (const command of commands) {
 				const withSlash = `/${command.command}`;
@@ -677,8 +692,15 @@ export class InlineChatWidget {
 						options: {
 							description: 'inline-chat-slash-command',
 							inlineClassName: 'inline-chat-slash-command',
+							after: {
+								// Force some space between slash command and placeholder
+								content: ' '
+							}
 						}
 					});
+
+					this._slashCommandContentWidget.setCommandText(command.command);
+					this._slashCommandContentWidget.show();
 
 					// inject detail when otherwise empty
 					if (firstLine === `/${command.command} `) {
@@ -702,6 +724,57 @@ export class InlineChatWidget {
 		this._slashCommands.add(this._inputEditor.onDidChangeModelContent(updateSlashDecorations));
 		updateSlashDecorations();
 	}
+}
+
+class SlashCommandContentWidget extends Disposable implements IContentWidget {
+	private _domNode = document.createElement('div');
+	private _lastSlashCommandText: string | undefined;
+
+	constructor(private _editor: ICodeEditor) {
+		super();
+
+		this._domNode.toggleAttribute('hidden', true);
+		this._domNode.classList.add('inline-chat-slash-command-content-widget');
+
+		// If backspace at a slash command boundary, remove the slash command
+		this._register(this._editor.onKeyUp((e) => {
+			if (e.keyCode !== KeyCode.Backspace) {
+				return;
+			}
+
+			const firstLine = this._editor.getModel()?.getLineContent(1);
+			const selection = this._editor.getSelection();
+			const withSlash = `/${this._lastSlashCommandText}`;
+			if (!firstLine?.startsWith(withSlash) || !selection?.isEmpty() || selection?.startLineNumber !== 1 || selection?.startColumn !== withSlash.length + 1) {
+				return;
+			}
+
+			// Allow to undo the backspace
+			this._editor.executeEdits('inline-chat-slash-command', [{
+				range: new Range(1, 1, 1, selection.startColumn),
+				text: null
+			}]);
+		}));
+	}
+
+	show() {
+		this._domNode.toggleAttribute('hidden', false);
+		this._editor.addContentWidget(this);
+	}
+
+	hide() {
+		this._domNode.toggleAttribute('hidden', true);
+		this._editor.removeContentWidget(this);
+	}
+
+	setCommandText(slashCommand: string) {
+		this._domNode.innerText = `${slashCommand} `;
+		this._lastSlashCommandText = slashCommand;
+	}
+
+	getId() { return 'inline-chat-slash-command-content-widget'; }
+	getDomNode() { return this._domNode; }
+	getPosition() { return { position: { lineNumber: 1, column: 1 }, preference: [ContentWidgetPositionPreference.EXACT] }; }
 }
 
 export class InlineChatZoneWidget extends ZoneWidget {
