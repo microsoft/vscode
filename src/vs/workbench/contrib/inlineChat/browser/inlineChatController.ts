@@ -144,6 +144,7 @@ export class InlineChatController implements IEditorContribution {
 	dispose(): void {
 		console.log('inside of dispose');
 		this._stashedSession.clear();
+		console.log('inside of dispose before calling finishExistingSession');
 		this.finishExistingSession();
 		this._store.dispose();
 		this._log('controller disposed');
@@ -177,6 +178,7 @@ export class InlineChatController implements IEditorContribution {
 
 	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
 		this._log('session starting inside of run');
+		console.log('before finishExistingSession inside of run');
 		await this.finishExistingSession();
 		this._stashedSession.clear();
 		console.log('before calling create session inside of run');
@@ -353,7 +355,7 @@ export class InlineChatController implements IEditorContribution {
 
 			if (editIsOutsideOfWholeRange) {
 				this._log('text changed outside of whole range, FINISH session');
-				console.log('inside of INIT_UI, before the third finish existing session');
+				console.log('inside of INIT_UI, before calling finish existing session');
 				this.finishExistingSession();
 			}
 		}));
@@ -729,6 +731,7 @@ export class InlineChatController implements IEditorContribution {
 			// only stash sessions that had edits
 			this._stashedSession.value = this._instaService.createInstance(StashedSession, this._editor, mySession);
 		} else {
+			console.log('before releasing the session of cancel');
 			this._inlineChatSessionService.releaseSession(mySession);
 		}
 	}
@@ -870,6 +873,7 @@ class StashedSession {
 		this._ctxHasStashedSession.set(true);
 		this._listener = Event.once(Event.any(editor.onDidChangeCursorSelection, editor.onDidChangeModelContent, editor.onDidChangeModel))(() => {
 			this._session = undefined;
+			console.log('before release session of constructor');
 			this._sessionService.releaseSession(session);
 			this._ctxHasStashedSession.reset();
 		});
@@ -879,6 +883,7 @@ class StashedSession {
 		this._listener.dispose();
 		this._ctxHasStashedSession.reset();
 		if (this._session) {
+			console.log('before release session of dispose');
 			this._sessionService.releaseSession(this._session);
 		}
 	}

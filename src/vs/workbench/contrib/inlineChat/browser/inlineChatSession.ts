@@ -477,6 +477,7 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 	}
 
 	releaseSession(session: Session): void {
+		console.log('at the beginning of the release session');
 
 		const { editor } = session;
 
@@ -498,6 +499,7 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 
 		// send telemetry
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', session.asTelemetryData());
+		console.log('at the end of the release session');
 	}
 
 	getSession(editor: ICodeEditor, uri: URI): Session | undefined {
