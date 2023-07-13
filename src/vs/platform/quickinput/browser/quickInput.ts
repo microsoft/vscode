@@ -98,6 +98,7 @@ interface QuickInputUI {
 	widget: HTMLElement;
 	rightActionBar: ActionBar;
 	checkAll: HTMLInputElement;
+	inputContainer: HTMLElement;
 	filterContainer: HTMLElement;
 	inputBox: QuickInputBox;
 	visibleCountContainer: HTMLElement;
@@ -1331,8 +1332,8 @@ export class QuickInputController extends Disposable {
 		}));
 
 		const description2 = dom.append(headerContainer, $('.quick-input-description'));
-		const extraContainer = dom.append(headerContainer, $('.quick-input-and-message'));
-		const filterContainer = dom.append(extraContainer, $('.quick-input-filter'));
+		const inputContainer = dom.append(headerContainer, $('.quick-input-and-message'));
+		const filterContainer = dom.append(inputContainer, $('.quick-input-filter'));
 
 		const inputBox = this._register(new QuickInputBox(filterContainer, this.styles.inputBox, this.styles.toggle));
 		inputBox.setAttribute('aria-describedby', `${this.idPrefix}message`);
@@ -1360,7 +1361,7 @@ export class QuickInputController extends Disposable {
 			this.onDidCustomEmitter.fire();
 		}));
 
-		const message = dom.append(extraContainer, $(`#${this.idPrefix}message.quick-input-message`));
+		const message = dom.append(inputContainer, $(`#${this.idPrefix}message.quick-input-message`));
 
 		const progressBar = new ProgressBar(container, this.styles.progressBar);
 		progressBar.getContainer().classList.add('quick-input-progress');
@@ -1481,6 +1482,7 @@ export class QuickInputController extends Disposable {
 			widget,
 			rightActionBar,
 			checkAll,
+			inputContainer,
 			filterContainer,
 			inputBox,
 			visibleCountContainer,
@@ -1749,6 +1751,7 @@ export class QuickInputController extends Disposable {
 		ui.description1.style.display = visibilities.description && (visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
 		ui.description2.style.display = visibilities.description && !(visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
 		ui.checkAll.style.display = visibilities.checkAll ? '' : 'none';
+		ui.inputContainer.style.display = visibilities.inputBox ? '' : 'none';
 		ui.filterContainer.style.display = visibilities.inputBox ? '' : 'none';
 		ui.visibleCountContainer.style.display = visibilities.visibleCount ? '' : 'none';
 		ui.countContainer.style.display = visibilities.count ? '' : 'none';

@@ -55,6 +55,7 @@
 
 .quick-input-header .quick-input-description {
 	margin: 4px 2px;
+	flex: 1;
 }
 
 .quick-input-header {
