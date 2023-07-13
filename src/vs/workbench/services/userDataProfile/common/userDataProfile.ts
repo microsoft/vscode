@@ -74,7 +74,7 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 }
 
 export interface IProfileImportOptions {
-	readonly preview?: boolean;
+	readonly mode?: 'preview' | 'apply' | 'both';
 }
 
 export const IUserDataProfileImportExportService = createDecorator<IUserDataProfileImportExportService>('IUserDataProfileImportExportService');
@@ -87,7 +87,7 @@ export interface IUserDataProfileImportExportService {
 	exportProfile(): Promise<void>;
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
-	createFromCurrentProfile(name: string): Promise<void>;
+	SaveCurrentProfileAs(name: string): Promise<void>;
 	createTroubleshootProfile(): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
