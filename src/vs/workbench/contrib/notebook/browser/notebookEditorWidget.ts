@@ -2530,7 +2530,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return ret;
 	}
 
-	async highlightFind(matchIndex: number, ownerID?: string): Promise<number> {
+	async findHighlightCurrent(matchIndex: number, ownerID?: string): Promise<number> {
 		if (!this._webview) {
 			return 0;
 		}
@@ -2538,7 +2538,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._webview?.findHighlightCurrent(matchIndex, ownerID ?? this.getId());
 	}
 
-	async unHighlightFind(matchIndex: number, ownerID?: string): Promise<void> {
+	async findUnHighlightCurrent(matchIndex: number, ownerID?: string): Promise<void> {
 		if (!this._webview) {
 			return;
 		}

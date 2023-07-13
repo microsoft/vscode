@@ -18,7 +18,7 @@ export class FindMatchDecorationModel extends Disposable {
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		private readonly webviewOwnerID: string,
+		private readonly ownerID: string,
 	) {
 		super();
 	}
@@ -76,7 +76,7 @@ export class FindMatchDecorationModel extends Disposable {
 
 		this.clearCurrentFindMatchDecoration();
 
-		const offset = await this._notebookEditor.highlightFind(index, this.webviewOwnerID);
+		const offset = await this._notebookEditor.findHighlightCurrent(index, this.ownerID);
 		this._currentMatchDecorations = { kind: 'output', index: index };
 
 		this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, [{
@@ -102,7 +102,7 @@ export class FindMatchDecorationModel extends Disposable {
 				this._currentMatchDecorations = null;
 			});
 		} else if (this._currentMatchDecorations?.kind === 'output') {
-			this._notebookEditor.unHighlightFind(this._currentMatchDecorations.index, this.webviewOwnerID);
+			this._notebookEditor.findUnHighlightCurrent(this._currentMatchDecorations.index, this.ownerID);
 		}
 
 		this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, []);
@@ -146,7 +146,7 @@ export class FindMatchDecorationModel extends Disposable {
 	}
 
 	stopWebviewFind() {
-		this._notebookEditor.findStop(this.webviewOwnerID);
+		this._notebookEditor.findStop(this.ownerID);
 	}
 
 	override dispose() {

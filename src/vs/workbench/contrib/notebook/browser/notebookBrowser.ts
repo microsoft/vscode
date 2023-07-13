@@ -674,8 +674,8 @@ export interface INotebookEditor {
 	getNextVisibleCellIndex(index: number): number | undefined;
 	getPreviousVisibleCellIndex(index: number): number | undefined;
 	find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup?: boolean, shouldGetSearchPreviewInfo?: boolean, ownerID?: string): Promise<CellFindMatchWithIndex[]>;
-	highlightFind(matchIndex: number, ownerID?: string): Promise<number>;
-	unHighlightFind(matchIndex: number, ownerID?: string): Promise<void>;
+	findHighlightCurrent(matchIndex: number, ownerID?: string): Promise<number>;
+	findUnHighlightCurrent(matchIndex: number, ownerID?: string): Promise<void>;
 	findStop(ownerID?: string): void;
 	showProgress(): void;
 	hideProgress(): void;

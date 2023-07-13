@@ -1007,6 +1007,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		dispose() {
 			document.getSelection()?.removeAllRanges();
+			this._activeHighlightInfo.forEach(highlightInfo => {
+				highlightInfo.matches.forEach(match => {
+					match.highlightResult?.dispose();
+				});
+			});
 		}
 	}
 
@@ -1519,7 +1524,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			case 'find': {
 				_highlighter.removeHighlights(event.data.options.ownerID);
-
 				find(event.data.query, event.data.options);
 				break;
 			}
