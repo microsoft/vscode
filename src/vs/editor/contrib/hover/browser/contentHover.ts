@@ -30,7 +30,7 @@ export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
 
-	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
+	private readonly _widget: ContentHoverWidget;
 
 	getWidgetContent(): string | undefined {
 		const node = this._widget.getDomNode();
@@ -51,6 +51,11 @@ export class ContentHoverController extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
+
+		const initialHeight = this._editor.getOption(EditorOption.lineHeight) + 8;
+		const initialWidth = 4 / 3 * initialHeight;
+		const initialSize = new dom.Dimension(initialWidth, initialHeight);
+		this._widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor, initialSize));
 
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
@@ -481,9 +486,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	constructor(
 		editor: ICodeEditor,
+		initialSize: dom.Dimension,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(editor);
+		super(editor, initialSize);
 		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(contextKeyService);
 		this._hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(contextKeyService);
 
@@ -504,7 +510,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			this._hoverFocusedKey.set(false);
 		}));
 		this._setHoverData(undefined);
-		this._setMinimumDimensions();
 		this._layout();
 		this._editor.addContentWidget(this);
 	}
@@ -517,15 +522,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	public getId(): string {
 		return ContentHoverWidget.ID;
-	}
-
-	private _setMinimumDimensions(): void {
-		const width = 50;
-		const height = this._editor.getOption(EditorOption.lineHeight) + 8;
-		const contentsDomNode = this._hover.contentsDomNode;
-		contentsDomNode.style.minWidth = width + 'px';
-		contentsDomNode.style.minHeight = height + 'px';
-		this._resizableNode.minSize = new dom.Dimension(width, height);
 	}
 
 	private static _applyDimensions(container: HTMLElement, width: number | string, height: number | string): void {
