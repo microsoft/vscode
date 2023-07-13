@@ -176,15 +176,17 @@ export class InlineChatController implements IEditorContribution {
 		return this._zone.value.position;
 	}
 
+	private _currentRun?: Promise<void>;
+
 	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
-		this._log('session starting inside of run');
-		console.log('before finishExistingSession inside of run');
-		await this.finishExistingSession();
-		console.log('after finish existing session inside of run');
+		this.finishExistingSession();
+		if (this._currentRun) {
+			await this._currentRun;
+		}
 		this._stashedSession.clear();
-		console.log('before calling create session inside of run');
-		await this._nextState(State.CREATE_SESSION, options);
-		this._log('session done or paused');
+		this._currentRun = this._nextState(State.CREATE_SESSION, options);
+		await this._currentRun;
+		this._currentRun = undefined;
 	}
 
 	// ---- state machine
@@ -833,7 +835,7 @@ export class InlineChatController implements IEditorContribution {
 		return result;
 	}
 
-	async finishExistingSession(): Promise<void> {
+	finishExistingSession(): void {
 		console.log('inside of finish existing session');
 		console.log(this._activeSession);
 		if (this._activeSession) {
@@ -846,6 +848,7 @@ export class InlineChatController implements IEditorContribution {
 				console.log('before accepting inside of finish existing session');
 				this.acceptSession();
 			}
+
 		}
 		console.log('at the end of finish existing session');
 	}
