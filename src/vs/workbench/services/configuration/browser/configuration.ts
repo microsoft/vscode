@@ -11,7 +11,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult, FileOperation, FileOperationEvent } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
-import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, APPLY_ALL_PROFILES_SETTING } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { WorkbenchState, IWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
@@ -140,6 +140,14 @@ export class ApplicationConfiguration extends UserSettings {
 		return this.loadConfiguration();
 	}
 
+	override async loadConfiguration(): Promise<ConfigurationModel> {
+		const model = await super.loadConfiguration();
+		const value = model.getValue<string[]>(APPLY_ALL_PROFILES_SETTING);
+		const allProfilesSettings = Array.isArray(value) ? value : [];
+		return this.parseOptions.include || allProfilesSettings.length
+			? this.reparse({ ...this.parseOptions, include: allProfilesSettings })
+			: model;
+	}
 }
 
 export class UserConfiguration extends Disposable {
