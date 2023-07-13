@@ -193,13 +193,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
 				localize('mode.live', "Changes are applied directly to the document but can be highlighted via inline diffs. Ending a session will keep the changes."),
 			]
-		}
-	}
-});
-
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	id: 'editor',
-	properties: {
+		},
 		'inlineChat.showDiff': {
 			description: localize('showDiff', "Enable/disable showing the diff when edits are generated. Works only with inlineChat.mode equal to live or livePreview."),
 			default: true,

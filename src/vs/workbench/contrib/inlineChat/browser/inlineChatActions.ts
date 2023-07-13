@@ -31,7 +31,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Position } from 'vs/editor/common/core/position';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 
