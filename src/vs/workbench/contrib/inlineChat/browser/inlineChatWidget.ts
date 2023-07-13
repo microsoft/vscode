@@ -332,11 +332,11 @@ export class InlineChatWidget {
 		this._store.add(markdownMessageToolbar);
 
 		this._store.add(addDisposableListener(this._elements.root, EventType.CONTEXT_MENU, async (event: MouseEvent) => {
-			this.onContextMenu(event);
+			this._onContextMenu(event);
 		}));
 	}
 
-	private onContextMenu(event: MouseEvent) {
+	private _onContextMenu(event: MouseEvent) {
 		this._contextMenuService.showContextMenu({
 			menuId: MENU_INLINE_CHAT_WIDGET_TOGGLE,
 			getAnchor: () => event,
