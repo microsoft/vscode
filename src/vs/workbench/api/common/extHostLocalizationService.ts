@@ -28,7 +28,8 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 		@ILogService private readonly logService: ILogService
 	) {
 		this._proxy = rpc.getProxy(MainContext.MainThreadLocalization);
-		this.currentLanguage = initData.environment.appLanguage;
+		// Some languages display uppercase needs to be converted to lowercase for l10n to work, eg zh-CN, zh-TW.
+		this.currentLanguage = initData.environment.appLanguage?.toLocaleLowerCase();
 		this.isDefaultLanguage = this.currentLanguage === LANGUAGE_DEFAULT;
 	}
 
