@@ -78,7 +78,6 @@ export class PromptExtensionInstallFailureAction extends Action {
 		private readonly extension: IExtension,
 		private readonly version: string,
 		private readonly installOperation: InstallOperation,
-		private readonly installOptions: InstallOptions | undefined,
 		private readonly error: Error,
 		@IProductService private readonly productService: IProductService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -138,42 +137,27 @@ export class PromptExtensionInstallFailureAction extends Action {
 			return;
 		}
 
-		let operationMessage = this.installOperation === InstallOperation.Update ? localize('update operation', "Error while updating '{0}' extension.", this.extension.displayName || this.extension.identifier.id)
+		const operationMessage = this.installOperation === InstallOperation.Update ? localize('update operation', "Error while updating '{0}' extension.", this.extension.displayName || this.extension.identifier.id)
 			: localize('install operation', "Error while installing '{0}' extension.", this.extension.displayName || this.extension.identifier.id);
 		let additionalMessage;
 		const promptChoices: IPromptChoice[] = [];
 
-		if (ExtensionManagementErrorCode.IncompatiblePreRelease === (<ExtensionManagementErrorCode>this.error.name)) {
-			operationMessage = getErrorMessage(this.error);
-			additionalMessage = localize('install release version message', "Would you like to install the release version?");
+		const downloadUrl = await this.getDownloadUrl();
+		if (downloadUrl) {
+			additionalMessage = localize('check logs', "Please check the [log]({0}) for more details.", `command:${showWindowLogActionId}`);
 			promptChoices.push({
-				label: localize('install release version', "Install Release Version"),
-				run: () => {
-					const installAction = this.instantiationService.createInstance(InstallAction, { installPreReleaseVersion: !!this.installOptions?.installPreReleaseVersion });
-					installAction.extension = this.extension;
-					return installAction.run();
-				}
+				label: localize('download', "Try Downloading Manually..."),
+				run: () => this.openerService.open(downloadUrl).then(() => {
+					this.notificationService.prompt(
+						Severity.Info,
+						localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', this.extension.identifier.id),
+						[{
+							label: localize('installVSIX', "Install from VSIX..."),
+							run: () => this.commandService.executeCommand(SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID)
+						}]
+					);
+				})
 			});
-		}
-
-		else {
-			const downloadUrl = await this.getDownloadUrl();
-			if (downloadUrl) {
-				additionalMessage = localize('check logs', "Please check the [log]({0}) for more details.", `command:${showWindowLogActionId}`);
-				promptChoices.push({
-					label: localize('download', "Try Downloading Manually..."),
-					run: () => this.openerService.open(downloadUrl).then(() => {
-						this.notificationService.prompt(
-							Severity.Info,
-							localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', this.extension.identifier.id),
-							[{
-								label: localize('installVSIX', "Install from VSIX..."),
-								run: () => this.commandService.executeCommand(SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID)
-							}]
-						);
-					})
-				});
-			}
 		}
 
 		const message = `${operationMessage}${additionalMessage ? ` ${additionalMessage}` : ''}`;
@@ -469,7 +453,7 @@ export class InstallAction extends ExtensionAction {
 		try {
 			return await this.extensionsWorkbenchService.install(extension, this.options);
 		} catch (error) {
-			await this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Install, this.options, error).run();
+			await this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Install, error).run();
 			return undefined;
 		}
 	}
@@ -837,7 +821,7 @@ export class UpdateAction extends AbstractUpdateAction {
 			await this.extensionsWorkbenchService.install(extension, extension.local?.preRelease ? { installPreReleaseVersion: true } : undefined);
 			alert(localize('updateExtensionComplete', "Updating extension {0} to version {1} completed.", extension.displayName, extension.latestVersion));
 		} catch (err) {
-			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, undefined, err).run();
+			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, err).run();
 		}
 	}
 }
@@ -1304,7 +1288,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 					await this.extensionsWorkbenchService.installVersion(this.extension!, pick.id, { installPreReleaseVersion: pick.isPreReleaseVersion });
 				}
 			} catch (error) {
-				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, this.extension!, pick.latest ? this.extension!.latestVersion : pick.id, InstallOperation.Install, undefined, error).run();
+				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, this.extension!, pick.latest ? this.extension!.latestVersion : pick.id, InstallOperation.Install, error).run();
 			}
 		}
 		return null;
@@ -1811,7 +1795,7 @@ export class InstallRecommendedExtensionAction extends Action {
 			try {
 				await this.extensionWorkbenchService.install(extension);
 			} catch (err) {
-				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Install, undefined, err).run();
+				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Install, err).run();
 			}
 		}
 	}
