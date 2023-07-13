@@ -180,6 +180,7 @@ export class InlineChatController implements IEditorContribution {
 		this._log('session starting inside of run');
 		console.log('before finishExistingSession inside of run');
 		await this.finishExistingSession();
+		console.log('after finish existing session inside of run');
 		this._stashedSession.clear();
 		console.log('before calling create session inside of run');
 		await this._nextState(State.CREATE_SESSION, options);
@@ -220,14 +221,15 @@ export class InlineChatController implements IEditorContribution {
 	private async [State.CREATE_SESSION](options: InlineChatRunOptions): Promise<State.CANCEL | State.INIT_UI | State.PAUSE> {
 		console.log('inside of CREATE_SESSION');
 		console.log('inside of CREATE_SESSION, this._activeSession : ', this._activeSession);
-		if (this._activeSession) {
-			console.log('inside of CREATE_SESSION, before clearing the session store');
-			this._sessionStore.clear();
-			console.log('inside of CREATE_SESSION, before releasing the session');
-			this._inlineChatSessionService.releaseSession(this._activeSession);
-			console.log('inside of CREATE_SESSION, before calling pause');
-			await this[State.PAUSE]();
-		}
+		// if (this._activeSession) {
+		// 	console.log('inside of CREATE_SESSION, before clearing the session store');
+		// 	this._sessionStore.clear();
+		// 	console.log('inside of CREATE_SESSION, before releasing the session');
+		// 	this._inlineChatSessionService.releaseSession(this._activeSession);
+		// 	console.log('inside of CREATE_SESSION, before calling pause');
+		// 	// Doesn't appear to be properly awaited?
+		// 	await this[State.PAUSE]();
+		// }
 		console.log('inside of CREATE_SESSION, this._activeSession after the cleaning : ', this._activeSession);
 		assertType(this._activeSession === undefined);
 		assertType(this._editor.hasModel());
@@ -691,7 +693,7 @@ export class InlineChatController implements IEditorContribution {
 			console.log('inside of State.ACCEPT, before strategy apply');
 			await this._strategy.apply();
 			console.log('inside of State.ACCEPT, after strategy apply');
-			// TODO: ASK WHY DESPITE AWAIT AFTER STRATEFY NOT PRINTED BEFORE CREATE SESSION
+			// TODO: ASK WHY DESPITE AWAIT, AFTER STRATEFY NOT PRINTED BEFORE CREATE SESSION
 		} catch (err) {
 			console.log('inside of State.ACCEPT, when error obtained');
 			this._dialogService.error(localize('err.apply', "Failed to apply changes.", toErrorMessage(err)));
@@ -812,6 +814,7 @@ export class InlineChatController implements IEditorContribution {
 
 	acceptSession(): void {
 		console.log('inside of acceptSession method');
+		// Will fire a message which will be picked up by the controller and some other code will be run
 		this._messages.fire(Message.ACCEPT_SESSION);
 	}
 
