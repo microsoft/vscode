@@ -26,10 +26,18 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { isEqual } from 'vs/base/common/resources';
 
-suite('EditorGroupModel', () => {
+suite('EditorGroupModel', function () {
+
+	let testInstService: TestInstantiationService | undefined;
+
+	this.afterEach(() => {
+		testInstService?.dispose();
+		testInstService = undefined;
+	});
 
 	function inst(): IInstantiationService {
-		const inst = new TestInstantiationService();
+		testInstService ??= new TestInstantiationService();
+		const inst = testInstService;
 		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(ILifecycleService, new TestLifecycleService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
