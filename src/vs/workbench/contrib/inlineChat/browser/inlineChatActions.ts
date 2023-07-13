@@ -462,8 +462,8 @@ export class ToggleInlineDiff extends AbstractInlineChatAction {
 				mnemonicTitle: localize({ key: 'miShowDiff2', comment: ['&& denotes a mnemonic'] }, "&&Show Diff")
 			},
 			menu: [
-				{ id: MenuId.CommandPalette },
-				{ id: MENU_INLINE_CHAT_WIDGET_TOGGLE }
+				{ id: MenuId.CommandPalette, when: CTX_INLINE_CHAT_EDIT_MODE.notEqualsTo(EditMode.Preview) },
+				{ id: MENU_INLINE_CHAT_WIDGET_TOGGLE, when: CTX_INLINE_CHAT_EDIT_MODE.notEqualsTo(EditMode.Preview) }
 			]
 		});
 	}
