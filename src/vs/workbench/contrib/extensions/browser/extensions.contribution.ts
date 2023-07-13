@@ -1432,7 +1432,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
 				when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, ContextKeyExpr.has('inExtensionEditor').negate()),
-				order: 3
+				order: 4
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const extension = this.extensionsWorkbenchService.local.find(e => areSameExtensions({ id }, e.identifier));
@@ -1444,13 +1444,13 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.toggleApplyToAllProfiles',
-			title: { value: localize('workbench.extensions.action.toggleApplyToAllProfiles', "Apply this Extension to all Profiles"), original: `Apply this Extension to all Profiles` },
+			title: { value: localize('workbench.extensions.action.toggleApplyToAllProfiles', "Apply this Extension to all Profiles"), original: `Apply Extension to all Profiles` },
 			toggled: ContextKeyExpr.has('isApplicationScopedExtension'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('isDefaultApplicationScopedExtension').negate()),
-				order: 4
+				order: 3
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const extension = this.extensionsWorkbenchService.local.find(e => areSameExtensions({ id }, e.identifier));
