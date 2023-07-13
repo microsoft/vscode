@@ -22,7 +22,7 @@ import { registerChatExecuteActions } from 'vs/workbench/contrib/chat/browser/ac
 import { registerChatQuickQuestionActions } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { registerChatTitleActions } from 'vs/workbench/contrib/chat/browser/actions/chatTitleActions';
 import { registerChatExportActions } from 'vs/workbench/contrib/chat/browser/actions/chatImportExport';
-import { ChatTreeItem, IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatContributionService } from 'vs/workbench/contrib/chat/browser/chatContributionServiceImpl';
 import { ChatEditor, IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput, ChatEditorInputSerializer } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
@@ -128,32 +128,42 @@ class ChatAccessibleViewContribution extends Disposable {
 			const widgetService = accessor.get(IChatWidgetService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 
-			let widget: IChatWidget | undefined = widgetService.lastFocusedWidget;
-			let focusedItem: ChatTreeItem | undefined = widget?.getFocus();
-			let focusedInput = false;
-			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
-			if (editor && widget) {
-				widget.focusLastMessage();
-				widget = widgetService.lastFocusedWidget;
-				focusedItem = widget?.getFocus();
-				focusedInput = true;
-			}
-			if (!widget || !focusedItem || !isResponseVM(focusedItem)) {
+			let widget = widgetService.lastFocusedWidget;
+			if (!widget) {
 				return false;
 			}
 
-			const responseContent = focusedItem?.response.value;
+			const chatInputFocused = !!(codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor());
+
+			if (chatInputFocused) {
+				widget.focusLastMessage();
+				widget = widgetService.lastFocusedWidget;
+			}
+
+			if (!widget) {
+				return false;
+			}
+
+			const verifiedWidget: IChatWidget = widget;
+			const focusedItem = verifiedWidget.getFocus();
+
+			if (!focusedItem) {
+				return false;
+			}
+
+			const responseContent = isResponseVM(focusedItem) ? focusedItem.response.value : undefined;
 			if (!responseContent) {
 				return false;
 			}
+
 			accessibleViewService.show({
 				verbositySettingKey: 'panelChat',
 				provideContent(): string { return responseContent; },
 				onClose() {
-					if (focusedInput) {
-						widget?.focusInput();
+					if (chatInputFocused) {
+						verifiedWidget.focusInput();
 					} else {
-						widget!.focus(focusedItem!);
+						verifiedWidget.focus(focusedItem);
 					}
 				},
 				options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript', type: AccessibleViewType.View }
