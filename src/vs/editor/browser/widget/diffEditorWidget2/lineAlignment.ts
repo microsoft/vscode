@@ -7,7 +7,7 @@ import { $ } from 'vs/base/browser/dom';
 import { ArrayQueue } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { autorun, autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -340,6 +340,17 @@ export class ViewZoneManager extends Disposable {
 			scrollState.restore(this._editors.modified);
 		}));
 
+		this._register(toDisposable(() => {
+			this._editors.original.changeViewZones((a) => {
+				for (const id of alignmentViewZoneIdsOrig) { a.removeZone(id); }
+				alignmentViewZoneIdsOrig.clear();
+			});
+			this._editors.modified.changeViewZones((a) => {
+				for (const id of alignmentViewZoneIdsMod) { a.removeZone(id); }
+				alignmentViewZoneIdsMod.clear();
+			});
+		}));
+
 		let ignoreChange = false;
 		this._register(this._editors.original.onDidScrollChange(e => {
 			if (e.scrollLeftChanged && !ignoreChange) {
@@ -504,20 +515,52 @@ function computeRangeAlignment(
 		const c = m.lineRangeMapping;
 		handleAlignmentsOutsideOfDiffs(c.originalRange.startLineNumber, c.modifiedRange.startLineNumber);
 
-		const originalAdditionalHeight = originalLineHeightOverrides
-			.takeWhile(v => v.lineNumber < c.originalRange.endLineNumberExclusive)
-			?.reduce((p, c) => p + c.heightInPx, 0) ?? 0;
-		const modifiedAdditionalHeight = modifiedLineHeightOverrides
-			.takeWhile(v => v.lineNumber < c.modifiedRange.endLineNumberExclusive)
-			?.reduce((p, c) => p + c.heightInPx, 0) ?? 0;
+		let first = true;
+		let lastModLineNumber = c.modifiedRange.startLineNumber;
+		let lastOrigLineNumber = c.originalRange.startLineNumber;
 
-		result.push({
-			originalRange: c.originalRange,
-			modifiedRange: c.modifiedRange,
-			originalHeightInPx: c.originalRange.length * origLineHeight + originalAdditionalHeight,
-			modifiedHeightInPx: c.modifiedRange.length * modLineHeight + modifiedAdditionalHeight,
-			diff: m.lineRangeMapping,
-		});
+		function emitAlignment(origLineNumberExclusive: number, modLineNumberExclusive: number) {
+			if (origLineNumberExclusive < lastOrigLineNumber || modLineNumberExclusive < lastModLineNumber) {
+				return;
+			}
+			if (first) {
+				first = false;
+			} else if (origLineNumberExclusive === lastOrigLineNumber || modLineNumberExclusive === lastModLineNumber) {
+				return;
+			}
+			const originalRange = new LineRange(lastOrigLineNumber, origLineNumberExclusive);
+			const modifiedRange = new LineRange(lastModLineNumber, modLineNumberExclusive);
+			if (originalRange.isEmpty && modifiedRange.isEmpty) {
+				return;
+			}
+
+			const originalAdditionalHeight = originalLineHeightOverrides
+				.takeWhile(v => v.lineNumber < origLineNumberExclusive)
+				?.reduce((p, c) => p + c.heightInPx, 0) ?? 0;
+			const modifiedAdditionalHeight = modifiedLineHeightOverrides
+				.takeWhile(v => v.lineNumber < modLineNumberExclusive)
+				?.reduce((p, c) => p + c.heightInPx, 0) ?? 0;
+
+			result.push({
+				originalRange,
+				modifiedRange,
+				originalHeightInPx: originalRange.length * origLineHeight + originalAdditionalHeight,
+				modifiedHeightInPx: modifiedRange.length * modLineHeight + modifiedAdditionalHeight,
+			});
+
+			lastOrigLineNumber = origLineNumberExclusive;
+			lastModLineNumber = modLineNumberExclusive;
+		}
+
+		for (const i of c.innerChanges || []) {
+			if (i.originalRange.startColumn > 1 && i.modifiedRange.startColumn > 1) {
+				// There is some unmodified text on this line
+				emitAlignment(i.originalRange.startLineNumber, i.modifiedRange.startLineNumber);
+			}
+			emitAlignment(i.originalRange.endLineNumber, i.modifiedRange.endLineNumber);
+		}
+
+		emitAlignment(c.originalRange.endLineNumberExclusive, c.modifiedRange.endLineNumberExclusive);
 
 		lastOriginalLineNumber = c.originalRange.endLineNumberExclusive;
 		lastModifiedLineNumber = c.modifiedRange.endLineNumberExclusive;
