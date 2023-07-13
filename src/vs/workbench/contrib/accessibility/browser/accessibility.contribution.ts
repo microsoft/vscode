@@ -13,7 +13,6 @@ import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityHelpAction, AccessibleViewAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { AccessibleViewService, AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/browser/accessibility/accessibleView';
 import * as strings from 'vs/base/common/strings';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -28,6 +27,7 @@ import { getNotificationFromContext } from 'vs/workbench/browser/parts/notificat
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IAccessibleViewService, AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
