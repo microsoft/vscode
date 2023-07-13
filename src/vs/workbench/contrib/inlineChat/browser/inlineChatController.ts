@@ -482,7 +482,7 @@ export class InlineChatController implements IEditorContribution {
 
 		let message = Message.NONE;
 		const msgListener = Event.once(this._messages.event)(m => {
-			console.log('inside of msgListener of MAKE REQUEST');
+			console.log('inside of MAKE_REQUEST, inside of msgListener of MAKE REQUEST');
 			this._log('state=_makeRequest) message received', m);
 			message = m;
 			requestCts.cancel();
@@ -537,14 +537,12 @@ export class InlineChatController implements IEditorContribution {
 		this._activeSession.addExchange(new SessionExchange(this._activeSession.lastInput, response));
 
 		if (message & Message.CANCEL_SESSION) {
-			console.log('inside of make request');
-			console.log('cancelling the session');
+			console.log('inside of MAKE_REQUEST, cancelling the session');
 			return State.CANCEL;
 		} else if (message & Message.PAUSE_SESSION) {
 			return State.PAUSE;
 		} else if (message & Message.ACCEPT_SESSION) {
-			console.log('inside of make request');
-			console.log('accepting');
+			console.log('inside of MAKE_REQUEST, accepting');
 			return State.ACCEPT;
 		} else {
 			return State.APPLY_RESPONSE;
@@ -685,25 +683,25 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 		this._sessionStore.clear();
-		console.log('after assert type');
+		console.log('inside of State.ACCEPT, after assert type');
 
 		try {
-			console.log('before strategy apply');
+			console.log('inside of State.ACCEPT, before strategy apply');
 			await this._strategy.apply();
-			console.log('after strategy apply');
+			console.log('inside of State.ACCEPT, after strategy apply');
 			// TODO: ASK WHY DESPITE AWAIT AFTER STRATEFY NOT PRINTED BEFORE CREATE SESSION
 		} catch (err) {
-			console.log('when error obtained');
+			console.log('inside of State.ACCEPT, when error obtained');
 			this._dialogService.error(localize('err.apply', "Failed to apply changes.", toErrorMessage(err)));
 			this._log('FAILED to apply changes');
 			this._log(err);
 		}
 
-		console.log('before release session');
+		console.log('inside of State.ACCEPT, before release session');
 
 		await this._inlineChatSessionService.releaseSession(this._activeSession);
 
-		console.log('before state pause');
+		console.log('inside of State.ACCEPT, before state pause');
 		await this[State.PAUSE]();
 	}
 
