@@ -44,6 +44,12 @@ import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatCo
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
+export const enum QuickQuestionMode {
+	SingleQuestion = 'singleQuestion',
+	InputOnTopChat = 'inputOnTopChat',
+	InputOnBottomChat = 'inputOnBottomChat',
+}
+
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -76,6 +82,13 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in chat codeblocks. Use 0 to compute the line height from the font size."),
 			default: 0
+		},
+		'chat.experimental.quickQuestion.mode': {
+			type: 'string',
+			tags: ['experimental'],
+			enum: [QuickQuestionMode.SingleQuestion, QuickQuestionMode.InputOnTopChat, QuickQuestionMode.InputOnBottomChat],
+			description: nls.localize('interactiveSession.quickQuestion.mode', "Controls the mode of quick question chat experience."),
+			default: QuickQuestionMode.SingleQuestion,
 		}
 	}
 });
