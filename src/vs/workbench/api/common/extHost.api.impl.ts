@@ -1155,6 +1155,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostDebugService.stackFrameFocus;
 			},
 			get selectedConfiguration() {
+				checkProposedApiEnabled(extension, 'debugSelectedConfiguration');
 				const selectedConfigurationName = extHostDebugService.selectedConfigurationName;
 				return selectedConfigurationName ? { name: selectedConfigurationName } : undefined;
 			},
@@ -1174,6 +1175,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
 			},
 			onDidChangeSelectedConfiguration(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension, 'debugSelectedConfiguration');
 				return extHostDebugService.onDidChangeSelectedConfiguration(listener, thisArgs, disposables);
 			},
 			onDidChangeStackFrameFocus(listener, thisArg?, disposables?) {
@@ -1208,6 +1210,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostDebugService.asDebugSourceUri(source, session);
 			},
 			setSelectedConfiguration(name) {
+				checkProposedApiEnabled(extension, 'debugSelectedConfiguration');
 				return extHostDebugService.setSelectedConfiguration(name);
 			}
 		};

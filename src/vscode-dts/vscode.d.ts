@@ -15200,10 +15200,6 @@ declare module 'vscode' {
 		Dynamic = 2
 	}
 
-	export interface SelectedDebugConfiguration {
-		name: string;
-	}
-
 	/**
 	 * Namespace for debug functionality.
 	 */
@@ -15226,11 +15222,6 @@ declare module 'vscode' {
 		 * List of breakpoints.
 		 */
 		export let breakpoints: readonly Breakpoint[];
-
-		/**
-		 * The debug configuration, which is currently selected by the user.
-		 */
-		export const selectedConfiguration: SelectedDebugConfiguration | undefined;
 
 		/**
 		 * An {@link Event} which fires when the {@link debug.activeDebugSession active debug session}
@@ -15258,11 +15249,6 @@ declare module 'vscode' {
 		 * An {@link Event} that is emitted when the set of breakpoints is added, removed, or changed.
 		 */
 		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
-
-		/**
-		 * An {@link Event} that is emitted when the set of breakpoints is added, removed, or changed.
-		 */
-		export const onDidChangeSelectedConfiguration: Event<void>;
 
 		/**
 		 * Register a {@link DebugConfigurationProvider debug configuration provider} for a specific debug type.
@@ -15343,13 +15329,6 @@ declare module 'vscode' {
 		 * @return A uri that can be used to load the contents of the source.
 		 */
 		export function asDebugSourceUri(source: DebugProtocolSource, session?: DebugSession): Uri;
-
-		/**
-		 * Change selected debug configuration by name. This will also fire a 'onDidChangeConfiguration' event.
-		 *
-		 * @param name Name
-		 */
-		export function setSelectedConfiguration(name: string): void;
 	}
 
 	/**
