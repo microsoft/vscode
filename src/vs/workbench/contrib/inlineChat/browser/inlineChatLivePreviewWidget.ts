@@ -307,15 +307,22 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 	}
 
 	private _hideEditorRanges(editor: ICodeEditor, lineRanges: LineRange[]): void {
+		assertType(editor.hasModel());
+
 		lineRanges = lineRanges.filter(range => !range.isEmpty);
 		if (lineRanges.length === 0) {
 			// todo?
 			this._logService.debug(`[IE] diff NOTHING to hide for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
 			return;
 		}
-		const ranges = lineRanges.map(lineRangeAsRange);
-		editor.setHiddenAreas(ranges, InlineChatLivePreviewWidget._hideId);
-		this._logService.debug(`[IE] diff HIDING ${ranges} for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
+
+		let hiddenRanges = lineRanges.map(lineRangeAsRange);
+		if (LineRange.fromRange(hiddenRanges.reduce(Range.plusRange)).equals(LineRange.ofLength(1, editor.getModel().getLineCount()))) {
+			// TODO not every line can be hidden, keep the first line around
+			hiddenRanges = [editor.getModel().getFullModelRange().delta(1)];
+		}
+		editor.setHiddenAreas(hiddenRanges, InlineChatLivePreviewWidget._hideId);
+		this._logService.debug(`[IE] diff HIDING ${hiddenRanges} for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
 	}
 
 	protected override revealRange(range: Range, isLastLine: boolean): void {
