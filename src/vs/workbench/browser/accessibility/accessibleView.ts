@@ -22,9 +22,8 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 const enum DEFAULT {
 	WIDTH = 800,
@@ -80,7 +79,7 @@ class AccessibleView extends Disposable {
 		this._editorContainer = document.createElement('div');
 		this._editorContainer.classList.add('accessible-view');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, 'editor.contrib.selectionClipboard', 'editor.contrib.selectionAnchorController'])
 		};
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(this._configurationService),
@@ -225,4 +224,35 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		}
 		this._accessibleView.show(provider);
 	}
+}
+function getSimpleEditorOptions(configurationService: IConfigurationService): IEditorOptions {
+	return {
+		wordWrap: 'on',
+		overviewRulerLanes: 0,
+		glyphMargin: false,
+		lineNumbers: 'off',
+		folding: false,
+		selectOnLineNumbers: false,
+		hideCursorInOverviewRuler: true,
+		selectionHighlight: false,
+		scrollbar: {
+			horizontal: 'hidden'
+		},
+		lineDecorationsWidth: 0,
+		overviewRulerBorder: false,
+		scrollBeyondLastLine: false,
+		renderLineHighlight: 'none',
+		fixedOverflowWidgets: true,
+		acceptSuggestionOnEnter: 'smart',
+		dragAndDrop: false,
+		revealHorizontalRightPadding: 5,
+		minimap: {
+			enabled: false
+		},
+		guides: {
+			indentation: false
+		},
+		accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
+		cursorBlinking: configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking')
+	};
 }

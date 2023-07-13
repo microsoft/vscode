@@ -10,7 +10,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShellIntegrationStatus, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions } from 'vs/workbench/browser/accessibility/accessibleView';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal } from 'xterm';

@@ -19,6 +19,7 @@ import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/browser/accessibility/accessibleView';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
 	readonly widgetAriaLabel?: string;
@@ -36,7 +37,8 @@ export class NotificationsList extends Disposable {
 		private readonly container: HTMLElement,
 		private readonly options: INotificationsListOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService
 	) {
 		super();
 	}
@@ -161,7 +163,17 @@ export class NotificationsList extends Disposable {
 		// Remember focus and relative top of that item
 		const focusedIndex = list.getFocus()[0];
 		const focusedItem = this.viewModel[focusedIndex];
-
+		this.accessibleViewService.show({
+			provideContent: () => { return focusedItem.message.original.toString() || ''; },
+			onClose(): void {
+				list.setFocus([focusedIndex]);
+			},
+			verbositySettingKey: 'notifications',
+			options: {
+				ariaLabel: localize('notification', "Notification Accessible View"),
+				type: AccessibleViewType.View
+			}
+		});
 		let focusRelativeTop: number | null = null;
 		if (typeof focusedIndex === 'number') {
 			focusRelativeTop = list.getRelativeTop(focusedIndex);

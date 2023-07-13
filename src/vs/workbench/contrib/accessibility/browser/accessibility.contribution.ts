@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityHelpAction, AccessibleViewAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { AccessibleViewService, AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewService, AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/browser/accessibility/accessibleView';
 import * as strings from 'vs/base/common/strings';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
