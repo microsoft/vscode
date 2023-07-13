@@ -272,6 +272,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	async revert(): Promise<void> {
+
+		// No longer dirty
 		this.setDirty(false);
 
 		// Emit as event

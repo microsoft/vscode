@@ -43,7 +43,7 @@ export interface IChatResponse {
 }
 
 export type IChatProgress =
-	{ content: string } | { responseId: string };
+	{ content: string } | { requestId: string };
 
 export interface IPersistedChatState { }
 export interface IChatProvider {
@@ -56,6 +56,7 @@ export interface IChatProvider {
 	provideFollowups?(session: IChat, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
 	provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void, token: CancellationToken): ProviderResult<IChatResponse>;
 	provideSlashCommands?(session: IChat, token: CancellationToken): ProviderResult<ISlashCommand[]>;
+	removeRequest?(session: IChat, requestId: string): void;
 }
 
 export interface ISlashCommandProvider {
@@ -66,9 +67,11 @@ export interface ISlashCommandProvider {
 
 export interface ISlashCommand {
 	command: string;
+	shouldRepopulate?: boolean;
 	provider?: ISlashCommandProvider;
 	sortText?: string;
 	detail?: string;
+	followupPlaceholder?: string;
 }
 
 export interface IChatReplyFollowup {
@@ -174,6 +177,9 @@ export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
 	_serviceBrand: undefined;
+	transferredSessionId: string | undefined;
+
+	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
 	registerSlashCommandProvider(provider: ISlashCommandProvider): IDisposable;
 	getProviderInfos(): IChatProviderInfo[];
@@ -185,7 +191,8 @@ export interface IChatService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string | IChatReplyFollowup): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
+	sendRequest(sessionId: string, message: string | IChatReplyFollowup, usedSlashCommand?: ISlashCommand): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
+	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
 	clearSession(sessionId: string): void;
@@ -193,7 +200,10 @@ export interface IChatService {
 	addCompleteRequest(sessionId: string, message: string, response: IChatCompleteResponse): void;
 	sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): void;
 	getHistory(): IChatDetail[];
+	removeHistoryEntry(sessionId: string): void;
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
+
+	transferChatSession(sessionProviderId: number, toWorkspace: URI): void;
 }

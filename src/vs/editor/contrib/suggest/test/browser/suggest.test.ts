@@ -24,6 +24,7 @@ suite('Suggest', function () {
 		registry = new LanguageFeatureRegistry();
 		model = createTextModel('FOO\nbar\BAR\nfoo', undefined, undefined, URI.parse('foo:bar/path'));
 		registration = registry.register({ pattern: 'bar/path', scheme: 'foo' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(_doc, pos) {
 				return {
 					incomplete: false,
@@ -114,6 +115,7 @@ suite('Suggest', function () {
 
 		const foo = new class implements CompletionItemProvider {
 
+			_debugDisplayName = 'test';
 			triggerCharacters = [];
 
 			provideCompletionItems() {

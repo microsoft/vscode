@@ -44,6 +44,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { isEqual } from 'vs/base/common/resources';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
@@ -481,7 +482,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		private readonly settingsEditorModel: SettingsEditorModel,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
@@ -602,20 +603,20 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	}
 
 	private handleLocalUserConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
-		if (!this.userDataProfileService.currentProfile.isDefault) {
-			if (isEqual(this.userDataProfilesService.defaultProfile.settingsResource, this.settingsEditorModel.uri) && configuration.scope !== ConfigurationScope.APPLICATION) {
-				// If we're in the default profile setting file, and the setting is not
-				// application-scoped, fade it out.
+		if (!this.userDataProfileService.currentProfile.isDefault && !this.userDataProfileService.currentProfile.useDefaultFlags?.settings) {
+			if (isEqual(this.userDataProfilesService.defaultProfile.settingsResource, this.settingsEditorModel.uri) && !this.configurationService.isSettingAppliedForAllProfiles(setting.key)) {
+				// If we're in the default profile setting file, and the setting cannot be applied in all profiles
 				markerData.push({
 					severity: MarkerSeverity.Hint,
 					tags: [MarkerTag.Unnecessary],
 					...setting.range,
 					message: nls.localize('defaultProfileSettingWhileNonDefaultActive', "This setting cannot be applied while a non-default profile is active. It will be applied when the default profile is active.")
 				});
-			} else if (isEqual(this.userDataProfileService.currentProfile.settingsResource, this.settingsEditorModel.uri) && configuration.scope === ConfigurationScope.APPLICATION) {
-				// If we're in a profile setting file, and the setting is
-				// application-scoped, fade it out.
-				markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+			} else if (isEqual(this.userDataProfileService.currentProfile.settingsResource, this.settingsEditorModel.uri)) {
+				if (configuration.scope === ConfigurationScope.APPLICATION) {
+					// If we're in a profile setting file, and the setting is application-scoped, fade it out.
+					markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+				}
 			}
 		}
 		if (this.environmentService.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {

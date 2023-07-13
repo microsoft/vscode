@@ -91,7 +91,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	}
 
 	private maybeTriggerAutoSave(reason: SaveReason, editorIdentifier?: IEditorIdentifier): void {
-		if (editorIdentifier?.editor.hasCapability(EditorInputCapabilities.Readonly) || editorIdentifier?.editor.hasCapability(EditorInputCapabilities.Untitled)) {
+		if (editorIdentifier?.editor.isReadonly() || editorIdentifier?.editor.hasCapability(EditorInputCapabilities.Untitled)) {
 			return; // no auto save for readonly or untitled editors
 		}
 

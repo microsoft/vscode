@@ -317,11 +317,12 @@ export function registerChatCodeBlockActions() {
 					isHiddenByDefault: true,
 				},
 				keybinding: {
-					primary: KeyMod.WinCtrl | KeyCode.Enter,
-					win: {
-						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
+					mac: {
+						primary: KeyMod.WinCtrl | KeyCode.Enter,
 					},
-					weight: KeybindingWeight.EditorContrib
+					weight: KeybindingWeight.EditorContrib,
+					when: CONTEXT_IN_CHAT_SESSION
 				}
 			});
 		}
@@ -335,9 +336,8 @@ export function registerChatCodeBlockActions() {
 
 			let terminal = await terminalService.getActiveOrCreateInstance();
 
-			// Why does getActiveOrCreateInstance return a disposed terminal? #180018
-			// isFeatureTerminal = debug terminal
-			const unusableTerminal = terminal.isDisposed || terminal.xterm?.isStdinDisabled || terminal.shellLaunchConfig.isFeatureTerminal;
+			// isFeatureTerminal = debug terminal or task terminal
+			const unusableTerminal = terminal.xterm?.isStdinDisabled || terminal.shellLaunchConfig.isFeatureTerminal;
 			terminal = unusableTerminal ? await terminalService.createTerminal() : terminal;
 
 			terminalService.setActiveInstance(terminal);
@@ -374,15 +374,18 @@ export function registerChatCodeBlockActions() {
 		const editor = codeEditorService.getFocusedCodeEditor();
 		const editorUri = editor?.getModel()?.uri;
 		const curCodeBlockInfo = editorUri ? widget.getCodeBlockInfoForEditor(editorUri) : undefined;
+		const focused = !widget.inputEditor.hasWidgetFocus() && widget.getFocus();
+		const focusedResponse = isResponseVM(focused) ? focused : undefined;
 
-		const focusResponse = curCodeBlockInfo ?
+		const currentResponse = curCodeBlockInfo ?
 			curCodeBlockInfo.element :
-			widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item));
-		if (!focusResponse) {
+			(focusedResponse ?? widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item)));
+		if (!currentResponse) {
 			return;
 		}
 
-		const responseCodeblocks = widget.getCodeBlockInfosForResponse(focusResponse);
+		widget.reveal(currentResponse);
+		const responseCodeblocks = widget.getCodeBlockInfosForResponse(currentResponse);
 		const focusIdx = curCodeBlockInfo ?
 			(curCodeBlockInfo.codeBlockIndex + (reverse ? -1 : 1) + responseCodeblocks.length) % responseCodeblocks.length :
 			reverse ? responseCodeblocks.length - 1 : 0;

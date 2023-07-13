@@ -14,6 +14,7 @@ import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse,
 
 export interface IChatRequestModel {
 	readonly id: string;
+	readonly providerRequestId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
@@ -56,6 +57,10 @@ export class ChatRequestModel implements IChatRequestModel {
 		return this._id;
 	}
 
+	public get providerRequestId(): string | undefined {
+		return this._providerRequestId;
+	}
+
 	public get username(): string {
 		return this.session.requesterUsername;
 	}
@@ -66,8 +71,13 @@ export class ChatRequestModel implements IChatRequestModel {
 
 	constructor(
 		public readonly session: ChatModel,
-		public readonly message: string | IChatReplyFollowup) {
+		public readonly message: string | IChatReplyFollowup,
+		private _providerRequestId?: string) {
 		this._id = 'request_' + ChatRequestModel.nextId++;
+	}
+
+	setProviderRequestId(providerRequestId: string) {
+		this._providerRequestId = providerRequestId;
 	}
 }
 
@@ -136,18 +146,24 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
-	updateContent(responsePart: string) {
+	updateContent(responsePart: string, quiet?: boolean) {
 		this._response = new MarkdownString(this.response.value + responsePart);
-		this._onDidChange.fire();
+		if (!quiet) {
+			this._onDidChange.fire();
+		}
 	}
 
 	setProviderResponseId(providerResponseId: string) {
 		this._providerResponseId = providerResponseId;
 	}
 
-	complete(errorDetails?: IChatResponseErrorDetails): void {
-		this._isComplete = true;
+	setErrorDetails(errorDetails?: IChatResponseErrorDetails): void {
 		this._errorDetails = errorDetails;
+		this._onDidChange.fire();
+	}
+
+	complete(): void {
+		this._isComplete = true;
 		this._onDidChange.fire();
 	}
 
@@ -179,7 +195,6 @@ export interface IChatModel {
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getRequests(): IChatRequestModel[];
-	waitForInitialization(): Promise<void>;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
 }
@@ -189,7 +204,7 @@ export interface ISerializableChatsData {
 }
 
 export interface ISerializableChatRequestData {
-	providerResponseId: string | undefined;
+	providerRequestId: string | undefined;
 	message: string;
 	response: string | undefined;
 	responseErrorDetails: IChatResponseErrorDetails | undefined;
@@ -230,7 +245,7 @@ export function isSerializableSessionData(obj: unknown): obj is ISerializableCha
 		typeof data.sessionId === 'string';
 }
 
-export type IChatChangeEvent = IChatAddRequestEvent | IChatAddResponseEvent | IChatInitEvent;
+export type IChatChangeEvent = IChatAddRequestEvent | IChatAddResponseEvent | IChatInitEvent | IChatRemoveRequestEvent;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -240,6 +255,12 @@ export interface IChatAddRequestEvent {
 export interface IChatAddResponseEvent {
 	kind: 'addResponse';
 	response: IChatResponseModel;
+}
+
+export interface IChatRemoveRequestEvent {
+	kind: 'removeRequest';
+	requestId: string;
+	responseId?: string;
 }
 
 export interface IChatInitEvent {
@@ -321,13 +342,8 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get title(): string {
 		const firstRequestMessage = this._requests[0]?.message;
-		if (typeof firstRequestMessage === 'string') {
-			return firstRequestMessage;
-		} else if (firstRequestMessage) {
-			return firstRequestMessage.message;
-		} else {
-			return '';
-		}
+		const message = typeof firstRequestMessage === 'string' ? firstRequestMessage : firstRequestMessage?.message ?? '';
+		return message.split('\n')[0].substring(0, 50);
 	}
 
 	constructor(
@@ -360,12 +376,17 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		return requests.map((raw: ISerializableChatRequestData) => {
-			const request = new ChatRequestModel(this, raw.message);
+			const request = new ChatRequestModel(this, raw.message, raw.providerRequestId);
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new ChatResponseModel(new MarkdownString(raw.response), this, true, raw.isCanceled, raw.vote, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
+				request.response = new ChatResponseModel(new MarkdownString(raw.response), this, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
 			}
 			return request;
 		});
+	}
+
+	startReinitialize(): void {
+		this._session = undefined;
+		this._isInitializedDeferred = new DeferredPromise<void>();
 	}
 
 	initialize(session: IChat, welcomeMessage: ChatWelcomeMessageModel | undefined): void {
@@ -417,7 +438,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
-	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress): void {
+	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress, quiet?: boolean): void {
 		if (!this._session) {
 			throw new Error('acceptResponseProgress: No session');
 		}
@@ -431,9 +452,24 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		if ('content' in progress) {
-			request.response.updateContent(progress.content);
+			request.response.updateContent(progress.content, quiet);
 		} else {
-			request.response.setProviderResponseId(progress.responseId);
+			request.setProviderRequestId(progress.requestId);
+			request.response.setProviderResponseId(progress.requestId);
+		}
+	}
+
+	removeRequest(requestId: string): void {
+		const index = this._requests.findIndex(request => request.providerRequestId === requestId);
+		const request = this._requests[index];
+		if (!request.providerRequestId) {
+			return;
+		}
+
+		if (index !== -1) {
+			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.providerRequestId, responseId: request.response?.providerResponseId });
+			this._requests.splice(index, 1);
+			request.response?.dispose();
 		}
 	}
 
@@ -443,7 +479,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 	}
 
-	completeResponse(request: ChatRequestModel, rawResponse: IChatResponse): void {
+	setResponse(request: ChatRequestModel, rawResponse: IChatResponse): void {
 		if (!this._session) {
 			throw new Error('completeResponse: No session');
 		}
@@ -452,7 +488,15 @@ export class ChatModel extends Disposable implements IChatModel {
 			request.response = new ChatResponseModel(new MarkdownString(''), this);
 		}
 
-		request.response.complete(rawResponse.errorDetails);
+		request.response.setErrorDetails(rawResponse.errorDetails);
+	}
+
+	completeResponse(request: ChatRequestModel): void {
+		if (!request.response) {
+			throw new Error('Call setResponse before completeResponse');
+		}
+
+		request.response.complete();
 	}
 
 	setFollowups(request: ChatRequestModel, followups: IChatFollowup[] | undefined): void {
@@ -464,17 +508,17 @@ export class ChatModel extends Disposable implements IChatModel {
 		request.response.setFollowups(followups);
 	}
 
-	setResponse(request: ChatRequestModel, response: ChatResponseModel): void {
+	setResponseModel(request: ChatRequestModel, response: ChatResponseModel): void {
 		request.response = response;
 		this._onDidChange.fire({ kind: 'addResponse', response });
 	}
 
 	toExport(): IExportableChatData {
 		return {
-			requesterUsername: this._session!.requesterUsername,
-			requesterAvatarIconUri: this._session!.requesterAvatarIconUri,
-			responderUsername: this._session!.responderUsername,
-			responderAvatarIconUri: this._session!.responderAvatarIconUri,
+			requesterUsername: this.requesterUsername,
+			requesterAvatarIconUri: this.requesterAvatarIconUri,
+			responderUsername: this.responderUsername,
+			responderAvatarIconUri: this.responderAvatarIconUri,
 			welcomeMessage: this._welcomeMessage?.content.map(c => {
 				if (Array.isArray(c)) {
 					return c;
@@ -484,7 +528,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			}),
 			requests: this._requests.map((r): ISerializableChatRequestData => {
 				return {
-					providerResponseId: r.response?.providerResponseId,
+					providerRequestId: r.providerRequestId,
 					message: typeof r.message === 'string' ? r.message : r.message.message,
 					response: r.response ? r.response.response.value : undefined,
 					responseErrorDetails: r.response?.errorDetails,

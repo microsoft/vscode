@@ -17,6 +17,7 @@ declare module 'vscode' {
 		placeholder?: string;
 		slashCommands?: InteractiveEditorSlashCommand[];
 		wholeRange?: Range;
+		message?: string;
 	}
 
 	// todo@API make classes
@@ -26,6 +27,8 @@ declare module 'vscode' {
 
 		selection: Selection;
 		wholeRange: Range;
+		attempt: number;
+		live: boolean;
 	}
 
 	// todo@API make classes
@@ -59,6 +62,7 @@ declare module 'vscode' {
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
 
 		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<R>;
+		provideInteractiveEditorResponse2?(request: InteractiveEditorRequest, progress: Progress<{ message: string; edits: TextEdit[] }>, token: CancellationToken): ProviderResult<R>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		releaseInteractiveEditorSession?(session: S): any;
@@ -126,8 +130,10 @@ declare module 'vscode' {
 
 	export interface InteractiveSessionSlashCommand {
 		command: string;
+		shouldRepopulate?: boolean;
 		kind: CompletionItemKind;
 		detail?: string;
+		followupPlaceholder?: string;
 	}
 
 	export interface InteractiveSessionReplyFollowup {
@@ -151,6 +157,9 @@ declare module 'vscode' {
 		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<S>;
 		resolveRequest(session: S, context: InteractiveSessionRequestArgs | string, token: CancellationToken): ProviderResult<InteractiveRequest>;
 		provideResponseWithProgress(request: InteractiveRequest, progress: Progress<InteractiveProgress>, token: CancellationToken): ProviderResult<InteractiveResponseForProgress>;
+
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		removeRequest(session: S, requestId: string): void;
 	}
 
 	export interface InteractiveSessionDynamicRequest {
@@ -176,5 +185,7 @@ declare module 'vscode' {
 		export function sendInteractiveRequestToProvider(providerId: string, message: InteractiveSessionDynamicRequest): void;
 
 		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider): Disposable;
+
+		export function transferChatSession(session: InteractiveSession, toWorkspace: Uri): void;
 	}
 }

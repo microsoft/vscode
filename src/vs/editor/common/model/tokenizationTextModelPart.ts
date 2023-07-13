@@ -544,7 +544,7 @@ class GrammarTokens extends Disposable {
 			return;
 		}
 
-		startLineNumber = Math.max(1, startLineNumber);
+		startLineNumber = Math.max(1, Math.min(this._textModel.getLineCount(), startLineNumber));
 		endLineNumber = Math.min(this._textModel.getLineCount(), endLineNumber);
 
 		const builder = new ContiguousMultilineTokensBuilder();
@@ -642,7 +642,7 @@ class AttachedViewHandler extends Disposable {
 	}
 
 	private update(): void {
-		if (equals(this._computedLineRanges, this._lineRanges)) {
+		if (equals(this._computedLineRanges, this._lineRanges, (a, b) => a.equals(b))) {
 			return;
 		}
 		this._computedLineRanges = this._lineRanges;

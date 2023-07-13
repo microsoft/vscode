@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -18,24 +17,23 @@ import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInp
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const getMoveToEditorChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
 	id: `workbench.action.chat.${providerId}.openInEditor`,
 	title: {
-		value: localize('chat.openInEditor.label', "Open In Editor"),
-		original: 'Open In Editor'
+		value: localize('chat.openInEditor.label', "Open Session In Editor"),
+		original: 'Open Session In Editor'
 	},
 	category: CHAT_CATEGORY,
-	icon: Codicon.arrowLeft,
 	precondition: CONTEXT_PROVIDER_EXISTS,
 	f1: false,
 	viewId,
 	menu: {
 		id: MenuId.ViewTitle,
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.deserialize('config.chat.experimiental.moveIcons')),
-		group: 'navigation',
+		when: ContextKeyExpr.equals('view', viewId),
 		order: 0
 	},
 });
@@ -59,37 +57,6 @@ export function getMoveToEditorAction(viewId: string, providerId: string) {
 	};
 }
 
-const getMoveToSidebarChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
-	id: `workbench.action.chat.${providerId}.openInSidebar`,
-	title: {
-		value: localize('chat.openInSidebar.label', "Open In Sidebar"),
-		original: 'Open In Sidebar'
-	},
-	category: CHAT_CATEGORY,
-	icon: Codicon.arrowRight,
-	precondition: CONTEXT_PROVIDER_EXISTS,
-	f1: false, // TODO
-	viewId,
-	menu: [{
-		id: MenuId.EditorTitle,
-		group: 'navigation',
-		order: 0,
-		when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ContextKeyExpr.deserialize('config.chat.experimental.moveIcons')),
-	}]
-});
-
-export function getMoveToSidebarAction(viewId: string, providerId: string) {
-	return class MoveToSidebarAction extends Action2 {
-		constructor() {
-			super(getMoveToSidebarChatActionDescriptorForViewTitle(viewId, providerId));
-		}
-
-		override async run(accessor: ServicesAccessor, ...args: any[]) {
-			return moveToSidebar(accessor);
-		}
-	};
-}
-
 async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 	const viewsService = accessor.get(IViewsService);
 	const editorService = accessor.get(IEditorService);
@@ -102,6 +69,11 @@ async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 		const viewId = chatContribService.getViewIdForProvider(chatEditorInput.providerId);
 		const view = await viewsService.openView(viewId) as ChatViewPane;
 		view.loadSession(chatEditorInput.sessionId);
+	} else {
+		const chatService = accessor.get(IChatService);
+		const providerId = chatService.getProviderInfos()[0].id;
+		const viewId = chatContribService.getViewIdForProvider(providerId);
+		await viewsService.openView(viewId);
 	}
 }
 
@@ -124,9 +96,12 @@ export function registerMoveActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const viewService = accessor.get(IViewsService);
 			const editorService = accessor.get(IEditorService);
+			const chatService = accessor.get(IChatService);
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget || !('viewId' in widget.viewContext)) {
+				const providerId = chatService.getProviderInfos()[0].id;
+				await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId }, pinned: true } });
 				return;
 			}
 
@@ -135,9 +110,10 @@ export function registerMoveActions() {
 				return;
 			}
 
+			const sessionId = viewModel.sessionId;
 			const view = await viewService.openView(widget.viewContext.viewId) as ChatViewPane;
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: viewModel.sessionId }, pinned: true } });
 			view.clear();
+			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: sessionId }, pinned: true } });
 		}
 	});
 
@@ -151,7 +127,12 @@ export function registerMoveActions() {
 				},
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
-				f1: true
+				f1: true,
+				menu: [{
+					id: MenuId.EditorTitle,
+					order: 0,
+					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+				}]
 			});
 		}
 

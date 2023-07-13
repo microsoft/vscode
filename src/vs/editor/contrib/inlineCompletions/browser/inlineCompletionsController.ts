@@ -20,7 +20,7 @@ import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/commandIds';
 import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
-import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
+import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
 import { InlineCompletionsModel, VersionIdChangeReason } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { SuggestWidgetAdaptor } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
@@ -179,10 +179,6 @@ export class InlineCompletionsController extends Disposable {
 
 			if (state.completion.semanticId !== lastInlineCompletionId) {
 				lastInlineCompletionId = state.completion.semanticId;
-				if (model.isNavigatingCurrentInlineCompletion) {
-					return;
-				}
-
 				this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
 						const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
@@ -191,6 +187,8 @@ export class InlineCompletionsController extends Disposable {
 				});
 			}
 		}));
+
+		this._register(new InlineCompletionsHintsWidget(this.editor, this.model, this.instantiationService));
 	}
 
 	/**

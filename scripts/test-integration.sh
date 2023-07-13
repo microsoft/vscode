@@ -101,6 +101,12 @@ echo
 kill_app
 
 echo
+echo "### Notebook Output tests"
+echo
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/notebook-renderers --extensionTestsPath=$ROOT/extensions/notebook-renderers/out/test $API_TESTS_EXTRA_ARGS
+kill_app
+
+echo
 echo "### Configuration editing tests"
 echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/configuration-editing --extensionTestsPath=$ROOT/extensions/configuration-editing/out/test $API_TESTS_EXTRA_ARGS

@@ -296,9 +296,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	async submitComment() {
 		const activeComment = this._body.activeComment;
 		if (activeComment) {
-			activeComment.submitComment();
+			return activeComment.submitComment();
 		} else if ((this._commentReply?.getPendingComment()?.length ?? 0) > 0) {
-			this._commentReply?.submitComment();
+			return this._commentReply?.submitComment();
 		}
 	}
 

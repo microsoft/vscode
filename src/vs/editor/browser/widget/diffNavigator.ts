@@ -55,7 +55,7 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 	readonly onDidUpdate: Event<this> = this._onDidUpdate.event;
 
 	private disposed: boolean;
-	private revealFirst: boolean;
+	public revealFirst: boolean;
 	private nextIdx: number;
 	private ranges: IDiffRange[];
 	private ignoreSelectionChange: boolean;
@@ -78,8 +78,6 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 		this.ignoreSelectionChange = false;
 		this.revealFirst = Boolean(this._options.alwaysRevealFirst);
 
-		// hook up to diff editor for diff, disposal, and caret move
-		this._register(this._editor.onDidDispose(() => this.dispose()));
 		this._register(this._editor.onDidUpdateDiff(() => this._onDiffUpdated()));
 
 		if (this._options.followsCaret) {
@@ -89,11 +87,6 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 				}
 				this._updateAccessibilityState(e.position.lineNumber);
 				this.nextIdx = -1;
-			}));
-		}
-		if (this._options.alwaysRevealFirst) {
-			this._register(this._editor.getModifiedEditor().onDidChangeModel((e) => {
-				this.revealFirst = true;
 			}));
 		}
 

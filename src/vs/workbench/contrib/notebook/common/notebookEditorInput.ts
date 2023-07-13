@@ -24,7 +24,11 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { localize } from 'vs/nls';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -57,7 +61,9 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@IExtensionService extensionService: IExtensionService,
+		@IEditorService editorService: IEditorService
 	) {
 		super(resource, undefined, labelService, fileService, filesConfigurationService);
 		this._defaultDirtyState = !!options.startDirty;
@@ -70,6 +76,23 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 				this.resolve().catch(onUnexpectedError);
 			}
 		});
+
+		this._register(extensionService.onWillStop(e => {
+			if (!this.isDirty()) {
+				return;
+			}
+
+			e.veto((async () => {
+				const editors = editorService.findEditors(this);
+				if (editors.length > 0) {
+					const result = await editorService.save(editors[0]);
+					if (result.success) {
+						return false; // Don't Veto
+					}
+				}
+				return true; // Veto
+			})(), localize('vetoExtHostRestart', "Notebook '{0}' could not be saved.", this.resource.path));
+		}));
 	}
 
 	override dispose() {
@@ -117,6 +140,13 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		return undefined; // no description for untitled notebooks without associated file path
+	}
+
+	override isReadonly(): boolean | IMarkdownString {
+		if (!this._editorModelReference) {
+			return this.filesConfigurationService.isReadonly(this.resource);
+		}
+		return this._editorModelReference.object.isReadonly();
 	}
 
 	override isDirty() {
@@ -184,6 +214,14 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		return await this._editorModelReference.object.saveAs(target);
+	}
+
+	override isSaving(): boolean {
+		if (this.isDirty() && !this.hasCapability(EditorInputCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			return true; // will be saved soon
+		}
+
+		return super.isSaving();
 	}
 
 	private async _suggestName(provider: NotebookProviderInfo, suggestedFilename: string) {
@@ -260,6 +298,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			}
 			this._register(this._editorModelReference.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 			this._register(this._editorModelReference.object.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
+			this._register(this._editorModelReference.object.onDidRevertUntitled(() => this.dispose()));
 			if (this._editorModelReference.object.isDirty()) {
 				this._onDidChangeDirty.fire();
 			}

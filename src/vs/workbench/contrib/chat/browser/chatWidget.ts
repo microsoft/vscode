@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import * as dom from 'vs/base/browser/dom';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/chat';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -23,16 +22,16 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/common/views';
 import { clearChatSession } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
-import { IChatCodeBlockInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { IChatRendererDelegate, ChatListItemRenderer, ChatAccessibilityProvider, ChatListDelegate, ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
+import { ChatAccessibilityProvider, ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatResponseViewModel, ChatViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 const $ = dom.$;
 
@@ -115,6 +114,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService
 	) {
 		super();
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
@@ -217,6 +217,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}, 0);
 		}
+	}
+
+	getSlashCommandsSync(): ISlashCommand[] | undefined {
+		return this.lastSlashCommands;
 	}
 
 	async getSlashCommands(): Promise<ISlashCommand[] | undefined> {
@@ -348,10 +352,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model);
-		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
+		this.viewModelDisposables.add(this.viewModel.onDidChange(e => {
 			this.slashCommandsPromise = undefined;
 			this.requestInProgress.set(this.viewModel!.requestInProgress);
 			this.onDidChangeItems();
+			if (e?.kind === 'addRequest') {
+				revealLastElement(this.tree);
+				this.focusInput();
+			}
 		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Disposes the viewmodel and listeners
@@ -366,6 +374,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	getFocus(): ChatTreeItem | undefined {
+		return withNullAsUndefined(this.tree.getFocus()[0]);
+	}
+
+	reveal(item: ChatTreeItem): void {
+		this.tree.reveal(item);
+	}
+
+	focus(item: ChatTreeItem): void {
+		const items = this.tree.getNode(null).children;
+		const node = items.find(i => i.element?.id === item.id);
+		if (!node) {
+			return;
+		}
+
+		this.tree.setFocus([node.element]);
+		this.tree.domFocus();
+	}
+
 	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
 		if (this.viewModel) {
 			const editorValue = this.inputPart.inputEditor.getValue();
@@ -376,21 +403,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.instantiationService.invokeFunction(clearChatSession, this);
 				return;
 			}
-
+			this._chatAccessibilityService.acceptRequest();
 			const input = query ?? editorValue;
-			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
+			const usedSlashCommand = this.lookupSlashCommand(typeof input === 'string' ? input : input.message);
+			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, usedSlashCommand);
+
 			if (result) {
-				revealLastElement(this.tree);
 				this.inputPart.acceptInput(query);
-				result.responseCompletePromise.then(() => {
+				result.responseCompletePromise.then(async () => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
-					if (lastResponse) {
-						alert(lastResponse.response.value);
-					}
+					this._chatAccessibilityService.acceptResponse(lastResponse);
 				});
+			} else {
+				this._chatAccessibilityService.acceptResponse();
 			}
 		}
+	}
+
+	private lookupSlashCommand(input: string): ISlashCommand | undefined {
+		return this.lastSlashCommands?.find(sc => input.startsWith(`/${sc.command}`));
 	}
 
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
@@ -417,6 +449,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	layout(height: number, width: number): void {
+		width = Math.min(width, 850);
 		this.bodyDimension = new dom.Dimension(width, height);
 
 		const inputPartHeight = this.inputPart.layout(height, width);
@@ -439,9 +472,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getViewState(): IViewState {
-		if (this.inputEditor.getOption(EditorOption.readOnly)) {
-			return { inputValue: undefined };
-		}
 		this.inputPart.saveState();
 		return { inputValue: this.inputPart.inputEditor.getValue() };
 	}
@@ -495,3 +525,4 @@ export class ChatWidgetService implements IChatWidgetService {
 		);
 	}
 }
+

@@ -35,7 +35,10 @@ export interface IEditSessionsStorageService {
 
 	storeClient: EditSessionsStoreClient | undefined;
 
-	initialize(silent?: boolean): Promise<boolean>;
+	lastReadResources: Map<SyncResource, { ref: string; content: string }>;
+	lastWrittenResources: Map<SyncResource, { ref: string; content: string }>;
+
+	initialize(reason: 'read' | 'write', silent?: boolean): Promise<boolean>;
 	read(resource: SyncResource, ref: string | undefined): Promise<{ ref: string; content: string } | undefined>;
 	write(resource: SyncResource, content: string | EditSession): Promise<string>;
 	delete(resource: SyncResource, ref: string | null): Promise<void>;
@@ -82,12 +85,16 @@ export const EditSessionSchemaVersion = 3;
 
 export interface EditSession {
 	version: number;
+	workspaceStateId?: string;
 	machine?: string;
 	folders: Folder[];
 }
 
 export const EDIT_SESSIONS_SIGNED_IN_KEY = 'editSessionsSignedIn';
 export const EDIT_SESSIONS_SIGNED_IN = new RawContextKey<boolean>(EDIT_SESSIONS_SIGNED_IN_KEY, false);
+
+export const EDIT_SESSIONS_PENDING_KEY = 'editSessionsPending';
+export const EDIT_SESSIONS_PENDING = new RawContextKey<boolean>(EDIT_SESSIONS_PENDING_KEY, false);
 
 export const EDIT_SESSIONS_CONTAINER_ID = 'workbench.view.editSessions';
 export const EDIT_SESSIONS_DATA_VIEW_ID = 'workbench.views.editSessions.data';

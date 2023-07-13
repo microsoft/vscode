@@ -74,6 +74,7 @@ export class ErrorHandler {
 
 export const errorHandler = new ErrorHandler();
 
+/** @skipMangle */
 export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
 	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
 }

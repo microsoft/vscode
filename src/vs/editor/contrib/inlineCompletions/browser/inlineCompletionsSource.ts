@@ -89,10 +89,10 @@ export class InlineCompletionsSource extends Disposable {
 				}
 			}
 
+			this._updateOperation.clear();
 			transaction(tx => {
 				target.set(completions, tx);
 			});
-			this._updateOperation.clear();
 
 			return true;
 		})();

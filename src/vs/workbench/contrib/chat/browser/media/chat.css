@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.editor-instance .interactive-session {
-	max-width: 600px;
+.interactive-session {
+	max-width: 850px;
 	margin: auto;
 }
 
@@ -65,8 +65,10 @@
 	color: var(--vscode-badge-foreground) !important;
 }
 
-.interactive-item-container:not(.interactive-response:hover) .header .monaco-toolbar,
-.interactive-item-container:not(.interactive-response:hover) .header .monaco-toolbar .action-label {
+.monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar,
+.monaco-list:not(:focus-within) .monaco-list-row .interactive-item-container:not(:hover) .header .monaco-toolbar,
+.monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar .action-label,
+.monaco-list:not(:focus-within) .monaco-list-row .interactive-item-container:not(:hover) .header .monaco-toolbar .action-label {
 	/* Also apply this rule to the .action-label directly to work around a strange issue- when the
 	toolbar is hidden without that second rule, tabbing from the list container into a list item doesn't work
 	and the tab key doesn't do anything. */
@@ -82,8 +84,8 @@
 	padding: 2px;
 }
 
-.interactive-item-container .header .monaco-toolbar .checked .action-label,
-.interactive-item-container .header .monaco-toolbar .checked .action-label:hover {
+.interactive-item-container .header .monaco-toolbar .checked.action-label,
+.interactive-item-container .header .monaco-toolbar .checked.action-label:hover {
 	color: var(--vscode-inputOption-activeForeground) !important;
 	border-color: var(--vscode-inputOption-activeBorder);
 	background-color: var(--vscode-inputOption-activeBackground);
@@ -107,7 +109,8 @@
 	padding: 4px 6px;
 }
 
-.interactive-item-container .value a {
+.interactive-item-container .value a,
+.interactive-item-container .value a code {
 	color: var(--vscode-textLink-foreground);
 }
 
@@ -239,6 +242,7 @@
 }
 
 .interactive-item-container .interactive-result-editor-wrapper:hover .monaco-toolbar,
+.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar:focus-within,
 .interactive-item-container .interactive-result-editor-wrapper.focused .monaco-toolbar {
 	display: initial;
 	border-radius: 2px;

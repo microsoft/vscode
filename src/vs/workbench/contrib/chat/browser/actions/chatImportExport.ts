@@ -73,7 +73,7 @@ export function registerChatExportActions() {
 				id: 'workbench.action.chat.import',
 				title: {
 					value: localize('chat.import.label', "Import Session") + '...',
-					original: 'Export Session...'
+					original: 'Import Session...'
 				},
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,

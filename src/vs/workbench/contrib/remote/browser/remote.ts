@@ -53,7 +53,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { connectionHealthToString } from 'vs/base/parts/ipc/common/ipc.net';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
@@ -584,6 +583,7 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 	private _onDidChangeHelpInformation = new Emitter<void>();
 	public onDidChangeHelpInformation: Event<void> = this._onDidChangeHelpInformation.event;
 	private hasSetSwitchForConnection: boolean = false;
+	private hasRegisteredHelpView: boolean = false;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -611,10 +611,12 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 			this._onDidChangeHelpInformation.fire();
 
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-			if (this.helpInformation.length) {
+			if (this.helpInformation.length && !this.hasRegisteredHelpView) {
 				viewsRegistry.registerViews([this.helpPanelDescriptor], this.viewContainer);
-			} else {
+				this.hasRegisteredHelpView = true;
+			} else if (this.hasRegisteredHelpView) {
 				viewsRegistry.deregisterViews([this.helpPanelDescriptor], this.viewContainer);
+				this.hasRegisteredHelpView = false;
 			}
 		});
 	}
@@ -1089,26 +1091,6 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						});
 
 						hideProgress();
-						break;
-
-					case PersistentConnectionEventType.ConnectionHealthChanged:
-						type RemoteConnectionHealthClassification = {
-							owner: 'alexdima';
-							comment: 'The remote connection health has changed (round trip time)';
-							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
-							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
-							connectionHealth: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The health of the connection: good or poor.' };
-						};
-						type RemoteConnectionHealthEvent = {
-							remoteName: string | undefined;
-							reconnectionToken: string;
-							connectionHealth: 'good' | 'poor';
-						};
-						telemetryService.publicLog2<RemoteConnectionHealthEvent, RemoteConnectionHealthClassification>('remoteConnectionHealth', {
-							remoteName: getRemoteName(environmentService.remoteAuthority),
-							reconnectionToken: e.reconnectionToken,
-							connectionHealth: connectionHealthToString(e.connectionHealth)
-						});
 						break;
 				}
 			});
