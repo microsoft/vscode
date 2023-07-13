@@ -507,27 +507,14 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		quickPick.hideCheckAll = true;
 		quickPick.ignoreFocusOut = true;
 		quickPick.customLabel = localize('create', "Create Profile");
-		quickPick.description = localize('customise the profile', "Unselect to link to the Default Profile");
+		quickPick.description = localize('customise the profile', "Choose what you want to customize in the profile. Unselected items are shared from the default profile.");
+		quickPick.items = resources;
+		quickPick.selectedItems = resources.filter(item => item.picked);
 
 		const disposables = new DisposableStore();
-		const update = () => {
-			quickPick.items = resources;
-			quickPick.selectedItems = resources.filter(item => item.picked);
-		};
-		update();
-
 		disposables.add(quickPick.onDidChangeSelection(items => {
-			let needUpdate = false;
 			for (const resource of resources) {
 				resource.picked = items.includes(resource);
-				const description = resource.picked ? undefined : localize('use default profile', "Default Profile");
-				if (resource.description !== description) {
-					resource.description = description;
-					needUpdate = true;
-				}
-			}
-			if (needUpdate) {
-				update();
 			}
 		}));
 
