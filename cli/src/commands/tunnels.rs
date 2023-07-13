@@ -135,10 +135,17 @@ pub async fn service(
 	let manager = create_service_manager(ctx.log.clone(), &ctx.paths);
 	match service_args {
 		TunnelServiceSubCommands::Install(args) => {
-			// ensure logged in, otherwise subsequent serving will fail
-			Auth::new(&ctx.paths, ctx.log.clone())
-				.get_credential()
-				.await?;
+			let auth = Auth::new(&ctx.paths, ctx.log.clone());
+
+			if let Some(name) = &args.name {
+				// ensure the name matches, and tunnel exists
+				dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths)
+					.rename_tunnel(name)
+					.await?;
+			} else {
+				// still ensure they're logged in, otherwise subsequent serving will fail
+				auth.get_credential().await?;
+			}
 
 			// likewise for license consent
 			legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
@@ -203,20 +210,20 @@ pub async fn user(ctx: CommandContext, user_args: TunnelUserSubCommands) -> Resu
 	Ok(0)
 }
 
-/// Remove the tunnel used by this gateway, if any.
+/// Remove the tunnel used by this tunnel, if any.
 pub async fn rename(ctx: CommandContext, rename_args: TunnelRenameArgs) -> Result<i32, AnyError> {
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths);
 	dt.rename_tunnel(&rename_args.name).await?;
 	ctx.log.result(format!(
-		"Successfully renamed this gateway to {}",
+		"Successfully renamed this tunnel to {}",
 		&rename_args.name
 	));
 
 	Ok(0)
 }
 
-/// Remove the tunnel used by this gateway, if any.
+/// Remove the tunnel used by this tunnel, if any.
 pub async fn unregister(ctx: CommandContext) -> Result<i32, AnyError> {
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths);
