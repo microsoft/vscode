@@ -132,13 +132,8 @@ class ChatAccessibleViewContribution extends Disposable {
 			let focusedItem: ChatTreeItem | undefined = widget?.getFocus();
 			let focusedInput = false;
 			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
-			if (editor) {
-				// focus is in the input box, so we need to focus the last widget first
-				const editorUri = editor.getModel()?.uri;
-				if (!editorUri) {
-					return false;
-				}
-				widgetService.getWidgetByInputUri(editorUri)?.focusLastMessage();
+			if (editor && widget) {
+				widget.focusLastMessage();
 				widget = widgetService.lastFocusedWidget;
 				focusedItem = widget?.getFocus();
 				focusedInput = true;
