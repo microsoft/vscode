@@ -212,15 +212,15 @@ steps:
         BuildDropPath: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
         PackageName: Visual Studio Code
 
-    - publish: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/_manifest
-      displayName: Publish SBOM (client)
-      artifact: $(ARTIFACT_PREFIX)sbom_client_darwin_$(VSCODE_ARCH)_sbom
-
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (server)
       inputs:
         BuildDropPath: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
         PackageName: Visual Studio Code Server
+
+    - publish: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/_manifest
+      displayName: Publish SBOM (client)
+      artifact: $(ARTIFACT_PREFIX)sbom_client_darwin_$(VSCODE_ARCH)_sbom
 
     - publish: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)/_manifest
       displayName: Publish SBOM (server)

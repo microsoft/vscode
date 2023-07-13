@@ -136,7 +136,7 @@ class ChatAccessibleViewContribution extends Disposable {
 				return false;
 			}
 			accessibleViewService.show({
-				id: 'panelChat',
+				verbositySettingKey: 'panelChat',
 				provideContent(): string { return responseContent; },
 				onClose() {
 					widget.focus(focusedItem);

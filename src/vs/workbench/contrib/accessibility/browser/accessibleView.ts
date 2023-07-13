@@ -28,11 +28,11 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 
 const enum DEFAULT {
 	WIDTH = 800,
-	TOP = 25
+	TOP = 3
 }
 
 export interface IAccessibleContentProvider {
-	id: string;
+	verbositySettingKey: string;
 	provideContent(): string;
 	onClose(): void;
 	onKeyDown?(e: IKeyboardEvent): void;
@@ -103,7 +103,7 @@ class AccessibleView extends Disposable {
 			}
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (this._currentProvider && this._accessiblityHelpIsShown.get() && e.affectsConfiguration(`accessibility.verbosity.${this._currentProvider.id}`)) {
+			if (this._currentProvider && this._accessiblityHelpIsShown.get() && e.affectsConfiguration(`accessibility.verbosity.${this._currentProvider.verbositySettingKey}`)) {
 				this.show(this._currentProvider);
 			}
 		}));
@@ -130,7 +130,7 @@ class AccessibleView extends Disposable {
 
 	private _render(provider: IAccessibleContentProvider, container: HTMLElement): IDisposable {
 		this._currentProvider = provider;
-		const settingKey = `accessibility.verbosity.${provider.id}`;
+		const settingKey = `accessibility.verbosity.${provider.verbositySettingKey}`;
 		const value = this._configurationService.getValue(settingKey);
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\nPress H now to open a browser window with more information related to accessibility.\n") : '';
 		const disableHelpHint = provider.options.type === AccessibleViewType.HelpMenu && !!value ? localize('disable-help-hint', '\nTo disable the `accessibility.verbosity` hint for this feature, press D now.\n') : '\n';
@@ -142,7 +142,7 @@ class AccessibleView extends Disposable {
 					? AccessibilityHelpNLS.changeConfigToOnMac
 					: AccessibilityHelpNLS.changeConfigToOnWinLinux
 			);
-			if (accessibilitySupport && provider.id === 'editor') {
+			if (accessibilitySupport && provider.verbositySettingKey === 'editor') {
 				message = AccessibilityHelpNLS.auto_on;
 				message += '\n';
 			} else if (!accessibilitySupport) {
@@ -153,7 +153,7 @@ class AccessibleView extends Disposable {
 
 		const fragment = message + provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', 'Exit this menu via the Escape key.');
 
-		this._getTextModel(URI.from({ path: `accessible-view-${provider.id}`, scheme: 'accessible-view', fragment })).then((model) => {
+		this._getTextModel(URI.from({ path: `accessible-view-${provider.verbositySettingKey}`, scheme: 'accessible-view', fragment })).then((model) => {
 			if (!model) {
 				return;
 			}
@@ -176,7 +176,7 @@ class AccessibleView extends Disposable {
 				// Delay to allow the context view to hide #186514
 				setTimeout(() => provider.onClose(), 100);
 			} else if (e.keyCode === KeyCode.KeyD && this._configurationService.getValue(settingKey)) {
-				alert(localize('disableAccessibilityHelp', '{0} accessibility verbosity is now disabled', provider.id));
+				alert(localize('disableAccessibilityHelp', '{0} accessibility verbosity is now disabled', provider.verbositySettingKey));
 				this._configurationService.updateValue(settingKey, false);
 			}
 			e.stopPropagation();

@@ -15,11 +15,12 @@ import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { POLICY_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 
 const $ = DOM.$;
@@ -75,7 +76,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -330,14 +331,11 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				}, focus);
 			};
 			this.addHoverDisposables(this.scopeOverridesIndicator.disposables, this.scopeOverridesIndicator.element, showHover);
-		} else if (this.profilesEnabled && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
-			// If the setting is an application-scoped setting, there are no overrides so we can use this
-			// indicator to display that information instead.
+		} else if (this.profilesEnabled && element.settingsTarget === ConfigurationTarget.USER_LOCAL && this.configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 			this.scopeOverridesIndicator.element.style.display = 'inline';
 			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 
-			const applicationSettingText = localize('applicationSetting', "Applies to all profiles");
-			this.scopeOverridesIndicator.label.text = applicationSettingText;
+			this.scopeOverridesIndicator.label.text = localize('applicationSetting', "Applies to all profiles");
 
 			const content = localize('applicationSettingDescription', "The setting is not specific to the current profile, and will retain its value when switching profiles.");
 			const showHover = (focus: boolean) => {
@@ -499,7 +497,7 @@ function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languag
 	return localizedScope;
 }
 
-export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IConfigurationService, userDataProfilesService: IUserDataProfilesService, languageService: ILanguageService): string {
+export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IWorkbenchConfigurationService, userDataProfilesService: IUserDataProfilesService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
 
 	// Add workspace trust text
@@ -507,10 +505,9 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 		ariaLabelSections.push(localize('workspaceUntrustedAriaLabel', "Workspace untrusted; setting value not applied"));
 	}
 
-	const profilesEnabled = userDataProfilesService.isEnabled();
 	if (element.hasPolicyValue) {
 		ariaLabelSections.push(localize('policyDescriptionAccessible', "Managed by organization policy; setting value not applied"));
-	} else if (profilesEnabled && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
+	} else if (userDataProfilesService.isEnabled() && element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
 	} else {
 		// Add other overrides text

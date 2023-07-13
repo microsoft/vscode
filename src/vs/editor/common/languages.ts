@@ -13,7 +13,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -1220,6 +1220,13 @@ export interface TextEdit {
 	range: IRange;
 	text: string;
 	eol?: model.EndOfLineSequence;
+}
+
+/** @internal */
+export abstract class TextEdit {
+	static asEditOperation(edit: TextEdit): ISingleEditOperation {
+		return EditOperation.replace(Range.lift(edit.range), edit.text);
+	}
 }
 
 /**

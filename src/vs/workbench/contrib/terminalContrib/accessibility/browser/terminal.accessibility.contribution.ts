@@ -129,8 +129,14 @@ registerTerminalAction({
 	keybinding: [
 		{
 			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-			weight: KeybindingWeight.WorkbenchContrib + 2,
-			when: TerminalContextKeys.accessibleBufferFocus
+			when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+			weight: KeybindingWeight.WorkbenchContrib + 2
+		},
+		{
+			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+			mac: { primary: KeyMod.Alt | KeyCode.DownArrow },
+			when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+			weight: KeybindingWeight.WorkbenchContrib + 2
 		}
 	],
 	run: async (c) => {
@@ -151,8 +157,14 @@ registerTerminalAction({
 	keybinding: [
 		{
 			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-			weight: KeybindingWeight.WorkbenchContrib + 2,
-			when: TerminalContextKeys.accessibleBufferFocus
+			when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+			weight: KeybindingWeight.WorkbenchContrib + 2
+		},
+		{
+			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+			mac: { primary: KeyMod.Alt | KeyCode.UpArrow },
+			when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+			weight: KeybindingWeight.WorkbenchContrib + 2
 		}
 	],
 	run: async (c) => {

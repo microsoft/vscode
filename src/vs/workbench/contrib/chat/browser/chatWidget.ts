@@ -219,6 +219,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	getSlashCommandsSync(): ISlashCommand[] | undefined {
+		return this.lastSlashCommands;
+	}
+
 	async getSlashCommands(): Promise<ISlashCommand[] | undefined> {
 		if (!this.viewModel) {
 			return;
