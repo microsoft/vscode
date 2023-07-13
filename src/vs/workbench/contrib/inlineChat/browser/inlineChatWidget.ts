@@ -180,6 +180,7 @@ export class InlineChatWidget {
 	private _isLayouting: boolean = false;
 	private _preferredExpansionState: ExpansionState | undefined;
 	private _expansionState: ExpansionState = ExpansionState.NOT_CROPPED;
+	private _slashCommandDetails: { command: string; detail: string }[] = [];
 
 	private _slashCommandContentWidget: SlashCommandContentWidget;
 
@@ -426,9 +427,12 @@ export class InlineChatWidget {
 	}
 
 	readPlaceholder(): void {
+		const slashCommand = this._slashCommandDetails.find(c => `${c.command} ` === this._inputModel.getValue().substring(1));
 		const hasText = this._inputModel.getValueLength() > 0;
 		if (!hasText) {
 			aria.status(this._elements.placeholder.innerText);
+		} else if (slashCommand) {
+			aria.status(slashCommand.detail);
 		}
 	}
 
@@ -629,6 +633,7 @@ export class InlineChatWidget {
 		if (commands.length === 0) {
 			return;
 		}
+		this._slashCommandDetails = commands.filter(c => c.command && c.detail).map(c => { return { command: c.command!, detail: c.detail! }; });
 
 		const selector: LanguageSelector = { scheme: this._inputModel.uri.scheme, pattern: this._inputModel.uri.path, language: this._inputModel.getLanguageId() };
 		this._slashCommands.add(this._languageFeaturesService.completionProvider.register(selector, new class implements CompletionItemProvider {
