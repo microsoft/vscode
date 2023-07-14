@@ -11,7 +11,9 @@ import { UriList, VSDataTransfer, createStringDataTransferItem, matchesMimeType 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import * as platform from 'vs/base/common/platform';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ClipboardEventUtils } from 'vs/editor/browser/controller/textAreaInput';
 import { toExternalVSDataTransfer, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -220,7 +222,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		const metadata = this.fetchCopyMetadata(e.clipboardData);
+		const metadata = this.fetchCopyMetadata(e);
 		const dataTransfer = toExternalVSDataTransfer(e.clipboardData);
 		dataTransfer.delete(vscodeClipboardMime);
 
@@ -375,8 +377,13 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		dataTransfer.setData(vscodeClipboardMime, JSON.stringify(metadata));
 	}
 
-	private fetchCopyMetadata(dataTransfer: DataTransfer): CopyMetadata | undefined {
-		const rawMetadata = dataTransfer.getData(vscodeClipboardMime);
+	private fetchCopyMetadata(e: ClipboardEvent): CopyMetadata | undefined {
+		if (!e.clipboardData) {
+			return;
+		}
+
+		// Prefer using the clipboard data we saved off
+		const rawMetadata = e.clipboardData.getData(vscodeClipboardMime);
 		if (rawMetadata) {
 			try {
 				return JSON.parse(rawMetadata);
@@ -384,6 +391,19 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				return undefined;
 			}
 		}
+
+		// Otherwise try to extract the generic text editor metadata
+		const [_, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+		if (metadata) {
+			return {
+				defaultPastePayload: {
+					mode: metadata.mode,
+					multicursorText: withUndefinedAsNull(metadata.multicursorText),
+					pasteOnNewLine: !!metadata.isFromEmptySelection,
+				},
+			};
+		}
+
 		return undefined;
 	}
 

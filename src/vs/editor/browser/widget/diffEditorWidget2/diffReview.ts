@@ -87,7 +87,6 @@ export class DiffReview2 extends Disposable {
 
 	private readonly _diffEditor: DiffEditorWidget2;
 	private get _isVisible() { return this._isVisibleObs.get(); }
-	public readonly shadow: FastDomNode<HTMLElement>;
 	private readonly _actionBar: ActionBar;
 	public readonly actionBarContainer: FastDomNode<HTMLElement>;
 	public readonly domNode: FastDomNode<HTMLElement>;
@@ -108,9 +107,6 @@ export class DiffReview2 extends Disposable {
 	) {
 		super();
 		this._diffEditor = diffEditor;
-
-		this.shadow = createFastDomNode(document.createElement('div'));
-		this.shadow.setClassName('diff-review-shadow');
 
 		this.actionBarContainer = createFastDomNode(document.createElement('div'));
 		this.actionBarContainer.setClassName('diff-review-actions');
@@ -343,9 +339,6 @@ export class DiffReview2 extends Disposable {
 		this._top = top;
 		this._height = height;
 
-		this.shadow.setTop(top - 6);
-		this.shadow.setWidth(width);
-		this.shadow.setHeight(this._isVisible ? 6 : 0);
 		this.domNode.setTop(top);
 		this.domNode.setWidth(width);
 		this.domNode.setHeight(height);

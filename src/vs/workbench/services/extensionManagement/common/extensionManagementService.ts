@@ -153,10 +153,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
 
-	updateMetadata(extension: ILocalExtension, metadata: Partial<Metadata>): Promise<ILocalExtension> {
+	updateMetadata(extension: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
 		const server = this.getServer(extension);
 		if (server) {
-			return server.extensionManagementService.updateMetadata(extension, metadata);
+			return server.extensionManagementService.updateMetadata(extension, metadata, profileLocation);
 		}
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
@@ -560,7 +560,19 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		await Promise.allSettled(this.servers.map(server => server.extensionManagementService.cleanUp()));
 	}
 
+	copyExtensions(from: URI, to: URI): Promise<void> {
+		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+			throw new Error('Not Supported');
+		}
+		if (this.extensionManagementServerService.localExtensionManagementServer) {
+			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.copyExtensions(from, to);
+		}
+		if (this.extensionManagementServerService.webExtensionManagementServer) {
+			return this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.copyExtensions(from, to);
+		}
+		return Promise.resolve();
+	}
+
 	registerParticipant() { throw new Error('Not Supported'); }
-	copyExtensions(): Promise<void> { throw new Error('Not Supported'); }
 	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
 }

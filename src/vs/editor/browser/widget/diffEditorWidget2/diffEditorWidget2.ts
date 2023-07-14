@@ -136,15 +136,16 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._register(autorunWithStore2('DiffEditorDecorations', (reader, store) => {
 			store.add(new (readHotReloadableExport(DiffEditorDecorations, reader))(this._editors, this._diffModel, this._options));
 		}));
-
-		this._register(this._instantiationService.createInstance(
-			ViewZoneManager,
-			this._editors,
-			this._diffModel,
-			this._options,
-			this,
-			() => this.unchangedRangesFeature.isUpdatingViewZones,
-		));
+		this._register(autorunWithStore2('ViewZoneManager', (reader, store) => {
+			store.add(this._instantiationService.createInstance(
+				readHotReloadableExport(ViewZoneManager, reader),
+				this._editors,
+				this._diffModel,
+				this._options,
+				this,
+				() => this.unchangedRangesFeature.isUpdatingViewZones,
+			));
+		}));
 
 		this._register(autorunWithStore2('OverviewRulerPart', (reader, store) => {
 			store.add(this._instantiationService.createInstance(readHotReloadableExport(OverviewRulerPart, reader), this._editors,
@@ -159,7 +160,6 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._reviewPane = this._register(this._instantiationService.createInstance(DiffReview2, this));
 		this.elements.root.appendChild(this._reviewPane.domNode.domNode);
-		this.elements.root.appendChild(this._reviewPane.shadow.domNode);
 		this.elements.root.appendChild(this._reviewPane.actionBarContainer.domNode);
 		reviewPaneObservable.set(this._reviewPane, undefined);
 
@@ -218,6 +218,10 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 				event.event.stopPropagation();
 			}
 		}));
+	}
+
+	public getContentHeight() {
+		return this._editors.modified.getContentHeight();
 	}
 
 	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorConstructionOptions>, editorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {

@@ -155,6 +155,10 @@ export class ModesHoverController implements IEditorContribution {
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 		const target = mouseEvent.target;
 
+		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
+			return;
+		}
+
 		if (this._isMouseDown && this._hoverClicked) {
 			return;
 		}
@@ -171,7 +175,7 @@ export class ModesHoverController implements IEditorContribution {
 
 		if (
 			!this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID
-			&& this._contentWidget?.isColorPickerVisible()
+			&& this._contentWidget?.isColorPickerVisible
 		) {
 			// though the hover is not sticky, the color picker needs to.
 			return;
@@ -182,7 +186,7 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (this._isHoverSticky && this._contentWidget?.isVisibleFromKeyboard()) {
+		if (this._isHoverSticky && this._contentWidget?.isVisibleFromKeyboard) {
 			// Sticky mode is on and the hover has been shown via keyboard
 			// so moving the mouse has no effect
 			return;
@@ -216,9 +220,10 @@ export class ModesHoverController implements IEditorContribution {
 			this._glyphWidget.startShowingAt(target.position.lineNumber);
 			return;
 		}
-		if (!this._contentWidget?.widget.isResizing && !_sticky) {
-			this._hideWidgets();
+		if (_sticky) {
+			return;
 		}
+		this._hideWidgets();
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
@@ -228,7 +233,7 @@ export class ModesHoverController implements IEditorContribution {
 
 		const resolvedKeyboardEvent = this._keybindingService.softDispatch(e, this._editor.getDomNode());
 		// If the beginning of a multi-chord keybinding is pressed, or the command aims to focus the hover, set the variable to true, otherwise false
-		const mightTriggerFocus = (resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded || (resolvedKeyboardEvent.kind === ResultKind.KbFound && resolvedKeyboardEvent.commandId === 'editor.action.showHover' && this._contentWidget?.isVisible()));
+		const mightTriggerFocus = (resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded || (resolvedKeyboardEvent.kind === ResultKind.KbFound && resolvedKeyboardEvent.commandId === 'editor.action.showHover' && this._contentWidget?.isVisible));
 
 		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift
 			&& !mightTriggerFocus) {
@@ -241,7 +246,7 @@ export class ModesHoverController implements IEditorContribution {
 		if (_sticky) {
 			return;
 		}
-		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible()) || InlineSuggestionHintsContentWidget.dropDownVisible) {
+		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
 		this._hoverActivatedByColorDecoratorClick = false;
@@ -255,10 +260,6 @@ export class ModesHoverController implements IEditorContribution {
 			this._contentWidget = this._instantiationService.createInstance(ContentHoverController, this._editor);
 		}
 		return this._contentWidget;
-	}
-
-	public isColorPickerVisible(): boolean {
-		return this._contentWidget?.isColorPickerVisible() || false;
 	}
 
 	public showContentHover(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean, activatedByColorDecoratorClick: boolean = false): void {
@@ -302,8 +303,12 @@ export class ModesHoverController implements IEditorContribution {
 		this._contentWidget?.goToBottom();
 	}
 
-	public isHoverVisible(): boolean | undefined {
-		return this._contentWidget?.isVisible();
+	public get isColorPickerVisible(): boolean | undefined {
+		return this._contentWidget?.isColorPickerVisible;
+	}
+
+	public get isHoverVisible(): boolean | undefined {
+		return this._contentWidget?.isVisible;
 	}
 
 	public dispose(): void {
@@ -367,7 +372,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		const focus = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled || !!args?.focus;
 
-		if (controller.isHoverVisible()) {
+		if (controller.isHoverVisible) {
 			controller.focus();
 		} else {
 			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);

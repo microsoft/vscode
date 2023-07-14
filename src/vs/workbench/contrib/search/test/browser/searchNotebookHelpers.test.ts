@@ -208,7 +208,7 @@ suite('searchNotebookHelpers', () => {
 			}, searchModel.searchResult, searchModel, null);
 			return instantiationService.createInstance(FileMatch, {
 				pattern: ''
-			}, undefined, undefined, folderMatch, rawMatch, null);
+			}, undefined, undefined, folderMatch, rawMatch, null, '');
 		}
 	});
 });
