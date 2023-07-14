@@ -205,7 +205,8 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 			editorUpdatedByColorPicker = true;
 			range = _updateEditorModel(editor, range, model, context);
 		}));
-		disposables.add(editor.onKeyUp((e) => {
+		// need to remove the part of the code that automatically makes the hover disappear
+		disposables.add(editor.onKeyDown((e) => {
 			console.log('inside of on key up');
 			if (e.equals(KeyCode.Escape)) {
 				_revertEditorModel(editor);
