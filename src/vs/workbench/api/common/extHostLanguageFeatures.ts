@@ -2533,6 +2533,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 				`Do not use.`);
 		}
 
+		if (configuration.autoClosingPairs) {
+			checkProposedApiEnabled(extension, 'languageConfigurationAutoClosingPairs');
+		}
+
 		const handle = this._nextHandle();
 		const serializedConfiguration: extHostProtocol.ILanguageConfigurationDto = {
 			comments: configuration.comments,
