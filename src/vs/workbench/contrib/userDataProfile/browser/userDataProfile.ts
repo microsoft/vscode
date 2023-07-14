@@ -418,6 +418,13 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	private async saveProfile(profile: IUserDataProfile): Promise<void>;
 	private async saveProfile(profile?: IUserDataProfile, source?: IUserDataProfile | string): Promise<void>;
 	private async saveProfile(profile?: IUserDataProfile, source?: IUserDataProfile | string): Promise<void> {
+
+		type CreateProfileInfoClassification = {
+			owner: 'sandy081';
+			comment: 'Report when profile is about to be created';
+		};
+		this.telemetryService.publicLog2<{}, CreateProfileInfoClassification>('userDataProfile.startCreate');
+
 		const disposables = new DisposableStore();
 		const title = profile ? localize('save profile', "Edit Profile...") : localize('create new profle', "Create New Profile...");
 
@@ -555,8 +562,11 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		});
 
 		if (!result) {
+			this.telemetryService.publicLog2<{}, CreateProfileInfoClassification>('userDataProfile.cancelCreate');
 			return;
 		}
+
+		this.telemetryService.publicLog2<{}, CreateProfileInfoClassification>('userDataProfile.successCreate');
 
 		try {
 			const useDefaultFlags: UseDefaultProfileFlags | undefined = result.items.length ? {
