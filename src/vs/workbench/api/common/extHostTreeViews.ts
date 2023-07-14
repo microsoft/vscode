@@ -230,7 +230,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		treeView.setExpanded(treeItemHandle, expanded);
 	}
 
-	$setSelectionAndFocus(treeViewId: string, selectedHandles: string[], focusedHandle: string | undefined) {
+	$setSelectionAndFocus(treeViewId: string, selectedHandles: string[], focusedHandle: string) {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			throw new NoTreeViewError(treeViewId);
@@ -482,7 +482,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	setSelectionAndFocus(selectedHandles: TreeItemHandle[], focusedHandle: string | undefined): void {
+	setSelectionAndFocus(selectedHandles: TreeItemHandle[], focusedHandle: string): void {
 		const changedSelection = !equals(this._selectedHandles, selectedHandles);
 		this._selectedHandles = selectedHandles;
 

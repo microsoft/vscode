@@ -704,11 +704,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(treeMenus, e, actionRunner)));
 
 		this._register(this.tree.onDidChangeSelection(e => {
-			if (e.elements !== this.lastSelection) {
-				this.lastSelection = e.elements;
-				this.lastActive = this.tree?.getFocus()[0] ?? this.lastActive;
-				this._onDidChangeSelectionAndFocus.fire({ selection: this.lastSelection, focus: this.lastActive });
-			}
+			this.lastSelection = e.elements;
+			this.lastActive = this.tree?.getFocus()[0] ?? this.lastActive;
+			this._onDidChangeSelectionAndFocus.fire({ selection: this.lastSelection, focus: this.lastActive });
 		}));
 		this._register(this.tree.onDidChangeFocus(e => {
 			if (e.elements.length && (e.elements[0] !== this.lastActive)) {
