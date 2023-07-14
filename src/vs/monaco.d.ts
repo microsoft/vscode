@@ -7459,8 +7459,6 @@ declare namespace monaco.languages {
 		Deprecated = 1
 	}
 
-	function asAriaLabel(label: string, kind: SymbolKind): string;
-
 	export interface DocumentSymbol {
 		name: string;
 		detail: string;
