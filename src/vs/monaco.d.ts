@@ -7455,6 +7455,8 @@ declare namespace monaco.languages {
 		TypeParameter = 25
 	}
 
+	export function getAriaLabelForSymbol(symbolName: string, kind: SymbolKind): string;
+
 	export enum SymbolTag {
 		Deprecated = 1
 	}

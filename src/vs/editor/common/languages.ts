@@ -1143,6 +1143,39 @@ export const enum SymbolKind {
 	TypeParameter = 25
 }
 
+export const symbolKindNames: { [symbol: number]: string } = {
+	[SymbolKind.Array]: localize('Array', "array"),
+	[SymbolKind.Boolean]: localize('Boolean', "boolean"),
+	[SymbolKind.Class]: localize('Class', "class"),
+	[SymbolKind.Constant]: localize('Constant', "constant"),
+	[SymbolKind.Constructor]: localize('Constructor', "constructor"),
+	[SymbolKind.Enum]: localize('Enum', "enumeration"),
+	[SymbolKind.EnumMember]: localize('EnumMember', "enumeration member"),
+	[SymbolKind.Event]: localize('Event', "event"),
+	[SymbolKind.Field]: localize('Field', "field"),
+	[SymbolKind.File]: localize('File', "file"),
+	[SymbolKind.Function]: localize('Function', "function"),
+	[SymbolKind.Interface]: localize('Interface', "interface"),
+	[SymbolKind.Key]: localize('Key', "key"),
+	[SymbolKind.Method]: localize('Method', "method"),
+	[SymbolKind.Module]: localize('Module', "module"),
+	[SymbolKind.Namespace]: localize('Namespace', "namespace"),
+	[SymbolKind.Null]: localize('Null', "null"),
+	[SymbolKind.Number]: localize('Number', "number"),
+	[SymbolKind.Object]: localize('Object', "object"),
+	[SymbolKind.Operator]: localize('Operator', "operator"),
+	[SymbolKind.Package]: localize('Package', "package"),
+	[SymbolKind.Property]: localize('Property', "property"),
+	[SymbolKind.String]: localize('String', "string"),
+	[SymbolKind.Struct]: localize('Struct', "struct"),
+	[SymbolKind.TypeParameter]: localize('TypeParameter', "type parameter"),
+	[SymbolKind.Variable]: localize('Variable', "variable"),
+};
+
+export function getAriaLabelForSymbol(symbolName: string, kind: SymbolKind): string {
+	return localize('symbolAriaLabel', '{0} Symbol: {1}', symbolName, symbolKindNames[kind]);
+}
+
 export const enum SymbolTag {
 	Deprecated = 1,
 }
@@ -1189,13 +1222,6 @@ export namespace SymbolKinds {
 			icon = Codicon.symbolProperty;
 		}
 		return icon;
-	}
-
-	/**
-	 * @internal
-	 */
-	export function asAriaLabel(label: string, kind: SymbolKind): string {
-		return localize('symbolAriaLabel', "{0} Symbol: {1}", label, SymbolKinds.toIcon(kind).id.replaceAll('symbol-', ''));
 	}
 }
 
