@@ -709,6 +709,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	public override dispose(): void {
+		console.log('inside of the dispose method');
+
 		this._codeEditorService.removeDiffEditor(this);
 
 		if (this._beginUpdateDecorationsTimeout !== -1) {
@@ -884,6 +886,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._onDidChangeModel.fire();
 
 		// Diff navigator
+		console.log('right before the final _register');
 		this._diffNavigator = this._register(this._instantiationService.createInstance(DiffNavigator, this, {
 			alwaysRevealFirst: false,
 			findResultLoop: this.getModifiedEditor().getOption(EditorOption.find).loop

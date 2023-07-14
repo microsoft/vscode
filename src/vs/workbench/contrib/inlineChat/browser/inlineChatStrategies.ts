@@ -126,6 +126,7 @@ export class PreviewStrategy extends EditModeStrategy {
 			const edits = response.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
 			this._widget.showEditsPreview(this._session.textModel0, edits, this._session.lastTextModelChanges);
 		} else {
+			console.log('inside of render changes');
 			this._widget.hideEditsPreview();
 		}
 

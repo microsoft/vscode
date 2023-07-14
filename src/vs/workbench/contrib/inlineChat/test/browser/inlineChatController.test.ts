@@ -156,6 +156,7 @@ suite('InteractiveChatController', function () {
 
 		await run;
 
+		console.log('ctrl.getWidgetPosition() : ', ctrl.getWidgetPosition());
 		assert.ok(ctrl.getWidgetPosition() === undefined);
 	});
 
