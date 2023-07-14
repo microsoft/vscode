@@ -195,7 +195,7 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		}
 	}
 
-	public static _symbolKindNames: { [symbol: number]: string } = {
+	private static _symbolKindNames: { [symbol: number]: string } = {
 		[SymbolKind.Array]: localize('Array', "array"),
 		[SymbolKind.Boolean]: localize('Boolean', "boolean"),
 		[SymbolKind.Class]: localize('Class', "class"),
