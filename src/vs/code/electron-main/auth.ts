@@ -151,16 +151,20 @@ export class ProxyAuthHandler extends Disposable {
 		// Find any previously stored credentials
 		try {
 			let encryptedSerializedProxyCredentials = this.applicationStorageMainService.get(this.PROXY_CREDENTIALS_SERVICE_KEY + authInfoHash, StorageScope.APPLICATION);
+			let decryptedSerializedProxyCredentials: string | undefined;
 			if (!encryptedSerializedProxyCredentials) {
 				encryptedSerializedProxyCredentials = withNullAsUndefined(await this.credentialsService.getPassword(this.OLD_PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash));
 				if (encryptedSerializedProxyCredentials) {
+					// re-encrypt to force new encryption algorithm to apply
+					decryptedSerializedProxyCredentials = await this.encryptionMainService.decrypt(encryptedSerializedProxyCredentials);
+					encryptedSerializedProxyCredentials = await this.encryptionMainService.encrypt(decryptedSerializedProxyCredentials);
 					this.applicationStorageMainService.store(this.PROXY_CREDENTIALS_SERVICE_KEY + authInfoHash, encryptedSerializedProxyCredentials, StorageScope.APPLICATION, StorageTarget.MACHINE);
 					// Remove it from the old location since it's in the new location.
 					await this.credentialsService.deletePassword(this.OLD_PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
 				}
 			}
 			if (encryptedSerializedProxyCredentials) {
-				const credentials: Credentials = JSON.parse(await this.encryptionMainService.decrypt(encryptedSerializedProxyCredentials));
+				const credentials: Credentials = JSON.parse(decryptedSerializedProxyCredentials ?? await this.encryptionMainService.decrypt(encryptedSerializedProxyCredentials));
 
 				return { storedUsername: credentials.username, storedPassword: credentials.password };
 			}
