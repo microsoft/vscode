@@ -155,6 +155,10 @@ export class ModesHoverController implements IEditorContribution {
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 		const target = mouseEvent.target;
 
+		if (this._contentWidget?.isFocused() || this._contentWidget?.widget.isResizing) {
+			return;
+		}
+
 		if (this._isMouseDown && this._hoverClicked) {
 			return;
 		}
@@ -216,11 +220,7 @@ export class ModesHoverController implements IEditorContribution {
 			this._glyphWidget.startShowingAt(target.position.lineNumber);
 			return;
 		}
-		if (
-			this._contentWidget?.isFocused()
-			|| this._contentWidget?.widget.isResizing
-			|| _sticky
-		) {
+		if (_sticky) {
 			return;
 		}
 		this._hideWidgets();

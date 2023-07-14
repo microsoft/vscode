@@ -263,9 +263,6 @@ export class ContentHoverController extends Disposable {
 				return;
 			}
 		}
-		if (hoverResult.messages.length === 0 && this._widget.isFocused) {
-			return;
-		}
 		this._setCurrentResult(hoverResult);
 	}
 
