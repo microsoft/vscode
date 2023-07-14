@@ -215,16 +215,24 @@ export class ContentHoverController extends Disposable {
 		this._setCurrentResult(null);
 	}
 
-	public isColorPickerVisible(): boolean {
+	public get isColorPickerVisible(): boolean {
 		return this._widget.isColorPickerVisible;
 	}
 
-	public isVisibleFromKeyboard(): boolean {
+	public get isVisibleFromKeyboard(): boolean {
 		return this._widget.isVisibleFromKeyboard;
 	}
 
-	public isVisible(): boolean {
+	public get isVisible(): boolean {
 		return this._widget.isVisible;
+	}
+
+	public get isFocused(): boolean {
+		return this._widget.isFocused;
+	}
+
+	public get isResizing(): boolean {
+		return this._widget.isResizing;
 	}
 
 	public containsNode(node: Node | null | undefined): boolean {
@@ -474,6 +482,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	public get isVisible(): boolean {
 		return this._hoverVisibleKey.get() ?? false;
+	}
+
+	public get isFocused(): boolean {
+		return this._hoverFocusedKey.get() ?? false;
 	}
 
 	constructor(
