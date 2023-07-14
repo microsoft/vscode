@@ -24,6 +24,7 @@ import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ResizableContentWidget } from 'vs/editor/contrib/hover/browser/resizableContentWidget';
+import { Emitter, Event } from 'vs/base/common/event';
 const $ = dom.$;
 
 export class ContentHoverController extends Disposable {
@@ -276,7 +277,12 @@ export class ContentHoverController extends Disposable {
 			statusBar,
 			setColorPicker: (widget) => colorPicker = widget,
 			onContentsChanged: () => this._widget.onContentsChanged(),
-			hide: () => this.hide()
+			hide: () => this.hide(),
+			// TODO
+			onHide: (listener: (e: void) => any) => {
+				console.log('inside of onHide of the context');
+				disposables.add(this._widget.onHide(listener));
+			},
 		};
 
 		for (const participant of this._participants) {
@@ -463,6 +469,9 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
 	private readonly _hoverFocusedKey: IContextKey<boolean>;
+
+	private readonly _onHide = this._register(new Emitter<void>());
+	public readonly onHide: Event<void> = this._onHide.event;
 
 	public get isColorPickerVisible(): boolean {
 		return Boolean(this._visibleData?.colorPicker);
@@ -735,6 +744,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._resizableNode.clearSashHoverState();
 		this._hoverFocusedKey.set(false);
 		this._editor.layoutContentWidget(this);
+		console.log('before firing _onHide inside of hide');
+		this._onHide.fire();
 		if (stoleFocus) {
 			this._editor.focus();
 		}

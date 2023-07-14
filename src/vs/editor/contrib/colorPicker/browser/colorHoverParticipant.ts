@@ -179,6 +179,8 @@ async function _createColorHover(participant: ColorHoverParticipant | Standalone
 }
 
 function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, themeService: IThemeService, hoverParts: ColorHover[] | StandaloneColorPickerHover[], context: IEditorHoverRenderContext) {
+	console.log('entered into renderHoverParts');
+
 	if (hoverParts.length === 0 || !editor.hasModel()) {
 		return Disposable.None;
 	}
@@ -206,6 +208,15 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 			range = _updateEditorModel(editor, range, model, context);
 		}));
 		// need to remove the part of the code that automatically makes the hover disappear
+		console.log('context.onHide : ', context.onHide);
+
+		if (context.onHide) {
+			console.log('entered into case when context.onHide is defined');
+
+			context.onHide(() => {
+				console.log('entered into the on hide event of the context');
+			});
+		}
 		disposables.add(editor.onKeyDown((e) => {
 			console.log('inside of on key up');
 			if (e.equals(KeyCode.Escape)) {
@@ -227,12 +238,14 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	return disposables;
 }
 
+// TODO: need to find a way to reset this number when the hover disappears
 let NUMBER_COLOR_EDITS: number = 0;
 
 function pushUndoStopCount(editor: ICodeEditor) {
 	console.log('inside of push undo stop');
 	editor.pushUndoStop();
 	NUMBER_COLOR_EDITS += 1;
+	console.log('NUMBER_COLOR_EDITS : ', NUMBER_COLOR_EDITS);
 }
 
 function _revertEditorModel(editor: ICodeEditor) {
@@ -271,12 +284,12 @@ function _updateEditorModel(editor: ICodeEditor, range: Range, model: ColorPicke
 
 	if (model.presentation.additionalTextEdits) {
 		textEdits = [...model.presentation.additionalTextEdits];
+		pushUndoStopCount(editor);
 		editor.executeEdits('colorpicker', textEdits);
 		if (context) {
 			context.hide();
 		}
 	}
-	pushUndoStopCount(editor);
 	return newRange;
 }
 

@@ -114,6 +114,10 @@ export interface IEditorHoverRenderContext {
 	 * Hide the hover.
 	 */
 	hide(): void;
+	/**
+	 * Listener which listens on the hide event of the hover
+	 */
+	onHide?(listener: (e: void) => any): void;
 }
 
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
