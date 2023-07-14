@@ -14,6 +14,7 @@ import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { raceCancellation } from 'vs/base/common/async';
 
 export class ExtHostChatSlashCommands implements ExtHostChatSlashCommandsShape {
 
@@ -49,22 +50,36 @@ export class ExtHostChatSlashCommands implements ExtHostChatSlashCommandsShape {
 			return;
 		}
 
-		// TODO@jrieken this isn't proper, instead the code should call to the renderer which
-		// coordinates and picks the right provider
-		const provider = this._extHostChatProvider.all()[0];
-		if (!provider) {
-			this._logService.warn(`[CHAT](${handle}) CANNOT execute command because there is no provider`);
-			return;
+		let done = false;
+		const that = this;
+		function throwIfDone() {
+			if (done) {
+				throw new Error('Only valid while executing the command');
+			}
 		}
 
-		await data.command(
+		const provider: vscode.ChatResponseProvider = {
+			provideChatResponse(messages, options, progress, token) {
+				throwIfDone();
+				return that._extHostChatProvider.makeChatRequest(messages, options, progress, token);
+			}
+		};
+
+		const task = data.command(
 			provider,
 			{ role: ChatMessageRole.User, content: prompt },
 			{ history: context.history.map(typeConvert.ChatMessage.to) },
 			new Progress<vscode.SlashResponse>(p => {
+				throwIfDone();
 				this._proxy.$handleProgressChunk(requestId, { value: p.message.value });
 			}),
 			token
 		);
+
+		try {
+			await raceCancellation(Promise.resolve(task), token);
+		} finally {
+			done = true;
+		}
 	}
 }

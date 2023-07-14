@@ -2163,7 +2163,17 @@ export namespace ChatMessage {
 		res.name = message.name;
 		return res;
 	}
+
+
+	export function from(message: vscode.ChatMessage): chatProvider.IChatMessage {
+		return {
+			role: ChatMessageRole.from(message.role),
+			content: message.content,
+			name: message.name
+		};
+	}
 }
+
 
 export namespace ChatMessageRole {
 
@@ -2173,6 +2183,17 @@ export namespace ChatMessageRole {
 			case chatProvider.ChatMessageRole.User: return types.ChatMessageRole.User;
 			case chatProvider.ChatMessageRole.Assistant: return types.ChatMessageRole.Assistant;
 			case chatProvider.ChatMessageRole.Function: return types.ChatMessageRole.Function;
+		}
+	}
+
+	export function from(role: vscode.ChatMessageRole): chatProvider.ChatMessageRole {
+		switch (role) {
+			case types.ChatMessageRole.System: return chatProvider.ChatMessageRole.System;
+			case types.ChatMessageRole.Assistant: return chatProvider.ChatMessageRole.Assistant;
+			case types.ChatMessageRole.Function: return chatProvider.ChatMessageRole.Function;
+			case types.ChatMessageRole.User:
+			default:
+				return chatProvider.ChatMessageRole.User;
 		}
 	}
 }

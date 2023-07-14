@@ -145,8 +145,6 @@ export class ChatSlashCommandService implements IChatSlashCommandService {
 }
 
 
-
-
 // --- debug
 
 registerAction2(class extends Action2 {
@@ -162,14 +160,11 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const chatProvider = accessor.get(IChatProviderService);
 
-		for (const provider of chatProvider.getAllProviders()) {
+		const p = new Progress<IChatResponseFragment>(value => {
+			console.log(value);
+		});
+		await chatProvider.fetchChatResponse([{ role: ChatMessageRole.User, content: 'Hello.' }], { n: 2 }, p, CancellationToken.None);
 
-			const p = new Progress<IChatResponseFragment>(value => {
-				console.log(provider.metadata.displayName, value);
-			});
-
-			await provider.provideChatResponse([{ role: ChatMessageRole.User, content: 'Hello.' }], { n: 2 }, p, CancellationToken.None);
-		}
 	}
 });
 

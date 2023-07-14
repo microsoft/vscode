@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableMap } from 'vs/base/common/lifecycle';
-import { IProgress } from 'vs/platform/progress/common/progress';
+import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatProviderShape, ExtHostContext, MainContext, MainThreadChatProviderShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IChatResponseProviderMetadata, IChatResponseFragment, IChatProviderService } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { IChatResponseProviderMetadata, IChatResponseFragment, IChatProviderService, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChatProvider)
@@ -49,5 +50,11 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 
 	$unregisterProvider(handle: number): void {
 		this._providerRegistrations.deleteAndDispose(handle);
+	}
+
+	async $fetchResponse(requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
+		return this._chatProviderService.fetchChatResponse(messages, options, new Progress(value => {
+			this._proxy.$handleResponseFragment(requestId, value);
+		}), token);
 	}
 }

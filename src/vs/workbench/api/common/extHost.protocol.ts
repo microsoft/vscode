@@ -1125,10 +1125,13 @@ export interface MainThreadChatProviderShape extends IDisposable {
 	$registerProvider(handle: number, metadata: IChatResponseProviderMetadata): void;
 	$unregisterProvider(handle: number): void;
 	$handleProgressChunk(requestId: number, chunk: IChatResponseFragment): Promise<void>;
+
+	$fetchResponse(requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any>;
 }
 
 export interface ExtHostChatProviderShape {
 	$provideChatResponse(handle: number, requestId: number, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
+	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;
 }
 
 export interface MainThreadChatSlashCommandsShape extends IDisposable {

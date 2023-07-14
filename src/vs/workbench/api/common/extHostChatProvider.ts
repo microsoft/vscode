@@ -10,15 +10,13 @@ import { ExtHostChatProviderShape, IMainContext, MainContext, MainThreadChatProv
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
 import { Progress } from 'vs/platform/progress/common/progress';
-import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { IChatMessage, IChatResponseFragment } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-
 
 type ProviderData = {
 	readonly extension: ExtensionIdentifier;
 	readonly provider: vscode.ChatResponseProvider;
 };
-
 
 export class ExtHostChatProvider implements ExtHostChatProviderShape {
 
@@ -32,10 +30,6 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		private readonly _logService: ILogService,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatProvider);
-	}
-
-	all() {
-		return Array.from(this._providers.values(), v => v.provider);
 	}
 
 	registerProvider(extension: ExtensionIdentifier, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata): IDisposable {
@@ -66,4 +60,21 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		return data.provider.provideChatResponse(messages.map(typeConvert.ChatMessage.to), options, progress, token);
 	}
 
+	//#region --- making request
+
+	private readonly _pendingRequest = new Map<number, vscode.Progress<vscode.ChatResponseFragment>>();
+
+	async makeChatRequest(messages: vscode.ChatMessage[], options: { [name: string]: any }, progress: vscode.Progress<vscode.ChatResponseFragment>, token: CancellationToken) {
+		const requestId = (Math.random() * 1e6) | 0;
+		this._pendingRequest.set(requestId, progress);
+		try {
+			await this._proxy.$fetchResponse(requestId, messages.map(typeConvert.ChatMessage.from), options, token);
+		} finally {
+			this._pendingRequest.delete(requestId);
+		}
+	}
+
+	async $handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void> {
+		this._pendingRequest.get(requestId)?.report(chunk);
+	}
 }

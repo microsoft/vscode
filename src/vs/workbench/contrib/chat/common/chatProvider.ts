@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -35,7 +36,7 @@ export interface IChatResponseProviderMetadata {
 
 export interface IChatResponseProvider {
 	metadata: IChatResponseProviderMetadata;
-	provideChatResponse(messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Thenable<any>;
+	provideChatResponse(messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
 }
 
 export const IChatProviderService = createDecorator<IChatProviderService>('chatProviderService');
@@ -45,7 +46,8 @@ export interface IChatProviderService {
 	readonly _serviceBrand: undefined;
 
 	registerChatResponseProvider(provider: IChatResponseProvider): IDisposable;
-	getAllProviders(): Iterable<IChatResponseProvider>;
+
+	fetchChatResponse(messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
 }
 
 export class ChatProviderService implements IChatProviderService {
@@ -62,7 +64,11 @@ export class ChatProviderService implements IChatProviderService {
 		};
 	}
 
-	getAllProviders(): Iterable<IChatResponseProvider> {
-		return this._providers;
+	fetchChatResponse(messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any> {
+		const provider = Iterable.first(this._providers); // TODO@jrieken have plan how N providers are handled
+		if (!provider) {
+			throw new Error('NO chat provider registered');
+		}
+		return provider.provideChatResponse(messages, options, progress, token);
 	}
 }
