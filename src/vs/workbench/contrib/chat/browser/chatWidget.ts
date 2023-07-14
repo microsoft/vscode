@@ -63,7 +63,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private tree!: WorkbenchObjectTree<ChatTreeItem>;
 	private renderer!: ChatListItemRenderer;
 
-	private inputPart!: ChatInputPart;
+	inputPart!: ChatInputPart;
 	private editorOptions!: ChatEditorOptions;
 
 	private listContainer!: HTMLElement;

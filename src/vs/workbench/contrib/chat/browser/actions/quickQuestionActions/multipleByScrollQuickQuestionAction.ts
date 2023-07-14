@@ -6,7 +6,8 @@
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { setTimeout0 } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -64,7 +65,6 @@ class BaseChatQuickQuestionMode implements IQuickQuestionMode {
 
 		const containerList = dom.$('.interactive-list');
 		const containerSession = dom.$('.interactive-session', undefined, containerList);
-		containerSession.style.height = '500px';
 		containerList.style.position = 'relative';
 		this._input.widget = containerSession;
 
@@ -121,9 +121,21 @@ class BaseChatQuickQuestionMode implements IQuickQuestionMode {
 	}
 }
 
+class ModelData extends Disposable {
+	addDisposable(disposable: IDisposable) {
+		this._register(disposable);
+	}
+
+	constructor(readonly model: ChatModel) {
+		super();
+		this._register(model);
+	}
+
+}
+
 class QuickChat extends Disposable {
 	private widget!: ChatWidget;
-	private model: ChatModel | undefined;
+	private modelData: ModelData | undefined;
 	private _currentQuery: string | undefined;
 
 	private _scopedContextKeyService!: IScopedContextKeyService;
@@ -144,8 +156,8 @@ class QuickChat extends Disposable {
 	}
 
 	clear() {
-		this.model?.dispose();
-		this.model = undefined;
+		this.modelData?.dispose();
+		this.modelData = undefined;
 		this.updateModel();
 		this.widget.inputEditor.setValue('');
 	}
@@ -199,16 +211,15 @@ class QuickChat extends Disposable {
 		} else {
 			await this.widget.acceptInput();
 		}
-		this.layout();
 	}
 
 	async openChatView(): Promise<void> {
 		const widget = await this._chatWidgetService.revealViewForProvider(this.chatViewOptions.providerId);
-		if (!widget?.viewModel || !this.model) {
+		if (!widget?.viewModel || !this.modelData) {
 			return;
 		}
 
-		for (const request of this.model.getRequests()) {
+		for (const request of this.modelData.model.getRequests()) {
 			if (request.response?.response.value || request.response?.errorDetails) {
 				this.chatService.addCompleteRequest(widget.viewModel.sessionId,
 					request.message as string,
@@ -235,16 +246,48 @@ class QuickChat extends Disposable {
 	layout(): void {
 		if (this._currentParentElement) {
 			this.widget.layout(500, this._currentParentElement.offsetWidth);
+			// adjust height
+			if (this.chatViewOptions.renderInputOnTop) {
+				const offsetWidth = this._currentParentElement.offsetWidth;
+				// Needed to allow the widget to first be rendered so that the height of the container can be calculated
+				setTimeout0(() => {
+					const inputPartHeight = this.widget.inputPart.layout(500, offsetWidth);
+					const items = this.widget.viewModel?.getItems() ?? [];
+					switch (items.length) {
+						case 0:
+							this.widget.layout(inputPartHeight, offsetWidth);
+							break;
+						case 1: {
+							const listHeight = items[0].currentRenderedHeight ?? 500 - inputPartHeight;
+							this.widget.layout(listHeight + inputPartHeight, offsetWidth);
+							break;
+						}
+						default:
+							// the list has already been laid out to the hard coded value at this point
+							break;
+					}
+				});
+			}
 		}
 	}
 
 	private updateModel(): void {
-		this.model ??= this.chatService.startSession(this.chatViewOptions.providerId, CancellationToken.None);
-		if (!this.model) {
+		if (this.modelData) {
+			return this.widget.setModel(this.modelData.model, { inputValue: this._currentQuery });
+		}
+
+		const model = this.chatService.startSession(this.chatViewOptions.providerId, CancellationToken.None);
+		if (!model) {
 			throw new Error('Could not start chat session');
 		}
 
-		this.widget.setModel(this.model, { inputValue: this._currentQuery });
+		this.modelData = new ModelData(model);
+		this.registerModelListeners();
+		this.widget.setModel(model, { inputValue: this._currentQuery });
+	}
+
+	private registerModelListeners(): void {
+		this.modelData?.addDisposable(this.modelData!.model.onDidChange(() => this.layout()));
 	}
 }
 

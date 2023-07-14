@@ -329,6 +329,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				templateData.elementDisposables.add(result);
 			}
 		}
+
+		element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
 	}
 
 	/**
