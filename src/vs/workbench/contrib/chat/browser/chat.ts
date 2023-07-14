@@ -45,7 +45,7 @@ export interface IChatCodeBlockInfo {
 
 export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
 
-export type IChatWidgetViewContext = { viewId: string } | { resource: boolean };
+export type IChatWidgetViewContext = { viewId: string; renderInputOnTop?: false } | { resource: boolean; renderInputOnTop?: boolean };
 
 export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
@@ -60,7 +60,6 @@ export interface IChatWidget {
 	acceptInput(query?: string): void;
 	focusLastMessage(): void;
 	focusInput(): void;
-	getSlashCommandsSync(): ISlashCommand[] | undefined;
 	getSlashCommands(): Promise<ISlashCommand[] | undefined>;
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];

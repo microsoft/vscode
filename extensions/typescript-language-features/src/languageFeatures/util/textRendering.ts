@@ -49,9 +49,13 @@ function getTagBodyText(
 		return '```\n' + text + '\n```';
 	}
 
-	const text = convertLinkTags(tag.text, filePathConverter);
+	let text = convertLinkTags(tag.text, filePathConverter);
 	switch (tag.name) {
 		case 'example': {
+			// Example text does not support `{@link}` as it is considered code.
+			// TODO: should we support it if it appears outside of an explicit code block?
+			text = asPlainText(tag.text);
+
 			// check for caption tags, fix for #79704
 			const captionTagMatches = text.match(/<caption>(.*?)<\/caption>\s*(\r\n|\n)/);
 			if (captionTagMatches && captionTagMatches.index === 0) {
@@ -130,6 +134,13 @@ function getTagBody(tag: Proto.JSDocTagInfo, filePathConverter: IFilePathToResou
 		}
 	}
 	return (convertLinkTags(tag.text, filePathConverter)).split(/^(\S+)\s*-?\s*/);
+}
+
+function asPlainText(parts: readonly Proto.SymbolDisplayPart[] | string): string {
+	if (typeof parts === 'string') {
+		return parts;
+	}
+	return parts.map(part => part.text).join('');
 }
 
 export function asPlainTextWithLinks(
