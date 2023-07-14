@@ -33,6 +33,81 @@
 	"nodejsRepository": "https://nodejs.org",
 	"urlProtocol": "code-oss",
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
+	"extensionsGallery": {
+		"nlsBaseUrl": "https://www.vscode-unpkg.net/_lp/",
+		"serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
+		"searchUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/searchrelevancy/extensionquery",
+		"servicePPEUrl": "https://marketplace.vsallin.net/_apis/public/gallery",
+		"cacheUrl": "https://vscode.blob.core.windows.net/gallery/index",
+		"itemUrl": "https://marketplace.visualstudio.com/items",
+		"publisherUrl": "https://marketplace.visualstudio.com/publishers",
+		"resourceUrlTemplate": "https://{publisher}.vscode-unpkg.net/{publisher}/{name}/{version}/{path}",
+		"controlUrl": "https://az764295.vo.msecnd.net/extensions/marketplace.json"
+	},
+	"configurationSync.store": {
+		"url": "https://vscode-sync-insiders.trafficmanager.net/",
+		"stableUrl": "https://vscode-sync.trafficmanager.net/",
+		"insidersUrl": "https://vscode-sync-insiders.trafficmanager.net/",
+		"canSwitch": true,
+		"authenticationProviders": {
+			"github": {
+				"scopes": [
+					"user:email"
+				]
+			},
+			"microsoft": {
+				"scopes": [
+					"openid",
+					"profile",
+					"email",
+					"offline_access"
+				]
+			}
+		}
+	},
+	"enableSyncingProfiles": true,
+	"editSessions.store": {
+		"url": "https://vscode-sync.trafficmanager.net/",
+		"authenticationProviders": {
+			"microsoft": {
+				"scopes": [
+					"openid",
+					"profile",
+					"email",
+					"offline_access"
+				]
+			},
+			"github": {
+				"scopes": [
+					"user:email"
+				]
+			}
+		}
+	},
+	"linkProtectionTrustedDomains": [
+		"https://*.visualstudio.com",
+		"https://*.microsoft.com",
+		"https://aka.ms",
+		"https://*.gallerycdn.vsassets.io",
+		"https://*.github.com",
+		"https://login.microsoftonline.com",
+		"https://*.vscode.dev",
+		"https://*.github.dev",
+		"https://gh.io"
+	],
+	"trustedExtensionAuthAccess": [
+		"vscode.git",
+		"vscode.github",
+		"ms-vscode.remote-repositories",
+		"github.remotehub",
+		"ms-vscode.azure-repos",
+		"ms-vscode.remote-server",
+		"github.vscode-pull-request-github",
+		"github.codespaces",
+		"ms-vsliveshare.vsliveshare",
+		"github.copilot",
+		"github.copilot-chat"
+	],
 	"builtInExtensions": [
 		{
 			"name": "ms-vscode.js-debug-companion",
