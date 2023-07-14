@@ -229,6 +229,7 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 let NUMBER_COLOR_EDITS: number = 0;
 
 function pushUndoStopCount(editor: ICodeEditor) {
+	console.log('inside of push undo stop');
 	editor.pushUndoStop();
 	NUMBER_COLOR_EDITS += 1;
 }
