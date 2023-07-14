@@ -6,6 +6,7 @@
 import { IMatch, matchesFuzzy } from 'vs/base/common/filters';
 import { ltrim } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
+
 const iconStartMarker = '$(';
 
 const iconsRegex = new RegExp(`\\$\\(${ThemeIcon.iconNameExpression}(?:${ThemeIcon.iconModifierExpression})?\\)`, 'g'); // no capturing groups
@@ -45,8 +46,6 @@ export function getCodiconAriaLabel(text: string | undefined) {
 
 	return text.replace(/\$\((.*?)\)/g, (_match, codiconName) => ` ${codiconName} `).trim();
 }
-
-
 
 
 export interface IParsedLabelWithIcons {
