@@ -111,7 +111,7 @@ export class FindModel extends Disposable {
 			this._registerModelListener(this._notebookEditor.textModel);
 		}
 
-		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditor);
+		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditor, this._notebookEditor.getId());
 	}
 
 	private _updateCellStates(e: FindReplaceStateChangedEvent) {
@@ -161,6 +161,25 @@ export class FindModel extends Disposable {
 			}
 		};
 
+
+		if (e.isReplaceRevealed && !this._state.isReplaceRevealed) {
+			// replace is hidden, we need to switch all markdown cells to preview mode
+			const viewModel = this._notebookEditor._getViewModel() as NotebookViewModel | undefined;
+			if (!viewModel) {
+				return;
+			}
+
+			for (let i = 0; i < viewModel.length; i++) {
+				const cell = viewModel.cellAt(i);
+				if (cell && cell.cellKind === CellKind.Markup) {
+					if (cell.getEditState() === CellEditState.Editing && cell.editStateSource === 'find') {
+						cell.updateEditState(CellEditState.Preview, 'find');
+					}
+				}
+			}
+
+			return;
+		}
 
 		if (e.isReplaceRevealed) {
 			updateEditingState();

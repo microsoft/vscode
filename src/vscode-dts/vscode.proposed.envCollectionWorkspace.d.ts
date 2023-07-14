@@ -23,12 +23,4 @@ declare module 'vscode' {
 		*/
 		workspaceFolder?: WorkspaceFolder;
 	};
-
-	export interface EnvironmentVariableCollection extends Iterable<[variable: string, mutator: EnvironmentVariableMutator]> {
-		/**
-		 * A description for the environment variable collection, this will be used to describe the
-		 * changes in the UI.
-		 */
-		description: string | MarkdownString | undefined;
-	}
 }

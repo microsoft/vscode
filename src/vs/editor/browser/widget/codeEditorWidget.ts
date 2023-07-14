@@ -12,7 +12,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, EmitterOptions, Event, EventDeliveryQueue } from 'vs/base/common/event';
+import { Emitter, EmitterOptions, Event, EventDeliveryQueue, createEventDeliveryQueue } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -21,7 +21,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
-import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view';
+import { IContentWidgetData, IGlyphMarginWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view';
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
@@ -42,7 +42,7 @@ import { editorErrorForeground, editorHintForeground, editorInfoForeground, edit
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyValue, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -114,7 +114,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	//#region Eventing
 
-	private readonly _deliveryQueue = new EventDeliveryQueue();
+	private readonly _deliveryQueue = createEventDeliveryQueue();
 	protected readonly _contributions: CodeEditorContributions = this._register(new CodeEditorContributions());
 
 	private readonly _onDidDispose: Emitter<void> = this._register(new Emitter<void>());
@@ -255,6 +255,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private _contentWidgets: { [key: string]: IContentWidgetData };
 	private _overlayWidgets: { [key: string]: IOverlayWidgetData };
+	private _glyphMarginWidgets: { [key: string]: IGlyphMarginWidgetData };
 
 	/**
 	 * map from "parent" decoration type to live decoration ids.
@@ -323,6 +324,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		this._contentWidgets = {};
 		this._overlayWidgets = {};
+		this._glyphMarginWidgets = {};
 
 		let contributions: IEditorContributionDescription[];
 		if (Array.isArray(codeEditorWidgetOptions.contributions)) {
@@ -488,7 +490,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model;
 	}
 
-	public setModel(_model: ITextModel | editorCommon.IDiffEditorModel | null = null): void {
+	public setModel(_model: ITextModel | editorCommon.IDiffEditorModel | editorCommon.IDiffEditorViewModel | null = null): void {
 		const model = <ITextModel | null>_model;
 		if (this._modelData === null && model === null) {
 			// Current model is the new model
@@ -1019,6 +1021,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 	}
 
+	public handleInitialized(): void {
+		this._getViewModel()?.visibleLinesStabilized();
+	}
+
 	public onVisible(): void {
 		this._modelData?.view.refreshFocusState();
 	}
@@ -1306,7 +1312,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		for (const decorationOption of decorationOptions) {
 			let typeKey = decorationTypeKey;
 			if (decorationOption.renderOptions) {
-				// identify custom reder options by a hash code over all keys and values
+				// identify custom render options by a hash code over all keys and values
 				// For custom render options register a decoration type if necessary
 				const subType = hash(decorationOption.renderOptions).toString(16);
 				// The fact that `decorationTypeKey` appears in the typeKey has no influence
@@ -1506,6 +1512,45 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			delete this._overlayWidgets[widgetId];
 			if (this._modelData && this._modelData.hasRealView) {
 				this._modelData.view.removeOverlayWidget(widgetData);
+			}
+		}
+	}
+
+	public addGlyphMarginWidget(widget: editorBrowser.IGlyphMarginWidget): void {
+		const widgetData: IGlyphMarginWidgetData = {
+			widget: widget,
+			position: widget.getPosition()
+		};
+
+		if (this._glyphMarginWidgets.hasOwnProperty(widget.getId())) {
+			console.warn('Overwriting a glyph margin widget with the same id.');
+		}
+
+		this._glyphMarginWidgets[widget.getId()] = widgetData;
+
+		if (this._modelData && this._modelData.hasRealView) {
+			this._modelData.view.addGlyphMarginWidget(widgetData);
+		}
+	}
+
+	public layoutGlyphMarginWidget(widget: editorBrowser.IGlyphMarginWidget): void {
+		const widgetId = widget.getId();
+		if (this._glyphMarginWidgets.hasOwnProperty(widgetId)) {
+			const widgetData = this._glyphMarginWidgets[widgetId];
+			widgetData.position = widget.getPosition();
+			if (this._modelData && this._modelData.hasRealView) {
+				this._modelData.view.layoutGlyphMarginWidget(widgetData);
+			}
+		}
+	}
+
+	public removeGlyphMarginWidget(widget: editorBrowser.IGlyphMarginWidget): void {
+		const widgetId = widget.getId();
+		if (this._glyphMarginWidgets.hasOwnProperty(widgetId)) {
+			const widgetData = this._glyphMarginWidgets[widgetId];
+			delete this._glyphMarginWidgets[widgetId];
+			if (this._modelData && this._modelData.hasRealView) {
+				this._modelData.view.removeGlyphMarginWidget(widgetData);
 			}
 		}
 	}
@@ -1718,6 +1763,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				view.addOverlayWidget(this._overlayWidgets[widgetId]);
 			}
 
+			keys = Object.keys(this._glyphMarginWidgets);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				const widgetId = keys[i];
+				view.addGlyphMarginWidget(this._glyphMarginWidgets[widgetId]);
+			}
+
 			view.render(false, true);
 			view.domNode.domNode.setAttribute('data-uri', model.uri.toString());
 		}
@@ -1863,6 +1914,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private removeDropIndicator(): void {
 		this._dropIntoEditorDecorations.clear();
+	}
+
+	public setContextValue(key: string, value: ContextKeyValue): void {
+		this._contextKeyService.createKey(key, value);
 	}
 }
 

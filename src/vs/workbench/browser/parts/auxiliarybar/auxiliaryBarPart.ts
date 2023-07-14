@@ -11,7 +11,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Extensions as PaneCompositeExtensions } from 'vs/workbench/browser/panecomposite';
@@ -46,7 +45,6 @@ export class AuxiliaryBarPart extends BasePanelPart {
 	constructor(
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -60,7 +58,6 @@ export class AuxiliaryBarPart extends BasePanelPart {
 		super(
 			notificationService,
 			storageService,
-			telemetryService,
 			contextMenuService,
 			layoutService,
 			keybindingService,

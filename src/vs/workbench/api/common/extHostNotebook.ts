@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -14,8 +15,9 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import * as files from 'vs/platform/files/common/files';
 import { Cache } from 'vs/workbench/api/common/cache';
-import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape, NotebookDataDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookPartialFileStatsWithMetadata, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape, NotebookDataDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -27,6 +29,9 @@ import type * as vscode from 'vscode';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
+import { filter } from 'vs/base/common/objects';
+import { Schemas } from 'vs/base/common/network';
 
 
 
@@ -69,6 +74,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		commands: ExtHostCommands,
 		private _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private _textDocuments: ExtHostDocuments,
+		private _extHostFileSystem: IExtHostConsumerFileSystem
 	) {
 		this._notebookProxy = mainContext.getProxy(MainContext.MainThreadNotebook);
 		this._notebookDocumentsProxy = mainContext.getProxy(MainContext.MainThreadNotebookDocuments);
@@ -263,14 +269,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	// --- serialize/deserialize
 
 	private _handlePool = 0;
-	private readonly _notebookSerializer = new Map<number, vscode.NotebookSerializer>();
+	private readonly _notebookSerializer = new Map<number, { viewType: string; serializer: vscode.NotebookSerializer; options: vscode.NotebookDocumentContentOptions | undefined }>();
 
 	registerNotebookSerializer(extension: IExtensionDescription, viewType: string, serializer: vscode.NotebookSerializer, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData): vscode.Disposable {
 		if (isFalsyOrWhitespace(viewType)) {
 			throw new Error(`viewType cannot be empty or just whitespace`);
 		}
 		const handle = this._handlePool++;
-		this._notebookSerializer.set(handle, serializer);
+		this._notebookSerializer.set(handle, { viewType, serializer, options });
 		this._notebookProxy.$registerNotebookSerializer(
 			handle,
 			{ id: extension.identifier, location: extension.extensionLocation },
@@ -288,7 +294,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
-		const data = await serializer.deserializeNotebook(bytes.buffer, token);
+		const data = await serializer.serializer.deserializeNotebook(bytes.buffer, token);
 		return new SerializableObjectWithBuffers(typeConverters.NotebookData.from(data));
 	}
 
@@ -297,8 +303,91 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
-		const bytes = await serializer.serializeNotebook(typeConverters.NotebookData.to(data.value), token);
+		const bytes = await serializer.serializer.serializeNotebook(typeConverters.NotebookData.to(data.value), token);
 		return VSBuffer.wrap(bytes);
+	}
+
+	async $saveNotebook(handle: number, uriComponents: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata> {
+		const uri = URI.revive(uriComponents);
+		const serializer = this._notebookSerializer.get(handle);
+		if (!serializer) {
+			throw new Error('NO serializer found');
+		}
+
+		const document = this._documents.get(uri);
+		if (!document) {
+			throw new Error('Document NOT found');
+		}
+
+		if (document.versionId !== versionId) {
+			throw new Error('Document version mismatch');
+		}
+
+		if (!this._extHostFileSystem.value.isWritableFileSystem(uri.scheme)) {
+			throw new files.FileOperationError(localize('err.readonly', "Unable to modify read-only file '{0}'", this._resourceForError(uri)), files.FileOperationResult.FILE_PERMISSION_DENIED);
+		}
+
+		// validate write
+		await this._validateWriteFile(uri, options);
+
+		const data: vscode.NotebookData = {
+			metadata: filter(document.apiNotebook.metadata, key => !(serializer.options?.transientDocumentMetadata ?? {})[key]),
+			cells: [],
+		};
+
+		for (const cell of document.apiNotebook.getCells()) {
+			const cellData = new extHostTypes.NotebookCellData(
+				cell.kind,
+				cell.document.getText(),
+				cell.document.languageId,
+				cell.mime,
+				!(serializer.options?.transientOutputs) ? [...cell.outputs] : [],
+				cell.metadata,
+				cell.executionSummary
+			);
+
+			cellData.metadata = filter(cell.metadata, key => !(serializer.options?.transientCellMetadata ?? {})[key]);
+			data.cells.push(cellData);
+		}
+
+		const bytes = await serializer.serializer.serializeNotebook(data, token);
+		await this._extHostFileSystem.value.writeFile(uri, bytes);
+		const providerExtUri = this._extHostFileSystem.getFileSystemProviderExtUri(uri.scheme);
+		const stat = await this._extHostFileSystem.value.stat(uri);
+
+		const fileStats = {
+			name: providerExtUri.basename(uri),
+			isFile: (stat.type & files.FileType.File) !== 0,
+			isDirectory: (stat.type & files.FileType.Directory) !== 0,
+			isSymbolicLink: (stat.type & files.FileType.SymbolicLink) !== 0,
+			mtime: stat.mtime,
+			ctime: stat.ctime,
+			size: stat.size,
+			readonly: Boolean((stat.permissions ?? 0) & files.FilePermission.Readonly) || !this._extHostFileSystem.value.isWritableFileSystem(uri.scheme),
+			locked: Boolean((stat.permissions ?? 0) & files.FilePermission.Locked),
+			etag: files.etag({ mtime: stat.mtime, size: stat.size }),
+			children: undefined
+		};
+
+		return fileStats;
+	}
+
+	private async _validateWriteFile(uri: URI, options: files.IWriteFileOptions) {
+		const stat = await this._extHostFileSystem.value.stat(uri);
+		// Dirty write prevention
+		if (
+			typeof options?.mtime === 'number' && typeof options.etag === 'string' && options.etag !== files.ETAG_DISABLED &&
+			typeof stat.mtime === 'number' && typeof stat.size === 'number' &&
+			options.mtime < stat.mtime && options.etag !== files.etag({ mtime: options.mtime /* not using stat.mtime for a reason, see above */, size: stat.size })
+		) {
+			throw new files.FileOperationError(localize('fileModifiedError', "File Modified Since"), files.FileOperationResult.FILE_MODIFIED_SINCE, options);
+		}
+
+		return;
+	}
+
+	private _resourceForError(uri: URI): string {
+		return uri.scheme === Schemas.file ? uri.fsPath : uri.toString();
 	}
 
 	// --- open, save, saveAs, backup

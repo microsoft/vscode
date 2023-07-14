@@ -17,6 +17,7 @@ import { ILanguageDetectionService, LanguageDetectionLanguageEventSource } from 
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { localize } from 'vs/nls';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
@@ -71,7 +72,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle) : null;
 	}
 
-	isReadonly(): boolean {
+	isReadonly(): boolean | IMarkdownString {
 		return true;
 	}
 

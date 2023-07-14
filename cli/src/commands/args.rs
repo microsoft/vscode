@@ -6,7 +6,7 @@
 use std::{fmt, path::PathBuf};
 
 use crate::{constants, log, options, tunnels::code_server::CodeServerArgs};
-use clap::{ValueEnum, Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use const_format::concatcp;
 
 const CLI_NAME: &str = concatcp!(constants::PRODUCT_NAME_LONG, " CLI");
@@ -611,7 +611,7 @@ pub enum TunnelSubcommand {
 	/// Restarts any running tunnel on the system.
 	Restart,
 
-	/// Gets whether there is a tunnel running on the current machineiou.
+	/// Gets whether there is a tunnel running on the current machine.
 	Status,
 
 	/// Rename the name of this machine associated with port forwarding service.
@@ -649,6 +649,10 @@ pub struct TunnelServiceInstallArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+
+	/// Sets the machine name for port forwarding service
+	#[clap(long)]
+	pub name: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]

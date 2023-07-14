@@ -790,12 +790,14 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly onDidSave: Event<IWorkingCopySaveEvent>;
 	readonly onDidChangeOrphaned: Event<void>;
 	readonly onDidChangeReadonly: Event<void>;
+	readonly onDidRevertUntitled: Event<void>;
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly notebook: INotebookTextModel | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
-	isReadonly(): boolean;
+	isModified(): boolean;
+	isReadonly(): boolean | IMarkdownString;
 	isOrphaned(): boolean;
 	hasAssociatedFilePath(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
@@ -950,6 +952,7 @@ export const NotebookSetting = {
 	findScope: 'notebook.find.scope',
 	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
+	remoteSaving: 'notebook.experimental.remoteSave'
 } as const;
 
 export const enum CellStatusbarAlignment {

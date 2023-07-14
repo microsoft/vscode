@@ -40,6 +40,18 @@
 	height: 22px;
 }
 
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-left .monaco-action-bar li a[tabindex="0"]:focus {
+	outline: none !important;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-left .monaco-action-bar li:has(a:focus) {
+	outline-width: 1px;
+	outline-style: solid;
+	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
+	opacity: 1;
+}
+
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-left .monaco-action-bar .action-item .action-label.separator {
 	margin: 5px 0px !important;
 	padding: 0px !important;

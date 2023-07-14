@@ -19,12 +19,13 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateBorderColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
 	return getCommentThreadStateBorderColor(thread, theme) ?? theme.getColor(peekViewBorder);
@@ -126,7 +127,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@ICommentService private commentService: ICommentService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(editor, { keepEditorSelection: true });
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
@@ -223,7 +225,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentThread as unknown as languages.CommentThread<IRange | ICellRange>,
 			this._pendingComment,
 			this._pendingEdits,
-			{ editor: this.editor, codeBlockFontSize: '' },
+			{ editor: this.editor, codeBlockFontSize: '', codeBlockFontFamily: this.configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily },
 			this._commentOptions,
 			{
 				actionRunner: () => {
@@ -413,7 +415,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	async submitComment(): Promise<void> {
-		this._commentThreadWidget.submitComment();
+		return this._commentThreadWidget.submitComment();
 	}
 
 	_refresh(dimensions: dom.Dimension) {

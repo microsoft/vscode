@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/2918bd69cfcc658bd5b4ec1b106bb008e5c21120",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/878aefe73f942ac68dc4a46a0f154661bcb9eff4",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -381,13 +381,19 @@
 		"using-directive": {
 			"patterns": [
 				{
-					"begin": "\\b(using)\\b\\s+(static)\\s+",
+					"begin": "(\\b(global)\\b\\s+)?\\b(using)\\b\\s+(static)\\b\\s+(\\b(unsafe)\\b\\s+)?",
 					"beginCaptures": {
-						"1": {
+						"2": {
+							"name": "keyword.other.global.cs"
+						},
+						"3": {
 							"name": "keyword.other.using.cs"
 						},
-						"2": {
+						"4": {
 							"name": "keyword.other.static.cs"
+						},
+						"6": {
+							"name": "storage.modifier.cs"
 						}
 					},
 					"end": "(?=;)",
@@ -398,12 +404,18 @@
 					]
 				},
 				{
-					"begin": "\\b(using)\\s+(?=(@?[_[:alpha:]][_[:alnum:]]*)\\s*=)",
+					"begin": "(\\b(global)\\b\\s+)?\\b(using)\\b\\s+(\\b(unsafe)\\b\\s+)?(?=(@?[_[:alpha:]][_[:alnum:]]*)\\s*=)",
 					"beginCaptures": {
-						"1": {
+						"2": {
+							"name": "keyword.other.global.cs"
+						},
+						"3": {
 							"name": "keyword.other.using.cs"
 						},
-						"2": {
+						"5": {
+							"name": "storage.modifier.cs"
+						},
+						"6": {
 							"name": "entity.name.type.alias.cs"
 						}
 					},
@@ -421,9 +433,12 @@
 					]
 				},
 				{
-					"begin": "\\b(using)\\s*(?!\\(|\\s|var)",
+					"begin": "(\\b(global)\\b\\s+)?\\b(using)\\s*(?!\\(|\\s|var)",
 					"beginCaptures": {
-						"1": {
+						"2": {
+							"name": "keyword.other.global.cs"
+						},
+						"3": {
 							"name": "keyword.other.using.cs"
 						}
 					},
@@ -574,7 +589,7 @@
 		},
 		"storage-modifier": {
 			"name": "storage.modifier.cs",
-			"match": "(?<!\\.)\\b(new|public|protected|internal|private|abstract|virtual|override|sealed|static|partial|readonly|volatile|const|extern|async|unsafe|ref|required)\\b"
+			"match": "(?<!\\.)\\b(new|public|protected|internal|private|abstract|virtual|override|sealed|static|partial|readonly|volatile|const|extern|async|unsafe|ref|required|file)\\b"
 		},
 		"class-declaration": {
 			"begin": "(?=(\\brecord\\b\\s+)?\\bclass\\b)",

@@ -33,6 +33,9 @@
 	}
 	video.playsInline = true;
 	video.controls = true;
+	video.autoplay = settings.autoplay;
+	video.muted = settings.autoplay;
+	video.loop = settings.loop;
 
 	function onLoaded() {
 		if (hasLoadedMedia) {

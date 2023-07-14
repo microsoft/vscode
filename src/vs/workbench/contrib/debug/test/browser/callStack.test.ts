@@ -76,6 +76,10 @@ suite('Debug - CallStack', () => {
 		mockRawSession = new MockRawSession();
 	});
 
+	teardown(() => {
+		sinon.restore();
+	});
+
 	// Threads
 
 	test('threads simple', () => {

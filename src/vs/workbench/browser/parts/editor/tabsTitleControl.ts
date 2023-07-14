@@ -54,6 +54,7 @@ import { UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/edito
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
 interface IEditorInputLabel {
 	editor: EditorInput;
@@ -150,9 +151,10 @@ export class TabsTitleControl extends TitleControl {
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IPathService private readonly pathService: IPathService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService
+		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
+		@IEditorResolverService editorResolverService: IEditorResolverService
 	) {
-		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, menuService, quickInputService, themeService, configurationService, fileService);
+		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, menuService, quickInputService, themeService, configurationService, fileService, editorResolverService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -234,6 +236,7 @@ export class TabsTitleControl extends TitleControl {
 
 		const options = this.accessor.partOptions;
 		if (options.tabSizing === 'fixed') {
+			tabsContainer.style.setProperty('--tab-sizing-fixed-min-width', `${options.tabSizingFixedMinWidth}px`);
 			tabsContainer.style.setProperty('--tab-sizing-fixed-max-width', `${options.tabSizingFixedMaxWidth}px`);
 
 			// For https://github.com/microsoft/vscode/issues/40290 we want to
@@ -249,6 +252,7 @@ export class TabsTitleControl extends TitleControl {
 				this.updateTabsFixedWidth(false);
 			}));
 		} else if (fromEvent) {
+			tabsContainer.style.removeProperty('--tab-sizing-fixed-min-width');
 			tabsContainer.style.removeProperty('--tab-sizing-fixed-max-width');
 			this.updateTabsFixedWidth(false);
 		}
@@ -721,6 +725,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Update tabs sizing
 		if (
+			oldOptions.tabSizingFixedMinWidth !== newOptions.tabSizingFixedMinWidth ||
 			oldOptions.tabSizingFixedMaxWidth !== newOptions.tabSizingFixedMaxWidth ||
 			oldOptions.tabSizing !== newOptions.tabSizing
 		) {
@@ -956,7 +961,9 @@ export class TabsTitleControl extends TitleControl {
 
 				const editor = this.group.getEditorByIndex(index);
 				if (editor && this.group.isPinned(editor)) {
-					this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, this.group);
+					if (this.accessor.partOptions.doubleClickTabToToggleEditorGroupSizes) {
+						this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, this.group);
+					}
 				} else {
 					this.group.pinEditor(editor);
 				}

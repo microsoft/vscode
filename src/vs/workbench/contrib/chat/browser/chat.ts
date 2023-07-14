@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
+export const IChatAccessibilityService = createDecorator<IChatAccessibilityService>('chatAccessibilityService');
 
 export interface IChatWidgetService {
 
@@ -29,6 +30,13 @@ export interface IChatWidgetService {
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 }
 
+
+export interface IChatAccessibilityService {
+	readonly _serviceBrand: undefined;
+	acceptRequest(): void;
+	acceptResponse(response?: IChatResponseViewModel | string): void;
+}
+
 export interface IChatCodeBlockInfo {
 	codeBlockIndex: number;
 	element: IChatResponseViewModel;
@@ -37,7 +45,7 @@ export interface IChatCodeBlockInfo {
 
 export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
 
-export type IChatWidgetViewContext = { viewId: string } | { resource: boolean };
+export type IChatWidgetViewContext = { viewId: string; renderInputOnTop?: false } | { resource: boolean; renderInputOnTop?: boolean };
 
 export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
@@ -47,6 +55,7 @@ export interface IChatWidget {
 	readonly providerId: string;
 
 	reveal(item: ChatTreeItem): void;
+	focus(item: ChatTreeItem): void;
 	getFocus(): ChatTreeItem | undefined;
 	acceptInput(query?: string): void;
 	focusLastMessage(): void;

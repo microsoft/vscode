@@ -157,9 +157,13 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._providerResponseId = providerResponseId;
 	}
 
-	complete(errorDetails?: IChatResponseErrorDetails): void {
-		this._isComplete = true;
+	setErrorDetails(errorDetails?: IChatResponseErrorDetails): void {
 		this._errorDetails = errorDetails;
+		this._onDidChange.fire();
+	}
+
+	complete(): void {
+		this._isComplete = true;
 		this._onDidChange.fire();
 	}
 
@@ -191,7 +195,6 @@ export interface IChatModel {
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getRequests(): IChatRequestModel[];
-	waitForInitialization(): Promise<void>;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
 }
@@ -339,13 +342,8 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get title(): string {
 		const firstRequestMessage = this._requests[0]?.message;
-		if (typeof firstRequestMessage === 'string') {
-			return firstRequestMessage;
-		} else if (firstRequestMessage) {
-			return firstRequestMessage.message;
-		} else {
-			return '';
-		}
+		const message = typeof firstRequestMessage === 'string' ? firstRequestMessage : firstRequestMessage?.message ?? '';
+		return message.split('\n')[0].substring(0, 50);
 	}
 
 	constructor(
@@ -384,6 +382,11 @@ export class ChatModel extends Disposable implements IChatModel {
 			}
 			return request;
 		});
+	}
+
+	startReinitialize(): void {
+		this._session = undefined;
+		this._isInitializedDeferred = new DeferredPromise<void>();
 	}
 
 	initialize(session: IChat, welcomeMessage: ChatWelcomeMessageModel | undefined): void {
@@ -476,7 +479,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 	}
 
-	completeResponse(request: ChatRequestModel, rawResponse: IChatResponse): void {
+	setResponse(request: ChatRequestModel, rawResponse: IChatResponse): void {
 		if (!this._session) {
 			throw new Error('completeResponse: No session');
 		}
@@ -485,7 +488,15 @@ export class ChatModel extends Disposable implements IChatModel {
 			request.response = new ChatResponseModel(new MarkdownString(''), this);
 		}
 
-		request.response.complete(rawResponse.errorDetails);
+		request.response.setErrorDetails(rawResponse.errorDetails);
+	}
+
+	completeResponse(request: ChatRequestModel): void {
+		if (!request.response) {
+			throw new Error('Call setResponse before completeResponse');
+		}
+
+		request.response.complete();
 	}
 
 	setFollowups(request: ChatRequestModel, followups: IChatFollowup[] | undefined): void {
@@ -497,7 +508,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		request.response.setFollowups(followups);
 	}
 
-	setResponse(request: ChatRequestModel, response: ChatResponseModel): void {
+	setResponseModel(request: ChatRequestModel, response: ChatResponseModel): void {
 		request.response = response;
 		this._onDidChange.fire({ kind: 'addResponse', response });
 	}
