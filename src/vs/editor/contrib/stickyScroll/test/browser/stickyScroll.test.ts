@@ -21,6 +21,9 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 
 suite('Sticky Scroll Tests', () => {
 
@@ -34,6 +37,8 @@ suite('Sticky Scroll Tests', () => {
 			override isExtensionDevelopment: boolean = false;
 		}],
 		[ILanguageFeatureDebounceService, new SyncDescriptor(LanguageFeatureDebounceService)],
+		[IConfigurationService, new TestConfigurationService()],
+		[IStorageService, new InMemoryStorageService()]
 	);
 
 	const text = [
