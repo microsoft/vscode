@@ -23,6 +23,7 @@ import { IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { distinct } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -63,7 +64,7 @@ import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, 
 import { ExcludeSettingWidget, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, ISettingListChangeEvent, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
@@ -758,7 +759,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 	constructor(
 		private readonly settingActions: IAction[],
-		private readonly disposableActionFactory: (setting: ISetting) => IAction[],
+		private readonly disposableActionFactory: (setting: ISetting, settingTarget: SettingsTarget) => IAction[],
 		@IThemeService protected readonly _themeService: IThemeService,
 		@IContextViewService protected readonly _contextViewService: IContextViewService,
 		@IOpenerService protected readonly _openerService: IOpenerService,
@@ -875,7 +876,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const element = node.element;
 		template.context = element;
 		template.toolbar.context = element;
-		const actions = this.disposableActionFactory(element.setting);
+		const actions = this.disposableActionFactory(element.setting, element.settingsTarget);
 		actions.forEach(a => isDisposable(a) && template.elementDisposables.add(a));
 		template.toolbar.setActions([], [...this.settingActions, ...actions]);
 
@@ -901,6 +902,11 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		}
 
 		template.indicatorsLabel.updateScopeOverrides(element, this._onDidClickOverrideElement, this._onApplyFilter);
+		template.elementDisposables.add(this._configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(APPLY_ALL_PROFILES_SETTING)) {
+				template.indicatorsLabel.updateScopeOverrides(element, this._onDidClickOverrideElement, this._onApplyFilter);
+			}
+		}));
 
 		const onChange = (value: any) => this._onDidChangeSetting.fire({
 			key: element.setting.key,
@@ -1959,6 +1965,7 @@ export class SettingTreeRenderers {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
 		@IUserDataSyncEnablementService private readonly _userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		this.settingActions = [
@@ -1980,7 +1987,7 @@ export class SettingTreeRenderers {
 			this._instantiationService.createInstance(CopySettingAsJSONAction),
 		];
 
-		const actionFactory = (setting: ISetting) => this.getActionsForSetting(setting);
+		const actionFactory = (setting: ISetting, settingTarget: SettingsTarget) => this.getActionsForSetting(setting, settingTarget);
 		const emptyActionFactory = (_: ISetting) => [];
 		const settingRenderers = [
 			this._instantiationService.createInstance(SettingBoolRenderer, this.settingActions, actionFactory),
@@ -2015,14 +2022,18 @@ export class SettingTreeRenderers {
 		];
 	}
 
-	private getActionsForSetting(setting: ISetting): IAction[] {
-		const enableSync = this._userDataSyncEnablementService.isEnabled();
-		return enableSync && !setting.disallowSyncIgnore ?
-			[
-				new Separator(),
-				this._instantiationService.createInstance(SyncSettingAction, setting)
-			] :
-			[];
+	private getActionsForSetting(setting: ISetting, settingTarget: SettingsTarget): IAction[] {
+		const actions: IAction[] = [];
+		if (this._userDataProfilesService.isEnabled() && setting.scope !== ConfigurationScope.APPLICATION && settingTarget === ConfigurationTarget.USER_LOCAL) {
+			actions.push(this._instantiationService.createInstance(ApplySettingToAllProfilesAction, setting));
+		}
+		if (this._userDataSyncEnablementService.isEnabled() && !setting.disallowSyncIgnore) {
+			actions.push(this._instantiationService.createInstance(SyncSettingAction, setting));
+		}
+		if (actions.length) {
+			actions.splice(0, 0, new Separator());
+		}
+		return actions;
 	}
 
 	cancelSuggesters() {
@@ -2295,7 +2306,7 @@ export class NonCollapsibleObjectTreeModel<T> extends ObjectTreeModel<T> {
 }
 
 class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<SettingsTreeElement> {
-	constructor(private readonly configurationService: IConfigurationService, private readonly languageService: ILanguageService, private readonly userDataProfilesService: IUserDataProfilesService) {
+	constructor(private readonly configurationService: IWorkbenchConfigurationService, private readonly languageService: ILanguageService, private readonly userDataProfilesService: IUserDataProfilesService) {
 	}
 
 	getAriaLabel(element: SettingsTreeElement) {
@@ -2337,7 +2348,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		renderers: ITreeRenderer<any, void, any>[],
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageService languageService: ILanguageService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService
@@ -2482,6 +2493,43 @@ class SyncSettingAction extends Action {
 		this.configService.updateValue('settingsSync.ignoredSettings', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
 
 		return Promise.resolve(undefined);
+	}
+
+}
+
+class ApplySettingToAllProfilesAction extends Action {
+	static readonly ID = 'settings.applyToAllProfiles';
+	static readonly LABEL = localize('applyToAllProfiles', "Apply Setting to all Profiles");
+
+	constructor(
+		private readonly setting: ISetting,
+		@IWorkbenchConfigurationService private readonly configService: IWorkbenchConfigurationService,
+	) {
+		super(ApplySettingToAllProfilesAction.ID, ApplySettingToAllProfilesAction.LABEL);
+		this._register(Event.filter(configService.onDidChangeConfiguration, e => e.affectsConfiguration(APPLY_ALL_PROFILES_SETTING))(() => this.update()));
+		this.update();
+	}
+
+	update() {
+		const allProfilesSettings = this.configService.getValue<string[]>(APPLY_ALL_PROFILES_SETTING);
+		this.checked = allProfilesSettings.includes(this.setting.key);
+	}
+
+	override async run(): Promise<void> {
+		// first remove the current setting completely from ignored settings
+		const value = this.configService.getValue<string[]>(APPLY_ALL_PROFILES_SETTING) ?? [];
+
+		if (this.checked) {
+			value.splice(value.indexOf(this.setting.key), 1);
+		} else {
+			value.push(this.setting.key);
+		}
+
+		const newValue = distinct(value);
+		await this.configService.updateValue(APPLY_ALL_PROFILES_SETTING, newValue.length ? newValue : undefined, ConfigurationTarget.USER_LOCAL);
+		if (!this.checked) {
+			await this.configService.updateValue(this.setting.key, this.configService.inspect(this.setting.key).userLocal?.value, ConfigurationTarget.USER_LOCAL);
+		}
 	}
 
 }

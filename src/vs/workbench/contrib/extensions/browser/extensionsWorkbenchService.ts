@@ -34,7 +34,7 @@ import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier, IExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier, IExtensionIdentifier, IExtensionDescription, isApplicationScopedExtension } from 'vs/platform/extensions/common/extensions';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FileAccess } from 'vs/base/common/network';
@@ -50,6 +50,7 @@ import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/services/localization/common/locale';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -774,6 +775,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@ILocaleService private readonly localeService: ILocaleService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IFileService private readonly fileService: IFileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
 		const preferPreReleasesValue = configurationService.getValue('_extensions.preferPreReleases');
@@ -1617,6 +1619,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.extensionsSyncManagementService.updateIgnoredExtensions(extension.identifier.id, !isIgnored);
 		}
 		await this.userDataAutoSyncService.triggerSync(['IgnoredExtensionsUpdated'], false, false);
+	}
+
+	async toggleApplyExtensionToAllProfiles(extension: IExtension): Promise<void> {
+		if (extension.local && !isApplicationScopedExtension(extension.local.manifest)) {
+			await this.extensionManagementService.updateMetadata(extension.local, { isApplicationScoped: !extension.local.isApplicationScoped }, this.userDataProfilesService.defaultProfile.extensionsResource);
+		}
 	}
 
 	private isInstalledExtensionSynced(extension: ILocalExtension): boolean {

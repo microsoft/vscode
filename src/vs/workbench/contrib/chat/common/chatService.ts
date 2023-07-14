@@ -71,6 +71,7 @@ export interface ISlashCommand {
 	provider?: ISlashCommandProvider;
 	sortText?: string;
 	detail?: string;
+	followupPlaceholder?: string;
 }
 
 export interface IChatReplyFollowup {

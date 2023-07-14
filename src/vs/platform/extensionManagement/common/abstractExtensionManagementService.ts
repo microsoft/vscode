@@ -436,8 +436,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						try {
 							compatible = await this.checkAndGetCompatibleVersion(galleryExtension, false, installPreRelease);
 						} catch (error) {
-							if (error instanceof ExtensionManagementError && error.code === ExtensionManagementErrorCode.IncompatibleTargetPlatform && !isDependency) {
-								this.logService.info('Skipping the packed extension as it cannot be installed', galleryExtension.identifier.id);
+							if (!isDependency) {
+								this.logService.info('Skipping the packed extension as it cannot be installed', galleryExtension.identifier.id, getErrorMessage(error));
 								continue;
 							} else {
 								throw error;
@@ -466,11 +466,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}
 
 		const compatibleExtension = await this.getCompatibleVersion(extension, sameVersion, installPreRelease);
-		if (compatibleExtension) {
-			if (installPreRelease && !sameVersion && extension.hasPreReleaseVersion && !compatibleExtension.properties.isPreReleaseVersion) {
-				throw new ExtensionManagementError(nls.localize('notFoundCompatiblePrereleaseDependency', "Can't install pre-release version of '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.IncompatiblePreRelease);
-			}
-		} else {
+		if (!compatibleExtension) {
 			/** If no compatible release version is found, check if the extension has a release version or not and throw relevant error */
 			if (!installPreRelease && extension.properties.isPreReleaseVersion && (await this.galleryService.getExtensions([extension.identifier], CancellationToken.None))[0]) {
 				throw new ExtensionManagementError(nls.localize('notFoundReleaseExtension', "Can't install release version of '{0}' extension because it has no release version.", extension.identifier.id), ExtensionManagementErrorCode.ReleaseVersionNotFound);

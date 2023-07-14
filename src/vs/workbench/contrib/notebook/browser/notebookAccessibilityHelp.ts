@@ -46,7 +46,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	const accessibleViewService = accessor.get(IAccessibleViewService);
 	const helpText = getAccessibilityHelpText(accessor);
 	accessibleViewService.show({
-		id: 'notebook',
+		verbositySettingKey: 'notebook',
 		provideContent: () => helpText,
 		onClose: () => {
 			editor.focus();

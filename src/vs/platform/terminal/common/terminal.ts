@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import type * as performance from 'vs/base/common/performance';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
+export const terminalTabFocusModeContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
 export const enum TerminalSettingPrefix {
 	DefaultProfile = 'terminal.integrated.defaultProfile.',
