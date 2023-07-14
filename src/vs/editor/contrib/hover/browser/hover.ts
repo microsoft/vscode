@@ -303,11 +303,11 @@ export class ModesHoverController implements IEditorContribution {
 		this._contentWidget?.goToBottom();
 	}
 
-	get isColorPickerVisible(): boolean | undefined {
+	public get isColorPickerVisible(): boolean | undefined {
 		return this._contentWidget?.isColorPickerVisible;
 	}
 
-	get isHoverVisible(): boolean | undefined {
+	public get isHoverVisible(): boolean | undefined {
 		return this._contentWidget?.isVisible;
 	}
 
