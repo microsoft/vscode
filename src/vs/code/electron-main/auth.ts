@@ -234,8 +234,6 @@ export class ProxyAuthHandler extends Disposable {
 								this.applicationStorageMainService.store(this.PROXY_CREDENTIALS_SERVICE_KEY + authInfoHash, encryptedSerializedCredentials, StorageScope.APPLICATION, StorageTarget.MACHINE);
 							} else {
 								this.applicationStorageMainService.remove(this.PROXY_CREDENTIALS_SERVICE_KEY + authInfoHash, StorageScope.APPLICATION);
-								// Remove it from the old location if it was stored there
-								await this.credentialsService.deletePassword(this.OLD_PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
 							}
 						} catch (error) {
 							this.logService.error(error); // handle gracefully
