@@ -458,23 +458,25 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
 		});
 
-		CommandsRegistry.registerCommand('update.showUpdateReleaseNotes', () => {
-			if (this.updateService.state.type !== StateType.Ready) {
-				return;
-			}
+		if (this.productService.quality === 'stable') {
+			CommandsRegistry.registerCommand('update.showUpdateReleaseNotes', () => {
+				if (this.updateService.state.type !== StateType.Ready) {
+					return;
+				}
 
-			const version = this.updateService.state.update.version;
-			this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, version));
-		});
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			order: 1,
-			command: {
-				id: 'update.showUpdateReleaseNotes',
-				title: nls.localize('showUpdateReleaseNotes', "Show Update Release Notes")
-			},
-			when: ContextKeyExpr.and(CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready), MAJOR_MINOR_UPDATE_AVAILABLE)
-		});
+				const version = this.updateService.state.update.version;
+				this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, version));
+			});
+			MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+				group: '7_update',
+				order: 1,
+				command: {
+					id: 'update.showUpdateReleaseNotes',
+					title: nls.localize('showUpdateReleaseNotes', "Show Update Release Notes")
+				},
+				when: ContextKeyExpr.and(CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready), MAJOR_MINOR_UPDATE_AVAILABLE)
+			});
+		}
 
 		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
