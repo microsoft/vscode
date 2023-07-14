@@ -111,17 +111,34 @@ steps:
   - template: ../common/install-builtin-extensions.yml
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
+    - script: |
+        set -e
+        yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
+        echo "##vso[task.setvariable variable=BUILT_CLIENT]true"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build client
 
-    - script: yarn gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
+    - script: |
+        set -e
+        yarn gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
+        mv ../vscode-reh-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH) # TODO@joaomoreno
+        ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH).zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH))
+        echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server
 
-    - script: yarn gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
+    - script: |
+        set -e
+        yarn gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
+        mv ../vscode-reh-web-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH)-web # TODO@joaomoreno
+        ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH)-web.zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH)-web)
+        echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server (web)
@@ -176,18 +193,18 @@ steps:
         DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
       displayName: Set Hardened Entitlements
 
-    - script: cd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip *
-      displayName: Archive build
-
     - script: |
         set -e
+        ARCHIVE_PATH=".build/darwin/client/VSCode-darwin-$(VSCODE_ARCH).zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH *)
+        echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
+      condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT'], 'true'))
+      displayName: Package client
 
-        # package Remote Extension Host
-        pushd .. && mv vscode-reh-darwin-$(VSCODE_ARCH) vscode-server-darwin-$(VSCODE_ARCH) && zip -Xry vscode-server-darwin-$(VSCODE_ARCH).zip vscode-server-darwin-$(VSCODE_ARCH) && popd
-
-        # package Remote Extension Host (Web)
-        pushd .. && mv vscode-reh-web-darwin-$(VSCODE_ARCH) vscode-server-darwin-$(VSCODE_ARCH)-web && zip -Xry vscode-server-darwin-$(VSCODE_ARCH)-web.zip vscode-server-darwin-$(VSCODE_ARCH)-web && popd
-      displayName: Prepare to publish servers
+    - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
+      condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
+      displayName: Generate artifact prefix
 
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (client)
@@ -195,39 +212,31 @@ steps:
         BuildDropPath: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
         PackageName: Visual Studio Code
 
-    - publish: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/_manifest
-      displayName: Publish SBOM (client)
-      artifact: vscode_client_darwin_$(VSCODE_ARCH)_sbom
-
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (server)
       inputs:
         BuildDropPath: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
         PackageName: Visual Studio Code Server
 
+    - publish: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/_manifest
+      displayName: Publish SBOM (client)
+      artifact: $(ARTIFACT_PREFIX)sbom_client_darwin_$(VSCODE_ARCH)_sbom
+
     - publish: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)/_manifest
       displayName: Publish SBOM (server)
-      artifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
+      artifact: $(ARTIFACT_PREFIX)sbom_server_darwin_$(VSCODE_ARCH)_sbom
 
-    - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
-      artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+    - publish: $(CLIENT_PATH)
+      artifact: $(ARTIFACT_PREFIX)unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+      condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
       displayName: Publish client archive
 
-    - publish: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH).zip
-      artifact: vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
+    - publish: $(SERVER_PATH)
+      artifact: $(ARTIFACT_PREFIX)vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
+      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
       displayName: Publish server archive
 
-    - publish: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web.zip
-      artifact: vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
+    - publish: $(WEB_PATH)
+      artifact: $(ARTIFACT_PREFIX)vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
+      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
       displayName: Publish web server archive
-
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: "vscode-builds-subscription"
-        scriptType: pscore
-        scriptLocation: inlineScript
-        addSpnToEnvironment: true
-        inlineScript: |
-          Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
-          Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
-          Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"

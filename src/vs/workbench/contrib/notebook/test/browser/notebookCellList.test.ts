@@ -139,8 +139,8 @@ suite('NotebookCellList', () => {
 				});
 
 				const cellList = createNotebookCellList(instantiationService);
-				// without additionalscrollheight, the last 20 px will always be hidden due to `topInsertToolbarHeight`
-				cellList.updateOptions({ additionalScrollHeight: 100 });
+				// without paddingBottom, the last 20 px will always be hidden due to `topInsertToolbarHeight`
+				cellList.updateOptions({ paddingBottom: 100 });
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell

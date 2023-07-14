@@ -28,8 +28,18 @@ import { isEqual } from 'vs/base/common/resources';
 
 suite('EditorGroupModel', () => {
 
+	let testInstService: TestInstantiationService | undefined;
+
+	suiteTeardown(() => {
+		testInstService?.dispose();
+		testInstService = undefined;
+	});
+
 	function inst(): IInstantiationService {
-		const inst = new TestInstantiationService();
+		if (!testInstService) {
+			testInstService = new TestInstantiationService();
+		}
+		const inst = testInstService;
 		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(ILifecycleService, new TestLifecycleService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
@@ -1064,6 +1074,7 @@ suite('EditorGroupModel', () => {
 
 		assert.strictEqual(events.closed.length, 3);
 		assert.strictEqual(group.count, 0);
+		inst.dispose();
 	});
 
 	test('Multiple Editors - Pinned and Not Active', function () {
@@ -1320,6 +1331,7 @@ suite('EditorGroupModel', () => {
 
 		assert.ok(!group.activeEditor);
 		assert.strictEqual(group.count, 0);
+		inst.dispose();
 	});
 
 	test('Multiple Editors - move editor', function () {
@@ -1673,6 +1685,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.activeEditor!.matches(input1), true);
 		assert.strictEqual(group.previewEditor!.matches(input1), true);
 		assert.strictEqual(group.isActive(input1), true);
+		inst.dispose();
 	});
 
 	test('Multiple Groups, Multiple editors - persist', function () {
@@ -1743,6 +1756,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group2.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[0].matches(g2_input1), true);
 		assert.strictEqual(group2.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[1].matches(g2_input3), true);
 		assert.strictEqual(group2.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[2].matches(g2_input2), true);
+		inst.dispose();
 	});
 
 	test('Single group, multiple editors - persist (some not persistable)', function () {
@@ -1787,6 +1801,7 @@ suite('EditorGroupModel', () => {
 
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[0].matches(serializableInput2), true);
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[1].matches(serializableInput1), true);
+		inst.dispose();
 	});
 
 	test('Single group, multiple editors - persist (some not persistable, sticky editors)', function () {
@@ -1822,6 +1837,7 @@ suite('EditorGroupModel', () => {
 
 		assert.strictEqual(group.count, 2);
 		assert.strictEqual(group.stickyCount, 0);
+		inst.dispose();
 	});
 
 	test('Multiple groups, multiple editors - persist (some not persistable, causes empty group)', function () {
@@ -1858,6 +1874,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group1.count, 2);
 		assert.strictEqual(group1.getEditors(EditorsOrder.SEQUENTIAL)[0].matches(serializableInput1), true);
 		assert.strictEqual(group1.getEditors(EditorsOrder.SEQUENTIAL)[1].matches(serializableInput2), true);
+		inst.dispose();
 	});
 
 	test('Multiple Editors - Editor Dispose', function () {

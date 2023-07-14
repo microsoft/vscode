@@ -313,10 +313,6 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 		return Promise.resolve('');
 	}
 
-	getLatency(): Promise<number> {
-		return Promise.resolve(0);
-	}
-
 	startSendingEvents(initialDimensions: ITerminalDimensionsDto | undefined): void {
 		// Attach the listeners
 		this._pty.onDidWrite(e => this._onProcessData.fire(e));

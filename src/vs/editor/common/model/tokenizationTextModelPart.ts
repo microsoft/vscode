@@ -642,7 +642,7 @@ class AttachedViewHandler extends Disposable {
 	}
 
 	private update(): void {
-		if (equals(this._computedLineRanges, this._lineRanges)) {
+		if (equals(this._computedLineRanges, this._lineRanges, (a, b) => a.equals(b))) {
 			return;
 		}
 		this._computedLineRanges = this._lineRanges;

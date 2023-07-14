@@ -527,7 +527,7 @@ export class LocalExtensionsProvider {
 					addToSkipped.push(e);
 					this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension`, gallery.displayName || gallery.identifier.id);
 				}
-				if (error instanceof ExtensionManagementError && [ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatiblePreRelease, ExtensionManagementErrorCode.IncompatibleTargetPlatform].includes(error.code)) {
+				if (error instanceof ExtensionManagementError && [ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleTargetPlatform].includes(error.code)) {
 					this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension because the compatible extension is not found.`, gallery.displayName || gallery.identifier.id);
 				} else if (error) {
 					this.logService.error(error);

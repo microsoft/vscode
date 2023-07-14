@@ -127,6 +127,10 @@ suite('ExtHostAuthentication', () => {
 			{ supportsMultipleAccounts: true }));
 	});
 
+	suiteTeardown(() => {
+		instantiationService.dispose();
+	});
+
 	teardown(() => {
 		disposables.dispose();
 	});

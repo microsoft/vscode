@@ -76,6 +76,15 @@ function toTsWatcherKind(event: 'create' | 'change' | 'delete') {
 	throw new Error(`Unknown event: ${event}`);
 }
 
+class AccessOutsideOfRootError extends Error {
+	constructor(
+		public readonly filepath: string,
+		public readonly projectRootPaths: readonly string[]
+	) {
+		super(`Could not read file outside of project root ${filepath}`);
+	}
+}
+
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 
 function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient: ApiClient | undefined, args: string[], fsWatcher: MessagePort): ServerHostWithImport {
@@ -455,7 +464,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		}
 
 		if (allowRead === 'block') {
-			throw new Error(`Could not read file outside of project root ${filepath}`);
+			throw new AccessOutsideOfRootError(filepath, Array.from(projectRootPaths.keys()));
 		}
 
 		return uri;

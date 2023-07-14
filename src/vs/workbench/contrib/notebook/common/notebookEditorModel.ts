@@ -18,7 +18,7 @@ import { IWriteFileOptions, IFileStatWithMetadata } from 'vs/platform/files/comm
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IFileWorkingCopyModelConfiguration } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
@@ -215,7 +215,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 			};
 
 			// Override save behavior to avoid transferring the buffer across the wire 3 times
-			if (this._configurationService.getValue('notebook.experimental.remoteSave')) {
+			if (this._configurationService.getValue(NotebookSetting.remoteSaving)) {
 				this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
 					const serializer = await this.getNotebookSerializer();
 

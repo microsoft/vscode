@@ -139,9 +139,6 @@ class EmbedderTerminalProcess extends Disposable implements ITerminalChildProces
 	async getCwd(): Promise<string> {
 		return '';
 	}
-	async getLatency(): Promise<number> {
-		return 0;
-	}
 	refreshProperty<T extends ProcessPropertyType>(property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		throw new Error(`refreshProperty is not suppported in EmbedderTerminalProcess. property: ${property}`);
 	}

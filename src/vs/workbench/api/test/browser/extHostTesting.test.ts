@@ -93,6 +93,7 @@ suite('ExtHost Testing', () => {
 
 	teardown(() => {
 		single.dispose();
+		sinon.restore();
 	});
 
 	suite('OwnedTestCollection', () => {

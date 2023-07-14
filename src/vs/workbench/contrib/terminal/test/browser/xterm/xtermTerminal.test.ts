@@ -132,6 +132,10 @@ suite('XtermTerminal', () => {
 		TestWebglAddon.isEnabled = false;
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	test('should use fallback dimensions of 80x30', () => {
 		strictEqual(xterm.raw.cols, 80);
 		strictEqual(xterm.raw.rows, 30);

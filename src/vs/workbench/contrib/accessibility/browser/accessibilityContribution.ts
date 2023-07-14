@@ -44,7 +44,7 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.InlineChat]: {
-			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu when the input is focused'),
+			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints which describe how to use the feature when the input is focused'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {

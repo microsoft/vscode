@@ -67,6 +67,7 @@ suite('ExtHostLanguageFeatures', function () {
 	let rpcProtocol: TestRPCProtocol;
 	let languageFeaturesService: ILanguageFeaturesService;
 	let originalErrorHandler: (e: any) => any;
+	let instantiationService: TestInstantiationService;
 
 	suiteSetup(() => {
 
@@ -87,7 +88,7 @@ suite('ExtHostLanguageFeatures', function () {
 		// Use IInstantiationService to get typechecking when instantiating
 		let inst: IInstantiationService;
 		{
-			const instantiationService = new TestInstantiationService();
+			instantiationService = new TestInstantiationService();
 			instantiationService.stub(IMarkerService, MarkerService);
 			instantiationService.set(ILanguageFeaturesService, languageFeaturesService);
 			instantiationService.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
@@ -140,6 +141,7 @@ suite('ExtHostLanguageFeatures', function () {
 		setUnexpectedErrorHandler(originalErrorHandler);
 		model.dispose();
 		mainThread.dispose();
+		instantiationService.dispose();
 	});
 
 	teardown(() => {
