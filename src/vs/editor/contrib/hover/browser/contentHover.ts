@@ -195,9 +195,7 @@ export class ContentHoverController extends Disposable {
 
 	private _setCurrentResult(hoverResult: HoverResult | null): void {
 		if (this._currentResult === hoverResult) {
-			if (hoverResult === null && !this._widget.isFocused) {
-				this._widget.hide();
-			}
+			// avoid updating the DOM to avoid resetting the user selection
 			return;
 		}
 		if (hoverResult && hoverResult.messages.length === 0) {
@@ -207,9 +205,6 @@ export class ContentHoverController extends Disposable {
 		if (this._currentResult) {
 			this._renderMessages(this._currentResult.anchor, this._currentResult.messages);
 		} else {
-			if (this._widget.isFocused) {
-				return;
-			}
 			this._widget.hide();
 		}
 	}
@@ -230,6 +225,10 @@ export class ContentHoverController extends Disposable {
 
 	public isVisible(): boolean {
 		return this._widget.isVisible;
+	}
+
+	public isFocused(): boolean {
+		return this._widget.isFocused;
 	}
 
 	public containsNode(node: Node | null | undefined): boolean {
@@ -264,7 +263,9 @@ export class ContentHoverController extends Disposable {
 				return;
 			}
 		}
-
+		if (hoverResult.messages.length === 0 && this._widget.isFocused) {
+			return;
+		}
 		this._setCurrentResult(hoverResult);
 	}
 
@@ -735,7 +736,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	public hide(): void {
-		const stoleFocus = this._visibleData?.stoleFocus || this._hoverFocusedKey.get();
+		if (!this._visibleData) {
+			return;
+		}
+		const stoleFocus = this._visibleData.stoleFocus || this._hoverFocusedKey.get();
 		this._setHoverData(undefined);
 		this._resizableNode.maxSize = new dom.Dimension(Infinity, Infinity);
 		this._resizableNode.clearSashHoverState();
