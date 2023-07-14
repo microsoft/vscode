@@ -1326,7 +1326,6 @@ export class QuickInputController extends Disposable {
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
-		const description1 = dom.append(container, $('.quick-input-description'));
 
 		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
 		checkAll.type = 'checkbox';
@@ -1378,6 +1377,8 @@ export class QuickInputController extends Disposable {
 
 		const widget = dom.append(container, $('.quick-input-html-widget'));
 		widget.tabIndex = -1;
+
+		const description1 = dom.append(container, $('.quick-input-description'));
 
 		const listId = this.idPrefix + 'list';
 		const list = this._register(new QuickInputList(container, listId, this.options));
