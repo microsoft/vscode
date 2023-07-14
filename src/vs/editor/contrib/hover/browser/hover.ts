@@ -216,12 +216,14 @@ export class ModesHoverController implements IEditorContribution {
 			this._glyphWidget.startShowingAt(target.position.lineNumber);
 			return;
 		}
-		if (this._contentWidget?.isFocused()) {
+		if (
+			this._contentWidget?.isFocused()
+			|| this._contentWidget?.widget.isResizing
+			|| _sticky
+		) {
 			return;
 		}
-		if (!this._contentWidget?.widget.isResizing && !_sticky) {
-			this._hideWidgets();
-		}
+		this._hideWidgets();
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
