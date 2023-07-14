@@ -220,6 +220,10 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		}));
 	}
 
+	public getContentHeight() {
+		return this._editors.modified.getContentHeight();
+	}
+
 	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorConstructionOptions>, editorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
 		const editor = instantiationService.createInstance(CodeEditorWidget, container, options, editorWidgetOptions);
 		return editor;
