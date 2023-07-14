@@ -263,6 +263,7 @@ export class ContentHoverController extends Disposable {
 				return;
 			}
 		}
+
 		this._setCurrentResult(hoverResult);
 	}
 
