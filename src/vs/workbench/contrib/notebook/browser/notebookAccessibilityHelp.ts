@@ -8,7 +8,7 @@ import { format } from 'vs/base/common/strings';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/browser/accessibility/accessibleView';
+import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor): string {
 	const keybindingService = accessor.get(IKeybindingService);

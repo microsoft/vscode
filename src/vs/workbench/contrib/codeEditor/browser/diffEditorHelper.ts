@@ -20,8 +20,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/browser/accessibility/accessibleView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 const enum WidgetState {
 	Hidden,
