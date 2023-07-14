@@ -1610,6 +1610,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string }): Promise<IFindMatch[]> {
 		if (query === '') {
+			this._sendMessageToWebview({
+				type: 'findStop',
+				ownerID: options.ownerID
+			});
 			return [];
 		}
 
