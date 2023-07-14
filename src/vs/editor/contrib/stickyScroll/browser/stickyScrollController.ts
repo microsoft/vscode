@@ -26,6 +26,9 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import * as dom from 'vs/base/browser/dom';
 import { StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 interface CustomMouseEvent {
 	detail: string;
@@ -47,6 +50,7 @@ export interface IStickyScrollController {
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
 
 	static readonly ID = 'store.contrib.stickyScrollController';
+	private static readonly _key: string = 'stickyScroll.enabled';
 
 	private readonly _stickyScrollWidget: StickyScrollWidget;
 	private readonly _stickyLineCandidateProvider: IStickyLineCandidateProvider;
@@ -76,7 +80,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILanguageConfigurationService _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeatureDebounceService _languageFeatureDebounceService: ILanguageFeatureDebounceService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
 		this._stickyScrollWidget = new StickyScrollWidget(this._editor);
@@ -85,10 +91,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(this._stickyLineCandidateProvider);
 
 		this._widgetState = new StickyScrollWidgetState([], 0);
-		this._readConfiguration();
+		this._readStickyScrollConfiguration();
+		this._readAccessibilitySupportConfiguration();
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.stickyScroll)) {
-				this._readConfiguration();
+				this._readStickyScrollConfiguration();
+			}
+			if (e.hasChanged(EditorOption.accessibilitySupport)) {
+				this._readAccessibilitySupportConfiguration();
 			}
 		}));
 		this._register(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.CONTEXT_MENU, async (event: MouseEvent) => {
@@ -297,15 +307,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		});
 	}
 
-	private _readConfiguration() {
-		const options = this._editor.getOption(EditorOption.stickyScroll);
-
-		if (options.enabled === false) {
+	private _readStickyScrollConfiguration() {
+		const stickyScrollOption = this._editor.getOption(EditorOption.stickyScroll);
+		if (stickyScrollOption.enabled === false) {
 			this._editor.removeOverlayWidget(this._stickyScrollWidget);
 			this._sessionStore.clear();
 			this._enabled = false;
 			return;
-		} else if (options.enabled && !this._enabled) {
+		} else if (stickyScrollOption.enabled && !this._enabled) {
 			// When sticky scroll was just enabled, add the listeners on the sticky scroll
 			this._editor.addOverlayWidget(this._stickyScrollWidget);
 			this._sessionStore.add(this._editor.onDidScrollChange(() => this._renderStickyScroll()));
@@ -318,6 +327,31 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 		if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 			this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => this._renderStickyScroll()));
+		}
+	}
+
+	private _readAccessibilitySupportConfiguration() {
+		const accessibilitySupport = this._editor.getOption(EditorOption.accessibilitySupport);
+		// Accessibility support has been enabled
+		if (accessibilitySupport === AccessibilitySupport.Enabled) {
+			const stickyScrollEnabled = this._editor.getOption(EditorOption.stickyScroll).enabled;
+			console.log('stickyScrollEnabled : ', stickyScrollEnabled);
+			this._storageService.store(StickyScrollController._key, stickyScrollEnabled, StorageScope.PROFILE, StorageTarget.MACHINE);
+			if (!stickyScrollEnabled) {
+				this._configurationService.updateValue('editor.stickyScroll.enabled', true);
+			}
+		}
+		// Accessibility support has been disabled
+		else {
+			// set to the value before accessibility support was enabled
+			const currentStickyScrollEnabled = this._editor.getOption(EditorOption.stickyScroll).enabled;
+			console.log('currentStickyScrollEnabled : ', currentStickyScrollEnabled);
+			console.log('this._storageService.get(StickyScrollController._key, StorageScope.PROFILE) : ', this._storageService.get(StickyScrollController._key, StorageScope.PROFILE));
+			const storedStickyScrollEnabled = !!JSON.parse(this._storageService.get(StickyScrollController._key, StorageScope.PROFILE) ?? `false`);
+			console.log('storedStickyScrollEnabled', storedStickyScrollEnabled);
+			if (currentStickyScrollEnabled !== storedStickyScrollEnabled) {
+				this._configurationService.updateValue('editor.stickyScroll.enabled', storedStickyScrollEnabled);
+			}
 		}
 	}
 
