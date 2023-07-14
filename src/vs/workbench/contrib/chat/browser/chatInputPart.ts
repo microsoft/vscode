@@ -77,7 +77,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
-		private readonly options: { renderFollowupsBelow: boolean },
+		private readonly options: { renderFollowups: boolean },
 		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -178,14 +178,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this.container = dom.append(container, $('.interactive-input-part'));
 
-		let inputContainer: HTMLElement;
-		if (this.options.renderFollowupsBelow) {
-			inputContainer = dom.append(this.container, $('.interactive-input-and-toolbar'));
-			this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
-		} else {
-			this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
-			inputContainer = dom.append(this.container, $('.interactive-input-and-toolbar'));
-		}
+		this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
+		const inputContainer = dom.append(this.container, $('.interactive-input-and-toolbar'));
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		CONTEXT_IN_CHAT_INPUT.bindTo(inputScopedContextKeyService).set(true);
@@ -256,6 +250,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	async renderFollowups(items?: IChatReplyFollowup[]): Promise<void> {
+		if (!this.options.renderFollowups) {
+			return;
+		}
 		this.followupsDisposables.clear();
 		dom.clearNode(this.followupsContainer);
 

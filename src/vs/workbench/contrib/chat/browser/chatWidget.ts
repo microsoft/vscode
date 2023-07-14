@@ -142,7 +142,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.container = dom.append(parent, $('.interactive-session'));
 		if (renderInputOnTop) {
-			this.createInput(this.container, { renderFollowupsBelow: true });
+			this.createInput(this.container, { renderFollowups: false });
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 		} else {
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
@@ -334,8 +334,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.previousTreeScrollHeight = this.tree.scrollHeight;
 	}
 
-	private createInput(container: HTMLElement, options?: { renderFollowupsBelow: boolean }): void {
-		this.inputPart = this.instantiationService.createInstance(ChatInputPart, { renderFollowupsBelow: options?.renderFollowupsBelow ?? false });
+	private createInput(container: HTMLElement, options?: { renderFollowups: boolean }): void {
+		this.inputPart = this.instantiationService.createInstance(ChatInputPart, { renderFollowups: options?.renderFollowups ?? true });
 		this.inputPart.render(container, '', this);
 
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
