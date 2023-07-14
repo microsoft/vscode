@@ -216,6 +216,9 @@ export class ModesHoverController implements IEditorContribution {
 			this._glyphWidget.startShowingAt(target.position.lineNumber);
 			return;
 		}
+		if (this._contentWidget?.isFocused()) {
+			return;
+		}
 		if (!this._contentWidget?.widget.isResizing && !_sticky) {
 			this._hideWidgets();
 		}
