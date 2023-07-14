@@ -498,12 +498,12 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			profileOptions.push({ text: localize('empty profile', "None") });
 			const templates = await this.getProfileTemplatesFromProduct();
 			if (templates.length) {
-				profileOptions.push({ ...separator, decoratorRight: localize('from templates', "Profile Template") });
+				profileOptions.push({ ...separator, decoratorRight: localize('from templates', "Profile Templates") });
 				for (const template of templates) {
 					profileOptions.push({ text: template.name, id: template.url, source: template.url });
 				}
 			}
-			profileOptions.push({ ...separator, decoratorRight: localize('from existing profiles', "Existing Profile") });
+			profileOptions.push({ ...separator, decoratorRight: localize('from existing profiles', "Existing Profiles") });
 			for (const profile of this.userDataProfilesService.profiles) {
 				profileOptions.push({ text: profile.name, id: profile.id, source: profile });
 			}
