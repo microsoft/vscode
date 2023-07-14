@@ -20,6 +20,7 @@ import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRend
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export class ColorHover implements IHoverPart {
 
@@ -204,6 +205,12 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 			editorUpdatedByColorPicker = true;
 			range = _updateEditorModel(editor, range, model, context);
 		}));
+		disposables.add(editor.onKeyUp((e) => {
+			console.log('inside of on key up');
+			if (e.equals(KeyCode.Escape)) {
+				_revertEditorModel(editor);
+			}
+		}));
 	}
 	disposables.add(model.onDidChangeColor((color: Color) => {
 		_updateColorPresentations(editorModel, model, color, range, colorHover);
@@ -219,7 +226,26 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	return disposables;
 }
 
+let NUMBER_COLOR_EDITS: number = 0;
+
+function pushUndoStopCount(editor: ICodeEditor) {
+	editor.pushUndoStop();
+	NUMBER_COLOR_EDITS += 1;
+}
+
+function _revertEditorModel(editor: ICodeEditor) {
+
+	console.log('inside of revert editor model');
+	console.log('NUMBER_COLOR_EDITS : ', NUMBER_COLOR_EDITS);
+
+	for (let i = 0; i < NUMBER_COLOR_EDITS; i++) {
+		editor.popUndoStop();
+	}
+	NUMBER_COLOR_EDITS = 0;
+}
+
 function _updateEditorModel(editor: ICodeEditor, range: Range, model: ColorPickerModel, context?: IEditorHoverRenderContext) {
+	console.log('inside of update editor model');
 	let textEdits: ISingleEditOperation[];
 	let newRange: Range;
 	if (model.presentation.textEdit) {
@@ -231,13 +257,13 @@ function _updateEditorModel(editor: ICodeEditor, range: Range, model: ColorPicke
 			model.presentation.textEdit.range.endColumn
 		);
 		const trackedRange = editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
-		editor.pushUndoStop();
+		pushUndoStopCount(editor);
 		editor.executeEdits('colorpicker', textEdits);
 		newRange = editor.getModel()!._getTrackedRange(trackedRange) || newRange;
 	} else {
 		textEdits = [{ range, text: model.presentation.label, forceMoveMarkers: false }];
 		newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
-		editor.pushUndoStop();
+		pushUndoStopCount(editor);
 		editor.executeEdits('colorpicker', textEdits);
 	}
 
@@ -248,7 +274,7 @@ function _updateEditorModel(editor: ICodeEditor, range: Range, model: ColorPicke
 			context.hide();
 		}
 	}
-	editor.pushUndoStop();
+	pushUndoStopCount(editor);
 	return newRange;
 }
 
