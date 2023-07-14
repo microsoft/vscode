@@ -49,7 +49,7 @@ export class DocumentSymbolAccessibilityProvider implements IListAccessibilityPr
 		if (element instanceof OutlineGroup) {
 			return element.label;
 		} else {
-			return SymbolKinds.asAriaLabel(element.symbol.name, element.symbol.kind);
+			return localize('document-symbol-aria-label', "{0}", SymbolKinds.asAriaLabel(element.symbol.name, element.symbol.kind));
 		}
 	}
 }
