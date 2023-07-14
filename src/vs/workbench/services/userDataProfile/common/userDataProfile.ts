@@ -73,7 +73,8 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 	});
 }
 
-export interface IProfileImportOptions {
+export interface IProfileImportOptions extends IUserDataProfileOptions {
+	readonly name?: string;
 	readonly mode?: 'preview' | 'apply' | 'both';
 }
 
@@ -87,7 +88,7 @@ export interface IUserDataProfileImportExportService {
 	exportProfile(): Promise<void>;
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
-	SaveCurrentProfileAs(name: string): Promise<void>;
+	createFromProfile(profile: IUserDataProfile, name: string, options?: IUserDataProfileOptions): Promise<void>;
 	createTroubleshootProfile(): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
