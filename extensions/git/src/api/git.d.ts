@@ -16,7 +16,8 @@ export interface InputBox {
 
 export const enum ForcePushMode {
 	Force,
-	ForceWithLease
+	ForceWithLease,
+	ForceWithLeaseIfIncludes,
 }
 
 export const enum RefType {
