@@ -87,7 +87,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
-import { AudioCue, AudioCueGroupId, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
+import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
 import { LogService } from 'vs/platform/log/common/logService';
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -1057,8 +1057,6 @@ class StandaloneAudioService implements IAudioCueService {
 	}
 	playAudioCueLoop(cue: AudioCue): IDisposable {
 		return toDisposable(() => { });
-	}
-	playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): void {
 	}
 }
 
