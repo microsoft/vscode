@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
+
+	// https://github.com/microsoft/vscode/issues/173738
+
 	export interface LanguageConfiguration {
 		autoClosingPairs?: {
 			open: string;
