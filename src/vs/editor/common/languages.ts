@@ -1189,6 +1189,10 @@ export namespace SymbolKinds {
 		}
 		return icon;
 	}
+
+	export function asAriaLabel(label: string, kind: SymbolKind): string {
+		return `${label} Symbol: ${SymbolKinds.toIcon(kind).id.replaceAll('symbol-', '')} `;
+	}
 }
 
 export interface DocumentSymbol {
