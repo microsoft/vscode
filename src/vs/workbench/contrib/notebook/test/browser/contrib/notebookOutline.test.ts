@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { mock } from 'vs/base/test/common/mock';
 import { Event } from 'vs/base/common/event';
@@ -17,8 +16,9 @@ import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib
 import { IActiveNotebookEditor, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 
-
+// todo: @Yoyokrazy make sure these work after the refactoring of notebook outline + new provider
 suite('Notebook Outline', function () {
 
 	let disposables: DisposableStore;

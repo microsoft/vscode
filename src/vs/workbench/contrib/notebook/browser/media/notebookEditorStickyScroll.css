@@ -1,0 +1,24 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+.monaco-workbench
+	.notebookOverlay
+	.notebook-sticky-scroll-container {
+	display: flex;
+	width: 100%;
+	margin-left: 12px;
+	font-size: 14px;
+	font-family: var(--notebook-cell-input-preview-font-family);
+}
+
+.monaco-workbench
+	.notebookOverlay
+	.notebook-sticky-scroll-container
+	.notebook-sticky-scroll-content
+	.notebook-sticky-scroll-line {
+	width: 100%;
+	margin-left: 12px;
+	font-size: 14px;
+	font-family: var(--notebook-cell-input-preview-font-family);
+}
