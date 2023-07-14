@@ -489,6 +489,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.unregisterCommentController();
 
 		this._register(this._commentService.onDidChangeActiveCommentThread(async thread => {
+			if (!thread) {
+				return;
+			}
+
 			const handle = (thread as MainThreadCommentThread<IRange | ICellRange>).controllerHandle;
 			const controller = this._commentControllers.get(handle);
 

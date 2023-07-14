@@ -31,6 +31,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 	private _commentDisposable = new Map<CommentNode<T>, IDisposable>();
 	private _markdownRenderer: MarkdownRenderer;
+	private _hasFocus = false;
 
 	get length() {
 		return this._commentThread.comments ? this._commentThread.comments.length : 0;
@@ -59,6 +60,11 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS_IN, e => {
 			// TODO @rebornix, limit T to IRange | ICellRange
 			this.commentService.setActiveCommentThread(this._commentThread);
+			this._hasFocus = true;
+		}));
+		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS_OUT, e => {
+			this.commentService.setActiveCommentThread(null);
+			this._hasFocus = false;
 		}));
 
 		this._markdownRenderer = this._register(new MarkdownRenderer(this._options, this.languageService, this.openerService));
@@ -240,6 +246,10 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 	}
 
 	private _setFocusedComment(value: number | undefined) {
+		if (!this._hasFocus) {
+			return;
+		}
+
 		if (this._focusedComment !== undefined) {
 			this._commentElements[this._focusedComment]?.setFocus(false);
 		}
