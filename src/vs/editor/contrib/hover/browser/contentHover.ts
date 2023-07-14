@@ -215,20 +215,24 @@ export class ContentHoverController extends Disposable {
 		this._setCurrentResult(null);
 	}
 
-	public isColorPickerVisible(): boolean {
+	get isColorPickerVisible(): boolean {
 		return this._widget.isColorPickerVisible;
 	}
 
-	public isVisibleFromKeyboard(): boolean {
+	get isVisibleFromKeyboard(): boolean {
 		return this._widget.isVisibleFromKeyboard;
 	}
 
-	public isVisible(): boolean {
+	get isVisible(): boolean {
 		return this._widget.isVisible;
 	}
 
-	public isFocused(): boolean {
+	get isFocused(): boolean {
 		return this._widget.isFocused;
+	}
+
+	get isResizing(): boolean {
+		return this._widget.isResizing;
 	}
 
 	public containsNode(node: Node | null | undefined): boolean {
