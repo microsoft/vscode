@@ -21,6 +21,7 @@ import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import * as model from 'vs/editor/common/model';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
+import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 
@@ -1191,7 +1192,7 @@ export namespace SymbolKinds {
 	}
 
 	export function asAriaLabel(label: string, kind: SymbolKind): string {
-		return `${label} Symbol: ${SymbolKinds.toIcon(kind).id.replaceAll('symbol-', '')} `;
+		return localize('symbolAriaLabel', "{0} Symbol: {1}", label, SymbolKinds.toIcon(kind).id.replaceAll('symbol-', ''));
 	}
 }
 

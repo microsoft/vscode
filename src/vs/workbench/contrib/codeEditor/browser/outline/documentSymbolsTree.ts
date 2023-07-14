@@ -49,7 +49,7 @@ export class DocumentSymbolAccessibilityProvider implements IListAccessibilityPr
 		if (element instanceof OutlineGroup) {
 			return element.label;
 		} else {
-			return localize('document-symbol-aria-label', "{0}", SymbolKinds.asAriaLabel(element.symbol.name, element.symbol.kind));
+			return SymbolKinds.asAriaLabel(element.symbol.name, element.symbol.kind);
 		}
 	}
 }
@@ -195,7 +195,7 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		}
 	}
 
-	private static _symbolKindNames: { [symbol: number]: string } = {
+	public static _symbolKindNames: { [symbol: number]: string } = {
 		[SymbolKind.Array]: localize('Array', "array"),
 		[SymbolKind.Boolean]: localize('Boolean', "boolean"),
 		[SymbolKind.Class]: localize('Class', "class"),
