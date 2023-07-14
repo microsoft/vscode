@@ -1191,6 +1191,9 @@ export namespace SymbolKinds {
 		return icon;
 	}
 
+	/**
+	 * @internal
+	 */
 	export function asAriaLabel(label: string, kind: SymbolKind): string {
 		return localize('symbolAriaLabel', "{0} Symbol: {1}", label, SymbolKinds.toIcon(kind).id.replaceAll('symbol-', ''));
 	}
