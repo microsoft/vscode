@@ -50,7 +50,7 @@ export interface IStickyScrollController {
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
 
 	static readonly ID = 'store.contrib.stickyScrollController';
-	private static readonly _key: string = 'stickyScroll.enabled';
+	private static readonly _key: string = 'stickyScroll.enabled.key';
 
 	private readonly _stickyScrollWidget: StickyScrollWidget;
 	private readonly _stickyLineCandidateProvider: IStickyLineCandidateProvider;
@@ -335,20 +335,15 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		// Accessibility support has been enabled
 		if (accessibilitySupport === AccessibilitySupport.Enabled) {
 			const stickyScrollEnabled = this._editor.getOption(EditorOption.stickyScroll).enabled;
-			console.log('stickyScrollEnabled : ', stickyScrollEnabled);
-			this._storageService.store(StickyScrollController._key, stickyScrollEnabled, StorageScope.PROFILE, StorageTarget.MACHINE);
+			this._storageService.store(StickyScrollController._key, stickyScrollEnabled, StorageScope.PROFILE, StorageTarget.USER);
 			if (!stickyScrollEnabled) {
 				this._configurationService.updateValue('editor.stickyScroll.enabled', true);
 			}
 		}
 		// Accessibility support has been disabled
 		else {
-			// set to the value before accessibility support was enabled
 			const currentStickyScrollEnabled = this._editor.getOption(EditorOption.stickyScroll).enabled;
-			console.log('currentStickyScrollEnabled : ', currentStickyScrollEnabled);
-			console.log('this._storageService.get(StickyScrollController._key, StorageScope.PROFILE) : ', this._storageService.get(StickyScrollController._key, StorageScope.PROFILE));
 			const storedStickyScrollEnabled = !!JSON.parse(this._storageService.get(StickyScrollController._key, StorageScope.PROFILE) ?? `false`);
-			console.log('storedStickyScrollEnabled', storedStickyScrollEnabled);
 			if (currentStickyScrollEnabled !== storedStickyScrollEnabled) {
 				this._configurationService.updateValue('editor.stickyScroll.enabled', storedStickyScrollEnabled);
 			}
