@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
