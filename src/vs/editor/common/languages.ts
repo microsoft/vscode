@@ -21,6 +21,7 @@ import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import * as model from 'vs/editor/common/model';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
+import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 
@@ -1140,6 +1141,45 @@ export const enum SymbolKind {
 	Event = 23,
 	Operator = 24,
 	TypeParameter = 25
+}
+
+/**
+ * @internal
+ */
+export const symbolKindNames: { [symbol: number]: string } = {
+	[SymbolKind.Array]: localize('Array', "array"),
+	[SymbolKind.Boolean]: localize('Boolean', "boolean"),
+	[SymbolKind.Class]: localize('Class', "class"),
+	[SymbolKind.Constant]: localize('Constant', "constant"),
+	[SymbolKind.Constructor]: localize('Constructor', "constructor"),
+	[SymbolKind.Enum]: localize('Enum', "enumeration"),
+	[SymbolKind.EnumMember]: localize('EnumMember', "enumeration member"),
+	[SymbolKind.Event]: localize('Event', "event"),
+	[SymbolKind.Field]: localize('Field', "field"),
+	[SymbolKind.File]: localize('File', "file"),
+	[SymbolKind.Function]: localize('Function', "function"),
+	[SymbolKind.Interface]: localize('Interface', "interface"),
+	[SymbolKind.Key]: localize('Key', "key"),
+	[SymbolKind.Method]: localize('Method', "method"),
+	[SymbolKind.Module]: localize('Module', "module"),
+	[SymbolKind.Namespace]: localize('Namespace', "namespace"),
+	[SymbolKind.Null]: localize('Null', "null"),
+	[SymbolKind.Number]: localize('Number', "number"),
+	[SymbolKind.Object]: localize('Object', "object"),
+	[SymbolKind.Operator]: localize('Operator', "operator"),
+	[SymbolKind.Package]: localize('Package', "package"),
+	[SymbolKind.Property]: localize('Property', "property"),
+	[SymbolKind.String]: localize('String', "string"),
+	[SymbolKind.Struct]: localize('Struct', "struct"),
+	[SymbolKind.TypeParameter]: localize('TypeParameter', "type parameter"),
+	[SymbolKind.Variable]: localize('Variable', "variable"),
+};
+
+/**
+ * @internal
+ */
+export function getAriaLabelForSymbol(symbolName: string, kind: SymbolKind): string {
+	return localize('symbolAriaLabel', '{0} Symbol: {1}', symbolName, symbolKindNames[kind]);
 }
 
 export const enum SymbolTag {
