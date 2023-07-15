@@ -1143,6 +1143,9 @@ export const enum SymbolKind {
 	TypeParameter = 25
 }
 
+/**
+ * @internal
+ */
 export const symbolKindNames: { [symbol: number]: string } = {
 	[SymbolKind.Array]: localize('Array', "array"),
 	[SymbolKind.Boolean]: localize('Boolean', "boolean"),
@@ -1172,6 +1175,9 @@ export const symbolKindNames: { [symbol: number]: string } = {
 	[SymbolKind.Variable]: localize('Variable', "variable"),
 };
 
+/**
+ * @internal
+ */
 export function getAriaLabelForSymbol(symbolName: string, kind: SymbolKind): string {
 	return localize('symbolAriaLabel', '{0} Symbol: {1}', symbolName, symbolKindNames[kind]);
 }
