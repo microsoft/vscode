@@ -26,6 +26,8 @@ import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/
 import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { ExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
+import { ExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 
 suite('NotebookKernel', function () {
 
@@ -37,6 +39,7 @@ suite('NotebookKernel', function () {
 	let extHostNotebooks: ExtHostNotebookController;
 	let extHostNotebookDocuments: ExtHostNotebookDocuments;
 	let extHostCommands: ExtHostCommands;
+	let extHostConsumerFileSystem: ExtHostConsumerFileSystem;
 
 	const notebookUri = URI.parse('test:///notebook.file');
 	const kernelData = new Map<number, INotebookKernelDto2>();
@@ -94,7 +97,8 @@ suite('NotebookKernel', function () {
 				return true;
 			}
 		});
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments);
+		extHostConsumerFileSystem = new ExtHostConsumerFileSystem(rpcProtocol, new ExtHostFileSystemInfo());
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem);
 
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 

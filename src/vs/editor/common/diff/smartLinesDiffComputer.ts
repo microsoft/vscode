@@ -85,6 +85,7 @@ export interface IDiffComputationResult {
 
 	/**
 	 * The changes as (legacy) line change array.
+	 * @deprecated Use `changes2` instead.
 	 */
 	changes: ILineChange[];
 

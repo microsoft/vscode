@@ -12,8 +12,9 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export function getSimpleEditorOptions(): IEditorOptions {
+export function getSimpleEditorOptions(configurationService: IConfigurationService): IEditorOptions {
 	return {
 		wordWrap: 'on',
 		overviewRulerLanes: 0,
@@ -39,7 +40,9 @@ export function getSimpleEditorOptions(): IEditorOptions {
 		},
 		guides: {
 			indentation: false
-		}
+		},
+		accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
+		cursorBlinking: configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking')
 	};
 }
 

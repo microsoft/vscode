@@ -239,14 +239,14 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 
 	public renderElement(node: ITreeNode<IExpression | ReplVariableElement, FuzzyScore>, _index: number, data: IExpressionTemplateData): void {
 		const element = node.element;
-		super.renderExpressionElement(element instanceof ReplVariableElement ? element.expr : element, node, data);
+		super.renderExpressionElement(element instanceof ReplVariableElement ? element.expression : element, node, data);
 	}
 
 	protected renderExpression(expression: IExpression | ReplVariableElement, data: IExpressionTemplateData, highlights: IHighlight[]): void {
 		const isReplVariable = expression instanceof ReplVariableElement;
 		if (isReplVariable || !expression.name) {
 			data.label.set('');
-			renderExpressionValue(isReplVariable ? expression.expr : expression, data.value, { showHover: false, colorize: true, linkDetector: this.linkDetector });
+			renderExpressionValue(isReplVariable ? expression.expression : expression, data.value, { showHover: false, colorize: true, linkDetector: this.linkDetector });
 			data.expression.classList.remove('nested-variable');
 		} else {
 			renderVariable(expression as Variable, data, true, highlights, this.linkDetector);

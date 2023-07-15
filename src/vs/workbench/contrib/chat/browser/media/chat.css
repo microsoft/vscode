@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-session {
-	max-width: 600px;
+	max-width: 850px;
 	margin: auto;
 }
 
@@ -66,7 +66,9 @@
 }
 
 .monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar,
-.monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar .action-label {
+.monaco-list:not(:focus-within) .monaco-list-row .interactive-item-container:not(:hover) .header .monaco-toolbar,
+.monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar .action-label,
+.monaco-list:not(:focus-within) .monaco-list-row .interactive-item-container:not(:hover) .header .monaco-toolbar .action-label {
 	/* Also apply this rule to the .action-label directly to work around a strange issue- when the
 	toolbar is hidden without that second rule, tabbing from the list container into a list item doesn't work
 	and the tab key doesn't do anything. */
@@ -82,8 +84,8 @@
 	padding: 2px;
 }
 
-.interactive-item-container .header .monaco-toolbar .checked .action-label,
-.interactive-item-container .header .monaco-toolbar .checked .action-label:hover {
+.interactive-item-container .header .monaco-toolbar .checked.action-label,
+.interactive-item-container .header .monaco-toolbar .checked.action-label:hover {
 	color: var(--vscode-inputOption-activeForeground) !important;
 	border-color: var(--vscode-inputOption-activeBorder);
 	background-color: var(--vscode-inputOption-activeBackground);
@@ -107,7 +109,8 @@
 	padding: 4px 6px;
 }
 
-.interactive-item-container .value a {
+.interactive-item-container .value a,
+.interactive-item-container .value a code {
 	color: var(--vscode-textLink-foreground);
 }
 
@@ -187,6 +190,7 @@
 	border-radius: 4px;
 	position: relative;
 	padding-left: 8px;
+	margin-bottom: 4px;
 }
 
 .interactive-session .interactive-input-and-toolbar.focused {
@@ -295,6 +299,7 @@
 	display: flex;
 	flex-direction: column;
 	border-top: solid 1px var(--vscode-chat-requestBorder);
+	border-bottom: solid 1px var(--vscode-chat-requestBorder);
 }
 
 .interactive-session-followups {

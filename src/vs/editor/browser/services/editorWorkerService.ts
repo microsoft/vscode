@@ -143,7 +143,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 			if (!canSyncModel(this._modelService, resource)) {
 				return Promise.resolve(edits); // File too large
 			}
-			const sw = StopWatch.create(true);
+			const sw = StopWatch.create();
 			const result = this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits, pretty));
 			result.finally(() => this._logService.trace('FORMAT#computeMoreMinimalEdits', resource.toString(true), sw.elapsed()));
 			return Promise.race([result, timeout(1000).then(() => edits)]);
@@ -158,7 +158,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 			if (!canSyncModel(this._modelService, resource)) {
 				return Promise.resolve(edits); // File too large
 			}
-			const sw = StopWatch.create(true);
+			const sw = StopWatch.create();
 			const result = this._workerManager.withWorker().then(client => client.computeHumanReadableDiff(resource, edits,
 				{ ignoreTrimWhitespace: false, maxComputationTimeMs: 1000, computeMoves: false, })).catch((err) => {
 					onUnexpectedError(err);

@@ -2005,9 +2005,6 @@ class SCMInputWidget {
 		const fontFamily = this.getInputEditorFontFamily();
 		const fontSize = this.getInputEditorFontSize();
 		const lineHeight = this.computeLineHeight(fontSize);
-		// We must respect some accessibility related settings
-		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
-		const cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 
 		this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
 
@@ -2015,7 +2012,7 @@ class SCMInputWidget {
 		this.repositoryIdContextKey = contextKeyService2.createKey('scmRepository', undefined);
 
 		const editorOptions: IEditorConstructionOptions = {
-			...getSimpleEditorOptions(),
+			...getSimpleEditorOptions(configurationService),
 			lineDecorationsWidth: 6,
 			dragAndDrop: true,
 			cursorWidth: 1,
@@ -2029,9 +2026,7 @@ class SCMInputWidget {
 			scrollbar: { alwaysConsumeMouseWheel: false },
 			overflowWidgetsDomNode,
 			renderWhitespace: 'none',
-			dropIntoEditor: { enabled: true },
-			accessibilitySupport,
-			cursorBlinking
+			dropIntoEditor: { enabled: true }
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {

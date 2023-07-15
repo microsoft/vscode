@@ -146,16 +146,16 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 
 		class TestBackupWorkingCopy extends TestWorkingCopy {
 
-			backupDelay = 0;
-
 			constructor(resource: URI) {
 				super(resource);
 
 				accessor.workingCopyService.registerWorkingCopy(this);
 			}
 
+			readonly backupDelay = 10;
+
 			override async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
-				await timeout(this.backupDelay);
+				await timeout(0);
 
 				return {};
 			}

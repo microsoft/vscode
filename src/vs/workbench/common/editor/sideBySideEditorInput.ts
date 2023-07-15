@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -244,6 +245,10 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		}
 
 		return undefined;
+	}
+
+	override isReadonly(): boolean | IMarkdownString {
+		return this.primary.isReadonly();
 	}
 
 	override toUntyped(options?: { preserveViewState: GroupIdentifier }): IResourceSideBySideEditorInput | undefined {

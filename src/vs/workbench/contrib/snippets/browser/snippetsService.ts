@@ -454,9 +454,6 @@ export class SnippetsService implements ISnippetsService {
 		};
 		this._disposables.add(disposables);
 		this._disposables.add(this._userDataProfileService.onDidChangeCurrentProfile(e => e.join((async () => {
-			if (e.preserveData) {
-				await this._fileService.copy(e.previous.snippetsHome, e.profile.snippetsHome);
-			}
 			this._pendingWork.push(updateUserSnippets());
 		})())));
 		await updateUserSnippets();

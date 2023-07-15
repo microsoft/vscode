@@ -11,7 +11,7 @@ import { IDimension } from 'vs/editor/common/core/dimension';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IEditor, IEditorAction, IEditorDecorationsCollection, IEditorModel, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { IDiffEditorViewModel, IEditor, IEditorAction, IEditorDecorationsCollection, IEditorModel, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export abstract class DelegatingEditor extends Disposable implements IEditor {
@@ -23,7 +23,7 @@ export abstract class DelegatingEditor extends Disposable implements IEditor {
 
 	protected abstract get _targetEditor(): CodeEditorWidget;
 
-	getId(): string { return this.getEditorType() + ':' + this._id; }
+	getId(): string { return this.getEditorType() + ':v2:' + this._id; }
 
 	abstract getEditorType(): string;
 	abstract updateOptions(newOptions: IEditorOptions): void;
@@ -34,7 +34,7 @@ export abstract class DelegatingEditor extends Disposable implements IEditor {
 	abstract saveViewState(): IEditorViewState | null;
 	abstract restoreViewState(state: IEditorViewState | null): void;
 	abstract getModel(): IEditorModel | null;
-	abstract setModel(model: IEditorModel | null): void;
+	abstract setModel(model: IEditorModel | null | IDiffEditorViewModel): void;
 
 	// #region editorBrowser.IDiffEditor: Delegating to modified Editor
 

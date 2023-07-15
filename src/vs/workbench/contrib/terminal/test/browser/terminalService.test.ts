@@ -57,6 +57,10 @@ suite('Workbench - TerminalService', () => {
 		instantiationService.stub(ITerminalService, terminalService);
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	suite('safeDisposeTerminal', () => {
 		let onExitEmitter: Emitter<number | undefined>;
 
