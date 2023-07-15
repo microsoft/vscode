@@ -53,7 +53,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'mergeEditor.showDeletionMarkers': {
 			type: 'boolean',
 			default: true,
-			description: 'Controls if deletions in base or one of the inputs should be indicated by a vertical bar.',
+			description: localize('mergeEditor.showDeletionMarkers', 'Controls if deletions in base or one of the inputs should be indicated by a vertical bar.'),
+		},
+		'mergeEditor.showOnlyConflictingChangesInOverviewRulers': {
+			type: 'boolean',
+			default: false,
+			description: localize('mergeEditor.showOnlyConflictingChangesInOverviewRulers', 'Controls if decorations for only conflicting changes should be shown in the overview rulers.'),
 		},
 	}
 });
