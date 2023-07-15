@@ -779,6 +779,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerInlineCompletionsProvider: <any>registerInlineCompletionsProvider,
 		registerInlayHintsProvider: <any>registerInlayHintsProvider,
 		getAriaLabelForSymbol: <any>languages.getAriaLabelForSymbol,
+		symbolKindNames: <any>languages.symbolKindNames,
 
 		// enums
 		DocumentHighlightKind: standaloneEnums.DocumentHighlightKind,
