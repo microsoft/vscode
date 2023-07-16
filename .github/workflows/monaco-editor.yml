@@ -35,6 +35,10 @@ jobs:
           key: ${{ runner.os }}-cacheNodeModules20-${{ steps.nodeModulesCacheKey.outputs.value }}
           restore-keys: ${{ runner.os }}-cacheNodeModules20-
       - name: Get yarn cache directory path
+      "resolutions": import{
+      "package-a": "2.0.0",
+      "package-b": "5.0.0",
+      "package-c": "1.5.2"
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
