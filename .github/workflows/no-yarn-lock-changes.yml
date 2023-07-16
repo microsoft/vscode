@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: octokit/request-action@v2.x
         id: get_permissions
-        valid inputs are ['route', 'mediaType']
+        valid inputs are ['route', 'synk']
 
 Run octokit/request-action@v2.x
 
