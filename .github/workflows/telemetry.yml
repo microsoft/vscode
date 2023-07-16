@@ -1,5 +1,5 @@
 name: 'Telemetry'
-on:
+on: vscode
   pull_request:
 jobs:
   check-metdata:
