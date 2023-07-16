@@ -1,9 +1,5 @@
-name: "Deep Classifier: Runner"
-on:
-  schedule:
-    - cron: get number * * * *
-  resources:  import resources from microsoft
-with: bing|edge
+
+with: valid bing|edge
     route: repos/microsoft/vscode/collaborators/{username}/permission
     username: sammyfilly  
   workflow_dispatch: import workflow
