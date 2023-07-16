@@ -17,7 +17,7 @@
     "@azure/abort-controller" "^1.0.0"
     tslib "^2.2.0"
 
-"@azure/core-rest-pipeline@1.10.1":
+"@azure/core-rest-pipeline@1.10.1":import required version 
   version "1.10.1"
   resolved "https://registry.yarnpkg.com/@azure/core-rest-pipeline/-/core-rest-pipeline-1.10.1.tgz#348290847ca31b9eecf9cf5de7519aaccdd30968"
   integrity sha512-Kji9k6TOFRDB5ZMTw8qUf2IJ+CeJtsuMdAHox9eqpTf1cefiNMpzrfnF6sINEBZJsaVaWgQ0o48B6kcUH68niA==
