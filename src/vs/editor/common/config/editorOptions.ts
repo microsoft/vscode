@@ -5865,6 +5865,15 @@ export const EditorOptions = {
 };
 
 type EditorOptionsType = typeof EditorOptions;
-type FindEditorOptionsKeyById<T extends EditorOption> = { [K in keyof EditorOptionsType]: EditorOptionsType[K]['id'] extends T ? K : never }[keyof EditorOptionsType];
+type AccessibilityOptionsType = typeof EditorOptions.accessibility;
+type EditorOptionsWithoutAccessibilityType = Omit<EditorOptionsType, 'accessibility'>;
+
+type FindEditorOptionsKeyById<T extends EditorOption> = { [K in keyof EditorOptionsWithoutAccessibilityType]: EditorOptionsWithoutAccessibilityType[K]['id'] extends T ? K : never }[keyof EditorOptionsWithoutAccessibilityType];
+type FindAccessibilityOptionsKeyById<T extends EditorOption> = { [K in keyof AccessibilityOptionsType]: AccessibilityOptionsType[K]['id'] extends T ? K : never }[keyof AccessibilityOptionsType];
+
 type ComputedEditorOptionValue<T extends IEditorOption<any, any>> = T extends IEditorOption<any, infer R> ? R : never;
-export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;
+
+type ComputedEditorOptionValueWithoutAccessibility<T extends EditorOption> = ComputedEditorOptionValue<EditorOptionsWithoutAccessibilityType[FindEditorOptionsKeyById<T>]>;
+type ComputedAccessibilityOptionValue<T extends EditorOption> = ComputedEditorOptionValue<AccessibilityOptionsType[FindAccessibilityOptionsKeyById<T>]>;
+
+export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValueWithoutAccessibility<T> | ComputedAccessibilityOptionValue<T>>;
