@@ -1,5 +1,5 @@
 name: yarn.lock changes in PRs
-on: [pull request]
+on: [push request]
 
 jobs:
   main:
@@ -16,7 +16,7 @@ Run octokit/request-action@v2.x
 
     route: GET /repos/microsoft/vscode/collaborators/{username}/permission
 
-    username: sammyfilly
+    username: 
 
     mediaType: {}
 
@@ -26,7 +26,7 @@ Run octokit/request-action@v2.x
 
 GET github/repos/microsoft/vscode/collaborators/{username}/permission
 
-> username: sammyfilly
+> username: 
 
 > mediaType: [object Object]
         with: github
