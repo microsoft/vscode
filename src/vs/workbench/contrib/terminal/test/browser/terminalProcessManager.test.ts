@@ -46,11 +46,11 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	shutdown(immediate: boolean): void { }
 	input(data: string): void { }
 	resize(cols: number, rows: number): void { }
+	clearBuffer(): void { }
 	acknowledgeDataEvent(charCount: number): void { }
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> { }
 	async getInitialCwd(): Promise<string> { return ''; }
 	async getCwd(): Promise<string> { return ''; }
-	async getLatency(): Promise<number> { return 0; }
 	async processBinary(data: string): Promise<void> { }
 	refreshProperty(property: any): Promise<any> { return Promise.resolve(''); }
 }

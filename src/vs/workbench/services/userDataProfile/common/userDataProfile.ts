@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -19,7 +19,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export interface DidChangeUserDataProfileEvent {
-	readonly preserveData: boolean;
 	readonly previous: IUserDataProfile;
 	readonly profile: IUserDataProfile;
 	join(promise: Promise<void>): void;
@@ -31,7 +30,7 @@ export interface IUserDataProfileService {
 	readonly onDidUpdateCurrentProfile: Event<void>;
 	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	readonly currentProfile: IUserDataProfile;
-	updateCurrentProfile(currentProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
+	updateCurrentProfile(currentProfile: IUserDataProfile): Promise<void>;
 	getShortName(profile: IUserDataProfile): string;
 }
 
@@ -39,7 +38,7 @@ export const IUserDataProfileManagementService = createDecorator<IUserDataProfil
 export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
 
-	createAndEnterProfile(name: string, options?: IUserDataProfileOptions, fromExisting?: boolean): Promise<IUserDataProfile>;
+	createAndEnterProfile(name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile>;
 	createAndEnterTransientProfile(): Promise<IUserDataProfile>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<void>;
@@ -74,8 +73,9 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 	});
 }
 
-export interface IProfileImportOptions {
-	readonly preview?: boolean;
+export interface IProfileImportOptions extends IUserDataProfileOptions {
+	readonly name?: string;
+	readonly mode?: 'preview' | 'apply' | 'both';
 }
 
 export const IUserDataProfileImportExportService = createDecorator<IUserDataProfileImportExportService>('IUserDataProfileImportExportService');
@@ -88,17 +88,9 @@ export interface IUserDataProfileImportExportService {
 	exportProfile(): Promise<void>;
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
-	createFromCurrentProfile(name: string): Promise<void>;
+	createFromProfile(profile: IUserDataProfile, name: string, options?: IUserDataProfileOptions): Promise<void>;
+	createTroubleshootProfile(): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
-}
-
-export const enum ProfileResourceType {
-	Settings = 'settings',
-	Keybindings = 'keybindings',
-	Snippets = 'snippets',
-	Tasks = 'tasks',
-	Extensions = 'extensions',
-	GlobalState = 'globalState',
 }
 
 export interface IProfileResourceInitializer {
@@ -113,6 +105,7 @@ export interface IProfileResource {
 export interface IProfileResourceTreeItem extends ITreeItem {
 	readonly type: ProfileResourceType;
 	readonly label: ITreeItemLabel;
+	isFromDefaultProfile(): boolean;
 	getChildren(): Promise<IProfileResourceChildTreeItem[] | undefined>;
 	getContent(): Promise<string>;
 }

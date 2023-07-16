@@ -11,7 +11,7 @@ import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelega
 import { ITreeNode, ITreeRenderer, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Range } from 'vs/editor/common/core/range';
-import { SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/languages';
+import { SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol, symbolKindNames } from 'vs/editor/common/languages';
 import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { localize } from 'vs/nls';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -49,7 +49,7 @@ export class DocumentSymbolAccessibilityProvider implements IListAccessibilityPr
 		if (element instanceof OutlineGroup) {
 			return element.label;
 		} else {
-			return element.symbol.name;
+			return getAriaLabelForSymbol(element.symbol.name, element.symbol.kind);
 		}
 	}
 }
@@ -138,7 +138,7 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 			matches: createMatches(node.filterData),
 			labelEscapeNewLines: true,
 			extraClasses,
-			title: localize('title.template', "{0} ({1})", element.symbol.name, DocumentSymbolRenderer._symbolKindNames[element.symbol.kind])
+			title: localize('title.template', "{0} ({1})", element.symbol.name, symbolKindNames[element.symbol.kind])
 		};
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
 			// add styles for the icons
@@ -195,34 +195,7 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		}
 	}
 
-	private static _symbolKindNames: { [symbol: number]: string } = {
-		[SymbolKind.Array]: localize('Array', "array"),
-		[SymbolKind.Boolean]: localize('Boolean', "boolean"),
-		[SymbolKind.Class]: localize('Class', "class"),
-		[SymbolKind.Constant]: localize('Constant', "constant"),
-		[SymbolKind.Constructor]: localize('Constructor', "constructor"),
-		[SymbolKind.Enum]: localize('Enum', "enumeration"),
-		[SymbolKind.EnumMember]: localize('EnumMember', "enumeration member"),
-		[SymbolKind.Event]: localize('Event', "event"),
-		[SymbolKind.Field]: localize('Field', "field"),
-		[SymbolKind.File]: localize('File', "file"),
-		[SymbolKind.Function]: localize('Function', "function"),
-		[SymbolKind.Interface]: localize('Interface', "interface"),
-		[SymbolKind.Key]: localize('Key', "key"),
-		[SymbolKind.Method]: localize('Method', "method"),
-		[SymbolKind.Module]: localize('Module', "module"),
-		[SymbolKind.Namespace]: localize('Namespace', "namespace"),
-		[SymbolKind.Null]: localize('Null', "null"),
-		[SymbolKind.Number]: localize('Number', "number"),
-		[SymbolKind.Object]: localize('Object', "object"),
-		[SymbolKind.Operator]: localize('Operator', "operator"),
-		[SymbolKind.Package]: localize('Package', "package"),
-		[SymbolKind.Property]: localize('Property', "property"),
-		[SymbolKind.String]: localize('String', "string"),
-		[SymbolKind.Struct]: localize('Struct', "struct"),
-		[SymbolKind.TypeParameter]: localize('TypeParameter', "type parameter"),
-		[SymbolKind.Variable]: localize('Variable', "variable"),
-	};
+
 
 	disposeTemplate(_template: DocumentSymbolTemplate): void {
 		_template.iconLabel.dispose();

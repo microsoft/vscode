@@ -13,6 +13,7 @@ import type { Event } from 'vs/base/common/event';
 import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import type { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -211,8 +212,14 @@ export interface IWorkbenchConstructionOptions {
 
 	/**
 	 * The credentials provider to store and retrieve secrets.
+	 * TODO: Remove this in favor of the secret storage provider.
 	 */
 	readonly credentialsProvider?: ICredentialsProvider;
+
+	/**
+	 * The secret storage provider to store and retrieve secrets.
+	 */
+	readonly secretStorageProvider?: ISecretStorageProvider;
 
 	/**
 	 * Additional builtin extensions those cannot be uninstalled but only be disabled.
@@ -819,5 +826,5 @@ export interface IRemoteResourceRequest {
 	/**
 	 * A method called by the editor to issue a response to the request.
 	 */
-	respondWith(statusCode: number, body: Uint8Array): void;
+	respondWith(statusCode: number, body: Uint8Array, headers: Record<string, string>): void;
 }

@@ -743,7 +743,7 @@ export class TunnelModel extends Disposable {
 	async close(host: string, port: number, reason: TunnelCloseReason): Promise<void> {
 		const key = makeAddress(host, port);
 		const oldTunnel = this.forwarded.get(key)!;
-		if (reason === TunnelCloseReason.AutoForwardEnd) {
+		if ((reason === TunnelCloseReason.AutoForwardEnd) && oldTunnel && (oldTunnel.source.source === TunnelSource.Auto)) {
 			this.sessionCachedProperties.set(key, {
 				local: oldTunnel.localPort,
 				name: oldTunnel.name,

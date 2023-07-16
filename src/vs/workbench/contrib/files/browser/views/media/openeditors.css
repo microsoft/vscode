@@ -3,6 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.pane-header .open-editors-dirty-count-container {
+	min-width: fit-content;
+	display: flex;
+	align-items: center;
+}
+
+.pane.horizontal:not(.expanded) .pane-header .open-editors-dirty-count-container > .dirty-count.monaco-count-badge,
+.pane-header .open-editors-dirty-count-container > .dirty-count.monaco-count-badge.hidden {
+	display: none;
+}
+
+.pane-header .open-editors-dirty-count-container > .dirty-count.monaco-count-badge {
+	padding: 2px 4px;
+	margin-left: 6px;
+	min-height: auto;
+}
+
 .open-editors .monaco-list .monaco-list-row:hover > .monaco-action-bar,
 .open-editors .monaco-list .monaco-list-row.focused > .monaco-action-bar,
 .open-editors .monaco-list .monaco-list-row.dirty > .monaco-action-bar,

@@ -16,7 +16,7 @@ import { Color } from 'vs/base/common/color';
 import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
 import { IMarkdownString, isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./button';
 import { localize } from 'vs/nls';
@@ -89,6 +89,7 @@ export class Button extends Disposable implements IButton {
 		this._element.tabIndex = 0;
 		this._element.setAttribute('role', 'button');
 
+		this._element.classList.toggle('secondary', !!options.secondary);
 		const background = options.secondary ? options.buttonSecondaryBackground : options.buttonBackground;
 		const foreground = options.secondary ? options.buttonSecondaryForeground : options.buttonForeground;
 
@@ -152,6 +153,11 @@ export class Button extends Disposable implements IButton {
 		this.focusTracker = this._register(trackFocus(this._element));
 		this._register(this.focusTracker.onDidFocus(() => { if (this.enabled) { this.updateBackground(true); } }));
 		this._register(this.focusTracker.onDidBlur(() => { if (this.enabled) { this.updateBackground(false); } }));
+	}
+
+	public override dispose(): void {
+		super.dispose();
+		this._element.remove();
 	}
 
 	private getContentElements(content: string): HTMLElement[] {
@@ -281,7 +287,7 @@ export class Button extends Disposable implements IButton {
 
 export interface IButtonWithDropdownOptions extends IButtonOptions {
 	readonly contextMenuProvider: IContextMenuProvider;
-	readonly actions: IAction[];
+	readonly actions: readonly IAction[];
 	readonly actionRunner?: IActionRunner;
 	readonly addPrimaryActionToDropdown?: boolean;
 }
@@ -342,6 +348,11 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 			});
 			this.dropdownButton.element.setAttribute('aria-expanded', 'true');
 		}));
+	}
+
+	override dispose() {
+		super.dispose();
+		this.element.remove();
 	}
 
 	set label(value: string) {
@@ -433,32 +444,42 @@ export class ButtonWithDescription implements IButtonWithDescription {
 	}
 }
 
-export class ButtonBar extends Disposable {
+export class ButtonBar {
 
-	private _buttons: IButton[] = [];
+	private readonly _buttons: IButton[] = [];
+	private readonly _buttonStore = new DisposableStore();
 
 	constructor(private readonly container: HTMLElement) {
-		super();
+
+	}
+
+	dispose(): void {
+		this._buttonStore.dispose();
 	}
 
 	get buttons(): IButton[] {
 		return this._buttons;
 	}
 
+	clear(): void {
+		this._buttonStore.clear();
+		this._buttons.length = 0;
+	}
+
 	addButton(options: IButtonOptions): IButton {
-		const button = this._register(new Button(this.container, options));
+		const button = this._buttonStore.add(new Button(this.container, options));
 		this.pushButton(button);
 		return button;
 	}
 
 	addButtonWithDescription(options: IButtonOptions): IButtonWithDescription {
-		const button = this._register(new ButtonWithDescription(this.container, options));
+		const button = this._buttonStore.add(new ButtonWithDescription(this.container, options));
 		this.pushButton(button);
 		return button;
 	}
 
 	addButtonWithDropdown(options: IButtonWithDropdownOptions): IButton {
-		const button = this._register(new ButtonWithDropdown(this.container, options));
+		const button = this._buttonStore.add(new ButtonWithDropdown(this.container, options));
 		this.pushButton(button);
 		return button;
 	}
@@ -467,7 +488,7 @@ export class ButtonBar extends Disposable {
 		this._buttons.push(button);
 
 		const index = this._buttons.length - 1;
-		this._register(addDisposableListener(button.element, EventType.KEY_DOWN, e => {
+		this._buttonStore.add(addDisposableListener(button.element, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 

@@ -12,7 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { dirname, join, resolve } from 'vs/base/common/path';
-import { isLinux, isLinuxSnap, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { realpath } from 'vs/base/node/extpath';
@@ -433,43 +433,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
-		if (isLinuxSnap) {
-			this.safeSnapOpenExternal(url);
-		} else {
-			shell.openExternal(url);
-		}
+		this.environmentMainService.unsetSnapExportedVariables();
+		shell.openExternal(url);
+		this.environmentMainService.restoreSnapExportedVariables();
 
 		return true;
-	}
-
-	private safeSnapOpenExternal(url: string): void {
-
-		// Remove some environment variables before opening to avoid issues...
-		const gdkPixbufModuleFile = process.env['GDK_PIXBUF_MODULE_FILE'];
-		const gdkPixbufModuleDir = process.env['GDK_PIXBUF_MODULEDIR'];
-		const gtkIMModuleFile = process.env['GTK_IM_MODULE_FILE'];
-		const gdkBackend = process.env['GDK_BACKEND'];
-		const gioModuleDir = process.env['GIO_MODULE_DIR'];
-		const gtkExePrefix = process.env['GTK_EXE_PREFIX'];
-		const gsettingsSchemaDir = process.env['GSETTINGS_SCHEMA_DIR'];
-		delete process.env['GDK_PIXBUF_MODULE_FILE'];
-		delete process.env['GDK_PIXBUF_MODULEDIR'];
-		delete process.env['GTK_IM_MODULE_FILE'];
-		delete process.env['GDK_BACKEND'];
-		delete process.env['GIO_MODULE_DIR'];
-		delete process.env['GTK_EXE_PREFIX'];
-		delete process.env['GSETTINGS_SCHEMA_DIR'];
-
-		shell.openExternal(url);
-
-		// ...but restore them after
-		process.env['GDK_PIXBUF_MODULE_FILE'] = gdkPixbufModuleFile;
-		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
-		process.env['GTK_IM_MODULE_FILE'] = gtkIMModuleFile;
-		process.env['GDK_BACKEND'] = gdkBackend;
-		process.env['GIO_MODULE_DIR'] = gioModuleDir;
-		process.env['GTK_EXE_PREFIX'] = gtkExePrefix;
-		process.env['GSETTINGS_SCHEMA_DIR'] = gsettingsSchemaDir;
 	}
 
 	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
@@ -519,6 +487,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				}
 			});
 		});
+	}
+
+	async isRunningUnderARM64Translation(): Promise<boolean> {
+		if (isLinux || isWindows) {
+			return false;
+		}
+		return app.runningUnderARM64Translation;
 	}
 
 	@memoize

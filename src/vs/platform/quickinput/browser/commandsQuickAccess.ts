@@ -26,6 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	readonly commandId: string;
 	readonly commandAlias?: string;
+	readonly args?: any[];
 }
 
 export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions<ICommandQuickPick> {
@@ -211,7 +212,9 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 				// Run
 				try {
-					await this.commandService.executeCommand(commandPick.commandId);
+					commandPick.args?.length
+						? await this.commandService.executeCommand(commandPick.commandId, ...commandPick.args)
+						: await this.commandService.executeCommand(commandPick.commandId);
 				} catch (error) {
 					if (!isCancellationError(error)) {
 						this.dialogService.error(localize('canNotRun', "Command '{0}' resulted in an error", commandPick.label), toErrorMessage(error));

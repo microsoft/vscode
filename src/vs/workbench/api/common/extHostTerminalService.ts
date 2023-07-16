@@ -17,7 +17,7 @@ import { NotSupportedError } from 'vs/base/common/errors';
 import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IEnvironmentDescriptionMutator, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeColor } from 'vs/base/common/themables';
@@ -288,6 +288,10 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 		this._pty.setDimensions?.({ columns: cols, rows });
 	}
 
+	clearBuffer(): void | Promise<void> {
+		// no-op
+	}
+
 	async processBinary(data: string): Promise<void> {
 		// No-op, processBinary is not supported in extension owned terminals.
 	}
@@ -307,10 +311,6 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 
 	getCwd(): Promise<string> {
 		return Promise.resolve('');
-	}
-
-	getLatency(): Promise<number> {
-		return Promise.resolve(0);
 	}
 
 	startSendingEvents(initialDimensions: ITerminalDimensionsDto | undefined): void {
@@ -812,15 +812,12 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	private _getTerminalObjectIndexById<T extends ExtHostTerminal>(array: T[], id: ExtHostTerminalIdentifier): number | null {
-		let index: number | null = null;
-		array.some((item, i) => {
-			const thisId = item._id;
-			if (thisId === id) {
-				index = i;
-				return true;
-			}
-			return false;
+		const index = array.findIndex(item => {
+			return item._id === id;
 		});
+		if (index === -1) {
+			return null;
+		}
 		return index;
 	}
 
@@ -874,7 +871,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 class UnifiedEnvironmentVariableCollection {
 	readonly map: Map<string, IEnvironmentVariableMutator> = new Map();
 	private readonly scopedCollections: Map<string, ScopedEnvironmentVariableCollection> = new Map();
-	readonly descriptionMap: Map<string, IEnvironmentDescriptionMutator> = new Map();
+	readonly descriptionMap: Map<string, IEnvironmentVariableCollectionDescription> = new Map();
 	private _persistent: boolean = true;
 
 	public get persistent(): boolean { return this._persistent; }
@@ -1023,7 +1020,7 @@ class UnifiedEnvironmentVariableCollection {
 				// Only take the description before the first `\n\n`, so that the description doesn't mess up the UI
 				descriptionStr = description?.value.split('\n\n')[0];
 			}
-			const value: IEnvironmentDescriptionMutator = { description: descriptionStr, scope };
+			const value: IEnvironmentVariableCollectionDescription = { description: descriptionStr, scope };
 			this.descriptionMap.set(key, value);
 			this._onDidChangeCollection.fire();
 		}

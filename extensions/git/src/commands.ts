@@ -196,9 +196,9 @@ class FetchAllRemotesItem implements QuickPickItem {
 }
 
 class RepositoryItem implements QuickPickItem {
-	get label(): string {
-		return `$(repo) ${this.path}`;
-	}
+	get label(): string { return `$(repo) ${getRepositoryLabel(this.path)}`; }
+
+	get description(): string { return this.path; }
 
 	constructor(public readonly path: string) { }
 }
@@ -356,6 +356,15 @@ function getCheckoutProcessor(repository: Repository, type: string): CheckoutPro
 	}
 
 	return undefined;
+}
+
+function getRepositoryLabel(repositoryRoot: string): string {
+	const workspaceFolder = workspace.getWorkspaceFolder(Uri.file(repositoryRoot));
+	return workspaceFolder?.uri.toString() === repositoryRoot ? workspaceFolder.name : path.basename(repositoryRoot);
+}
+
+function compareRepositoryLabel(repositoryRoot1: string, repositoryRoot2: string): number {
+	return getRepositoryLabel(repositoryRoot1).localeCompare(getRepositoryLabel(repositoryRoot2));
 }
 
 function sanitizeBranchName(name: string, whitespaceChar: string): string {
@@ -741,15 +750,22 @@ export class CommandCenter {
 
 		if (uri !== undefined) {
 			// Launch desktop client if currently in web
+			let target = `${env.uriScheme}://vscode.git/clone?url=${encodeURIComponent(uri)}`;
 			if (env.uiKind === UIKind.Web) {
-				let target = `${env.uriScheme}://vscode.git/clone?url=${encodeURIComponent(uri)}`;
 				if (ref !== undefined) {
 					target += `&ref=${encodeURIComponent(ref)}`;
 				}
 				return Uri.parse(target);
 			}
 
-			// If already in desktop client, directly clone
+			// If already in desktop client but in a remote window, we need to force a new window
+			// so that the git extension can access the local filesystem for cloning
+			if (env.remoteName !== undefined) {
+				target += `&windowId=_blank`;
+				return Uri.parse(target);
+			}
+
+			// Otherwise, directly clone
 			void this.clone(uri, undefined, { ref: ref });
 		}
 	}
@@ -880,7 +896,44 @@ export class CommandCenter {
 			path = result[0].fsPath;
 		}
 
-		await this.model.openRepository(path);
+		await this.model.openRepository(path, true);
+	}
+
+	@command('git.reopenClosedRepositories', { repository: false })
+	async reopenClosedRepositories(): Promise<void> {
+		if (this.model.closedRepositories.length === 0) {
+			return;
+		}
+
+		const closedRepositories: string[] = [];
+
+		const title = l10n.t('Reopen Closed Repositories');
+		const placeHolder = l10n.t('Pick a repository to reopen');
+
+		const allRepositoriesLabel = l10n.t('All Repositories');
+		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
+		const repositoriesQuickPickItems: QuickPickItem[] = this.model.closedRepositories
+			.sort(compareRepositoryLabel).map(r => new RepositoryItem(r));
+
+		const items = this.model.closedRepositories.length === 1 ? [...repositoriesQuickPickItems] :
+			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
+
+		const repositoryItem = await window.showQuickPick(items, { title, placeHolder });
+		if (!repositoryItem) {
+			return;
+		}
+
+		if (repositoryItem === allRepositoriesQuickPickItem) {
+			// All Repositories
+			closedRepositories.push(...this.model.closedRepositories.values());
+		} else {
+			// One Repository
+			closedRepositories.push((repositoryItem as RepositoryItem).path);
+		}
+
+		for (const repository of closedRepositories) {
+			await this.model.openRepository(repository, true);
+		}
 	}
 
 	@command('git.close', { repository: true })
@@ -1920,6 +1973,16 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository, { postCommitCommand });
 	}
 
+	@command('git.commitAmend', { repository: true })
+	async commitAmend(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { amend: true });
+	}
+
+	@command('git.commitSigned', { repository: true })
+	async commitSigned(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { signoff: true });
+	}
+
 	@command('git.commitStaged', { repository: true })
 	async commitStaged(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository, { all: false });
@@ -2036,6 +2099,16 @@ export class CommandCenter {
 	@command('git.commitStagedSignedNoVerify', { repository: true })
 	async commitStagedSignedNoVerify(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository, { all: false, signoff: true, noVerify: true });
+	}
+
+	@command('git.commitAmendNoVerify', { repository: true })
+	async commitAmendNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { amend: true, noVerify: true });
+	}
+
+	@command('git.commitSignedNoVerify', { repository: true })
+	async commitSignedNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { signoff: true, noVerify: true });
 	}
 
 	@command('git.commitStagedAmendNoVerify', { repository: true })
@@ -3423,9 +3496,10 @@ export class CommandCenter {
 
 		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.parentRepositories.keys()).sort().map(r => new RepositoryItem(r));
+		const repositoriesQuickPickItems: QuickPickItem[] = this.model.parentRepositories
+			.sort(compareRepositoryLabel).map(r => new RepositoryItem(r));
 
-		const items = this.model.parentRepositories.size === 1 ? [...repositoriesQuickPickItems] :
+		const items = this.model.parentRepositories.length === 1 ? [...repositoriesQuickPickItems] :
 			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
 
 		const repositoryItem = await window.showQuickPick(items, { title, placeHolder });
@@ -3435,7 +3509,7 @@ export class CommandCenter {
 
 		if (repositoryItem === allRepositoriesQuickPickItem) {
 			// All Repositories
-			parentRepositories.push(...this.model.parentRepositories.keys());
+			parentRepositories.push(...this.model.parentRepositories);
 		} else {
 			// One Repository
 			parentRepositories.push((repositoryItem as RepositoryItem).path);
@@ -3456,9 +3530,10 @@ export class CommandCenter {
 
 		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.keys()).sort().map(r => new RepositoryItem(r));
+		const repositoriesQuickPickItems: QuickPickItem[] = this.model.unsafeRepositories
+			.sort(compareRepositoryLabel).map(r => new RepositoryItem(r));
 
-		quickpick.items = this.model.unsafeRepositories.size === 1 ? [...repositoriesQuickPickItems] :
+		quickpick.items = this.model.unsafeRepositories.length === 1 ? [...repositoriesQuickPickItems] :
 			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
 
 		quickpick.show();
@@ -3475,7 +3550,7 @@ export class CommandCenter {
 
 		if (repositoryItem.label === allRepositoriesLabel) {
 			// All Repositories
-			unsafeRepositories.push(...this.model.unsafeRepositories.keys());
+			unsafeRepositories.push(...this.model.unsafeRepositories);
 		} else {
 			// One Repository
 			unsafeRepositories.push((repositoryItem as RepositoryItem).path);
@@ -3483,11 +3558,11 @@ export class CommandCenter {
 
 		for (const unsafeRepository of unsafeRepositories) {
 			// Mark as Safe
-			await this.git.addSafeDirectory(this.model.unsafeRepositories.get(unsafeRepository)!);
+			await this.git.addSafeDirectory(this.model.getUnsafeRepositoryPath(unsafeRepository)!);
 
 			// Open Repository
 			await this.model.openRepository(unsafeRepository);
-			this.model.unsafeRepositories.delete(unsafeRepository);
+			this.model.deleteUnsafeRepository(unsafeRepository);
 		}
 	}
 

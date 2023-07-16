@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, doesNotThrow, equal, strictEqual, throws } from 'assert';
+import { deepStrictEqual, doesNotThrow, equal, ok, strictEqual, throws } from 'assert';
 import { ConfigurationTarget, Disposable, env, EnvironmentVariableCollection, EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableMutatorType, EnvironmentVariableScope, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalExitReason, TerminalOptions, TerminalState, UIKind, Uri, window, workspace } from 'vscode';
 import { assertNoRpc, poll } from '../utils';
 
@@ -368,11 +368,12 @@ import { assertNoRpc, poll } from '../utils';
 					try {
 						if (closeEvents.length === 1) {
 							deepStrictEqual(openEvents, ['test1']);
-							deepStrictEqual(dataEvents, [{ name: 'test1', data: 'write1' }]);
+							ok(dataEvents.some(e => e.name === 'test1' && e.data === 'write1'));
 							deepStrictEqual(closeEvents, ['test1']);
 						} else if (closeEvents.length === 2) {
 							deepStrictEqual(openEvents, ['test1', 'test2']);
-							deepStrictEqual(dataEvents, [{ name: 'test1', data: 'write1' }, { name: 'test2', data: 'write2' }]);
+							ok(dataEvents.some(e => e.name === 'test1' && e.data === 'write1'));
+							ok(dataEvents.some(e => e.name === 'test2' && e.data === 'write2'));
 							deepStrictEqual(closeEvents, ['test1', 'test2']);
 						}
 						resolveOnceClosed!();

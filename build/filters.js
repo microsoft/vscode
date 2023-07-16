@@ -32,6 +32,7 @@ module.exports.unicodeFilter = [
 	'**',
 
 	'!**/ThirdPartyNotices.txt',
+	'!**/ThirdPartyNotices.cli.txt',
 	'!**/LICENSE.{txt,rtf}',
 	'!LICENSES.chromium.html',
 	'!**/LICENSE',
@@ -65,6 +66,7 @@ module.exports.indentationFilter = [
 
 	// except specific files
 	'!**/ThirdPartyNotices.txt',
+	'!**/ThirdPartyNotices.cli.txt',
 	'!**/LICENSE.{txt,rtf}',
 	'!LICENSES.chromium.html',
 	'!**/LICENSE',

@@ -39,6 +39,8 @@ export interface IQuickPickItem {
 	 */
 	keybinding?: ResolvedKeybinding;
 	iconClasses?: readonly string[];
+	iconPath?: { dark: URI; light?: URI };
+	iconClass?: string;
 	italic?: boolean;
 	strikethrough?: boolean;
 	highlights?: IQuickPickItemHighlights;
@@ -349,6 +351,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	validationMessage: string | undefined;
 
+	severity: Severity;
+
 	inputHasFocus(): boolean;
 
 	focusOnInput(): void;
@@ -359,6 +363,11 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 * be presented.
 	 */
 	hideInput: boolean;
+
+	/**
+	 * Allows to control if the count for the items should be shown
+	 */
+	hideCountBadge: boolean;
 
 	hideCheckAll: boolean;
 

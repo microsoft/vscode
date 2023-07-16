@@ -136,6 +136,9 @@
 
 .review-widget .body .review-comment .review-comment-contents .comment-body {
 	padding-top: 4px;
+}
+
+.review-widget .body .review-comment .review-comment-contents .comment-body-max-height {
 	max-height: 20em;
 }
 
@@ -344,6 +347,12 @@
 .review-widget .body .comment-form .review-thread-reply-button:focus {
 	outline-style: solid;
 	outline-width: 1px;
+}
+
+.review-widget .body .comment-form .monaco-editor,
+.review-widget .body .comment-form .monaco-editor .monaco-editor-background,
+.review-widget .body .edit-container .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-peekViewTitle-background);
 }
 
 .review-widget .body .comment-form .monaco-editor,

@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IMarker, Terminal } from 'xterm';
+import type { IMarker, Terminal } from 'xterm';
 
 export class BufferContentTracker {
 	/**
@@ -26,7 +25,7 @@ export class BufferContentTracker {
 
 	constructor(
 		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
-		@ILogService private readonly _logService: ILogService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService) {
 	}
 
@@ -82,9 +81,8 @@ export class BufferContentTracker {
 			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
 			currentLine += line.translateToString(!isWrapped);
 			if (currentLine && !isWrapped || i === (buffer.baseY + this._xterm.raw.rows - 1)) {
-				const line = replaceWithNonBreakingSpaces(currentLine);
 				if (line.length) {
-					cachedLines.push(line);
+					cachedLines.push(currentLine);
 					currentLine = '';
 				}
 			}
@@ -122,18 +120,13 @@ export class BufferContentTracker {
 			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
 			currentLine += line.translateToString(!isWrapped);
 			if (currentLine && !isWrapped || i === (buffer.baseY + this._xterm.raw.rows - 1)) {
-				const line = replaceWithNonBreakingSpaces(currentLine);
-				if (line.length) {
+				if (currentLine.length) {
 					this._priorEditorViewportLineCount++;
-					this._lines.push(line);
+					this._lines.push(currentLine);
 					currentLine = '';
 				}
 			}
 		}
 		this._logService.debug('Viewport content update complete, ', this._lines.length, ' lines in the viewport');
 	}
-}
-
-export function replaceWithNonBreakingSpaces(s: string): string {
-	return s.replace(new RegExp('  ', 'g'), ' \xA0');
 }

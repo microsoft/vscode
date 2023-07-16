@@ -78,6 +78,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { CONTEXT_KEYBINDINGS_EDITOR } from 'vs/workbench/contrib/preferences/common/preferences';
 import { DeprecatedExtensionsChecker } from 'vs/workbench/contrib/extensions/browser/deprecatedExtensionsChecker';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -472,6 +473,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 		const hasGalleryContext = CONTEXT_HAS_GALLERY.bindTo(contextKeyService);
@@ -515,27 +517,31 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 	// Global actions
 	private registerGlobalActions(): void {
-		this._register(MenuRegistry.appendMenuItems([{
-			id: MenuId.MenubarPreferencesMenu,
-			item: {
+		const getTitle = (title: string) => !this.userDataProfileService.currentProfile.isDefault && this.userDataProfileService.currentProfile.useDefaultFlags?.extensions
+			? `${title} (${localize('default profile', "Default Profile")})`
+			: title;
+		const registerOpenExtensionsActionDisposables = this._register(new DisposableStore());
+		const registerOpenExtensionsAction = () => {
+			registerOpenExtensionsActionDisposables.clear();
+			registerOpenExtensionsActionDisposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 				command: {
 					id: VIEWLET_ID,
-					title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
+					title: getTitle(localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions"))
 				},
 				group: '2_configuration',
 				order: 3
-			}
-		}, {
-			id: MenuId.GlobalActivity,
-			item: {
+			}));
+			registerOpenExtensionsActionDisposables.add(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 				command: {
 					id: VIEWLET_ID,
-					title: localize('showExtensions', "Extensions")
+					title: getTitle(localize('showExtensions', "Extensions"))
 				},
 				group: '2_configuration',
 				order: 3
-			}
-		}]));
+			}));
+		};
+		registerOpenExtensionsAction();
+		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => registerOpenExtensionsAction()));
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installExtensions',
@@ -672,7 +678,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					try {
 						await this.extensionsWorkbenchService.install(extension, extension.local?.preRelease ? { installPreReleaseVersion: true } : undefined);
 					} catch (err) {
-						runAction(this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, undefined, err));
+						runAction(this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, err));
 					}
 				}));
 			}

@@ -122,10 +122,10 @@ import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEd
 import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalBackend, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ICreateTerminalOptions, IDeserializedTerminalEditorInput, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { assertIsDefined } from 'vs/base/common/types';
-import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalBackend, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -161,8 +161,8 @@ import { ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
 import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { EnablementState, IExtensionManagementServer, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EnablementState, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Codicon } from 'vs/base/common/codicons';
 import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
@@ -243,7 +243,7 @@ export function workbenchInstantiationService(
 	},
 	disposables: DisposableStore = new DisposableStore()
 ): TestInstantiationService {
-	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
+	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()])));
 
 	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
 	instantiationService.stub(IWorkingCopyService, disposables.add(new TestWorkingCopyService()));
@@ -561,6 +561,7 @@ export class TestFileDialogService implements IFileDialogService {
 	async defaultFilePath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
 	async defaultFolderPath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
 	async defaultWorkspacePath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
+	async preferredHome(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
 	pickFileFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
 	pickFileAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
 	pickFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
@@ -1600,6 +1601,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	gotSavedAs = false;
 	gotReverted = false;
 	dirty = false;
+	modified: boolean | undefined;
 	private fails = false;
 
 	disableToUntyped = false;
@@ -1666,6 +1668,10 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 			return undefined;
 		}
 		return { resource: this.resource };
+	}
+	setModified(): void { this.modified = true; }
+	override isModified(): boolean {
+		return this.modified === undefined ? this.dirty : this.modified;
 	}
 	setDirty(): void { this.dirty = true; }
 	override isDirty(): boolean {
@@ -1795,6 +1801,7 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 	createInstance(options: ICreateTerminalOptions, target: TerminalLocation): ITerminalInstance { throw new Error('Method not implemented.'); }
 	async getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined> { throw new Error('Method not implemented.'); }
 	didRegisterBackend(remoteAuthority?: string): void { throw new Error('Method not implemented.'); }
+	getRegisteredBackends(): IterableIterator<ITerminalBackend> { throw new Error('Method not implemented.'); }
 }
 
 export class TestTerminalEditorService implements ITerminalEditorService {
@@ -1993,13 +2000,10 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	installFromLocation(location: URI): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
-	installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions | undefined): Promise<ILocalExtension[]> {
+	installGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<InstallExtensionResult[]> {
 		throw new Error('Method not implemented.');
 	}
 	async updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions | undefined): Promise<ILocalExtension> { return extension; }
-	getExtensionManagementServerToInstall(manifest: Readonly<IRelaxedExtensionManifest>): IExtensionManagementServer | null {
-		throw new Error('Method not implemented.');
-	}
 	zip(extension: ILocalExtension): Promise<URI> {
 		throw new Error('Method not implemented.');
 	}

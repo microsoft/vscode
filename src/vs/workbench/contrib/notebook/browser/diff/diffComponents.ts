@@ -29,7 +29,6 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { AccessibilityHelpController } from 'vs/workbench/contrib/codeEditor/browser/accessibility/accessibility';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
@@ -53,7 +52,6 @@ export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOp
 			SuggestController.ID,
 			SnippetController2.ID,
 			TabCompletionController.ID,
-			AccessibilityHelpController.ID
 		])
 	};
 }

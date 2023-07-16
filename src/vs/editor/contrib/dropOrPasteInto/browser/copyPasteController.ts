@@ -11,7 +11,9 @@ import { UriList, VSDataTransfer, createStringDataTransferItem, matchesMimeType 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import * as platform from 'vs/base/common/platform';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ClipboardEventUtils } from 'vs/editor/browser/controller/textAreaInput';
 import { toExternalVSDataTransfer, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -114,7 +116,18 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private handleCopy(e: ClipboardEvent) {
-		if (!e.clipboardData || !this._editor.hasTextFocus() || !this.isPasteAsEnabled()) {
+		if (!this._editor.hasTextFocus()) {
+			return;
+		}
+
+		if (platform.isWeb) {
+			// Explicitly clear the web resources clipboard.
+			// This is needed because on web, the browser clipboard is faked out using an in-memory store.
+			// This means the resources clipboard is not properly updated when copying from the editor.
+			this._clipboardService.writeResources([]);
+		}
+
+		if (!e.clipboardData || !this.isPasteAsEnabled()) {
 			return;
 		}
 
@@ -209,7 +222,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		const metadata = this.fetchCopyMetadata(e.clipboardData);
+		const metadata = this.fetchCopyMetadata(e);
 		const dataTransfer = toExternalVSDataTransfer(e.clipboardData);
 		dataTransfer.delete(vscodeClipboardMime);
 
@@ -268,6 +281,12 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				const providerEdits = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, tokenSource.token);
 				if (tokenSource.token.isCancellationRequested) {
+					return;
+				}
+
+				// If the only edit returned is a text edit, use the default paste handler
+				if (providerEdits.length === 1 && providerEdits[0].id === 'text') {
+					await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
 					return;
 				}
 
@@ -358,8 +377,13 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		dataTransfer.setData(vscodeClipboardMime, JSON.stringify(metadata));
 	}
 
-	private fetchCopyMetadata(dataTransfer: DataTransfer): CopyMetadata | undefined {
-		const rawMetadata = dataTransfer.getData(vscodeClipboardMime);
+	private fetchCopyMetadata(e: ClipboardEvent): CopyMetadata | undefined {
+		if (!e.clipboardData) {
+			return;
+		}
+
+		// Prefer using the clipboard data we saved off
+		const rawMetadata = e.clipboardData.getData(vscodeClipboardMime);
 		if (rawMetadata) {
 			try {
 				return JSON.parse(rawMetadata);
@@ -367,6 +391,19 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				return undefined;
 			}
 		}
+
+		// Otherwise try to extract the generic text editor metadata
+		const [_, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+		if (metadata) {
+			return {
+				defaultPastePayload: {
+					mode: metadata.mode,
+					multicursorText: withUndefinedAsNull(metadata.multicursorText),
+					pasteOnNewLine: !!metadata.isFromEmptySelection,
+				},
+			};
+		}
+
 		return undefined;
 	}
 
