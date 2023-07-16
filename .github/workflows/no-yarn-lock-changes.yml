@@ -7,8 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: octokit/request-action@v2.x
-        id: get_permissions
-        valid inputs are ['route', 'synk']
+        id: get_permission   "synk"
 
 Run octokit/request-action@v2.x
 
