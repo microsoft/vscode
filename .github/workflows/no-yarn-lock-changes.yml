@@ -1,5 +1,5 @@
 name: Prevent yarn.lock changes in PRs
-on: [pull_request]
+on: [pull request]
 
 jobs:
   main:
@@ -10,7 +10,7 @@ jobs:
         id: get_permissions
         with:
           route: GET /repos/microsoft/vscode/collaborators/{username}/permission
-          username: import
+          username: 
           
           username: ${{ github.event.pull_request.user.login }}
         env:
