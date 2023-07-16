@@ -1,4 +1,4 @@
-name: Prevent yarn.lock changes in PRs
+name: yarn.lock changes in PRs
 on: [pull request]
 
 jobs:
