@@ -243,7 +243,7 @@ export function workbenchInstantiationService(
 	},
 	disposables: DisposableStore = new DisposableStore()
 ): TestInstantiationService {
-	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
+	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()])));
 
 	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
 	instantiationService.stub(IWorkingCopyService, disposables.add(new TestWorkingCopyService()));
@@ -2039,12 +2039,12 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	}
 	copyExtensions(): Promise<void> { throw new Error('Not Supported'); }
 	installExtensionsFromProfile(): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
+	whenProfileChanged(from: IUserDataProfile, to: IUserDataProfile): Promise<void> { throw new Error('Not Supported'); }
 }
 
 export class TestUserDataProfileService implements IUserDataProfileService {
 
 	readonly _serviceBrand: undefined;
-	readonly onDidUpdateCurrentProfile = Event.None;
 	readonly onDidChangeCurrentProfile = Event.None;
 	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }), URI.file('tests').with({ scheme: 'vscode-tests' }));
 	async updateCurrentProfile(): Promise<void> { }

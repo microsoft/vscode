@@ -57,7 +57,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 	private _currentTokenColorMap: string[] | null = null;
 	private readonly _workerHost = this._instantiationService.createInstance(
 		TextMateWorkerHost,
-		(timeMs, languageId, sourceExtensionId, lineLength) => this.reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, true)
+		(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample) => this.reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, true, isRandomSample)
 	);
 
 	constructor(
@@ -291,9 +291,10 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 				r.containsEmbeddedLanguages,
 				(textModel, tokenStore) => this._workerHost.createBackgroundTokenizer(textModel, tokenStore, maxTokenizationLineLength),
 				() => this._configurationService.getValue<boolean>('editor.experimental.asyncTokenizationVerification'),
-				(timeMs, lineLength) => {
-					this.reportTokenizationTime(timeMs, languageId, r.sourceExtensionId, lineLength, false);
-				}
+				(timeMs, lineLength, isRandomSample) => {
+					this.reportTokenizationTime(timeMs, languageId, r.sourceExtensionId, lineLength, false, isRandomSample);
+				},
+				true,
 			);
 			tokenization.onDidEncounterLanguage((encodedLanguageId) => {
 				if (!this._encounteredLanguages[encodedLanguageId]) {
@@ -377,7 +378,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		}
 	}
 
-	public reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, fromWorker: boolean): void {
+	public reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, fromWorker: boolean, isRandomSample: boolean): void {
 		// 50 events per hour (one event has a low probability)
 		if (TextMateTokenizationFeature.reportTokenizationTimeCounter > 50) {
 			// Don't flood telemetry with too many events
@@ -396,6 +397,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			lineLength: number;
 			fromWorker: boolean;
 			sourceExtensionId: string | undefined;
+			isRandomSample: boolean;
 		}, {
 			owner: 'hediet';
 
@@ -404,6 +406,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			lineLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To relate the performance to the line length' };
 			fromWorker: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To figure out if this line was tokenized sync or async' };
 			sourceExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To figure out which extension contributed the grammar' };
+			isRandomSample: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To figure out if this is a random sample or measured because of some other condition.' };
 
 			comment: 'This event gives insight about the performance certain grammars.';
 		}>('editor.tokenizedLine', {
@@ -412,6 +415,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			lineLength,
 			fromWorker,
 			sourceExtensionId,
+			isRandomSample,
 		});
 	}
 }

@@ -3,17 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { IDiffComputationResult } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { DiffReviewNext, DiffReviewPrev } from 'vs/editor/browser/widget/diffEditor.contribution';
+import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { IDiffComputationResult } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
+import * as nls from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
+import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const enum WidgetState {
 	Hidden,
@@ -35,6 +43,44 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
+
+		this._register(AccessibilityHelpAction.addImplementation(105, 'diff-editor', async accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const editorService = accessor.get(IEditorService);
+			const codeEditorService = accessor.get(ICodeEditorService);
+			const keybindingService = accessor.get(IKeybindingService);
+
+			const next = keybindingService.lookupKeybinding(DiffReviewNext.id)?.getAriaLabel();
+			const previous = keybindingService.lookupKeybinding(DiffReviewPrev.id)?.getAriaLabel();
+
+			if (!(editorService.activeTextEditorControl instanceof DiffEditorWidget2)) {
+				return;
+			}
+
+			const codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
+			if (!codeEditor) {
+				return;
+			}
+
+			const keys = ['audioCues.diffLineDeleted', 'audioCues.diffLineInserted', 'audioCues.diffLineModified'];
+
+			accessibleViewService.show({
+				verbositySettingKey: 'diffEditor',
+				provideContent: () => [
+					nls.localize('msg1', "You are in a diff editor."),
+					nls.localize('msg2', "Press {0} or {1} to view the next or previous diff in the diff review mode that is optimized for screen readers.", next, previous),
+					nls.localize('msg3', "To control which audio cues should be played, the following settings can be configured: {0}.", keys.join(', ')),
+				].join('\n'),
+				onClose: () => {
+					codeEditor.focus();
+				},
+				options: { type: AccessibleViewType.HelpMenu, ariaLabel: nls.localize('chat-help-label', "Diff editor accessibility help") }
+			});
+		}, ContextKeyExpr.and(
+			ContextKeyEqualsExpr.create('diffEditorVersion', 2),
+			ContextKeyEqualsExpr.create('isInDiffEditor', true),
+		)));
+
 		this._helperWidget = null;
 		this._helperWidgetListener = null;
 		this._state = WidgetState.Hidden;

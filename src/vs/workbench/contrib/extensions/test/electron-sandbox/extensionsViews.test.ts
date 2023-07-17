@@ -204,6 +204,10 @@ suite('ExtensionsViews Tests', () => {
 		testableView.dispose();
 	});
 
+	suiteTeardown(() => {
+		instantiationService.dispose();
+	});
+
 	test('Test query types', () => {
 		assert.strictEqual(ExtensionsListView.isBuiltInExtensionsQuery('@builtin'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@installed'), true);

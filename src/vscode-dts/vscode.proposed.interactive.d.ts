@@ -28,6 +28,7 @@ declare module 'vscode' {
 		selection: Selection;
 		wholeRange: Range;
 		attempt: number;
+		live: boolean;
 	}
 
 	// todo@API make classes
@@ -61,6 +62,7 @@ declare module 'vscode' {
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
 
 		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<R>;
+		provideInteractiveEditorResponse2?(request: InteractiveEditorRequest, progress: Progress<{ message: string; edits: TextEdit[] }>, token: CancellationToken): ProviderResult<R>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		releaseInteractiveEditorSession?(session: S): any;
@@ -128,8 +130,10 @@ declare module 'vscode' {
 
 	export interface InteractiveSessionSlashCommand {
 		command: string;
+		shouldRepopulate?: boolean;
 		kind: CompletionItemKind;
 		detail?: string;
+		followupPlaceholder?: string;
 	}
 
 	export interface InteractiveSessionReplyFollowup {

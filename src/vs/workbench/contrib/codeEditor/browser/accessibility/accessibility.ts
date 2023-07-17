@@ -12,6 +12,9 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { accessibilityHelpIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { alert } from 'vs/base/browser/ui/aria/aria';
+import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
+
 class ToggleScreenReaderMode extends Action2 {
 
 	constructor() {
@@ -30,7 +33,9 @@ class ToggleScreenReaderMode extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const accessibiiltyService = accessor.get(IAccessibilityService);
 		const configurationService = accessor.get(IConfigurationService);
-		configurationService.updateValue('editor.accessibilitySupport', accessibiiltyService.isScreenReaderOptimized() ? 'off' : 'on', ConfigurationTarget.USER);
+		const isScreenReaderOptimized = accessibiiltyService.isScreenReaderOptimized();
+		configurationService.updateValue('editor.accessibilitySupport', isScreenReaderOptimized ? 'off' : 'on', ConfigurationTarget.USER);
+		alert(isScreenReaderOptimized ? AccessibilityHelpNLS.screenReaderModeDisabled : AccessibilityHelpNLS.screenReaderModeEnabled);
 	}
 }
 

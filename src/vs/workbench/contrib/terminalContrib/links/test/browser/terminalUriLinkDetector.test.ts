@@ -22,9 +22,10 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 	let detector: TerminalUriLinkDetector;
 	let xterm: Terminal;
 	let validResources: URI[] = [];
+	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
-		const instantiationService = new TestInstantiationService();
+		instantiationService = new TestInstantiationService();
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, {
@@ -46,6 +47,10 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 			userHome: '/home',
 			backend: undefined
 		}, instantiationService.createInstance(TerminalLinkResolver));
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	async function assertLink(

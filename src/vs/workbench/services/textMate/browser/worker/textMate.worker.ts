@@ -136,8 +136,8 @@ export class TextMateTokenizationWorker {
 		this._host.setTokensAndStates(resource, versionId, tokens, stateDeltas);
 	}
 
-	public reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number): void {
-		this._host.reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength);
+	public reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void {
+		this._host.reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample);
 	}
 
 	// #endregion

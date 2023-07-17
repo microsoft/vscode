@@ -196,10 +196,12 @@ async function main(): Promise<void> {
 	};
 
 	const uploadPromises: Promise<void>[] = [];
+
 	if (await blobClient.exists()) {
-		console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
+		uploadPromises.push(Promise.reject(new Error(`Blob ${quality}, ${blobName} already exists, not publishing again.`)));
 	} else {
-		uploadPromises.push(retry(async () => {
+		uploadPromises.push(retry(async (attempt) => {
+			console.log(`Uploading blobs to Azure storage (attempt ${attempt})...`);
 			await blobClient.uploadFile(filePath, blobOptions);
 			console.log('Blob successfully uploaded to Azure storage.');
 		}));
@@ -214,26 +216,25 @@ async function main(): Promise<void> {
 		const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
 
 		if (await mooncakeBlobClient.exists()) {
-			console.log(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`);
+			uploadPromises.push(Promise.reject(new Error(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`)));
 		} else {
-			uploadPromises.push(retry(async () => {
+			uploadPromises.push(retry(async (attempt) => {
+				console.log(`Uploading blobs to Mooncake Azure storage (attempt ${attempt})...`);
 				await mooncakeBlobClient.uploadFile(filePath, blobOptions);
 				console.log('Blob successfully uploaded to Mooncake Azure storage.');
 			}));
 		}
+	}
 
-		if (uploadPromises.length) {
-			console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
-		}
-	} else {
-		if (uploadPromises.length) {
-			console.log('Uploading blobs to Azure storage...');
+	const promiseResults = await Promise.allSettled(uploadPromises);
+
+	for (const result of promiseResults) {
+		if (result.status === 'rejected') {
+			throw result.reason;
 		}
 	}
 
-	await Promise.all(uploadPromises);
-
-	console.log(uploadPromises.length ? 'All blobs successfully uploaded.' : 'No blobs to upload.');
+	console.log('All blobs successfully uploaded.');
 
 	const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
 	const blobPath = new URL(assetUrl).pathname;

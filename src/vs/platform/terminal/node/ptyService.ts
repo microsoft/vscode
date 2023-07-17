@@ -552,8 +552,9 @@ export class PtyService extends Disposable implements IPtyService {
 			};
 		} catch (e) {
 			this._logService.warn(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
-			this._logService.info('Reattach to wrong terminal debug info - layout info by id', t);
-			this._logService.info('Reattach to wrong terminal debug info - _revivePtyIdMap', Array.from(this._revivedPtyIdMap.values()));
+			this._logService.debug('Reattach to wrong terminal debug info - layout info by id', t);
+			this._logService.debug('Reattach to wrong terminal debug info - _revivePtyIdMap', Array.from(this._revivedPtyIdMap.values()));
+			this._logService.debug('Reattach to wrong terminal debug info - _ptys ids', Array.from(this._ptys.keys()));
 			// this will be filtered out and not reconnected
 			return {
 				terminal: null,

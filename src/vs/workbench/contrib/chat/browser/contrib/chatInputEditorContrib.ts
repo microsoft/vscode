@@ -15,12 +15,14 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
@@ -28,10 +30,14 @@ const slashCommandTextDecorationType = 'chat-session-text';
 
 class InputEditorDecorations extends Disposable {
 
+	private _slashCommandContentWidget: SlashCommandContentWidget | undefined;
+	private _previouslyUsedSlashCommands = new Set<string>();
+
 	constructor(
 		private readonly widget: IChatWidget,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -42,14 +48,25 @@ class InputEditorDecorations extends Disposable {
 
 		this.updateInputEditorDecorations();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.updateInputEditorDecorations()));
-		this._register(this.widget.onDidChangeViewModel(() => this.updateInputEditorDecorations()));
+		this._register(this.widget.onDidChangeViewModel(() => {
+			this._previouslyUsedSlashCommands.clear();
+			this.updateInputEditorDecorations();
+		}));
+		this._register(this.chatService.onDidSubmitSlashCommand((e) => {
+			if (e.sessionId === this.widget.viewModel?.sessionId && !this._previouslyUsedSlashCommands.has(e.slashCommand)) {
+				this._previouslyUsedSlashCommands.add(e.slashCommand);
+			}
+		}));
 	}
 
 	private updateRegisteredDecorationTypes() {
-		const theme = this.themeService.getColorTheme();
 		this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
+		this._slashCommandContentWidget?.hide();
 		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
-			color: theme.getColor(textLinkForeground)?.toString()
+			opacity: '0',
+			after: {
+				contentText: ' ',
+			}
 		});
 		this.updateInputEditorDecorations();
 	}
@@ -61,10 +78,10 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private async updateInputEditorDecorations() {
-		const value = this.widget.inputEditor.getValue();
+		const inputValue = this.widget.inputEditor.getValue();
 		const slashCommands = await this.widget.getSlashCommands(); // TODO this async call can lead to a flicker of the placeholder text when switching editor tabs
 
-		if (!value) {
+		if (!inputValue) {
 			const extensionPlaceholder = this.widget.viewModel?.inputPlaceholder;
 			const defaultPlaceholder = slashCommands?.length ?
 				localize('interactive.input.placeholderWithCommands', "Ask a question or type '/' for topics") :
@@ -87,30 +104,47 @@ class InputEditorDecorations extends Disposable {
 				}
 			];
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, decoration);
+			this._slashCommandContentWidget?.hide();
 			return;
 		}
 
-		const command = value && slashCommands?.find(c => value.startsWith(`/${c.command} `));
-		if (command && command.detail && value === `/${command.command} `) {
-			const decoration: IDecorationOptions[] = [
-				{
+		let slashCommandPlaceholderDecoration: IDecorationOptions[] | undefined;
+		const command = inputValue && slashCommands?.find(c => inputValue.startsWith(`/${c.command} `));
+		if (command && inputValue === `/${command.command} `) {
+			const isFollowupSlashCommand = this._previouslyUsedSlashCommands.has(command.command);
+			const shouldRenderFollowupPlaceholder = command.followupPlaceholder && isFollowupSlashCommand;
+			if (shouldRenderFollowupPlaceholder || command.detail) {
+				slashCommandPlaceholderDecoration = [{
 					range: {
 						startLineNumber: 1,
 						endLineNumber: 1,
-						startColumn: command.command.length + 2,
+						startColumn: command && typeof command !== 'string' ? (command?.command.length + 2) : 1,
 						endColumn: 1000
 					},
 					renderOptions: {
 						after: {
-							contentText: command.detail,
-							color: this.getPlaceholderColor()
+							contentText: shouldRenderFollowupPlaceholder ? command.followupPlaceholder : command.detail,
+							color: this.getPlaceholderColor(),
+							padding: '0 0 0 5px'
 						}
 					}
-				}
-			];
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, decoration);
-		} else {
+				}];
+				this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, slashCommandPlaceholderDecoration);
+			}
+		}
+		if (!slashCommandPlaceholderDecoration) {
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, []);
+		}
+
+		if (command && inputValue.startsWith(`/${command.command} `)) {
+			if (!this._slashCommandContentWidget) {
+				this._slashCommandContentWidget = new SlashCommandContentWidget(this.widget.inputEditor);
+				this._store.add(this._slashCommandContentWidget);
+			}
+			this._slashCommandContentWidget.setCommandText(command.command);
+			this._slashCommandContentWidget.show();
+		} else {
+			this._slashCommandContentWidget?.hide();
 		}
 
 		if (command && command.detail) {
@@ -131,7 +165,36 @@ class InputEditorDecorations extends Disposable {
 	}
 }
 
-ChatWidget.CONTRIBS.push(InputEditorDecorations);
+class InputEditorSlashCommandFollowups extends Disposable {
+	constructor(
+		private readonly widget: IChatWidget,
+		@IChatService private readonly chatService: IChatService
+	) {
+		super();
+		this._register(this.chatService.onDidSubmitSlashCommand(({ slashCommand, sessionId }) => this.repopulateSlashCommand(slashCommand, sessionId)));
+	}
+
+	private async repopulateSlashCommand(slashCommand: string, sessionId: string) {
+		if (this.widget.viewModel?.sessionId !== sessionId) {
+			return;
+		}
+
+		const slashCommands = await this.widget.getSlashCommands();
+
+		if (this.widget.inputEditor.getValue().trim().length !== 0) {
+			return;
+		}
+
+		if (slashCommands?.find(c => c.command === slashCommand)?.shouldRepopulate) {
+			const value = `/${slashCommand} `;
+			this.widget.inputEditor.setValue(value);
+			this.widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
+
+		}
+	}
+}
+
+ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandFollowups);
 
 class SlashCommandCompletions extends Disposable {
 	constructor(

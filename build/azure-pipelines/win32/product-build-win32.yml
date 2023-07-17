@@ -1,6 +1,8 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_ARCH
+    type: string
   - name: VSCODE_CIBUILD
     type: boolean
   - name: VSCODE_RUN_UNIT_TESTS
@@ -154,31 +156,41 @@ steps:
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
+        exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
+        echo "##vso[task.setvariable variable=BUILT_CLIENT]true"
         echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Build
-
-    - powershell: yarn gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater"
-      env:
-        GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Prepare Setup Package
+      displayName: Build client
 
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         exec { yarn gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" }
-        exec { yarn gulp "vscode-reh-web-win32-$(VSCODE_ARCH)-min-ci" }
-        echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)"
+        mv ..\vscode-reh-win32-$(VSCODE_ARCH) ..\vscode-server-win32-$(VSCODE_ARCH) # TODO@joaomoreno
+        echo "##vso[task.setvariable variable=BUILT_SERVER]true"
+        echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Build Servers
+      displayName: Build server
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { yarn gulp "vscode-reh-web-win32-$(VSCODE_ARCH)-min-ci" }
+        mv ..\vscode-reh-web-win32-$(VSCODE_ARCH) ..\vscode-server-win32-$(VSCODE_ARCH)-web # TODO@joaomoreno
+        echo "##vso[task.setvariable variable=BUILT_WEB]true"
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Build server (web)
       condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - template: product-build-win32-test.yml
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+        VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
@@ -229,8 +241,42 @@ steps:
         displayName: Codesign context menu appx package
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: yarn gulp "vscode-win32-$(VSCODE_ARCH)-archive"
-        displayName: Package archive
+      - powershell: |
+          $PackageJson = Get-Content -Raw -Path ..\VSCode-win32-$(VSCODE_ARCH)\resources\app\package.json | ConvertFrom-Json
+          $Version = $PackageJson.version
+          echo "##vso[task.setvariable variable=VSCODE_VERSION]$Version"
+        condition: succeededOrFailed()
+        displayName: Get product version
+
+      - powershell:  |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          $ArchivePath = ".build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH)-$(VSCODE_VERSION).zip"
+          New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
+          exec { 7z.exe a -tzip $ArchivePath -x!CodeSignSummary*.md ..\VSCode-win32-$(VSCODE_ARCH)\* -r }
+          echo "##vso[task.setvariable variable=CLIENT_PATH]$ArchivePath"
+        condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT'], 'true'))
+        displayName: Package client
+
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          $ArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip"
+          New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
+          exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH) -r }
+          echo "##vso[task.setvariable variable=SERVER_PATH]$ArchivePath"
+        condition: and(succeededOrFailed(), eq(variables['BUILT_SERVER'], 'true'))
+        displayName: Package server
+
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          $ArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH)-web.zip"
+          New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
+          exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH)-web -r }
+          echo "##vso[task.setvariable variable=WEB_PATH]$ArchivePath"
+        condition: and(succeededOrFailed(), eq(variables['BUILT_WEB'], 'true'))
+        displayName: Package server (web)
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
@@ -239,21 +285,32 @@ steps:
           $env:ESRPAADUsername = "$(esrp-aad-username)"
           $env:ESRPAADPassword = "$(esrp-aad-password)"
           exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-system-setup" --sign }
-          exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-user-setup" --sign }
-        displayName: Package setups
+          $SetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
+          mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $SetupPath
+          echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SetupPath"
+        displayName: Build system setup
 
-      - powershell: .\build\azure-pipelines\win32\prepare-publish.ps1
-        displayName: Publish
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          $env:ESRPPKI = "$(ESRP-PKI)"
+          $env:ESRPAADUsername = "$(esrp-aad-username)"
+          $env:ESRPAADPassword = "$(esrp-aad-password)"
+          exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-user-setup" --sign }
+          $SetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
+          mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $SetupPath
+          echo "##vso[task.setvariable variable=USER_SETUP_PATH]$SetupPath"
+        displayName: Build user setup
+
+      - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
+        condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
+        displayName: Generate artifact prefix
 
       - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
         displayName: Generate SBOM (client)
         inputs:
           BuildDropPath: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)
           PackageName: Visual Studio Code
-
-      - publish: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/_manifest
-        displayName: Publish SBOM (client)
-        artifact: vscode_client_win32_$(VSCODE_ARCH)_sbom
 
       - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
         displayName: Generate SBOM (server)
@@ -262,29 +319,36 @@ steps:
           PackageName: Visual Studio Code Server
         condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
+      - publish: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/_manifest
+        displayName: Publish SBOM (client)
+        artifact: $(ARTIFACT_PREFIX)sbom_client_win32_$(VSCODE_ARCH)
+
       - publish: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)/_manifest
         displayName: Publish SBOM (server)
-        artifact: vscode_server_win32_$(VSCODE_ARCH)_sbom
+        artifact: $(ARTIFACT_PREFIX)sbom_server_win32_$(VSCODE_ARCH)
         condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-      - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\archive\$(ARCHIVE_NAME)
-        artifact: vscode_client_win32_$(VSCODE_ARCH)_archive
+      - publish: $(CLIENT_PATH)
+        artifact: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_archive
+        condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
         displayName: Publish archive
 
-      - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\system-setup\$(SYSTEM_SETUP_NAME)
-        artifact: vscode_client_win32_$(VSCODE_ARCH)_setup
+      - publish: $(SERVER_PATH)
+        artifact: $(ARTIFACT_PREFIX)vscode_server_win32_$(VSCODE_ARCH)_archive
+        condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), ne(variables['VSCODE_ARCH'], 'arm64'))
+        displayName: Publish server archive
+
+      - publish: $(WEB_PATH)
+        artifact: $(ARTIFACT_PREFIX)vscode_web_win32_$(VSCODE_ARCH)_archive
+        condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), ne(variables['VSCODE_ARCH'], 'arm64'))
+        displayName: Publish web server archive
+
+      - publish: $(SYSTEM_SETUP_PATH)
+        artifact: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
+        condition: and(succeededOrFailed(), ne(variables['SYSTEM_SETUP_PATH'], ''))
         displayName: Publish system setup
 
-      - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\user-setup\$(USER_SETUP_NAME)
-        artifact: vscode_client_win32_$(VSCODE_ARCH)_user-setup
+      - publish: $(USER_SETUP_PATH)
+        artifact: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_user-setup
+        condition: and(succeededOrFailed(), ne(variables['USER_SETUP_PATH'], ''))
         displayName: Publish user setup
-
-      - publish: $(System.DefaultWorkingDirectory)\.build\vscode-server-win32-$(VSCODE_ARCH).zip
-        artifact: vscode_server_win32_$(VSCODE_ARCH)_archive
-        displayName: Publish server archive
-        condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
-
-      - publish: $(System.DefaultWorkingDirectory)\.build\vscode-server-win32-$(VSCODE_ARCH)-web.zip
-        artifact: vscode_web_win32_$(VSCODE_ARCH)_archive
-        displayName: Publish web server archive
-        condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))

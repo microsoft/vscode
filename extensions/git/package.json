@@ -255,6 +255,20 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.commitAmend",
+        "title": "%command.commitAmend%",
+        "category": "Git",
+        "icon": "$(check)",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.commitSigned",
+        "title": "%command.commitSigned%",
+        "category": "Git",
+        "icon": "$(check)",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.commitStaged",
         "title": "%command.commitStaged%",
         "category": "Git",
@@ -318,6 +332,18 @@
       {
         "command": "git.commitStagedSignedNoVerify",
         "title": "%command.commitStagedSignedNoVerify%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.commitAmendNoVerify",
+        "title": "%command.commitAmendNoVerify%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.commitSignedNoVerify",
+        "title": "%command.commitSignedNoVerify%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -874,6 +900,14 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.commitAmend",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.commitSigned",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.commitStaged",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -919,6 +953,14 @@
         },
         {
           "command": "git.commitStagedSignedNoVerify",
+          "when": "config.git.enabled && !git.missing && config.git.allowNoVerifyCommit && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.commitAmendNoVerify",
+          "when": "config.git.enabled && !git.missing && config.git.allowNoVerifyCommit && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.commitSignedNoVerify",
           "when": "config.git.enabled && !git.missing && config.git.allowNoVerifyCommit && gitOpenRepositoryCount != 0"
         },
         {
@@ -1772,53 +1814,71 @@
         },
         {
           "command": "git.commitNoVerify",
-          "group": "1_commit@6",
+          "group": "2_commit_noverify@1",
           "when": "config.git.allowNoVerifyCommit"
         },
         {
           "command": "git.commitStagedNoVerify",
-          "group": "1_commit@7",
+          "group": "2_commit_noverify@2",
           "when": "config.git.allowNoVerifyCommit"
         },
         {
           "command": "git.commitAllNoVerify",
-          "group": "1_commit@8",
+          "group": "2_commit_noverify@3",
           "when": "config.git.allowNoVerifyCommit"
         },
         {
+          "command": "git.commitAmend",
+          "group": "3_amend@1"
+        },
+        {
           "command": "git.commitStagedAmend",
-          "group": "2_amend@1"
+          "group": "3_amend@2"
         },
         {
           "command": "git.commitAllAmend",
-          "group": "2_amend@2"
+          "group": "3_amend@3"
+        },
+        {
+          "command": "git.commitAmendNoVerify",
+          "group": "4_amend_noverify@1",
+          "when": "config.git.allowNoVerifyCommit"
         },
         {
           "command": "git.commitStagedAmendNoVerify",
-          "group": "2_amend@3",
+          "group": "4_amend_noverify@2",
           "when": "config.git.allowNoVerifyCommit"
         },
         {
           "command": "git.commitAllAmendNoVerify",
-          "group": "2_amend@4",
+          "group": "4_amend_noverify@3",
           "when": "config.git.allowNoVerifyCommit"
         },
         {
+          "command": "git.commitSigned",
+          "group": "5_signoff@1"
+        },
+        {
           "command": "git.commitStagedSigned",
-          "group": "3_signoff@1"
+          "group": "5_signoff@2"
         },
         {
           "command": "git.commitAllSigned",
-          "group": "3_signoff@2"
+          "group": "5_signoff@3"
+        },
+        {
+          "command": "git.commitSignedNoVerify",
+          "group": "6_signoff_noverify@1",
+          "when": "config.git.allowNoVerifyCommit"
         },
         {
           "command": "git.commitStagedSignedNoVerify",
-          "group": "3_signoff@3",
+          "group": "6_signoff_noverify@2",
           "when": "config.git.allowNoVerifyCommit"
         },
         {
           "command": "git.commitAllSignedNoVerify",
-          "group": "3_signoff@4",
+          "group": "6_signoff_noverify@3",
           "when": "config.git.allowNoVerifyCommit"
         }
       ],
