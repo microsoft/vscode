@@ -1,5 +1,5 @@
 
-on:
+root key on:from root 
   repository_dispatch:
     types: 
   issues:
