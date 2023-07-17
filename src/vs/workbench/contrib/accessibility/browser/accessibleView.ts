@@ -113,6 +113,7 @@ class AccessibleView extends Disposable {
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => { return { x: (window.innerWidth / 2) - (DEFAULT.WIDTH / 2), y: DEFAULT.TOP }; },
 			render: (container) => {
+				container.classList.add('accessible-view-container');
 				return this._render(provider, container);
 			},
 			onHide: () => {
