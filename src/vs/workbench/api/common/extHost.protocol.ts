@@ -344,6 +344,11 @@ export interface ILanguageConfigurationDto {
 			notIn?: string[];
 		}[];
 	};
+	autoClosingPairs?: {
+		open: string;
+		close: string;
+		notIn?: string[];
+	}[];
 }
 
 export type GlobPattern = string | IRelativePattern;
@@ -1563,8 +1568,7 @@ export interface ExtHostTreeViewsShape {
 	$handleDrop(destinationViewId: string, requestId: number, treeDataTransfer: DataTransferDTO, targetHandle: string | undefined, token: CancellationToken, operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 	$handleDrag(sourceViewId: string, sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<DataTransferDTO | undefined>;
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
-	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
-	$setFocus(treeViewId: string, treeItemHandle: string): void;
+	$setSelectionAndFocus(treeViewId: string, selectionHandles: string[], focusHandle: string): void;
 	$setVisible(treeViewId: string, visible: boolean): void;
 	$changeCheckboxState(treeViewId: string, checkboxUpdates: CheckboxUpdate[]): void;
 	$hasResolve(treeViewId: string): Promise<boolean>;
