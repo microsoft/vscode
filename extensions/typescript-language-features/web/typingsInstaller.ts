@@ -28,7 +28,7 @@ import { join } from 'path';
 import { NameValidationResult, validatePackageNameWorker } from './jsTyping';
 import { PackageManager, PackageType } from '../package-manager/packageManager';
 
-type InstallerResponse = ts.server.PackageInstalledResponse | ts.server.SetTypings | ts.server.InvalidateCachedTypings | ts.server.BeginInstallTypes | ts.server.EndInstallTypes;
+type InstallerResponse = ts.server.PackageInstalledResponse | ts.server.SetTypings | ts.server.InvalidateCachedTypings | ts.server.BeginInstallTypes | ts.server.EndInstallTypes | ts.server.WatchTypingLocations;
 
 /**
  * The "server" part of the "server/client" model. This is the part that
