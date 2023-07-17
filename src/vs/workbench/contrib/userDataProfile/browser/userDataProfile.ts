@@ -100,7 +100,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.registerProfilesActions()));
 
 		this.registerCurrentProfilesActions();
-		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => this.registerCurrentProfilesActions()));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.registerCurrentProfilesActions()));
 
 		this.registerCreateFromCurrentProfileAction();
 		this.registerCreateProfileAction();
@@ -428,11 +428,11 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const disposables = new DisposableStore();
 		const title = profile ? localize('save profile', "Edit Profile...") : localize('create new profle', "Create New Profile...");
 
-		const settings: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Settings, label: localize('settings', "Settings"), picked: profile?.useDefaultFlags?.settings };
-		const keybindings: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Keybindings, label: localize('keybindings', "Keyboard Shortcuts"), picked: profile?.useDefaultFlags?.keybindings };
-		const snippets: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Snippets, label: localize('snippets', "User Snippets"), picked: profile?.useDefaultFlags?.snippets };
-		const tasks: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Tasks, label: localize('tasks', "User Tasks"), picked: profile?.useDefaultFlags?.tasks };
-		const extensions: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Extensions, label: localize('extensions', "Extensions"), picked: profile?.useDefaultFlags?.extensions };
+		const settings: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Settings, label: localize('settings', "Settings"), picked: !profile?.useDefaultFlags?.settings };
+		const keybindings: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Keybindings, label: localize('keybindings', "Keyboard Shortcuts"), picked: !profile?.useDefaultFlags?.keybindings };
+		const snippets: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Snippets, label: localize('snippets', "User Snippets"), picked: !profile?.useDefaultFlags?.snippets };
+		const tasks: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Tasks, label: localize('tasks', "User Tasks"), picked: !profile?.useDefaultFlags?.tasks };
+		const extensions: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Extensions, label: localize('extensions', "Extensions"), picked: !profile?.useDefaultFlags?.extensions };
 		const resources = [settings, keybindings, snippets, tasks, extensions];
 
 		const quickPick = this.quickInputService.createQuickPick();
@@ -450,13 +450,14 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		quickPick.hideCheckAll = true;
 		quickPick.ignoreFocusOut = true;
 		quickPick.customLabel = profile ? localize('save', "Save") : localize('create', "Create");
-		quickPick.description = localize('customise the profile', "Select configurations to share from the Default profile:");
+		quickPick.description = localize('customise the profile', "Choose what to configure in your Profile:");
 		quickPick.items = [...resources];
 
-		const updateSelection = () => {
+		const update = () => {
+			quickPick.items = resources;
 			quickPick.selectedItems = resources.filter(item => item.picked);
 		};
-		updateSelection();
+		update();
 
 		const validate = () => {
 			if (!profile && this.userDataProfilesService.profiles.some(p => p.name === quickPick.value)) {
@@ -464,8 +465,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				quickPick.severity = Severity.Error;
 				return;
 			}
-			if (resources.every(resource => resource.picked)) {
-				quickPick.validationMessage = localize('cannot share all', "Cannot share all configurations from the Default Profile.");
+			if (resources.every(resource => !resource.picked)) {
+				quickPick.validationMessage = localize('invalid configurations', "The profile should contain at least one configuration.");
 				quickPick.severity = Severity.Error;
 				return;
 			}
@@ -474,8 +475,17 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		};
 
 		disposables.add(quickPick.onDidChangeSelection(items => {
+			let needUpdate = false;
 			for (const resource of resources) {
 				resource.picked = items.includes(resource);
+				const description = resource.picked ? undefined : localize('use default profile', "Use Default Profile");
+				if (resource.description !== description) {
+					resource.description = description;
+					needUpdate = true;
+				}
+			}
+			if (needUpdate) {
+				update();
 			}
 			validate();
 		}));
@@ -541,7 +551,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					for (const resource of resources) {
 						resource.picked = option.source?.useDefaultFlags?.[resource.id];
 					}
-					updateSelection();
+					update();
 				}
 			};
 
@@ -569,15 +579,17 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.telemetryService.publicLog2<{}, CreateProfileInfoClassification>('userDataProfile.successCreate');
 
 		try {
-			const useDefaultFlags: UseDefaultProfileFlags | undefined = result.items.length ? {
-				settings: result.items.includes(settings),
-				keybindings: result.items.includes(keybindings),
-				snippets: result.items.includes(snippets),
-				tasks: result.items.includes(tasks),
-				extensions: result.items.includes(extensions)
-			} : undefined;
+			const useDefaultFlags: UseDefaultProfileFlags | undefined = result.items.length === resources.length
+				? undefined
+				: {
+					settings: !result.items.includes(settings),
+					keybindings: !result.items.includes(keybindings),
+					snippets: !result.items.includes(snippets),
+					tasks: !result.items.includes(tasks),
+					extensions: !result.items.includes(extensions)
+				};
 			if (profile) {
-				await this.userDataProfileManagementService.updateProfile(profile, { name: result.name, useDefaultFlags });
+				await this.userDataProfileManagementService.updateProfile(profile, { name: result.name, useDefaultFlags: profile.useDefaultFlags && !useDefaultFlags ? {} : useDefaultFlags });
 			} else {
 				if (isString(source)) {
 					await this.userDataProfileImportExportService.importProfile(URI.parse(source), { mode: 'apply', name: result.name, useDefaultFlags });

@@ -12,7 +12,6 @@ import 'vs/css!./media/preferences';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import * as nls from 'vs/nls';
-import { Event } from 'vs/base/common/event';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -188,46 +187,37 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private registerSettingsActions() {
-		const registerOpenSettingsActionDisposables = this._register(new DisposableStore());
-		const registerOpenSettingsAction = () => {
-			registerOpenSettingsActionDisposables.clear();
-			const getTitle = (title: string) => !this.userDataProfileService.currentProfile.isDefault && this.userDataProfileService.currentProfile.useDefaultFlags?.settings
-				? `${title} (${nls.localize('default profile', "Default Profile")})`
-				: title;
-			registerOpenSettingsActionDisposables.add(registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: SETTINGS_COMMAND_OPEN_SETTINGS,
-						title: {
-							value: getTitle(nls.localize('settings', "Settings")),
-							mnemonicTitle: getTitle(nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings")),
-							original: 'Settings'
-						},
-						keybinding: {
-							weight: KeybindingWeight.WorkbenchContrib,
-							when: null,
-							primary: KeyMod.CtrlCmd | KeyCode.Comma,
-						},
-						menu: [{
-							id: MenuId.GlobalActivity,
-							group: '2_configuration',
-							order: 1
-						}, {
-							id: MenuId.MenubarPreferencesMenu,
-							group: '2_configuration',
-							order: 1
-						}],
-					});
-				}
-				run(accessor: ServicesAccessor, args: string | IOpenSettingsActionOptions) {
-					// args takes a string for backcompat
-					const opts = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
-					return accessor.get(IPreferencesService).openSettings(opts);
-				}
-			}));
-		};
-		registerOpenSettingsAction();
-		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => registerOpenSettingsAction()));
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_COMMAND_OPEN_SETTINGS,
+					title: {
+						value: nls.localize('settings', "Settings"),
+						mnemonicTitle: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings"),
+						original: 'Settings'
+					},
+					keybinding: {
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: null,
+						primary: KeyMod.CtrlCmd | KeyCode.Comma,
+					},
+					menu: [{
+						id: MenuId.GlobalActivity,
+						group: '2_configuration',
+						order: 1
+					}, {
+						id: MenuId.MenubarPreferencesMenu,
+						group: '2_configuration',
+						order: 1
+					}],
+				});
+			}
+			run(accessor: ServicesAccessor, args: string | IOpenSettingsActionOptions) {
+				// args takes a string for backcompat
+				const opts = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
+				return accessor.get(IPreferencesService).openSettings(opts);
+			}
+		}));
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -306,13 +296,13 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			}
 		});
 
-		const registerOpenUserSettingsEditorFromJsonActionDisposable = this._register(new MutableDisposable());
+		const registerOpenUserSettingsEditorFromJsonActionDisposables = this._register(new MutableDisposable());
 		const openUserSettingsEditorWhen = ContextKeyExpr.and(
 			ContextKeyExpr.or(ResourceContextKey.Resource.isEqualTo(this.userDataProfileService.currentProfile.settingsResource.toString()),
 				ResourceContextKey.Resource.isEqualTo(this.userDataProfilesService.defaultProfile.settingsResource.toString())),
 			ContextKeyExpr.not('isInDiffEditor'));
 		const registerOpenUserSettingsEditorFromJsonAction = () => {
-			registerOpenUserSettingsEditorFromJsonActionDisposable.value = registerAction2(class extends Action2 {
+			registerOpenUserSettingsEditorFromJsonActionDisposables.value = registerAction2(class extends Action2 {
 				constructor() {
 					super({
 						id: '_workbench.openUserSettingsEditor',
@@ -816,58 +806,49 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	private registerKeybindingsActions() {
 		const that = this;
 		const category = { value: nls.localize('preferences', "Preferences"), original: 'Preferences' };
-		const registerOpenGlobalKeybindingsActionDisposables = this._register(new DisposableStore());
-		const registerOpenGlobalKeybindingsAction = () => {
-			registerOpenGlobalKeybindingsActionDisposables.clear();
-			const id = 'workbench.action.openGlobalKeybindings';
-			const shortTitle = !that.userDataProfileService.currentProfile.isDefault && that.userDataProfileService.currentProfile.useDefaultFlags?.keybindings
-				? nls.localize('keyboardShortcutsFromDefault', "Keyboard Shortcuts ({0})", nls.localize('default profile', "Default Profile"))
-				: nls.localize('keyboardShortcuts', "Keyboard Shortcuts");
-			registerOpenGlobalKeybindingsActionDisposables.add(registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id,
-						title: { value: nls.localize('openGlobalKeybindings', "Open Keyboard Shortcuts"), original: 'Open Keyboard Shortcuts' },
-						shortTitle,
-						category,
-						icon: preferencesOpenSettingsIcon,
-						keybinding: {
-							when: null,
-							weight: KeybindingWeight.WorkbenchContrib,
-							primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyS)
-						},
-						menu: [
-							{ id: MenuId.CommandPalette },
-							{
-								id: MenuId.EditorTitle,
-								when: ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.keybindingsResource.toString()),
-								group: 'navigation',
-								order: 1,
-							},
-							{
-								id: MenuId.GlobalActivity,
-								group: '2_configuration',
-								order: 3
-							}
-						]
-					});
-				}
-				run(accessor: ServicesAccessor, args: string | undefined) {
-					const query = typeof args === 'string' ? args : undefined;
-					return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false, { query });
-				}
-			}));
-			registerOpenGlobalKeybindingsActionDisposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-				command: {
+		const id = 'workbench.action.openGlobalKeybindings';
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
 					id,
-					title: shortTitle,
-				},
-				group: '2_configuration',
-				order: 3
-			}));
-		};
-		registerOpenGlobalKeybindingsAction();
-		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => registerOpenGlobalKeybindingsAction()));
+					title: { value: nls.localize('openGlobalKeybindings', "Open Keyboard Shortcuts"), original: 'Open Keyboard Shortcuts' },
+					shortTitle: nls.localize('keyboardShortcuts', "Keyboard Shortcuts"),
+					category,
+					icon: preferencesOpenSettingsIcon,
+					keybinding: {
+						when: null,
+						weight: KeybindingWeight.WorkbenchContrib,
+						primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyS)
+					},
+					menu: [
+						{ id: MenuId.CommandPalette },
+						{
+							id: MenuId.EditorTitle,
+							when: ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.keybindingsResource.toString()),
+							group: 'navigation',
+							order: 1,
+						},
+						{
+							id: MenuId.GlobalActivity,
+							group: '2_configuration',
+							order: 3
+						}
+					]
+				});
+			}
+			run(accessor: ServicesAccessor, args: string | undefined) {
+				const query = typeof args === 'string' ? args : undefined;
+				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false, { query });
+			}
+		}));
+		this._register(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+			command: {
+				id,
+				title: nls.localize('keyboardShortcuts', "Keyboard Shortcuts"),
+			},
+			group: '2_configuration',
+			order: 3
+		}));
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
