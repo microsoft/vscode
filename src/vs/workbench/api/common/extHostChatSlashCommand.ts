@@ -71,7 +71,7 @@ export class ExtHostChatSlashCommands implements ExtHostChatSlashCommandsShape {
 			{ history: context.history.map(typeConvert.ChatMessage.to) },
 			new Progress<vscode.SlashResponse>(p => {
 				throwIfDone();
-				this._proxy.$handleProgressChunk(requestId, { value: p.message.value });
+				this._proxy.$handleProgressChunk(requestId, { content: p.message.value });
 			}),
 			token
 		);

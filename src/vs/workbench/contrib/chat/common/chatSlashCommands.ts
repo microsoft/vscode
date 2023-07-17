@@ -58,7 +58,7 @@ export interface IChatSlashData {
 }
 
 export interface IChatSlashFragment {
-	value: string;
+	content: string;
 }
 
 export type IChatSlashCallback = { (prompt: string, progress: IProgress<IChatSlashFragment>, history: IChatMessage[], token: CancellationToken): Promise<void> };
@@ -71,6 +71,7 @@ export interface IChatSlashCommandService {
 	registerSlashCallback(id: string, command: IChatSlashCallback): IDisposable;
 	executeCommand(id: string, prompt: string, progress: IProgress<IChatSlashFragment>, history: IChatMessage[], token: CancellationToken): Promise<void>;
 	getCommands(): Array<IChatSlashData>;
+	hasCommand(id: string): boolean;
 }
 
 type Tuple = { data: IChatSlashData; command?: IChatSlashCallback };
@@ -126,6 +127,10 @@ export class ChatSlashCommandService implements IChatSlashCommandService {
 
 	getCommands(): Array<IChatSlashData> {
 		return Array.from(this._commands.values(), v => v.data);
+	}
+
+	hasCommand(id: string): boolean {
+		return this._commands.has(id);
 	}
 
 	async executeCommand(id: string, prompt: string, progress: IProgress<IChatSlashFragment>, history: IChatMessage[], token: CancellationToken): Promise<void> {
@@ -217,7 +222,7 @@ registerAction2(class extends Action2 {
 				pick.cmd.id,
 				prompt,
 				new Progress<IChatSlashFragment>(value => {
-					p.report({ message: value.value });
+					p.report({ message: value.content });
 					console.log(value);
 				}),
 				[],
