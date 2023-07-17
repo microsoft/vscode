@@ -186,6 +186,10 @@ export class ExtHostNotebookDocument {
 		this._disposed = true;
 	}
 
+	get versionId(): number {
+		return this._versionId;
+	}
+
 	get apiNotebook(): vscode.NotebookDocument {
 		if (!this._notebook) {
 			const that = this;

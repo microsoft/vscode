@@ -51,7 +51,16 @@ function describeEnvironmentChanges(collection: IMergedEnvironmentVariableCollec
 	for (const [ext, coll] of collection.collections) {
 		content += `\n\n## ${localize('extension', 'Extension: {0}', ext)}`;
 		content += '\n';
-		for (const [_, mutator] of coll.map.entries()) {
+		if (coll.descriptionMap && coll.descriptionMap.size > 0) {
+			for (const desc of coll.descriptionMap.values()) {
+				content += `\n${desc.description}`;
+				if (desc.scope?.workspaceFolder) {
+					content += ` (${localize('ScopedEnvironmentContributionInfo', 'workspace')})`;
+				}
+			}
+			content += '\n';
+		}
+		for (const mutator of coll.map.values()) {
 			if (filterScope(mutator, scope) === false) {
 				continue;
 			}

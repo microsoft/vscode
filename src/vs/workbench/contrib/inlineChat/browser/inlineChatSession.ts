@@ -5,11 +5,11 @@
 
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { TextEdit } from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { EditMode, IInteractiveEditorSessionProvider, IInteractiveEditorSession, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorMessageResponse, IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatResponse, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -25,11 +25,12 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { raceCancellation } from 'vs/base/common/async';
 
 export type Recording = {
 	when: Date;
-	session: IInteractiveEditorSession;
-	exchanges: { prompt: string; res: IInteractiveEditorResponse }[];
+	session: IInlineChatSession;
+	exchanges: { prompt: string; res: IInlineChatResponse }[];
 };
 
 type TelemetryData = {
@@ -64,22 +65,22 @@ export enum ExpansionState {
 
 class SessionWholeRange {
 
-	private static readonly _options = { description: 'interactiveEditor/session/wholeRange' };
+	private static readonly _options = { description: 'inlineChat/session/wholeRange' };
 
-	private readonly _store = new DisposableStore();
+	private readonly _onDidChange = new Emitter<this>();
+	readonly onDidChange: Event<this> = this._onDidChange.event;
+
 	private readonly _decorationIds: string[] = [];
 
 	constructor(private readonly _textModel: ITextModel, wholeRange: IRange) {
 		this._decorationIds = _textModel.deltaDecorations([], [{ range: wholeRange, options: SessionWholeRange._options }]);
-		this._store.add(toDisposable(() => {
-			if (!_textModel.isDisposed()) {
-				_textModel.deltaDecorations(this._decorationIds, []);
-			}
-		}));
 	}
 
 	dispose() {
-		this._store.dispose();
+		this._onDidChange.dispose();
+		if (!this._textModel.isDisposed()) {
+			this._textModel.deltaDecorations(this._decorationIds, []);
+		}
 	}
 
 	trackEdits(edits: ISingleEditOperation[]): void {
@@ -88,6 +89,7 @@ class SessionWholeRange {
 			newDeco.push({ range: edit.range, options: SessionWholeRange._options });
 		}
 		this._decorationIds.push(...this._textModel.deltaDecorations([], newDeco));
+		this._onDidChange.fire(this);
 	}
 
 	get value(): Range {
@@ -108,7 +110,7 @@ class SessionWholeRange {
 
 export class Session {
 
-	private _lastInput: string | undefined;
+	private _lastInput: SessionPrompt | undefined;
 	private _lastExpansionState: ExpansionState | undefined;
 	private _lastTextModelChanges: readonly LineRangeMapping[] | undefined;
 	private _isUnstashed: boolean = false;
@@ -124,8 +126,8 @@ export class Session {
 		readonly editor: ICodeEditor,
 		readonly textModel0: ITextModel,
 		readonly textModelN: ITextModel,
-		readonly provider: IInteractiveEditorSessionProvider,
-		readonly session: IInteractiveEditorSession,
+		readonly provider: IInlineChatSessionProvider,
+		readonly session: IInlineChatSession,
 		readonly wholeRange: SessionWholeRange
 	) {
 		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
@@ -139,8 +141,12 @@ export class Session {
 		};
 	}
 
-	addInput(input: string): void {
+	addInput(input: SessionPrompt): void {
 		this._lastInput = input;
+	}
+
+	get lastInput() {
+		return this._lastInput;
 	}
 
 	get isUnstashed(): boolean {
@@ -149,10 +155,6 @@ export class Session {
 
 	markUnstashed() {
 		this._isUnstashed = true;
-	}
-
-	get lastInput() {
-		return this._lastInput;
 	}
 
 	get lastExpansionState(): ExpansionState | undefined {
@@ -175,6 +177,10 @@ export class Session {
 		this._isUnstashed = false;
 		const newLen = this._exchange.push(exchange);
 		this._teldata.rounds += `${newLen}|`;
+	}
+
+	get exchanges(): Iterable<SessionExchange> {
+		return this._exchange;
 	}
 
 	get lastExchange(): SessionExchange | undefined {
@@ -229,7 +235,7 @@ export class Session {
 		for (const exchange of this._exchange) {
 			const response = exchange.response;
 			if (response instanceof MarkdownResponse || response instanceof EditResponse) {
-				result.exchanges.push({ prompt: exchange.prompt, res: response.raw });
+				result.exchanges.push({ prompt: exchange.prompt.value, res: response.raw });
 			}
 		}
 		return result;
@@ -237,9 +243,29 @@ export class Session {
 }
 
 
-export class SessionExchange {
+export class SessionPrompt {
+
+	private _attempt: number = 0;
+
 	constructor(
-		readonly prompt: string,
+		readonly value: string,
+	) { }
+
+	get attempt() {
+		return this._attempt;
+	}
+
+	retry() {
+		const result = new SessionPrompt(this.value);
+		result._attempt = this._attempt + 1;
+		return result;
+	}
+}
+
+export class SessionExchange {
+
+	constructor(
+		readonly prompt: SessionPrompt,
 		readonly response: MarkdownResponse | EditResponse | EmptyResponse | ErrorResponse
 	) { }
 }
@@ -264,21 +290,29 @@ export class ErrorResponse {
 export class MarkdownResponse {
 	constructor(
 		readonly localUri: URI,
-		readonly raw: IInteractiveEditorMessageResponse
+		readonly raw: IInlineChatMessageResponse
 	) { }
 }
 
 export class EditResponse {
 
-	readonly localEdits: TextEdit[] = [];
+	readonly allLocalEdits: TextEdit[][] = [];
 	readonly singleCreateFileEdit: { uri: URI; edits: Promise<TextEdit>[] } | undefined;
 	readonly workspaceEdits: ResourceEdit[] | undefined;
 	readonly workspaceEditsIncludeLocalEdits: boolean = false;
 
-	constructor(localUri: URI, readonly raw: IInteractiveEditorBulkEditResponse | IInteractiveEditorEditResponse) {
+	constructor(
+		localUri: URI,
+		readonly modelAltVersionId: number,
+		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse,
+		progressEdits: TextEdit[][],
+	) {
+
+		this.allLocalEdits.push(...progressEdits);
+
 		if (raw.type === 'editorEdit') {
 			//
-			this.localEdits = raw.edits;
+			this.allLocalEdits.push(raw.edits);
 			this.singleCreateFileEdit = undefined;
 			this.workspaceEdits = undefined;
 
@@ -288,6 +322,7 @@ export class EditResponse {
 			this.workspaceEdits = edits;
 
 			let isComplexEdit = false;
+			const localEdits: TextEdit[] = [];
 
 			for (const edit of edits) {
 				if (edit instanceof ResourceFileEdit) {
@@ -306,7 +341,7 @@ export class EditResponse {
 				} else if (edit instanceof ResourceTextEdit) {
 					//
 					if (isEqual(edit.resource, localUri)) {
-						this.localEdits.push(edit.textEdit);
+						localEdits.push(edit.textEdit);
 						this.workspaceEditsIncludeLocalEdits = true;
 
 					} else if (isEqual(this.singleCreateFileEdit?.uri, edit.resource)) {
@@ -316,7 +351,9 @@ export class EditResponse {
 					}
 				}
 			}
-
+			if (localEdits.length > 0) {
+				this.allLocalEdits.push(localEdits);
+			}
 			if (isComplexEdit) {
 				this.singleCreateFileEdit = undefined;
 			}
@@ -328,10 +365,12 @@ export interface ISessionKeyComputer {
 	getComparisonKey(editor: ICodeEditor, uri: URI): string;
 }
 
-export const IInteractiveEditorSessionService = createDecorator<IInteractiveEditorSessionService>('IInteractiveEditorSessionService');
+export const IInlineChatSessionService = createDecorator<IInlineChatSessionService>('IInlineChatSessionService');
 
-export interface IInteractiveEditorSessionService {
+export interface IInlineChatSessionService {
 	_serviceBrand: undefined;
+
+	onWillStartSession: Event<IActiveCodeEditor>;
 
 	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
 
@@ -351,36 +390,49 @@ type SessionData = {
 	store: IDisposable;
 };
 
-export class InteractiveEditorSessionService implements IInteractiveEditorSessionService {
+export class InlineChatSessionService implements IInlineChatSessionService {
 
 	declare _serviceBrand: undefined;
+
+	private readonly _onWillStartSession = new Emitter<IActiveCodeEditor>();
+	readonly onWillStartSession: Event<IActiveCodeEditor> = this._onWillStartSession.event;
 
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
 	private _recordings: Recording[] = [];
 
 	constructor(
-		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
+		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
+	dispose() {
+		this._onWillStartSession.dispose();
+		this._sessions.forEach(x => x.store.dispose());
+		this._sessions.clear();
+	}
 
 	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
 
-		const provider = Iterable.first(this._interactiveEditorService.getAllProvider());
+		const provider = Iterable.first(this._inlineChatService.getAllProvider());
 		if (!provider) {
 			this._logService.trace('[IE] NO provider found');
 			return undefined;
 		}
 
+		this._onWillStartSession.fire(editor);
+
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();
-		let raw: IInteractiveEditorSession | undefined | null;
+		let raw: IInlineChatSession | undefined | null;
 		try {
-			raw = await provider.prepareInteractiveEditorSession(textModel, selection, token);
+			raw = await raceCancellation(
+				Promise.resolve(provider.prepareInlineChatSession(textModel, selection, token)),
+				token
+			);
 		} catch (error) {
 			this._logService.error('[IE] FAILED to prepare session', provider.debugName);
 			this._logService.error(error);

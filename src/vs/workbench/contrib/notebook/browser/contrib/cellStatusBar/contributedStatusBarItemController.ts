@@ -77,7 +77,7 @@ class CellStatusBarHelper extends Disposable {
 
 	private _activeToken: CancellationTokenSource | undefined;
 
-	private readonly _updateThrottler = new Throttler();
+	private readonly _updateThrottler = this._register(new Throttler());
 
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,

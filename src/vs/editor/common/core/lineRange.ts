@@ -106,6 +106,13 @@ export class LineRange {
 	}
 
 	/**
+	 * @internal
+	 */
+	public static deserialize(lineRange: ISerializedLineRange): LineRange {
+		return new LineRange(lineRange[0], lineRange[1]);
+	}
+
+	/**
 	 * The start line number.
 	 */
 	public readonly startLineNumber: number;
@@ -203,4 +210,25 @@ export class LineRange {
 	public toExclusiveRange(): Range {
 		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive, 1);
 	}
+
+	public mapToLineArray<T>(f: (lineNumber: number) => T): T[] {
+		const result: T[] = [];
+		for (let lineNumber = this.startLineNumber; lineNumber < this.endLineNumberExclusive; lineNumber++) {
+			result.push(f(lineNumber));
+		}
+		return result;
+	}
+
+	/**
+	 * @internal
+	 */
+	public serialize(): ISerializedLineRange {
+		return [this.startLineNumber, this.endLineNumberExclusive];
+	}
+
+	public includes(lineNumber: number): boolean {
+		return this.startLineNumber <= lineNumber && lineNumber < this.endLineNumberExclusive;
+	}
 }
+
+export type ISerializedLineRange = [startLineNumber: number, endLineNumberExclusive: number];

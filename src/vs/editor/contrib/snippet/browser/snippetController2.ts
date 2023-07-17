@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -156,7 +156,8 @@ export class SnippetController2 implements IEditorContribution {
 
 		// regster completion item provider when there is any choice element
 		if (this._session?.hasChoice) {
-			const provider = {
+			const provider: CompletionItemProvider = {
+				_debugDisplayName: 'snippetChoiceCompletions',
 				provideCompletionItems: (model: ITextModel, position: Position) => {
 					if (!this._session || model !== this._editor.getModel() || !Position.equals(this._editor.getPosition(), position)) {
 						return undefined;
@@ -187,10 +188,10 @@ export class SnippetController2 implements IEditorContribution {
 
 			const model = this._editor.getModel();
 
-			let registration: IDisposable = Disposable.None;
+			let registration: IDisposable | undefined;
 			let isRegistered = false;
 			const disable = () => {
-				registration.dispose();
+				registration?.dispose();
 				isRegistered = false;
 			};
 
@@ -202,11 +203,11 @@ export class SnippetController2 implements IEditorContribution {
 						scheme: model.uri.scheme,
 						exclusive: true
 					}, provider);
+					this._snippetListener.add(registration);
 					isRegistered = true;
 				}
 			};
 
-			this._snippetListener.add(registration);
 			this._choiceCompletions = { provider, enable, disable };
 		}
 

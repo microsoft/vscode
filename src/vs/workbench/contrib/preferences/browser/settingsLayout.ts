@@ -232,8 +232,8 @@ export const tocData: ITOCEntry<string> = {
 				},
 				{
 					id: 'features/chat',
-					label: localize('interactiveSession', 'Interactive Session'),
-					settings: ['chat.*', 'interactiveEditor.*']
+					label: localize('chat', 'Chat'),
+					settings: ['chat.*', 'inlineChat.*']
 				}
 			]
 		},

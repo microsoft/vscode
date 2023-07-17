@@ -159,36 +159,39 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			this._updateItemClass(this._menuItemAction.item);
 		}
 
-		let mouseOver = false;
-
-		let alternativeKeyDown = this._altKey.keyStatus.altKey || ((isWindows || isLinux) && this._altKey.keyStatus.shiftKey);
-
-		const updateAltState = () => {
-			const wantsAltCommand = mouseOver && alternativeKeyDown && !!this._commandAction.alt?.enabled;
-			if (wantsAltCommand !== this._wantsAltCommand) {
-				this._wantsAltCommand = wantsAltCommand;
-				this.updateLabel();
-				this.updateTooltip();
-				this.updateClass();
-			}
-		};
-
 		if (this._menuItemAction.alt) {
-			this._register(this._altKey.event(value => {
-				alternativeKeyDown = value.altKey || ((isWindows || isLinux) && value.shiftKey);
-				updateAltState();
-			}));
+			let mouseOverOnWindowsOrLinux = false;
+
+			const updateAltState = () => {
+				const wantsAltCommand = !!this._menuItemAction.alt?.enabled && (
+					this._altKey.keyStatus.altKey
+					|| (this._altKey.keyStatus.shiftKey && mouseOverOnWindowsOrLinux)
+				);
+
+				if (wantsAltCommand !== this._wantsAltCommand) {
+					this._wantsAltCommand = wantsAltCommand;
+					this.updateLabel();
+					this.updateTooltip();
+					this.updateClass();
+				}
+			};
+
+			this._register(this._altKey.event(updateAltState));
+
+			if (isWindows || isLinux) {
+				this._register(addDisposableListener(container, 'mouseleave', _ => {
+					mouseOverOnWindowsOrLinux = false;
+					updateAltState();
+				}));
+
+				this._register(addDisposableListener(container, 'mouseenter', _ => {
+					mouseOverOnWindowsOrLinux = true;
+					updateAltState();
+				}));
+			}
+
+			updateAltState();
 		}
-
-		this._register(addDisposableListener(container, 'mouseleave', _ => {
-			mouseOver = false;
-			updateAltState();
-		}));
-
-		this._register(addDisposableListener(container, 'mouseenter', _ => {
-			mouseOver = true;
-			updateAltState();
-		}));
 	}
 
 	protected override updateLabel(): void {

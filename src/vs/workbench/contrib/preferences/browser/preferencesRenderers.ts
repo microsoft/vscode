@@ -602,7 +602,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	}
 
 	private handleLocalUserConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
-		if (!this.userDataProfileService.currentProfile.isDefault) {
+		if (!this.userDataProfileService.currentProfile.isDefault && !this.userDataProfileService.currentProfile.useDefaultFlags?.settings) {
 			if (isEqual(this.userDataProfilesService.defaultProfile.settingsResource, this.settingsEditorModel.uri) && configuration.scope !== ConfigurationScope.APPLICATION) {
 				// If we're in the default profile setting file, and the setting is not
 				// application-scoped, fade it out.

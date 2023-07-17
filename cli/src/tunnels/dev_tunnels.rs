@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 use crate::auth;
 use crate::constants::{
-	CONTROL_PORT, IS_INTERACTIVE_CLI, PROTOCOL_VERSION_TAG, PROTOCOL_VERSION_TAG_PREFIX,
-	TUNNEL_SERVICE_USER_AGENT,
+	CONTROL_PORT, IS_INTERACTIVE_CLI, PROTOCOL_VERSION_TAG, TUNNEL_SERVICE_USER_AGENT,
 };
 use crate::state::{LauncherPaths, PersistedState};
 use crate::util::errors::{
@@ -31,6 +30,8 @@ use tunnels::management::{
 	new_tunnel_management, HttpError, TunnelLocator, TunnelManagementClient, TunnelRequestOptions,
 	NO_REQUEST_OPTIONS,
 };
+
+use super::wsl_detect::is_wsl_installed;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PersistedTunnel {
@@ -304,7 +305,7 @@ impl DevTunnels {
 			return Ok((full_tunnel, persisted));
 		}
 
-		full_tunnel.tags = vec![name.to_string(), VSCODE_CLI_TUNNEL_TAG.to_string()];
+		full_tunnel.tags = self.get_tags(&name);
 
 		let new_tunnel = spanf!(
 			self.log,
@@ -383,11 +384,9 @@ impl DevTunnels {
 			}
 		};
 
-		if !tunnel.tags.iter().any(|t| t == PROTOCOL_VERSION_TAG) {
-			tunnel = self
-				.update_protocol_version_tag(tunnel, &HOST_TUNNEL_REQUEST_OPTIONS)
-				.await?;
-		}
+		tunnel = self
+			.sync_tunnel_tags(&persisted.name, tunnel, &HOST_TUNNEL_REQUEST_OPTIONS)
+			.await?;
 
 		let locator = TunnelLocator::try_from(&tunnel).unwrap();
 		let host_token = get_host_token_from_tunnel(&tunnel);
@@ -471,9 +470,17 @@ impl DevTunnels {
 						continue;
 					}
 
+					if let Some(d) = e.get_details() {
+						let detail = d.detail.unwrap_or_else(|| "unknown".to_string());
+						return Err(AnyError::from(TunnelCreationFailed(
+							name.to_string(),
+							detail,
+						)));
+					}
+
 					return Err(AnyError::from(TunnelCreationFailed(
 						name.to_string(),
-						"You've exceeded the 10 machine limit for the port fowarding service. Please remove other machines before trying to add this machine.".to_string(),
+						"You have exceeded a limit for the port fowarding service. Please remove other machines before trying to add this machine.".to_string(),
 					)));
 				}
 				Err(e) => {
@@ -496,23 +503,40 @@ impl DevTunnels {
 		}
 	}
 
+	/// Gets the expected tunnel tags
+	fn get_tags(&self, name: &str) -> Vec<String> {
+		let mut tags = vec![
+			name.to_string(),
+			PROTOCOL_VERSION_TAG.to_string(),
+			VSCODE_CLI_TUNNEL_TAG.to_string(),
+		];
+
+		if is_wsl_installed(&self.log) {
+			tags.push("_wsl".to_string())
+		}
+
+		tags
+	}
+
 	/// Ensures the tunnel contains a tag for the current PROTCOL_VERSION, and no
 	/// other version tags.
-	async fn update_protocol_version_tag(
+	async fn sync_tunnel_tags(
 		&self,
+		name: &str,
 		tunnel: Tunnel,
 		options: &TunnelRequestOptions,
 	) -> Result<Tunnel, AnyError> {
+		let new_tags = self.get_tags(name);
+		if vec_eq_unsorted(&tunnel.tags, &new_tags) {
+			return Ok(tunnel);
+		}
+
 		debug!(
 			self.log,
-			"Updating tunnel protocol version tag to {}", PROTOCOL_VERSION_TAG
+			"Updating tunnel tags {} -> {}",
+			tunnel.tags.join(", "),
+			new_tags.join(", ")
 		);
-		let mut new_tags: Vec<String> = tunnel
-			.tags
-			.into_iter()
-			.filter(|t| !t.starts_with(PROTOCOL_VERSION_TAG_PREFIX))
-			.collect();
-		new_tags.push(PROTOCOL_VERSION_TAG.to_string());
 
 		let tunnel_update = Tunnel {
 			tags: new_tags,
@@ -972,6 +996,20 @@ fn clean_hostname_for_tunnel(hostname: &str) -> String {
 	} else {
 		trimmed.to_owned()
 	}
+}
+
+fn vec_eq_unsorted(a: &[String], b: &[String]) -> bool {
+	if a.len() != b.len() {
+		return false;
+	}
+
+	for item in a {
+		if !b.contains(item) {
+			return false;
+		}
+	}
+
+	true
 }
 
 #[cfg(test)]

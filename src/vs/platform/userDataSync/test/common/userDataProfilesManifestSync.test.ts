@@ -100,7 +100,7 @@ suite('UserDataProfilesManifestSync', () => {
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
 		const profiles = getLocalProfiles(testClient);
-		assert.deepStrictEqual(profiles, [{ id: '1', name: 'name 1', shortName: undefined }]);
+		assert.deepStrictEqual(profiles, [{ id: '1', name: 'name 1', shortName: undefined, useDefaultFlags: undefined }]);
 	});
 
 	test('first time sync when profiles exists', async () => {
@@ -113,7 +113,7 @@ suite('UserDataProfilesManifestSync', () => {
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
 		const profiles = getLocalProfiles(testClient);
-		assert.deepStrictEqual(profiles, [{ id: '1', name: 'name 1', shortName: undefined }, { id: '2', name: 'name 2', shortName: undefined }]);
+		assert.deepStrictEqual(profiles, [{ id: '1', name: 'name 1', shortName: undefined, useDefaultFlags: undefined }, { id: '2', name: 'name 2', shortName: undefined, useDefaultFlags: undefined }]);
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
@@ -132,7 +132,7 @@ suite('UserDataProfilesManifestSync', () => {
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
 		const profiles = getLocalProfiles(testClient);
-		assert.deepStrictEqual(profiles, [{ id: '1', name: 'name 1', shortName: undefined }]);
+		assert.deepStrictEqual(profiles, [{ id: '1', name: 'name 1', shortName: undefined, useDefaultFlags: undefined }]);
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
@@ -149,10 +149,10 @@ suite('UserDataProfilesManifestSync', () => {
 		await testObject.sync(await testClient.getResourceManifest());
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
-		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '1', name: 'name 1', shortName: 'short 1' }, { id: '2', name: 'name 2', shortName: undefined }]);
+		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '1', name: 'name 1', shortName: 'short 1', useDefaultFlags: undefined }, { id: '2', name: 'name 2', shortName: undefined, useDefaultFlags: undefined }]);
 
 		await client2.sync();
-		assert.deepStrictEqual(getLocalProfiles(client2), [{ id: '1', name: 'name 1', shortName: 'short 1' }, { id: '2', name: 'name 2', shortName: undefined }]);
+		assert.deepStrictEqual(getLocalProfiles(client2), [{ id: '1', name: 'name 1', shortName: 'short 1', useDefaultFlags: undefined }, { id: '2', name: 'name 2', shortName: undefined, useDefaultFlags: undefined }]);
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
@@ -169,10 +169,10 @@ suite('UserDataProfilesManifestSync', () => {
 		await testObject.sync(await testClient.getResourceManifest());
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
-		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '1', name: 'name 2', shortName: '2' }]);
+		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '1', name: 'name 2', shortName: '2', useDefaultFlags: undefined }]);
 
 		await client2.sync();
-		assert.deepStrictEqual(getLocalProfiles(client2), [{ id: '1', name: 'name 2', shortName: '2' }]);
+		assert.deepStrictEqual(getLocalProfiles(client2), [{ id: '1', name: 'name 2', shortName: '2', useDefaultFlags: undefined }]);
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
@@ -190,15 +190,31 @@ suite('UserDataProfilesManifestSync', () => {
 		await testObject.sync(await testClient.getResourceManifest());
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
-		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '2', name: 'name 2', shortName: undefined }]);
+		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '2', name: 'name 2', shortName: undefined, useDefaultFlags: undefined }]);
 
 		await client2.sync();
-		assert.deepStrictEqual(getLocalProfiles(client2), [{ id: '2', name: 'name 2', shortName: undefined }]);
+		assert.deepStrictEqual(getLocalProfiles(client2), [{ id: '2', name: 'name 2', shortName: undefined, useDefaultFlags: undefined }]);
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseRemoteProfiles(content!);
 		assert.deepStrictEqual(actual, [{ id: '2', name: 'name 2', collection: '2' }]);
+	});
+
+	test('sync profile that uses default profile', async () => {
+		await client2.instantiationService.get(IUserDataProfilesService).createProfile('1', 'name 1', { useDefaultFlags: { keybindings: true } });
+		await client2.sync();
+
+		await testObject.sync(await testClient.getResourceManifest());
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
+
+		const { content } = await testClient.read(testObject.resource);
+		assert.ok(content !== null);
+		const actual = parseRemoteProfiles(content!);
+		assert.deepStrictEqual(actual, [{ id: '1', name: 'name 1', collection: '1', useDefaultFlags: { keybindings: true } }]);
+
+		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '1', name: 'name 1', shortName: undefined, useDefaultFlags: { keybindings: true } }]);
 	});
 
 	function parseRemoteProfiles(content: string): ISyncUserDataProfile[] {
@@ -209,7 +225,7 @@ suite('UserDataProfilesManifestSync', () => {
 	function getLocalProfiles(client: UserDataSyncClient): { id: string; name: string; shortName?: string }[] {
 		return client.instantiationService.get(IUserDataProfilesService).profiles
 			.slice(1).sort((a, b) => a.name.localeCompare(b.name))
-			.map(profile => ({ id: profile.id, name: profile.name, shortName: profile.shortName }));
+			.map(profile => ({ id: profile.id, name: profile.name, shortName: profile.shortName, useDefaultFlags: profile.useDefaultFlags }));
 	}
 
 

@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, ExtensionManagementError, ExtensionManagementErrorCode, IGalleryExtension, DISABLED_EXTENSIONS_STORAGE_PATH, EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, EXTENSION_INSTALL_SYNC_CONTEXT } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, ExtensionManagementError, ExtensionManagementErrorCode, IGalleryExtension, DISABLED_EXTENSIONS_STORAGE_PATH, EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, EXTENSION_INSTALL_SYNC_CONTEXT, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -405,7 +405,8 @@ export class LocalExtensionsProvider {
 
 	async updateLocalExtensions(added: ISyncExtension[], removed: IExtensionIdentifier[], updated: ISyncExtension[], skippedExtensions: ISyncExtension[], profile: IUserDataProfile): Promise<ISyncExtension[]> {
 		const syncResourceLogLabel = getSyncResourceLogLabel(SyncResource.Extensions, profile);
-		const extensionsToInstall: [ISyncExtension, IGalleryExtension][] = [];
+		const extensionsToInstall: InstallExtensionInfo[] = [];
+		const syncExtensionsToInstall = new Map<string, ISyncExtension>();
 		const removeFromSkipped: IExtensionIdentifier[] = [];
 		const addToSkipped: ISyncExtension[] = [];
 		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, profile.extensionsResource);
@@ -473,7 +474,17 @@ export class LocalExtensionsProvider {
 								|| (version && installedExtension.manifest.version !== version)  // Install if the extension version has changed
 							) {
 								if (await this.extensionManagementService.canInstall(extension)) {
-									extensionsToInstall.push([e, extension]);
+									extensionsToInstall.push({
+										extension, options: {
+											isMachineScoped: false /* set isMachineScoped value to prevent install and sync dialog in web */,
+											donotIncludePackAndDependencies: true,
+											installGivenVersion: e.pinned && !!e.version,
+											installPreReleaseVersion: e.preRelease,
+											profileLocation: profile.extensionsResource,
+											context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true, [EXTENSION_INSTALL_SYNC_CONTEXT]: true }
+										}
+									});
+									syncExtensionsToInstall.set(extension.identifier.id.toLowerCase(), e);
 								} else {
 									this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension because it cannot be installed.`, extension.displayName || extension.identifier.id);
 									addToSkipped.push(e);
@@ -504,26 +515,22 @@ export class LocalExtensionsProvider {
 		}
 
 		// 3. Install extensions at the end
-		for (const [e, extension] of extensionsToInstall) {
-			try {
-				this.logService.trace(`${syncResourceLogLabel}: Installing extension...`, extension.identifier.id, extension.version);
-				await this.extensionManagementService.installFromGallery(extension, {
-					isMachineScoped: false /* set isMachineScoped value to prevent install and sync dialog in web */,
-					donotIncludePackAndDependencies: true,
-					installGivenVersion: e.pinned && !!e.version,
-					installPreReleaseVersion: e.preRelease,
-					profileLocation: profile.extensionsResource,
-					context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true, [EXTENSION_INSTALL_SYNC_CONTEXT]: true }
-				});
-				this.logService.info(`${syncResourceLogLabel}: Installed extension.`, extension.identifier.id, extension.version);
-				removeFromSkipped.push(extension.identifier);
-			} catch (error) {
-				addToSkipped.push(e);
+		const results = await this.extensionManagementService.installGalleryExtensions(extensionsToInstall);
+		for (const { identifier, local, error, source } of results) {
+			const gallery = source as IGalleryExtension;
+			if (local) {
+				this.logService.info(`${syncResourceLogLabel}: Installed extension.`, identifier.id, gallery.version);
+				removeFromSkipped.push(identifier);
+			} else {
+				const e = syncExtensionsToInstall.get(identifier.id.toLowerCase());
+				if (e) {
+					addToSkipped.push(e);
+					this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension`, gallery.displayName || gallery.identifier.id);
+				}
 				if (error instanceof ExtensionManagementError && [ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatiblePreRelease, ExtensionManagementErrorCode.IncompatibleTargetPlatform].includes(error.code)) {
-					this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension because the compatible extension is not found.`, extension.displayName || extension.identifier.id);
-				} else {
+					this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension because the compatible extension is not found.`, gallery.displayName || gallery.identifier.id);
+				} else if (error) {
 					this.logService.error(error);
-					this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension`, extension.displayName || extension.identifier.id);
 				}
 			}
 		}

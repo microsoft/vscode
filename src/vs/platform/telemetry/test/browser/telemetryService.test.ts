@@ -292,6 +292,7 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
+		sinon.restore();
 	}));
 
 	test('Error Telemetry removes PII from filename with spaces', sinonTestFn(function (this: any) {
@@ -314,6 +315,7 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
+		sinon.restore();
 	}));
 
 	test('Uncaught Error Telemetry removes PII from filename', sinonTestFn(function (this: any) {
@@ -342,6 +344,7 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
+		sinon.restore();
 	}));
 
 	test('Unexpected Error Telemetry removes PII', sinonTestFn(function (this: any) {
@@ -398,6 +401,7 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
+		sinon.restore();
 	}));
 
 	test('Unexpected Error Telemetry removes PII but preserves Code file path', sinonTestFn(function (this: any) {
@@ -465,6 +469,7 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
+		sinon.restore();
 	}));
 
 	test('Unexpected Error Telemetry removes PII but preserves Code file path with node modules', sinonTestFn(function (this: any) {
@@ -559,6 +564,7 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
+		sinon.restore();
 	}));
 
 	test('Unexpected Error Telemetry removes PII but preserves Missing Model error message', sinonTestFn(function (this: any) {
@@ -623,6 +629,7 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
+		sinon.restore();
 	}));
 
 	test('Unexpected Error Telemetry removes PII but preserves No Such File error message', sinonTestFn(function (this: any) {
@@ -692,6 +699,7 @@ suite('TelemetryService', () => {
 
 			errorTelemetry.dispose();
 			service.dispose();
+			sinon.restore();
 		} finally {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
 		}

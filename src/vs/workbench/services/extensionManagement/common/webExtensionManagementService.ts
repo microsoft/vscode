@@ -11,7 +11,7 @@ import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionM
 import { IProfileAwareExtensionManagementService, IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
+import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, toExtensionManagementError, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -105,7 +105,14 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		if (!manifest) {
 			throw new Error(`Cannot find packageJSON from the location ${location.toString()}`);
 		}
-		return this.installExtension(manifest, location, options);
+		const result = await this.installExtensions([{ manifest, extension: location, options }]);
+		if (result[0]?.local) {
+			return result[0]?.local;
+		}
+		if (result[0]?.error) {
+			throw result[0].error;
+		}
+		throw toExtensionManagementError(new Error(`Unknown error while installing extension ${getGalleryExtensionId(manifest.publisher, manifest.name)}`));
 	}
 
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension> {
@@ -185,15 +192,10 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		if (!previousProfileLocation || !currentProfileLocation) {
 			throw new Error('This should not happen');
 		}
-		if (e.preserveData) {
-			await this.copyExtensions(previousProfileLocation, currentProfileLocation);
-			this._onDidChangeProfile.fire({ added: [], removed: [] });
-		} else {
-			const oldExtensions = await this.webExtensionsScannerService.scanUserExtensions(previousProfileLocation);
-			const newExtensions = await this.webExtensionsScannerService.scanUserExtensions(currentProfileLocation);
-			const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
-			this._onDidChangeProfile.fire({ added: added.map(e => toLocalExtension(e)), removed: removed.map(e => toLocalExtension(e)) });
-		}
+		const oldExtensions = await this.webExtensionsScannerService.scanUserExtensions(previousProfileLocation);
+		const newExtensions = await this.webExtensionsScannerService.scanUserExtensions(currentProfileLocation);
+		const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
+		this._onDidChangeProfile.fire({ added: added.map(e => toLocalExtension(e)), removed: removed.map(e => toLocalExtension(e)) });
 	}
 }
 

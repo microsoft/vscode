@@ -32,8 +32,7 @@ export class InlineCompletionContextKeys extends Disposable {
 			const model = this.model.read(reader);
 			const suggestion = model?.selectedInlineCompletion.read(reader);
 			const ghostText = model?.ghostText.read(reader);
-			const selectedSuggestItem = model?.selectedSuggestItem.read(reader);
-			this.inlineCompletionVisible.set(selectedSuggestItem === undefined && ghostText !== undefined && !ghostText.isEmpty());
+			this.inlineCompletionVisible.set(ghostText !== undefined && !ghostText.isEmpty());
 
 			if (ghostText && suggestion) {
 				this.suppressSuggestions.set(suggestion.inlineCompletion.source.inlineCompletions.suppressSuggestions);

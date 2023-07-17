@@ -546,7 +546,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		stat = stat || this.explorerService.findClosest(resource);
 		this.resourceContext.set(resource);
 		this.folderContext.set(!!stat && stat.isDirectory);
-		this.readonlyContext.set(!!stat && stat.isReadonly);
+		this.readonlyContext.set(!!stat && !!stat.isReadonly);
 		this.rootContext.set(!!stat && stat.isRoot);
 
 		if (resource) {

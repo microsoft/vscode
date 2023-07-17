@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IReader, IObservable, BaseObservable, IObserver, _setDerived, IChangeContext } from 'vs/base/common/observableImpl/base';
 import { getLogger } from 'vs/base/common/observableImpl/logging';
 
 export function derived<T>(debugName: string | (() => string), computeFn: (reader: IReader) => T): IObservable<T> {
-	return new Derived(debugName, computeFn, undefined, undefined);
+	return new Derived(debugName, computeFn, undefined, undefined, undefined);
 }
 
 export function derivedHandleChanges<T, TChangeSummary>(
@@ -18,7 +19,15 @@ export function derivedHandleChanges<T, TChangeSummary>(
 		handleChange: (context: IChangeContext, changeSummary: TChangeSummary) => boolean;
 	},
 	computeFn: (reader: IReader, changeSummary: TChangeSummary) => T): IObservable<T> {
-	return new Derived(debugName, computeFn, options.createEmptyChangeSummary, options.handleChange);
+	return new Derived(debugName, computeFn, options.createEmptyChangeSummary, options.handleChange, undefined);
+}
+
+export function derivedWithStore<T>(name: string, computeFn: (reader: IReader, store: DisposableStore) => T): IObservable<T> {
+	const store = new DisposableStore();
+	return new Derived(name, r => {
+		store.clear();
+		return computeFn(r, store);
+	}, undefined, undefined, () => store.dispose());
 }
 
 _setDerived(derived);
@@ -62,6 +71,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		private readonly computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
 		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
 		private readonly _handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
+		private readonly _handleLastObserverRemoved: (() => void) | undefined = undefined
 	) {
 		super();
 		this.changeSummary = this.createChangeSummary?.();
@@ -79,6 +89,8 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			d.removeObserver(this);
 		}
 		this.dependencies.clear();
+
+		this._handleLastObserverRemoved?.();
 	}
 
 	public override get(): T {

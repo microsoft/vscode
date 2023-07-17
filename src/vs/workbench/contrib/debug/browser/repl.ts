@@ -233,6 +233,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			this.completionItemProvider?.dispose();
 			if (session.capabilities.supportsCompletionsRequest) {
 				this.completionItemProvider = this.languageFeaturesService.completionProvider.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
+					_debugDisplayName: 'debugConsole',
 					triggerCharacters: session.capabilities.completionTriggerCharacters || ['.'],
 					provideCompletionItems: async (_: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 						// Disable history navigation because up and down are used to navigate through the suggest widget
@@ -649,15 +650,12 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		CONTEXT_IN_DEBUG_REPL.bindTo(this.scopedContextKeyService).set(true);
 
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
-		const options = getSimpleEditorOptions();
+		const options = getSimpleEditorOptions(this.configurationService);
 		options.readOnly = true;
 		options.suggest = { showStatusBar: true };
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 		options.acceptSuggestionOnEnter = config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off';
 		options.ariaLabel = localize('debugConsole', "Debug Console");
-		// We must respect some accessibility related settings
-		options.accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
-		options.cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
@@ -753,7 +751,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	override dispose(): void {
-		this.replInput.dispose();
+		this.replInput?.dispose(); // Disposed before rendered? #174558
 		this.replElementsChangeListener?.dispose();
 		this.refreshScheduler.dispose();
 		this.modelChangeListener.dispose();
