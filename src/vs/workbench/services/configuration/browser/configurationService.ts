@@ -1129,16 +1129,6 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	) {
 		super();
 
-		this.registerSchemas({
-			defaultSettingsSchema: {},
-			userSettingsSchema: {},
-			profileSettingsSchema: {},
-			machineSettingsSchema: {},
-			workspaceSettingsSchema: {},
-			folderSettingsSchema: {},
-			configDefaultsSchema: {},
-		});
-
 		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			this.registerConfigurationSchemas();
 
