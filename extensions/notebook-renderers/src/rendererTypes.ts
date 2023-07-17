@@ -36,6 +36,13 @@ export interface RenderOptions {
 
 export type IRichRenderContext = RendererContext<void> & { readonly settings: RenderOptions; readonly onDidChangeSettings: Event<RenderOptions> };
 
+export type OutputElementOptions = {
+	linesLimit: number;
+	scrollable?: boolean;
+	error?: boolean;
+	trustHtml?: boolean;
+};
+
 export interface OutputWithAppend extends OutputItem {
 	appendedText?(): string | undefined;
 }
