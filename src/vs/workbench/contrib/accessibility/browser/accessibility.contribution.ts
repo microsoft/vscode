@@ -106,7 +106,7 @@ class HoverAccessibleViewContribution extends Disposable {
 	};
 	constructor() {
 		super();
-		this._register(AccessibleViewAction.addImplementation(90, 'hover', accessor => {
+		this._register(AccessibleViewAction.addImplementation(95, 'hover', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
