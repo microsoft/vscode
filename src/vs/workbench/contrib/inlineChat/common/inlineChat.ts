@@ -24,6 +24,7 @@ export interface IInlineChatSlashCommand {
 	command: string;
 	detail?: string;
 	refer?: boolean;
+	hasArgs?: boolean;
 }
 
 export interface IInlineChatSession {

@@ -9,6 +9,13 @@ declare module 'vscode' {
 		command: string;
 		detail?: string;
 		refer?: boolean;
+		/**
+		 * Whether the command accepts arguments.
+		 * Defaults to `true`. When set to `false`,
+		 * accepting this command from the suggest
+		 * widget will also immediately execute it.
+		 */
+		hasArgs?: boolean;
 		// kind: CompletionItemKind;
 	}
 
