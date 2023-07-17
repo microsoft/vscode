@@ -45,14 +45,12 @@ function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, 
 export async function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 	const accessibleViewService = accessor.get(IAccessibleViewService);
 	const helpText = getAccessibilityHelpText(accessor);
-	const provider = accessibleViewService.registerProvider({
-		id: 'notebook',
+	accessibleViewService.show({
+		verbositySettingKey: 'notebook',
 		provideContent: () => helpText,
 		onClose: () => {
 			editor.focus();
-			provider.dispose();
 		},
 		options: { type: AccessibleViewType.HelpMenu, ariaLabel: 'Notebook accessibility help' }
 	});
-	accessibleViewService.show('notebook');
 }

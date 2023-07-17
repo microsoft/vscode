@@ -13,6 +13,7 @@ import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, Not
 import { Range } from 'vs/editor/common/core/range';
 import { INotebookWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerHost';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 
 function bufferHash(buffer: VSBuffer): number {
 	let initialHashVal = numberHash(104579, 0);
@@ -273,6 +274,39 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 			cellsDiff: diffResult,
 			// linesDiff: cellLineChanges
 		};
+	}
+
+	canPromptRecommendation(modelUrl: string): boolean {
+		const model = this._getModel(modelUrl);
+		const cells = model.cells;
+
+		for (let i = 0; i < cells.length; i++) {
+			const cell = cells[i];
+			if (cell.cellKind === CellKind.Markup) {
+				continue;
+			}
+
+			if (cell.language !== 'python') {
+				continue;
+			}
+
+			const lineCount = cell.textBuffer.getLineCount();
+			const maxLineCount = Math.min(lineCount, 20);
+			const range = new Range(1, 1, maxLineCount, cell.textBuffer.getLineLength(maxLineCount) + 1);
+			const searchParams = new SearchParams('import\\s*pandas|from\\s*pandas', true, false, null);
+			const searchData = searchParams.parseSearchRequest();
+
+			if (!searchData) {
+				continue;
+			}
+
+			const cellMatches = cell.textBuffer.findMatchesLineByLine(range, searchData, true, 1);
+			if (cellMatches.length > 0) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	protected _getModel(uri: string): MirrorNotebookDocument {

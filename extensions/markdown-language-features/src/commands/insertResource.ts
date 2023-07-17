@@ -81,6 +81,7 @@ function createInsertLinkEdit(activeEditor: vscode.TextEditor, selectedFiles: vs
 		const selectionText = activeEditor.document.getText(selection);
 		const dir = getDocumentDir(activeEditor.document);
 		const snippet = createUriListSnippet(dir, selectedFiles, title, placeholderValue, smartPaste, {
+
 			insertAsMedia,
 			placeholderText: selectionText,
 			placeholderStartIndex: (i + 1) * selectedFiles.length,

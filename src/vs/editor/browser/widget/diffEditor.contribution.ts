@@ -11,10 +11,12 @@ import { localize } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-class DiffReviewNext extends EditorAction {
+export class DiffReviewNext extends EditorAction {
+	public static id = 'editor.action.diffReview.next';
+
 	constructor() {
 		super({
-			id: 'editor.action.diffReview.next',
+			id: DiffReviewNext.id,
 			label: localize('editor.action.diffReview.next', "Go to Next Difference"),
 			alias: 'Go to Next Difference',
 			precondition: ContextKeyExpr.has('isInDiffEditor'),
@@ -32,10 +34,12 @@ class DiffReviewNext extends EditorAction {
 	}
 }
 
-class DiffReviewPrev extends EditorAction {
+export class DiffReviewPrev extends EditorAction {
+	public static id = 'editor.action.diffReview.prev';
+
 	constructor() {
 		super({
-			id: 'editor.action.diffReview.prev',
+			id: DiffReviewPrev.id,
 			label: localize('editor.action.diffReview.prev', "Go to Previous Difference"),
 			alias: 'Go to Previous Difference',
 			precondition: ContextKeyExpr.has('isInDiffEditor'),

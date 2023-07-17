@@ -101,6 +101,7 @@ export async function getMarkdownLink(document: vscode.TextDocument, ranges: rea
 		}
 
 		const snippet = await tryGetUriListSnippet(document, urlList, token, title, placeHolderValue, smartPaste.paste);
+
 		if (!snippet) {
 			return;
 		}
@@ -154,7 +155,7 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, urlLis
 export interface SkinnyTextDocument {
 	readonly dir: vscode.Uri | undefined;
 
-	readonly rangeStartOffset: number;
+  readonly rangeStartOffset: number;
 
 	readonly rangeEndOffset: number;
 

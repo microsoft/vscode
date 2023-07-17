@@ -9,14 +9,15 @@ import { localize } from 'vs/nls';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface IProfileExtension {
 	identifier: IExtensionIdentifier;
@@ -96,7 +97,6 @@ export class ExtensionsResourceInitializer implements IProfileResourceInitialize
 export class ExtensionsResource implements IProfileResource {
 
 	constructor(
-		private readonly extensionsDisabled: boolean,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IUserDataProfileStorageService private readonly userDataProfileStorageService: IUserDataProfileStorageService,
@@ -178,6 +178,20 @@ export class ExtensionsResource implements IProfileResource {
 		});
 	}
 
+	async copy(from: IUserDataProfile, to: IUserDataProfile, disableExtensions: boolean): Promise<void> {
+		await this.extensionManagementService.copyExtensions(from.extensionsResource, to.extensionsResource);
+		const extensionsToDisable = await this.withProfileScopedServices(from, async (extensionEnablementService) =>
+			extensionEnablementService.getDisabledExtensions());
+		if (disableExtensions) {
+			const extensions = await this.extensionManagementService.getInstalled(ExtensionType.User, to.extensionsResource);
+			for (const extension of extensions) {
+				extensionsToDisable.push(extension.identifier);
+			}
+		}
+		await this.withProfileScopedServices(to, async (extensionEnablementService) =>
+			Promise.all(extensionsToDisable.map(extension => extensionEnablementService.disableExtension(extension))));
+	}
+
 	async getLocalExtensions(profile: IUserDataProfile): Promise<IProfileExtension[]> {
 		return this.withProfileScopedServices(profile, async (extensionEnablementService) => {
 			const result: Array<IProfileExtension & { displayName?: string }> = [];
@@ -197,7 +211,7 @@ export class ExtensionsResource implements IProfileResource {
 					}
 				}
 				const profileExtension: IProfileExtension = { identifier, displayName: extension.manifest.displayName };
-				if (this.extensionsDisabled || disabled) {
+				if (disabled) {
 					profileExtension.disabled = true;
 				}
 				if (!extension.isBuiltin && extension.pinned) {
@@ -275,6 +289,7 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 		return extensions.length > 0;
 	}
 
+	abstract isFromDefaultProfile(): boolean;
 	abstract getContent(): Promise<string>;
 	protected abstract getExtensions(): Promise<IProfileExtension[]>;
 
@@ -284,18 +299,21 @@ export class ExtensionsResourceExportTreeItem extends ExtensionsResourceTreeItem
 
 	constructor(
 		private readonly profile: IUserDataProfile,
-		private readonly extensionsDisabled: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 	}
 
+	isFromDefaultProfile(): boolean {
+		return !this.profile.isDefault && !!this.profile.useDefaultFlags?.extensions;
+	}
+
 	protected getExtensions(): Promise<IProfileExtension[]> {
-		return this.instantiationService.createInstance(ExtensionsResource, this.extensionsDisabled).getLocalExtensions(this.profile);
+		return this.instantiationService.createInstance(ExtensionsResource).getLocalExtensions(this.profile);
 	}
 
 	async getContent(): Promise<string> {
-		return this.instantiationService.createInstance(ExtensionsResource, this.extensionsDisabled).getContent(this.profile, [...this.excludedExtensions.values()]);
+		return this.instantiationService.createInstance(ExtensionsResource).getContent(this.profile, [...this.excludedExtensions.values()]);
 	}
 
 }
@@ -309,12 +327,16 @@ export class ExtensionsResourceImportTreeItem extends ExtensionsResourceTreeItem
 		super();
 	}
 
+	isFromDefaultProfile(): boolean {
+		return false;
+	}
+
 	protected getExtensions(): Promise<IProfileExtension[]> {
-		return this.instantiationService.createInstance(ExtensionsResource, false).getProfileExtensions(this.content);
+		return this.instantiationService.createInstance(ExtensionsResource).getProfileExtensions(this.content);
 	}
 
 	async getContent(): Promise<string> {
-		const extensionsResource = this.instantiationService.createInstance(ExtensionsResource, false);
+		const extensionsResource = this.instantiationService.createInstance(ExtensionsResource);
 		const extensions = await extensionsResource.getProfileExtensions(this.content);
 		return extensionsResource.toContent(extensions, [...this.excludedExtensions.values()]);
 	}
