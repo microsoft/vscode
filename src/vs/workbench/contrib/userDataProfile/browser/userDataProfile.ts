@@ -100,7 +100,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.registerProfilesActions()));
 
 		this.registerCurrentProfilesActions();
-		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => this.registerCurrentProfilesActions()));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.registerCurrentProfilesActions()));
 
 		this.registerCreateFromCurrentProfileAction();
 		this.registerCreateProfileAction();
@@ -577,7 +577,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				extensions: result.items.includes(extensions)
 			} : undefined;
 			if (profile) {
-				await this.userDataProfileManagementService.updateProfile(profile, { name: result.name, useDefaultFlags });
+				await this.userDataProfileManagementService.updateProfile(profile, { name: result.name, useDefaultFlags: profile.useDefaultFlags && !useDefaultFlags ? {} : useDefaultFlags });
 			} else {
 				if (isString(source)) {
 					await this.userDataProfileImportExportService.importProfile(URI.parse(source), { mode: 'apply', name: result.name, useDefaultFlags });

@@ -64,7 +64,11 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super(extensionGalleryService, telemetryService, logService, productService, userDataProfilesService);
-		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenProfileChanged(e))));
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
+			if (!this.uriIdentityService.extUri.isEqual(e.previous.extensionsResource, e.profile.extensionsResource)) {
+				e.join(this.whenProfileChanged(e));
+			}
+		}));
 	}
 
 	private filterEvent({ profileLocation, applicationScoped }: { profileLocation?: URI; applicationScoped?: boolean }): boolean {

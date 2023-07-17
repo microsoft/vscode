@@ -25,7 +25,11 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 		protected readonly uriIdentityService: IUriIdentityService,
 	) {
 		super(channel);
-		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenProfileChanged(e))));
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
+			if (!this.uriIdentityService.extUri.isEqual(e.previous.extensionsResource, e.profile.extensionsResource)) {
+				e.join(this.whenProfileChanged(e));
+			}
+		}));
 	}
 
 	protected override fireEvent(event: Emitter<InstallExtensionEvent>, data: InstallExtensionEvent): Promise<void>;
