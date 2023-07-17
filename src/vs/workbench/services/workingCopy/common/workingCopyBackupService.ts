@@ -134,9 +134,8 @@ export abstract class WorkingCopyBackupService implements IWorkingCopyBackupServ
 		if (backupWorkspaceHome) {
 			return new WorkingCopyBackupServiceImpl(backupWorkspaceHome, this.fileService, this.logService);
 		}
-		else {
-			return new WorkingCopyBackupServiceImpl(URI.file('c:\\temp\\backup'), this.fileService, this.logService);
-		}
+
+		return new InMemoryWorkingCopyBackupService();
 	}
 
 	reinitialize(backupWorkspaceHome: URI | undefined): void {
