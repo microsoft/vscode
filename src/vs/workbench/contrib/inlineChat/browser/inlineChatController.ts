@@ -308,6 +308,20 @@ export class InlineChatController implements IEditorContribution {
 			if (pos && this._zone.value.widget.hasFocus() && this._zone.value.widget.value) {
 				this._editor.revealPosition(pos, ScrollType.Smooth);
 			}
+
+			const inputValue = this._zone.value.widget.value;
+			if (!inputValue) {
+				return;
+			}
+			const firstLineWithoutSlash = inputValue.substring(1);
+			const firstLineWithoutSlashOrWhitespace = firstLineWithoutSlash.trim();
+
+			const slashCommand = this._activeSession?.session.slashCommands?.find((c) => c.command === firstLineWithoutSlashOrWhitespace);
+			if (slashCommand?.hasArgs !== false || firstLineWithoutSlash !== `${slashCommand.command} `) {
+				return;
+			}
+
+			this.acceptInput();
 		});
 
 		this._showWidget(true, options.position);
