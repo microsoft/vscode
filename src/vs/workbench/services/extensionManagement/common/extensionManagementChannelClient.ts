@@ -89,6 +89,14 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 		return super.updateMetadata(local, metadata, await this.getProfileLocation(extensionsProfileResource));
 	}
 
+	override async toggleAppliationScope(local: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {
+		return super.toggleAppliationScope(local, await this.getProfileLocation(fromProfileLocation));
+	}
+
+	override async copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void> {
+		return super.copyExtensions(await this.getProfileLocation(fromProfileLocation), await this.getProfileLocation(toProfileLocation));
+	}
+
 	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
 		const previousProfileLocation = await this.getProfileLocation(e.previous.extensionsResource);
 		const currentProfileLocation = await this.getProfileLocation(e.profile.extensionsResource);

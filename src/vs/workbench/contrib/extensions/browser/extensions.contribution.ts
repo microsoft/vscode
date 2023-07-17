@@ -1433,7 +1433,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.toggleApplyToAllProfiles',
-			title: { value: localize('workbench.extensions.action.toggleApplyToAllProfiles', "Apply this Extension to all Profiles"), original: `Apply this Extension to all Profiles` },
+			title: { value: localize('workbench.extensions.action.toggleApplyToAllProfiles', "Apply Extension to all Profiles"), original: `Apply Extension to all Profiles` },
 			toggled: ContextKeyExpr.has('isApplicationScopedExtension'),
 			menu: {
 				id: MenuId.ExtensionContext,
