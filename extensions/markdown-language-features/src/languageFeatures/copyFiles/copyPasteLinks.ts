@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getMarkdownLink } from './shared';
+import { getMarkdownLink, externalUriSchemes } from './shared';
 class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 
 	readonly id = 'insertMarkdownLink';
@@ -19,11 +19,9 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		// Check if dataTransfer contains a URL
 		const item = dataTransfer.get('text/plain');
-		try {
-			new URL(await item?.value);
-		} catch (error) {
+		const isUrl = checkURL(item);
+		if (!isUrl) {
 			return;
 		}
 
@@ -42,6 +40,16 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 		return uriEdit;
 	}
 }
+
+function checkURL(item: vscode.DataTransferItem | undefined) {
+	try {
+		const url = new URL(item?.value);
+		return externalUriSchemes.includes(url.protocol.slice(0, -1));
+	} catch (error) {
+		return false;
+	}
+}
+
 
 export function registerLinkPasteSupport(selector: vscode.DocumentSelector,) {
 	return vscode.languages.registerDocumentPasteEditProvider(selector, new PasteLinkEditProvider(), {

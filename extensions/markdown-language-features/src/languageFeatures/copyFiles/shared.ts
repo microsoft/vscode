@@ -17,9 +17,12 @@ enum MediaKind {
 	Audio,
 }
 
-const externalUriSchemes = [
+export const externalUriSchemes = [
 	'http',
 	'https',
+	'mailto',
+	'file',
+	'ftp',
 ];
 
 export const mediaFileExtensions = new Map<string, MediaKind>([
@@ -61,6 +64,16 @@ export const mediaMimes = new Set([
 	'audio/x-wav',
 ]);
 
+export const smartPasteRegexes = new Set([
+	/\[.*\]\(.*\)/g, // Is a Markdown link
+	/!\[.*\]\(.*\)/g, // Is a Markdown image
+	/\[([^\]]*)\]\(([^)]*)\)/g, // In a Markdown link
+	/^```[\s\S]*?```$/gm, // In a fenced code block
+	/^\$\$[\s\S]*?\$\$$/gm, // In a fenced math block
+	/(^|[^`])(`+)((?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\2)(?:$|[^`])/gm, // In inline code
+	/(^|[^$])($+)((?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\2)(?:$|[^$])/gm // In inline math
+]);
+
 export async function getMarkdownLink(document: vscode.TextDocument, ranges: readonly vscode.Range[], urlList: string, token: vscode.CancellationToken): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string } | undefined> {
 	if (ranges.length === 0) {
 		return;
@@ -70,21 +83,29 @@ export async function getMarkdownLink(document: vscode.TextDocument, ranges: rea
 	const edits: vscode.SnippetTextEdit[] = [];
 	let placeHolderValue: number = ranges.length;
 	let label: string = '';
-	let smartPaste: boolean = false;
+	let smartPaste = { paste: false, title: false };
+
 	for (let i = 0; i < ranges.length; i++) {
+
+		let title = document.getText(ranges[i]);
+		//  const skinny_document: SkinnyTextDocument = {
+		//  rangeStartOffset: document.offsetAt(ranges[i].start),
+		// 	rangeEndOffset: document.offsetAt(ranges[i].end),
+		// 	dir: getDocumentDir(document),
+		// 	documentText: document.getText(),
+		// };
+
 		if (enabled === 'smart') {
-			const inMarkdownLink = checkPaste(document, ranges, /\[([^\]]*)\]\(([^)]*)\)/g, i);
-			const inFencedCode = checkPaste(document, ranges, /^```[\s\S]*?```$/gm, i);
-			const inFencedMath = checkPaste(document, ranges, /^\$\$[\s\S]*?\$\$$/gm, i);
-			smartPaste = (inMarkdownLink || inFencedCode || inFencedMath);
+			smartPaste = checkSmartPaste(document.getText(), document.offsetAt(ranges[i].start), document.offsetAt(ranges[i].end));
+			title = smartPaste.title ? '' : document.getText(ranges[i]);
 		}
 
-		const snippet = await tryGetUriListSnippet(document, urlList, token, document.getText(ranges[i]), placeHolderValue, smartPaste);
+		const snippet = await tryGetUriListSnippet(document, urlList, token, title, placeHolderValue, smartPaste.paste);
 		if (!snippet) {
 			return;
 		}
 
-		smartPaste = false;
+		smartPaste.paste = false;
 		placeHolderValue--;
 		edits.push(new vscode.SnippetTextEdit(ranges[i], snippet.snippet));
 		label = snippet.label;
@@ -96,17 +117,20 @@ export async function getMarkdownLink(document: vscode.TextDocument, ranges: rea
 	return { additionalEdits, label };
 }
 
-function checkPaste(document: vscode.TextDocument, ranges: readonly vscode.Range[], regex: RegExp, index: number): boolean {
-	const rangeStartOffset = document.offsetAt(ranges[index].start);
-	const rangeEndOffset = document.offsetAt(ranges[index].end);
-	const matches = [...document.getText().matchAll(regex)];
-	for (const match of matches) {
-		if (match.index !== undefined && rangeStartOffset > match.index && rangeEndOffset < match.index + match[0].length) {
-			return true;
+// Checks whether to apply smart paste and changes link title if necessary
+export function checkSmartPaste(documentText: string, rangeStartOffset: number, rangeEndOffset: number): { paste: boolean; title: boolean } {
+	let paste = false;
+	let title = false;
+	for (const regex of smartPasteRegexes) {
+		const markdownLink = regex.source === /\[.*\]\(.*\)/g.source || regex.source === /!\[.*\]\(.*\)/g.source;
+		const matches = [...documentText.matchAll(regex)];
+		for (const match of matches) {
+			paste = match.index !== undefined && (!markdownLink && rangeStartOffset > match.index && rangeEndOffset < match.index + match[0].length);
+			title = match.index !== undefined && ((markdownLink && rangeStartOffset >= match.index && rangeEndOffset <= match.index + match[0].length));
 		}
 	}
 
-	return false;
+	return { paste, title };
 }
 
 export async function tryGetUriListSnippet(document: vscode.TextDocument, urlList: String, token: vscode.CancellationToken, title = '', placeHolderValue = 0, smartPaste = false): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
@@ -122,8 +146,19 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, urlLis
 			// noop
 		}
 	}
+	const documentDir = getDocumentDir(document);
 
-	return createUriListSnippet(document, uris, title, placeHolderValue, smartPaste);
+	return createUriListSnippet(documentDir, uris, title, placeHolderValue, smartPaste);
+}
+
+export interface SkinnyTextDocument {
+	readonly dir: vscode.Uri | undefined;
+
+	readonly rangeStartOffset: number;
+
+	readonly rangeEndOffset: number;
+
+	readonly documentText: string;
 }
 
 interface UriListSnippetOptions {
@@ -141,8 +176,35 @@ interface UriListSnippetOptions {
 	readonly separator?: string;
 }
 
+export function createLinkSnippet(
+	snippet: vscode.SnippetString,
+	smartPaste: boolean,
+	mdPath: string,
+	title: string,
+	uri: vscode.Uri,
+	placeholderValue: number,
+): vscode.SnippetString {
+	if (smartPaste) {
+		if (externalUriSchemes.includes(uri.scheme)) {
+			snippet.appendText(uri.toString(true));
+		} else {
+			snippet.appendText(escapeMarkdownLinkPath(mdPath));
+		}
+	} else {
+		snippet.appendText('[');
+		snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
+		if (externalUriSchemes.includes(uri.scheme)) {
+			const uriString = uri.toString(true);
+			snippet.appendText(`](${uriString})`);
+		} else {
+			snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
+		}
+	}
+	return snippet;
+}
+
 export function createUriListSnippet(
-	document: vscode.TextDocument,
+	documentDir: vscode.Uri | undefined,
 	uris: readonly vscode.Uri[],
 	title = '',
 	placeholderValue = 0,
@@ -153,16 +215,13 @@ export function createUriListSnippet(
 		return;
 	}
 
-	const dir = getDocumentDir(document);
-
-	const snippet = new vscode.SnippetString();
-
+	let snippet = new vscode.SnippetString();
 	let insertedLinkCount = 0;
 	let insertedImageCount = 0;
 	let insertedAudioVideoCount = 0;
 
 	uris.forEach((uri, i) => {
-		const mdPath = getMdPath(dir, uri);
+		const mdPath = getMdPath(documentDir, uri);
 
 		const ext = URI.Utils.extname(uri).toLowerCase().replace('.', '');
 		const insertAsMedia = typeof options?.insertAsMedia === 'undefined' ? mediaFileExtensions.has(ext) : !!options.insertAsMedia;
@@ -179,33 +238,22 @@ export function createUriListSnippet(
 			snippet.appendText(`<audio src="${escapeHtmlAttribute(mdPath)}" controls title="`);
 			snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
 			snippet.appendText('"></audio>');
-		} else {
+		} else if (insertAsMedia) {
 			if (insertAsMedia) {
 				insertedImageCount++;
-				snippet.appendText('![');
-				const placeholderText = escapeBrackets(title) || options?.placeholderText || 'Alt text';
-				const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (placeholderValue === 0 ? undefined : placeholderValue);
-				snippet.appendPlaceholder(placeholderText, placeholderIndex);
-				snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
-			} else {
-				insertedLinkCount++;
 				if (smartPaste) {
-					if (externalUriSchemes.includes(uri.scheme)) {
-						snippet.appendText(uri.toString(true));
-					} else {
-						snippet.appendText(escapeMarkdownLinkPath(mdPath));
-					}
+					snippet.appendText(escapeMarkdownLinkPath(mdPath));
 				} else {
-					snippet.appendText('[');
-					snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
-					if (externalUriSchemes.includes(uri.scheme)) {
-						const uriString = uri.toString(true);
-						snippet.appendText(`](${uriString})`);
-					} else {
-						snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
-					}
+					snippet.appendText('![');
+					const placeholderText = escapeBrackets(title) || options?.placeholderText || 'Alt text';
+					const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (placeholderValue === 0 ? undefined : placeholderValue);
+					snippet.appendPlaceholder(placeholderText, placeholderIndex);
+					snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
 				}
 			}
+		} else {
+			insertedLinkCount++;
+			snippet = createLinkSnippet(snippet, smartPaste, mdPath, title, uri, placeholderValue);
 		}
 
 		if (i < uris.length - 1 && uris.length > 1) {
@@ -293,7 +341,8 @@ export async function createEditForMediaFiles(
 		}
 	}
 
-	const snippet = createUriListSnippet(document, fileEntries.map(entry => entry.uri));
+	const documentDir = getDocumentDir(document);
+	const snippet = createUriListSnippet(documentDir, fileEntries.map(entry => entry.uri));
 	if (!snippet) {
 		return;
 	}
