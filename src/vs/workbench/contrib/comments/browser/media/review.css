@@ -350,6 +350,12 @@
 }
 
 .review-widget .body .comment-form .monaco-editor,
+.review-widget .body .comment-form .monaco-editor .monaco-editor-background,
+.review-widget .body .edit-container .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-peekViewTitle-background);
+}
+
+.review-widget .body .comment-form .monaco-editor,
 .review-widget .body .edit-container .monaco-editor {
 	width: 100%;
 	min-height: 90px;

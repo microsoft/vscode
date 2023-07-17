@@ -7,10 +7,10 @@ import { Dimension, h } from 'vs/base/browser/dom';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecorationOptions, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
@@ -21,7 +21,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ILogService } from 'vs/platform/log/common/log';
 import { lineRangeAsRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
@@ -43,7 +43,6 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 
 	private readonly _sessionStore = this._disposables.add(new DisposableStore());
 	private readonly _diffEditor: IDiffEditor;
-	private readonly _inlineDiffDecorations: IEditorDecorationsCollection;
 	private _dim: Dimension | undefined;
 	private _isVisible: boolean = false;
 	private _isDiffLocked: boolean = false;
@@ -59,13 +58,11 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		super.create();
 		assertType(editor.hasModel());
 
-		this._inlineDiffDecorations = editor.createDecorationsCollection();
-
 		const diffContributions = EditorExtensionsRegistry
 			.getEditorContributions()
 			.filter(c => c.id !== INLINE_CHAT_ID && c.id !== FoldingController.ID);
 
-		this._diffEditor = instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.domNode, {
+		this._diffEditor = instantiationService.createInstance(EmbeddedDiffEditorWidget2, this._elements.domNode, {
 			scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
 			scrollBeyondLastLine: false,
 			renderMarginRevertIcon: true,
@@ -120,10 +117,6 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		this._disposables.add(themeService.onDidColorThemeChange(doStyle));
 	}
 
-	override dispose(): void {
-		this._inlineDiffDecorations.clear();
-		super.dispose();
-	}
 
 	protected override _fillContainer(container: HTMLElement): void {
 		container.appendChild(this._elements.domNode);
@@ -137,7 +130,6 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 
 	override hide(): void {
 		this._cleanupFullDiff();
-		this._cleanupInlineDiff();
 		this._sessionStore.clear();
 		super.hide();
 		this._isVisible = false;
@@ -175,70 +167,9 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			return;
 		}
 
-		if (changes.length === 0 || this._session.textModel0.getValueLength() === 0) {
-			// no change or changes to an empty file
-			this._logService.debug('[IE] livePreview-mode: no diff');
-			this.hide();
-
-		} else if (changes.every(isInlineDiffFriendly)) {
-			// simple changes
-			this._logService.debug('[IE] livePreview-mode: inline diff');
-			this._cleanupFullDiff();
-			this._renderChangesWithInlineDiff(changes);
-
-		} else {
-			// complex changes
-			this._logService.debug('[IE] livePreview-mode: full diff');
-			this._cleanupInlineDiff();
-			this._renderChangesWithFullDiff(changes, range);
-		}
-	}
-
-	// --- inline diff
-
-	private _renderChangesWithInlineDiff(changes: readonly LineRangeMapping[]) {
-		const original = this._session.textModel0;
-
-		const decorations: IModelDeltaDecoration[] = [];
-
-		for (const { innerChanges } of changes) {
-			if (!innerChanges) {
-				continue;
-			}
-			for (const { modifiedRange, originalRange } of innerChanges) {
-
-				const options: IModelDecorationOptions = {
-					description: 'interactive-diff-inline',
-					showIfCollapsed: true,
-				};
-
-				if (!modifiedRange.isEmpty()) {
-					options.className = 'inline-chat-lines-inserted-range';
-				}
-
-				if (!originalRange.isEmpty()) {
-					let content = original.getValueInRange(originalRange);
-					if (content.length > 7) {
-						content = content.substring(0, 7) + '…';
-					}
-					options.before = {
-						content,
-						inlineClassName: 'inline-chat-lines-deleted-range-inline'
-					};
-				}
-
-				decorations.push({
-					range: modifiedRange,
-					options
-				});
-			}
-		}
-
-		this._inlineDiffDecorations.set(decorations);
-	}
-
-	private _cleanupInlineDiff() {
-		this._inlineDiffDecorations.clear();
+		// complex changes
+		this._logService.debug('[IE] livePreview-mode: full diff');
+		this._renderChangesWithFullDiff(changes, range);
 	}
 
 	// --- full diff
@@ -273,7 +204,9 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 	}
 
 	private _computeHiddenRanges(model: ITextModel, range: Range, changes: readonly LineRangeMapping[]) {
-		assertType(changes.length > 0);
+		if (changes.length === 0) {
+			changes = [new LineRangeMapping(LineRange.fromRange(range), LineRange.fromRange(range), undefined)];
+		}
 
 		let originalLineRange = changes[0].originalRange;
 		let modifiedLineRange = changes[0].modifiedRange;
@@ -307,15 +240,22 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 	}
 
 	private _hideEditorRanges(editor: ICodeEditor, lineRanges: LineRange[]): void {
+		assertType(editor.hasModel());
+
 		lineRanges = lineRanges.filter(range => !range.isEmpty);
 		if (lineRanges.length === 0) {
 			// todo?
 			this._logService.debug(`[IE] diff NOTHING to hide for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
 			return;
 		}
-		const ranges = lineRanges.map(lineRangeAsRange);
-		editor.setHiddenAreas(ranges, InlineChatLivePreviewWidget._hideId);
-		this._logService.debug(`[IE] diff HIDING ${ranges} for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
+
+		let hiddenRanges = lineRanges.map(lineRangeAsRange);
+		if (LineRange.fromRange(hiddenRanges.reduce(Range.plusRange)).equals(LineRange.ofLength(1, editor.getModel().getLineCount()))) {
+			// TODO not every line can be hidden, keep the first line around
+			hiddenRanges = [editor.getModel().getFullModelRange().delta(1)];
+		}
+		editor.setHiddenAreas(hiddenRanges, InlineChatLivePreviewWidget._hideId);
+		this._logService.debug(`[IE] diff HIDING ${hiddenRanges} for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
 	}
 
 	protected override revealRange(range: Range, isLastLine: boolean): void {
@@ -338,21 +278,6 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			this._logService.debug('[IE] diff LAYOUT', this._dim);
 		}
 	}
-}
-
-function isInlineDiffFriendly(mapping: LineRangeMapping): boolean {
-	if (!mapping.modifiedRange.equals(mapping.originalRange)) {
-		return false;
-	}
-	if (!mapping.innerChanges) {
-		return false;
-	}
-	for (const { modifiedRange, originalRange } of mapping.innerChanges) {
-		if (Range.spansMultipleLines(modifiedRange) || Range.spansMultipleLines(originalRange)) {
-			return false;
-		}
-	}
-	return true;
 }
 
 

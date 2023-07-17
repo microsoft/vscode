@@ -24,6 +24,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ITreeViewsDnDService, TreeViewsDnDService } from 'vs/editor/common/services/treeViewsDnd';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 type TreeItemHandle = string;
 
@@ -99,6 +100,14 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			get onDidExpandElement() { return treeView.onDidExpandElement; },
 			get selection() { return treeView.selectedElements; },
 			get onDidChangeSelection() { return treeView.onDidChangeSelection; },
+			get activeItem() {
+				checkProposedApiEnabled(extension, 'treeViewActiveItem');
+				return treeView.focusedElement;
+			},
+			get onDidChangeActiveItem() {
+				checkProposedApiEnabled(extension, 'treeViewActiveItem');
+				return treeView.onDidChangeActiveItem;
+			},
 			get visible() { return treeView.visible; },
 			get onDidChangeVisibility() { return treeView.onDidChangeVisibility; },
 			get onDidChangeCheckboxState() {
@@ -222,20 +231,12 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		treeView.setExpanded(treeItemHandle, expanded);
 	}
 
-	$setSelection(treeViewId: string, treeItemHandles: string[]): void {
+	$setSelectionAndFocus(treeViewId: string, selectedHandles: string[], focusedHandle: string) {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			throw new NoTreeViewError(treeViewId);
 		}
-		treeView.setSelection(treeItemHandles);
-	}
-
-	$setFocus(treeViewId: string, treeItemHandles: string) {
-		const treeView = this.treeViews.get(treeViewId);
-		if (!treeView) {
-			throw new NoTreeViewError(treeViewId);
-		}
-		treeView.setFocus(treeItemHandles);
+		treeView.setSelectionAndFocus(selectedHandles, focusedHandle);
 	}
 
 	$setVisible(treeViewId: string, isVisible: boolean): void {
@@ -312,6 +313,9 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private _onDidChangeSelection: Emitter<vscode.TreeViewSelectionChangeEvent<T>> = this._register(new Emitter<vscode.TreeViewSelectionChangeEvent<T>>());
 	readonly onDidChangeSelection: Event<vscode.TreeViewSelectionChangeEvent<T>> = this._onDidChangeSelection.event;
+
+	private _onDidChangeActiveItem: Emitter<vscode.TreeViewActiveItemChangeEvent<T>> = this._register(new Emitter<vscode.TreeViewActiveItemChangeEvent<T>>());
+	readonly onDidChangeActiveItem: Event<vscode.TreeViewActiveItemChangeEvent<T>> = this._onDidChangeActiveItem.event;
 
 	private _onDidChangeVisibility: Emitter<vscode.TreeViewVisibilityChangeEvent> = this._register(new Emitter<vscode.TreeViewVisibilityChangeEvent>());
 	readonly onDidChangeVisibility: Event<vscode.TreeViewVisibilityChangeEvent> = this._onDidChangeVisibility.event;
@@ -479,15 +483,20 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	setSelection(treeItemHandles: TreeItemHandle[]): void {
-		if (!equals(this._selectedHandles, treeItemHandles)) {
-			this._selectedHandles = treeItemHandles;
+	setSelectionAndFocus(selectedHandles: TreeItemHandle[], focusedHandle: string): void {
+		const changedSelection = !equals(this._selectedHandles, selectedHandles);
+		this._selectedHandles = selectedHandles;
+
+		const changedFocus = this._focusedHandle !== focusedHandle;
+		this._focusedHandle = focusedHandle;
+
+		if (changedSelection) {
 			this._onDidChangeSelection.fire(Object.freeze({ selection: this.selectedElements }));
 		}
-	}
 
-	setFocus(treeItemHandle: TreeItemHandle) {
-		this._focusedHandle = treeItemHandle;
+		if (changedFocus) {
+			this._onDidChangeActiveItem.fire(Object.freeze({ activeItem: this.focusedElement }));
+		}
 	}
 
 	setVisible(visible: boolean): void {

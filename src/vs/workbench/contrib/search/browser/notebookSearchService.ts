@@ -123,7 +123,7 @@ export class NotebookSearchService implements INotebookSearchService {
 		return Array.from(uris.keys());
 	}
 
-	async notebookSearch(query: ITextQuery, token: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> {
+	async notebookSearch(query: ITextQuery, token: CancellationToken, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> {
 
 		if (query.type !== QueryType.Text) {
 			return {
@@ -139,7 +139,7 @@ export class NotebookSearchService implements INotebookSearchService {
 
 		const localNotebookWidgets = this.getLocalNotebookWidgets();
 		const localNotebookFiles = localNotebookWidgets.map(widget => widget.viewModel!.uri);
-		const localResultPromise = this.getLocalNotebookResults(query, token, localNotebookWidgets);
+		const localResultPromise = this.getLocalNotebookResults(query, token, localNotebookWidgets, searchInstanceID);
 		const searchLocalEnd = Date.now();
 
 		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental?.closedNotebookRichContentResults ?? false;
@@ -248,7 +248,7 @@ export class NotebookSearchService implements INotebookSearchService {
 		};
 	}
 
-	private async getLocalNotebookResults(query: ITextQuery, token: CancellationToken, widgets: Array<NotebookEditorWidget>): Promise<INotebookSearchMatchResults> {
+	private async getLocalNotebookResults(query: ITextQuery, token: CancellationToken, widgets: Array<NotebookEditorWidget>, searchID: string): Promise<INotebookSearchMatchResults> {
 		const localResults = new ResourceMap<IFileMatchWithCells | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		let limitHit = false;
 
@@ -266,7 +266,7 @@ export class NotebookSearchService implements INotebookSearchService {
 					includeMarkupPreview: query.contentPattern.notebookInfo?.isInNotebookMarkdownPreview,
 					includeCodeInput: query.contentPattern.notebookInfo?.isInNotebookCellInput,
 					includeOutput: query.contentPattern.notebookInfo?.isInNotebookCellOutput,
-				}, token, false, true);
+				}, token, false, true, searchID);
 
 
 			if (matches.length) {

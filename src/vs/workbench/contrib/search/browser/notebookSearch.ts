@@ -14,5 +14,5 @@ export interface INotebookSearchService {
 
 	readonly _serviceBrand: undefined;
 
-	notebookSearch(query: ITextQuery, token: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }>;
+	notebookSearch(query: ITextQuery, token: CancellationToken, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }>;
 }

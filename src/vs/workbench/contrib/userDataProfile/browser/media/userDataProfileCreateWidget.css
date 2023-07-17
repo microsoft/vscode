@@ -1,0 +1,28 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.profile-type-widget {
+	display: flex;
+	margin: 0px 6px 8px 11px;
+	align-items: center;
+	justify-content: space-between;
+	font-size: 12px;
+}
+
+.profile-type-widget>.profile-type-select-container {
+	overflow: hidden;
+	padding-left: 10px;
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.profile-type-widget>.profile-type-select-container>.monaco-select-box {
+	cursor: pointer;
+	line-height: 17px;
+	padding: 2px 23px 2px 8px;
+	border-radius: 2px;
+}

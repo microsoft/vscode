@@ -363,6 +363,7 @@ function getStatus(status: Status): string {
 		case Status.IGNORED: return 'IGNORED';
 		case Status.INTENT_TO_ADD: return 'INTENT_TO_ADD';
 		case Status.INTENT_TO_RENAME: return 'INTENT_TO_RENAME';
+		case Status.TYPE_CHANGED: return 'TYPE_CHANGED';
 		case Status.ADDED_BY_US: return 'ADDED_BY_US';
 		case Status.ADDED_BY_THEM: return 'ADDED_BY_THEM';
 		case Status.DELETED_BY_US: return 'DELETED_BY_US';

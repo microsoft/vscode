@@ -98,6 +98,7 @@ interface QuickInputUI {
 	widget: HTMLElement;
 	rightActionBar: ActionBar;
 	checkAll: HTMLInputElement;
+	inputContainer: HTMLElement;
 	filterContainer: HTMLElement;
 	inputBox: QuickInputBox;
 	visibleCountContainer: HTMLElement;
@@ -536,6 +537,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _customButtonHover: string | undefined;
 	private _quickNavigate: IQuickNavigateConfiguration | undefined;
 	private _hideInput: boolean | undefined;
+	private _hideCountBadge: boolean | undefined;
 	private _hideCheckAll: boolean | undefined;
 
 	get quickNavigate() {
@@ -795,6 +797,15 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
+	get hideCountBadge() {
+		return !!this._hideCountBadge;
+	}
+
+	set hideCountBadge(hideCountBadge: boolean) {
+		this._hideCountBadge = hideCountBadge;
+		this.update();
+	}
+
 	get hideCheckAll() {
 		return !!this._hideCheckAll;
 	}
@@ -1037,7 +1048,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			inputBox: !this._hideInput,
 			progressBar: !this._hideInput || hasDescription,
 			visibleCount: true,
-			count: this.canSelectMany,
+			count: this.canSelectMany && !this._hideCountBadge,
 			ok: this.ok === 'default' ? this.canSelectMany : this.ok,
 			list: true,
 			message: !!this.validationMessage,
@@ -1314,7 +1325,6 @@ export class QuickInputController extends Disposable {
 		const rightActionBar = this._register(new ActionBar(titleBar));
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
 
-		const description1 = dom.append(container, $('.quick-input-description'));
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
 		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
@@ -1331,8 +1341,8 @@ export class QuickInputController extends Disposable {
 		}));
 
 		const description2 = dom.append(headerContainer, $('.quick-input-description'));
-		const extraContainer = dom.append(headerContainer, $('.quick-input-and-message'));
-		const filterContainer = dom.append(extraContainer, $('.quick-input-filter'));
+		const inputContainer = dom.append(headerContainer, $('.quick-input-and-message'));
+		const filterContainer = dom.append(inputContainer, $('.quick-input-filter'));
 
 		const inputBox = this._register(new QuickInputBox(filterContainer, this.styles.inputBox, this.styles.toggle));
 		inputBox.setAttribute('aria-describedby', `${this.idPrefix}message`);
@@ -1360,13 +1370,15 @@ export class QuickInputController extends Disposable {
 			this.onDidCustomEmitter.fire();
 		}));
 
-		const message = dom.append(extraContainer, $(`#${this.idPrefix}message.quick-input-message`));
+		const message = dom.append(inputContainer, $(`#${this.idPrefix}message.quick-input-message`));
 
 		const progressBar = new ProgressBar(container, this.styles.progressBar);
 		progressBar.getContainer().classList.add('quick-input-progress');
 
 		const widget = dom.append(container, $('.quick-input-html-widget'));
 		widget.tabIndex = -1;
+
+		const description1 = dom.append(container, $('.quick-input-description'));
 
 		const listId = this.idPrefix + 'list';
 		const list = this._register(new QuickInputList(container, listId, this.options));
@@ -1481,6 +1493,7 @@ export class QuickInputController extends Disposable {
 			widget,
 			rightActionBar,
 			checkAll,
+			inputContainer,
 			filterContainer,
 			inputBox,
 			visibleCountContainer,
@@ -1749,6 +1762,7 @@ export class QuickInputController extends Disposable {
 		ui.description1.style.display = visibilities.description && (visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
 		ui.description2.style.display = visibilities.description && !(visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
 		ui.checkAll.style.display = visibilities.checkAll ? '' : 'none';
+		ui.inputContainer.style.display = visibilities.inputBox ? '' : 'none';
 		ui.filterContainer.style.display = visibilities.inputBox ? '' : 'none';
 		ui.visibleCountContainer.style.display = visibilities.visibleCount ? '' : 'none';
 		ui.countContainer.style.display = visibilities.count ? '' : 'none';

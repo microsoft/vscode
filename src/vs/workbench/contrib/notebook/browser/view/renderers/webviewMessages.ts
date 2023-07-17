@@ -404,22 +404,25 @@ export interface ITokenizedStylesChangedMessage {
 export interface IFindMessage {
 	readonly type: 'find';
 	readonly query: string;
-	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean };
+	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string };
 }
 
 
-export interface IFindHighlightMessage {
-	readonly type: 'findHighlight';
+export interface IFindHighlightCurrentMessage {
+	readonly type: 'findHighlightCurrent';
 	readonly index: number;
+	readonly ownerID: string;
 }
 
-export interface IFindUnHighlightMessage {
-	readonly type: 'findUnHighlight';
+export interface IFindUnHighlightCurrentMessage {
+	readonly type: 'findUnHighlightCurrent';
 	readonly index: number;
+	readonly ownerID: string;
 }
 
 export interface IFindStopMessage {
 	readonly type: 'findStop';
+	readonly ownerID: string;
 }
 
 export interface ISearchPreviewInfo {
@@ -443,8 +446,8 @@ export interface IDidFindMessage extends BaseToWebviewMessage {
 	readonly matches: IFindMatch[];
 }
 
-export interface IDidFindHighlightMessage extends BaseToWebviewMessage {
-	readonly type: 'didFindHighlight';
+export interface IDidFindHighlightCurrentMessage extends BaseToWebviewMessage {
+	readonly type: 'didFindHighlightCurrent';
 	readonly offset: number;
 }
 
@@ -509,7 +512,7 @@ export type FromWebviewMessage = WebviewInitialized |
 	IRenderedMarkupMessage |
 	IRenderedCellOutputMessage |
 	IDidFindMessage |
-	IDidFindHighlightMessage |
+	IDidFindHighlightCurrentMessage |
 	IOutputResizedMessage |
 	IGetOutputItemMessage |
 	ILogRendererDebugMessage |
@@ -541,8 +544,8 @@ export type ToWebviewMessage = IClearMessage |
 	ITokenizedCodeBlockMessage |
 	ITokenizedStylesChangedMessage |
 	IFindMessage |
-	IFindHighlightMessage |
-	IFindUnHighlightMessage |
+	IFindHighlightCurrentMessage |
+	IFindUnHighlightCurrentMessage |
 	IFindStopMessage |
 	IReturnOutputItemMessage;
 

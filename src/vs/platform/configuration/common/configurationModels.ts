@@ -269,8 +269,10 @@ export class ConfigurationModel implements IConfigurationModel {
 }
 
 export interface ConfigurationParseOptions {
-	scopes: ConfigurationScope[] | undefined;
+	scopes?: ConfigurationScope[];
 	skipRestricted?: boolean;
+	include?: string[];
+	exclude?: string[];
 }
 
 export class ConfigurationModelParser {
@@ -383,7 +385,7 @@ export class ConfigurationModelParser {
 
 	private filter(properties: any, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema | undefined }, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}; restricted: string[]; hasExcludedProperties: boolean } {
 		let hasExcludedProperties = false;
-		if (!options?.scopes && !options?.skipRestricted) {
+		if (!options?.scopes && !options?.skipRestricted && !options?.exclude?.length) {
 			return { raw: properties, restricted: [], hasExcludedProperties };
 		}
 		const raw: any = {};
@@ -400,9 +402,10 @@ export class ConfigurationModelParser {
 				if (propertySchema?.restricted) {
 					restricted.push(key);
 				}
-				// Load unregistered configurations always.
-				if ((scope === undefined || options.scopes === undefined || options.scopes.includes(scope)) // Check scopes
-					&& !(options.skipRestricted && propertySchema?.restricted)) { // Check restricted
+				if (!options.exclude?.includes(key) /* Check exclude */
+					&& (options.include?.includes(key) /* Check include */
+						|| ((scope === undefined || options.scopes === undefined || options.scopes.includes(scope)) /* Check scopes */
+							&& !(options.skipRestricted && propertySchema?.restricted)))) /* Check restricted */ {
 					raw[key] = properties[key];
 				} else {
 					hasExcludedProperties = true;
@@ -435,19 +438,17 @@ export class ConfigurationModelParser {
 export class UserSettings extends Disposable {
 
 	private readonly parser: ConfigurationModelParser;
-	private readonly parseOptions: ConfigurationParseOptions;
 	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
 		private readonly userSettingsResource: URI,
-		private readonly scopes: ConfigurationScope[] | undefined,
+		protected parseOptions: ConfigurationParseOptions,
 		extUri: IExtUri,
 		private readonly fileService: IFileService
 	) {
 		super();
 		this.parser = new ConfigurationModelParser(this.userSettingsResource.toString());
-		this.parseOptions = { scopes: this.scopes };
 		this._register(this.fileService.watch(extUri.dirname(this.userSettingsResource)));
 		// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
 		this._register(this.fileService.watch(this.userSettingsResource));
@@ -467,7 +468,10 @@ export class UserSettings extends Disposable {
 		}
 	}
 
-	reparse(): ConfigurationModel {
+	reparse(parseOptions?: ConfigurationParseOptions): ConfigurationModel {
+		if (parseOptions) {
+			this.parseOptions = parseOptions;
+		}
 		this.parser.reparse(this.parseOptions);
 		return this.parser.configurationModel;
 	}

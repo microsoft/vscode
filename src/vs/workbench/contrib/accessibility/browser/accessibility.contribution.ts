@@ -23,6 +23,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
@@ -32,7 +33,7 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 		this._editor.focus();
 	}
 	options: IAccessibleViewOptions = { type: AccessibleViewType.HelpMenu, ariaLabel: localize('editor-help', "editor accessibility help"), readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
-	id: string = 'editor';
+	verbositySettingKey: string = 'editor';
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
@@ -115,7 +116,7 @@ class HoverAccessibleViewContribution extends Disposable {
 				return false;
 			}
 			accessibleViewService.show({
-				id: 'hover',
+				verbositySettingKey: 'hover',
 				provideContent() { return content; },
 				onClose() {
 					controller.focus();
@@ -125,7 +126,7 @@ class HoverAccessibleViewContribution extends Disposable {
 				}
 			});
 			return true;
-		}));
+		}, EditorContextKeys.hoverFocused));
 	}
 }
 
