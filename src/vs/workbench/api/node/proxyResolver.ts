@@ -30,7 +30,10 @@ export function connectProxyResolver(
 	const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
 	const params: ProxyAgentParams = {
 		resolveProxy: url => extHostWorkspace.resolveProxy(url),
-		getHttpProxySetting: () => configProvider.getConfiguration('http').get('proxy'),
+		getProxyURL: () => configProvider.getConfiguration('http').get('proxy'),
+		getProxySupport: () => configProvider.getConfiguration('http').get<ProxySupportSetting>('proxySupport') || 'off',
+		getSystemCertificatesV1: () => certSettingV1(configProvider),
+		getSystemCertificatesV2: () => certSettingV2(configProvider),
 		log: (level, message, ...args) => {
 			switch (level) {
 				case LogLevel.Trace: extHostLogService.trace(message, ...args); break;
@@ -51,49 +54,18 @@ export function connectProxyResolver(
 		// TODO @chrmarti Remove this from proxy agent
 		proxyResolveTelemetry: () => { },
 		useHostProxy: doUseHostProxy,
-		useSystemCertificatesV2: certSettingV2(configProvider),
 		addCertificates: [],
 		env: process.env,
 	};
-	configProvider.onDidChangeConfiguration(e => {
-		params.useSystemCertificatesV2 = certSettingV2(configProvider);
-	});
 	const resolveProxy = createProxyResolver(params);
-	const lookup = createPatchedModules(params, configProvider, resolveProxy);
+	const lookup = createPatchedModules(params, resolveProxy);
 	return configureModuleLoading(extensionService, lookup);
 }
 
-function createPatchedModules(params: ProxyAgentParams, configProvider: ExtHostConfigProvider, resolveProxy: ReturnType<typeof createProxyResolver>) {
-	const proxySetting = {
-		config: configProvider.getConfiguration('http')
-			.get<ProxySupportSetting>('proxySupport') || 'off'
-	};
-	configProvider.onDidChangeConfiguration(e => {
-		proxySetting.config = configProvider.getConfiguration('http')
-			.get<ProxySupportSetting>('proxySupport') || 'off';
-	});
-	const certSetting = {
-		config: certSettingV1(configProvider)
-	};
-	configProvider.onDidChangeConfiguration(e => {
-		certSetting.config = certSettingV1(configProvider);
-	});
-
+function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType<typeof createProxyResolver>) {
 	return {
-		http: {
-			off: Object.assign({}, http, createHttpPatch(http, resolveProxy, { config: 'off' }, certSetting, true)),
-			on: Object.assign({}, http, createHttpPatch(http, resolveProxy, { config: 'on' }, certSetting, true)),
-			override: Object.assign({}, http, createHttpPatch(http, resolveProxy, { config: 'override' }, certSetting, true)),
-			onRequest: Object.assign({}, http, createHttpPatch(http, resolveProxy, proxySetting, certSetting, true)),
-			default: Object.assign(http, createHttpPatch(http, resolveProxy, proxySetting, certSetting, false)) // run last
-		} as Record<string, typeof http>,
-		https: {
-			off: Object.assign({}, https, createHttpPatch(https, resolveProxy, { config: 'off' }, certSetting, true)),
-			on: Object.assign({}, https, createHttpPatch(https, resolveProxy, { config: 'on' }, certSetting, true)),
-			override: Object.assign({}, https, createHttpPatch(https, resolveProxy, { config: 'override' }, certSetting, true)),
-			onRequest: Object.assign({}, https, createHttpPatch(https, resolveProxy, proxySetting, certSetting, true)),
-			default: Object.assign(https, createHttpPatch(https, resolveProxy, proxySetting, certSetting, false)) // run last
-		} as Record<string, typeof https>,
+		http: Object.assign(http, createHttpPatch(params, http, resolveProxy)),
+		https: Object.assign(https, createHttpPatch(params, https, resolveProxy)),
 		net: Object.assign(net, createNetPatch(params, net)),
 		tls: Object.assign(tls, createTlsPatch(params, tls))
 	};
@@ -128,14 +100,13 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 					return original.apply(this, arguments);
 				}
 
-				const modules = lookup[request];
 				const ext = extensionPaths.findSubstr(URI.file(parent.filename));
 				let cache = modulesCache.get(ext);
 				if (!cache) {
 					modulesCache.set(ext, cache = {});
 				}
 				if (!cache[request]) {
-					const mod = modules.default;
+					const mod = lookup[request];
 					cache[request] = <any>{ ...mod }; // Copy to work around #93167.
 				}
 				return cache[request];
