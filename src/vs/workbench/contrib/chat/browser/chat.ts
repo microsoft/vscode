@@ -61,6 +61,7 @@ export interface IChatWidget {
 	focusLastMessage(): void;
 	focusInput(): void;
 	getSlashCommands(): Promise<ISlashCommand[] | undefined>;
+	getSlashCommandsSync(): ISlashCommand[] | undefined;
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 }

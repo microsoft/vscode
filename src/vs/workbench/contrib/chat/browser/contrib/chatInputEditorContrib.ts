@@ -165,7 +165,7 @@ class InputEditorDecorations extends Disposable {
 	}
 }
 
-class InputEditorSlashCommandFollowups extends Disposable {
+class InputEditorSlashCommandMode extends Disposable {
 	constructor(
 		private readonly widget: IChatWidget,
 		@IChatService private readonly chatService: IChatService
@@ -194,7 +194,31 @@ class InputEditorSlashCommandFollowups extends Disposable {
 	}
 }
 
-ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandFollowups);
+class InputEditorSlashCommandAutoSend extends Disposable {
+	constructor(private readonly widget: IChatWidget) {
+		super();
+		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.onDidChangeModelContent()));
+	}
+
+	private onDidChangeModelContent() {
+		// If the input editor has a slash command that does not need additional args to run, submit it
+		const firstLine = this.widget.inputEditor.getModel()?.getLineContent(1);
+		if (!firstLine) {
+			return;
+		}
+		const firstLineWithoutSlash = firstLine.substring(1);
+		const firstLineWithoutSlashOrWhitespace = firstLineWithoutSlash.trim();
+
+		const slashCommand = this.widget.getSlashCommandsSync()?.find((c) => c.command === firstLineWithoutSlashOrWhitespace);
+		if (slashCommand?.hasArgs !== false || firstLineWithoutSlash !== `${slashCommand.command} `) {
+			return;
+		}
+
+		this.widget.acceptInput();
+	}
+}
+
+ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandMode, InputEditorSlashCommandAutoSend);
 
 class SlashCommandCompletions extends Disposable {
 	constructor(

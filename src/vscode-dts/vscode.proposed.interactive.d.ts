@@ -130,10 +130,11 @@ declare module 'vscode' {
 
 	export interface InteractiveSessionSlashCommand {
 		command: string;
-		shouldRepopulate?: boolean;
 		kind: CompletionItemKind;
 		detail?: string;
+		shouldRepopulate?: boolean;
 		followupPlaceholder?: string;
+		hasArgs?: boolean;
 	}
 
 	export interface InteractiveSessionReplyFollowup {

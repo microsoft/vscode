@@ -226,6 +226,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	getSlashCommandsSync(): ISlashCommand[] | undefined {
+		return this.lastSlashCommands;
+	}
+
 	async getSlashCommands(): Promise<ISlashCommand[] | undefined> {
 		if (!this.viewModel) {
 			return;
@@ -238,6 +242,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					command: 'clear',
 					sortText: 'z_clear',
 					detail: localize('clear', "Clear the session"),
+					hasArgs: false
 				};
 				this.lastSlashCommands = [
 					...(commands ?? []),
