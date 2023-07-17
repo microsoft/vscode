@@ -2533,6 +2533,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 				`Do not use.`);
 		}
 
+		if (configuration.autoClosingPairs) {
+			checkProposedApiEnabled(extension, 'languageConfigurationAutoClosingPairs');
+		}
+
 		const handle = this._nextHandle();
 		const serializedConfiguration: extHostProtocol.ILanguageConfigurationDto = {
 			comments: configuration.comments,
@@ -2542,7 +2546,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			onEnterRules: configuration.onEnterRules ? ExtHostLanguageFeatures._serializeOnEnterRules(configuration.onEnterRules) : undefined,
 			__electricCharacterSupport: configuration.__electricCharacterSupport,
 			__characterPairSupport: configuration.__characterPairSupport,
+			autoClosingPairs: configuration.autoClosingPairs
 		};
+
 		this._proxy.$setLanguageConfiguration(handle, languageId, serializedConfiguration);
 		return this._createDisposable(handle);
 	}

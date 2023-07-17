@@ -407,7 +407,6 @@ export enum ExtensionManagementErrorCode {
 	Deprecated = 'Deprecated',
 	Malicious = 'Malicious',
 	Incompatible = 'Incompatible',
-	IncompatiblePreRelease = 'IncompatiblePreRelease',
 	IncompatibleTargetPlatform = 'IncompatibleTargetPlatform',
 	ReleaseVersionNotFound = 'ReleaseVersionNotFound',
 	Invalid = 'Invalid',

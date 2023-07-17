@@ -566,7 +566,17 @@ impl<'a> ServerBuilder<'a> {
 	}
 
 	fn get_base_command(&self) -> Command {
+		#[cfg(not(windows))]
 		let mut cmd = Command::new(&self.server_paths.executable);
+		#[cfg(windows)]
+		let mut cmd = {
+			let mut cmd = Command::new("cmd");
+			cmd.arg("/Q");
+			cmd.arg("/C");
+			cmd.arg(&self.server_paths.executable);
+			cmd
+		};
+
 		cmd.stdin(std::process::Stdio::null())
 			.args(self.server_params.code_server_args.command_arguments());
 		cmd

@@ -251,7 +251,8 @@ class SharedProcessMain extends Disposable {
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// Request
-		services.set(IRequestService, new RequestChannelClient(mainProcessService.getChannel('request')));
+		const requestService = new RequestChannelClient(mainProcessService.getChannel('request'));
+		services.set(IRequestService, requestService);
 
 		// Checksum
 		services.set(IChecksumService, new SyncDescriptor(ChecksumService, undefined, false /* proxied to other processes */));
@@ -279,7 +280,7 @@ class SharedProcessMain extends Disposable {
 			const logAppender = new TelemetryLogAppender(logService, loggerService, environmentService, productService);
 			appenders.push(logAppender);
 			if (productService.aiConfig?.ariaKey) {
-				const collectorAppender = new OneDataSystemAppender(internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
+				const collectorAppender = new OneDataSystemAppender(requestService, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
 				this._register(toDisposable(() => collectorAppender.flush())); // Ensure the 1DS appender is disposed so that it flushes remaining data
 				appenders.push(collectorAppender);
 			}

@@ -275,7 +275,9 @@ impl DevTunnels {
 
 	/// Renames the current tunnel to the new name.
 	pub async fn rename_tunnel(&mut self, name: &str) -> Result<(), AnyError> {
-		self.update_tunnel_name(None, name).await.map(|_| ())
+		self.update_tunnel_name(self.launcher_tunnel.load(), name)
+			.await
+			.map(|_| ())
 	}
 
 	/// Updates the name of the existing persisted tunnel to the new name.
@@ -286,28 +288,34 @@ impl DevTunnels {
 		name: &str,
 	) -> Result<(Tunnel, PersistedTunnel), AnyError> {
 		let name = name.to_ascii_lowercase();
-		self.check_is_name_free(&name).await?;
-
-		debug!(self.log, "Tunnel name changed, applying updates...");
 
 		let (mut full_tunnel, mut persisted, is_new) = match persisted {
 			Some(persisted) => {
+				debug!(
+					self.log,
+					"Found a persisted tunnel, seeing if the name matches..."
+				);
 				self.get_or_create_tunnel(persisted, Some(&name), NO_REQUEST_OPTIONS)
 					.await
 			}
-			None => self
-				.create_tunnel(&name, NO_REQUEST_OPTIONS)
-				.await
-				.map(|(pt, t)| (t, pt, true)),
+			None => {
+				debug!(self.log, "Creating a new tunnel with the requested name");
+				self.create_tunnel(&name, NO_REQUEST_OPTIONS)
+					.await
+					.map(|(pt, t)| (t, pt, true))
+			}
 		}?;
 
-		if is_new {
+		let desired_tags = self.get_tags(&name);
+		if is_new || vec_eq_as_set(&full_tunnel.tags, &desired_tags) {
 			return Ok((full_tunnel, persisted));
 		}
 
-		full_tunnel.tags = self.get_tags(&name);
+		debug!(self.log, "Tunnel name changed, applying updates...");
 
-		let new_tunnel = spanf!(
+		full_tunnel.tags = desired_tags;
+
+		let updated_tunnel = spanf!(
 			self.log,
 			self.log.span("dev-tunnel.tag.update"),
 			self.client.update_tunnel(&full_tunnel, NO_REQUEST_OPTIONS)
@@ -317,7 +325,7 @@ impl DevTunnels {
 		persisted.name = name;
 		self.launcher_tunnel.save(Some(persisted.clone()))?;
 
-		Ok((new_tunnel, persisted))
+		Ok((updated_tunnel, persisted))
 	}
 
 	/// Gets the persisted tunnel from the service, or creates a new one.
@@ -443,6 +451,8 @@ impl DevTunnels {
 	) -> Result<(PersistedTunnel, Tunnel), AnyError> {
 		info!(self.log, "Creating tunnel with the name: {}", name);
 
+		self.check_is_name_free(name).await?;
+
 		let mut tried_recycle = false;
 
 		let new_tunnel = Tunnel {
@@ -527,7 +537,7 @@ impl DevTunnels {
 		options: &TunnelRequestOptions,
 	) -> Result<Tunnel, AnyError> {
 		let new_tags = self.get_tags(name);
-		if vec_eq_unsorted(&tunnel.tags, &new_tags) {
+		if vec_eq_as_set(&tunnel.tags, &new_tags) {
 			return Ok(tunnel);
 		}
 
@@ -610,7 +620,7 @@ impl DevTunnels {
 	}
 
 	async fn check_is_name_free(&mut self, name: &str) -> Result<(), AnyError> {
-		let existing = spanf!(
+		let existing: Vec<Tunnel> = spanf!(
 			self.log,
 			self.log.span("dev-tunnel.rename.search"),
 			self.client.list_all_tunnels(&TunnelRequestOptions {
@@ -998,7 +1008,7 @@ fn clean_hostname_for_tunnel(hostname: &str) -> String {
 	}
 }
 
-fn vec_eq_unsorted(a: &[String], b: &[String]) -> bool {
+fn vec_eq_as_set(a: &[String], b: &[String]) -> bool {
 	if a.len() != b.len() {
 		return false;
 	}

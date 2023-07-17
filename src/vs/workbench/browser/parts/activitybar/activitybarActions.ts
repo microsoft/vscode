@@ -9,7 +9,6 @@ import { EventType, addDisposableListener, EventHelper, append, $, clearNode, hi
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenuService, MenuId, IMenu, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
@@ -485,7 +484,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, true, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
-		this._register(Event.any(this.userDataProfileService.onDidUpdateCurrentProfile, this.userDataProfileService.onDidChangeCurrentProfile)(() => this.updateProfileBadge()));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.updateProfileBadge()));
 	}
 
 	override render(container: HTMLElement): void {

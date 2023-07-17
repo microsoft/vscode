@@ -537,6 +537,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _customButtonHover: string | undefined;
 	private _quickNavigate: IQuickNavigateConfiguration | undefined;
 	private _hideInput: boolean | undefined;
+	private _hideCountBadge: boolean | undefined;
 	private _hideCheckAll: boolean | undefined;
 
 	get quickNavigate() {
@@ -796,6 +797,15 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
+	get hideCountBadge() {
+		return !!this._hideCountBadge;
+	}
+
+	set hideCountBadge(hideCountBadge: boolean) {
+		this._hideCountBadge = hideCountBadge;
+		this.update();
+	}
+
 	get hideCheckAll() {
 		return !!this._hideCheckAll;
 	}
@@ -1038,7 +1048,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			inputBox: !this._hideInput,
 			progressBar: !this._hideInput || hasDescription,
 			visibleCount: true,
-			count: this.canSelectMany,
+			count: this.canSelectMany && !this._hideCountBadge,
 			ok: this.ok === 'default' ? this.canSelectMany : this.ok,
 			list: true,
 			message: !!this.validationMessage,
@@ -1315,7 +1325,6 @@ export class QuickInputController extends Disposable {
 		const rightActionBar = this._register(new ActionBar(titleBar));
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
 
-		const description1 = dom.append(container, $('.quick-input-description'));
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
 		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
@@ -1368,6 +1377,8 @@ export class QuickInputController extends Disposable {
 
 		const widget = dom.append(container, $('.quick-input-html-widget'));
 		widget.tabIndex = -1;
+
+		const description1 = dom.append(container, $('.quick-input-description'));
 
 		const listId = this.idPrefix + 'list';
 		const list = this._register(new QuickInputList(container, listId, this.options));
