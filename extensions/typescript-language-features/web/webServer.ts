@@ -127,11 +127,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 
 			watchFiles.set(path, { path, callback, pollingInterval, options });
 			const watchIds = [++watchId];
-			const res = toResource(path);
-			fsWatcher.postMessage({ type: 'watchFile', uri: res, id: watchIds[0] });
+			fsWatcher.postMessage({ type: 'watchFile', uri: uri, id: watchIds[0] });
 			if (enabledExperimentalTypeAcquisition && looksLikeNodeModules(path)) {
 				watchIds.push(++watchId);
-				fsWatcher.postMessage({ type: 'watchFile', uri: mapUri(res, 'vscode-node-modules'), id: watchIds[1] });
+				fsWatcher.postMessage({ type: 'watchFile', uri: mapUri(uri, 'vscode-node-modules'), id: watchIds[1] });
 			}
 			return {
 				close() {
@@ -147,9 +146,17 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		watchDirectory(path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions): ts.FileWatcher {
 			logVerbose('fs.watchDirectory', { path });
 
+			let uri: URI;
+			try {
+				uri = toResource(path);
+			} catch (e) {
+				console.error(e);
+				return noopWatcher;
+			}
+
 			watchDirectories.set(path, { path, callback, recursive, options });
-			watchId++;
-			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri: toResource(path), id: watchId });
+			const watchIds = [++watchId];
+			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri, id: watchId });
 			return {
 				close() {
 					logVerbose('fs.watchDirectory.close', { path });
