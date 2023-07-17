@@ -59,20 +59,31 @@ impl From<AuthProvider> for crate::auth::AuthProvider {
 	}
 }
 
-impl From<ExistingTunnelArgs> for Option<dev_tunnels::ExistingTunnel> {
-	fn from(d: ExistingTunnelArgs) -> Option<dev_tunnels::ExistingTunnel> {
-		if let (Some(tunnel_id), Some(tunnel_name), Some(cluster), Some(host_token)) =
-			(d.tunnel_id, d.tunnel_name, d.cluster, d.host_token)
-		{
+fn fulfill_existing_tunnel_args(
+	d: ExistingTunnelArgs,
+	name_arg: &Option<String>,
+) -> Option<dev_tunnels::ExistingTunnel> {
+	let tunnel_name = d.tunnel_name.or_else(|| name_arg.clone());
+
+	match (d.tunnel_id, d.cluster, d.host_token) {
+		(Some(tunnel_id), None, Some(host_token)) => {
+			let i = tunnel_id.find('.')?;
 			Some(dev_tunnels::ExistingTunnel {
-				tunnel_id,
+				tunnel_id: tunnel_id[..i].to_string(),
+				cluster: tunnel_id[i + 1..].to_string(),
 				tunnel_name,
 				host_token,
-				cluster,
 			})
-		} else {
-			None
 		}
+
+		(Some(tunnel_id), Some(cluster), Some(host_token)) => Some(dev_tunnels::ExistingTunnel {
+			tunnel_id,
+			tunnel_name,
+			host_token,
+			cluster,
+		}),
+
+		_ => None,
 	}
 }
 
@@ -412,8 +423,10 @@ async fn serve_with_csa(
 	let auth = Auth::new(&paths, log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&log, auth, &paths);
 	loop {
-		let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
-			dt.start_existing_tunnel(d).await
+		let tunnel = if let Some(t) =
+			fulfill_existing_tunnel_args(gateway_args.tunnel.clone(), &gateway_args.name)
+		{
+			dt.start_existing_tunnel(t).await
 		} else {
 			dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name)
 				.await
