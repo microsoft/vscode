@@ -58,10 +58,9 @@
   resolved "https://registry.yarnpkg.com/@vscode/iconv-lite-umd/-/iconv-lite-umd-0.7.0.tgz#d2f1e0664ee6036408f9743fee264ea0699b0e48"
   integrity sha512-bRRFxLfg5dtAyl5XyiVWz/ZBPahpOpPrNYnnHpOpUZvam4tKH35wdhP4Kj6PbM0+KdliOsPzbGWpkxcdpNB/sg==
 
-"@vscode/proxy-agent@^0.16.0":
+"@vscode/proxy-agent@https://github.com/microsoft/vscode-proxy-agent.git#7da7af0c82fa6e9d0952a40068a27f869b7e1de6":
   version "0.16.0"
-  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.16.0.tgz#32054387f7aaf26d1b5d53f553d53bfd8489eab8"
-  integrity sha512-b8yBHgdngDrP+9HPJtnPUJjPHd+zfEvOYoc8KioWJVs0rFVT2U77nFDVC70Mrrscf87ya2a/sPY32nTrwFfOQQ==
+  resolved "https://github.com/microsoft/vscode-proxy-agent.git#7da7af0c82fa6e9d0952a40068a27f869b7e1de6"
   dependencies:
     "@tootallnate/once" "^3.0.0"
     agent-base "^7.0.1"
