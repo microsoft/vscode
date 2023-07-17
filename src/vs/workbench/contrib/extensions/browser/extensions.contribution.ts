@@ -515,27 +515,22 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 	// Global actions
 	private registerGlobalActions(): void {
-		this._register(MenuRegistry.appendMenuItems([{
-			id: MenuId.MenubarPreferencesMenu,
-			item: {
-				command: {
-					id: VIEWLET_ID,
-					title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
-				},
-				group: '2_configuration',
-				order: 3
-			}
-		}, {
-			id: MenuId.GlobalActivity,
-			item: {
-				command: {
-					id: VIEWLET_ID,
-					title: localize('showExtensions', "Extensions")
-				},
-				group: '2_configuration',
-				order: 3
-			}
-		}]));
+		this._register(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+			command: {
+				id: VIEWLET_ID,
+				title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
+			},
+			group: '2_configuration',
+			order: 3
+		}));
+		this._register(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			command: {
+				id: VIEWLET_ID,
+				title: localize('showExtensions', "Extensions")
+			},
+			group: '2_configuration',
+			order: 3
+		}));
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installExtensions',
@@ -672,7 +667,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					try {
 						await this.extensionsWorkbenchService.install(extension, extension.local?.preRelease ? { installPreReleaseVersion: true } : undefined);
 					} catch (err) {
-						runAction(this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, undefined, err));
+						runAction(this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, err));
 					}
 				}));
 			}
@@ -1432,6 +1427,24 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = this.extensionsWorkbenchService.local.find(e => areSameExtensions({ id }, e.identifier));
 				if (extension) {
 					return this.extensionsWorkbenchService.toggleExtensionIgnoredToSync(extension);
+				}
+			}
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.toggleApplyToAllProfiles',
+			title: { value: localize('workbench.extensions.action.toggleApplyToAllProfiles', "Apply Extension to all Profiles"), original: `Apply Extension to all Profiles` },
+			toggled: ContextKeyExpr.has('isApplicationScopedExtension'),
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '2_configure',
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('isDefaultApplicationScopedExtension').negate()),
+				order: 4
+			},
+			run: async (accessor: ServicesAccessor, id: string) => {
+				const extension = this.extensionsWorkbenchService.local.find(e => areSameExtensions({ id }, e.identifier));
+				if (extension) {
+					return this.extensionsWorkbenchService.toggleApplyExtensionToAllProfiles(extension);
 				}
 			}
 		});

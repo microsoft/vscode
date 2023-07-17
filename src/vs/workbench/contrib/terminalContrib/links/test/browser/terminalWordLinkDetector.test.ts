@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { importAMDNodeModule } from 'vs/amdX';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -11,23 +12,29 @@ import { ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contr
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalWordLinkDetector';
 import { assertLinkHelper } from 'vs/workbench/contrib/terminalContrib/links/test/browser/linkTestUtils';
 import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 
 suite('Workbench - TerminalWordLinkDetector', () => {
 	let configurationService: TestConfigurationService;
 	let detector: TerminalWordLinkDetector;
 	let xterm: Terminal;
+	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
-		const instantiationService = new TestInstantiationService();
+		instantiationService = new TestInstantiationService();
 		configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: '' } });
 
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.set(IProductService, TestProductService);
 
-		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
 		detector = instantiationService.createInstance(TerminalWordLinkDetector, xterm);
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	async function assertLink(

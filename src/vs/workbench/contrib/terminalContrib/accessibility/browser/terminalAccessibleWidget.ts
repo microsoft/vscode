@@ -66,7 +66,7 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		};
 		const font = _xterm.getFont();
 		const editorOptions: IEditorConstructionOptions = {
-			...getSimpleEditorOptions(),
+			...getSimpleEditorOptions(this._configurationService),
 			lineDecorationsWidth: 6,
 			dragAndDrop: true,
 			cursorWidth: 1,
@@ -80,8 +80,6 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 			quickSuggestions: false,
 			renderWhitespace: 'none',
 			dropIntoEditor: { enabled: true },
-			accessibilitySupport: this._configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
-			cursorBlinking: this._configurationService.getValue('terminal.integrated.cursorBlinking'),
 			readOnly: true
 		};
 		this._editorWidget = this.add(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions));

@@ -7,12 +7,17 @@
 	z-index: 3;
 }
 
+.monaco-editor .zone-widget-container.inside-selection {
+	background-color: var(--vscode-inlineChat-regionHighlight);
+}
+
 .monaco-editor .inline-chat {
 	color: inherit;
 	padding: 6px;
 	border-radius: 6px;
 	border: 1px solid var(--vscode-inlineChat-border);
 	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
+	background: var(--vscode-inlineChat-background);
 }
 
 /* body */
@@ -134,10 +139,11 @@
 	padding-left: 10px;
 	padding-right: 4px;
 	margin-left: auto;
+	align-self: center;
 }
 
 .monaco-editor .inline-chat .markdownMessage {
-	padding-top: 10px;
+	padding: 10px 5px;
 }
 
 .monaco-editor .inline-chat .markdownMessage.hidden {
@@ -149,7 +155,6 @@
 }
 
 .monaco-editor .inline-chat .markdownMessage .message {
-	margin-left: 5px;
 	-webkit-line-clamp: initial;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
@@ -166,10 +171,6 @@
 	-webkit-line-clamp: var(--vscode-inline-chat-expanded, 10);
 }
 
-.monaco-editor .inline-chat .markdownMessage .messageActions {
-	direction: rtl;
-}
-
 .monaco-editor .inline-chat .status .label A {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
@@ -183,27 +184,48 @@
 	color: var(--vscode-editorWarning-foreground);
 }
 
+.monaco-editor .inline-chat .status .actions  {
+	display: flex;
+}
+
+.monaco-editor .inline-chat .status .actions > .monaco-button,
+.monaco-editor .inline-chat .status .actions > .monaco-button-dropdown {
+	margin-right: 6px;
+}
+
+.monaco-editor .inline-chat .status .actions > .monaco-button-dropdown > .monaco-dropdown-button {
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
+}
+
+.monaco-editor .inline-chat .status .actions > .monaco-button.codicon {
+	display: flex;
+}
+
+.monaco-editor .inline-chat .status .actions > .monaco-button.codicon::before {
+	align-self: center;
+}
+
+.monaco-editor .inline-chat .status .actions .monaco-text-button {
+	padding: 2px 4px;
+	white-space: nowrap;
+}
+
 .monaco-editor .inline-chat .status .monaco-toolbar .action-item {
 	padding: 0 2px;
 }
 
+/* TODO@jrieken not needed? */
 .monaco-editor .inline-chat .status .monaco-toolbar .action-label.checked {
 	color: var(--vscode-inputOption-activeForeground);
 	background-color: var(--vscode-inputOption-activeBackground);
 	outline: 1px solid var(--vscode-inputOption-activeBorder);
 }
 
-.monaco-editor .inline-chat .status .monaco-toolbar .action-item.button-item .action-label {
-	color: var(--vscode-button-foreground);
-	background-color: var(--vscode-button-background);
-	border-radius: 2px;
-	padding: 4px 6px;
-	line-height: 18px;
-}
 
-.monaco-editor .inline-chat .status .monaco-toolbar .action-item.button-item .action-label>.codicon {
-	color: unset;
-	font-size: 14px;
+.monaco-editor .inline-chat .status .monaco-toolbar .action-item.button-item .action-label:is(:hover, :focus) {
+	background-color: var(--vscode-button-hoverBackground);
 }
 
 /* preview */
@@ -256,7 +278,7 @@
 }
 
 .monaco-editor .inline-chat-slash-command {
-	color: var(--vscode-textLink-foreground)
+	opacity: 0;
 }
 
 .monaco-editor .inline-chat-slash-command-detail {
@@ -282,5 +304,8 @@
 }
 
 .monaco-editor .inline-chat-newfile-widget .title {
-	padding: 3px 0;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 3px 6px 3px 0;
 }

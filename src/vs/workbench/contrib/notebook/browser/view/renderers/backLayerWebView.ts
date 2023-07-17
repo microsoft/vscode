@@ -13,7 +13,7 @@ import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { equals } from 'vs/base/common/objects';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { dirname, isEqual, joinPath } from 'vs/base/common/resources';
+import { dirname, extname, isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
@@ -285,7 +285,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			outputWordWrap: this.options.outputWordWrap
 		};
 		const preloadScript = preloadsScriptStr(
-			this.options,
+			{
+				...this.options,
+				tokenizationCss: getTokenizationCss(),
+			},
 			{ dragAndDropEnabled: this.options.dragAndDropEnabled },
 			renderOptions,
 			renderersData,
@@ -447,7 +450,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						background-color: var(--vscode-editor-findMatchBackground);
 					}
 				</style>
-				<style id="vscode-tokenization-styles" nonce="${this.nonce}">${getTokenizationCss()}</style>
 			</head>
 			<body style="overflow: hidden;">
 				<div id='findStart' tabIndex=-1></div>
@@ -513,7 +515,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	private getNotebookBaseUri() {
-		if (this.documentUri.scheme === Schemas.untitled || this.documentUri.scheme === Schemas.vscodeInteractive) {
+		if (this.documentUri.scheme === Schemas.untitled) {
 			const folder = this.workspaceContextService.getWorkspaceFolder(this.documentUri);
 			if (folder) {
 				return folder.uri;
@@ -1031,7 +1033,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			return;
 		}
 
-		const defaultDir = this.documentUri.scheme === Schemas.vscodeInteractive ?
+		const defaultDir = extname(this.documentUri) === '.interactive' ?
 			this.workspaceContextService.getWorkspace().folders[0]?.uri ?? await this.fileDialogService.defaultFilePath() :
 			dirname(this.documentUri);
 		let defaultName: string;
@@ -1606,8 +1608,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 	}
 
-	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean }): Promise<IFindMatch[]> {
+	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string }): Promise<IFindMatch[]> {
 		if (query === '') {
+			this._sendMessageToWebview({
+				type: 'findStop',
+				ownerID: options.ownerID
+			});
 			return [];
 		}
 
@@ -1630,16 +1636,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return ret;
 	}
 
-	findStop() {
+	findStop(ownerID: string) {
 		this._sendMessageToWebview({
-			type: 'findStop'
+			type: 'findStop',
+			ownerID
 		});
 	}
 
-	async findHighlight(index: number): Promise<number> {
+	async findHighlightCurrent(index: number, ownerID: string): Promise<number> {
 		const p = new Promise<number>(resolve => {
 			const sub = this.webview?.onMessage(e => {
-				if (e.message.type === 'didFindHighlight') {
+				if (e.message.type === 'didFindHighlightCurrent') {
 					resolve(e.message.offset);
 					sub?.dispose();
 				}
@@ -1647,18 +1654,20 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 
 		this._sendMessageToWebview({
-			type: 'findHighlight',
-			index
+			type: 'findHighlightCurrent',
+			index,
+			ownerID
 		});
 
 		const ret = await p;
 		return ret;
 	}
 
-	async findUnHighlight(index: number): Promise<void> {
+	async findUnHighlightCurrent(index: number, ownerID: string): Promise<void> {
 		this._sendMessageToWebview({
-			type: 'findUnHighlight',
-			index
+			type: 'findUnHighlightCurrent',
+			index,
+			ownerID
 		});
 	}
 

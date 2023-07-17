@@ -27,6 +27,22 @@
     }
   },
   "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "Media Previewer",
+      "properties": {
+        "mediaPreview.video.autoPlay": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%videoPreviewerAutoPlay%"
+        },
+        "mediaPreview.video.loop": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%videoPreviewerLoop%"
+        }
+      }
+    },
     "customEditors": [
       {
         "viewType": "imagePreview.previewEditor",

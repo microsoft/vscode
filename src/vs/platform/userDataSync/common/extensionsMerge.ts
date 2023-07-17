@@ -278,6 +278,11 @@ function areSame(fromExtension: ISyncExtension, toExtension: ISyncExtension, che
 		return false;
 	}
 
+	if (fromExtension.isApplicationScoped !== toExtension.isApplicationScoped) {
+		/* extension application scope has changed */
+		return false;
+	}
+
 	if (checkInstalledProperty && fromExtension.installed !== toExtension.installed) {
 		/* extension installed property changed */
 		return false;
