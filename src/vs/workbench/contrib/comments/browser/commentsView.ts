@@ -42,7 +42,7 @@ import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
 import { CommentController } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { Range } from 'vs/editor/common/core/range';
-import { registerNavigatableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
@@ -148,7 +148,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 
 	override render(): void {
 		super.render();
-		this._register(registerNavigatableContainer({
+		this._register(registerNavigableContainer({
 			focusNotifiers: [this, this.filterWidget],
 			focusNextWidget: () => {
 				if (this.filterWidget.hasFocus()) {

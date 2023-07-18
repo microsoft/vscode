@@ -68,7 +68,7 @@ import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL,
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { registerNavigatableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 const $ = dom.$;
 
@@ -566,7 +566,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 	override render(): void {
 		super.render();
-		this._register(registerNavigatableContainer({
+		this._register(registerNavigableContainer({
 			focusNotifiers: [this, this.filterWidget],
 			focusNextWidget: () => {
 				if (this.filterWidget.hasFocus()) {
