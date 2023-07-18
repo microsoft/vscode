@@ -56,7 +56,7 @@ import { CompletionItemKind } from 'vs/editor/common/languages';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { registerNavigatableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 const $ = DOM.$;
 
@@ -137,7 +137,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	override create(parent: HTMLElement): void {
 		super.create(parent);
-		this._register(registerNavigatableContainer({
+		this._register(registerNavigableContainer({
 			focusNotifiers: [this],
 			focusNextWidget: () => {
 				if (this.searchWidget.hasFocus()) {

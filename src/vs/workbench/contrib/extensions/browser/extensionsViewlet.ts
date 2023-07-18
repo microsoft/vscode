@@ -61,7 +61,7 @@ import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { extname } from 'vs/base/common/resources';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILocalizedString } from 'vs/platform/action/common/action';
-import { registerNavigatableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
@@ -614,7 +614,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 		const focusTracker = this._register(trackFocus(this.root));
 		const isSearchBoxFocused = () => this.searchBox?.inputWidget.hasWidgetFocus();
-		this._register(registerNavigatableContainer({
+		this._register(registerNavigableContainer({
 			focusNotifiers: [focusTracker],
 			focusNextWidget: () => {
 				if (isSearchBoxFocused()) {

@@ -174,7 +174,14 @@ pub enum Commands {
 
 	/// Runs the control server on process stdin/stdout
 	#[clap(hide = true)]
-	CommandShell,
+	CommandShell(CommandShellArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct CommandShellArgs {
+	/// Listen on a socket instead of stdin/stdout.
+	#[clap(long)]
+	pub on_socket: bool,
 }
 
 #[derive(Args, Debug, Clone)]

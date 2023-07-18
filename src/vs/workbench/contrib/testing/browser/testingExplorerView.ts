@@ -71,7 +71,7 @@ import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingP
 import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { registerNavigatableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 const enum LastFocusState {
 	Input,
@@ -251,7 +251,7 @@ export class TestingExplorerView extends ViewPane {
 
 	override render(): void {
 		super.render();
-		this._register(registerNavigatableContainer({
+		this._register(registerNavigableContainer({
 			focusNotifiers: [this],
 			focusNextWidget: () => {
 				if (!this.viewModel.tree.isDOMFocused()) {
