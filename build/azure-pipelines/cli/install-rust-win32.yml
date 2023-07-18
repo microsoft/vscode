@@ -9,44 +9,15 @@ parameters:
 # Todo: use 1ES pipeline once extension is installed in ADO
 
 steps:
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      Invoke-WebRequest -Uri "https://win.rustup.rs" -Outfile $(Build.ArtifactStagingDirectory)/rustup-init.exe
-      exec { $(Build.ArtifactStagingDirectory)/rustup-init.exe -y --profile minimal --default-toolchain $env:RUSTUP_TOOLCHAIN --default-host x86_64-pc-windows-msvc }
-      echo "##vso[task.prependpath]$env:USERPROFILE\.cargo\bin"
-    env:
-      RUSTUP_TOOLCHAIN: ${{ parameters.channel }}
-    displayName: "Install Rust"
-
-  - powershell: |
-      mkdir -Force ".cargo"
-      Set-Content -Path ".cargo\config.toml" -Value @"
-      [registries]
-      vscode = { index = "$($env:CARGO_REGISTRY)" }
-
-      [source.crates-io]
-      replace-with = 'vscode'
-      "@ -Force
-
-      Get-Content ".cargo\config.toml"
-
-      Write-Host "##vso[task.setvariable variable=CARGO_REGISTRIES_VSCODE_TOKEN;issecret=true]Bearer $env:SYSTEM_ACCESSTOKEN"
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    condition: and(succeeded(), ne(variables['CARGO_REGISTRY'], 'none'))
-    displayName: Setup Cargo Registry
-
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      exec { rustup default $RUSTUP_TOOLCHAIN }
-      exec { rustup update $RUSTUP_TOOLCHAIN }
-    env:
-      RUSTUP_TOOLCHAIN: ${{ parameters.channel }}
-    displayName: "Set Rust version"
-
-  - ${{ each target in parameters.targets }}:
-    - script: rustup target add ${{ target }}
-      displayName: "Adding Rust target '${{ target }}'"
+  - task: RustInstaller@1
+    inputs:
+      rustVersion: ms-${{ parameters.channel }}
+      cratesIoFeedOverride: $(CARGO_REGISTRY)
+      additionalTargets: ${{ join(' ', parameters.targets) }}
+      toolchainFeed: https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json
+      default: true
+      addToPath: true
+    displayName: Install Rust
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
