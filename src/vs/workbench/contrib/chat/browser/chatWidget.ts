@@ -470,6 +470,42 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listContainer.style.height = `${height - inputPartHeight}px`;
 	}
 
+	private _dynamicMessageLayoutData?: { numOfMessages: number; maxHeight: number };
+
+	// An alternative to layout, this allows you to specify the number of ChatTreeItems
+	// you want to show, and the max height of the container. It will then layout the
+	// tree to show that many items.
+	setDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
+		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight };
+		this._register(this.tree.onDidChangeContentHeight((e) => e && this.layoutDynamicChatTreeItemMode()));
+		this.layoutDynamicChatTreeItemMode();
+	}
+
+	layoutDynamicChatTreeItemMode(): void {
+		if (!this.viewModel) {
+			return;
+		}
+
+		// grab the last N messages
+		const messages = this.viewModel.getItems().slice(-this._dynamicMessageLayoutData!.numOfMessages);
+
+		if (messages.length === 0) {
+			return;
+		}
+
+		const inputHeight = this.inputPart.layout(this._dynamicMessageLayoutData!.maxHeight, this.container.offsetWidth);
+		const listHeight = messages.reduce((acc, message) => acc + (message.currentRenderedHeight ?? 0), 0);
+
+		this.layout(
+			Math.min(
+				// we add an additional 25px in order to show that there is scrollable content
+				inputHeight + listHeight + 25,
+				this._dynamicMessageLayoutData!.maxHeight
+			),
+			this.container.offsetWidth
+		);
+	}
+
 	saveState(): void {
 		this.inputPart.saveState();
 	}

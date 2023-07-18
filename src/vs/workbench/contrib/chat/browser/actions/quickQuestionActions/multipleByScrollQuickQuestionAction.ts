@@ -22,13 +22,18 @@ import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
+interface IChatQuickQuestionModeOptions {
+	renderInputOnTop: boolean;
+	useDynamicMessageLayout: boolean;
+}
+
 class BaseChatQuickQuestionMode implements IQuickQuestionMode {
 	private _currentTimer: any | undefined;
 	private _input: IQuickPick<IQuickPickItem> | undefined;
 	private _currentChat: QuickChat | undefined;
 
 	constructor(
-		private readonly renderInputOnTop: boolean
+		private readonly _options: IChatQuickQuestionModeOptions
 	) { }
 
 	run(accessor: ServicesAccessor, query: string): void {
@@ -64,7 +69,6 @@ class BaseChatQuickQuestionMode implements IQuickQuestionMode {
 
 		const containerList = dom.$('.interactive-list');
 		const containerSession = dom.$('.interactive-session', undefined, containerList);
-		containerSession.style.height = '500px';
 		containerList.style.position = 'relative';
 		this._input.widget = containerSession;
 
@@ -94,7 +98,7 @@ class BaseChatQuickQuestionMode implements IQuickQuestionMode {
 
 		this._currentChat ??= instantiationService.createInstance(QuickChat, {
 			providerId: providerInfo.id,
-			renderInputOnTop: this.renderInputOnTop,
+			...this._options
 		});
 		this._currentChat.render(containerSession);
 
@@ -134,7 +138,7 @@ class QuickChat extends Disposable {
 	private _currentParentElement?: HTMLElement;
 
 	constructor(
-		private readonly chatViewOptions: IChatViewOptions & { renderInputOnTop: boolean },
+		private readonly _options: IChatViewOptions & IChatQuickQuestionModeOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
@@ -164,7 +168,7 @@ class QuickChat extends Disposable {
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
-				{ resource: true, renderInputOnTop: this.chatViewOptions.renderInputOnTop },
+				{ resource: true, renderInputOnTop: this._options.renderInputOnTop },
 				{
 					listForeground: editorForeground,
 					listBackground: editorBackground,
@@ -172,7 +176,6 @@ class QuickChat extends Disposable {
 					resultEditorBackground: SIDE_BAR_BACKGROUND
 				}));
 		this.widget.render(parent);
-		this.widget.setVisible(true);
 		this.updateModel();
 		if (this._currentQuery) {
 			this.widget.inputEditor.setSelection({
@@ -183,7 +186,12 @@ class QuickChat extends Disposable {
 			});
 		}
 
+		if (this._options.useDynamicMessageLayout) {
+			this.widget.setDynamicChatTreeItemLayout(2, 600);
+		}
+
 		this.registerListeners();
+		this.widget.setVisible(true);
 	}
 
 	private registerListeners(): void {
@@ -203,7 +211,7 @@ class QuickChat extends Disposable {
 	}
 
 	async openChatView(): Promise<void> {
-		const widget = await this._chatWidgetService.revealViewForProvider(this.chatViewOptions.providerId);
+		const widget = await this._chatWidgetService.revealViewForProvider(this._options.providerId);
 		if (!widget?.viewModel || !this.model) {
 			return;
 		}
@@ -233,13 +241,13 @@ class QuickChat extends Disposable {
 	}
 
 	layout(): void {
-		if (this._currentParentElement) {
+		if (!this._options.useDynamicMessageLayout && this._currentParentElement) {
 			this.widget.layout(500, this._currentParentElement.offsetWidth);
 		}
 	}
 
 	private updateModel(): void {
-		this.model ??= this.chatService.startSession(this.chatViewOptions.providerId, CancellationToken.None);
+		this.model ??= this.chatService.startSession(this._options.providerId, CancellationToken.None);
 		if (!this.model) {
 			throw new Error('Could not start chat session');
 		}
@@ -252,7 +260,10 @@ AskQuickQuestionAction.registerMode(
 	QuickQuestionMode.InputOnTopChat,
 	class InputOnTopChatQuickQuestionMode extends BaseChatQuickQuestionMode {
 		constructor() {
-			super(true);
+			super({
+				renderInputOnTop: true,
+				useDynamicMessageLayout: true
+			});
 		}
 	}
 );
@@ -261,7 +272,10 @@ AskQuickQuestionAction.registerMode(
 	QuickQuestionMode.InputOnBottomChat,
 	class InputOnBottomChatQuickQuestionMode extends BaseChatQuickQuestionMode {
 		constructor() {
-			super(false);
+			super({
+				renderInputOnTop: false,
+				useDynamicMessageLayout: false
+			});
 		}
 	}
 );
