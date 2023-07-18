@@ -10,12 +10,10 @@ declare module 'vscode' {
 		detail?: string;
 		refer?: boolean;
 		/**
-		 * Whether the command accepts arguments.
-		 * Defaults to `true`. When set to `false`,
-		 * accepting this command from the suggest
-		 * widget will also immediately execute it.
+		 * Whether the command should execute as soon
+		 * as it is entered. Defaults to `false`.
 		 */
-		hasArgs?: boolean;
+		executeImmediately?: boolean;
 		// kind: CompletionItemKind;
 	}
 

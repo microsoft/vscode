@@ -317,7 +317,7 @@ export class InlineChatController implements IEditorContribution {
 			const firstLineWithoutSlashOrWhitespace = firstLineWithoutSlash.trim();
 
 			const slashCommand = this._activeSession?.session.slashCommands?.find((c) => c.command === firstLineWithoutSlashOrWhitespace);
-			if (slashCommand?.hasArgs !== false || firstLineWithoutSlash !== `${slashCommand.command} `) {
+			if (!slashCommand?.executeImmediately || firstLineWithoutSlash !== `${slashCommand.command} `) {
 				return;
 			}
 

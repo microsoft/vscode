@@ -210,7 +210,7 @@ class InputEditorSlashCommandAutoSend extends Disposable {
 		const firstLineWithoutSlashOrWhitespace = firstLineWithoutSlash.trim();
 
 		const slashCommand = this.widget.getSlashCommandsSync()?.find((c) => c.command === firstLineWithoutSlashOrWhitespace);
-		if (slashCommand?.hasArgs !== false || firstLineWithoutSlash !== `${slashCommand.command} `) {
+		if (!slashCommand?.executeImmediately || firstLineWithoutSlash !== `${slashCommand.command} `) {
 			return;
 		}
 
