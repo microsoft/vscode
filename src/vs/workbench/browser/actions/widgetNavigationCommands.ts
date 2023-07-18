@@ -13,9 +13,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-/** INavigatableContainer represents a logical container composed of widgets that can
+/** INavigableContainer represents a logical container composed of widgets that can
 	be navigated back and forth with key shortcuts */
-interface INavigatableContainer {
+interface INavigableContainer {
 	/**
 	 * The container may coomposed of multiple parts that share no DOM ancestor
 	 * (e.g., the main body and filter box of MarkersView may be separated).
@@ -54,28 +54,28 @@ function handleFocusEventsGroup(group: readonly IFocusNotifier[], handler: (isFo
 	)));
 }
 
-const NavigatableContainerFocusedContextKey = new RawContextKey<boolean>('navigatableContainerFocused', false);
+const NavigableContainerFocusedContextKey = new RawContextKey<boolean>('navigableContainerFocused', false);
 
-class NavigatableContainerManager implements IDisposable {
-	private static INSTANCE: NavigatableContainerManager | undefined;
+class NavigableContainerManager implements IDisposable {
+	private static INSTANCE: NavigableContainerManager | undefined;
 
-	private readonly containers = new Set<INavigatableContainer>();
-	private lastContainer: INavigatableContainer | undefined;
+	private readonly containers = new Set<INavigableContainer>();
+	private lastContainer: INavigableContainer | undefined;
 	private focused: IContextKey<boolean>;
 
 
 	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
-		this.focused = NavigatableContainerFocusedContextKey.bindTo(contextKeyService);
-		NavigatableContainerManager.INSTANCE = this;
+		this.focused = NavigableContainerFocusedContextKey.bindTo(contextKeyService);
+		NavigableContainerManager.INSTANCE = this;
 	}
 
 	dispose(): void {
 		this.containers.clear();
 		this.focused.reset();
-		NavigatableContainerManager.INSTANCE = undefined;
+		NavigableContainerManager.INSTANCE = undefined;
 	}
 
-	static register(container: INavigatableContainer): IDisposable {
+	static register(container: INavigableContainer): IDisposable {
 		const instance = this.INSTANCE;
 		if (!instance) {
 			return Disposable.None;
@@ -102,23 +102,23 @@ class NavigatableContainerManager implements IDisposable {
 		);
 	}
 
-	static getActive(): INavigatableContainer | undefined {
+	static getActive(): INavigableContainer | undefined {
 		return this.INSTANCE?.lastContainer;
 	}
 }
 
-export function registerNavigatableContainer(container: INavigatableContainer): IDisposable {
-	return NavigatableContainerManager.register(container);
+export function registerNavigableContainer(container: INavigableContainer): IDisposable {
+	return NavigableContainerManager.register(container);
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(NavigatableContainerManager, LifecyclePhase.Starting);
+	.registerWorkbenchContribution(NavigableContainerManager, LifecyclePhase.Starting);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'widgetNavigation.focusPrevious',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(
-		NavigatableContainerFocusedContextKey,
+		NavigableContainerFocusedContextKey,
 		ContextKeyExpr.or(
 			WorkbenchListFocusContextKey?.negate(),
 			WorkbenchListScrollAtTopContextKey,
@@ -126,7 +126,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	),
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	handler: () => {
-		const activeContainer = NavigatableContainerManager.getActive();
+		const activeContainer = NavigableContainerManager.getActive();
 		activeContainer?.focusPreviousWidget();
 	}
 });
@@ -135,7 +135,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'widgetNavigation.focusNext',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(
-		NavigatableContainerFocusedContextKey,
+		NavigableContainerFocusedContextKey,
 		ContextKeyExpr.or(
 			WorkbenchListFocusContextKey?.negate(),
 			WorkbenchListScrollAtBottomContextKey,
@@ -143,7 +143,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	),
 	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 	handler: () => {
-		const activeContainer = NavigatableContainerManager.getActive();
+		const activeContainer = NavigableContainerManager.getActive();
 		activeContainer?.focusNextWidget();
 	}
 });
