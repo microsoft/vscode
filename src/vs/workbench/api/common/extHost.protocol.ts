@@ -2514,7 +2514,7 @@ export interface MainThreadTestingShape {
 	/** Signals that an extension-provided test run finished. */
 	$finishedExtensionTestRun(runId: string): void;
 	/** Marks a test (or controller) as retired in all results. */
-	$markTestRetired(testId: string): void;
+	$markTestRetired(testIds: string[] | undefined): void;
 }
 
 // --- proxy identifiers
