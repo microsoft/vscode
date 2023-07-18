@@ -10,7 +10,6 @@ import { Command, MultiCommand } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
@@ -111,7 +110,7 @@ export const AccessibleViewAction = registerCommand(new MultiCommand({
 
 export const AccessibleViewNextAction = registerCommand(new MultiCommand({
 	id: 'editor.action.accessibleViewNext',
-	precondition: accessibleViewIsShown,
+	precondition: undefined,
 	kbOpts: {
 		primary: KeyMod.Alt | KeyCode.BracketRight,
 		weight: KeybindingWeight.WorkbenchContrib
@@ -126,7 +125,7 @@ export const AccessibleViewNextAction = registerCommand(new MultiCommand({
 
 export const AccessibleViewPreviousAction = registerCommand(new MultiCommand({
 	id: 'editor.action.accessibleViewPrevious',
-	precondition: accessibleViewIsShown,
+	precondition: undefined,
 	kbOpts: {
 		primary: KeyMod.Alt | KeyCode.BracketLeft,
 		weight: KeybindingWeight.WorkbenchContrib

@@ -135,7 +135,10 @@ class AccessibleView extends Disposable {
 		this._contextViewService.showContextView(delegate);
 		if (provider.options.type === AccessibleViewType.HelpMenu) {
 			this._accessiblityHelpIsShown.set(true);
+		} else {
+			this._accessibleViewIsShown.set(true);
 		}
+		this._currentProvider = provider;
 	}
 
 	previous(): void {
@@ -200,7 +203,7 @@ class AccessibleView extends Disposable {
 				this._configurationService.updateValue(settingKey, false);
 			}
 			provider.onKeyDown?.(e);
-			e.stopPropagation();
+			// e.stopPropagation();
 		}));
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Escape) {
