@@ -49,7 +49,7 @@ export class ShowAudioCueHelp extends Action2 {
 			{
 				activeItem: items[0],
 				onDidFocus: (item) => {
-					audioCueService.playSound(item.audioCue.sound, true);
+					audioCueService.playSound(item.audioCue.sound.getSound(true), true);
 				},
 				onDidTriggerItemButton: (context) => {
 					preferencesService.openSettings({ query: context.item.audioCue.settingsKey });

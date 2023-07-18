@@ -71,6 +71,7 @@ import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingP
 import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 const enum LastFocusState {
 	Input,
@@ -246,6 +247,23 @@ export class TestingExplorerView extends ViewPane {
 		}
 
 		return { include: [...include], exclude };
+	}
+
+	override render(): void {
+		super.render();
+		this._register(registerNavigableContainer({
+			focusNotifiers: [this],
+			focusNextWidget: () => {
+				if (!this.viewModel.tree.isDOMFocused()) {
+					this.viewModel.tree.domFocus();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (this.viewModel.tree.isDOMFocused()) {
+					this.filter.value?.focus();
+				}
+			}
+		}));
 	}
 
 	/**
@@ -566,7 +584,8 @@ class TestingExplorerViewModel extends Disposable {
 				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
-				findWidgetEnabled: false
+				findWidgetEnabled: false,
+				openOnSingleClick: false,
 			}) as TestingObjectTree<FuzzyScore>;
 
 
@@ -612,7 +631,7 @@ class TestingExplorerViewModel extends Disposable {
 			testService.excluded.onTestExclusionsChanged,
 		)(this.tree.refilter, this.tree));
 
-		this._register(this.tree.onMouseDblClick(e => {
+		this._register(this.tree.onDidOpen(e => {
 			if (e.element instanceof TestItemTreeElement && !e.element.children.size && e.element.test.item.uri) {
 				commandService.executeCommand('vscode.revealTest', e.element.test.item.extId);
 			}

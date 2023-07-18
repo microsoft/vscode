@@ -15,6 +15,8 @@ import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffEditorOptions } from './diffEditorOptions';
+import { IReader } from 'vs/base/common/observable';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class DiffEditorEditors extends Disposable {
 	public readonly modified: CodeEditorWidget;
@@ -29,7 +31,8 @@ export class DiffEditorEditors extends Disposable {
 		private readonly _options: DiffEditorOptions,
 		codeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
 		private readonly _createInnerEditor: (instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>, editorWidgetOptions: ICodeEditorWidgetOptions) => CodeEditorWidget,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -47,19 +50,21 @@ export class DiffEditorEditors extends Disposable {
 		}, (reader, changeSummary) => {
 			_options.editorOptions.read(reader);
 
-			this.modified.updateOptions(this._adjustOptionsForRightHandSide(changeSummary));
-			this.original.updateOptions(this._adjustOptionsForLeftHandSide(changeSummary));
+			this.modified.updateOptions(this._adjustOptionsForRightHandSide(reader, changeSummary));
+			this.original.updateOptions(this._adjustOptionsForLeftHandSide(reader, changeSummary));
 		}));
 	}
 
 	private _createLeftHandSideEditor(options: Readonly<IDiffEditorConstructionOptions>, codeEditorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
-		const editor = this._constructInnerEditor(this._instantiationService, this.originalEditorElement, this._adjustOptionsForLeftHandSide(options), codeEditorWidgetOptions);
+		const leftHandSideOptions = this._adjustOptionsForLeftHandSide(undefined, options);
+		const editor = this._constructInnerEditor(this._instantiationService, this.originalEditorElement, leftHandSideOptions, codeEditorWidgetOptions);
 		editor.setContextValue('isInDiffLeftEditor', true);
 		return editor;
 	}
 
 	private _createRightHandSideEditor(options: Readonly<IDiffEditorConstructionOptions>, codeEditorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
-		const editor = this._constructInnerEditor(this._instantiationService, this.modifiedEditorElement, this._adjustOptionsForRightHandSide(options), codeEditorWidgetOptions);
+		const rightHandSideOptions = this._adjustOptionsForRightHandSide(undefined, options);
+		const editor = this._constructInnerEditor(this._instantiationService, this.modifiedEditorElement, rightHandSideOptions, codeEditorWidgetOptions);
 		editor.setContextValue('isInDiffRightEditor', true);
 		return editor;
 	}
@@ -81,7 +86,7 @@ export class DiffEditorEditors extends Disposable {
 		return editor;
 	}
 
-	private _adjustOptionsForLeftHandSide(changedOptions: Readonly<IDiffEditorConstructionOptions>): IEditorConstructionOptions {
+	private _adjustOptionsForLeftHandSide(_reader: IReader | undefined, changedOptions: Readonly<IDiffEditorConstructionOptions>): IEditorConstructionOptions {
 		const result = this._adjustOptionsForSubEditor(changedOptions);
 		if (!this._options.renderSideBySide.get()) {
 			// never wrap hidden editor
@@ -101,7 +106,7 @@ export class DiffEditorEditors extends Disposable {
 		return result;
 	}
 
-	private _adjustOptionsForRightHandSide(changedOptions: Readonly<IDiffEditorConstructionOptions>): IEditorConstructionOptions {
+	private _adjustOptionsForRightHandSide(reader: IReader | undefined, changedOptions: Readonly<IDiffEditorConstructionOptions>): IEditorConstructionOptions {
 		const result = this._adjustOptionsForSubEditor(changedOptions);
 		if (changedOptions.modifiedAriaLabel) {
 			result.ariaLabel = changedOptions.modifiedAriaLabel;
@@ -124,13 +129,14 @@ export class DiffEditorEditors extends Disposable {
 		};
 		clonedOptions.inDiffEditor = true;
 		clonedOptions.automaticLayout = false;
+
 		// Clone scrollbar options before changing them
 		clonedOptions.scrollbar = { ...(clonedOptions.scrollbar || {}) };
 		clonedOptions.scrollbar.vertical = 'visible';
 		clonedOptions.folding = false;
 		clonedOptions.codeLens = this._options.diffCodeLens.get();
 		clonedOptions.fixedOverflowWidgets = true;
-		// clonedOptions.lineDecorationsWidth = '2ch';
+
 		// Clone minimap options before changing them
 		clonedOptions.minimap = { ...(clonedOptions.minimap || {}) };
 		clonedOptions.minimap.enabled = false;
@@ -144,7 +150,10 @@ export class DiffEditorEditors extends Disposable {
 	}
 
 	private _updateAriaLabel(ariaLabel: string | undefined): string | undefined {
-		const ariaNavigationTip = localize('diff-aria-navigation-tip', ' use Shift + F7 to navigate changes');
+		if (!ariaLabel) {
+			ariaLabel = '';
+		}
+		const ariaNavigationTip = localize('diff-aria-navigation-tip', ' use {0} to open the accessibility help.', this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel());
 		if (this._options.accessibilityVerbose.get()) {
 			return ariaLabel + ariaNavigationTip;
 		} else if (ariaLabel) {

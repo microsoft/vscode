@@ -222,7 +222,7 @@ suite('ExtensionService', () => {
 
 	setup(() => {
 		disposables = new DisposableStore();
-		instantiationService = createServices(disposables, [
+		disposables.add(instantiationService = createServices(disposables, [
 			// custom
 			[IExtensionService, MyTestExtensionService],
 			// default
@@ -246,7 +246,7 @@ suite('ExtensionService', () => {
 			[IUriIdentityService, UriIdentityService],
 			[IRemoteExtensionsScannerService, TestRemoteExtensionsScannerService],
 			[IRemoteAuthorityResolverService, RemoteAuthorityResolverService]
-		]);
+		]));
 		extService = <MyTestExtensionService>instantiationService.get(IExtensionService);
 	});
 

@@ -557,7 +557,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.completionProvider.register(selector, provider));
 	}
 
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean): void {
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, yieldsToExtensionIds: string[]): void {
 		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
@@ -574,6 +574,11 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			},
 			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
 				this._proxy.$freeInlineCompletionsList(handle, completions.pid);
+			},
+			groupId: extensionId,
+			yieldsToGroupIds: yieldsToExtensionIds,
+			toString() {
+				return `InlineCompletionsProvider(${extensionId})`;
 			}
 		};
 		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
@@ -847,7 +852,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			__electricCharacterSupport: undefined
 		};
 
-		if (_configuration.__characterPairSupport) {
+		if (_configuration.autoClosingPairs) {
+			configuration.autoClosingPairs = _configuration.autoClosingPairs;
+		} else if (_configuration.__characterPairSupport) {
 			// backwards compatibility
 			configuration.autoClosingPairs = _configuration.__characterPairSupport.autoClosingPairs;
 		}

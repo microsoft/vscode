@@ -44,7 +44,7 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.InlineChat]: {
-			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu when the input is focused'),
+			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints which describe how to use the feature when the input is focused'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
@@ -103,6 +103,37 @@ export const AccessibleViewAction = registerCommand(new MultiCommand({
 		menuId: MenuId.CommandPalette,
 		group: '',
 		title: localize('editor.action.accessibleView', "Open Accessible View"),
+		order: 1
+	}],
+}));
+
+
+export const AccessibleViewNextAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibleViewNext',
+	precondition: undefined,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.BracketRight,
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	menuOpts: [{
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: localize('editor.action.accessibleViewNext', "Next Accessible View"),
+		order: 1
+	}],
+}));
+
+export const AccessibleViewPreviousAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibleViewPrevious',
+	precondition: undefined,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.BracketLeft,
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	menuOpts: [{
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: localize('editor.action.accessibleViewPrevious', "Previous Accessible View"),
 		order: 1
 	}],
 }));

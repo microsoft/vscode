@@ -10,10 +10,8 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-
-
+import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'panelChat' | 'inlineChat'): string {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -71,8 +69,8 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type);
-	const provider = accessibleViewService.registerProvider({
-		id: type,
+	accessibleViewService.show({
+		verbositySettingKey: type,
 		provideContent: () => helpText,
 		onClose: () => {
 			if (type === 'panelChat' && cachedPosition) {
@@ -81,9 +79,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 			} else if (type === 'inlineChat') {
 				InlineChatController.get(editor)?.focus();
 			}
-			provider.dispose();
 		},
 		options: { type: AccessibleViewType.HelpMenu, ariaLabel: type === 'panelChat' ? localize('chat-help-label', "Chat accessibility help") : localize('inline-chat-label', "Inline chat accessibility help") }
 	});
-	accessibleViewService.show(type);
 }

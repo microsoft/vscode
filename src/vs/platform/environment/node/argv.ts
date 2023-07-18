@@ -164,7 +164,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'continueOn': { type: 'string' },
 	'locate-shell-integration-path': { type: 'string', args: ['bash', 'pwsh', 'zsh', 'fish'] },
 
-	'disable-coi': { type: 'boolean' },
+	'enable-coi': { type: 'boolean' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },

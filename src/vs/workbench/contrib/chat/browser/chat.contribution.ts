@@ -22,7 +22,7 @@ import { registerChatExecuteActions } from 'vs/workbench/contrib/chat/browser/ac
 import { registerChatQuickQuestionActions } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { registerChatTitleActions } from 'vs/workbench/contrib/chat/browser/actions/chatTitleActions';
 import { registerChatExportActions } from 'vs/workbench/contrib/chat/browser/actions/chatImportExport';
-import { ChatTreeItem, IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatContributionService } from 'vs/workbench/contrib/chat/browser/chatContributionServiceImpl';
 import { ChatEditor, IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput, ChatEditorInputSerializer } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
@@ -42,6 +42,8 @@ import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -75,6 +77,13 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in chat codeblocks. Use 0 to compute the line height from the font size."),
 			default: 0
+		},
+		'chat.experimental.quickQuestion.mode': {
+			type: 'string',
+			tags: ['experimental'],
+			enum: [QuickQuestionMode.SingleQuestion, QuickQuestionMode.InputOnTopChat, QuickQuestionMode.InputOnBottomChat],
+			description: nls.localize('interactiveSession.quickQuestion.mode', "Controls the mode of quick question chat experience."),
+			default: QuickQuestionMode.SingleQuestion,
 		}
 	}
 });
@@ -125,26 +134,48 @@ class ChatAccessibleViewContribution extends Disposable {
 		this._register(AccessibleViewAction.addImplementation(100, 'panelChat', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const widgetService = accessor.get(IChatWidgetService);
-			const widget: IChatWidget | undefined = widgetService.lastFocusedWidget;
-			const focusedItem: ChatTreeItem | undefined = widget?.getFocus();
-			if (!widget || !focusedItem || !isResponseVM(focusedItem)) {
+			const codeEditorService = accessor.get(ICodeEditorService);
+
+			let widget = widgetService.lastFocusedWidget;
+			if (!widget) {
 				return false;
 			}
 
-			const responseContent = focusedItem?.response.value;
+			const chatInputFocused = !!(codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor());
+
+			if (chatInputFocused) {
+				widget.focusLastMessage();
+				widget = widgetService.lastFocusedWidget;
+			}
+
+			if (!widget) {
+				return false;
+			}
+
+			const verifiedWidget: IChatWidget = widget;
+			const focusedItem = verifiedWidget.getFocus();
+
+			if (!focusedItem) {
+				return false;
+			}
+
+			const responseContent = isResponseVM(focusedItem) ? focusedItem.response.value : undefined;
 			if (!responseContent) {
 				return false;
 			}
-			const provider = accessibleViewService.registerProvider({
-				id: 'panelChat',
+
+			accessibleViewService.show({
+				verbositySettingKey: 'panelChat',
 				provideContent(): string { return responseContent; },
 				onClose() {
-					widget.focus(focusedItem);
-					provider.dispose();
+					if (chatInputFocused) {
+						verifiedWidget.focusInput();
+					} else {
+						verifiedWidget.focus(focusedItem);
+					}
 				},
 				options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript', type: AccessibleViewType.View }
 			});
-			accessibleViewService.show('panelChat');
 			return true;
 		}, CONTEXT_IN_CHAT_SESSION));
 	}

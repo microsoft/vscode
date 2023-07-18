@@ -60,7 +60,7 @@ import { RemoteTerminalChannel } from 'vs/server/node/remoteTerminalChannel';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { ServerConnectionToken } from 'vs/server/node/serverConnectionToken';
 import { ServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
-import { REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remote/remoteTerminalChannel';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
 import { ExtensionHostStatusService, IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
@@ -144,13 +144,14 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IExtensionHostStatusService, extensionHostStatusService);
 
 	// Request
-	services.set(IRequestService, new SyncDescriptor(RequestService));
+	const requestService = new RequestService(configurationService, environmentService, logService, loggerService);
+	services.set(IRequestService, requestService);
 
 	let oneDsAppender: ITelemetryAppender = NullAppender;
 	const isInternal = isInternalTelemetry(productService, configurationService);
 	if (supportsTelemetry(productService, environmentService)) {
 		if (productService.aiConfig && productService.aiConfig.ariaKey) {
-			oneDsAppender = new OneDataSystemAppender(isInternal, eventPrefix, null, productService.aiConfig.ariaKey);
+			oneDsAppender = new OneDataSystemAppender(requestService, isInternal, eventPrefix, null, productService.aiConfig.ariaKey);
 			disposables.add(toDisposable(() => oneDsAppender?.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 		}
 
@@ -197,8 +198,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 		}
 	);
-	const ptyService = instantiationService.createInstance(PtyHostService, ptyHostStarter);
-	services.set(IPtyService, ptyService);
+	const ptyHostService = instantiationService.createInstance(PtyHostService, ptyHostStarter);
+	services.set(IPtyService, ptyHostService);
 
 	services.set(ICredentialsMainService, new SyncDescriptor(CredentialsWebMainService));
 
@@ -213,7 +214,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), oneDsAppender);
 		socketServer.registerChannel('telemetry', telemetryChannel);
 
-		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyService, productService, extensionManagementService, configurationService));
+		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyHostService, productService, extensionManagementService, configurationService));
 
 		const remoteExtensionsScanner = new RemoteExtensionsScannerService(instantiationService.createInstance(ExtensionManagementCLI, logService), environmentService, userDataProfilesService, extensionsScannerService, logService, extensionGalleryService, languagePackService);
 		socketServer.registerChannel(RemoteExtensionsScannerChannelName, new RemoteExtensionsScannerChannel(remoteExtensionsScanner, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));

@@ -61,23 +61,23 @@ export interface INotificationsToastController {
 	hide(): void;
 }
 
-export function registerNotificationCommands(center: INotificationsCenterController, toasts: INotificationsToastController, model: NotificationsModel): void {
-
-	function getNotificationFromContext(listService: IListService, context?: unknown): INotificationViewItem | undefined {
-		if (isNotificationViewItem(context)) {
-			return context;
-		}
-
-		const list = listService.lastFocusedList;
-		if (list instanceof WorkbenchList) {
-			const focusedElement = list.getFocusedElements()[0];
-			if (isNotificationViewItem(focusedElement)) {
-				return focusedElement;
-			}
-		}
-
-		return undefined;
+export function getNotificationFromContext(listService: IListService, context?: unknown): INotificationViewItem | undefined {
+	if (isNotificationViewItem(context)) {
+		return context;
 	}
+
+	const list = listService.lastFocusedList;
+	if (list instanceof WorkbenchList) {
+		const focusedElement = list.getFocusedElements()[0];
+		if (isNotificationViewItem(focusedElement)) {
+			return focusedElement;
+		}
+	}
+
+	return undefined;
+}
+
+export function registerNotificationCommands(center: INotificationsCenterController, toasts: INotificationsToastController, model: NotificationsModel): void {
 
 	// Show Notifications Cneter
 	CommandsRegistry.registerCommand(SHOW_NOTIFICATIONS_CENTER, () => {

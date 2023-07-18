@@ -46,73 +46,63 @@ export abstract class BaseTerminalBackend extends Disposable {
 		let hasStarted = false;
 
 		// Attach pty host listeners
-		if (this._ptyHostController.onPtyHostExit) {
-			this._register(this._ptyHostController.onPtyHostExit(() => {
-				this._logService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
-			}));
-		}
-		if (this._ptyHostController.onPtyHostStart) {
-			this.onPtyHostConnected(() => hasStarted = true);
-			this._register(this._ptyHostController.onPtyHostStart(() => {
-				this._logService.debug(`The terminal's pty host process is starting`);
-				// Only fire the _restart_ event after it has started
-				if (hasStarted) {
-					this._logService.trace('IPtyHostController#onPtyHostRestart');
-					this._onPtyHostRestart.fire();
-				}
-				statusBarAccessor?.dispose();
-				this._isPtyHostUnresponsive = false;
-			}));
-		}
-		if (this._ptyHostController.onPtyHostUnresponsive) {
-			this._register(this._ptyHostController.onPtyHostUnresponsive(() => {
-				statusBarAccessor?.dispose();
-				if (!unresponsiveStatusBarEntry) {
-					unresponsiveStatusBarEntry = {
-						name: localize('ptyHostStatus', 'Pty Host Status'),
-						text: `$(debug-disconnect) ${localize('ptyHostStatus.short', 'Pty Host')}`,
-						tooltip: localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, terminals may stop working. Click to manually restart the pty host."),
-						ariaLabel: localize('ptyHostStatus.ariaLabel', 'Pty Host is unresponsive'),
-						command: TerminalCommandId.RestartPtyHost,
-						backgroundColor: themeColorFromId(STATUS_BAR_WARNING_ITEM_BACKGROUND),
-						color: themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND),
-					};
-				}
-				statusBarAccessor = statusBarService.addEntry(unresponsiveStatusBarEntry, 'ptyHostStatus', StatusbarAlignment.LEFT);
-				this._isPtyHostUnresponsive = true;
-				this._onPtyHostUnresponsive.fire();
-			}));
-		}
-		if (this._ptyHostController.onPtyHostResponsive) {
-			this._register(this._ptyHostController.onPtyHostResponsive(() => {
-				if (!this._isPtyHostUnresponsive) {
-					return;
-				}
-				this._logService.info('The pty host became responsive again');
-				statusBarAccessor?.dispose();
-				this._isPtyHostUnresponsive = false;
-				this._onPtyHostResponsive.fire();
-			}));
-		}
-		if (this._ptyHostController.onPtyHostRequestResolveVariables) {
-			this._register(this._ptyHostController.onPtyHostRequestResolveVariables(async e => {
-				// Only answer requests for this workspace
-				if (e.workspaceId !== this._workspaceContextService.getWorkspace().id) {
-					return;
-				}
-				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
-					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
-				});
-				const result = await Promise.all(resolveCalls);
-				this._ptyHostController.acceptPtyHostResolvedVariables?.(e.requestId, result);
-			}));
-		}
+		this._register(this._ptyHostController.onPtyHostExit(() => {
+			this._logService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
+		}));
+		this.onPtyHostConnected(() => hasStarted = true);
+		this._register(this._ptyHostController.onPtyHostStart(() => {
+			this._logService.debug(`The terminal's pty host process is starting`);
+			// Only fire the _restart_ event after it has started
+			if (hasStarted) {
+				this._logService.trace('IPtyHostController#onPtyHostRestart');
+				this._onPtyHostRestart.fire();
+			}
+			statusBarAccessor?.dispose();
+			this._isPtyHostUnresponsive = false;
+		}));
+		this._register(this._ptyHostController.onPtyHostUnresponsive(() => {
+			statusBarAccessor?.dispose();
+			if (!unresponsiveStatusBarEntry) {
+				unresponsiveStatusBarEntry = {
+					name: localize('ptyHostStatus', 'Pty Host Status'),
+					text: `$(debug-disconnect) ${localize('ptyHostStatus.short', 'Pty Host')}`,
+					tooltip: localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, terminals may stop working. Click to manually restart the pty host."),
+					ariaLabel: localize('ptyHostStatus.ariaLabel', 'Pty Host is unresponsive'),
+					command: TerminalCommandId.RestartPtyHost,
+					backgroundColor: themeColorFromId(STATUS_BAR_WARNING_ITEM_BACKGROUND),
+					color: themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND),
+				};
+			}
+			statusBarAccessor = statusBarService.addEntry(unresponsiveStatusBarEntry, 'ptyHostStatus', StatusbarAlignment.LEFT);
+			this._isPtyHostUnresponsive = true;
+			this._onPtyHostUnresponsive.fire();
+		}));
+		this._register(this._ptyHostController.onPtyHostResponsive(() => {
+			if (!this._isPtyHostUnresponsive) {
+				return;
+			}
+			this._logService.info('The pty host became responsive again');
+			statusBarAccessor?.dispose();
+			this._isPtyHostUnresponsive = false;
+			this._onPtyHostResponsive.fire();
+		}));
+		this._register(this._ptyHostController.onPtyHostRequestResolveVariables(async e => {
+			// Only answer requests for this workspace
+			if (e.workspaceId !== this._workspaceContextService.getWorkspace().id) {
+				return;
+			}
+			const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+			const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+			const resolveCalls: Promise<string>[] = e.originalText.map(t => {
+				return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
+			});
+			const result = await Promise.all(resolveCalls);
+			this._ptyHostController.acceptPtyHostResolvedVariables(e.requestId, result);
+		}));
 	}
 
 	restartPtyHost(): void {
-		this._ptyHostController.restartPtyHost?.();
+		this._ptyHostController.restartPtyHost();
 	}
 
 	protected _deserializeTerminalState(serializedState: string | undefined): ISerializedTerminalState[] | undefined {

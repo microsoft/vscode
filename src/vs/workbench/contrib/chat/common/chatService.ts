@@ -70,6 +70,24 @@ export interface ISlashCommand {
 	provider?: ISlashCommandProvider;
 	sortText?: string;
 	detail?: string;
+
+	/**
+	 * Whether the command should execute as soon
+	 * as it is entered. Defaults to `false`.
+	 */
+	executeImmediately?: boolean;
+	/**
+	 * Whether executing the command puts the
+	 * chat into a persistent mode, where the
+	 * slash command is prepended to the chat input.
+	 */
+	shouldRepopulate?: boolean;
+	/**
+	 * Placeholder text to render in the chat input
+	 * when the slash command has been repopulated.
+	 * Has no effect if `shouldRepopulate` is `false`.
+	 */
+	followupPlaceholder?: string;
 }
 
 export interface IChatReplyFollowup {
@@ -176,6 +194,8 @@ export const IChatService = createDecorator<IChatService>('IChatService');
 export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionId: string | undefined;
+
+	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
 	registerSlashCommandProvider(provider: ISlashCommandProvider): IDisposable;
 	getProviderInfos(): IChatProviderInfo[];

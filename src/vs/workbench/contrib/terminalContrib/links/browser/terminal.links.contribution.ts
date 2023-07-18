@@ -54,7 +54,7 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 		this._processManager.onProcessReady(() => {
 			linkManager.setWidgetManager(this._widgetManager);
 		});
-		this._linkManager = linkManager;
+		this._linkManager = this.add(linkManager);
 
 		// Attach the link provider(s) to the instance and listen for changes
 		for (const linkProvider of this._terminalLinkProviderService.linkProviders) {

@@ -8,6 +8,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { language } from 'vs/base/common/platform';
+import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
@@ -215,11 +216,13 @@ const itemToNode = (controllerId: string, item: ITestItem, parent: string | null
 export const enum TestResultItemChangeReason {
 	ComputedStateChange,
 	OwnStateChange,
+	NewMessage,
 }
 
 export type TestResultItemChange = { item: TestResultItem; result: ITestResult } & (
 	| { reason: TestResultItemChangeReason.ComputedStateChange }
 	| { reason: TestResultItemChangeReason.OwnStateChange; previousState: TestResultState; previousOwnDuration: number | undefined }
+	| { reason: TestResultItemChangeReason.NewMessage }
 );
 
 /**
@@ -231,6 +234,7 @@ export class LiveTestResult implements ITestResult {
 	private readonly newTaskEmitter = new Emitter<number>();
 	private readonly endTaskEmitter = new Emitter<number>();
 	private readonly changeEmitter = new Emitter<TestResultItemChange>();
+	/** todo@connor4312: convert to a WellDefinedPrefixTree */
 	private readonly testById = new Map<string, TestResultItemWithChildren>();
 	private testMarkerCounter = 0;
 	private _completedAt?: number;
@@ -319,8 +323,10 @@ export class LiveTestResult implements ITestResult {
 			type: TestMessageType.Output,
 		};
 
-		if (testId) {
-			this.testById.get(testId)?.tasks[index].messages.push(message);
+		const test = testId && this.testById.get(testId);
+		if (test) {
+			test.tasks[index].messages.push(message);
+			this.changeEmitter.fire({ item: test, result: this, reason: TestResultItemChangeReason.NewMessage });
 		} else {
 			task.otherMessages.push(message);
 		}
@@ -390,13 +396,7 @@ export class LiveTestResult implements ITestResult {
 		}
 
 		entry.tasks[this.mustGetTaskIndex(taskId)].messages.push(message);
-		this.changeEmitter.fire({
-			item: entry,
-			result: this,
-			reason: TestResultItemChangeReason.OwnStateChange,
-			previousState: entry.ownComputedState,
-			previousOwnDuration: entry.ownDuration,
-		});
+		this.changeEmitter.fire({ item: entry, result: this, reason: TestResultItemChangeReason.NewMessage });
 	}
 
 	/**
@@ -438,9 +438,9 @@ export class LiveTestResult implements ITestResult {
 	/**
 	 * Marks the test and all of its children in the run as retired.
 	 */
-	public markRetired(testId: string) {
+	public markRetired(testIds: WellDefinedPrefixTree<undefined> | undefined) {
 		for (const [id, test] of this.testById) {
-			if (!test.retired && id === testId || TestId.isChild(testId, id)) {
+			if (!test.retired && (!testIds || testIds.hasKeyOrParent(TestId.fromString(id).path))) {
 				test.retired = true;
 				this.changeEmitter.fire({ reason: TestResultItemChangeReason.ComputedStateChange, item: test, result: this });
 			}

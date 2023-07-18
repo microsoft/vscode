@@ -40,6 +40,7 @@ import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/sugges
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { debounce } from 'vs/base/common/decorators';
 
 const enum RenderConstants {
 	/**
@@ -262,7 +263,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 
 		// Load addons
 		this._updateUnicodeVersion();
-		this._refreshImageAddon();
 		this._markNavigationAddon = this._instantiationService.createInstance(MarkNavigationAddon, _capabilities);
 		this.raw.loadAddon(this._markNavigationAddon);
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
@@ -405,7 +405,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 				}
 			}
 		}
-		this._refreshImageAddon();
 	}
 
 	private _shouldLoadWebgl(): boolean {
@@ -640,6 +639,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
 				this._disposeOfWebglRenderer();
 			});
+			this._refreshImageAddon();
 			// Uncomment to add the texture atlas to the DOM
 			// setTimeout(() => {
 			// 	if (this._webglAddon?.textureAtlas) {
@@ -679,6 +679,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 			XtermTerminal._suggestedRendererType = 'dom';
 			this._disposeOfCanvasRenderer();
 		}
+		this._refreshImageAddon();
 	}
 
 	protected async _getCanvasAddonConstructor(): Promise<typeof CanvasAddonType> {
@@ -688,8 +689,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		return CanvasAddon;
 	}
 
+	@debounce(100)
 	private async _refreshImageAddon(): Promise<void> {
-		if (this._configHelper.config.enableImages) {
+		// Only allow the image addon when a canvas is being used to avoid possible GPU issues
+		if (this._configHelper.config.enableImages && (this._canvasAddon || this._webglAddon)) {
 			if (!this._imageAddon) {
 				const AddonCtor = await this._getImageAddonConstructor();
 				this._imageAddon = new AddonCtor();
@@ -747,6 +750,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 			// ignore
 		}
 		this._canvasAddon = undefined;
+		this._refreshImageAddon();
 	}
 
 	private _disposeOfWebglRenderer(): void {
@@ -756,6 +760,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 			// ignore
 		}
 		this._webglAddon = undefined;
+		this._refreshImageAddon();
 	}
 
 	private async _measureRenderTime(): Promise<void> {
