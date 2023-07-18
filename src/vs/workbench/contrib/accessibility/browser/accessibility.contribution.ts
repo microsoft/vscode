@@ -12,8 +12,7 @@ import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/b
 import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityHelpAction, AccessibleViewAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { AccessibleViewService, AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityHelpAction, AccessibleViewAction, AccessibleViewNextAction, AccessibleViewPreviousAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import * as strings from 'vs/base/common/strings';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -24,6 +23,10 @@ import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { getNotificationFromContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
+import { IAccessibleViewService, AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
@@ -145,3 +148,96 @@ class HoverAccessibleViewContribution extends Disposable {
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(HoverAccessibleViewContribution, LifecyclePhase.Eventually);
 
+
+class NotificationAccessibleViewContribution extends Disposable {
+	static ID: 'notificationAccessibleViewContribution';
+	constructor() {
+		super();
+		this._register(AccessibleViewAction.addImplementation(90, 'notifications', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const listService = accessor.get(IListService);
+			const commandService = accessor.get(ICommandService);
+
+			function renderAccessibleView(): boolean {
+				const notification = getNotificationFromContext(listService);
+				if (!notification) {
+					return false;
+				}
+				commandService.executeCommand('notifications.showList');
+				let notificationIndex: number | undefined;
+				const list = listService.lastFocusedList;
+				if (list instanceof WorkbenchList) {
+					notificationIndex = list.indexOf(notification);
+				}
+				if (notificationIndex === undefined) {
+					return false;
+				}
+				function focusList(): void {
+					commandService.executeCommand('notifications.showList');
+					if (list && notificationIndex !== undefined) {
+						list.domFocus();
+						try {
+							list.setFocus([notificationIndex]);
+						} catch { }
+					}
+				}
+				const message = notification.message.original.toString();
+				if (!message) {
+					return false;
+				}
+				accessibleViewService.show({
+					provideContent: () => {
+						return localize('notification.accessibleView', '{0} Source: {1}', message, notification.source);
+					},
+					onClose(): void {
+						focusList();
+					},
+					next(): void {
+						if (!list) {
+							return;
+						}
+						focusList();
+						list.focusNext();
+						renderAccessibleView();
+					},
+					previous(): void {
+						if (!list) {
+							return;
+						}
+						focusList();
+						list.focusPrevious();
+						renderAccessibleView();
+					},
+					verbositySettingKey: 'notifications',
+					options: {
+						ariaLabel: localize('notification', "Notification Accessible View"),
+						type: AccessibleViewType.View
+					}
+				});
+				return true;
+			}
+			return renderAccessibleView();
+		}, NotificationFocusedContext));
+	}
+}
+
+workbenchContributionsRegistry.registerWorkbenchContribution(NotificationAccessibleViewContribution, LifecyclePhase.Eventually);
+
+class AccessibleViewNavigatorContribution extends Disposable {
+	static ID: 'AccessibleViewNavigatorContribution';
+	constructor() {
+		super();
+		this._register(AccessibleViewNextAction.addImplementation(95, 'next', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			accessibleViewService.next();
+			return true;
+		}, accessibleViewIsShown));
+		this._register(AccessibleViewPreviousAction.addImplementation(95, 'previous', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			accessibleViewService.previous();
+			return true;
+		}, accessibleViewIsShown));
+	}
+}
+
+workbenchContributionsRegistry.registerWorkbenchContribution(AccessibleViewNavigatorContribution, LifecyclePhase.Eventually);
