@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, doesNotThrow, equal, ok, strictEqual, throws } from 'assert';
+import { deepStrictEqual, doesNotThrow, equal, notEqual, ok, strictEqual, throws } from 'assert';
 import { commands, ConfigurationTarget, Disposable, env, EnvironmentVariableCollection, EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableMutatorType, EnvironmentVariableScope, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalExitReason, TerminalOptions, TerminalState, UIKind, Uri, window, workspace } from 'vscode';
 import { assertNoRpc, poll } from '../utils';
 
@@ -349,21 +349,25 @@ import { assertNoRpc, poll } from '../utils';
 
 		suite('selection', () => {
 			test('should be undefined immediately after creation', async () => {
-				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
+				const terminal = window.createTerminal({ name: 'selection test' });
+				terminal.show();
 				equal(terminal.selection, undefined);
 				terminal.dispose();
 			});
 			test('should be defined after selecting all content', async () => {
-				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
+				const terminal = window.createTerminal({ name: 'selection test' });
+				terminal.show();
 				await commands.executeCommand('workbench.action.terminal.selectAll');
-				// TODO: Need to poll?
+				await poll<void>(() => Promise.resolve(), () => terminal.selection !== undefined, 'selection should be defined');
 				terminal.dispose();
 			});
 			test('should be undefined after clearing a selection', async () => {
-				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
+				const terminal = window.createTerminal({ name: 'selection test' });
+				terminal.show();
 				await commands.executeCommand('workbench.action.terminal.selectAll');
-				// TODO: Need to poll?
+				await poll<void>(() => Promise.resolve(), () => terminal.selection !== undefined, 'selection should be defined');
 				await commands.executeCommand('workbench.action.terminal.clearSelection');
+				await poll<void>(() => Promise.resolve(), () => terminal.selection === undefined, 'selection should not be defined');
 				terminal.dispose();
 			});
 		});
