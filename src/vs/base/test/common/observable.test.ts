@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepAlive } from 'vs/base/common/observable';
 import { BaseObservable, IObservable, IObserver } from 'vs/base/common/observableImpl/base';
 
@@ -961,6 +961,36 @@ suite('observables', () => {
 			myObservable1.set(1, tx);
 			myObservable2.set(1, tx);
 		});
+	});
+
+	test('bug: fromObservableLight doesnt subscribe', () => {
+		const log = new Log();
+		const myObservable = new LoggingObservableValue('myObservable', 0, log);
+
+		const myDerived = derived('myDerived', reader => {
+			const val = myObservable.read(reader);
+			log.log(`myDerived.computed(myObservable2: ${val})`);
+			return val % 10;
+		});
+
+		const e = Event.fromObservableLight(myDerived);
+		log.log('event created');
+		e(() => {
+			log.log('event fired');
+		});
+
+		myObservable.set(1, undefined);
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'event created',
+			'myObservable.firstObserverAdded',
+			'myObservable.get',
+			'myDerived.computed(myObservable2: 0)',
+			'myObservable.set (value 1)',
+			'myObservable.get',
+			'myDerived.computed(myObservable2: 1)',
+			'event fired',
+		]);
 	});
 });
 
