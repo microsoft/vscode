@@ -202,8 +202,9 @@ class InputEditorSlashCommandAutoSend extends Disposable {
 
 	private onDidChangeModelContent() {
 		// If the input editor has a slash command that does not need additional args to run, submit it
-		const firstLine = this.widget.inputEditor.getModel()?.getLineContent(1);
-		if (!firstLine) {
+		const model = this.widget.inputEditor.getModel();
+		const firstLine = model?.getLineContent(1);
+		if (!firstLine || !model || model.getLineCount() > 1) {
 			return;
 		}
 		const firstLineWithoutSlash = firstLine.substring(1);
