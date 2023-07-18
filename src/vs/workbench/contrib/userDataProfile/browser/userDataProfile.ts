@@ -542,17 +542,11 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			quickPick.widget = domNode;
 
 			const updateOptions = () => {
-				const index = findOptionIndex();
-				if (index <= 0) {
-					return;
+				const option = profileOptions[findOptionIndex()];
+				for (const resource of resources) {
+					resource.picked = option.source && !isString(option.source) ? !option.source?.useDefaultFlags?.[resource.id] : true;
 				}
-				const option = profileOptions[index];
-				if (!isString(option.source)) {
-					for (const resource of resources) {
-						resource.picked = option.source?.useDefaultFlags?.[resource.id];
-					}
-					update();
-				}
+				update();
 			};
 
 			updateOptions();
