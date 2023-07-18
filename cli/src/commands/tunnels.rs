@@ -166,7 +166,7 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 			},
 			_ = params.exit_barrier.wait() => {
 				// wait for all servers to finish up:
-				while let Some(_) = servers.next().await { }
+				while (servers.next().await).is_some() { }
 				return Ok(0);
 			}
 		}
