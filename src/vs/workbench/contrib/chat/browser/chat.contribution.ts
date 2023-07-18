@@ -44,7 +44,6 @@ import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatCo
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
-import { registerSlashCommandActions } from 'vs/workbench/contrib/chat/browser/actions/chatSlashCommandActions';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -196,7 +195,6 @@ registerChatQuickQuestionActions();
 registerChatExportActions();
 registerMoveActions();
 registerClearActions();
-registerSlashCommandActions();
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatContributionService, ChatContributionService, InstantiationType.Delayed);

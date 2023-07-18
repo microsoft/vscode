@@ -23,7 +23,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
-import { AcceptSlashCommand } from 'vs/workbench/contrib/chat/browser/actions/chatSlashCommandActions';
+import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
@@ -232,7 +232,7 @@ class SlashCommandCompletions extends Disposable {
 							range: new Range(1, 1, 1, 1),
 							sortText: c.sortText ?? c.command,
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: AcceptSlashCommand.ID, title: withSlash, arguments: [{ widget }] } : undefined,
+							command: c.executeImmediately ? { id: SubmitAction.ID, title: withSlash, arguments: [{ widget }] } : undefined,
 						};
 					})
 				};
