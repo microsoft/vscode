@@ -34,6 +34,7 @@ import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessi
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class InlineChatLivePreviewWidget extends ZoneWidget {
 
@@ -53,6 +54,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@ILogService private readonly _logService: ILogService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, allowUnlimitedHeight: true, showInHiddenAreas: true, ordinal: 10000 + 1 });
 		super.create();
@@ -78,7 +80,8 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			stickyScroll: { enabled: false },
 			minimap: { enabled: false },
 			isInEmbeddedEditor: true,
-			overflowWidgetsDomNode: editor.getOverflowWidgetsDomNode()
+			overflowWidgetsDomNode: editor.getOverflowWidgetsDomNode(),
+			onlyShowAccessibleDiffViewer: this.accessibilityService.isScreenReaderOptimized(),
 		}, {
 			originalEditor: { contributions: diffContributions },
 			modifiedEditor: { contributions: diffContributions }

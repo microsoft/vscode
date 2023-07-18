@@ -66,7 +66,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 	private unchangedRangesFeature!: UnchangedRangesFeature;
 
-	private _accessibleDiffViewerVisible = observableValue('accessibleDiffViewerVisible', false);
+	private _accessibleDiffViewerShouldBeVisible = observableValue('accessibleDiffViewerShouldBeVisible', false);
+	private _accessibleDiffViewerVisible = derived('accessibleDiffViewerVisible', reader =>
+		this._options.onlyShowAccessibleDiffViewer.read(reader)
+			? true
+			: this._accessibleDiffViewerShouldBeVisible.read(reader)
+	);
 	private _accessibleDiffViewer!: AccessibleDiffViewer;
 	private readonly _options: DiffEditorOptions;
 	private readonly _editors: DiffEditorEditors;
@@ -163,6 +168,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 				readHotReloadableExport(AccessibleDiffViewer, reader),
 				this.elements.accessibleDiffViewer,
 				this._accessibleDiffViewerVisible,
+				(visible, tx) => this._accessibleDiffViewerShouldBeVisible.set(visible, tx),
+				this._options.onlyShowAccessibleDiffViewer.map(v => !v),
 				this._rootSizeObserver.width,
 				this._rootSizeObserver.height,
 				this._diffModel.map((m, r) => m?.diff.read(r)?.mappings.map(m => m.lineRangeMapping)),
