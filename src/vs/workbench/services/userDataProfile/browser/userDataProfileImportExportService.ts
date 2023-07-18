@@ -58,7 +58,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { asText, IRequestService } from 'vs/platform/request/common/request';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { isUndefined } from 'vs/base/common/types';
+import { Mutable, isUndefined } from 'vs/base/common/types';
 import { Action, ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { isWeb } from 'vs/base/common/platform';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -204,7 +204,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				location: ProgressLocation.Window,
 				command: showWindowLogActionId,
 				title: localize('resolving uri', "{0}: Resolving profile content...", options?.mode ? localize('preview profile', "Preview Profile") : localize('import profile', "Create Profile")),
-			}, () => this.resolveProfileTemplate(uri));
+			}, () => this.resolveProfileTemplate(uri, options));
 			if (!profileTemplate) {
 				return;
 			}
@@ -348,15 +348,19 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 	}
 
-	private async resolveProfileTemplate(uri: URI): Promise<IUserDataProfileTemplate | null> {
+	private async resolveProfileTemplate(uri: URI, options?: IProfileImportOptions): Promise<IUserDataProfileTemplate | null> {
 		const profileContent = await this.resolveProfileContent(uri);
 		if (profileContent === null) {
 			return null;
 		}
 
-		const profileTemplate: IUserDataProfileTemplate = JSON.parse(profileContent);
+		const profileTemplate: Mutable<IUserDataProfileTemplate> = JSON.parse(profileContent);
 		if (!isUserDataProfileTemplate(profileTemplate)) {
 			throw new Error('Invalid profile content.');
+		}
+
+		if (options?.name) {
+			profileTemplate.name = options.name;
 		}
 
 		return profileTemplate;
