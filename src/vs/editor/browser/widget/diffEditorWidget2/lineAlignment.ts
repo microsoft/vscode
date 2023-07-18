@@ -243,7 +243,7 @@ export class ViewZoneManager extends Disposable {
 				} else {
 					const delta = a.modifiedHeightInPx - a.originalHeightInPx;
 					if (delta > 0) {
-						if (syncedMovedText?.lineRangeMapping.originalRange.contains(a.originalRange.endLineNumberExclusive - 1)) {
+						if (syncedMovedText?.lineRangeMapping.original.contains(a.originalRange.endLineNumberExclusive - 1)) {
 							continue;
 						}
 
@@ -254,7 +254,7 @@ export class ViewZoneManager extends Disposable {
 							showInHiddenAreas: true,
 						});
 					} else {
-						if (syncedMovedText?.lineRangeMapping.modifiedRange.contains(a.modifiedRange.endLineNumberExclusive - 1)) {
+						if (syncedMovedText?.lineRangeMapping.modified.contains(a.modifiedRange.endLineNumberExclusive - 1)) {
 							continue;
 						}
 
@@ -281,8 +281,8 @@ export class ViewZoneManager extends Disposable {
 			}
 
 			for (const a of alignmentsSyncedMovedText.read(reader) ?? []) {
-				if (!syncedMovedText?.lineRangeMapping.originalRange.intersect(a.originalRange)
-					&& !syncedMovedText?.lineRangeMapping.modifiedRange.intersect(a.modifiedRange)) {
+				if (!syncedMovedText?.lineRangeMapping.original.intersect(a.originalRange)
+					&& !syncedMovedText?.lineRangeMapping.modified.intersect(a.modifiedRange)) {
 					// ignore unrelated alignments outside the synced moved text
 					continue;
 				}
@@ -402,8 +402,8 @@ export class ViewZoneManager extends Disposable {
 
 			let deltaOrigToMod = 0;
 			if (m) {
-				const trueTopOriginal = this._editors.original.getTopForLineNumber(m.lineRangeMapping.originalRange.startLineNumber, true) - this._originalTopPadding.get();
-				const trueTopModified = this._editors.modified.getTopForLineNumber(m.lineRangeMapping.modifiedRange.startLineNumber, true) - this._modifiedTopPadding.get();
+				const trueTopOriginal = this._editors.original.getTopForLineNumber(m.lineRangeMapping.original.startLineNumber, true) - this._originalTopPadding.get();
+				const trueTopModified = this._editors.modified.getTopForLineNumber(m.lineRangeMapping.modified.startLineNumber, true) - this._modifiedTopPadding.get();
 				deltaOrigToMod = trueTopModified - trueTopOriginal;
 			}
 

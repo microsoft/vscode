@@ -67,9 +67,9 @@ export class MovedBlocksLinesPart extends Disposable {
 					return (t1 + t2) / 2;
 				}
 
-				const start = computeLineStart(m.lineRangeMapping.originalRange, this._editors.original);
+				const start = computeLineStart(m.lineRangeMapping.original, this._editors.original);
 				const startOffset = originalScrollTop.read(reader);
-				const end = computeLineStart(m.lineRangeMapping.modifiedRange, this._editors.modified);
+				const end = computeLineStart(m.lineRangeMapping.modified, this._editors.modified);
 				const endOffset = modifiedScrollTop.read(reader);
 
 				const top = start - startOffset;
