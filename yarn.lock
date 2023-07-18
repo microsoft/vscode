@@ -1056,10 +1056,10 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-10.12.21.tgz#7e8a0c34cf29f4e17a36e9bd0ea72d45ba03908e"
   integrity sha512-CBgLNk4o3XMnqMc0rhb6lc77IwShMEglz05deDcn2lQxyXEZivfwgYJu7SMha9V5XcrP6qZuevTHV/QrN2vjKQ==
 
-"@types/node@^16.11.26":
-  version "16.11.31"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-16.11.31.tgz#1dad8138efee6808809bb80f9e66bbe3e46c9277"
-  integrity sha512-wh/d0pcu/Ie2mqTIqh4tjd0mLAB4JWxOjHQtLN20HS7sjMHiV4Afr+90hITTyZcxowwha5wjv32jGEn1zkEFMg==
+"@types/node@^18.11.18":
+  version "18.16.19"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-18.16.19.tgz#cb03fca8910fdeb7595b755126a8a78144714eea"
+  integrity sha512-IXl7o+R9iti9eBW4Wg2hx1xQDig183jj7YLn8F7udNceyfkbn1ZxmzZXuak20gR40D7pIkIY1kYGx5VIGbaHKA==
 
 "@types/q@^1.5.1":
   version "1.5.4"
@@ -1339,10 +1339,10 @@
     https-proxy-agent "^5.0.0"
     proxy-from-env "^1.1.0"
 
-"@vscode/spdlog@^0.13.10":
-  version "0.13.10"
-  resolved "https://registry.yarnpkg.com/@vscode/spdlog/-/spdlog-0.13.10.tgz#5476853b968a1bcc389b92175d11e636464858e8"
-  integrity sha512-BHJN/r2XurLDR0doBhyQ5b+DUjFjqwnOcD4ZjW/7MkuShO+Wn5KVKOl6x/xQLCAlOlQqVVe42n2A7FwuIFpkWw==
+"@vscode/spdlog@^0.13.11":
+  version "0.13.11"
+  resolved "https://registry.yarnpkg.com/@vscode/spdlog/-/spdlog-0.13.11.tgz#1c65c3527dd8e9679ada7f427c4d9e4af2ea097a"
+  integrity sha512-4qk6G3XKTJNsrqsGwmo9lr8NPaH84WeLsoFVPrpvoEC1t1tFu7H6l4RRMgzKNeE92nwRbjejLv1nATJNoabRfA==
   dependencies:
     bindings "^1.5.0"
     mkdirp "^0.5.5"
@@ -3587,13 +3587,13 @@ electron-to-chromium@^1.4.202:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.207.tgz#9c3310ebace2952903d05dcaba8abe3a4ed44c01"
   integrity sha512-piH7MJDJp4rJCduWbVvmUd59AUne1AFBJ8JaRQvk0KzNTSUnZrVXHCZc+eg+CGE4OujkcLJznhGKD6tuAshj5Q==
 
-electron@22.3.18:
-  version "22.3.18"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-22.3.18.tgz#5ee55633b3912fec9df6d8f039acf2c016274cfc"
-  integrity sha512-JgjB966ghTBszAX/GgVgDY/2CktWCjTZWGJI0WISRHDudBZ8/WPkI/hIjsMiLQLe0wSTk6S+WHOYbIqyw0I/sg==
+electron@25.3.0:
+  version "25.3.0"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-25.3.0.tgz#e818ab3ebd3e7a45f8fca0f47e607c9af2dc92c7"
+  integrity sha512-cyqotxN+AroP5h2IxUsJsmehYwP5LrFAOO7O7k9tILME3Sa1/POAg3shrhx4XEnaAMyMqMLxzGvkzCVxzEErnA==
   dependencies:
     "@electron/get" "^2.0.0"
-    "@types/node" "^16.11.26"
+    "@types/node" "^18.11.18"
     extract-zip "^2.0.1"
 
 emoji-regex@^7.0.1:
@@ -7048,10 +7048,10 @@ native-is-elevated@0.7.0:
   resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.7.0.tgz#77499639e232edad1886403969e2bf236294e7af"
   integrity sha512-tp8hUqK7vexBiyIWKMvmRxdG6kqUtO+3eay9iB0i16NYgvCqE5wMe1Y0guHilpkmRgvVXEWNW4et1+qqcwpLBA==
 
-native-keymap@^3.3.2:
-  version "3.3.3"
-  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.3.3.tgz#cdc92331721e289605f1fb55ca4609ce52888845"
-  integrity sha512-TKBPTNHWK+8be1htLFNy/fsDtxv5A2z4IwvQ/XeiDkNgAthqdlImxza/dDBu3eN2lqNnFSkJl0fZ8221hV92hg==
+native-keymap@^3.3.4:
+  version "3.3.4"
+  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.3.4.tgz#593f176f89442218286624b7754e1bdcb4660982"
+  integrity sha512-dFxL5bzWDsnPT6dZbtq9OXuETdgNMio5o0IeUTGXvwH9WqMMR/1Aytt/zz+e281qEko8iFmt98saOX7EN7BRPg==
 
 native-watchdog@^1.4.1:
   version "1.4.2"
