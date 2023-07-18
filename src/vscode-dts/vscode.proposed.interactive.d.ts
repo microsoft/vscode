@@ -139,7 +139,7 @@ declare module 'vscode' {
 		detail?: string;
 		shouldRepopulate?: boolean;
 		followupPlaceholder?: string;
-		hasArgs?: boolean;
+		executeImmediately?: boolean;
 	}
 
 	export interface InteractiveSessionReplyFollowup {
