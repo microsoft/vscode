@@ -5,6 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -58,6 +59,15 @@ export class ExtHostChat implements ExtHostChatShape {
 			this._proxy.$unregisterChatProvider(wrapper.handle);
 			this._chatProvider.delete(wrapper.handle);
 		});
+	}
+
+	transferChatSession(session: vscode.InteractiveSession, newWorkspace: vscode.Uri): void {
+		const sessionId = Iterable.find(this._chatSessions.keys(), key => this._chatSessions.get(key) === session) ?? 0;
+		if (typeof sessionId !== 'number') {
+			return;
+		}
+
+		this._proxy.$transferChatSession(sessionId, newWorkspace);
 	}
 
 	addChatRequest(context: vscode.InteractiveSessionRequestArgs): void {

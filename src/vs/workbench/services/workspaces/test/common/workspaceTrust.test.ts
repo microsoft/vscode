@@ -42,6 +42,10 @@ suite('Workspace Trust', () => {
 		instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() { });
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	suite('Enablement', () => {
 		let testObject: WorkspaceTrustEnablementService;
 

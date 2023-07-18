@@ -9,7 +9,6 @@ import { EventType, addDisposableListener, EventHelper, append, $, clearNode, hi
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenuService, MenuId, IMenu, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
@@ -41,6 +40,7 @@ import { ICredentialsService } from 'vs/platform/credentials/common/credentials'
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -235,7 +235,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 	private readonly problematicProviders: Set<string> = new Set();
 
 	private initialized = false;
-	private sessionFromEmbedder = getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
+	private sessionFromEmbedder = getCurrentAuthenticationSessionInfo(this.credentialsService, this.secretStorageService, this.productService);
 
 	constructor(
 		action: ActivityAction,
@@ -253,6 +253,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -483,7 +484,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, true, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
-		this._register(Event.any(this.userDataProfileService.onDidUpdateCurrentProfile, this.userDataProfileService.onDidChangeCurrentProfile)(() => this.updateProfileBadge()));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.updateProfileBadge()));
 	}
 
 	override render(container: HTMLElement): void {

@@ -51,8 +51,8 @@ suite('Debug - REPL', () => {
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
 		repl.appendToRepl(session, { output: '', expression: new RawObjectReplElement('fakeid', 'fake', keyValueObject), sev: severity.Info });
 		const element = <ReplVariableElement>repl.getReplElements()[3];
-		assert.strictEqual(element.expr.value, 'Object');
-		assert.deepStrictEqual((element.expr as RawObjectReplElement).valueObj, keyValueObject);
+		assert.strictEqual(element.expression.value, 'Object');
+		assert.deepStrictEqual((element.expression as RawObjectReplElement).valueObj, keyValueObject);
 
 		repl.removeReplExpressions();
 		assert.strictEqual(repl.getReplElements().length, 0);

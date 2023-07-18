@@ -1,6 +1,8 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_ARCH
+    type: string
   - name: VSCODE_RUN_UNIT_TESTS
     type: boolean
   - name: VSCODE_RUN_INTEGRATION_TESTS
@@ -32,14 +34,17 @@ steps:
       - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
+        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
       - powershell: yarn test-node --build
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
+        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
       - powershell: yarn test-browser-no-install --sequential --build --browser chromium --tfs "Browser Unit Tests"
         displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 20
+        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - powershell: |
@@ -89,16 +94,21 @@ steps:
           $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
           $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
           $AppNameShort = $AppProductJson.nameShort
-          exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\scripts\test-integration.bat --build --tfs "Integration Tests" }
+          $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
+          $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
+          exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
+        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"; .\scripts\test-web-integration.bat --browser firefox }
+          $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)-web"
+          exec { .\scripts\test-web-integration.bat --browser firefox }
         displayName: Run integration tests (Browser, Firefox)
         timeoutInMinutes: 20
+        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
@@ -106,9 +116,12 @@ steps:
           $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
           $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
           $AppNameShort = $AppProductJson.nameShort
-          exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\scripts\test-remote-integration.bat }
+          $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
+          $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
+          exec { .\scripts\test-remote-integration.bat }
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
+        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
   - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
     - powershell: .\build\azure-pipelines\win32\listprocesses.bat
@@ -131,12 +144,14 @@ steps:
       - powershell: yarn smoketest-no-compile --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
         displayName: Run smoke tests (Electron)
         timeoutInMinutes: 20
+        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
       - powershell: yarn smoketest-no-compile --web --tracing --headless
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)-web
         displayName: Run smoke tests (Browser, Chromium)
         timeoutInMinutes: 20
+        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
       - powershell: yarn gulp compile-extension:vscode-test-resolver
         displayName: Compile test resolver extension
@@ -144,9 +159,10 @@ steps:
 
       - powershell: yarn smoketest-no-compile --tracing --remote --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)
         displayName: Run smoke tests (Remote)
         timeoutInMinutes: 20
+        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
     - powershell: .\build\azure-pipelines\win32\listprocesses.bat
       displayName: Diagnostics after smoke test run

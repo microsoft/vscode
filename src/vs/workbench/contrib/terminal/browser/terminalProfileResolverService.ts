@@ -7,12 +7,11 @@ import { Schemas } from 'vs/base/common/network';
 import { env } from 'vs/base/common/process';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IShellLaunchConfig, ITerminalProfile, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalLogService, ITerminalProfile, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
 import { Codicon } from 'vs/base/common/codicons';
@@ -27,8 +26,8 @@ import { terminalProfileArgsMatch, isUriComponents } from 'vs/platform/terminal/
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export interface IProfileContextProvider {
-	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
-	getEnvironment: (remoteAuthority: string | undefined) => Promise<IProcessEnvironment>;
+	getDefaultSystemShell(remoteAuthority: string | undefined, os: OperatingSystem): Promise<string>;
+	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
 }
 
 const generatedProfileName = 'Generated';
@@ -52,7 +51,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		private readonly _configurationService: IConfigurationService,
 		private readonly _configurationResolverService: IConfigurationResolverService,
 		private readonly _historyService: IHistoryService,
-		private readonly _logService: ILogService,
+		private readonly _logService: ITerminalLogService,
 		private readonly _terminalProfileService: ITerminalProfileService,
 		private readonly _workspaceContextService: IWorkspaceContextService,
 		private readonly _remoteAgentService: IRemoteAgentService
@@ -275,11 +274,12 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private async _resolveProfile(profile: ITerminalProfile, options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
+		const env = await this._context.getEnvironment(options.remoteAuthority);
+
 		if (options.os === OperatingSystem.Windows) {
 			// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 			// safe to assume that this was used by accident as Sysnative does not
 			// exist and will break the terminal in non-WoW64 environments.
-			const env = await this._context.getEnvironment(options.remoteAuthority);
 			const isWoW64 = !!env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 			const windir = env.windir;
 			if (!isWoW64 && windir) {
@@ -296,7 +296,6 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 
 		// Resolve path variables
-		const env = await this._context.getEnvironment(options.remoteAuthority);
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(options.remoteAuthority ? Schemas.vscodeRemote : Schemas.file);
 		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		profile.path = await this._resolveVariables(profile.path, env, lastActiveWorkspace);
@@ -406,7 +405,7 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHistoryService historyService: IHistoryService,
-		@ILogService logService: ILogService,
+		@ITerminalLogService logService: ITerminalLogService,
 		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService,
 		@ITerminalProfileService terminalProfileService: ITerminalProfileService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,

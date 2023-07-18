@@ -31,7 +31,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { StartupPageContribution, } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { RemoteStartEntry } from 'vs/workbench/contrib/remote/browser/remoteStartEntry';
 
 export * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
 
@@ -64,15 +63,12 @@ registerAction2(class extends Action2 {
 			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
 			const selectedStep = typeof walkthroughID === 'string' ? undefined : walkthroughID.step;
 
-			let openedWalkthroughExists = false;
 			// Try first to select the walkthrough on an active welcome page with no selected walkthrough
 			for (const group of editorGroupsService.groups) {
 				if (group.activeEditor instanceof GettingStartedInput) {
 					if (!group.activeEditor.selectedCategory) {
 						(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
 						return;
-					} else {
-						openedWalkthroughExists = true;
 					}
 				}
 			}
@@ -87,8 +83,6 @@ registerAction2(class extends Action2 {
 						editor.selectedStep = selectedStep;
 						group.openEditor(editor, { revealIfOpened: true });
 						return;
-					} else {
-						openedWalkthroughExists = true;
 					}
 				}
 			}
@@ -107,7 +101,7 @@ registerAction2(class extends Action2 {
 					editor: activeEditor,
 					replacement: instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep })
 				}]);
-			} else if (!openedWalkthroughExists) {
+			} else {
 				// else open respecting toSide
 				editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
@@ -297,7 +291,6 @@ class WorkspacePlatformContribution {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WorkspacePlatformContribution, LifecyclePhase.Restored);
 
-
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	...workbenchConfigurationNodeBase,
@@ -332,9 +325,5 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StartupPageContribution, LifecyclePhase.Restored);
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(RemoteStartEntry, LifecyclePhase.Restored);

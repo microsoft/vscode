@@ -14,7 +14,7 @@ import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contr
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { maxPriority, statesInOrder, terminalStatePriorities } from 'vs/workbench/contrib/testing/common/testingStates';
+import { makeEmptyCounts, maxPriority, statesInOrder, terminalStatePriorities, TestStateCount } from 'vs/workbench/contrib/testing/common/testingStates';
 import { getMarkId, IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export interface ITestRunTaskResults extends ITestRunTask {
@@ -185,20 +185,6 @@ export const resultItemParents = function* (results: ITestResult, item: TestResu
 	}
 };
 
-/**
- * Count of the number of tests in each run state.
- */
-export type TestStateCount = { [K in TestResultState]: number };
-
-export const makeEmptyCounts = () => {
-	const o: Partial<TestStateCount> = {};
-	for (const state of statesInOrder) {
-		o[state] = 0;
-	}
-
-	return o as TestStateCount;
-};
-
 export const maxCountPriority = (counts: Readonly<TestStateCount>) => {
 	for (const state of statesInOrder) {
 		if (counts[state] > 0) {
@@ -229,11 +215,13 @@ const itemToNode = (controllerId: string, item: ITestItem, parent: string | null
 export const enum TestResultItemChangeReason {
 	ComputedStateChange,
 	OwnStateChange,
+	NewMessage,
 }
 
 export type TestResultItemChange = { item: TestResultItem; result: ITestResult } & (
 	| { reason: TestResultItemChangeReason.ComputedStateChange }
 	| { reason: TestResultItemChangeReason.OwnStateChange; previousState: TestResultState; previousOwnDuration: number | undefined }
+	| { reason: TestResultItemChangeReason.NewMessage }
 );
 
 /**
@@ -266,7 +254,7 @@ export class LiveTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly counts: { [K in TestResultState]: number } = makeEmptyCounts();
+	public readonly counts = makeEmptyCounts();
 
 	/**
 	 * @inheritdoc
@@ -333,8 +321,10 @@ export class LiveTestResult implements ITestResult {
 			type: TestMessageType.Output,
 		};
 
-		if (testId) {
-			this.testById.get(testId)?.tasks[index].messages.push(message);
+		const test = testId && this.testById.get(testId);
+		if (test) {
+			test.tasks[index].messages.push(message);
+			this.changeEmitter.fire({ item: test, result: this, reason: TestResultItemChangeReason.NewMessage });
 		} else {
 			task.otherMessages.push(message);
 		}
@@ -404,13 +394,7 @@ export class LiveTestResult implements ITestResult {
 		}
 
 		entry.tasks[this.mustGetTaskIndex(taskId)].messages.push(message);
-		this.changeEmitter.fire({
-			item: entry,
-			result: this,
-			reason: TestResultItemChangeReason.OwnStateChange,
-			previousState: entry.ownComputedState,
-			previousOwnDuration: entry.ownDuration,
-		});
+		this.changeEmitter.fire({ item: entry, result: this, reason: TestResultItemChangeReason.NewMessage });
 	}
 
 	/**

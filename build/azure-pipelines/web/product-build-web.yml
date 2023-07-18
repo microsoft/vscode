@@ -87,7 +87,13 @@ steps:
 
   - template: ../common/install-builtin-extensions.yml
 
-  - script: yarn gulp vscode-web-min-ci
+  - script: |
+      set -e
+      yarn gulp vscode-web-min-ci
+      ARCHIVE_PATH=".build/web/vscode-web.tar.gz"
+      mkdir -p $(dirname $ARCHIVE_PATH)
+      tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-web
+      echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Build
@@ -133,20 +139,11 @@ steps:
         node build/azure-pipelines/upload-nlsmetadata
     displayName: Upload NLS Metadata
 
-  - script: |
-      set -e
-      REPO="$(pwd)"
-      ROOT="$REPO/.."
+  - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
+    condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
+    displayName: Generate artifact prefix
 
-      WEB_BUILD_NAME="vscode-web"
-      WEB_TARBALL_FILENAME="vscode-web.tar.gz"
-      WEB_TARBALL_PATH="$ROOT/$WEB_TARBALL_FILENAME"
-
-      rm -rf $ROOT/vscode-web.tar.*
-
-      cd $ROOT && tar --owner=0 --group=0 -czf $WEB_TARBALL_PATH $WEB_BUILD_NAME
-    displayName: Prepare for publish
-
-  - publish: $(Agent.BuildDirectory)/vscode-web.tar.gz
-    artifact: vscode_web_linux_standalone_archive-unsigned
+  - publish: $(WEB_PATH)
+    artifact: $(ARTIFACT_PREFIX)vscode_web_linux_standalone_archive-unsigned
+    condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
     displayName: Publish web archive

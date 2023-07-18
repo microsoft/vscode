@@ -36,6 +36,7 @@ import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 function isKernelPick(item: QuickPickInput<IQuickPickItem>): item is KernelPick {
@@ -287,17 +288,22 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 	) {
 		// If extension id is provided attempt to install the extension as the user has requested the suggested ones be installed
 		const extensionsToInstall: IExtension[] = [];
+		const extensionsToEnable: IExtension[] = [];
 
 		for (const extId of extIds) {
 			const extension = (await extensionWorkbenchService.getExtensions([{ id: extId }], CancellationToken.None))[0];
-			const canInstall = await extensionWorkbenchService.canInstall(extension);
-			if (canInstall) {
-				extensionsToInstall.push(extension);
+			if (extension.enablementState === EnablementState.DisabledGlobally || extension.enablementState === EnablementState.DisabledWorkspace || extension.enablementState === EnablementState.DisabledByEnvironment) {
+				extensionsToEnable.push(extension);
+			} else {
+				const canInstall = await extensionWorkbenchService.canInstall(extension);
+				if (canInstall) {
+					extensionsToInstall.push(extension);
+				}
 			}
 		}
 
-		if (extensionsToInstall.length) {
-			await Promise.all(extensionsToInstall.map(async extension => {
+		if (extensionsToInstall.length || extensionsToEnable.length) {
+			await Promise.all([...extensionsToInstall.map(async extension => {
 				await extensionWorkbenchService.install(
 					extension,
 					{
@@ -306,7 +312,21 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 					},
 					ProgressLocation.Notification
 				);
-			}));
+			}), ...extensionsToEnable.map(async extension => {
+				switch (extension.enablementState) {
+					case EnablementState.DisabledWorkspace:
+						await extensionWorkbenchService.setEnablement([extension], EnablementState.EnabledWorkspace);
+						return;
+					case EnablementState.DisabledGlobally:
+						await extensionWorkbenchService.setEnablement([extension], EnablementState.EnabledGlobally);
+						return;
+					case EnablementState.DisabledByEnvironment:
+						await extensionWorkbenchService.setEnablement([extension], EnablementState.EnabledByEnvironment);
+						return;
+					default:
+						break;
+				}
+			})]);
 
 			await extensionService.activateByEvent(`onNotebook:${viewType}`);
 			return;
@@ -348,7 +368,11 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		const suggestedExtension: INotebookExtensionRecommendation | undefined = language ? this.getSuggestedKernelFromLanguage(notebookTextModel.viewType, language) : undefined;
 		if (suggestedExtension) {
 			await extensionWorkbenchService.queryLocal();
-			const extensions = extensionWorkbenchService.installed.filter(e => suggestedExtension.extensionIds.includes(e.identifier.id));
+
+			const extensions = extensionWorkbenchService.installed.filter(e =>
+				(e.enablementState === EnablementState.EnabledByEnvironment || e.enablementState === EnablementState.EnabledGlobally || e.enablementState === EnablementState.EnabledWorkspace)
+				&& suggestedExtension.extensionIds.includes(e.identifier.id)
+			);
 
 			if (extensions.length === suggestedExtension.extensionIds.length) {
 				// it's installed but might be detecting kernels
@@ -359,7 +383,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 			quickPickItems.push({
 				id: 'installSuggested',
 				description: suggestedExtension.displayName ?? suggestedExtension.extensionIds.join(', '),
-				label: `$(${Codicon.lightbulb.id}) ` + localize('installSuggestedKernel', 'Install suggested extensions'),
+				label: `$(${Codicon.lightbulb.id}) ` + localize('installSuggestedKernel', 'Install/Enable suggested extensions'),
 				extensionIds: suggestedExtension.extensionIds
 			} as InstallExtensionPick);
 		}
@@ -605,7 +629,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 					selectedKernelPickItem.extensionIds,
 					this._productService.quality !== 'stable'
 				);
-				return true;
+				return this.displaySelectAnotherQuickPick(editor, false);
 			}
 		}
 

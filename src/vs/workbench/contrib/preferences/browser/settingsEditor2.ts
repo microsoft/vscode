@@ -707,17 +707,12 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	switchToApplicationSettingsFile(): Promise<IEditorPane | undefined> {
-		const query = parseQuery(this.searchWidget.getValue()).query;
-		return this.openSettingsFile({ query }, true);
-	}
-
 	switchToSettingsFile(): Promise<IEditorPane | undefined> {
 		const query = parseQuery(this.searchWidget.getValue()).query;
 		return this.openSettingsFile({ query });
 	}
 
-	private async openSettingsFile(options?: ISettingsEditorOptions, forceOpenApplicationSettings?: boolean): Promise<IEditorPane | undefined> {
+	private async openSettingsFile(options?: ISettingsEditorOptions): Promise<IEditorPane | undefined> {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
 		const openOptions: IOpenSettingsOptions = { jsonEditor: true, ...options };
@@ -728,9 +723,6 @@ export class SettingsEditor2 extends EditorPane {
 				if (configurationScope === ConfigurationScope.APPLICATION) {
 					return this.preferencesService.openApplicationSettings(openOptions);
 				}
-			}
-			if (forceOpenApplicationSettings) {
-				return this.preferencesService.openApplicationSettings(openOptions);
 			}
 			return this.preferencesService.openUserSettings(openOptions);
 		} else if (currentSettingsTarget === ConfigurationTarget.USER_REMOTE) {
@@ -1364,9 +1356,11 @@ export class SettingsEditor2 extends EditorPane {
 				keys.forEach(key => this.settingsTreeModel.updateElementsByName(key));
 			}
 
-			keys.forEach(key => this.renderTree(key));
+			// Attempt to render the tree once rather than
+			// once for each key to avoid redundant calls to this.refreshTree()
+			this.renderTree();
 		} else {
-			return this.renderTree();
+			this.renderTree();
 		}
 	}
 

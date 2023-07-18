@@ -826,5 +826,5 @@ export interface IRemoteResourceRequest {
 	/**
 	 * A method called by the editor to issue a response to the request.
 	 */
-	respondWith(statusCode: number, body: Uint8Array): void;
+	respondWith(statusCode: number, body: Uint8Array, headers: Record<string, string>): void;
 }
