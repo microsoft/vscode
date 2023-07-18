@@ -555,9 +555,9 @@ function computeRangeAlignment(
 		for (const i of c.innerChanges || []) {
 			if (i.originalRange.startColumn > 1 && i.modifiedRange.startColumn > 1) {
 				// There is some unmodified text on this line
-				emitAlignment(i.originalRange.startLineNumber, i.modifiedRange.startLineNumber);
+				emitAlignment(i.originalRange.startLineNumber + 1, i.modifiedRange.startLineNumber + 1);
 			}
-			emitAlignment(i.originalRange.endLineNumber, i.modifiedRange.endLineNumber);
+			emitAlignment(i.originalRange.endLineNumber + 1, i.modifiedRange.endLineNumber + 1);
 		}
 
 		emitAlignment(c.originalRange.endLineNumberExclusive, c.modifiedRange.endLineNumberExclusive);
