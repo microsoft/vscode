@@ -100,9 +100,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 							if (item.tooltip && !allowedTooltips) {
 								console.warn(`Extension '${extension.identifier.value}' uses a tooltip which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
 							}
-							if (item.iconPath) {
-								console.warn(`Extension '${extension.identifier.value}' uses an icon which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
-							}
+
 							const icon = (item.iconPath) ? getIconPathOrClass(item.iconPath) : undefined;
 							pickItems.push({
 								label: item.label,
@@ -582,9 +580,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 					if (item.tooltip && !allowedTooltips) {
 						console.warn(`Extension '${this.extension.identifier.value}' uses a tooltip which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this.extension.identifier.value}`);
 					}
-					if (item.iconPath) {
-						console.warn(`Extension '${this.extension.identifier.value}' uses an icon which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this.extension.identifier.value}`);
-					}
+
 					const icon = (item.iconPath) ? getIconPathOrClass(item.iconPath) : undefined;
 					pickItems.push({
 						handle,
