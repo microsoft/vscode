@@ -40,7 +40,7 @@ declare module 'vscode' {
 	}
 
 	export namespace llm {
-		export function registerChatResponseProvider(provider: ChatResponseProvider, metadata: ChatResponseProviderMetadata): Disposable;
+		export function registerChatResponseProvider(id: string, provider: ChatResponseProvider, metadata: ChatResponseProviderMetadata): Disposable;
 	}
 
 }

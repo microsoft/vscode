@@ -1330,9 +1330,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: llm
 		const llm: typeof vscode.llm = {
-			registerChatResponseProvider(provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata) {
+			registerChatResponseProvider(id: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatProvider');
-				return extHostChatProvider.registerProvider(extension.identifier, provider, metadata);
+				return extHostChatProvider.registerProvider(extension.identifier, id, provider, metadata);
 			},
 			registerSlashCommand(name: string, command: vscode.SlashCommand) {
 				checkProposedApiEnabled(extension, 'chatSlashCommands');

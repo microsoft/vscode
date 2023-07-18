@@ -32,11 +32,11 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatProvider);
 	}
 
-	registerProvider(extension: ExtensionIdentifier, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata): IDisposable {
+	registerProvider(extension: ExtensionIdentifier, identifier: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata): IDisposable {
 
 		const handle = ExtHostChatProvider._idPool++;
 		this._providers.set(handle, { extension, provider });
-		this._proxy.$registerProvider(handle, { extension, displayName: metadata.name ?? extension.value });
+		this._proxy.$registerProvider(handle, identifier, { extension, displayName: metadata.name ?? extension.value });
 
 		return toDisposable(() => {
 			this._proxy.$unregisterProvider(handle);

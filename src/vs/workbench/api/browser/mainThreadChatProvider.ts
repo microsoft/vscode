@@ -28,8 +28,8 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 		this._providerRegistrations.dispose();
 	}
 
-	$registerProvider(handle: number, metadata: IChatResponseProviderMetadata): void {
-		const registration = this._chatProviderService.registerChatResponseProvider({
+	$registerProvider(handle: number, identifier: string, metadata: IChatResponseProviderMetadata): void {
+		const registration = this._chatProviderService.registerChatResponseProvider(identifier, {
 			metadata,
 			provideChatResponse: async (messages, options, progress, token) => {
 				const requestId = (Math.random() * 1e6) | 0;

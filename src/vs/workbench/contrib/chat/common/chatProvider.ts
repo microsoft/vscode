@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress } from 'vs/platform/progress/common/progress';
@@ -45,7 +45,7 @@ export interface IChatProviderService {
 
 	readonly _serviceBrand: undefined;
 
-	registerChatResponseProvider(provider: IChatResponseProvider): IDisposable;
+	registerChatResponseProvider(identifier: string, provider: IChatResponseProvider): IDisposable;
 
 	fetchChatResponse(messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
 }
@@ -53,19 +53,19 @@ export interface IChatProviderService {
 export class ChatProviderService implements IChatProviderService {
 	readonly _serviceBrand: undefined;
 
-	private readonly _providers: Set<IChatResponseProvider> = new Set();
+	private readonly _providers: Map<string, IChatResponseProvider> = new Map();
 
-	registerChatResponseProvider(provider: IChatResponseProvider): IDisposable {
-		this._providers.add(provider);
-		return {
-			dispose: () => {
-				this._providers.delete(provider);
-			}
-		};
+
+	registerChatResponseProvider(identifier: string, provider: IChatResponseProvider): IDisposable {
+		if (this._providers.has(identifier)) {
+			throw new Error(`Chat response provider with identifier ${identifier} is already registered.`);
+		}
+		this._providers.set(identifier, provider);
+		return toDisposable(() => this._providers.delete(identifier));
 	}
 
 	fetchChatResponse(messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any> {
-		const provider = Iterable.first(this._providers); // TODO@jrieken have plan how N providers are handled
+		const provider = Iterable.first(this._providers.values()); // TODO@jrieken have plan how N providers are handled
 		if (!provider) {
 			throw new Error('NO chat provider registered');
 		}

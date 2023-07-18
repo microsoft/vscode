@@ -1127,7 +1127,7 @@ export interface MainThreadInteractiveShape extends IDisposable {
 }
 
 export interface MainThreadChatProviderShape extends IDisposable {
-	$registerProvider(handle: number, metadata: IChatResponseProviderMetadata): void;
+	$registerProvider(handle: number, identifier: string, metadata: IChatResponseProviderMetadata): void;
 	$unregisterProvider(handle: number): void;
 	$handleProgressChunk(requestId: number, chunk: IChatResponseFragment): Promise<void>;
 
