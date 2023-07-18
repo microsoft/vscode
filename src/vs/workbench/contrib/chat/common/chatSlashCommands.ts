@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress, IProgressService, Progress, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ChatMessageRole, IChatMessage, IChatProviderService, IChatResponseFragment } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IProgress } from 'vs/platform/progress/common/progress';
+import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -148,89 +146,3 @@ export class ChatSlashCommandService implements IChatSlashCommandService {
 		await data.command(prompt, progress, history, token);
 	}
 }
-
-
-// --- debug
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'chatbot.helloWorld',
-			title: 'Hello World',
-			category: 'Chatbot',
-			menu: { id: MenuId.CommandPalette }
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const chatProvider = accessor.get(IChatProviderService);
-
-		const p = new Progress<IChatResponseFragment>(value => {
-			console.log(value);
-		});
-		await chatProvider.fetchChatResponse([{ role: ChatMessageRole.User, content: 'Hello.' }], { n: 2 }, p, CancellationToken.None);
-
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'chatbot.helloWorld',
-			title: 'Slashes for the Masses',
-			category: 'Chatbot',
-			menu: { id: MenuId.CommandPalette }
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const quickPick = accessor.get(IQuickInputService);
-		const slashCommandService = accessor.get(IChatSlashCommandService);
-		const progress = accessor.get(IProgressService);
-
-		const items: (IQuickPickItem & { cmd: IChatSlashData })[] = [];
-		for (const cmd of slashCommandService.getCommands()) {
-			items.push({
-				cmd,
-				label: cmd.name,
-				detail: cmd.detail
-			});
-		}
-
-		const pick = await quickPick.pick(items, { placeHolder: 'Pick a command' });
-
-		if (!pick) {
-			return;
-		}
-
-		const value = `/${pick.cmd.name} `;
-		const prompt = await quickPick.input({ value: value, valueSelection: [value.length, value.length], placeHolder: 'Enter a prompt' });
-
-		if (!prompt) {
-			return;
-		}
-
-		const cts = new CancellationTokenSource();
-
-		progress.withProgress({
-			location: ProgressLocation.Notification,
-			title: `${prompt}`,
-			cancellable: true,
-		}, async p => {
-
-			const task = slashCommandService.executeCommand(
-				pick.cmd.id,
-				prompt,
-				new Progress<IChatSlashFragment>(value => {
-					p.report({ message: value.content });
-					console.log(value);
-				}),
-				[],
-				cts.token
-			);
-
-			await task;
-		}, () => cts.cancel());
-
-	}
-});
