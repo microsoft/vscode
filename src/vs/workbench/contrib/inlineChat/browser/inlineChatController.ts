@@ -298,7 +298,7 @@ export class InlineChatController implements IEditorContribution {
 		this._sessionStore.add(this._activeSession.wholeRange.onDidChange(updateWholeRangeDecoration));
 		updateWholeRangeDecoration();
 
-		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
+		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? [], { acceptInput: () => this.acceptInput() });
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
@@ -308,20 +308,6 @@ export class InlineChatController implements IEditorContribution {
 			if (pos && this._zone.value.widget.hasFocus() && this._zone.value.widget.value) {
 				this._editor.revealPosition(pos, ScrollType.Smooth);
 			}
-
-			const inputValue = this._zone.value.widget.value;
-			if (!inputValue) {
-				return;
-			}
-			const firstLineWithoutSlash = inputValue.substring(1);
-			const firstLineWithoutSlashOrWhitespace = firstLineWithoutSlash.trim();
-
-			const slashCommand = this._activeSession?.session.slashCommands?.find((c) => c.command === firstLineWithoutSlashOrWhitespace);
-			if (!slashCommand?.executeImmediately || firstLineWithoutSlash !== `${slashCommand.command} `) {
-				return;
-			}
-
-			this.acceptInput();
 		});
 
 		this._showWidget(true, options.position);

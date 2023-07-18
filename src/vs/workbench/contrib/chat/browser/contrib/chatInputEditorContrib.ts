@@ -23,6 +23,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
+import { AcceptSlashCommand } from 'vs/workbench/contrib/chat/browser/actions/chatSlashCommandActions';
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
@@ -194,32 +195,7 @@ class InputEditorSlashCommandMode extends Disposable {
 	}
 }
 
-class InputEditorSlashCommandAutoSend extends Disposable {
-	constructor(private readonly widget: IChatWidget) {
-		super();
-		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.onDidChangeModelContent()));
-	}
-
-	private onDidChangeModelContent() {
-		// If the input editor has a slash command that does not need additional args to run, submit it
-		const model = this.widget.inputEditor.getModel();
-		const firstLine = model?.getLineContent(1);
-		if (!firstLine || !model || model.getLineCount() > 1) {
-			return;
-		}
-		const firstLineWithoutSlash = firstLine.substring(1);
-		const firstLineWithoutSlashOrWhitespace = firstLineWithoutSlash.trim();
-
-		const slashCommand = this.widget.getSlashCommandsSync()?.find((c) => c.command === firstLineWithoutSlashOrWhitespace);
-		if (!slashCommand?.executeImmediately || firstLineWithoutSlash !== `${slashCommand.command} `) {
-			return;
-		}
-
-		this.widget.acceptInput();
-	}
-}
-
-ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandMode, InputEditorSlashCommandAutoSend);
+ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandMode);
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -255,7 +231,8 @@ class SlashCommandCompletions extends Disposable {
 							detail: c.detail,
 							range: new Range(1, 1, 1, 1),
 							sortText: c.sortText ?? c.command,
-							kind: CompletionItemKind.Text // The icons are disabled here anyway
+							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+							command: c.executeImmediately ? { id: AcceptSlashCommand.ID, title: withSlash, arguments: [{ widget }] } : undefined,
 						};
 					})
 				};

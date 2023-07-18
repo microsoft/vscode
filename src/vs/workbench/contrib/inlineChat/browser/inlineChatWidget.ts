@@ -51,6 +51,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IMenuWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { AcceptSlashCommand } from 'vs/workbench/contrib/chat/browser/actions/chatSlashCommandActions';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -639,7 +640,7 @@ export class InlineChatWidget {
 
 	// --- slash commands
 
-	updateSlashCommands(commands: IInlineChatSlashCommand[]) {
+	updateSlashCommands(commands: IInlineChatSlashCommand[], slashCommandActionContext: { acceptInput: () => void }) {
 
 		this._slashCommands.clear();
 
@@ -670,6 +671,7 @@ export class InlineChatWidget {
 						insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
 						kind: CompletionItemKind.Text,
 						range: new Range(1, 1, 1, 1),
+						command: command.executeImmediately ? { id: AcceptSlashCommand.ID, title: withSlash, arguments: [{ widget: slashCommandActionContext }] } : undefined
 					};
 				});
 
