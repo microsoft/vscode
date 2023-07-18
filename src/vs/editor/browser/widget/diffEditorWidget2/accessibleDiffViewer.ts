@@ -10,7 +10,7 @@ import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ISettableObservable, ITransaction, autorun, constObservable, derived, keepAlive, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, ITransaction, autorun, derived, keepAlive, observableValue, transaction } from 'vs/base/common/observable';
 import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
 import { subtransaction } from 'vs/base/common/observableImpl/base';
 import { derivedWithStore } from 'vs/base/common/observableImpl/derived';
