@@ -758,7 +758,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						icon: Codicon.bell,
 						tooltip: nls.localize('bellStatus', "Bell")
 					}, this._configHelper.config.bellDuration);
-					this._audioCueService.playSound(AudioCue.terminalBell.sound);
+					this._audioCueService.playSound(AudioCue.terminalBell.sound.getSound());
 				}
 			});
 		}, 1000);
