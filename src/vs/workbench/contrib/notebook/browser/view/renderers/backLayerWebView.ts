@@ -767,7 +767,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						const uri = URI.parse(data.href);
 						this._handleNotebookCellResource(uri);
 					} else if (!/^[\w\-]+:/.test(data.href)) {
-						this._handleResourceOpening(data.href);
+						// Uri without scheme, such as a file path
+						this._handleResourceOpening(tryDecodeURIComponent(data.href));
 					} else {
 						// uri with scheme
 						if (osPath.isAbsolute(data.href)) {
@@ -1789,4 +1790,12 @@ function getTokenizationCss() {
 	const colorMap = TokenizationRegistry.getColorMap();
 	const tokenizationCss = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 	return tokenizationCss;
+}
+
+function tryDecodeURIComponent(uri: string) {
+	try {
+		return decodeURIComponent(uri);
+	} catch {
+		return uri;
+	}
 }
