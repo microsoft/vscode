@@ -44,42 +44,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 	) {
 		super();
 
-		this._register(AccessibilityHelpAction.addImplementation(105, 'diff-editor', async accessor => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			const editorService = accessor.get(IEditorService);
-			const codeEditorService = accessor.get(ICodeEditorService);
-			const keybindingService = accessor.get(IKeybindingService);
-
-			const next = keybindingService.lookupKeybinding(DiffReviewNext.id)?.getAriaLabel();
-			const previous = keybindingService.lookupKeybinding(DiffReviewPrev.id)?.getAriaLabel();
-
-			if (!(editorService.activeTextEditorControl instanceof DiffEditorWidget2)) {
-				return;
-			}
-
-			const codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
-			if (!codeEditor) {
-				return;
-			}
-
-			const keys = ['audioCues.diffLineDeleted', 'audioCues.diffLineInserted', 'audioCues.diffLineModified'];
-
-			accessibleViewService.show({
-				verbositySettingKey: 'diffEditor',
-				provideContent: () => [
-					nls.localize('msg1', "You are in a diff editor."),
-					nls.localize('msg2', "Press {0} or {1} to view the next or previous diff in the diff review mode that is optimized for screen readers.", next, previous),
-					nls.localize('msg3', "To control which audio cues should be played, the following settings can be configured: {0}.", keys.join(', ')),
-				].join('\n'),
-				onClose: () => {
-					codeEditor.focus();
-				},
-				options: { type: AccessibleViewType.HelpMenu, ariaLabel: nls.localize('chat-help-label', "Diff editor accessibility help") }
-			});
-		}, ContextKeyExpr.and(
-			ContextKeyEqualsExpr.create('diffEditorVersion', 2),
-			ContextKeyEqualsExpr.create('isInDiffEditor', true),
-		)));
+		this._register(createScreenReaderHelp());
 
 		this._helperWidget = null;
 		this._helperWidgetListener = null;
@@ -149,6 +114,45 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 	override dispose(): void {
 		super.dispose();
 	}
+}
+
+function createScreenReaderHelp(): IDisposable {
+	return AccessibilityHelpAction.addImplementation(105, 'diff-editor', async (accessor) => {
+		const accessibleViewService = accessor.get(IAccessibleViewService);
+		const editorService = accessor.get(IEditorService);
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const keybindingService = accessor.get(IKeybindingService);
+
+		const next = keybindingService.lookupKeybinding(DiffReviewNext.id)?.getAriaLabel();
+		const previous = keybindingService.lookupKeybinding(DiffReviewPrev.id)?.getAriaLabel();
+
+		if (!(editorService.activeTextEditorControl instanceof DiffEditorWidget2)) {
+			return;
+		}
+
+		const codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
+		if (!codeEditor) {
+			return;
+		}
+
+		const keys = ['audioCues.diffLineDeleted', 'audioCues.diffLineInserted', 'audioCues.diffLineModified'];
+
+		accessibleViewService.show({
+			verbositySettingKey: 'diffEditor',
+			provideContent: () => [
+				nls.localize('msg1', "You are in a diff editor."),
+				nls.localize('msg2', "Press {0} or {1} to view the next or previous diff in the diff review mode that is optimized for screen readers.", next, previous),
+				nls.localize('msg3', "To control which audio cues should be played, the following settings can be configured: {0}.", keys.join(', ')),
+			].join('\n'),
+			onClose: () => {
+				codeEditor.focus();
+			},
+			options: { type: AccessibleViewType.HelpMenu, ariaLabel: nls.localize('chat-help-label', "Diff editor accessibility help") }
+		});
+	}, ContextKeyExpr.and(
+		ContextKeyEqualsExpr.create('diffEditorVersion', 2),
+		ContextKeyEqualsExpr.create('isInDiffEditor', true)
+	));
 }
 
 registerDiffEditorContribution(DiffEditorHelperContribution.ID, DiffEditorHelperContribution);
