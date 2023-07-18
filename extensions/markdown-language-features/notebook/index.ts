@@ -176,23 +176,23 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 		hr {
 			border: 0;
-			height: 2px;
-		}
-
-		hr,
-		h1,
-		h2 {
-			border-bottom: 1px solid var(--vscode-notebook-cellBorderColor);
+			height: 1px;
+			border-bottom: 1px solid;
 		}
 
 		h1 {
 			font-size: 2em;
+			margin-top: 0;
 			padding-bottom: 0.3em;
+			border-bottom-width: 1px;
+			border-bottom-style: solid;
 		}
 
 		h2 {
 			font-size: 1.5em;
 			padding-bottom: 0.3em;
+			border-bottom-width: 1px;
+			border-bottom-style: solid;
 		}
 
 		h3 {
@@ -242,6 +242,20 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			margin-top: 24px;
 			margin-bottom: 16px;
 			line-height: 1.25;
+		}
+
+		.vscode-light h1,
+		.vscode-light h2,
+		.vscode-light hr,
+		.vscode-light td {
+			border-color: rgba(0, 0, 0, 0.18);
+		}
+
+		.vscode-dark h1,
+		.vscode-dark h2,
+		.vscode-dark hr,
+		.vscode-dark td {
+			border-color: rgba(255, 255, 255, 0.18);
 		}
 
 		/* makes all markdown cells consistent */
