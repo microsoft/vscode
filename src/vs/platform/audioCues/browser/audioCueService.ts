@@ -217,6 +217,21 @@ export class Sound {
 	private constructor(public readonly fileName: string) { }
 }
 
+export class SoundSource {
+	constructor(
+		public readonly randomOneOf: Sound[]
+	) { }
+
+	public getSound(deterministic = false): Sound {
+		if (deterministic || this.randomOneOf.length === 1) {
+			return this.randomOneOf[0];
+		} else {
+			const index = Math.floor(Math.random() * this.randomOneOf.length);
+			return this.randomOneOf[index];
+		}
+	}
+}
+
 export class AudioCue {
 	private static _audioCues = new Set<AudioCue>();
 	private static register(options: {
@@ -368,19 +383,4 @@ export class AudioCue {
 		public readonly name: string,
 		public readonly settingsKey: string,
 	) { }
-}
-
-export class SoundSource {
-	constructor(
-		public readonly randomOneOf: Sound[]
-	) { }
-
-	public getSound(deterministic = false): Sound {
-		if (deterministic || this.randomOneOf.length === 1) {
-			return this.randomOneOf[0];
-		} else {
-			const index = Math.floor(Math.random() * this.randomOneOf.length);
-			return this.randomOneOf[index];
-		}
-	}
 }
