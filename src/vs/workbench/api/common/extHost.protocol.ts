@@ -346,6 +346,11 @@ export interface ILanguageConfigurationDto {
 			notIn?: string[];
 		}[];
 	};
+	autoClosingPairs?: {
+		open: string;
+		close: string;
+		notIn?: string[];
+	}[];
 }
 
 export type GlobPattern = string | IRelativePattern;

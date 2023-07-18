@@ -22,7 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 registerAccessibilityConfiguration();
@@ -101,32 +101,44 @@ workbenchRegistry.registerWorkbenchContribution(EditorAccessibilityHelpContribut
 
 class HoverAccessibleViewContribution extends Disposable {
 	static ID: 'hoverAccessibleViewContribution';
+	private _options: IAccessibleViewOptions = {
+		ariaLabel: localize('hoverAccessibleView', "Hover Accessible View"), language: 'typescript', type: AccessibleViewType.View
+	};
 	constructor() {
 		super();
-		this._register(AccessibleViewAction.addImplementation(90, 'hover', accessor => {
+		this._register(AccessibleViewAction.addImplementation(95, 'hover', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
-			if (!editor) {
-				return false;
-			}
-			const controller = ModesHoverController.get(editor);
-			const content = withNullAsUndefined(controller?.getWidgetContent());
-			if (!controller || !content) {
+			const editorHoverContent = editor ? ModesHoverController.get(editor)?.getWidgetContent() ?? undefined : undefined;
+			if (!editorHoverContent) {
 				return false;
 			}
 			accessibleViewService.show({
 				verbositySettingKey: 'hover',
-				provideContent() { return content; },
-				onClose() {
-					controller.focus();
-				},
-				options: {
-					ariaLabel: localize('hoverAccessibleView', "Hover Accessible View"), language: 'typescript', type: AccessibleViewType.View
-				}
+				provideContent() { return editorHoverContent; },
+				onClose() { },
+				options: this._options
 			});
 			return true;
 		}, EditorContextKeys.hoverFocused));
+		this._register(AccessibleViewAction.addImplementation(90, 'extension-hover', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const contextViewService = accessor.get(IContextViewService);
+			const contextViewElement = contextViewService.getContextViewElement();
+			const extensionHoverContent = contextViewElement?.textContent ?? undefined;
+			if (contextViewElement.classList.contains('accessible-view-container') || !extensionHoverContent) {
+				// The accessible view, itself, uses the context view service to display the text. We don't want to read that.
+				return false;
+			}
+			accessibleViewService.show({
+				verbositySettingKey: 'hover',
+				provideContent() { return extensionHoverContent; },
+				onClose() { },
+				options: this._options
+			});
+			return true;
+		}));
 	}
 }
 
