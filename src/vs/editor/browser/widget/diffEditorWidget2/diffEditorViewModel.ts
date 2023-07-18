@@ -117,7 +117,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 					this._diff.set(DiffState.fromDiffResult(this._lastDiff!), tx);
 					updateUnchangedRegions(result, tx);
 					const currentSyncedMovedText = this.syncedMovedTexts.get();
-					this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, tx);
+					this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
 				});
 			}
 
@@ -137,7 +137,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 					this._diff.set(DiffState.fromDiffResult(this._lastDiff!), tx);
 					updateUnchangedRegions(result, tx);
 					const currentSyncedMovedText = this.syncedMovedTexts.get();
-					this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, tx);
+					this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
 				});
 			}
 
@@ -183,7 +183,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				this._diff.set(state, tx);
 				this._isDiffUpToDate.set(true, tx);
 				const currentSyncedMovedText = this.syncedMovedTexts.get();
-				this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, tx);
+				this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
 			});
 		}));
 	}
@@ -443,9 +443,9 @@ function applyModifiedEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], orig
 	const changes = applyModifiedEditsToLineRangeMappings(diff.changes, textEdits, originalTextModel, modifiedTextModel);
 
 	const moves = diff.moves.map(m => {
-		const newModifiedRange = applyEditToLineRange(m.lineRangeMapping.modifiedRange, textEdits);
+		const newModifiedRange = applyEditToLineRange(m.lineRangeMapping.modified, textEdits);
 		return newModifiedRange ? new MovedText(
-			new SimpleLineRangeMapping(m.lineRangeMapping.originalRange, newModifiedRange),
+			new SimpleLineRangeMapping(m.lineRangeMapping.original, newModifiedRange),
 			applyModifiedEditsToLineRangeMappings(m.changes, textEdits, originalTextModel, modifiedTextModel),
 		) : undefined;
 	}).filter(isDefined);
