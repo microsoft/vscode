@@ -462,12 +462,12 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const validate = () => {
 			if (!profile && this.userDataProfilesService.profiles.some(p => p.name === quickPick.value)) {
 				quickPick.validationMessage = localize('profileExists', "Profile with name {0} already exists.", quickPick.value);
-				quickPick.severity = Severity.Error;
+				quickPick.severity = Severity.Warning;
 				return;
 			}
 			if (resources.every(resource => !resource.picked)) {
 				quickPick.validationMessage = localize('invalid configurations', "The profile should contain at least one configuration.");
-				quickPick.severity = Severity.Error;
+				quickPick.severity = Severity.Warning;
 				return;
 			}
 			quickPick.severity = Severity.Ignore;
@@ -542,17 +542,11 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			quickPick.widget = domNode;
 
 			const updateOptions = () => {
-				const index = findOptionIndex();
-				if (index <= 0) {
-					return;
+				const option = profileOptions[findOptionIndex()];
+				for (const resource of resources) {
+					resource.picked = option.source && !isString(option.source) ? !option.source?.useDefaultFlags?.[resource.id] : true;
 				}
-				const option = profileOptions[index];
-				if (!isString(option.source)) {
-					for (const resource of resources) {
-						resource.picked = option.source?.useDefaultFlags?.[resource.id];
-					}
-					update();
-				}
+				update();
 			};
 
 			updateOptions();

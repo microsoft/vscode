@@ -286,10 +286,14 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 				continue;
 			}
 
+			if (cell.language !== 'python') {
+				continue;
+			}
+
 			const lineCount = cell.textBuffer.getLineCount();
 			const maxLineCount = Math.min(lineCount, 20);
 			const range = new Range(1, 1, maxLineCount, cell.textBuffer.getLineLength(maxLineCount) + 1);
-			const searchParams = new SearchParams('import\\s*pandas', true, false, null);
+			const searchParams = new SearchParams('import\\s*pandas|from\\s*pandas', true, false, null);
 			const searchData = searchParams.parseSearchRequest();
 
 			if (!searchData) {
