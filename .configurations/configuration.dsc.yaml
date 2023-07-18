@@ -16,7 +16,7 @@ properties:
         allowPrerelease: true
       settings:
         id: OpenJS.NodeJS.LTS
-        version: "16.20.0"
+        version: "16.21.0"
         source: winget
     - resource: NpmDsc/NpmPackage
       id: yarn
