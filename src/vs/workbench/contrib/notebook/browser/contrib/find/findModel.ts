@@ -111,7 +111,7 @@ export class FindModel extends Disposable {
 			this._registerModelListener(this._notebookEditor.textModel);
 		}
 
-		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditor);
+		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditor, this._notebookEditor.getId());
 	}
 
 	private _updateCellStates(e: FindReplaceStateChangedEvent) {
@@ -471,6 +471,9 @@ export class FindModel extends Disposable {
 	}
 
 	private async _compute(token: CancellationToken): Promise<CellFindMatchWithIndex[] | null> {
+		if (!this._notebookEditor.hasModel()) {
+			return null;
+		}
 		let ret: CellFindMatchWithIndex[] | null = null;
 		const val = this._state.searchString;
 		const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
@@ -485,13 +488,8 @@ export class FindModel extends Disposable {
 			includeMarkupPreview: !!this._state.filters?.markupPreview,
 			includeOutput: !!this._state.filters?.codeOutput
 		};
-		if (!val) {
-			ret = null;
-		} else if (!this._notebookEditor.hasModel()) {
-			ret = null;
-		} else {
-			ret = await this._notebookEditor.find(val, options, token);
-		}
+
+		ret = await this._notebookEditor.find(val, options, token);
 
 		if (token.isCancellationRequested) {
 			return null;

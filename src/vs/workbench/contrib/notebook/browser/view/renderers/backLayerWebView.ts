@@ -1608,8 +1608,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 	}
 
-	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean }): Promise<IFindMatch[]> {
+	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string }): Promise<IFindMatch[]> {
 		if (query === '') {
+			this._sendMessageToWebview({
+				type: 'findStop',
+				ownerID: options.ownerID
+			});
 			return [];
 		}
 
@@ -1632,16 +1636,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return ret;
 	}
 
-	findStop() {
+	findStop(ownerID: string) {
 		this._sendMessageToWebview({
-			type: 'findStop'
+			type: 'findStop',
+			ownerID
 		});
 	}
 
-	async findHighlight(index: number): Promise<number> {
+	async findHighlightCurrent(index: number, ownerID: string): Promise<number> {
 		const p = new Promise<number>(resolve => {
 			const sub = this.webview?.onMessage(e => {
-				if (e.message.type === 'didFindHighlight') {
+				if (e.message.type === 'didFindHighlightCurrent') {
 					resolve(e.message.offset);
 					sub?.dispose();
 				}
@@ -1649,18 +1654,20 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 
 		this._sendMessageToWebview({
-			type: 'findHighlight',
-			index
+			type: 'findHighlightCurrent',
+			index,
+			ownerID
 		});
 
 		const ret = await p;
 		return ret;
 	}
 
-	async findUnHighlight(index: number): Promise<void> {
+	async findUnHighlightCurrent(index: number, ownerID: string): Promise<void> {
 		this._sendMessageToWebview({
-			type: 'findUnHighlight',
-			index
+			type: 'findUnHighlightCurrent',
+			index,
+			ownerID
 		});
 	}
 

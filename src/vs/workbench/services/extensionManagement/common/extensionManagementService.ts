@@ -560,6 +560,14 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		await Promise.allSettled(this.servers.map(server => server.extensionManagementService.cleanUp()));
 	}
 
+	toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {
+		const server = this.getServer(extension);
+		if (server) {
+			return server.extensionManagementService.toggleAppliationScope(extension, fromProfileLocation);
+		}
+		throw new Error('Not Supported');
+	}
+
 	copyExtensions(from: URI, to: URI): Promise<void> {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			throw new Error('Not Supported');
