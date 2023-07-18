@@ -11,7 +11,7 @@ import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityHelpAction, AccessibleViewAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import * as strings from 'vs/base/common/strings';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,6 +27,7 @@ import { getNotificationFromContext } from 'vs/workbench/browser/parts/notificat
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { IAccessibleViewService, AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
@@ -158,11 +159,12 @@ class NotificationAccessibleViewContribution extends Disposable {
 			const listService = accessor.get(IListService);
 			const commandService = accessor.get(ICommandService);
 
-			function show(): boolean {
+			function renderAccessibleView(): boolean {
 				const notification = getNotificationFromContext(listService);
 				if (!notification) {
 					return false;
 				}
+				commandService.executeCommand('notifications.showList');
 				let notificationIndex: number | undefined;
 				const list = listService.lastFocusedList;
 				if (list instanceof WorkbenchList) {
@@ -171,16 +173,38 @@ class NotificationAccessibleViewContribution extends Disposable {
 				if (notificationIndex === undefined) {
 					return false;
 				}
+				function focusList(): void {
+					commandService.executeCommand('notifications.showList');
+					if (list && notificationIndex !== undefined) {
+						list.domFocus();
+						try {
+							list.setFocus([notificationIndex]);
+						} catch { }
+					}
+				}
+				const message = notification.message.original.toString();
+				if (!message) {
+					return false;
+				}
 				accessibleViewService.show({
 					provideContent: () => {
-						return localize('notification.accessibleView', '{0} Source: {1}', notification.message.original.toString() || '', notification.source);
+						return localize('notification.accessibleView', '{0} Source: {1}', message, notification.source);
 					},
 					onClose(): void {
-						// The notification list might have hidden depending on the elapsed time, so show it.
-						commandService.executeCommand('notifications.showList');
-						if (list && notificationIndex !== undefined) {
-							list.domFocus();
-							list.setFocus([notificationIndex]);
+						focusList();
+					},
+					onKeyDown(e: IKeyboardEvent): void {
+						if (!list) {
+							return;
+						}
+						if (e.altKey && e.keyCode === KeyCode.BracketRight) {
+							focusList();
+							list.focusNext();
+							renderAccessibleView();
+						} else if (e.altKey && e.keyCode === KeyCode.BracketLeft) {
+							focusList();
+							list.focusPrevious();
+							renderAccessibleView();
 						}
 					},
 					verbositySettingKey: 'notifications',
@@ -191,7 +215,7 @@ class NotificationAccessibleViewContribution extends Disposable {
 				});
 				return true;
 			}
-			return show();
+			return renderAccessibleView();
 		}, NotificationFocusedContext));
 	}
 }
