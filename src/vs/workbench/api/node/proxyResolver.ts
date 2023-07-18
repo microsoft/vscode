@@ -30,6 +30,7 @@ export function connectProxyResolver(
 	const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
 	const params: ProxyAgentParams = {
 		resolveProxy: url => extHostWorkspace.resolveProxy(url),
+		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostLogService, configProvider, {}, {}),
 		getProxyURL: () => configProvider.getConfiguration('http').get('proxy'),
 		getProxySupport: () => configProvider.getConfiguration('http').get<ProxySupportSetting>('proxySupport') || 'off',
 		getSystemCertificatesV1: () => certSettingV1(configProvider),
@@ -112,4 +113,51 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 				return cache[request];
 			};
 		});
+}
+
+async function lookupProxyAuthorization(
+	extHostLogService: ILogService,
+	configProvider: ExtHostConfigProvider,
+	proxyAuthenticateCache: Record<string, string | string[] | undefined>,
+	pendingLookups: Record<string, Promise<string | undefined>>,
+	proxyURL: string,
+	proxyAuthenticate?: string | string[]
+): Promise<string | undefined> {
+	const cached = proxyAuthenticateCache[proxyURL];
+	if (proxyAuthenticate) {
+		proxyAuthenticateCache[proxyURL] = proxyAuthenticate;
+	}
+	extHostLogService.trace('ProxyResolver#lookupProxyAuthorization callback', `proxyURL:${proxyURL}`, `proxyAuthenticate:${proxyAuthenticate}`, `proxyAuthenticateCache:${cached}`);
+	const header = proxyAuthenticate || cached;
+	const authenticate = Array.isArray(header) ? header : typeof header === 'string' ? [header] : [];
+	if (authenticate.some(a => /^(Negotiate|Kerberos)( |$)/i.test(a))) {
+		const lookupKey = `${proxyURL}:Negotiate`;
+		return pendingLookups[lookupKey] ??= (async () => {
+			try {
+				const kerberos = await import('kerberos');
+				const url = new URL(proxyURL);
+				// TODO: Add core user setting.
+				const spn = configProvider.getConfiguration('github.copilot')?.advanced?.kerberosServicePrincipal as string | undefined
+					|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
+				extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication lookup', `proxyURL:${proxyURL}`, `spn:${spn}`);
+				const client = await kerberos.initializeClient(spn);
+				const response = await client.step('');
+				return 'Negotiate ' + response;
+			} catch (err) {
+				extHostLogService.error('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
+				return undefined;
+			} finally {
+				delete pendingLookups[lookupKey];
+			}
+		})();
+		// } else if (authenticate.some(a => /^Basic( |$)/i.test(a))) {
+		// 	const lookupKey = `${proxyURL}:Basic`;
+		// 	return pendingLookups[lookupKey] ??= (async () => {
+		// 		extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication lookup', `proxyURL:${proxyURL}`);
+		// 		await new Promise(resolve => setTimeout(resolve, 5000));
+		// 		delete pendingLookups[lookupKey];
+		// 		return undefined;
+		// 	})();
+	}
+	return undefined;
 }
