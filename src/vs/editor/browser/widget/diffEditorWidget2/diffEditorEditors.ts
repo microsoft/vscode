@@ -15,7 +15,7 @@ import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffEditorOptions } from './diffEditorOptions';
-import { IObservable, IReader } from 'vs/base/common/observable';
+import { IReader } from 'vs/base/common/observable';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class DiffEditorEditors extends Disposable {
