@@ -66,7 +66,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 	private unchangedRangesFeature!: UnchangedRangesFeature;
 
-	private _accessibleDiffViewerVisible = observableValue('accessibleDiffViewerVisible', true);
+	private _accessibleDiffViewerVisible = observableValue('accessibleDiffViewerVisible', false);
 	private _accessibleDiffViewer!: AccessibleDiffViewer;
 	private readonly _options: DiffEditorOptions;
 	private readonly _editors: DiffEditorEditors;
