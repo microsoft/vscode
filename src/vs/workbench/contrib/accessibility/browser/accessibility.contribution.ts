@@ -11,7 +11,7 @@ import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityHelpAction, AccessibleViewAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import * as strings from 'vs/base/common/strings';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -26,7 +26,6 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getNotificationFromContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { IAccessibleViewService, AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 registerAccessibilityConfiguration();
@@ -157,6 +156,7 @@ class NotificationAccessibleViewContribution extends Disposable {
 		this._register(AccessibleViewAction.addImplementation(90, 'notifications', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const listService = accessor.get(IListService);
+			const commandService = accessor.get(ICommandService);
 
 			function show(): boolean {
 				const notification = getNotificationFromContext(listService);
@@ -172,20 +172,15 @@ class NotificationAccessibleViewContribution extends Disposable {
 					return false;
 				}
 				accessibleViewService.show({
-					provideContent: () => { return notification.message.original.toString() || ''; },
+					provideContent: () => {
+						return localize('notification.accessibleView', '{0} Source: {1}', notification.message.original.toString() || '', notification.source);
+					},
 					onClose(): void {
+						// The notification list might have hidden depending on the elapsed time, so show it.
+						commandService.executeCommand('notifications.showList');
 						if (list && notificationIndex !== undefined) {
 							list.domFocus();
 							list.setFocus([notificationIndex]);
-						}
-					},
-					onKeyDown(e: IKeyboardEvent): void {
-						if (e.keyCode === KeyCode.DownArrow && e.altKey && e.ctrlKey) {
-							list?.focusNext();
-							show();
-						} else if (e.keyCode === KeyCode.UpArrow && e.altKey && e.ctrlKey) {
-							list?.focusPrevious();
-							show();
 						}
 					},
 					verbositySettingKey: 'notifications',
