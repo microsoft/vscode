@@ -11,8 +11,8 @@ import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityHelpAction, AccessibleViewAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { AccessibilityHelpAction, AccessibleViewAction, AccessibleViewNextAction, AccessibleViewPreviousAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import * as strings from 'vs/base/common/strings';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -27,7 +27,6 @@ import { getNotificationFromContext } from 'vs/workbench/browser/parts/notificat
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { IAccessibleViewService, AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { KeyCode } from 'vs/base/common/keyCodes';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
@@ -193,19 +192,21 @@ class NotificationAccessibleViewContribution extends Disposable {
 					onClose(): void {
 						focusList();
 					},
-					onKeyDown(e: IKeyboardEvent): void {
+					next(): void {
 						if (!list) {
 							return;
 						}
-						if (e.altKey && e.keyCode === KeyCode.BracketRight) {
-							focusList();
-							list.focusNext();
-							renderAccessibleView();
-						} else if (e.altKey && e.keyCode === KeyCode.BracketLeft) {
-							focusList();
-							list.focusPrevious();
-							renderAccessibleView();
+						focusList();
+						list.focusNext();
+						renderAccessibleView();
+					},
+					previous(): void {
+						if (!list) {
+							return;
 						}
+						focusList();
+						list.focusPrevious();
+						renderAccessibleView();
 					},
 					verbositySettingKey: 'notifications',
 					options: {
@@ -221,3 +222,22 @@ class NotificationAccessibleViewContribution extends Disposable {
 }
 
 workbenchContributionsRegistry.registerWorkbenchContribution(NotificationAccessibleViewContribution, LifecyclePhase.Eventually);
+
+class AccessibleViewNavigatorContribution extends Disposable {
+	static ID: 'AccessibleViewNavigatorContribution';
+	constructor() {
+		super();
+		this._register(AccessibleViewNextAction.addImplementation(95, 'next', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			accessibleViewService.next();
+			return true;
+		}));
+		this._register(AccessibleViewPreviousAction.addImplementation(95, 'previous', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			accessibleViewService.previous();
+			return true;
+		}));
+	}
+}
+
+workbenchContributionsRegistry.registerWorkbenchContribution(AccessibleViewNavigatorContribution, LifecyclePhase.Eventually);

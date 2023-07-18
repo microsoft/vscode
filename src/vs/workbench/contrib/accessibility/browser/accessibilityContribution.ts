@@ -10,6 +10,7 @@ import { Command, MultiCommand } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
@@ -103,6 +104,37 @@ export const AccessibleViewAction = registerCommand(new MultiCommand({
 		menuId: MenuId.CommandPalette,
 		group: '',
 		title: localize('editor.action.accessibleView', "Open Accessible View"),
+		order: 1
+	}],
+}));
+
+
+export const AccessibleViewNextAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibleViewNext',
+	precondition: accessibleViewIsShown,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.BracketRight,
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	menuOpts: [{
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: localize('editor.action.accessibleViewNext', "Next Accessible View"),
+		order: 1
+	}],
+}));
+
+export const AccessibleViewPreviousAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibleViewPrevious',
+	precondition: accessibleViewIsShown,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.BracketLeft,
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	menuOpts: [{
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: localize('editor.action.accessibleViewPrevious', "Previous Accessible View"),
 		order: 1
 	}],
 }));

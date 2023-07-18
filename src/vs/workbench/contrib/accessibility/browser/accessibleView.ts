@@ -36,6 +36,8 @@ export interface IAccessibleContentProvider {
 	provideContent(): string;
 	onClose(): void;
 	onKeyDown?(e: IKeyboardEvent): void;
+	previous?(): void;
+	next?(): void;
 	options: IAccessibleViewOptions;
 }
 
@@ -44,6 +46,8 @@ export const IAccessibleViewService = createDecorator<IAccessibleViewService>('a
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
 	show(provider: IAccessibleContentProvider): void;
+	next(): void;
+	previous(): void;
 }
 
 export const enum AccessibleViewType {
@@ -59,9 +63,11 @@ export interface IAccessibleViewOptions {
 }
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
+export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
 class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
 	private _accessiblityHelpIsShown: IContextKey<boolean>;
+	private _accessibleViewIsShown: IContextKey<boolean>;
 	get editorWidget() { return this._editorWidget; }
 	private _editorContainer: HTMLElement;
 	private _currentProvider: IAccessibleContentProvider | undefined;
@@ -77,6 +83,7 @@ class AccessibleView extends Disposable {
 	) {
 		super();
 		this._accessiblityHelpIsShown = accessibilityHelpIsShown.bindTo(this._contextKeyService);
+		this._accessibleViewIsShown = accessibleViewIsShown.bindTo(this._contextKeyService);
 		this._editorContainer = document.createElement('div');
 		this._editorContainer.classList.add('accessible-view');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -119,6 +126,8 @@ class AccessibleView extends Disposable {
 			onHide: () => {
 				if (provider.options.type === AccessibleViewType.HelpMenu) {
 					this._accessiblityHelpIsShown.reset();
+				} else {
+					this._accessibleViewIsShown.reset();
 				}
 				this._currentProvider = undefined;
 			}
@@ -127,6 +136,20 @@ class AccessibleView extends Disposable {
 		if (provider.options.type === AccessibleViewType.HelpMenu) {
 			this._accessiblityHelpIsShown.set(true);
 		}
+	}
+
+	previous(): void {
+		if (!this._currentProvider) {
+			return;
+		}
+		this._currentProvider.previous?.();
+	}
+
+	next(): void {
+		if (!this._currentProvider) {
+			return;
+		}
+		this._currentProvider.next?.();
 	}
 
 	private _render(provider: IAccessibleContentProvider, container: HTMLElement): IDisposable {
@@ -226,5 +249,11 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 			this._accessibleView = this._register(this._instantiationService.createInstance(AccessibleView));
 		}
 		this._accessibleView.show(provider);
+	}
+	next(): void {
+		this._accessibleView?.next();
+	}
+	previous(): void {
+		this._accessibleView?.previous();
 	}
 }
