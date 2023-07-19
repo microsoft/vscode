@@ -478,7 +478,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			let needUpdate = false;
 			for (const resource of resources) {
 				resource.picked = items.includes(resource);
-				const description = resource.picked ? undefined : localize('use default profile', "Use Default Profile");
+				const description = resource.picked ? undefined : localize('use default profile', "Using Default Profile");
 				if (resource.description !== description) {
 					resource.description = description;
 					needUpdate = true;
