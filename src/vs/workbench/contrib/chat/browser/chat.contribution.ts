@@ -174,6 +174,7 @@ class ChatAccessibleViewContribution extends Disposable {
 						if (chatInputFocused) {
 							verifiedWidget.focusInput();
 						} else {
+							verifiedWidget.reveal(focusedItem);
 							verifiedWidget.focus(focusedItem);
 						}
 					},
