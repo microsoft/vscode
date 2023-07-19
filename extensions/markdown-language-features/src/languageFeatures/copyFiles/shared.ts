@@ -21,7 +21,7 @@ export const externalUriSchemes = [
 	'http',
 	'https',
 	'mailto',
-	'file',
+	// 'file',
 	'ftp',
 ];
 
@@ -64,17 +64,71 @@ export const mediaMimes = new Set([
 	'audio/x-wav',
 ]);
 
-export const smartPasteRegexes = new Set([
-	/\[.*\]\(.*\)/g, // Is a Markdown link
-	/!\[.*\]\(.*\)/g, // Is a Markdown image
-	/\[([^\]]*)\]\(([^)]*)\)/g, // In a Markdown link
-	/^```[\s\S]*?```$/gm, // In a fenced code block
-	/^\$\$[\s\S]*?\$\$$/gm, // In a fenced math block
-	/(^|[^`])(`+)((?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\2)(?:$|[^`])/gm, // In inline code
-	/(^|[^$])($+)((?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\2)(?:$|[^$])/gm // In inline math
-]);
+const smartPasteRegexes = [
+	{ label: 'Is a Markdown Link', regex: /\[.*\]\(.*\)/g, is_markdown_link: true },
+	{ label: 'Is a Markdown Image Link', regex: /!\[.*\]\(.*\)/g, is_markdown_link: true },
+	{ label: 'In a Markdown link', regex: /\[([^\]]*)\]\(([^)]*)\)/g, is_markdown_link: false },
+	{ label: 'In a fenced code block', regex: /^```[\s\S]*?```$/gm, is_markdown_link: false },
+	{ label: 'In a fenced math block', regex: /^\$\$[\s\S]*?\$\$$/gm, is_markdown_link: false },
+];
 
-export async function getMarkdownLink(document: vscode.TextDocument, ranges: readonly vscode.Range[], urlList: string, token: vscode.CancellationToken): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string } | undefined> {
+const WIN_ABSOLUTE_PATH = /(?<=^|\s)(?:[a-zA-Z]:(?:(?:\\|\/)[\w\.-]*)+)/;
+const WIN_RELATIVE_PATH = /(?<=^|\s)(?:(?:\~|\.)(?:(?:\\|\/)[\w\.-]*)+)/;
+const WIN_PATH = new RegExp(`(${WIN_ABSOLUTE_PATH.source}|${WIN_RELATIVE_PATH.source})`);
+const POSIX_PATH = /(?<=^|\s)((?:\~|\.)?(?:\/[\w\.-]*)+)/;
+const LINE_COLUMN = /(?:\:([\d]+))?(?:\:([\d]+))?/;
+const isWindows = (typeof navigator !== 'undefined') ? navigator.userAgent && navigator.userAgent.indexOf('Windows') >= 0 : false;
+const PATH_LINK_REGEX = new RegExp(`${isWindows ? WIN_PATH.source : POSIX_PATH.source}${LINE_COLUMN.source}`, 'g');
+
+export interface SkinnyTextDocument {
+
+	/**
+		 * Converts the position to a zero-based offset.
+		 *
+		 * The position will be {@link TextDocument.validatePosition adjusted}.
+		 *
+		 * @param position A position.
+		 * @return A valid zero-based offset.
+		 */
+	offsetAt(position: vscode.Position): number;
+
+	/**
+		 * Get the text of this document. A substring can be retrieved by providing
+		 * a range. The range will be {@link TextDocument.validateRange adjusted}.
+		 *
+		 * @param range Include only the text included by the range.
+		 * @return The text inside the provided range or the entire text.
+		 */
+	getText(range?: Range): string;
+
+	/**
+		 * The associated uri for this document.
+		 *
+		 * *Note* that most documents use the `file`-scheme, which means they are files on disk. However, **not** all documents are
+		 * saved on disk and therefore the `scheme` must be checked before trying to access the underlying file or siblings on disk.
+		 *
+		 * @see {@link FileSystemProvider}
+		 * @see {@link TextDocumentContentProvider}
+		 */
+	readonly uri: vscode.Uri;
+
+}
+
+export interface SmartPaste {
+
+	/**
+	 * `true` if the link is being pasted within a code block, math, block, or a markdown link.
+	 */
+	useDefaultPaste: boolean;
+
+	/**
+	 * `true` if the link is being pasted over a markdown link.
+	 */
+	updateTitle: boolean;
+
+}
+
+export async function uriToWorkspaceEdit(document: vscode.TextDocument, ranges: readonly vscode.Range[], urlList: string, token: vscode.CancellationToken): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string } | undefined> {
 	if (ranges.length === 0) {
 		return;
 	}
@@ -83,30 +137,22 @@ export async function getMarkdownLink(document: vscode.TextDocument, ranges: rea
 	const edits: vscode.SnippetTextEdit[] = [];
 	let placeHolderValue: number = ranges.length;
 	let label: string = '';
-	let smartPaste = { paste: false, title: false };
+	let smartPaste = { useDefaultPaste: false, updateTitle: false };
 
 	for (let i = 0; i < ranges.length; i++) {
 
 		let title = document.getText(ranges[i]);
-		//  const skinny_document: SkinnyTextDocument = {
-		//  rangeStartOffset: document.offsetAt(ranges[i].start),
-		// 	rangeEndOffset: document.offsetAt(ranges[i].end),
-		// 	dir: getDocumentDir(document),
-		// 	documentText: document.getText(),
-		// };
-
 		if (enabled === 'smart') {
 			smartPaste = checkSmartPaste(document.getText(), document.offsetAt(ranges[i].start), document.offsetAt(ranges[i].end));
-			title = smartPaste.title ? '' : document.getText(ranges[i]);
+			title = smartPaste.updateTitle ? '' : document.getText(ranges[i]);
 		}
 
-		const snippet = await tryGetUriListSnippet(document, urlList, token, title, placeHolderValue, smartPaste.paste);
-
+		const snippet = await tryGetUriListSnippet(document, urlList, token, title, placeHolderValue, smartPaste.useDefaultPaste);
 		if (!snippet) {
 			return;
 		}
 
-		smartPaste.paste = false;
+		smartPaste.useDefaultPaste = false;
 		placeHolderValue--;
 		edits.push(new vscode.SnippetTextEdit(ranges[i], snippet.snippet));
 		label = snippet.label;
@@ -118,23 +164,24 @@ export async function getMarkdownLink(document: vscode.TextDocument, ranges: rea
 	return { additionalEdits, label };
 }
 
-// Checks whether to apply smart paste and changes link title if necessary
-export function checkSmartPaste(documentText: string, rangeStartOffset: number, rangeEndOffset: number): { paste: boolean; title: boolean } {
-	let paste = false;
-	let title = false;
+export function checkSmartPaste(documentText: string, rangeStartOffset: number, rangeEndOffset: number): SmartPaste {
+	const SmartPaste: SmartPaste = { useDefaultPaste: false, updateTitle: false };
 	for (const regex of smartPasteRegexes) {
-		const markdownLink = regex.source === /\[.*\]\(.*\)/g.source || regex.source === /!\[.*\]\(.*\)/g.source;
-		const matches = [...documentText.matchAll(regex)];
+		const matches = [...documentText.matchAll(regex.regex)];
 		for (const match of matches) {
-			paste = match.index !== undefined && (!markdownLink && rangeStartOffset > match.index && rangeEndOffset < match.index + match[0].length);
-			title = match.index !== undefined && ((markdownLink && rangeStartOffset >= match.index && rangeEndOffset <= match.index + match[0].length));
+			if (match.index !== undefined) {
+				SmartPaste.useDefaultPaste = rangeStartOffset > match.index && rangeEndOffset < match.index + match[0].length;
+				SmartPaste.updateTitle = regex.is_markdown_link && rangeStartOffset === match.index && rangeEndOffset === match.index + match[0].length;
+				if (SmartPaste.useDefaultPaste || SmartPaste.updateTitle) {
+					return SmartPaste;
+				}
+			}
 		}
 	}
-
-	return { paste, title };
+	return SmartPaste;
 }
 
-export async function tryGetUriListSnippet(document: vscode.TextDocument, urlList: String, token: vscode.CancellationToken, title = '', placeHolderValue = 0, smartPaste = false): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
+export async function tryGetUriListSnippet(document: vscode.TextDocument, urlList: String, token: vscode.CancellationToken, title = '', placeHolderValue = 0, useDefaultPaste = false): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
 	if (token.isCancellationRequested) {
 		return undefined;
 	}
@@ -149,17 +196,7 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, urlLis
 	}
 	const documentDir = getDocumentDir(document);
 
-	return createUriListSnippet(documentDir, uris, title, placeHolderValue, smartPaste);
-}
-
-export interface SkinnyTextDocument {
-	readonly dir: vscode.Uri | undefined;
-
-  readonly rangeStartOffset: number;
-
-	readonly rangeEndOffset: number;
-
-	readonly documentText: string;
+	return createUriListSnippet(documentDir, uris, title, placeHolderValue, useDefaultPaste);
 }
 
 interface UriListSnippetOptions {
@@ -179,27 +216,21 @@ interface UriListSnippetOptions {
 
 export function createLinkSnippet(
 	snippet: vscode.SnippetString,
-	smartPaste: boolean,
+	useDefaultPaste: boolean,
 	mdPath: string,
 	title: string,
 	uri: vscode.Uri,
 	placeholderValue: number,
 ): vscode.SnippetString {
-	if (smartPaste) {
-		if (externalUriSchemes.includes(uri.scheme)) {
-			snippet.appendText(uri.toString(true));
-		} else {
-			snippet.appendText(escapeMarkdownLinkPath(mdPath));
-		}
+	const uriString = uri.toString(true);
+	if (useDefaultPaste) {
+		snippet.appendText(PATH_LINK_REGEX.test(uriString) ? escapeMarkdownLinkPath(mdPath) : uriString);
 	} else {
 		snippet.appendText('[');
 		snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
-		if (externalUriSchemes.includes(uri.scheme)) {
-			const uriString = uri.toString(true);
-			snippet.appendText(`](${uriString})`);
-		} else {
-			snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
-		}
+
+		const isFile = PATH_LINK_REGEX.test(uriString) || uri.scheme === 'file';
+		snippet.appendText(isFile ? `](${escapeMarkdownLinkPath(mdPath)})` : `](${uriString})`);
 	}
 	return snippet;
 }
@@ -209,7 +240,7 @@ export function createUriListSnippet(
 	uris: readonly vscode.Uri[],
 	title = '',
 	placeholderValue = 0,
-	smartPaste = false,
+	useDefaultPaste = false,
 	options?: UriListSnippetOptions,
 ): { snippet: vscode.SnippetString; label: string } | undefined {
 	if (!uris.length) {
@@ -242,7 +273,7 @@ export function createUriListSnippet(
 		} else if (insertAsMedia) {
 			if (insertAsMedia) {
 				insertedImageCount++;
-				if (smartPaste) {
+				if (useDefaultPaste) {
 					snippet.appendText(escapeMarkdownLinkPath(mdPath));
 				} else {
 					snippet.appendText('![');
@@ -254,7 +285,7 @@ export function createUriListSnippet(
 			}
 		} else {
 			insertedLinkCount++;
-			snippet = createLinkSnippet(snippet, smartPaste, mdPath, title, uri, placeholderValue);
+			snippet = createLinkSnippet(snippet, useDefaultPaste, mdPath, title, uri, placeholderValue);
 		}
 
 		if (i < uris.length - 1 && uris.length > 1) {

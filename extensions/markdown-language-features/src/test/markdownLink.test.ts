@@ -10,14 +10,8 @@ import 'mocha';
 
 suite('getMarkdownLink', () => {
 
-	// check paste with no selection
-	// const skinny_document: SkinnyTextDocument = {
-	// 	rangeStartOffset: 0,
-	// 	rangeEndOffset: 5,
-	// 	dir: undefined,
-	// 	// textLine: document.lineAt(0),
-	// 	documentText: "hello! world",
-	// };
+	// implement SkinnyTextDocument
+	// end to end test of checkSmartPaste & createLinkSnippet
 
 	// check paste with selection
 	// check paste over markdown link
@@ -29,18 +23,27 @@ suite('getMarkdownLink', () => {
 	// check image link
 	// check each case of smart paste
 
-	test('Check smart paste', async () => {
+
+	// check smart paste
+	test('Check smart paste with plain text', async () => {
 		const smartPaste = checkSmartPaste("hello! world", 0, 5);
-		assert.strictEqual(smartPaste, false);
+		assert.strictEqual(smartPaste.useDefaultPaste, false);
 	});
 
-	test('Should not create a nested Markdown link on top of a Markdown link', async () => {
-		// const link = 'https://www.microsoft.com';
-		// const uri_list = [vscode.Uri.parse(link)];
+	test('Check smart paste over a markdown link', async () => {
+		const smartPaste = checkSmartPaste("[a](bc)", 0, 7);
+		assert.strictEqual(smartPaste.updateTitle, true);
+	});
 
-		const uri = vscode.Uri.parse('file:///c%3A/Users/t-mekulkarni/test/b.md');
+	test('Check smart paste within a markdown link', async () => {
+		const smartPaste = checkSmartPaste("[a](bcdef)", 4, 6);
+		assert.strictEqual(smartPaste.useDefaultPaste, true);
+	});
 
-		const snippet = await createLinkSnippet(new vscode.SnippetString(''), true, 'https://www.microsoft.com', '', uri, 0);
+	test('Snippet when smart paste is false', async () => {
+		const uri = vscode.Uri.parse('https://www.microsoft.com');
+
+		const snippet = await createLinkSnippet(new vscode.SnippetString(''), false, 'https://www.microsoft.com', '', uri, 0);
 		assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com/)');
 	});
 });
