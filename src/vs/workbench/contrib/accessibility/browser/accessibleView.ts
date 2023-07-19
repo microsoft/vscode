@@ -25,6 +25,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { AccessibilityVerbositySettingId, AccessibleViewAction, AccessibleViewNextAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 const enum DEFAULT {
 	WIDTH = 800,
@@ -48,6 +50,8 @@ export interface IAccessibleViewService {
 	show(provider: IAccessibleContentProvider): void;
 	next(): void;
 	previous(): void;
+	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string;
+	getNavigationAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string;
 }
 
 export const enum AccessibleViewType {
@@ -242,7 +246,9 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	private _accessibleView: AccessibleView | undefined;
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 	}
@@ -258,5 +264,21 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	}
 	previous(): void {
 		this._accessibleView?.previous();
+	}
+	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string {
+		let hint = '';
+		const keybinding = this._keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
+		if (this._configurationService.getValue(verbositySettingKey)) {
+			hint = keybinding ? localize('chatAccessibleViewHint', "Inspect the response in the accessible view with {0}", keybinding) : localize('chatAccessibleViewHintNoKb', "Inspect the response in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
+		}
+		return hint;
+	}
+	getNavigationAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string {
+		let hint = '';
+		const nextKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewNextAction.id)?.getAriaLabel();
+		if (this._configurationService.getValue(verbositySettingKey)) {
+			hint = nextKeybinding ? localize('chatAccessibleViewHint', "Inspect the response in the accessible view with {0}", nextKeybinding) : localize('chatAccessibleViewHintNoKb', "Inspect the response in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
+		}
+		return hint;
 	}
 }

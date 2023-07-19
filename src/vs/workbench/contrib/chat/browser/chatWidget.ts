@@ -114,7 +114,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService
+		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
@@ -274,7 +275,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				horizontalScrolling: false,
 				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
-				accessibilityProvider: new ChatAccessibilityProvider(),
+				accessibilityProvider: this._instantiationService.createInstance(ChatAccessibilityProvider),
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: ChatTreeItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
 				setRowLineHeight: false,
 				overrideStyles: {
