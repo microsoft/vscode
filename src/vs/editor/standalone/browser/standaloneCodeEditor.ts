@@ -38,6 +38,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 /**
  * Description of an action contribution

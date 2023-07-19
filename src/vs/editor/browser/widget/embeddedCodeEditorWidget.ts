@@ -21,6 +21,7 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 
