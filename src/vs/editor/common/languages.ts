@@ -1179,7 +1179,7 @@ export const symbolKindNames: { [symbol: number]: string } = {
  * @internal
  */
 export function getAriaLabelForSymbol(symbolName: string, kind: SymbolKind): string {
-	return localize('symbolAriaLabel', '{0} Symbol: {1}', symbolName, symbolKindNames[kind]);
+	return localize('symbolAriaLabel', '{0} ({1})', symbolName, symbolKindNames[kind]);
 }
 
 export const enum SymbolTag {

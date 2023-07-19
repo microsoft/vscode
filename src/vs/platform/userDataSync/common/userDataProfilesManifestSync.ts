@@ -206,7 +206,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 				if (localProfile) {
 					promises.push((async () => {
 						this.logService.trace(`${this.syncResourceLogLabel}: Updating '${profile.name}' profile...`);
-						await this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName });
+						await this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName, useDefaultFlags: profile.useDefaultFlags });
 						this.logService.info(`${this.syncResourceLogLabel}: Updated profile '${profile.name}'.`);
 					})());
 				} else {

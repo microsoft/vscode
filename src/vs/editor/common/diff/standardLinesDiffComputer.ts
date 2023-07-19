@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { DateTimeout, ISequence, ITimeout, InfiniteTimeout, SequenceDiff } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/algorithms/dynamicProgrammingDiffing';
-import { optimizeSequenceDiffs, smoothenSequenceDiffs } from 'vs/editor/common/diff/algorithms/joinSequenceDiffs';
+import { optimizeSequenceDiffs, randomRandomMatches, smoothenSequenceDiffs } from 'vs/editor/common/diff/algorithms/joinSequenceDiffs';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/algorithms/myersDiffAlgorithm';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping, LinesDiff, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
@@ -173,8 +173,8 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 	}
 
 	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout, considerWhitespaceChanges: boolean): { mappings: RangeMapping[]; hitTimeout: boolean } {
-		const slice1 = new Slice(originalLines, diff.seq1Range, considerWhitespaceChanges);
-		const slice2 = new Slice(modifiedLines, diff.seq2Range, considerWhitespaceChanges);
+		const slice1 = new LinesSliceCharSequence(originalLines, diff.seq1Range, considerWhitespaceChanges);
+		const slice2 = new LinesSliceCharSequence(modifiedLines, diff.seq2Range, considerWhitespaceChanges);
 
 		const diffResult = slice1.length + slice2.length < 500
 			? this.dynamicProgrammingDiffing.compute(slice1, slice2, timeout)
@@ -184,6 +184,7 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		diffs = optimizeSequenceDiffs(slice1, slice2, diffs);
 		diffs = coverFullWords(slice1, slice2, diffs);
 		diffs = smoothenSequenceDiffs(slice1, slice2, diffs);
+		diffs = randomRandomMatches(slice1, slice2, diffs);
 
 		const result = diffs.map(
 			(d) =>
@@ -202,7 +203,7 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 	}
 }
 
-function coverFullWords(sequence1: Slice, sequence2: Slice, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
+function coverFullWords(sequence1: LinesSliceCharSequence, sequence2: LinesSliceCharSequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	const additional: SequenceDiff[] = [];
 
 	let lastModifiedWord: { added: number; deleted: number; count: number; s1Range: OffsetRange; s2Range: OffsetRange } | undefined = undefined;
@@ -417,7 +418,7 @@ function getIndentation(str: string): number {
 	return i;
 }
 
-class Slice implements ISequence {
+export class LinesSliceCharSequence implements ISequence {
 	private readonly elements: number[] = [];
 	private readonly firstCharOffsetByLineMinusOne: number[] = [];
 	public readonly lineRange: OffsetRange;
@@ -471,7 +472,11 @@ class Slice implements ISequence {
 	}
 
 	get text(): string {
-		return [...this.elements].map(e => String.fromCharCode(e)).join('');
+		return this.getText(new OffsetRange(0, this.length));
+	}
+
+	getText(range: OffsetRange): string {
+		return this.elements.slice(range.start, range.endExclusive).map(e => String.fromCharCode(e)).join('');
 	}
 
 	getElement(offset: number): number {
@@ -558,6 +563,10 @@ class Slice implements ISequence {
 		}
 
 		return new OffsetRange(start, end);
+	}
+
+	public countLinesIn(range: OffsetRange): number {
+		return this.translateOffset(range.endExclusive).lineNumber - this.translateOffset(range.start).lineNumber;
 	}
 }
 

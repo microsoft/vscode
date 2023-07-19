@@ -37,6 +37,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { memoize } from 'vs/base/common/decorators';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
@@ -87,6 +88,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		@IHistoryService historyService: IHistoryService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
 		super(_localPtyService, logService, historyService, _configurationResolverService, statusBarService, workspaceContextService);
 
@@ -110,7 +112,10 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		this._directProxy = directProxy;
 
 		// The pty host should not get launched until at least the window restored phase
-		await this._lifecycleService.when(LifecyclePhase.Restored);
+		// if remote auth exists, don't await
+		if (!this._remoteAgentService.getConnection()?.remoteAuthority) {
+			await this._lifecycleService.when(LifecyclePhase.Restored);
+		}
 
 		mark('code/terminal/willConnectPtyHost');
 		this._logService.trace('Renderer->PtyHost#connect: before acquirePort');

@@ -12,7 +12,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { Action } from 'vs/base/common/actions';
-import { append, $, Dimension, hide, show, DragAndDropObserver } from 'vs/base/browser/dom';
+import { append, $, Dimension, hide, show, DragAndDropObserver, trackFocus } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -61,6 +61,7 @@ import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { extname } from 'vs/base/common/resources';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
@@ -610,6 +611,22 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		}));
 
 		super.create(append(this.root, $('.extensions')));
+
+		const focusTracker = this._register(trackFocus(this.root));
+		const isSearchBoxFocused = () => this.searchBox?.inputWidget.hasWidgetFocus();
+		this._register(registerNavigableContainer({
+			focusNotifiers: [focusTracker],
+			focusNextWidget: () => {
+				if (isSearchBoxFocused()) {
+					this.focusListView();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (!isSearchBoxFocused()) {
+					this.searchBox?.focus();
+				}
+			}
+		}));
 	}
 
 	override focus(): void {

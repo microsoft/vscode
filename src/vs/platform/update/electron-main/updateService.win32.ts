@@ -145,7 +145,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 						this.availableUpdate = { packagePath };
 
-						if (fastUpdatesEnabled && update.supportsFastUpdate) {
+						if (fastUpdatesEnabled) {
 							if (this.productService.target === 'user') {
 								this.doApplyUpdate();
 							} else {
@@ -239,7 +239,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
-		if (this.state.update.supportsFastUpdate && this.availableUpdate.updateFilePath) {
+		if (this.availableUpdate.updateFilePath) {
 			fs.unlinkSync(this.availableUpdate.updateFilePath);
 		} else {
 			spawn(this.availableUpdate.packagePath, ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
@@ -259,7 +259,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		}
 
 		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-		const update: IUpdate = { version: 'unknown', productVersion: 'unknown', supportsFastUpdate: !!fastUpdatesEnabled };
+		const update: IUpdate = { version: 'unknown', productVersion: 'unknown' };
 
 		this.setState(State.Downloading(update));
 		this.availableUpdate = { packagePath };
