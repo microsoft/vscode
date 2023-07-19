@@ -14,6 +14,11 @@ function testErrorMessage(module: string): string {
 
 flakySuite('Native Modules (all platforms)', () => {
 
+	test('kerberos', async () => {
+		const kerberos = await import('kerberos');
+		assert.ok(typeof kerberos.initializeClient === 'function', testErrorMessage('kerberos'));
+	});
+
 	test('native-is-elevated', async () => {
 		const isElevated = await import('native-is-elevated');
 		assert.ok(typeof isElevated === 'function', testErrorMessage('native-is-elevated '));
