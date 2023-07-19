@@ -1309,9 +1309,10 @@
     bindings "^1.5.0"
     node-addon-api "^6.0.0"
 
-"@vscode/proxy-agent@https://github.com/microsoft/vscode-proxy-agent.git#ad9f4729190a262621690563db8ae784da42b6ad":
-  version "0.16.0"
-  resolved "https://github.com/microsoft/vscode-proxy-agent.git#ad9f4729190a262621690563db8ae784da42b6ad"
+"@vscode/proxy-agent@^0.17.0":
+  version "0.17.0"
+  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.17.0.tgz#e60d43e2779c07c223d3bad9b7de8eedf7ca1294"
+  integrity sha512-p4gJ57KeWGw0CEG9R13dmsgmWmszoOQ836pf/PVbAf+ZRF27il3QcFvOhA10XE2QFHaOcRxuJnnIpUD1lSMvqQ==
   dependencies:
     "@tootallnate/once" "^3.0.0"
     agent-base "^7.0.1"
