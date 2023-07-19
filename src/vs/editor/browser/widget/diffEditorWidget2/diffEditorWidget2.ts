@@ -252,19 +252,16 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		const sashLeft = this._sash.read(reader)?.sashLeft.read(reader);
 
 		const originalWidth = sashLeft ?? Math.max(5, this._editors.original.getLayoutInfo().decorationsLeft);
+		const modifiedWidth = width - originalWidth - (this._options.renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0);
 
 		this.elements.original.style.width = originalWidth + 'px';
 		this.elements.original.style.left = '0px';
 
-		this.elements.modified.style.width = (width - originalWidth) + 'px';
+		this.elements.modified.style.width = modifiedWidth + 'px';
 		this.elements.modified.style.left = originalWidth + 'px';
 
-		this._editors.original.layout({ width: originalWidth, height: height });
-		this._editors.modified.layout({
-			width: width - originalWidth -
-				(this._options.renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0),
-			height
-		});
+		this._editors.original.layout({ width: originalWidth, height });
+		this._editors.modified.layout({ width: modifiedWidth, height });
 
 		return {
 			modifiedEditor: this._editors.modified.getLayoutInfo(),
