@@ -113,6 +113,10 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		xterm = new TerminalCtor({ allowProposedApi: true });
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	suite('TerminalSearchLinkOpener', () => {
 		let opener: TestTerminalSearchLinkOpener;
 		let capabilities: TerminalCapabilityStore;

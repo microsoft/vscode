@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import { getMarkdownLink } from './shared';
-
 class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 
 	readonly id = 'insertMarkdownLink';
@@ -15,8 +14,8 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 		dataTransfer: vscode.DataTransfer,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit | undefined> {
-		const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.pasteUrlAsFormattedLink.enabled', true);
-		if (!enabled) {
+		const enabled = vscode.workspace.getConfiguration('markdown', document).get<'always' | 'smart' | 'never'>('editor.pasteUrlAsFormattedLink.enabled', 'smart');
+		if (enabled === 'never') {
 			return;
 		}
 

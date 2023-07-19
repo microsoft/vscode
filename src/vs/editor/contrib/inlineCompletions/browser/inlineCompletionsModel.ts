@@ -44,9 +44,6 @@ export class InlineCompletionsModel extends Disposable {
 	private _isAcceptingPartially = false;
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
 
-	private _isNavigatingCurrentInlineCompletion = false;
-	public get isNavigatingCurrentInlineCompletion() { return this._isNavigatingCurrentInlineCompletion; }
-
 	constructor(
 		public readonly textModel: ITextModel,
 		public readonly selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
@@ -251,17 +248,12 @@ export class InlineCompletionsModel extends Disposable {
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
 		await this.triggerExplicitly();
 
-		this._isNavigatingCurrentInlineCompletion = true;
-		try {
-			const completions = this._filteredInlineCompletionItems.get() || [];
-			if (completions.length > 0) {
-				const newIdx = (this.selectedInlineCompletionIndex.get() + delta + completions.length) % completions.length;
-				this._selectedInlineCompletionId.set(completions[newIdx].semanticId, undefined);
-			} else {
-				this._selectedInlineCompletionId.set(undefined, undefined);
-			}
-		} finally {
-			this._isNavigatingCurrentInlineCompletion = false;
+		const completions = this._filteredInlineCompletionItems.get() || [];
+		if (completions.length > 0) {
+			const newIdx = (this.selectedInlineCompletionIndex.get() + delta + completions.length) % completions.length;
+			this._selectedInlineCompletionId.set(completions[newIdx].semanticId, undefined);
+		} else {
+			this._selectedInlineCompletionId.set(undefined, undefined);
 		}
 	}
 
@@ -278,11 +270,11 @@ export class InlineCompletionsModel extends Disposable {
 			throw new BugIndicatingError();
 		}
 
-		const ghostText = this.ghostText.get();
-		const completion = this.selectedInlineCompletion.get()?.toInlineCompletion(undefined);
-		if (!ghostText || !completion) {
+		const state = this.state.get();
+		if (!state || state.ghostText.isEmpty() || !state.completion) {
 			return;
 		}
+		const completion = state.completion.toInlineCompletion(undefined);
 
 		editor.pushUndoStop();
 		if (completion.snippetInfo) {
@@ -370,11 +362,12 @@ export class InlineCompletionsModel extends Disposable {
 			throw new BugIndicatingError();
 		}
 
-		const ghostText = this.ghostText.get();
-		const completion = this.selectedInlineCompletion.get()?.toInlineCompletion(undefined);
-		if (!ghostText || !completion) {
+		const state = this.state.get();
+		if (!state || state.ghostText.isEmpty() || !state.completion) {
 			return;
 		}
+		const ghostText = state.ghostText;
+		const completion = state.completion.toInlineCompletion(undefined);
 
 		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
 			// not in WYSIWYG mode, partial commit might change completion, thus it is not supported
@@ -382,9 +375,6 @@ export class InlineCompletionsModel extends Disposable {
 			return;
 		}
 
-		if (ghostText.parts.length === 0) {
-			return;
-		}
 		const firstPart = ghostText.parts[0];
 		const position = new Position(ghostText.lineNumber, firstPart.column);
 		const line = firstPart.lines.join('\n');

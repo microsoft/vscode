@@ -7,7 +7,7 @@ import { SequencerByKey } from 'vs/base/common/async';
 import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Event, PauseableEmitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -30,7 +30,7 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 
 	private _storagePrefix = 'secret://';
 
-	private readonly _onDidChangeSecret = new PauseableEmitter<string>();
+	private readonly _onDidChangeSecret = new Emitter<string>();
 	onDidChangeSecret: Event<string> = this._onDidChangeSecret.event;
 
 	protected readonly _sequencer = new SequencerByKey<string>();
@@ -52,11 +52,6 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 
 	private onDidChangeValue(key: string): void {
 		if (!key.startsWith(this._storagePrefix)) {
-			return;
-		}
-
-		if (this._onDidChangeSecret.isPaused) {
-			this._logService.trace(`[SecretStorageService] Skipping change event for secret: ${key} because it is paused`);
 			return;
 		}
 
@@ -104,13 +99,8 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 				throw e;
 			}
 			const fullKey = this.getKey(key);
-			try {
-				this._onDidChangeSecret.pause();
-				this._logService.trace('[secrets] storing encrypted secret for key:', fullKey);
-				storageService.store(fullKey, encrypted, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			} finally {
-				this._onDidChangeSecret.resume();
-			}
+			this._logService.trace('[secrets] storing encrypted secret for key:', fullKey);
+			storageService.store(fullKey, encrypted, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			this._logService.trace('[secrets] stored encrypted secret for key:', fullKey);
 		});
 	}
@@ -120,13 +110,8 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 			const storageService = await this.resolvedStorageService;
 
 			const fullKey = this.getKey(key);
-			try {
-				this._onDidChangeSecret.pause();
-				this._logService.trace('[secrets] deleting secret for key:', fullKey);
-				storageService.remove(fullKey, StorageScope.APPLICATION);
-			} finally {
-				this._onDidChangeSecret.resume();
-			}
+			this._logService.trace('[secrets] deleting secret for key:', fullKey);
+			storageService.remove(fullKey, StorageScope.APPLICATION);
 			this._logService.trace('[secrets] deleted secret for key:', fullKey);
 		});
 	}

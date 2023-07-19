@@ -29,6 +29,7 @@ import { PluginManager, TypeScriptServerPlugin } from './tsServer/plugins';
 import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './logging/telemetry';
 import Tracer from './logging/tracer';
 import { ProjectType, inferredProjectCompilerOptions } from './tsconfig';
+import { Schemes } from './configuration/schemes';
 
 
 export interface TsDiagnostics {
@@ -762,6 +763,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return undefined;
 		}
 
+		// For notebook cells, we need to use the notebook document to look up the workspace
+		if (resource.scheme === Schemes.notebookCell) {
+			for (const notebook of vscode.workspace.notebookDocuments) {
+				for (const cell of notebook.getCells()) {
+					if (cell.document.uri.toString() === resource.toString()) {
+						resource = notebook.uri;
+						break;
+					}
+				}
+			}
+		}
+
 		for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
 			if (root.uri.scheme === resource.scheme && root.uri.authority === resource.authority) {
 				if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
@@ -770,7 +783,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 		}
 
-		return undefined;
+		return vscode.workspace.getWorkspaceFolder(resource)?.uri;
 	}
 
 	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {

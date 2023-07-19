@@ -97,7 +97,7 @@ function initializeGitExtension(context: ExtensionContext, telemetryReporter: Te
 
 						disposables.add(registerCommands(gitAPI));
 						disposables.add(new GithubCredentialProviderManager(gitAPI));
-						disposables.add(new GithubBranchProtectionProviderManager(gitAPI, context.globalState, logger));
+						disposables.add(new GithubBranchProtectionProviderManager(gitAPI, context.globalState, logger, telemetryReporter));
 						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler(telemetryReporter)));
 						disposables.add(gitAPI.registerRemoteSourcePublisher(new GithubRemoteSourcePublisher(gitAPI)));
 						disposables.add(new GitHubCanonicalUriProvider(gitAPI));

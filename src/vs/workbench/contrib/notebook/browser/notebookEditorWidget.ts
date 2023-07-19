@@ -90,6 +90,8 @@ import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/no
 import { Schemas } from 'vs/base/common/network';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = DOM.$;
 
@@ -284,6 +286,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 		@IEditorProgressService private editorProgressService: IEditorProgressService,
 		@INotebookLoggingService readonly logService: INotebookLoggingService,
+		@IKeybindingService readonly keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -754,15 +757,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}`);
 		}
 
-		// top insert toolbar
-		const topInsertToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
-		styleSheets.push(`.notebookOverlay .cell-list-top-cell-toolbar-container { top: -${topInsertToolbarHeight - 3}px }`);
-		styleSheets.push(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element,
-		.notebookOverlay > .cell-list-container > .notebook-gutter > .monaco-list > .monaco-scrollable-element {
-			padding-top: ${topInsertToolbarHeight}px !important;
-			box-sizing: border-box;
-		}`);
-
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .code-cell-row div.cell.code { margin-left: ${codeCellLeftMargin + cellRunGutter}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell { margin-right: ${cellRightMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .cell-inner-container { padding-top: ${cellTopMargin}px; }`);
@@ -860,6 +854,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._listDelegate = this.instantiationService.createInstance(NotebookCellListDelegate);
 		this._register(this._listDelegate);
 
+		const createNotebookAriaLabel = () => {
+			const keybinding = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
+
+			if (this.configurationService.getValue(AccessibilityVerbositySettingId.Notebook)) {
+				return keybinding
+					? nls.localize('notebookTreeAriaLabelHelp', "Notebook\nUse {0} for accessibility help", keybinding)
+					: nls.localize('notebookTreeAriaLabelHelpNoKb', "Notebook\nRun the Open Accessibility Help command for more information", keybinding);
+			}
+			return nls.localize('notebookTreeAriaLabel', "Notebook");
+		};
+
 		this._list = this.instantiationService.createInstance(
 			NotebookCellList,
 			'NotebookCellList',
@@ -878,7 +883,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				multipleSelectionSupport: true,
 				selectionNavigation: true,
 				typeNavigationEnabled: true,
-				additionalScrollHeight: 0,
+				paddingTop: this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType),
+				paddingBottom: 0,
 				transformOptimization: false, //(isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				initialSize: this._dimension,
 				styleController: (_suffix: string) => { return this._list; },
@@ -912,9 +918,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 						return '';
 					},
-					getWidgetAriaLabel() {
-						return nls.localize('notebookTreeAriaLabel', "Notebook");
-					}
+					getWidgetAriaLabel: createNotebookAriaLabel
 				},
 			},
 		);
@@ -995,6 +999,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		this._registerNotebookActionsToolbar();
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Notebook)) {
+				this._list.ariaLabel = createNotebookAriaLabel();
+			}
+		}));
 	}
 
 	private showListContextMenu(e: IListContextMenuEvent<CellViewModel>) {
@@ -1477,8 +1487,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		if (this._dimension) {
-			const topInserToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
-			this._list.layout(this._dimension.height - topInserToolbarHeight, this._dimension.width);
+			this._list.layout(this._dimension.height, this._dimension.width);
 		} else {
 			this._list.layout();
 		}
@@ -1772,15 +1781,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		DOM.size(this._body, dimension.width, newBodyHeight);
 
 		const topInserToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
-		const newCellListHeight = Math.max(newBodyHeight - topInserToolbarHeight, 0);
+		const newCellListHeight = newBodyHeight;
 		if (this._list.getRenderHeight() < newCellListHeight) {
 			// the new dimension is larger than the list viewport, update its additional height first, otherwise the list view will move down a bit (as the `scrollBottom` will move down)
-			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : topInserToolbarHeight });
+			this._list.updateOptions({ paddingBottom: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : 0, paddingTop: topInserToolbarHeight });
 			this._list.layout(newCellListHeight, dimension.width);
 		} else {
 			// the new dimension is smaller than the list viewport, if we update the additional height, the `scrollBottom` will move up, which moves the whole list view upwards a bit. So we run a layout first.
 			this._list.layout(newCellListHeight, dimension.width);
-			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : topInserToolbarHeight });
+			this._list.updateOptions({ paddingBottom: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : 0, paddingTop: topInserToolbarHeight });
 		}
 
 		this._overlayContainer.style.visibility = 'visible';
@@ -2439,15 +2448,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return Promise.all(requests);
 	}
 
-	async find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup: boolean = false, shouldGetSearchPreviewInfo = false): Promise<CellFindMatchWithIndex[]> {
+	async find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup: boolean = false, shouldGetSearchPreviewInfo = false, ownerID?: string): Promise<CellFindMatchWithIndex[]> {
 		if (!this._notebookViewModel) {
 			return [];
+		}
+
+		if (!ownerID) {
+			ownerID = this.getId();
 		}
 
 		const findMatches = this._notebookViewModel.find(query, options).filter(match => match.length > 0);
 
 		if (!options.includeMarkupPreview && !options.includeOutput) {
-			this._webview?.findStop();
+			this._webview?.findStop(ownerID);
 			return findMatches;
 		}
 
@@ -2470,7 +2483,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return [];
 			}
 
-			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo });
+			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo, ownerID });
 
 			if (token.isCancellationRequested) {
 				return [];
@@ -2526,24 +2539,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return ret;
 	}
 
-	async highlightFind(matchIndex: number): Promise<number> {
+	async findHighlightCurrent(matchIndex: number, ownerID?: string): Promise<number> {
 		if (!this._webview) {
 			return 0;
 		}
 
-		return this._webview?.findHighlight(matchIndex);
+		return this._webview?.findHighlightCurrent(matchIndex, ownerID ?? this.getId());
 	}
 
-	async unHighlightFind(matchIndex: number): Promise<void> {
+	async findUnHighlightCurrent(matchIndex: number, ownerID?: string): Promise<void> {
 		if (!this._webview) {
 			return;
 		}
 
-		return this._webview?.findUnHighlight(matchIndex);
+		return this._webview?.findUnHighlightCurrent(matchIndex, ownerID ?? this.getId());
 	}
 
-	findStop() {
-		this._webview?.findStop();
+	findStop(ownerID?: string) {
+		this._webview?.findStop(ownerID ?? this.getId());
 	}
 
 	//#endregion

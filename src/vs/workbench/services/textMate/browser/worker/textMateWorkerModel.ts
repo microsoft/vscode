@@ -98,8 +98,12 @@ export class TextMateWorkerModel extends MirrorTextModel {
 			if (r.grammar) {
 				const tokenizationSupport = new TokenizationSupportWithLineLimit(
 					this._encodedLanguageId,
-					new TextMateTokenizationSupport(r.grammar, r.initialState, false, undefined, undefined,
-						(timeMs, lineLength) => { this._worker.reportTokenizationTime(timeMs, languageId, r.sourceExtensionId, lineLength); }),
+					new TextMateTokenizationSupport(r.grammar, r.initialState, false, undefined, () => false,
+						(timeMs, lineLength, isRandomSample) => {
+							this._worker.reportTokenizationTime(timeMs, languageId, r.sourceExtensionId, lineLength, isRandomSample);
+						},
+						false
+					),
 					this._maxTokenizationLineLength
 				);
 				this._tokenizationStateStore = new TokenizerWithStateStore(this._lines.length, tokenizationSupport);

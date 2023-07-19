@@ -11,6 +11,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId, inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/commandIds';
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import * as nls from 'vs/nls';
 import { MenuId, Action2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -85,6 +86,7 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
 				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineCompletionContextKeys.inlineSuggestionVisible),
 			},
 			menuOpts: [{
 				menuId: MenuId.InlineSuggestionToolbar,
@@ -145,7 +147,8 @@ export class AcceptInlineCompletion extends EditorAction {
 				kbExpr: ContextKeyExpr.and(
 					InlineCompletionContextKeys.inlineSuggestionVisible,
 					EditorContextKeys.tabMovesFocus.toNegated(),
-					InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize
+					InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
+					SuggestContext.Visible.toNegated()
 				),
 			}
 		});

@@ -32,6 +32,7 @@ import { Event } from 'vs/base/common/event';
 import { Action } from 'vs/base/common/actions';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
+export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
 export const RELEASE_NOTES_URL = new RawContextKey<string>('releaseNotesUrl', '');
 export const DOWNLOAD_URL = new RawContextKey<string>('downloadUrl', '');
 
@@ -160,6 +161,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private state: UpdateState;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private updateStateContextKey: IContextKey<string>;
+	private majorMinorUpdateAvailableContextKey: IContextKey<boolean>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -176,6 +178,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		super();
 		this.state = updateService.state;
 		this.updateStateContextKey = CONTEXT_UPDATE_STATE.bindTo(this.contextKeyService);
+		this.majorMinorUpdateAvailableContextKey = MAJOR_MINOR_UPDATE_AVAILABLE.bindTo(this.contextKeyService);
 
 		this._register(updateService.onStateChange(this.onUpdateStateChange, this));
 		this.onUpdateStateChange(this.updateService.state);
@@ -237,9 +240,13 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				this.onUpdateDownloaded(state.update);
 				break;
 
-			case StateType.Ready:
+			case StateType.Ready: {
+				const currentVersion = parseVersion(this.productService.version);
+				const nextVersion = parseVersion(state.update.productVersion);
+				this.majorMinorUpdateAvailableContextKey.set(Boolean(currentVersion && nextVersion && isMajorMinorUpdate(currentVersion, nextVersion)));
 				this.onUpdateReady(state.update);
 				break;
+			}
 		}
 
 		let badge: IBadge | undefined = undefined;
@@ -451,9 +458,30 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
 		});
 
+		if (this.productService.quality === 'stable') {
+			CommandsRegistry.registerCommand('update.showUpdateReleaseNotes', () => {
+				if (this.updateService.state.type !== StateType.Ready) {
+					return;
+				}
+
+				const version = this.updateService.state.update.version;
+				this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, version));
+			});
+			MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+				group: '7_update',
+				order: 1,
+				command: {
+					id: 'update.showUpdateReleaseNotes',
+					title: nls.localize('showUpdateReleaseNotes', "Show Update Release Notes")
+				},
+				when: ContextKeyExpr.and(CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready), MAJOR_MINOR_UPDATE_AVAILABLE)
+			});
+		}
+
 		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '7_update',
+			order: 2,
 			command: {
 				id: 'update.restart',
 				title: nls.localize('restartToUpdate', "Restart to Update (1)")

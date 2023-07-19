@@ -58,6 +58,11 @@ export interface IEditorOptions {
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
 	ariaLabel?: string;
+
+	/**
+	 * Whether the aria-required attribute should be set on the editors textarea.
+	 */
+	ariaRequired?: boolean;
 	/**
 	 * Control whether a screen reader announces inline suggestion content immediately.
 	 */
@@ -822,6 +827,11 @@ export interface IDiffEditorBaseOptions {
 	 * Defaults to false
 	 */
 	isInEmbeddedEditor?: boolean;
+
+	/**
+	 * If the diff editor should only show the difference review mode.
+	 */
+	onlyShowAccessibleDiffViewer?: boolean;
 }
 
 /**
@@ -4972,6 +4982,7 @@ export const enum EditorOption {
 	accessibilitySupport,
 	accessibilityPageSize,
 	ariaLabel,
+	ariaRequired,
 	autoClosingBrackets,
 	screenReaderAnnounceInlineSuggestion,
 	autoClosingDelete,
@@ -5141,6 +5152,9 @@ export const EditorOptions = {
 		})),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
+	)),
+	ariaRequired: register(new EditorBooleanOption(
+		EditorOption.ariaRequired, 'ariaRequired', false, undefined
 	)),
 	screenReaderAnnounceInlineSuggestion: register(new EditorBooleanOption(
 		EditorOption.screenReaderAnnounceInlineSuggestion, 'screenReaderAnnounceInlineSuggestion', true,
