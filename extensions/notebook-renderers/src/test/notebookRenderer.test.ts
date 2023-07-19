@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { activate } from '..';
-import { OutputItem, RendererApi } from 'vscode-notebook-renderer';
-import { IDisposable, IRichRenderContext, RenderOptions } from '../rendererTypes';
+import { RendererApi } from 'vscode-notebook-renderer';
+import { IDisposable, IRichRenderContext, OutputWithAppend, RenderOptions } from '../rendererTypes';
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM();
@@ -116,10 +116,13 @@ suite('Notebook builtin output renderer', () => {
 		}
 	}
 
-	function createOutputItem(text: string, mime: string, id: string = '123'): OutputItem {
+	function createOutputItem(text: string, mime: string, id: string = '123', appendedText?: string): OutputWithAppend {
 		return {
 			id: id,
 			mime: mime,
+			appendedText() {
+				return appendedText;
+			},
 			text() {
 				return text;
 			},
@@ -177,9 +180,9 @@ suite('Notebook builtin output renderer', () => {
 			assert.ok(renderer, 'Renderer not created');
 
 			const outputElement = new OutputHtml().getFirstOuputElement();
-			const outputItem = createOutputItem('content', 'text/plain');
+			const outputItem = createOutputItem('content', mimeType);
 			await renderer!.renderOutputItem(outputItem, outputElement);
-			const outputItem2 = createOutputItem('replaced content', 'text/plain');
+			const outputItem2 = createOutputItem('replaced content', mimeType);
 			await renderer!.renderOutputItem(outputItem2, outputElement);
 
 			const inserted = outputElement.firstChild as HTMLElement;
@@ -187,6 +190,87 @@ suite('Notebook builtin output renderer', () => {
 			assert.ok(inserted.innerHTML.indexOf('>replaced content</') !== -1, `Content was not added to output element: ${outputElement.innerHTML}`);
 		});
 
+	});
+
+	test('Append streaming output', async () => {
+		const context = createContext({ outputWordWrap: false, outputScrolling: true });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputElement = new OutputHtml().getFirstOuputElement();
+		const outputItem = createOutputItem('content', stdoutMimeType, '123', 'ignoredAppend');
+		await renderer!.renderOutputItem(outputItem, outputElement);
+		const outputItem2 = createOutputItem('content\nappended', stdoutMimeType, '123', '\nappended');
+		await renderer!.renderOutputItem(outputItem2, outputElement);
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted.innerHTML.indexOf('>content</') !== -1, `Previous content should still exist: ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('ignoredAppend') === -1, `Append value should not be used on first render: ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>appended</') !== -1, `Content was not appended to output element: ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>content</') === inserted.innerHTML.lastIndexOf('>content</'), `Original content should not be duplicated: ${outputElement.innerHTML}`);
+	});
+
+	test(`Appending multiple streaming outputs`, async () => {
+		const context = createContext({ outputScrolling: true });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputHtml = new OutputHtml();
+		const firstOutputElement = outputHtml.getFirstOuputElement();
+		const outputItem1 = createOutputItem('first stream content', stdoutMimeType, '1');
+		const outputItem2 = createOutputItem(JSON.stringify(error), errorMimeType, '2');
+		const outputItem3 = createOutputItem('second stream content', stdoutMimeType, '3');
+		await renderer!.renderOutputItem(outputItem1, firstOutputElement);
+		const secondOutputElement = outputHtml.appendOutputElement();
+		await renderer!.renderOutputItem(outputItem2, secondOutputElement);
+		const thirdOutputElement = outputHtml.appendOutputElement();
+		await renderer!.renderOutputItem(outputItem3, thirdOutputElement);
+
+		const appendedItem1 = createOutputItem('', stdoutMimeType, '1', ' appended1');
+		await renderer!.renderOutputItem(appendedItem1, firstOutputElement);
+		const appendedItem3 = createOutputItem('', stdoutMimeType, '3', ' appended3');
+		await renderer!.renderOutputItem(appendedItem3, thirdOutputElement);
+
+		assert.ok(firstOutputElement.innerHTML.indexOf('>first stream content') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(firstOutputElement.innerHTML.indexOf('appended1') > -1, `Content was not appended to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(secondOutputElement.innerHTML.indexOf('>NameError</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(thirdOutputElement.innerHTML.indexOf('>second stream content') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(thirdOutputElement.innerHTML.indexOf('appended3') > -1, `Content was not appended to output element: ${outputHtml.cellElement.innerHTML}`);
+	});
+
+	test('Append large streaming outputs', async () => {
+		const context = createContext({ outputWordWrap: false, outputScrolling: true });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputElement = new OutputHtml().getFirstOuputElement();
+		const lotsOfLines = new Array(4998).fill('line').join('\n');
+		const firstOuput = lotsOfLines + 'expected1';
+		const outputItem = createOutputItem(firstOuput, stdoutMimeType, '123');
+		await renderer!.renderOutputItem(outputItem, outputElement);
+		const appended = '\n' + lotsOfLines + 'expectedAppend';
+		const outputItem2 = createOutputItem(firstOuput + appended, stdoutMimeType, '123', appended);
+		await renderer!.renderOutputItem(outputItem2, outputElement);
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted.innerHTML.indexOf('expected1') !== -1, `Last bit of previous content should still exist`);
+		assert.ok(inserted.innerHTML.indexOf('expectedAppend') !== -1, `Content was not appended to output element`);
+	});
+
+	test('Streaming outputs larger than the line limit are truncated', async () => {
+		const context = createContext({ outputWordWrap: false, outputScrolling: true });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputElement = new OutputHtml().getFirstOuputElement();
+		const lotsOfLines = new Array(11000).fill('line').join('\n');
+		const firstOuput = 'shouldBeTruncated' + lotsOfLines + 'expected1';
+		const outputItem = createOutputItem(firstOuput, stdoutMimeType, '123');
+		await renderer!.renderOutputItem(outputItem, outputElement);
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted.innerHTML.indexOf('expected1') !== -1, `Last bit of content should exist`);
+		assert.ok(inserted.innerHTML.indexOf('shouldBeTruncated') === -1, `Beginning content should be truncated`);
 	});
 
 	test(`Render with wordwrap and scrolling for error output`, async () => {
@@ -266,6 +350,29 @@ suite('Notebook builtin output renderer', () => {
 		assert.ok(inserted.innerHTML.indexOf('>first stream content</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
 		assert.ok(inserted.innerHTML.indexOf('>replaced content</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
 		assert.ok(inserted.innerHTML.indexOf('>second stream content</') === -1, `Content was not replaced in output element: ${outputHtml.cellElement.innerHTML}`);
+	});
+
+	test(`Consolidated streaming outputs should append matching outputs correctly`, async () => {
+		const context = createContext({ outputScrolling: true });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputHtml = new OutputHtml();
+		const outputElement = outputHtml.getFirstOuputElement();
+		const outputItem1 = createOutputItem('first stream content', stdoutMimeType, '1');
+		const outputItem2 = createOutputItem('second stream content', stdoutMimeType, '2');
+		await renderer!.renderOutputItem(outputItem1, outputElement);
+		const secondOutput = outputHtml.appendOutputElement();
+		await renderer!.renderOutputItem(outputItem2, secondOutput);
+		const appendingOutput = createOutputItem('', stdoutMimeType, '2', ' appended');
+		await renderer!.renderOutputItem(appendingOutput, secondOutput);
+
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>first stream content</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>second stream content') > -1, `Second content was not added to ouptut element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('appended') > -1, `Content was not appended to ouptut element: ${outputHtml.cellElement.innerHTML}`);
 	});
 
 	test(`Streaming outputs interleaved with other mime types will produce separate outputs`, async () => {

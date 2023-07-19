@@ -22,9 +22,9 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 
 const enum DEFAULT {
 	WIDTH = 800,
@@ -36,6 +36,8 @@ export interface IAccessibleContentProvider {
 	provideContent(): string;
 	onClose(): void;
 	onKeyDown?(e: IKeyboardEvent): void;
+	previous?(): void;
+	next?(): void;
 	options: IAccessibleViewOptions;
 }
 
@@ -44,6 +46,8 @@ export const IAccessibleViewService = createDecorator<IAccessibleViewService>('a
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
 	show(provider: IAccessibleContentProvider): void;
+	next(): void;
+	previous(): void;
 }
 
 export const enum AccessibleViewType {
@@ -59,9 +63,11 @@ export interface IAccessibleViewOptions {
 }
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
+export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
 class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
 	private _accessiblityHelpIsShown: IContextKey<boolean>;
+	private _accessibleViewIsShown: IContextKey<boolean>;
 	get editorWidget() { return this._editorWidget; }
 	private _editorContainer: HTMLElement;
 	private _currentProvider: IAccessibleContentProvider | undefined;
@@ -77,10 +83,11 @@ class AccessibleView extends Disposable {
 	) {
 		super();
 		this._accessiblityHelpIsShown = accessibilityHelpIsShown.bindTo(this._contextKeyService);
+		this._accessibleViewIsShown = accessibleViewIsShown.bindTo(this._contextKeyService);
 		this._editorContainer = document.createElement('div');
 		this._editorContainer.classList.add('accessible-view');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])
+			contributions: [...EditorExtensionsRegistry.getEditorContributions(), ...EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])]
 		};
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(this._configurationService),
@@ -119,6 +126,8 @@ class AccessibleView extends Disposable {
 			onHide: () => {
 				if (provider.options.type === AccessibleViewType.HelpMenu) {
 					this._accessiblityHelpIsShown.reset();
+				} else {
+					this._accessibleViewIsShown.reset();
 				}
 				this._currentProvider = undefined;
 			}
@@ -126,7 +135,24 @@ class AccessibleView extends Disposable {
 		this._contextViewService.showContextView(delegate);
 		if (provider.options.type === AccessibleViewType.HelpMenu) {
 			this._accessiblityHelpIsShown.set(true);
+		} else {
+			this._accessibleViewIsShown.set(true);
 		}
+		this._currentProvider = provider;
+	}
+
+	previous(): void {
+		if (!this._currentProvider) {
+			return;
+		}
+		this._currentProvider.previous?.();
+	}
+
+	next(): void {
+		if (!this._currentProvider) {
+			return;
+		}
+		this._currentProvider.next?.();
 	}
 
 	private _render(provider: IAccessibleContentProvider, container: HTMLElement): IDisposable {
@@ -172,19 +198,20 @@ class AccessibleView extends Disposable {
 		});
 		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyUp((e) => {
-			if (e.keyCode === KeyCode.Escape) {
-				this._contextViewService.hideContextView();
-				// Delay to allow the context view to hide #186514
-				setTimeout(() => provider.onClose(), 100);
-			} else if (e.keyCode === KeyCode.KeyD && this._configurationService.getValue(settingKey)) {
+			if (e.keyCode === KeyCode.KeyD && this._configurationService.getValue(settingKey)) {
 				alert(localize('disableAccessibilityHelp', '{0} accessibility verbosity is now disabled', provider.verbositySettingKey));
 				this._configurationService.updateValue(settingKey, false);
 			}
-			e.stopPropagation();
 			provider.onKeyDown?.(e);
+			// e.stopPropagation();
 		}));
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
-			if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
+			if (e.keyCode === KeyCode.Escape) {
+				e.stopPropagation();
+				this._contextViewService.hideContextView();
+				// Delay to allow the context view to hide #186514
+				setTimeout(() => provider.onClose(), 100);
+			} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
 				const url: string = provider.options.readMoreUrl!;
 				alert(AccessibilityHelpNLS.openingDocs);
 				this._openerService.open(URI.parse(url));
@@ -225,5 +252,11 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 			this._accessibleView = this._register(this._instantiationService.createInstance(AccessibleView));
 		}
 		this._accessibleView.show(provider);
+	}
+	next(): void {
+		this._accessibleView?.next();
+	}
+	previous(): void {
+		this._accessibleView?.previous();
 	}
 }

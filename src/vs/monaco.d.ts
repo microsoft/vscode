@@ -2480,6 +2480,7 @@ declare namespace monaco.editor {
 		toInclusiveRange(): Range | null;
 		toExclusiveRange(): Range;
 		mapToLineArray<T>(f: (lineNumber: number) => T): T[];
+		forEach(f: (lineNumber: number) => void): void;
 		includes(lineNumber: number): boolean;
 	}
 
@@ -2539,9 +2540,9 @@ declare namespace monaco.editor {
 	}
 
 	export class SimpleLineRangeMapping {
-		readonly originalRange: LineRange;
-		readonly modifiedRange: LineRange;
-		constructor(originalRange: LineRange, modifiedRange: LineRange);
+		readonly original: LineRange;
+		readonly modified: LineRange;
+		constructor(original: LineRange, modified: LineRange);
 		toString(): string;
 		flip(): SimpleLineRangeMapping;
 	}
@@ -3974,6 +3975,10 @@ declare namespace monaco.editor {
 		 * Defaults to false
 		 */
 		isInEmbeddedEditor?: boolean;
+		/**
+		 * If the diff editor should only show the difference review mode.
+		 */
+		onlyShowAccessibleDiffViewer?: boolean;
 	}
 
 	/**
