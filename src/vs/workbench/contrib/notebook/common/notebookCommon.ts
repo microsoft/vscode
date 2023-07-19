@@ -926,6 +926,7 @@ export const NotebookSetting = {
 	focusIndicator: 'notebook.cellFocusIndicator',
 	insertToolbarLocation: 'notebook.insertToolbarLocation',
 	globalToolbar: 'notebook.globalToolbar',
+	stickyScroll: 'notebook.stickyScroll',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
 	showFoldingControls: 'notebook.showFoldingControls',

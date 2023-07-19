@@ -4,60 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { getMarkdownHeadersInCell } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
-import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
+import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { NotebookCellOutlineProvider, OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 export class NotebookEditorStickyScroll extends Disposable {
-	private _stickyScrollScrollableElement!: DomScrollableElement;
-	private _stickyScrollContainer!: HTMLElement;
-	private _stickyScrollContent!: StickyScrollContent;
-	private _dimension: DOM.Dimension | null = null;
+	private _stickyScrollContent: StickyScrollContent | undefined;
 	private readonly _disposables = new DisposableStore();
-
 
 	constructor(
 		private readonly domNode: HTMLElement,
 		private readonly notebookEditor: INotebookEditor,
+		private readonly notebookOptions: NotebookOptions,
+		private readonly notebookOutline: NotebookCellOutlineProvider,
+		private readonly notebookCellList: INotebookCellList
 	) {
 		super();
-		this._buildBody(this.notebookEditor);
-	}
+
+		this._stickyScrollContent = new StickyScrollContent(this.notebookEditor, this.notebookOutline, this.notebookCellList, this.notebookOptions);
+		DOM.append(this.domNode, this._stickyScrollContent.domNode);
+
+		this._register(this.notebookOptions.onDidChangeOptions((e) => {
+			if (e.stickyScroll) {
+				this._stickyScrollContent?.updateConfig();
+			}
+		}));
 
 
-	private _buildBody(nbEditor: INotebookEditor) {
-
-		this._stickyScrollContainer = document.createElement('div');
-		this._stickyScrollContainer.classList.add('notebook-sticky-scroll-container');
-
-		this._stickyScrollScrollableElement = new DomScrollableElement(this._stickyScrollContainer, {});
-
-		this._stickyScrollContainer.style.width = '100%';
-		this._stickyScrollContainer.style.height = '22px';
-		this._stickyScrollContainer.style.fontFamily = 'var(--notebook-cell-input-preview-font-family)';
-
-
-		this._stickyScrollContent = new StickyScrollContent(nbEditor);
-		DOM.append(this._stickyScrollContainer, this._stickyScrollContent.domNode);
-		DOM.append(this.domNode, this._stickyScrollContainer);
-		this._register(this._stickyScrollScrollableElement);
-		this._stickyScrollContent.updateContent();
-
-		this._registerNotebookStickyScroll();
-	}
-
-	private _registerNotebookStickyScroll() {
-		console.log(this._dimension);
-	}
-
-	layout(dimension: DOM.Dimension) {
-		this._dimension = dimension;
-		this.domNode.style.display = 'flex';
 	}
 
 	override dispose() {
@@ -69,7 +46,8 @@ export class NotebookEditorStickyScroll extends Disposable {
 
 class StickyScrollContent extends Disposable {
 	private readonly _stickyScrollContent: HTMLElement;
-	private readonly _observer: NotebookVisibleCellObserver;
+	private initialized = false;
+	private _disposables = new DisposableStore();
 
 	get domNode() {
 		return this._stickyScrollContent;
@@ -77,50 +55,288 @@ class StickyScrollContent extends Disposable {
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
+		private readonly notebookOutline: NotebookCellOutlineProvider,
+		private readonly notebookCellList: INotebookCellList,
+		private readonly notebookOptions: NotebookOptions,
 	) {
 		super();
 
 		this._stickyScrollContent = document.createElement('div');
 		this._stickyScrollContent.classList.add('notebook-sticky-scroll-content');
-		this._stickyScrollContent.style.marginLeft = '12px';
-
-		// next two lines are from src\vs\workbench\contrib\interactive\browser\interactive.contribution.ts
-		this._observer = this._register(new NotebookVisibleCellObserver(this.notebookEditor));
-		this._register(this._observer.onDidChangeVisibleCells(this.updateContent, this));
-		this.updateContent();
+		if (this.notebookOptions.getLayoutConfiguration().stickyScroll) {
+			this.init();
+		}
 	}
 
-	updateContent() {
-		const visibleCells = this._observer.visibleCells;
-		const entries: OutlineEntry[] = [];
+	override dispose() {
+		this._disposables.dispose();
+		super.dispose();
+	}
 
-		for (const cell of visibleCells) {
-			if (cell.cellKind !== CellKind.Markup) {
-				continue;
-			}
-			let hasHeader = false;
-			for (const { depth, text } of getMarkdownHeadersInCell(cell.getText())) {
-				hasHeader = true;
-				entries.push(new OutlineEntry(entries.length, depth, cell, text, false, false));
-			}
+	updateConfig() {
+		if (this.notebookOptions.getLayoutConfiguration().stickyScroll) {
+			this.init();
+		} else {
+			this._disposables.clear();
+			DOM.clearNode(this._stickyScrollContent);
+			this.updateDisplay();
+		}
+	}
 
-			if (!hasHeader) {
-				// no markdown syntax headers, try to find html tags
-				const match = cell.getText().match(/<h([1-6]).*>(.*)<\/h\1>/i);
-				if (match) {
-					hasHeader = true;
-					const level = parseInt(match[1]);
-					const text = match[2].trim();
-					entries.push(new OutlineEntry(entries.length, level, cell, text, false, false));
-				}
-			}
+	private init() {
+		this.notebookOutline.init();
+		this.initializeContent();
+		this._disposables.add(this.notebookOutline.onDidChange(() => {
+			this.updateContent();
+		}));
 
-			if (!hasHeader) {
-				// no html headers either, ignore
+		this._disposables.add(this.notebookEditor.onDidAttachViewModel(() => {
+			if (!this.initialized) {
+				this.initialized = true;
+
+				this.notebookOutline.init();
+				this.initializeContent();
+			}
+		}));
+
+		this._disposables.add(this.notebookEditor.onDidScroll(() => {
+			this.updateContent();
+		}));
+	}
+
+	private getVisibleOutlineEntry(visibleIndex: number): OutlineEntry | undefined {
+		let left = 0;
+		let right = this.notebookOutline.entries.length - 1;
+		let bucket = -1;
+
+		while (left <= right) {
+			const mid = Math.floor((left + right) / 2);
+			if (this.notebookOutline.entries[mid].index < visibleIndex) {
+				bucket = mid;
+				left = mid + 1;
+			} else {
+				right = mid - 1;
+			}
+		}
+
+		if (bucket !== -1) {
+			const rootEntry = this.notebookOutline.entries[bucket];
+			const flatList: OutlineEntry[] = [];
+			rootEntry.asFlatList(flatList);
+			return flatList.find(entry => entry.index === visibleIndex);
+		}
+		return undefined;
+	}
+
+	private initializeContent() {
+
+		// find last code cell of section, store bottom scroll position in sectionBottom
+		const visibleRange = this.notebookEditor.visibleRanges[0];
+		if (!visibleRange) {
+
+			return;
+		}
+
+		DOM.clearNode(this._stickyScrollContent);
+		const editorScrollTop = this.notebookEditor.scrollTop;
+
+		let trackedEntry = undefined;
+		let sectionBottom = 0;
+		for (let i = visibleRange.start; i < visibleRange.end; i++) {
+			if (i === 0) { // don't show headers when you're viewing the top cell
 				return;
 			}
+			const cell = this.notebookEditor.cellAt(i);
+			if (!cell) {
+				return;
+			}
+			if (cell.cellKind === CellKind.Markup) {
+				continue;
+			}
 
-			this._stickyScrollContent.innerText = '#'.repeat(entries[0].level) + ' ' + entries[0].label;
+			// if we are here, the cell is a code cell.
+			// check next cell, if markdown, that means this is the end of the section
+			const nextCell = this.notebookEditor.cellAt(i + 1);
+			if (nextCell) {
+				if (nextCell.cellKind === CellKind.Markup) {
+					// this is the end of the section
+					// store the bottom scroll position of this cell
+					sectionBottom = this.notebookCellList.getCellViewScrollBottom(cell);
+					// compute sticky scroll height
+					const entry = this.getVisibleOutlineEntry(i);
+					if (!entry) {
+						return;
+					}
+					// using 22 instead of stickyscrollheight, as we don't necessarily render each line. 22 starts rendering sticky when we have space for at least 1 of them
+					const newStickyHeight = this.computeStickyHeight(entry!);
+					if (editorScrollTop + newStickyHeight < sectionBottom) {
+						trackedEntry = entry;
+						break;
+					} else {
+						// if (editorScrollTop + stickyScrollHeight > sectionBottom), then continue to next section
+						continue;
+					}
+				}
+			} else {
+				// there is no next cell, so use the bottom of the editor as the sectionBottom, using scrolltop + height
+				sectionBottom = this.notebookEditor.scrollTop + this.notebookEditor.getLayoutInfo().scrollHeight;
+				trackedEntry = this.getVisibleOutlineEntry(i);
+				break;
+			}
+		} // cell loop close
+
+		// -------------------------------------------------------------------------------------
+		// we now know the cell which the sticky is determined by, and the sectionBottom value to determine how many sticky lines to render
+		// compute the space available for sticky lines, and render sticky lines
+
+		const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
+		this.renderStickyLines(trackedEntry?.parent, this._stickyScrollContent, linesToRender);
+		this.updateDisplay();
+	}
+
+	private updateContent() {
+		// find first code cell in visible range. this marks the start of the first section
+		// find the last code cell in the first section of the visible range, store the bottom scroll position in a const sectionBottom
+		// compute sticky scroll height, and check if editorScrolltop + stickyScrollHeight < sectionBottom // ? maybe use 22 instead of stickyscrollheight, as we don't necessarily render each line
+		// if that condition is true, break out of the loop with that cell as the tracked cell
+		// if that condition is false, continue to next cell
+
+		DOM.clearNode(this._stickyScrollContent);
+		const editorScrollTop = this.notebookEditor.scrollTop;
+
+		// find last code cell of section, store bottom scroll position in sectionBottom
+		const visibleRange = this.notebookEditor.visibleRanges[0];
+		if (!visibleRange) {
+			return;
 		}
+
+		let trackedEntry = undefined;
+		let sectionBottom = 0;
+		for (let i = visibleRange.start; i < visibleRange.end; i++) {
+			if (i === 0) { // don't show headers when you're viewing the top cell
+				this.updateDisplay();
+				return;
+			}
+			const cell = this.notebookEditor.cellAt(i);
+			if (!cell) {
+				return;
+			}
+			if (cell.cellKind === CellKind.Markup) {
+				continue;
+			}
+
+			// if we are here, the cell is a code cell.
+			// check next cell, if markdown, that means this is the end of the section
+			const nextCell = this.notebookEditor.cellAt(i + 1);
+			if (nextCell) {
+				if (nextCell.cellKind === CellKind.Markup) {
+					// this is the end of the section
+					// store the bottom scroll position of this cell
+					sectionBottom = this.notebookCellList.getCellViewScrollBottom(cell);
+					// compute sticky scroll height
+					const entry = this.getVisibleOutlineEntry(i);
+					if (!entry) {
+						return;
+					}
+					// check if we can render this section of sticky
+					const currentSectionStickyHeight = this.computeStickyHeight(entry!);
+					if (editorScrollTop + currentSectionStickyHeight < sectionBottom) {
+						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
+						this.renderStickyLines(entry?.parent, this._stickyScrollContent, linesToRender);
+						break;
+					}
+
+					let nextSectionEntry = undefined;
+					for (let j = 1; j < visibleRange.end - i; j++) {
+						// find next code cell after this one
+						const cellCheck = this.notebookEditor.cellAt(i + j);
+						if (cellCheck && cellCheck.cellKind === CellKind.Code) {
+							nextSectionEntry = this.getVisibleOutlineEntry(i + j);
+							break;
+						}
+					}
+					const nextSectionStickyHeight = this.computeStickyHeight(nextSectionEntry!);
+
+
+					// todo: this logic needs cleaning... bad. but it works for now.
+					// ? lines to render clearly needs a rethink, shouldn't be adding 100 to override it
+					if (entry?.parent?.parent === nextSectionEntry?.parent?.parent) {
+						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 100;
+						this.renderStickyLines(nextSectionEntry?.parent, this._stickyScrollContent, linesToRender);
+						break;
+					} else if (entry?.parent === nextSectionEntry?.parent?.parent) {
+						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 100;
+						this.renderStickyLines(entry?.parent, this._stickyScrollContent, linesToRender);
+						break;
+					} else if (entry?.parent?.parent === nextSectionEntry?.parent) {
+						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 100;
+						this.renderStickyLines(nextSectionEntry?.parent, this._stickyScrollContent, linesToRender);
+						break;
+						// }
+					} else if (Math.abs(currentSectionStickyHeight - nextSectionStickyHeight) > 22) { // only shrink stickyi
+						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
+						this.renderStickyLines(entry?.parent, this._stickyScrollContent, linesToRender);
+						break;
+					}
+				}
+			} else {
+				// there is no next cell, so use the bottom of the editor as the sectionBottom, using scrolltop + height
+				sectionBottom = this.notebookEditor.scrollTop + this.notebookEditor.getLayoutInfo().scrollHeight;
+				trackedEntry = this.getVisibleOutlineEntry(i);
+				const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
+				this.renderStickyLines(trackedEntry?.parent, this._stickyScrollContent, linesToRender);
+				break;
+			}
+		} // cell loop close
+		this.updateDisplay();
+	}
+
+	private updateDisplay() {
+		const hasChildren = this._stickyScrollContent.hasChildNodes();
+		if (!hasChildren) {
+			this._stickyScrollContent.style.display = 'none';
+		} else {
+			this._stickyScrollContent.style.display = 'block';
+		}
+	}
+
+	private computeStickyHeight(entry: OutlineEntry) {
+		let height = 0;
+		while (entry.parent) {
+			height += 22;
+			entry = entry.parent;
+		}
+		return height;
+	}
+
+	private renderStickyLines(entry: OutlineEntry | undefined, containerElement: HTMLElement, linesToRender: number) {
+		const partial = false;
+		if (!entry) {
+			return;
+		}
+		if (entry.parent) {
+			this.renderStickyLines(entry.parent, containerElement, linesToRender);
+		}
+
+		const numStickyLines = containerElement.children.length;
+		if (numStickyLines >= linesToRender) {
+			return;
+		}
+
+		DOM.append(containerElement, this.createStickyElement(entry, partial));
+	}
+
+	private createStickyElement(entry: OutlineEntry, partial: boolean) {
+		const stickyLine = document.createElement('div');
+		stickyLine.classList.add('notebook-sticky-scroll-line');
+		stickyLine.innerText = '#'.repeat(entry.level) + ' ' + entry.label;
+
+		// todo: partial line rendering for animater
+		if (partial) {
+			// const partialHeight = Math.floor(remainder * 22);
+			// stickyLine.style.height = `${partialHeight}px`;
+		}
+
+		return stickyLine;
 	}
 }
