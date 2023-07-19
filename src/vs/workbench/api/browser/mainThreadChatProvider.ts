@@ -5,6 +5,8 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableMap } from 'vs/base/common/lifecycle';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatProviderShape, ExtHostContext, MainContext, MainThreadChatProviderShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatResponseProviderMetadata, IChatResponseFragment, IChatProviderService, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
@@ -20,6 +22,7 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IChatProviderService private readonly _chatProviderService: IChatProviderService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
 	}
@@ -52,9 +55,19 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 		this._providerRegistrations.deleteAndDispose(handle);
 	}
 
-	async $fetchResponse(requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
-		return this._chatProviderService.fetchChatResponse(messages, options, new Progress(value => {
+	async $fetchResponse(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
+		this._logService.debug('[CHAT] extension request STARTED', extension.value, requestId);
+
+		const task = this._chatProviderService.fetchChatResponse(providerId, messages, options, new Progress(value => {
 			this._proxy.$handleResponseFragment(requestId, value);
 		}), token);
+
+		task.catch(err => {
+			this._logService.error('[CHAT] extension request ERRORED', err, extension.value, requestId);
+		}).finally(() => {
+			this._logService.debug('[CHAT] extension request DONE', extension.value, requestId);
+		});
+
+		return task;
 	}
 }

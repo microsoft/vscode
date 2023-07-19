@@ -11,7 +11,7 @@ import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IChatMessage, IChatResponseFragment } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
 
 type ProviderData = {
 	readonly extension: ExtensionIdentifier;
@@ -64,14 +64,41 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 
 	private readonly _pendingRequest = new Map<number, vscode.Progress<vscode.ChatResponseFragment>>();
 
-	async makeChatRequest(messages: vscode.ChatMessage[], options: { [name: string]: any }, progress: vscode.Progress<vscode.ChatResponseFragment>, token: CancellationToken) {
-		const requestId = (Math.random() * 1e6) | 0;
-		this._pendingRequest.set(requestId, progress);
-		try {
-			await this._proxy.$fetchResponse(requestId, messages.map(typeConvert.ChatMessage.from), options, token);
-		} finally {
-			this._pendingRequest.delete(requestId);
+	private readonly _chatAccessAllowList = new ExtensionIdentifierMap<Promise<unknown>>();
+
+	allowListExtensionWhile(extension: ExtensionIdentifier, promise: Promise<unknown>): void {
+		this._chatAccessAllowList.set(extension, promise);
+		promise.finally(() => this._chatAccessAllowList.delete(extension));
+	}
+
+	async requestChatResponseProvider(from: ExtensionIdentifier, identifier: string): Promise<vscode.ChatAccess> {
+		// check if a UI command is running/active
+
+		if (!this._chatAccessAllowList.has(from)) {
+			throw new Error('Extension is NOT allowed to make chat requests');
 		}
+
+		const that = this;
+
+		return {
+			get isRevoked() {
+				return !that._chatAccessAllowList.has(from);
+			},
+			async makeRequest(messages, options, progress, token) {
+
+				if (!that._chatAccessAllowList.has(from)) {
+					throw new Error('Access to chat has been revoked');
+				}
+
+				const requestId = (Math.random() * 1e6) | 0;
+				that._pendingRequest.set(requestId, progress);
+				try {
+					await that._proxy.$fetchResponse(from, identifier, requestId, messages.map(typeConvert.ChatMessage.from), options, token);
+				} finally {
+					that._pendingRequest.delete(requestId);
+				}
+			},
+		};
 	}
 
 	async $handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void> {

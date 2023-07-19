@@ -34,9 +34,7 @@ declare module 'vscode' {
 
 	export interface SlashCommand {
 
-		// TODO: Progress vs AsyncIterable
-		// CONSUMER of chat
-		(chat: ChatResponseProvider, prompt: ChatMessage, context: SlashCommandContext, progress: Progress<SlashResponse>, token: CancellationToken): Thenable<SlashResult>;
+		(prompt: ChatMessage, context: SlashCommandContext, progress: Progress<SlashResponse>, token: CancellationToken): Thenable<SlashResult>;
 	}
 
 	export namespace llm {

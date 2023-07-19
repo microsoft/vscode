@@ -14,7 +14,7 @@ import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { raceCancellation } from 'vs/base/common/async';
+import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 
 export class ExtHostChatSlashCommands implements ExtHostChatSlashCommandsShape {
 
@@ -51,22 +51,18 @@ export class ExtHostChatSlashCommands implements ExtHostChatSlashCommandsShape {
 		}
 
 		let done = false;
-		const that = this;
 		function throwIfDone() {
 			if (done) {
 				throw new Error('Only valid while executing the command');
 			}
 		}
 
-		const provider: vscode.ChatResponseProvider = {
-			provideChatResponse(messages, options, progress, token) {
-				throwIfDone();
-				return that._extHostChatProvider.makeChatRequest(messages, options, progress, token);
-			}
-		};
+		const commandExecution = new DeferredPromise<void>();
+		token.onCancellationRequested(() => commandExecution.complete());
+		setTimeout(() => commandExecution.complete(), 3 * 1000);
+		this._extHostChatProvider.allowListExtensionWhile(data.extension, commandExecution.p);
 
 		const task = data.command(
-			provider,
 			{ role: ChatMessageRole.User, content: prompt },
 			{ history: context.history.map(typeConvert.ChatMessage.to) },
 			new Progress<vscode.SlashResponse>(p => {
@@ -80,6 +76,7 @@ export class ExtHostChatSlashCommands implements ExtHostChatSlashCommandsShape {
 			await raceCancellation(Promise.resolve(task), token);
 		} finally {
 			done = true;
+			commandExecution.complete();
 		}
 	}
 }

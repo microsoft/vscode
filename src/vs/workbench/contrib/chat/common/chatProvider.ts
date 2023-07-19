@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -47,7 +46,7 @@ export interface IChatProviderService {
 
 	registerChatResponseProvider(identifier: string, provider: IChatResponseProvider): IDisposable;
 
-	fetchChatResponse(messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
+	fetchChatResponse(identifier: string, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
 }
 
 export class ChatProviderService implements IChatProviderService {
@@ -64,10 +63,10 @@ export class ChatProviderService implements IChatProviderService {
 		return toDisposable(() => this._providers.delete(identifier));
 	}
 
-	fetchChatResponse(messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any> {
-		const provider = Iterable.first(this._providers.values()); // TODO@jrieken have plan how N providers are handled
+	fetchChatResponse(identifier: string, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any> {
+		const provider = this._providers.get(identifier);
 		if (!provider) {
-			throw new Error('NO chat provider registered');
+			throw new Error(`Chat response provider with identifier ${identifier} is not registered.`);
 		}
 		return provider.provideChatResponse(messages, options, progress, token);
 	}
