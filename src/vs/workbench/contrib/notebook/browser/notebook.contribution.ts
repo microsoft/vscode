@@ -728,8 +728,10 @@ class NotebookAccessibleViewContribution extends Disposable {
 				} else {
 					text = decoder.decode(pickedBuffer);
 				}
-
-				outputContent = outputContent.concat(`${text}\n`);
+				const index = viewCell.outputsViewModels.length > 1
+					? `Cell output ${i + 1} of ${viewCell.outputsViewModels.length}\n`
+					: '';
+				outputContent = outputContent.concat(`${index}${text}\n`);
 			}
 
 			if (!outputContent) {
