@@ -357,6 +357,13 @@ import { assertNoRpc, poll } from '../utils';
 			test('should be defined after selecting all content', async () => {
 				const terminal = window.createTerminal({ name: 'selection test' });
 				terminal.show();
+				// Wait for some terminal data
+				await new Promise<void>(r => {
+					const disposable = window.onDidWriteTerminalData(() => {
+						disposable.dispose();
+						r();
+					});
+				});
 				await commands.executeCommand('workbench.action.terminal.selectAll');
 				await poll<void>(() => Promise.resolve(), () => terminal.selection !== undefined, 'selection should be defined');
 				terminal.dispose();
@@ -364,6 +371,13 @@ import { assertNoRpc, poll } from '../utils';
 			test('should be undefined after clearing a selection', async () => {
 				const terminal = window.createTerminal({ name: 'selection test' });
 				terminal.show();
+				// Wait for some terminal data
+				await new Promise<void>(r => {
+					const disposable = window.onDidWriteTerminalData(() => {
+						disposable.dispose();
+						r();
+					});
+				});
 				await commands.executeCommand('workbench.action.terminal.selectAll');
 				await poll<void>(() => Promise.resolve(), () => terminal.selection !== undefined, 'selection should be defined');
 				await commands.executeCommand('workbench.action.terminal.clearSelection');
