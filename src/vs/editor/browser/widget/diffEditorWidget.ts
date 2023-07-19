@@ -299,6 +299,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				collapseUnchangedRegions: false,
 			},
 			isInEmbeddedEditor: false,
+			onlyShowAccessibleDiffViewer: false,
 		});
 
 		this.isEmbeddedDiffEditorKey = EditorContextKeys.isEmbeddedDiffEditor.bindTo(this._contextKeyService);
@@ -2743,6 +2744,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 			collapseUnchangedRegions: false,
 		},
 		isInEmbeddedEditor: validateBooleanOption(options.isInEmbeddedEditor, defaults.isInEmbeddedEditor),
+		onlyShowAccessibleDiffViewer: false,
 	};
 }
 
