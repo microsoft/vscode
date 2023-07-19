@@ -9,12 +9,14 @@ import { Range } from 'vs/editor/common/core/range';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget } from 'vs/editor/browser/editorBrowser';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class SlashCommandContentWidget extends Disposable implements IContentWidget {
 	private _domNode = document.createElement('div');
 	private _lastSlashCommandText: string | undefined;
 
-	constructor(private _editor: ICodeEditor) {
+	constructor(private _editor: ICodeEditor, private _accessibilityService: IAccessibilityService) {
 		super();
 
 		this._domNode.toggleAttribute('hidden', true);
@@ -65,5 +67,8 @@ export class SlashCommandContentWidget extends Disposable implements IContentWid
 			range: new Range(1, 1, 1, selection.startColumn),
 			text: null
 		}]);
+
+		// Announce the deletion
+		this._accessibilityService.alert(localize('exited slash command mode', 'Exited {0} mode', this._lastSlashCommandText));
 	}
 }
