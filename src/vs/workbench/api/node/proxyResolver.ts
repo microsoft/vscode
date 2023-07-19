@@ -150,14 +150,6 @@ async function lookupProxyAuthorization(
 				delete pendingLookups[lookupKey];
 			}
 		})();
-		// } else if (authenticate.some(a => /^Basic( |$)/i.test(a))) {
-		// 	const lookupKey = `${proxyURL}:Basic`;
-		// 	return pendingLookups[lookupKey] ??= (async () => {
-		// 		extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication lookup', `proxyURL:${proxyURL}`);
-		// 		await new Promise(resolve => setTimeout(resolve, 5000));
-		// 		delete pendingLookups[lookupKey];
-		// 		return undefined;
-		// 	})();
 	}
 	return undefined;
 }
