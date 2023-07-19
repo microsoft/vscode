@@ -168,6 +168,46 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.focus();
 	}
 
+	focusNext(id: string): void {
+		const items = this.viewModel?.getItems();
+		if (!items) {
+			return;
+		}
+		const focusedElement = items?.find(i => i.id === id) as any as IChatResponseViewModel;
+		const responseItems = items?.filter(i => isResponseVM(i));
+		if (!focusedElement) {
+			return;
+		}
+		const currentlyFocusedIndex = responseItems?.indexOf(focusedElement);
+		if (currentlyFocusedIndex === undefined || !responseItems) {
+			return;
+		}
+		if (currentlyFocusedIndex === responseItems.length - 1) {
+			return;
+		}
+		this.focus(responseItems[currentlyFocusedIndex + 1], true);
+	}
+
+	focusPrevious(id: string): void {
+		const items = this.viewModel?.getItems();
+		if (!items) {
+			return;
+		}
+		const focusedElement = items.find(i => i.id === id) as any as IChatResponseViewModel;
+		const responseItems = items.filter(i => isResponseVM(i));
+		if (!focusedElement) {
+			return;
+		}
+		const currentlyFocusedIndex = responseItems?.indexOf(focusedElement);
+		if (!currentlyFocusedIndex || !responseItems) {
+			return;
+		}
+		if (currentlyFocusedIndex - 1 < 0) {
+			return;
+		}
+		this.focus(responseItems[currentlyFocusedIndex - 1], true);
+	}
+
 	private onDidChangeItems() {
 		if (this.tree && this.visible) {
 			const treeItems = (this.viewModel?.getItems() ?? [])
@@ -387,7 +427,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.reveal(item);
 	}
 
-	focus(item: ChatTreeItem): void {
+	focus(item: ChatTreeItem, noDomFocus?: boolean): void {
 		const items = this.tree.getNode(null).children;
 		const node = items.find(i => i.element?.id === item.id);
 		if (!node) {
@@ -395,7 +435,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.tree.setFocus([node.element]);
+		// if (!noDomFocus) {
 		this.tree.domFocus();
+		// }
 	}
 
 	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {

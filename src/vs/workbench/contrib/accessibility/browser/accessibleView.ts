@@ -34,7 +34,7 @@ const enum DEFAULT {
 }
 
 export interface IAccessibleContentProvider {
-	verbositySettingKey: string;
+	verbositySettingKey: AccessibilityVerbositySettingId;
 	provideContent(): string;
 	onClose(): void;
 	onKeyDown?(e: IKeyboardEvent): void;
@@ -51,7 +51,6 @@ export interface IAccessibleViewService {
 	next(): void;
 	previous(): void;
 	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string;
-	getNavigationAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string;
 }
 
 export const enum AccessibleViewType {
@@ -83,7 +82,8 @@ class AccessibleView extends Disposable {
 		@IModelService private readonly _modelService: IModelService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 		this._accessiblityHelpIsShown = accessibilityHelpIsShown.bindTo(this._contextKeyService);
@@ -173,7 +173,7 @@ class AccessibleView extends Disposable {
 					? AccessibilityHelpNLS.changeConfigToOnMac
 					: AccessibilityHelpNLS.changeConfigToOnWinLinux
 			);
-			if (accessibilitySupport && provider.verbositySettingKey === 'editor') {
+			if (accessibilitySupport && provider.verbositySettingKey === AccessibilityVerbositySettingId.Editor) {
 				message = AccessibilityHelpNLS.auto_on;
 				message += '\n';
 			} else if (!accessibilitySupport) {
@@ -197,7 +197,7 @@ class AccessibleView extends Disposable {
 				model.setLanguage(provider.options.language);
 			}
 			container.appendChild(this._editorContainer);
-			this._editorWidget.updateOptions({ ariaLabel: provider.options.ariaLabel });
+			this._editorWidget.updateOptions({ ariaLabel: provider.next && provider.previous ? localize('accessibleViewAriaLabelWithNav', "{0} {1}", provider.options.ariaLabel, this._getNavigationAriaHint(provider.verbositySettingKey)) : localize('accessibleViewAriaLabel', "{0}", provider.options.ariaLabel) });
 			this._editorWidget.focus();
 		});
 		const disposableStore = new DisposableStore();
@@ -239,6 +239,16 @@ class AccessibleView extends Disposable {
 		}
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
+
+	private _getNavigationAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string {
+		let hint = '';
+		const nextKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewNextAction.id)?.getAriaLabel();
+		const previousKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewNextAction.id)?.getAriaLabel();
+		if (this._configurationService.getValue(verbositySettingKey)) {
+			hint = (nextKeybinding && previousKeybinding) ? localize('chatAccessibleViewNextPreviousHint', "Focus the next {0} or previous {1} item without leaving the accessible view", nextKeybinding, previousKeybinding) : localize('chatAccessibleViewNextPreviousHintNoKb', "Focus the next or previous item without leaving the accessible view by configuring keybindings for Show Next / Previous in Accessible View");
+		}
+		return hint;
+	}
 }
 
 export class AccessibleViewService extends Disposable implements IAccessibleViewService {
@@ -273,12 +283,6 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		}
 		return hint;
 	}
-	getNavigationAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string {
-		let hint = '';
-		const nextKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewNextAction.id)?.getAriaLabel();
-		if (this._configurationService.getValue(verbositySettingKey)) {
-			hint = nextKeybinding ? localize('chatAccessibleViewHint', "Inspect the response in the accessible view with {0}", nextKeybinding) : localize('chatAccessibleViewHintNoKb', "Inspect the response in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
-		}
-		return hint;
-	}
 }
+
+
