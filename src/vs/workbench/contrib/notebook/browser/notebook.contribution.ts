@@ -57,6 +57,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/services/notebookRendererMessagingServiceImpl';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
+import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 // Editor Controller
 import 'vs/workbench/contrib/notebook/browser/controller/coreActions';
@@ -112,9 +113,10 @@ import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/brow
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 import { NotebookLoggingService } from 'vs/workbench/contrib/notebook/browser/services/notebookLoggingServiceImpl';
 import product from 'vs/platform/product/common/product';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { runAccessibilityHelpAction } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityHelp';
+import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -689,6 +691,70 @@ class NotebookAccessibilityHelpContribution extends Disposable {
 	}
 }
 
+class NotebookAccessibleViewContribution extends Disposable {
+	static ID: 'chatAccessibleViewContribution';
+	constructor() {
+		super();
+		this._register(AccessibleViewAction.addImplementation(100, 'notebook', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+
+			const activePane = accessor.get(IEditorService).activeEditorPane;
+			const notebookEditor = getNotebookEditorFromEditorPane(activePane);
+			const notebookViewModel = notebookEditor?.getViewModel();
+			const selections = notebookViewModel?.getSelections();
+			notebookViewModel?.getCellIndex;
+			const notebookDocument = notebookViewModel?.notebookDocument;
+
+			if (!selections || !notebookDocument || !notebookEditor?.textModel) {
+				return false;
+			}
+
+			const viewCell = notebookViewModel.viewCells[selections[0].start];
+			let outputContent = '';
+			const decoder = new TextDecoder();
+			for (let i = 0; i < viewCell.outputsViewModels.length; i++) {
+				const outputViewModel = viewCell.outputsViewModels[i];
+				const outputTextModel = viewCell.model.outputs[i];
+				const [mimeTypes, pick] = outputViewModel.resolveMimeTypes(notebookEditor.textModel, undefined);
+				const mimeType = mimeTypes[pick].mimeType;
+				const pickedBuffer = outputTextModel.outputs.find(output => output.mime === mimeType)?.data.buffer;
+
+				let text = `${mimeType}\n`;
+				if (!pickedBuffer || mimeType.startsWith('image')) {
+					const altBuffer = outputTextModel.outputs.find(output => !output.mime.startsWith('image'))?.data.buffer;
+					if (altBuffer) {
+						text = decoder.decode(altBuffer);
+					}
+				} else {
+					text = decoder.decode(pickedBuffer);
+				}
+
+				outputContent = outputContent.concat(`${text}\n`);
+			}
+
+			if (!outputContent) {
+				return false;
+			}
+
+			accessibleViewService.show({
+				verbositySettingKey: 'notebook',
+				provideContent(): string { return outputContent; },
+				onClose() {
+					notebookEditor?.setFocus(selections[0]);
+					activePane?.focus();
+				},
+				options: {
+					ariaLabel: nls.localize('NotebookCellOutputAccessibleView', "Notebook Cell Output Accessible View"),
+					language: 'plaintext',
+					type: AccessibleViewType.View
+				}
+			});
+			return true;
+		}, NOTEBOOK_OUTPUT_FOCUSED));
+	}
+}
+
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
@@ -698,6 +764,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotebookEditorManag
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSelectorScoreRefine, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookAccessibilityHelpContribution, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookAccessibleViewContribution, LifecyclePhase.Eventually);
 
 registerSingleton(INotebookService, NotebookService, InstantiationType.Delayed);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl, InstantiationType.Delayed);
