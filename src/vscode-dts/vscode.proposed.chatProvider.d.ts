@@ -5,6 +5,7 @@
 
 declare module 'vscode' {
 
+	// ChatML
 	export enum ChatMessageRole {
 		System = 0,
 		User = 1,
@@ -12,6 +13,7 @@ declare module 'vscode' {
 		Function = 3,
 	}
 
+	// ChatML
 	export class ChatMessage {
 		role: ChatMessageRole;
 		content: string;
@@ -20,16 +22,14 @@ declare module 'vscode' {
 		constructor(role: ChatMessageRole, content: string);
 	}
 
-	// TODO: chat response builder
-	export interface ChatResponse {
-		message: ChatMessage;
-	}
-
 	export interface ChatResponseFragment {
 		index: number;
 		part: string;
 	}
 
+	/**
+	 * Represents a large language model that accepts ChatML messages and produces a streaming response
+	 */
 	export interface ChatResponseProvider {
 		provideChatResponse(messages: ChatMessage[], options: { [name: string]: any }, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
 	}
@@ -40,6 +40,15 @@ declare module 'vscode' {
 	}
 
 	export namespace llm {
+
+		/**
+		 * Register a LLM as chat response provider to the editor.
+		 *
+		 *
+		 * @param id
+		 * @param provider
+		 * @param metadata
+		 */
 		export function registerChatResponseProvider(id: string, provider: ChatResponseProvider, metadata: ChatResponseProviderMetadata): Disposable;
 	}
 

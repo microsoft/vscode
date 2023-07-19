@@ -5,6 +5,10 @@
 
 declare module 'vscode' {
 
+	/**
+	 * Represents access to using a chat provider (LLM). Access is granted and temporary, usually only valid
+	 * for the duration of an user interaction.
+	 */
 	export interface ChatAccess {
 
 		/**
@@ -31,7 +35,7 @@ declare module 'vscode' {
 		 *
 		 * *Note* that this function will throw an error unless an user interaction is currently active.
 		 *
-		 * @param id The id of the chat provider, e.g `chatgpt`
+		 * @param id The id of the chat provider, e.g `copilot`
 		 */
 		export function requestChatAccess(id: string): Thenable<ChatAccess>;
 	}
