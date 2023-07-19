@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -76,7 +77,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private previousTreeScrollHeight: number = 0;
 
-	private viewModelDisposables = new DisposableStore();
+	private viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
 	private set viewModel(viewModel: ChatViewModel | undefined) {
 		if (this._viewModel === viewModel) {
@@ -92,8 +93,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.slashCommandsPromise = undefined;
 		this.lastSlashCommands = undefined;
+
 		this.getSlashCommands().then(() => {
-			this.onDidChangeItems();
+			if (!this._isDisposed) {
+				this.onDidChangeItems();
+			}
 		});
 
 		this._onDidChangeViewModel.fire();
@@ -133,6 +137,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	get inputUri(): URI {
 		return this.inputPart.inputUri;
+	}
+
+	private _isDisposed: boolean = false;
+	public override dispose(): void {
+		this._isDisposed = true;
+		super.dispose();
 	}
 
 	render(parent: HTMLElement): void {
@@ -193,6 +203,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			});
 
+			if (this._dynamicMessageLayoutData) {
+				this.layoutDynamicChatTreeItemMode();
+			}
+
 			const lastItem = treeItems[treeItems.length - 1]?.element;
 			if (lastItem && isResponseVM(lastItem) && lastItem.isComplete) {
 				this.renderFollowups(lastItem.replyFollowups);
@@ -216,13 +230,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.renderer.setVisible(visible);
 
 		if (visible) {
-			setTimeout(() => {
+			this._register(disposableTimeout(() => {
 				// Progressive rendering paused while hidden, so start it up again.
 				// Do it after a timeout because the container is not visible yet (it should be but offsetHeight returns 0 here)
 				if (this.visible) {
 					this.onDidChangeItems();
 				}
-			}, 0);
+			}, 0));
 		}
 	}
 
@@ -238,6 +252,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					command: 'clear',
 					sortText: 'z_clear',
 					detail: localize('clear', "Clear the session"),
+					executeImmediately: true
 				};
 				this.lastSlashCommands = [
 					...(commands ?? []),
@@ -335,7 +350,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private createInput(container: HTMLElement, options?: { renderFollowups: boolean }): void {
-		this.inputPart = this.instantiationService.createInstance(ChatInputPart, { renderFollowups: options?.renderFollowups ?? true });
+		this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart, { renderFollowups: options?.renderFollowups ?? true }));
 		this.inputPart.render(container, '', this);
 
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
@@ -468,6 +483,47 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.listContainer.style.height = `${height - inputPartHeight}px`;
+	}
+
+	private _dynamicMessageLayoutData?: { numOfMessages: number; maxHeight: number };
+
+	// An alternative to layout, this allows you to specify the number of ChatTreeItems
+	// you want to show, and the max height of the container. It will then layout the
+	// tree to show that many items.
+	setDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
+		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight };
+		this._register(this.renderer.onDidChangeItemHeight(() => this.layoutDynamicChatTreeItemMode()));
+	}
+
+	layoutDynamicChatTreeItemMode(allowRecurse = true): void {
+		if (!this.viewModel) {
+			return;
+		}
+		const inputHeight = this.inputPart.layout(this._dynamicMessageLayoutData!.maxHeight, this.container.offsetWidth);
+
+		const totalMessages = this.viewModel.getItems();
+		// grab the last N messages
+		const messages = totalMessages.slice(-this._dynamicMessageLayoutData!.numOfMessages);
+
+		const needsRerender = messages.some(m => m.currentRenderedHeight === undefined);
+		const listHeight = needsRerender
+			? this._dynamicMessageLayoutData!.maxHeight
+			: messages.reduce((acc, message) => acc + message.currentRenderedHeight!, 0);
+
+		this.layout(
+			Math.min(
+				// we add an additional 25px in order to show that there is scrollable content
+				inputHeight + listHeight + (totalMessages.length > 2 ? 25 : 0),
+				this._dynamicMessageLayoutData!.maxHeight
+			),
+			this.container.offsetWidth
+		);
+
+		if (needsRerender && allowRecurse) {
+			// TODO: figure out a better place to reveal the last element
+			revealLastElement(this.tree);
+			this.layoutDynamicChatTreeItemMode(false);
+		}
 	}
 
 	saveState(): void {

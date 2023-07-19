@@ -676,7 +676,7 @@ class NotebookLanguageSelectorScoreRefine {
 }
 
 class NotebookAccessibilityHelpContribution extends Disposable {
-	static ID: 'chatAccessibilityHelpContribution';
+	static ID: 'notebookAccessibilityHelpContribution';
 	constructor() {
 		super();
 		this._register(AccessibilityHelpAction.addImplementation(105, 'notebook', async accessor => {
