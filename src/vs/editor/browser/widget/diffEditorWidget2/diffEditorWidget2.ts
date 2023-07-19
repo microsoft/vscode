@@ -232,7 +232,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			}
 		}));
 
-		Event.runAndSubscribe(this._editors.modified.onDidChangeCursorPosition, (e) => {
+		this._register(Event.runAndSubscribe(this._editors.modified.onDidChangeCursorPosition, (e) => {
 			if (e?.reason === CursorChangeReason.Explicit) {
 				const diff = this._diffModel.get()?.diff.get()?.mappings.find(m => m.lineRangeMapping.modifiedRange.contains(e.position.lineNumber));
 				if (diff?.lineRangeMapping.modifiedRange.isEmpty) {
@@ -243,7 +243,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 					this._audioCueService.playAudioCue(AudioCue.diffLineModified);
 				}
 			}
-		});
+		}));
 	}
 
 	public getContentHeight() {

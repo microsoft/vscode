@@ -132,8 +132,9 @@ export class EmbeddedDiffEditorWidget2 extends DiffEditorWidget2 {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IAudioCueService audioCueService: IAudioCueService,
 	) {
-		super(domElement, parentEditor.getRawOptions(), codeEditorWidgetOptions, contextKeyService, instantiationService, codeEditorService);
+		super(domElement, parentEditor.getRawOptions(), codeEditorWidgetOptions, contextKeyService, instantiationService, codeEditorService, audioCueService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

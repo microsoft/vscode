@@ -572,7 +572,8 @@ export class StandaloneDiffEditor2 extends DiffEditorWidget2 implements IStandal
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
-		@IClipboardService clipboardService: IClipboardService
+		@IClipboardService clipboardService: IClipboardService,
+		@IAudioCueService audioCueService: IAudioCueService,
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, true);
@@ -591,6 +592,7 @@ export class StandaloneDiffEditor2 extends DiffEditorWidget2 implements IStandal
 			contextKeyService,
 			instantiationService,
 			codeEditorService,
+			audioCueService,
 		);
 
 		this._configurationService = configurationService;
