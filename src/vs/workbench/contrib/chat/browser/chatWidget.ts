@@ -168,12 +168,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.focus();
 	}
 
-	moveFocus(id: string, type: 'next' | 'previous'): void {
+	moveFocus(item: ChatTreeItem, type: 'next' | 'previous'): void {
 		const items = this.viewModel?.getItems();
 		if (!items) {
 			return;
 		}
-		const targetElement = items.find(i => i.id === id);
+		const targetElement = items.find(i => i.id === item.id);
 		if (!targetElement) {
 			return;
 		}
