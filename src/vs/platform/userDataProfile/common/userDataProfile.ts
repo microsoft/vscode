@@ -365,7 +365,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			throw new Error(`Profile '${profileToUpdate.name}' does not exist`);
 		}
 
-		profile = toUserDataProfile(profile.id, options.name ?? profile.name, profile.location, this.profilesCacheHome, { shortName: options.shortName ?? profile.shortName, transient: options.transient ?? profile.isTransient, useDefaultFlags: options.useDefaultFlags ?? profile.useDefaultFlags });
+		profile = toUserDataProfile(profile.id, options.name ?? profile.name, profile.location, this.profilesCacheHome, { shortName: options.shortName ?? profile.shortName, transient: options.transient ?? profile.isTransient, useDefaultFlags: options.useDefaultFlags ?? profile.useDefaultFlags }, this.defaultProfile);
 		this.updateProfiles([], [], [profile]);
 
 		return profile;

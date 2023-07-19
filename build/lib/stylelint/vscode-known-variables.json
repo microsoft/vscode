@@ -316,7 +316,6 @@
 		"--vscode-inlineChatInput-border",
 		"--vscode-inlineChatInput-focusBorder",
 		"--vscode-inlineChatInput-placeholderForeground",
-		"--vscode-inlineChatrDiff-removed",
 		"--vscode-input-background",
 		"--vscode-input-border",
 		"--vscode-input-foreground",

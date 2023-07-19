@@ -26,4 +26,7 @@ export class Log {
 		this.output.error(message);
 	}
 
+	public warn(message: string): void {
+		this.output.warn(message);
+	}
 }

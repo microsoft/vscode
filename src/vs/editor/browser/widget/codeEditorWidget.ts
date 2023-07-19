@@ -73,6 +73,8 @@ export interface ICodeEditorWidgetOptions {
 
 	/**
 	 * Contributions to instantiate.
+	 * When provided, only the contributions included will be instantiated.
+	 * To include the defaults, those must be provided as well via [...EditorExtensionsRegistry.getEditorContributions()]
 	 * Defaults to EditorExtensionsRegistry.getEditorContributions().
 	 */
 	contributions?: IEditorContributionDescription[];

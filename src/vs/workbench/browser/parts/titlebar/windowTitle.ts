@@ -76,7 +76,6 @@ export class WindowTitle extends Disposable {
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.titleUpdater.schedule()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.titleUpdater.schedule()));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.titleUpdater.schedule()));
-		this._register(this.userDataProfileService.onDidUpdateCurrentProfile(() => this.titleUpdater.schedule()));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {

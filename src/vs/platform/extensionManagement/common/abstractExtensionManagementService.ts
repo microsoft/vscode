@@ -23,6 +23,7 @@ import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, Target
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export type ExtensionVerificationStatus = boolean | string;
@@ -69,11 +70,15 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	protected _onDidUninstallExtension = this._register(new Emitter<DidUninstallExtensionEvent>());
 	get onDidUninstallExtension() { return this._onDidUninstallExtension.event; }
 
+	protected readonly _onDidUpdateExtensionMetadata = this._register(new Emitter<ILocalExtension>());
+	get onDidUpdateExtensionMetadata() { return this._onDidUpdateExtensionMetadata.event; }
+
 	private readonly participants: IExtensionManagementParticipant[] = [];
 
 	constructor(
 		@IExtensionGalleryService protected readonly galleryService: IExtensionGalleryService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
+		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@ILogService protected readonly logService: ILogService,
 		@IProductService protected readonly productService: IProductService,
 		@IUserDataProfilesService protected readonly userDataProfilesService: IUserDataProfilesService,
@@ -145,6 +150,40 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	async uninstall(extension: ILocalExtension, options: UninstallOptions = {}): Promise<void> {
 		this.logService.trace('ExtensionManagementService#uninstall', extension.identifier.id);
 		return this.uninstallExtension(extension, options);
+	}
+
+	async toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {
+		if (isApplicationScopedExtension(extension.manifest)) {
+			return extension;
+		}
+
+		if (extension.isApplicationScoped) {
+			let local = await this.updateMetadata(extension, { isApplicationScoped: false }, this.userDataProfilesService.defaultProfile.extensionsResource);
+			if (!this.uriIdentityService.extUri.isEqual(fromProfileLocation, this.userDataProfilesService.defaultProfile.extensionsResource)) {
+				local = await this.copyExtension(extension, this.userDataProfilesService.defaultProfile.extensionsResource, fromProfileLocation);
+			}
+
+			for (const profile of this.userDataProfilesService.profiles) {
+				const existing = (await this.getInstalled(ExtensionType.User, profile.extensionsResource))
+					.find(e => areSameExtensions(e.identifier, extension.identifier));
+				if (existing) {
+					this._onDidUpdateExtensionMetadata.fire(existing);
+				} else {
+					this._onDidUninstallExtension.fire({ identifier: extension.identifier, profileLocation: profile.extensionsResource });
+				}
+			}
+			return local;
+		}
+
+		else {
+			const local = this.uriIdentityService.extUri.isEqual(fromProfileLocation, this.userDataProfilesService.defaultProfile.extensionsResource)
+				? await this.updateMetadata(extension, { isApplicationScoped: true }, this.userDataProfilesService.defaultProfile.extensionsResource)
+				: await this.copyExtension(extension, fromProfileLocation, this.userDataProfilesService.defaultProfile.extensionsResource, { isApplicationScoped: true });
+
+			this._onDidInstallExtensions.fire([{ identifier: local.identifier, operation: InstallOperation.Install, local, profileLocation: this.userDataProfilesService.defaultProfile.extensionsResource, applicationScoped: true }]);
+			return local;
+		}
+
 	}
 
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
@@ -705,12 +744,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	abstract reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
 	abstract cleanUp(): Promise<void>;
 
-	abstract onDidUpdateExtensionMetadata: Event<ILocalExtension>;
 	abstract updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension>;
 
 	protected abstract getCurrentExtensionsManifestLocation(): URI;
 	protected abstract createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask;
 	protected abstract createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask;
+	protected abstract copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata?: Partial<Metadata>): Promise<ILocalExtension>;
 }
 
 export function joinErrors(errorOrErrors: (Error | string) | (Array<Error | string>)): Error {
