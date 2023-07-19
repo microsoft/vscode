@@ -553,7 +553,7 @@ export class TextAreaHandler extends ViewPart {
 	private _getAriaLabel(options: IComputedEditorOptions): string {
 		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		if (accessibilitySupport === AccessibilitySupport.Disabled) {
-			return nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Open the quick pick with {0} and run the command: Toggle Screen Reader Accessibility Mode for a screen reader optimized experience.", platform.isMacintosh ? 'Cmd+Shift+P' : 'Ctrl+Shift+P');
+			return nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. To enable screen reader optimized mode, use {0}", platform.isMacintosh ? 'Cmd+Shift+f1' : 'Ctrl+Shift+f1');
 		}
 		return options.get(EditorOption.ariaLabel);
 	}
