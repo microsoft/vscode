@@ -173,12 +173,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!items) {
 			return;
 		}
-		const targetElement = items.find(i => i.id === item.id);
-		if (!targetElement) {
-			return;
-		}
 		const responseItems = items.filter(i => isResponseVM(i));
-		const targetIndex = responseItems.indexOf(targetElement);
+		const targetIndex = responseItems.indexOf(item);
 		if (targetIndex === undefined || !responseItems) {
 			return;
 		}
