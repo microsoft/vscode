@@ -135,15 +135,14 @@ class ChatAccessibleViewContribution extends Disposable {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const widgetService = accessor.get(IChatWidgetService);
 			const codeEditorService = accessor.get(ICodeEditorService);
-			return renderAccessibleView(false, accessibleViewService, widgetService, codeEditorService);
-			function renderAccessibleView(ignoreChatInput: boolean, accessibleViewService: IAccessibleViewService, widgetService: IChatWidgetService, codeEditorService: ICodeEditorService): boolean {
-
+			return renderAccessibleView(accessibleViewService, widgetService, codeEditorService, true);
+			function renderAccessibleView(accessibleViewService: IAccessibleViewService, widgetService: IChatWidgetService, codeEditorService: ICodeEditorService, initialRender?: boolean): boolean {
 				let widget = widgetService.lastFocusedWidget;
 				if (!widget) {
 					return false;
 				}
 
-				const chatInputFocused = !ignoreChatInput && !!(codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor());
+				const chatInputFocused = initialRender && !!(codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor());
 
 				if (chatInputFocused) {
 					widget.focusLastMessage();
@@ -179,14 +178,12 @@ class ChatAccessibleViewContribution extends Disposable {
 						}
 					},
 					next() {
-						verifiedWidget.focus(focusedItem);
 						verifiedWidget.focusWithId(focusedItem.id, 'next');
-						renderAccessibleView(true, accessibleViewService, widgetService, codeEditorService);
+						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
 					},
 					previous() {
-						verifiedWidget.focus(focusedItem);
 						verifiedWidget.focusWithId(focusedItem.id, 'previous');
-						renderAccessibleView(true, accessibleViewService, widgetService, codeEditorService);
+						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
 					},
 					options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript', type: AccessibleViewType.View }
 				});
