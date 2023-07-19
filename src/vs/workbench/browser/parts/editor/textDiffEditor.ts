@@ -255,7 +255,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			return true;
 		}
 
-		return e.affectsConfiguration(resource, 'diffEditor');
+		return e.affectsConfiguration(resource, 'diffEditor') || e.affectsConfiguration(resource, 'accessibility.verbosity.diffEditor');
 	}
 
 	protected override computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {
@@ -275,6 +275,9 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 			Object.assign(editorConfiguration, diffEditorConfiguration);
 		}
+
+		const verbose = configuration.accessibility?.verbosity?.diffEditor ?? false;
+		(editorConfiguration as IDiffEditorOptions).accessibilityVerbose = verbose;
 
 		return editorConfiguration;
 	}

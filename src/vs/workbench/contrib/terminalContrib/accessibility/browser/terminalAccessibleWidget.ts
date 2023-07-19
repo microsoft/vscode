@@ -62,7 +62,7 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		this._element.classList.add(ClassName.Widget);
 		this._editorContainer = document.createElement('div');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])
+			contributions: [...EditorExtensionsRegistry.getEditorContributions(), ...EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])]
 		};
 		const font = _xterm.getFont();
 		const editorOptions: IEditorConstructionOptions = {

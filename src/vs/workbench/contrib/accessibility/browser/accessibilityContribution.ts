@@ -106,3 +106,34 @@ export const AccessibleViewAction = registerCommand(new MultiCommand({
 		order: 1
 	}],
 }));
+
+
+export const AccessibleViewNextAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibleViewNext',
+	precondition: undefined,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.BracketRight,
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	menuOpts: [{
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: localize('editor.action.accessibleViewNext', "Next Accessible View"),
+		order: 1
+	}],
+}));
+
+export const AccessibleViewPreviousAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibleViewPrevious',
+	precondition: undefined,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.BracketLeft,
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	menuOpts: [{
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: localize('editor.action.accessibleViewPrevious', "Previous Accessible View"),
+		order: 1
+	}],
+}));

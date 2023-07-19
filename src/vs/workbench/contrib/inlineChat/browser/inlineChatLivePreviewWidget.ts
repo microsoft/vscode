@@ -7,7 +7,7 @@ import { Dimension, h } from 'vs/base/browser/dom';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -34,6 +34,7 @@ import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessi
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class InlineChatLivePreviewWidget extends ZoneWidget {
 
@@ -53,6 +54,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@ILogService private readonly _logService: ILogService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, allowUnlimitedHeight: true, showInHiddenAreas: true, ordinal: 10000 + 1 });
 		super.create();
@@ -62,7 +64,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			.getEditorContributions()
 			.filter(c => c.id !== INLINE_CHAT_ID && c.id !== FoldingController.ID);
 
-		this._diffEditor = instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.domNode, {
+		this._diffEditor = instantiationService.createInstance(EmbeddedDiffEditorWidget2, this._elements.domNode, {
 			scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
 			scrollBeyondLastLine: false,
 			renderMarginRevertIcon: true,
@@ -78,7 +80,8 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			stickyScroll: { enabled: false },
 			minimap: { enabled: false },
 			isInEmbeddedEditor: true,
-			overflowWidgetsDomNode: editor.getOverflowWidgetsDomNode()
+			overflowWidgetsDomNode: editor.getOverflowWidgetsDomNode(),
+			onlyShowAccessibleDiffViewer: this.accessibilityService.isScreenReaderOptimized(),
 		}, {
 			originalEditor: { contributions: diffContributions },
 			modifiedEditor: { contributions: diffContributions }

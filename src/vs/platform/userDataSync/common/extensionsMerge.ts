@@ -278,6 +278,11 @@ function areSame(fromExtension: ISyncExtension, toExtension: ISyncExtension, che
 		return false;
 	}
 
+	if (fromExtension.isApplicationScoped !== toExtension.isApplicationScoped) {
+		/* extension application scope has changed */
+		return false;
+	}
+
 	if (checkInstalledProperty && fromExtension.installed !== toExtension.installed) {
 		/* extension installed property changed */
 		return false;
@@ -390,7 +395,7 @@ function isSameExtensionState(a: IStringDictionary<any> = {}, b: IStringDictiona
 
 // massage incoming extension - add optional properties
 function massageIncomingExtension(extension: ISyncExtension): ISyncExtension {
-	return { ...extension, ...{ disabled: !!extension.disabled, installed: !!extension.installed } };
+	return { ...extension, ...{ disabled: !!extension.disabled, installed: !!extension.installed, isApplicationScoped: !!extension.isApplicationScoped } };
 }
 
 // massage outgoing extension - remove optional properties
@@ -403,7 +408,8 @@ function massageOutgoingExtension(extension: ISyncExtension, key: string): ISync
 		version: extension.version,
 		/* set following always so that to differentiate with older clients */
 		preRelease: !!extension.preRelease,
-		pinned: !!extension.pinned
+		pinned: !!extension.pinned,
+		isApplicationScoped: !!extension.isApplicationScoped,
 	};
 	if (extension.disabled) {
 		massagedExtension.disabled = true;

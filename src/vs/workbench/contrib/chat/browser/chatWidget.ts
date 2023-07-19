@@ -238,6 +238,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					command: 'clear',
 					sortText: 'z_clear',
 					detail: localize('clear', "Clear the session"),
+					executeImmediately: true
 				};
 				this.lastSlashCommands = [
 					...(commands ?? []),

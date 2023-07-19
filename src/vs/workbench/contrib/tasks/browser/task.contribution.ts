@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -392,7 +391,7 @@ class UserTasksGlobalActionContribution extends Disposable implements IWorkbench
 			}));
 		};
 		registerOpenSettingsAction();
-		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => registerOpenSettingsAction()));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => registerOpenSettingsAction()));
 	}
 }
 workbenchRegistry.registerWorkbenchContribution(UserTasksGlobalActionContribution, LifecyclePhase.Restored);

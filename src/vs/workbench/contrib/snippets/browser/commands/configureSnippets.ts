@@ -5,7 +5,6 @@
 
 import { isValidBasename } from 'vs/base/common/extpath';
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
 import { extname } from 'vs/base/common/path';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -232,7 +231,7 @@ export class ConfigureSnippetsActions extends Disposable implements IWorkbenchCo
 		super();
 		const disposable = this._register(new MutableDisposable());
 		disposable.value = this.registerAction();
-		this._register(Event.any(userDataProfileService.onDidChangeCurrentProfile, userDataProfileService.onDidUpdateCurrentProfile)(() => disposable.value = this.registerAction()));
+		this._register(userDataProfileService.onDidChangeCurrentProfile(() => disposable.value = this.registerAction()));
 	}
 
 	private registerAction(): IDisposable {

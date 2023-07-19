@@ -27,9 +27,8 @@ export interface DidChangeUserDataProfileEvent {
 export const IUserDataProfileService = createDecorator<IUserDataProfileService>('IUserDataProfileService');
 export interface IUserDataProfileService {
 	readonly _serviceBrand: undefined;
-	readonly onDidUpdateCurrentProfile: Event<void>;
-	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	readonly currentProfile: IUserDataProfile;
+	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	updateCurrentProfile(currentProfile: IUserDataProfile): Promise<void>;
 	getShortName(profile: IUserDataProfile): string;
 }
@@ -73,7 +72,8 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 	});
 }
 
-export interface IProfileImportOptions {
+export interface IProfileImportOptions extends IUserDataProfileOptions {
+	readonly name?: string;
 	readonly mode?: 'preview' | 'apply' | 'both';
 }
 
@@ -87,7 +87,7 @@ export interface IUserDataProfileImportExportService {
 	exportProfile(): Promise<void>;
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
-	SaveCurrentProfileAs(name: string): Promise<void>;
+	createFromProfile(profile: IUserDataProfile, name: string, options?: IUserDataProfileOptions): Promise<void>;
 	createTroubleshootProfile(): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
