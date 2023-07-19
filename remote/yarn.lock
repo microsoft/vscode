@@ -58,10 +58,10 @@
   resolved "https://registry.yarnpkg.com/@vscode/iconv-lite-umd/-/iconv-lite-umd-0.7.0.tgz#d2f1e0664ee6036408f9743fee264ea0699b0e48"
   integrity sha512-bRRFxLfg5dtAyl5XyiVWz/ZBPahpOpPrNYnnHpOpUZvam4tKH35wdhP4Kj6PbM0+KdliOsPzbGWpkxcdpNB/sg==
 
-"@vscode/proxy-agent@^0.16.0":
-  version "0.16.0"
-  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.16.0.tgz#32054387f7aaf26d1b5d53f553d53bfd8489eab8"
-  integrity sha512-b8yBHgdngDrP+9HPJtnPUJjPHd+zfEvOYoc8KioWJVs0rFVT2U77nFDVC70Mrrscf87ya2a/sPY32nTrwFfOQQ==
+"@vscode/proxy-agent@^0.17.0":
+  version "0.17.0"
+  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.17.0.tgz#e60d43e2779c07c223d3bad9b7de8eedf7ca1294"
+  integrity sha512-p4gJ57KeWGw0CEG9R13dmsgmWmszoOQ836pf/PVbAf+ZRF27il3QcFvOhA10XE2QFHaOcRxuJnnIpUD1lSMvqQ==
   dependencies:
     "@tootallnate/once" "^3.0.0"
     agent-base "^7.0.1"
@@ -454,6 +454,15 @@ jschardet@3.0.0:
   resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-3.0.0.tgz#898d2332e45ebabbdb6bf2feece9feea9a99e882"
   integrity sha512-lJH6tJ77V8Nzd5QWRkFYCLc13a3vADkh3r/Fi8HupZGWk2OVVDfnZP8V/VgQgZ+lzW0kG2UGb5hFgt3V3ndotQ==
 
+kerberos@^2.0.1:
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/kerberos/-/kerberos-2.0.1.tgz#663b0b46883b4da84495f60f2e9e399a43a33ef5"
+  integrity sha512-O/jIgbdGK566eUhFwIcgalbqirYU/r76MW7/UFw06Fd9x5bSwgyZWL/Vm26aAmezQww/G9KYkmmJBkEkPk5HLw==
+  dependencies:
+    bindings "^1.5.0"
+    node-addon-api "^4.3.0"
+    prebuild-install "7.1.1"
+
 keytar@7.9.0:
   version "7.9.0"
   resolved "https://registry.yarnpkg.com/keytar/-/keytar-7.9.0.tgz#4c6225708f51b50cbf77c5aae81721964c2918cb"
@@ -594,6 +603,24 @@ picomatch@^2.3.1:
   version "2.3.1"
   resolved "https://registry.yarnpkg.com/picomatch/-/picomatch-2.3.1.tgz#3ba3833733646d9d3e4995946c1365a67fb07a42"
   integrity sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA==
+
+prebuild-install@7.1.1:
+  version "7.1.1"
+  resolved "https://registry.yarnpkg.com/prebuild-install/-/prebuild-install-7.1.1.tgz#de97d5b34a70a0c81334fd24641f2a1702352e45"
+  integrity sha512-jAXscXWMcCK8GgCoHOfIr0ODh5ai8mj63L2nWrjuAgXE6tDyYGnx4/8o/rCgU+B4JSyZBKbeZqzhtwtC3ovxjw==
+  dependencies:
+    detect-libc "^2.0.0"
+    expand-template "^2.0.3"
+    github-from-package "0.0.0"
+    minimist "^1.2.3"
+    mkdirp-classic "^0.5.3"
+    napi-build-utils "^1.0.1"
+    node-abi "^3.3.0"
+    pump "^3.0.0"
+    rc "^1.2.7"
+    simple-get "^4.0.0"
+    tar-fs "^2.0.0"
+    tunnel-agent "^0.6.0"
 
 prebuild-install@^7.0.1:
   version "7.0.1"

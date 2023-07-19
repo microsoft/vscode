@@ -24,6 +24,7 @@ import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
@@ -39,6 +40,7 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatService private readonly chatService: IChatService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -139,7 +141,7 @@ class InputEditorDecorations extends Disposable {
 
 		if (command && inputValue.startsWith(`/${command.command} `)) {
 			if (!this._slashCommandContentWidget) {
-				this._slashCommandContentWidget = new SlashCommandContentWidget(this.widget.inputEditor);
+				this._slashCommandContentWidget = new SlashCommandContentWidget(this.widget.inputEditor, this.accessibilityService);
 				this._store.add(this._slashCommandContentWidget);
 			}
 			this._slashCommandContentWidget.setCommandText(command.command);

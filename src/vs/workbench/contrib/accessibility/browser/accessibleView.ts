@@ -87,7 +87,7 @@ class AccessibleView extends Disposable {
 		this._editorContainer = document.createElement('div');
 		this._editorContainer.classList.add('accessible-view');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])
+			contributions: [...EditorExtensionsRegistry.getEditorContributions(), ...EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])]
 		};
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(this._configurationService),

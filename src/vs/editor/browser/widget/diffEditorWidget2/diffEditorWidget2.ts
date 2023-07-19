@@ -66,7 +66,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 	private unchangedRangesFeature!: UnchangedRangesFeature;
 
-	private _accessibleDiffViewerVisible = observableValue('accessibleDiffViewerVisible', false);
+	private _accessibleDiffViewerShouldBeVisible = observableValue('accessibleDiffViewerShouldBeVisible', false);
+	private _accessibleDiffViewerVisible = derived('accessibleDiffViewerVisible', reader =>
+		this._options.onlyShowAccessibleDiffViewer.read(reader)
+			? true
+			: this._accessibleDiffViewerShouldBeVisible.read(reader)
+	);
 	private _accessibleDiffViewer!: AccessibleDiffViewer;
 	private readonly _options: DiffEditorOptions;
 	private readonly _editors: DiffEditorEditors;
@@ -163,6 +168,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 				readHotReloadableExport(AccessibleDiffViewer, reader),
 				this.elements.accessibleDiffViewer,
 				this._accessibleDiffViewerVisible,
+				(visible, tx) => this._accessibleDiffViewerShouldBeVisible.set(visible, tx),
+				this._options.onlyShowAccessibleDiffViewer.map(v => !v),
 				this._rootSizeObserver.width,
 				this._rootSizeObserver.height,
 				this._diffModel.map((m, r) => m?.diff.read(r)?.mappings.map(m => m.lineRangeMapping)),
@@ -245,19 +252,16 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		const sashLeft = this._sash.read(reader)?.sashLeft.read(reader);
 
 		const originalWidth = sashLeft ?? Math.max(5, this._editors.original.getLayoutInfo().decorationsLeft);
+		const modifiedWidth = width - originalWidth - (this._options.renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0);
 
 		this.elements.original.style.width = originalWidth + 'px';
 		this.elements.original.style.left = '0px';
 
-		this.elements.modified.style.width = (width - originalWidth) + 'px';
+		this.elements.modified.style.width = modifiedWidth + 'px';
 		this.elements.modified.style.left = originalWidth + 'px';
 
-		this._editors.original.layout({ width: originalWidth, height: height });
-		this._editors.modified.layout({
-			width: width - originalWidth -
-				(this._options.renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0),
-			height
-		});
+		this._editors.original.layout({ width: originalWidth, height });
+		this._editors.modified.layout({ width: modifiedWidth, height });
 
 		return {
 			modifiedEditor: this._editors.modified.getLayoutInfo(),

@@ -1414,15 +1414,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		// create new output
-		const createOutput = () => {
-			const { message, renderer, transfer: transferable } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, false, false);
-			this._sendMessageToWebview(message, transferable);
-			this.insetMapping.set(content.source, { outputId: message.outputId, versionId: content.source.model.versionId, cellInfo: cellInfo, renderer, cachedCreation: message });
-			this.hiddenInsetMapping.delete(content.source);
-			this.reversedInsetMapping.set(message.outputId, content.source);
-		};
-
-		createOutput();
+		const { message, renderer, transfer: transferable } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, false, false);
+		this._sendMessageToWebview(message, transferable);
+		this.insetMapping.set(content.source, { outputId: message.outputId, versionId: content.source.model.versionId, cellInfo: cellInfo, renderer, cachedCreation: message });
+		this.hiddenInsetMapping.delete(content.source);
+		this.reversedInsetMapping.set(message.outputId, content.source);
 	}
 
 	private createMetadata(output: ICellOutput, mimeType: string) {
@@ -1504,6 +1500,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		const outputCache = this.insetMapping.get(content.source)!;
+
+		if (outputCache.versionId === content.source.model.versionId) {
+			// already sent this output version to the renderer
+			return;
+		}
+
 		this.hiddenInsetMapping.delete(content.source);
 		let updatedContent: ICreationContent | undefined = undefined;
 
@@ -1511,6 +1513,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		if (content.type === RenderOutputType.Extension) {
 			const output = content.source.model;
 			const firstBuffer = output.outputs.find(op => op.mime === content.mimeType)!;
+			const appenededData = output.appendedSinceVersion(outputCache.versionId, content.mimeType);
+			const appended = appenededData ? { valueBytes: appenededData.buffer, previousVersion: outputCache.versionId } : undefined;
 
 			const valueBytes = copyBufferIfNeeded(firstBuffer.data.buffer, transfer);
 			updatedContent = {
@@ -1520,6 +1524,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				output: {
 					mime: content.mimeType,
 					valueBytes,
+					appended: appended
 				},
 				allOutputs: output.outputs.map(output => ({ mime: output.mime }))
 			};

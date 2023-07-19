@@ -1001,6 +1001,11 @@
   resolved "https://registry.yarnpkg.com/@types/json-schema/-/json-schema-7.0.9.tgz#97edc9037ea0c38585320b28964dde3b39e4660d"
   integrity sha512-qcUXuemtEu+E5wZSJHNxUXeCZhAfXKQ41D+duX+VYPde7xyEVZci+/oXKJL13tnRs9lR2pr4fod59GT6/X1/yQ==
 
+"@types/kerberos@^1.1.2":
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/@types/kerberos/-/kerberos-1.1.2.tgz#2a774abd48f727852f697d74241e9de3aea8e646"
+  integrity sha512-cLixfcXjdj7qohLasmC1G4fh+en4e4g7mFZiG38D+K9rS9BRKFlq1JH5dGkQzICckbu4wM+RcwSa4VRHlBg7Rg==
+
 "@types/keytar@^4.4.0":
   version "4.4.0"
   resolved "https://registry.yarnpkg.com/@types/keytar/-/keytar-4.4.0.tgz#ca24e6ee6d0df10c003aafe26e93113b8faf0d8e"
@@ -1304,10 +1309,10 @@
     bindings "^1.5.0"
     node-addon-api "^6.0.0"
 
-"@vscode/proxy-agent@^0.16.0":
-  version "0.16.0"
-  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.16.0.tgz#32054387f7aaf26d1b5d53f553d53bfd8489eab8"
-  integrity sha512-b8yBHgdngDrP+9HPJtnPUJjPHd+zfEvOYoc8KioWJVs0rFVT2U77nFDVC70Mrrscf87ya2a/sPY32nTrwFfOQQ==
+"@vscode/proxy-agent@^0.17.0":
+  version "0.17.0"
+  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.17.0.tgz#e60d43e2779c07c223d3bad9b7de8eedf7ca1294"
+  integrity sha512-p4gJ57KeWGw0CEG9R13dmsgmWmszoOQ836pf/PVbAf+ZRF27il3QcFvOhA10XE2QFHaOcRxuJnnIpUD1lSMvqQ==
   dependencies:
     "@tootallnate/once" "^3.0.0"
     agent-base "^7.0.1"
@@ -3582,10 +3587,10 @@ electron-to-chromium@^1.4.202:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.207.tgz#9c3310ebace2952903d05dcaba8abe3a4ed44c01"
   integrity sha512-piH7MJDJp4rJCduWbVvmUd59AUne1AFBJ8JaRQvk0KzNTSUnZrVXHCZc+eg+CGE4OujkcLJznhGKD6tuAshj5Q==
 
-electron@22.3.14:
-  version "22.3.14"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-22.3.14.tgz#539fc7d7b6df37483aaa351856a28e43092d550e"
-  integrity sha512-WxVcLnC4DrkBLN1/BwpxNkGvVq8iq1hM7lae5nvjnSYg/bwVbuo1Cwc80Keft4MIWKlYCXNiKKqs3qCXV4Aiaw==
+electron@22.3.17:
+  version "22.3.17"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-22.3.17.tgz#90a75f78cc761ed536d8210dd001e142fca78691"
+  integrity sha512-mo9qD1pOkiibvH+pgETsq9RZF0p3O5ACwxzjk3E2ozMYb9cnJenZyE3jxbs4WqzDCFi+rsm6WWahw3hlPhANXw==
   dependencies:
     "@electron/get" "^2.0.0"
     "@types/node" "^16.11.26"
@@ -6205,6 +6210,15 @@ just-extend@^4.0.2:
   resolved "https://registry.yarnpkg.com/just-extend/-/just-extend-4.2.1.tgz#ef5e589afb61e5d66b24eca749409a8939a8c744"
   integrity sha512-g3UB796vUFIY90VIv/WX3L2c8CS2MdWUww3CNrYmqza1Fg0DURc2K/O4YrnklBdQarSJ/y8JnJYDGc+1iumQjg==
 
+kerberos@^2.0.1:
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/kerberos/-/kerberos-2.0.1.tgz#663b0b46883b4da84495f60f2e9e399a43a33ef5"
+  integrity sha512-O/jIgbdGK566eUhFwIcgalbqirYU/r76MW7/UFw06Fd9x5bSwgyZWL/Vm26aAmezQww/G9KYkmmJBkEkPk5HLw==
+  dependencies:
+    bindings "^1.5.0"
+    node-addon-api "^4.3.0"
+    prebuild-install "7.1.1"
+
 keygrip@~1.1.0:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/keygrip/-/keygrip-1.1.0.tgz#871b1681d5e159c62a445b0c74b615e0917e7226"
@@ -8194,6 +8208,24 @@ postcss@^8.4.19:
     picocolors "^1.0.0"
     source-map-js "^1.0.2"
 
+prebuild-install@7.1.1:
+  version "7.1.1"
+  resolved "https://registry.yarnpkg.com/prebuild-install/-/prebuild-install-7.1.1.tgz#de97d5b34a70a0c81334fd24641f2a1702352e45"
+  integrity sha512-jAXscXWMcCK8GgCoHOfIr0ODh5ai8mj63L2nWrjuAgXE6tDyYGnx4/8o/rCgU+B4JSyZBKbeZqzhtwtC3ovxjw==
+  dependencies:
+    detect-libc "^2.0.0"
+    expand-template "^2.0.3"
+    github-from-package "0.0.0"
+    minimist "^1.2.3"
+    mkdirp-classic "^0.5.3"
+    napi-build-utils "^1.0.1"
+    node-abi "^3.3.0"
+    pump "^3.0.0"
+    rc "^1.2.7"
+    simple-get "^4.0.0"
+    tar-fs "^2.0.0"
+    tunnel-agent "^0.6.0"
+
 prebuild-install@^7.0.1:
   version "7.0.1"
   resolved "https://registry.yarnpkg.com/prebuild-install/-/prebuild-install-7.0.1.tgz#c10075727c318efe72412f333e0ef625beaf3870"
@@ -10043,10 +10075,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.2.0-dev.20230712:
-  version "5.2.0-dev.20230712"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.2.0-dev.20230712.tgz#6da271394793fd1c1cba26800f43bb8c25825a87"
-  integrity sha512-F/VND6YrBGr8RvnmpFpTDC5sT0Hh5cuXFWurGEhSBjwXodW+POmfGU0uLn+s/Rl0+Yvffpd2WRrpYC7bSDQS/Q==
+typescript@^5.2.0-dev.20230718:
+  version "5.2.0-dev.20230718"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.2.0-dev.20230718.tgz#8c60b2f6807b3f8b2db47980ee6c73dea1f45e42"
+  integrity sha512-ED1Vm+2UzdbtKui+0lVswEuAX94fQXeoghXyy/+aTNers8X/WB81r5sFg6nA4e43nVQ2MP/Qsa7/XJRFuHR+Cg==
 
 typical@^4.0.0:
   version "4.0.0"

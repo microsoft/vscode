@@ -10,7 +10,7 @@ import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ISettableObservable, ITransaction, autorun, constObservable, derived, keepAlive, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, ITransaction, autorun, derived, keepAlive, observableValue, transaction } from 'vs/base/common/observable';
 import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
 import { subtransaction } from 'vs/base/common/observableImpl/base';
 import { derivedWithStore } from 'vs/base/common/observableImpl/derived';
@@ -42,7 +42,9 @@ const diffReviewCloseIcon = registerIcon('diff-review-close', Codicon.close, loc
 export class AccessibleDiffViewer extends Disposable {
 	constructor(
 		private readonly _parentNode: HTMLElement,
-		private readonly _visible: ISettableObservable<boolean>,
+		private readonly _visible: IObservable<boolean>,
+		private readonly _setVisible: (visible: boolean, tx: ITransaction | undefined) => void,
+		private readonly _canClose: IObservable<boolean>,
 		private readonly _width: IObservable<number>,
 		private readonly _height: IObservable<number>,
 		private readonly _diffs: IObservable<LineRangeMapping[] | undefined>,
@@ -59,7 +61,7 @@ export class AccessibleDiffViewer extends Disposable {
 		if (!visible) {
 			return null;
 		}
-		const model = store.add(this._instantiationService.createInstance(ViewModel, this._diffs, this._editors, this._visible));
+		const model = store.add(this._instantiationService.createInstance(ViewModel, this._diffs, this._editors, this._setVisible, this._canClose));
 		const view = store.add(this._instantiationService.createInstance(View, this._parentNode, model, this._width, this._height, this._editors));
 		return {
 			model,
@@ -70,7 +72,7 @@ export class AccessibleDiffViewer extends Disposable {
 	next(): void {
 		transaction(tx => {
 			const isVisible = this._visible.get();
-			this._visible.set(true, tx);
+			this._setVisible(true, tx);
 			if (isVisible) {
 				this.model.get()!.model.nextGroup(tx);
 			}
@@ -79,14 +81,14 @@ export class AccessibleDiffViewer extends Disposable {
 
 	prev(): void {
 		transaction(tx => {
-			this._visible.set(true, tx);
+			this._setVisible(true, tx);
 			this.model.get()!.model.previousGroup(tx);
 		});
 	}
 
 	close(): void {
 		transaction(tx => {
-			this._visible.set(false, tx);
+			this._setVisible(false, tx);
 		});
 	}
 }
@@ -104,12 +106,11 @@ class ViewModel extends Disposable {
 	public readonly currentElement: IObservable<ViewElement | undefined>
 		= this._currentElementIdx.map((idx, r) => this.currentGroup.read(r)?.lines[idx]);
 
-	public readonly canClose: IObservable<boolean> = constObservable(true);
-
 	constructor(
 		private readonly _diffs: IObservable<LineRangeMapping[] | undefined>,
 		private readonly _editors: DiffEditorEditors,
-		private readonly _visible: ISettableObservable<boolean>,
+		private readonly _setVisible: (visible: boolean, tx: ITransaction | undefined) => void,
+		public readonly canClose: IObservable<boolean>,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 	) {
 		super();
@@ -192,7 +193,7 @@ class ViewModel extends Disposable {
 	}
 
 	revealCurrentElementInEditor(): void {
-		this._visible.set(false, undefined);
+		this._setVisible(false, undefined);
 
 		const curElem = this.currentElement.get();
 		if (curElem) {
@@ -211,7 +212,7 @@ class ViewModel extends Disposable {
 	}
 
 	close(): void {
-		this._visible.set(false, undefined);
+		this._setVisible(false, undefined);
 		this._editors.modified.focus();
 	}
 }
@@ -338,14 +339,18 @@ class View extends Disposable {
 		this._actionBar = this._register(new ActionBar(
 			actionBarContainer
 		));
-		this._actionBar.push(new Action(
-			'diffreview.close',
-			localize('label.close', "Close"),
-			'close-diff-review ' + ThemeIcon.asClassName(diffReviewCloseIcon),
-			true,
-			async () => _model.close()
-		), { label: false, icon: true });
-
+		this._register(autorun('update actions', reader => {
+			this._actionBar.clear();
+			if (this._model.canClose.read(reader)) {
+				this._actionBar.push(new Action(
+					'diffreview.close',
+					localize('label.close', "Close"),
+					'close-diff-review ' + ThemeIcon.asClassName(diffReviewCloseIcon),
+					true,
+					async () => _model.close()
+				), { label: false, icon: true });
+			}
+		}));
 
 		this._content = document.createElement('div');
 		this._content.className = 'diff-review-content';

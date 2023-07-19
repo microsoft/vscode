@@ -5,59 +5,67 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
+import { ILocalizedString } from 'vs/platform/action/common/action';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-export class DiffReviewNext extends EditorAction {
+
+const accessibleDiffViewerCategory: ILocalizedString = {
+	value: localize('accessibleDiffViewer', 'Accessible Diff Viewer'),
+	original: 'Accessible Diff Viewer',
+};
+
+export class DiffReviewNext extends EditorAction2 {
 	public static id = 'editor.action.diffReview.next';
 
 	constructor() {
 		super({
 			id: DiffReviewNext.id,
-			label: localize('editor.action.diffReview.next', "Go to Next Difference"),
-			alias: 'Go to Next Difference',
+			title: { value: localize('editor.action.diffReview.next', "Go to Next Difference"), original: 'Go to Next Difference' },
+			category: accessibleDiffViewerCategory,
 			precondition: ContextKeyExpr.has('isInDiffEditor'),
-			kbOpts: {
-				kbExpr: null,
+			keybinding: {
 				primary: KeyCode.F7,
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			f1: true,
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
 		diffEditor?.diffReviewNext();
 	}
 }
 
-export class DiffReviewPrev extends EditorAction {
+export class DiffReviewPrev extends EditorAction2 {
 	public static id = 'editor.action.diffReview.prev';
 
 	constructor() {
 		super({
 			id: DiffReviewPrev.id,
-			label: localize('editor.action.diffReview.prev', "Go to Previous Difference"),
-			alias: 'Go to Previous Difference',
+			title: { value: localize('editor.action.diffReview.prev', "Go to Previous Difference"), original: 'Go to Previous Difference' },
+			category: accessibleDiffViewerCategory,
 			precondition: ContextKeyExpr.has('isInDiffEditor'),
-			kbOpts: {
-				kbExpr: null,
+			keybinding: {
 				primary: KeyMod.Shift | KeyCode.F7,
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			f1: true,
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
 		diffEditor?.diffReviewPrev();
 	}
 }
 
-function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor | null {
+export function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor | null {
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const diffEditors = codeEditorService.listDiffEditors();
 	const activeCodeEditor = codeEditorService.getFocusedCodeEditor() ?? codeEditorService.getActiveCodeEditor();
@@ -74,5 +82,5 @@ function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor | null {
 	return null;
 }
 
-registerEditorAction(DiffReviewNext);
-registerEditorAction(DiffReviewPrev);
+registerAction2(DiffReviewNext);
+registerAction2(DiffReviewPrev);
