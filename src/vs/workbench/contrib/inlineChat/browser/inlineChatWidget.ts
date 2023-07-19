@@ -329,7 +329,10 @@ export class InlineChatWidget {
 		this._store.add(feedbackToolbar);
 
 		// preview editors
-		this._previewDiffEditor = new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget2, this._elements.previewDiff, _previewEditorEditorOptions, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor)));
+		this._previewDiffEditor = new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget2, this._elements.previewDiff, {
+			..._previewEditorEditorOptions,
+			onlyShowAccessibleDiffViewer: this._accessibilityService.isScreenReaderOptimized(),
+		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor)));
 
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
 		this._previewCreateEditor = new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor)));
