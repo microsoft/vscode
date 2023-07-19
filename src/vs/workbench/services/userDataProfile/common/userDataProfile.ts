@@ -27,9 +27,8 @@ export interface DidChangeUserDataProfileEvent {
 export const IUserDataProfileService = createDecorator<IUserDataProfileService>('IUserDataProfileService');
 export interface IUserDataProfileService {
 	readonly _serviceBrand: undefined;
-	readonly onDidUpdateCurrentProfile: Event<void>;
-	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	readonly currentProfile: IUserDataProfile;
+	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	updateCurrentProfile(currentProfile: IUserDataProfile): Promise<void>;
 	getShortName(profile: IUserDataProfile): string;
 }

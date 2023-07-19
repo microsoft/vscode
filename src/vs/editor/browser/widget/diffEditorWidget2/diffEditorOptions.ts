@@ -46,6 +46,7 @@ export class DiffEditorOptions {
 	public readonly accessibilityVerbose = derived('accessibilityVerbose', reader => this._options.read(reader).accessibilityVerbose);
 	public readonly diffAlgorithm = derived('diffAlgorithm', reader => this._options.read(reader).diffAlgorithm);
 	public readonly showEmptyDecorations = derived('showEmptyDecorations', reader => this._options.read(reader).experimental.showEmptyDecorations!);
+	public readonly onlyShowAccessibleDiffViewer = derived('onlyShowAccessibleDiffViewer', reader => this._options.read(reader).onlyShowAccessibleDiffViewer);
 
 	public updateOptions(changedOptions: IDiffEditorOptions): void {
 		const newDiffEditorOptions = validateDiffEditorOptions(changedOptions, this._options.get());
@@ -75,6 +76,7 @@ const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
 		showEmptyDecorations: true,
 	},
 	isInEmbeddedEditor: false,
+	onlyShowAccessibleDiffViewer: false,
 };
 
 function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaults: ValidDiffEditorBaseOptions): ValidDiffEditorBaseOptions {
@@ -99,5 +101,6 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 			showEmptyDecorations: validateBooleanOption(options.experimental?.showEmptyDecorations, defaults.experimental.showEmptyDecorations!),
 		},
 		isInEmbeddedEditor: validateBooleanOption(options.isInEmbeddedEditor, defaults.isInEmbeddedEditor),
+		onlyShowAccessibleDiffViewer: validateBooleanOption(options.onlyShowAccessibleDiffViewer, defaults.onlyShowAccessibleDiffViewer),
 	};
 }

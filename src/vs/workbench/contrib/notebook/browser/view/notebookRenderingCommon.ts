@@ -43,6 +43,7 @@ export interface INotebookCellList {
 	length: number;
 	rowsContainer: HTMLElement;
 	scrollableElement: HTMLElement;
+	ariaLabel: string;
 	readonly onDidRemoveOutputs: Event<readonly ICellOutputViewModel[]>;
 	readonly onDidHideOutputs: Event<readonly ICellOutputViewModel[]>;
 	readonly onDidRemoveCellsFromView: Event<readonly ICellViewModel[]>;

@@ -176,6 +176,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly onDidChangeInstanceColor: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 	readonly onDidChangeInstancePrimaryStatus: Event<ITerminalInstance>;
 	readonly onDidInputInstanceData: Event<ITerminalInstance>;
+	readonly onDidChangeSelection: Event<ITerminalInstance>;
 	readonly onDidRegisterProcessSupport: Event<void>;
 	readonly onDidChangeConnectionState: Event<void>;
 
@@ -546,6 +547,7 @@ export interface ITerminalInstance {
 	onDidRequestFocus: Event<void>;
 	onDidBlur: Event<ITerminalInstance>;
 	onDidInputData: Event<ITerminalInstance>;
+	onDidChangeSelection: Event<ITerminalInstance>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.

@@ -95,7 +95,9 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				args::VersionSubcommand::Show => version::show(context!()).await,
 			},
 
-			Some(args::Commands::CommandShell) => tunnels::command_shell(context!()).await,
+			Some(args::Commands::CommandShell(cs_args)) => {
+				tunnels::command_shell(context!(), cs_args).await
+			}
 
 			Some(args::Commands::Tunnel(tunnel_args)) => match tunnel_args.subcommand {
 				Some(args::TunnelSubcommand::Prune) => tunnels::prune(context!()).await,

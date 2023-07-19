@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	/**
-	 * Represents an item that can be selected from
-	 * a list of items.
-	 */
-	export interface QuickPickItem {
+
+	// https://github.com/microsoft/vscode/issues/188173
+
+	export interface Terminal {
 		/**
-		 * The icon path or {@link ThemeIcon} for the QuickPickItem.
+		 * The selected text of the terminal or undefined if there is no selection.
 		 */
-		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+		readonly selection: string | undefined;
 	}
 }

@@ -97,6 +97,8 @@ import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/c
 import { NotebookEditorStickyScroll } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = DOM.$;
 
@@ -293,6 +295,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 		@IEditorProgressService private editorProgressService: IEditorProgressService,
 		@INotebookLoggingService readonly logService: INotebookLoggingService,
+		@IKeybindingService readonly keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -867,6 +870,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._listDelegate = this.instantiationService.createInstance(NotebookCellListDelegate);
 		this._register(this._listDelegate);
 
+		const createNotebookAriaLabel = () => {
+			const keybinding = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
+
+			if (this.configurationService.getValue(AccessibilityVerbositySettingId.Notebook)) {
+				return keybinding
+					? nls.localize('notebookTreeAriaLabelHelp', "Notebook\nUse {0} for accessibility help", keybinding)
+					: nls.localize('notebookTreeAriaLabelHelpNoKb', "Notebook\nRun the Open Accessibility Help command for more information", keybinding);
+			}
+			return nls.localize('notebookTreeAriaLabel', "Notebook");
+		};
+
 		this._list = this.instantiationService.createInstance(
 			NotebookCellList,
 			'NotebookCellList',
@@ -920,9 +934,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 						return '';
 					},
-					getWidgetAriaLabel() {
-						return nls.localize('notebookTreeAriaLabel', "Notebook");
-					}
+					getWidgetAriaLabel: createNotebookAriaLabel
 				},
 			},
 		);
@@ -1004,6 +1016,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._registerNotebookActionsToolbar();
 		this._registerNotebookStickyScroll();
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Notebook)) {
+				this._list.ariaLabel = createNotebookAriaLabel();
+			}
+		}));
 	}
 
 	private showListContextMenu(e: IListContextMenuEvent<CellViewModel>) {

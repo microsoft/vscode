@@ -45,12 +45,8 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	get onProfileAwareDidUninstallExtension() { return super.onDidUninstallExtension; }
 	override get onDidUninstallExtension() { return Event.filter(this.onProfileAwareDidUninstallExtension, e => this.filterEvent(e), this.disposables); }
 
-
 	private readonly _onDidChangeProfile = this._register(new Emitter<{ readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] }>());
 	readonly onDidChangeProfile = this._onDidChangeProfile.event;
-
-	private readonly _onDidUpdateExtensionMetadata = this._register(new Emitter<ILocalExtension>());
-	override readonly onDidUpdateExtensionMetadata = this._onDidUpdateExtensionMetadata.event;
 
 	constructor(
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
@@ -61,10 +57,14 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService productService: IProductService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(extensionGalleryService, telemetryService, logService, productService, userDataProfilesService);
-		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenProfileChanged(e))));
+		super(extensionGalleryService, telemetryService, uriIdentityService, logService, productService, userDataProfilesService);
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
+			if (!this.uriIdentityService.extUri.isEqual(e.previous.extensionsResource, e.profile.extensionsResource)) {
+				e.join(this.whenProfileChanged(e));
+			}
+		}));
 	}
 
 	private filterEvent({ profileLocation, applicationScoped }: { profileLocation?: URI; applicationScoped?: boolean }): boolean {
@@ -117,6 +117,20 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension> {
 		return this.install(location, { profileLocation });
+	}
+
+	protected async copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
+		const target = await this.webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, toProfileLocation);
+		const source = await this.webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, fromProfileLocation);
+		metadata = { ...source?.metadata, ...metadata };
+
+		let scanned;
+		if (target) {
+			scanned = await this.webExtensionsScannerService.updateMetadata(extension, { ...target.metadata, ...metadata }, toProfileLocation);
+		} else {
+			scanned = await this.webExtensionsScannerService.addExtension(extension.location, metadata, toProfileLocation);
+		}
+		return toLocalExtension(scanned);
 	}
 
 	async installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]> {
