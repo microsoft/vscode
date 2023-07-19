@@ -69,6 +69,6 @@ export class SlashCommandContentWidget extends Disposable implements IContentWid
 		}]);
 
 		// Announce the deletion
-		this._accessibilityService.alert(localize('exited slash command mode', 'Exited {} mode', this._lastSlashCommandText));
+		this._accessibilityService.alert(localize('exited slash command mode', 'Exited {0} mode', this._lastSlashCommandText));
 	}
 }
