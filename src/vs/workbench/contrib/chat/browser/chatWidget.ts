@@ -175,7 +175,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		const responseItems = items.filter(i => isResponseVM(i));
 		const targetIndex = responseItems.indexOf(item);
-		if (targetIndex === undefined || !responseItems) {
+		if (targetIndex === undefined) {
 			return;
 		}
 		const indexToFocus = type === 'next' ? targetIndex + 1 : targetIndex - 1;
