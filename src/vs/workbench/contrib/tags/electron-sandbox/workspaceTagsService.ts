@@ -814,7 +814,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 						if (firstRequireBlockFound && line !== '') {
 							const packageName: string = line.split(' ')[0].trim();
 							if (GoModulesToLookFor.indexOf(packageName) > -1) {
-								tags['workspace.go.mod' + packageName] = true;
+								tags['workspace.go.mod.' + packageName] = true;
 							}
 						}
 					}
