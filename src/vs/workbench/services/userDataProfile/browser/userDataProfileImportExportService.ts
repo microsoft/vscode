@@ -899,7 +899,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 			if (children) {
 				for (const child of children) {
 					child.checkbox = child.parent.checkbox && child.checkbox
-						? { isChecked: child.parent.checkbox.isChecked ? child.checkbox.isChecked : false }
+						? { ...child.checkbox, isChecked: child.parent.checkbox.isChecked ? child.checkbox.isChecked : false }
 						: undefined;
 				}
 			}
@@ -918,7 +918,13 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 			this.rootsPromise = (async () => {
 				this.roots = await this.fetchRoots();
 				for (const root of this.roots) {
-					root.checkbox = { isChecked: !root.isFromDefaultProfile(), tooltip: localize('select', "Select {0}", root.label.label) };
+					root.checkbox = {
+						isChecked: !root.isFromDefaultProfile(),
+						tooltip: localize('select', "Select {0}", root.label.label),
+						accessibilityInformation: {
+							label: localize('select', "Select {0}", root.label.label),
+						}
+					};
 					if (root.isFromDefaultProfile()) {
 						root.description = localize('from default', "From Default Profile");
 					}
