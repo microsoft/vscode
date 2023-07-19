@@ -159,6 +159,6 @@ export class DiffEditorEditors extends Disposable {
 		} else if (ariaLabel) {
 			return ariaLabel.replaceAll(ariaNavigationTip, '');
 		}
-		return undefined;
+		return '';
 	}
 }
