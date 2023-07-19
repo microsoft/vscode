@@ -28,7 +28,7 @@ class ToggleScreenReaderMode extends Action2 {
 				when: accessibilityHelpIsShown
 			},
 			{
-				primary: KeyMod.CtrlCmd | KeyCode.F1 | KeyMod.Shift,
+				primary: KeyMod.Alt | KeyCode.F3,
 				weight: KeybindingWeight.WorkbenchContrib + 10,
 			}]
 		});
