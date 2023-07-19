@@ -549,7 +549,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 	}
 
 	private _getLabelWithCodeBlockCount(element: IChatResponseViewModel): string {
-		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.Chat);
+		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.Chat).trim();
 		let label: string = '';
 		const codeBlockCount = marked.lexer(element.response.value).filter(token => token.type === 'code')?.length ?? 0;
 		switch (codeBlockCount) {
@@ -563,7 +563,6 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 				label = localize('multiCodeBlock', "{0} code blocks: {1}", codeBlockCount, element.response.value, accessibleViewHint);
 				break;
 		}
-		label = label.trim();
 		return label;
 	}
 }
