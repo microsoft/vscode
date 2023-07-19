@@ -168,7 +168,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.focus();
 	}
 
-	focusWithId(id: string, type: 'next' | 'previous'): void {
+	moveFocus(id: string, type: 'next' | 'previous'): void {
 		const items = this.viewModel?.getItems();
 		if (!items) {
 			return;
