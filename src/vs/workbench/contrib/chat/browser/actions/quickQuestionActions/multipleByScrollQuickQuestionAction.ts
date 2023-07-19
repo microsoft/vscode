@@ -67,10 +67,16 @@ class BaseChatQuickQuestionMode implements IQuickQuestionMode {
 		this._input.hideInput = true;
 
 
-		const containerList = dom.$('.interactive-list');
-		const containerSession = dom.$('.interactive-session', undefined, containerList);
-		containerList.style.position = 'relative';
+		const containerSession = dom.$('.interactive-session');
 		this._input.widget = containerSession;
+
+		this._currentChat ??= instantiationService.createInstance(QuickChat, {
+			providerId: providerInfo.id,
+			...this._options
+		});
+		// show needs to come before the current chat rendering
+		this._input.show();
+		this._currentChat.render(containerSession);
 
 		const clearButton = {
 			iconClass: ThemeIcon.asClassName(Codicon.clearAll),
@@ -96,12 +102,6 @@ class BaseChatQuickQuestionMode implements IQuickQuestionMode {
 
 		//#endregion
 
-		this._currentChat ??= instantiationService.createInstance(QuickChat, {
-			providerId: providerInfo.id,
-			...this._options
-		});
-		this._currentChat.render(containerSession);
-
 		disposableStore.add(this._input.onDidAccept(() => {
 			this._currentChat?.acceptInput();
 		}));
@@ -114,7 +114,6 @@ class BaseChatQuickQuestionMode implements IQuickQuestionMode {
 			}
 		}));
 
-		this._input.show();
 		this._currentChat.layout();
 		this._currentChat.focus();
 
@@ -161,10 +160,11 @@ class QuickChat extends Disposable {
 	}
 
 	render(parent: HTMLElement): void {
-		this.widget?.dispose();
 		this._currentParentElement = parent;
+		this._scopedContextKeyService?.dispose();
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+		this.widget?.dispose();
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
@@ -176,6 +176,10 @@ class QuickChat extends Disposable {
 					resultEditorBackground: SIDE_BAR_BACKGROUND
 				}));
 		this.widget.render(parent);
+		this.widget.setVisible(true);
+		if (this._options.useDynamicMessageLayout) {
+			this.widget.setDynamicChatTreeItemLayout(2, 600);
+		}
 		this.updateModel();
 		if (this._currentQuery) {
 			this.widget.inputEditor.setSelection({
@@ -186,12 +190,7 @@ class QuickChat extends Disposable {
 			});
 		}
 
-		if (this._options.useDynamicMessageLayout) {
-			this.widget.setDynamicChatTreeItemLayout(2, 600);
-		}
-
 		this.registerListeners();
-		this.widget.setVisible(true);
 	}
 
 	private registerListeners(): void {
