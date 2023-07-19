@@ -490,27 +490,27 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			return undefined;
 		}
 
-		if (profileTemplate.settings) {
+		if (profileTemplate.settings && !profile.useDefaultFlags?.settings) {
 			progress(localize('progress settings', "Applying Settings..."));
 			await this.instantiationService.createInstance(SettingsResource).apply(profileTemplate.settings, profile);
 		}
-		if (profileTemplate.keybindings) {
+		if (profileTemplate.keybindings && !profile.useDefaultFlags?.keybindings) {
 			progress(localize('progress keybindings', "Applying Keyboard Shortcuts..."));
 			await this.instantiationService.createInstance(KeybindingsResource).apply(profileTemplate.keybindings, profile);
 		}
-		if (profileTemplate.tasks) {
+		if (profileTemplate.tasks && !profile.useDefaultFlags?.tasks) {
 			progress(localize('progress tasks', "Applying Tasks..."));
 			await this.instantiationService.createInstance(TasksResource).apply(profileTemplate.tasks, profile);
 		}
-		if (profileTemplate.snippets) {
+		if (profileTemplate.snippets && !profile.useDefaultFlags?.snippets) {
 			progress(localize('progress snippets', "Applying Snippets..."));
 			await this.instantiationService.createInstance(SnippetsResource).apply(profileTemplate.snippets, profile);
 		}
-		if (profileTemplate.globalState) {
+		if (profileTemplate.globalState && !profile.useDefaultFlags?.globalState) {
 			progress(localize('progress global state', "Applying State..."));
 			await this.instantiationService.createInstance(GlobalStateResource).apply(profileTemplate.globalState, profile);
 		}
-		if (profileTemplate.extensions && extensions) {
+		if (profileTemplate.extensions && extensions && !profile.useDefaultFlags?.extensions) {
 			progress(localize('progress extensions', "Applying Extensions..."));
 			await this.instantiationService.createInstance(ExtensionsResource).apply(profileTemplate.extensions, profile);
 		}
