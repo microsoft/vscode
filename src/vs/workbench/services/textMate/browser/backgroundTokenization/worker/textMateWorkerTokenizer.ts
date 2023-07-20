@@ -125,25 +125,24 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			const stateDeltaBuilder = new StateDeltaBuilder();
 
 			while (true) {
-				const lineNumberToTokenize = this._tokenizerWithStateStore.store.getFirstInvalidEndStateLineNumber();
-				if (lineNumberToTokenize === null || tokenizedLines > 200) {
+				const lineToTokenize = this._tokenizerWithStateStore.getFirstInvalidLine();
+				if (lineToTokenize === null || tokenizedLines > 200) {
 					break;
 				}
 
 				tokenizedLines++;
 
-				const text = this._lines[lineNumberToTokenize - 1];
-				const lineStartState = this._tokenizerWithStateStore.getStartState(lineNumberToTokenize)!;
-				const r = this._tokenizerWithStateStore.tokenizationSupport.tokenizeEncoded(text, true, lineStartState);
-				if (this._tokenizerWithStateStore.store.setEndState(lineNumberToTokenize, r.endState as StateStack)) {
-					const delta = this._diffStateStacksRefEqFn(lineStartState, r.endState as StateStack);
-					stateDeltaBuilder.setState(lineNumberToTokenize, delta);
+				const text = this._lines[lineToTokenize.lineNumber - 1];
+				const r = this._tokenizerWithStateStore.tokenizationSupport.tokenizeEncoded(text, true, lineToTokenize.startState);
+				if (this._tokenizerWithStateStore.store.setEndState(lineToTokenize.lineNumber, r.endState as StateStack)) {
+					const delta = this._diffStateStacksRefEqFn(lineToTokenize.startState, r.endState as StateStack);
+					stateDeltaBuilder.setState(lineToTokenize.lineNumber, delta);
 				} else {
-					stateDeltaBuilder.setState(lineNumberToTokenize, null);
+					stateDeltaBuilder.setState(lineToTokenize.lineNumber, null);
 				}
 
 				LineTokens.convertToEndOffset(r.tokens, text.length);
-				tokenBuilder.add(lineNumberToTokenize, r.tokens);
+				tokenBuilder.add(lineToTokenize.lineNumber, r.tokens);
 
 				const deltaMs = new Date().getTime() - startTime;
 				if (deltaMs > 20) {

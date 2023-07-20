@@ -449,12 +449,10 @@ class GrammarTokens extends Disposable {
 					this._onDidChangeBackgroundTokenizationState.fire();
 				},
 				setEndState: (lineNumber, state) => {
-					if (!state) {
-						throw new BugIndicatingError();
-					}
-					const firstInvalidEndStateLineNumber = this._tokenizer?.store.getFirstInvalidEndStateLineNumber() ?? undefined;
-					if (firstInvalidEndStateLineNumber !== undefined && lineNumber >= firstInvalidEndStateLineNumber) {
-						// Don't accept states for definitely valid states
+					if (!this._tokenizer) { return; }
+					const firstInvalidEndStateLineNumber = this._tokenizer.store.getFirstInvalidEndStateLineNumber();
+					// Don't accept states for definitely valid states, the renderer is ahead of the worker!
+					if (firstInvalidEndStateLineNumber !== null && lineNumber >= firstInvalidEndStateLineNumber) {
 						this._tokenizer?.store.setEndState(lineNumber, state);
 					}
 				},
