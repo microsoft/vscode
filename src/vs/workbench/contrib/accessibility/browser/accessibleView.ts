@@ -279,7 +279,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		let hint = '';
 		const keybinding = this._keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
 		if (this._configurationService.getValue(verbositySettingKey)) {
-			hint = keybinding ? localize('chatAccessibleViewHint', "Inspect the response in the accessible view with {0}", keybinding) : localize('chatAccessibleViewHintNoKb', "Inspect the response in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
+			hint = keybinding ? localize('chatAccessibleViewHint', "Inspect this in the accessible view with {0}", keybinding) : localize('chatAccessibleViewHintNoKb', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
 		}
 		return hint;
 	}
