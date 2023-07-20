@@ -308,10 +308,16 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
 		this._zone.value.widget.onDidChangeInput(_ => {
-			const pos = this._zone.value.position;
-			if (pos && this._zone.value.widget.hasFocus() && this._zone.value.widget.value) {
-				this._editor.revealPosition(pos, ScrollType.Smooth);
+			const start = this._zone.value.position;
+			if (!start || !this._zone.value.widget.hasFocus() || !this._zone.value.widget.value || !this._editor.hasModel()) {
+				return;
 			}
+			const nextLine = start.lineNumber + 1;
+			if (nextLine >= this._editor.getModel().getLineCount()) {
+				// last line isn't supported
+				return;
+			}
+			this._editor.revealLine(nextLine, ScrollType.Smooth);
 		});
 
 		this._showWidget(true, options.position);
