@@ -193,13 +193,13 @@ export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatTransferredState {
 	toWorkspace: URI;
-	inputPlaceholder?: string;
+	inputValue?: string;
 }
 
 export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionId: string | undefined;
-	transferredInputPlaceholder: string | undefined;
+	transferredInputValue: string | undefined;
 
 	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;

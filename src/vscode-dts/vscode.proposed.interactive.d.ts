@@ -93,7 +93,7 @@ declare module 'vscode' {
 	export interface InteractiveSession {
 		requester: InteractiveSessionParticipantInformation;
 		responder: InteractiveSessionParticipantInformation;
-		inputPlaceholder?: string;
+		inputValue?: string;
 
 		saveState?(): InteractiveSessionState;
 	}

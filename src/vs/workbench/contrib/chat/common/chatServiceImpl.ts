@@ -132,9 +132,9 @@ export class ChatService extends Disposable implements IChatService {
 		return this._transferred?.sessionId;
 	}
 
-	private _transferredInputPlaceholder: string | undefined;
-	public get transferredInputPlaceholder(): string | undefined {
-		return this._transferredInputPlaceholder;
+	private _transferredInputValue: string | undefined;
+	public get transferredInputValue(): string | undefined {
+		return this._transferredInputValue;
 	}
 
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
@@ -271,7 +271,7 @@ export class ChatService extends Disposable implements IChatService {
 		// Keep data that isn't for the current workspace and that hasn't expired yet
 		const filtered = data.filter(item => URI.revive(item.sessionTransferState?.toWorkspace)?.toString() !== thisWorkspace && (currentTime - item.timestampInMilliseconds < SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS));
 		this.storageService.store(globalChatKey, JSON.stringify(filtered), StorageScope.PROFILE, StorageTarget.MACHINE);
-		this._transferredInputPlaceholder = transferred?.sessionTransferState?.inputPlaceholder;
+		this._transferredInputValue = transferred?.sessionTransferState?.inputValue;
 		return transferred?.chat;
 	}
 

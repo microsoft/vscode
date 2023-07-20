@@ -98,7 +98,7 @@ export class ExtHostChat implements ExtHostChatShape {
 			requesterAvatarIconUri: session.requester?.icon,
 			responderUsername: session.responder?.name,
 			responderAvatarIconUri: session.responder?.icon,
-			inputPlaceholder: session.inputPlaceholder,
+			inputPlaceholder: session.inputValue,
 		};
 	}
 
