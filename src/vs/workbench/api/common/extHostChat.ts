@@ -14,7 +14,7 @@ import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/exte
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostChatShape, IChatRequestDto, IChatResponseDto, IChatDto, IMainContext, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { IChatFollowup, IChatProgress, IChatReplyFollowup, IChatUserActionEvent, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatProgress, IChatReplyFollowup, IChatTransferredState, IChatUserActionEvent, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import type * as vscode from 'vscode';
 
 class ChatProviderWrapper<T> {
@@ -61,13 +61,13 @@ export class ExtHostChat implements ExtHostChatShape {
 		});
 	}
 
-	transferChatSession(session: vscode.InteractiveSession, newWorkspace: vscode.Uri): void {
+	transferChatSession(session: vscode.InteractiveSession, transferState: IChatTransferredState): void {
 		const sessionId = Iterable.find(this._chatSessions.keys(), key => this._chatSessions.get(key) === session) ?? 0;
 		if (typeof sessionId !== 'number') {
 			return;
 		}
 
-		this._proxy.$transferChatSession(sessionId, newWorkspace);
+		this._proxy.$transferChatSession(sessionId, transferState);
 	}
 
 	addChatRequest(context: vscode.InteractiveSessionRequestArgs): void {

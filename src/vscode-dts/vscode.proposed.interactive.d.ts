@@ -182,6 +182,11 @@ declare module 'vscode' {
 		metadata?: any;
 	}
 
+	export interface InteractiveTransferredSessionState {
+		toWorkspace: Uri;
+		inputPlaceholder?: string;
+	}
+
 	export namespace interactive {
 		// current version of the proposal.
 		export const _version: 1 | number;
@@ -193,6 +198,6 @@ declare module 'vscode' {
 
 		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider): Disposable;
 
-		export function transferChatSession(session: InteractiveSession, toWorkspace: Uri): void;
+		export function transferChatSession(session: InteractiveSession, transferredSessionState: InteractiveTransferredSessionState): void;
 	}
 }

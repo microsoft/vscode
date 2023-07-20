@@ -5,11 +5,11 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ExtHostChatShape, ExtHostContext, IChatRequestDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { IChat, IChatDynamicRequest, IChatProgress, IChatRequest, IChatResponse, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatDynamicRequest, IChatProgress, IChatRequest, IChatResponse, IChatService, IChatTransferredState } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChat)
@@ -53,8 +53,8 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		this._providerRegistrations.deleteAndDispose(handle);
 	}
 
-	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void {
-		this._chatService.transferChatSession(sessionId, URI.revive(toWorkspace));
+	$transferChatSession(sessionId: number, transferState: IChatTransferredState): void {
+		this._chatService.transferChatSession(sessionId, transferState);
 	}
 
 	async $registerChatProvider(handle: number, id: string): Promise<void> {

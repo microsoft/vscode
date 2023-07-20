@@ -11,7 +11,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -22,16 +22,16 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatService, IChatUserActionEvent, ISlashCommand, ISlashCommandProvider, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatService, IChatTransferredState, IChatUserActionEvent, ISlashCommand, ISlashCommandProvider, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedChatKey = 'interactive.sessions';
 
 const globalChatKey = 'chat.workspaceTransfer';
 interface IChatTransfer {
-	toWorkspace: UriComponents;
 	timestampInMilliseconds: number;
 	chat: ISerializableChatData;
+	sessionTransferState: IChatTransferredState;
 }
 const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
 
@@ -130,6 +130,11 @@ export class ChatService extends Disposable implements IChatService {
 	private _transferred: ISerializableChatData | undefined;
 	public get transferredSessionId(): string | undefined {
 		return this._transferred?.sessionId;
+	}
+
+	private _transferredInputPlaceholder: string | undefined;
+	public get transferredInputPlaceholder(): string | undefined {
+		return this._transferredInputPlaceholder;
 	}
 
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
@@ -262,10 +267,11 @@ export class ChatService extends Disposable implements IChatService {
 		const thisWorkspace = workspaceUri.toString();
 		const currentTime = Date.now();
 		// Only use transferred data if it was created recently
-		const transferred = data.find(item => URI.revive(item.toWorkspace).toString() === thisWorkspace && (currentTime - item.timestampInMilliseconds < SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS));
+		const transferred = data.find(item => URI.revive(item.sessionTransferState?.toWorkspace)?.toString() === thisWorkspace && (currentTime - item.timestampInMilliseconds < SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS));
 		// Keep data that isn't for the current workspace and that hasn't expired yet
-		const filtered = data.filter(item => URI.revive(item.toWorkspace).toString() !== thisWorkspace && (currentTime - item.timestampInMilliseconds < SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS));
+		const filtered = data.filter(item => URI.revive(item.sessionTransferState?.toWorkspace)?.toString() !== thisWorkspace && (currentTime - item.timestampInMilliseconds < SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS));
 		this.storageService.store(globalChatKey, JSON.stringify(filtered), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this._transferredInputPlaceholder = transferred?.sessionTransferState?.inputPlaceholder;
 		return transferred?.chat;
 	}
 
@@ -669,17 +675,18 @@ export class ChatService extends Disposable implements IChatService {
 		});
 	}
 
-	transferChatSession(sessionProviderId: number, toWorkspace: URI): void {
+	transferChatSession(sessionProviderId: number, transferData: IChatTransferredState): void {
 		const model = Iterable.find(this._sessionModels.values(), model => model.session?.id === sessionProviderId);
 		if (!model) {
 			throw new Error(`Failed to transfer session. Unknown session provider ID: ${sessionProviderId}`);
 		}
 
 		const existingRaw: IChatTransfer[] = this.storageService.getObject(globalChatKey, StorageScope.PROFILE, []);
+		const toWorkspace = URI.revive(transferData.toWorkspace);
 		existingRaw.push({
 			chat: model.toJSON(),
 			timestampInMilliseconds: Date.now(),
-			toWorkspace: toWorkspace
+			sessionTransferState: transferData
 		});
 
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
