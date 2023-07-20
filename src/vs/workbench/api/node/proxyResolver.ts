@@ -18,6 +18,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch } from '@vscode/proxy-agent';
 
+const systemCertificatesV2Default = true;
+
 export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
@@ -30,7 +32,7 @@ export function connectProxyResolver(
 	const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
 	const params: ProxyAgentParams = {
 		resolveProxy: url => extHostWorkspace.resolveProxy(url),
-		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostLogService, configProvider, {}, {}),
+		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostLogService, configProvider, {}),
 		getProxyURL: () => configProvider.getConfiguration('http').get('proxy'),
 		getProxySupport: () => configProvider.getConfiguration('http').get<ProxySupportSetting>('proxySupport') || 'off',
 		getSystemCertificatesV1: () => certSettingV1(configProvider),
@@ -74,12 +76,12 @@ function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType
 
 function certSettingV1(configProvider: ExtHostConfigProvider) {
 	const http = configProvider.getConfiguration('http');
-	return !http.get<boolean>('experimental.systemCertificatesV2') && !!http.get<boolean>('systemCertificates');
+	return !http.get<boolean>('experimental.systemCertificatesV2', systemCertificatesV2Default) && !!http.get<boolean>('systemCertificates');
 }
 
 function certSettingV2(configProvider: ExtHostConfigProvider) {
 	const http = configProvider.getConfiguration('http');
-	return !!http.get<boolean>('experimental.systemCertificatesV2') && !!http.get<boolean>('systemCertificates');
+	return !!http.get<boolean>('experimental.systemCertificatesV2', systemCertificatesV2Default) && !!http.get<boolean>('systemCertificates');
 }
 
 const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof http; https?: typeof https }>();
@@ -119,9 +121,9 @@ async function lookupProxyAuthorization(
 	extHostLogService: ILogService,
 	configProvider: ExtHostConfigProvider,
 	proxyAuthenticateCache: Record<string, string | string[] | undefined>,
-	pendingLookups: Record<string, Promise<string | undefined>>,
 	proxyURL: string,
-	proxyAuthenticate?: string | string[]
+	proxyAuthenticate: string | string[] | undefined,
+	state: { kerberosRequested?: boolean }
 ): Promise<string | undefined> {
 	const cached = proxyAuthenticateCache[proxyURL];
 	if (proxyAuthenticate) {
@@ -130,26 +132,20 @@ async function lookupProxyAuthorization(
 	extHostLogService.trace('ProxyResolver#lookupProxyAuthorization callback', `proxyURL:${proxyURL}`, `proxyAuthenticate:${proxyAuthenticate}`, `proxyAuthenticateCache:${cached}`);
 	const header = proxyAuthenticate || cached;
 	const authenticate = Array.isArray(header) ? header : typeof header === 'string' ? [header] : [];
-	if (authenticate.some(a => /^(Negotiate|Kerberos)( |$)/i.test(a))) {
-		const lookupKey = `${proxyURL}:Negotiate`;
-		return pendingLookups[lookupKey] ??= (async () => {
-			try {
-				const kerberos = await import('kerberos');
-				const url = new URL(proxyURL);
-				// TODO: Add core user setting.
-				const spn = configProvider.getConfiguration('github.copilot')?.advanced?.kerberosServicePrincipal as string | undefined
-					|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
-				extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication lookup', `proxyURL:${proxyURL}`, `spn:${spn}`);
-				const client = await kerberos.initializeClient(spn);
-				const response = await client.step('');
-				return 'Negotiate ' + response;
-			} catch (err) {
-				extHostLogService.error('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
-				return undefined;
-			} finally {
-				delete pendingLookups[lookupKey];
-			}
-		})();
+	if (authenticate.some(a => /^(Negotiate|Kerberos)( |$)/i.test(a)) && !state.kerberosRequested) {
+		try {
+			state.kerberosRequested = true;
+			const kerberos = await import('kerberos');
+			const url = new URL(proxyURL);
+			const spn = configProvider.getConfiguration('http').get<string>('proxyKerberosServicePrincipal')
+				|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
+			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication lookup', `proxyURL:${proxyURL}`, `spn:${spn}`);
+			const client = await kerberos.initializeClient(spn);
+			const response = await client.step('');
+			return 'Negotiate ' + response;
+		} catch (err) {
+			extHostLogService.error('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
+		}
 	}
 	return undefined;
 }

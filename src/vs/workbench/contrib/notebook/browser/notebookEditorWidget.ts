@@ -453,7 +453,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._uuid;
 	}
 
-	_getViewModel(): NotebookViewModel | undefined {
+	getViewModel(): NotebookViewModel | undefined {
 		return this.viewModel;
 	}
 

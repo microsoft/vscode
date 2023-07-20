@@ -176,13 +176,17 @@ export class InlineChatController implements IEditorContribution {
 		return this._zone.value.position;
 	}
 
-	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
-		this._log('session starting');
-		await this.finishExistingSession();
-		this._stashedSession.clear();
+	private _currentRun?: Promise<void>;
 
-		await this._nextState(State.CREATE_SESSION, options);
-		this._log('session done or paused');
+	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
+		this.finishExistingSession();
+		if (this._currentRun) {
+			await this._currentRun;
+		}
+		this._stashedSession.clear();
+		this._currentRun = this._nextState(State.CREATE_SESSION, options);
+		await this._currentRun;
+		this._currentRun = undefined;
 	}
 
 	// ---- state machine
@@ -304,10 +308,16 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
 		this._zone.value.widget.onDidChangeInput(_ => {
-			const pos = this._zone.value.position;
-			if (pos && this._zone.value.widget.hasFocus() && this._zone.value.widget.value) {
-				this._editor.revealPosition(pos, ScrollType.Smooth);
+			const start = this._zone.value.position;
+			if (!start || !this._zone.value.widget.hasFocus() || !this._zone.value.widget.value || !this._editor.hasModel()) {
+				return;
 			}
+			const nextLine = start.lineNumber + 1;
+			if (nextLine >= this._editor.getModel().getLineCount()) {
+				// last line isn't supported
+				return;
+			}
+			this._editor.revealLine(nextLine, ScrollType.Smooth);
 		});
 
 		this._showWidget(true, options.position);
@@ -815,7 +825,7 @@ export class InlineChatController implements IEditorContribution {
 		return result;
 	}
 
-	async finishExistingSession(): Promise<void> {
+	finishExistingSession(): void {
 		if (this._activeSession) {
 			if (this._activeSession.editMode === EditMode.Preview) {
 				this._log('finishing existing session, using CANCEL', this._activeSession.editMode);
