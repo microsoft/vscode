@@ -64,6 +64,9 @@ export const enum AccessibleViewType {
 export interface IAccessibleViewOptions {
 	ariaLabel: string;
 	readMoreUrl?: string;
+	/**
+	 * Defaults to markdown
+	 */
 	language?: string;
 	type: AccessibleViewType;
 }
@@ -198,6 +201,8 @@ class AccessibleView extends Disposable {
 			}
 			if (provider.options.language) {
 				model.setLanguage(provider.options.language);
+			} else {
+				model.setLanguage('markdown');
 			}
 			container.appendChild(this._editorContainer);
 			this._editorWidget.updateOptions({ ariaLabel: provider.next && provider.previous ? localize('accessibleViewAriaLabelWithNav', "{0} {1}", provider.options.ariaLabel, this._getNavigationAriaHint(provider.verbositySettingKey)) : localize('accessibleViewAriaLabel', "{0}", provider.options.ariaLabel) });
