@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { IIconLabelValueOptions, IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -14,7 +15,6 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
-import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -206,7 +206,6 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	get activeElement(): OutlineEntry | undefined {
 		return this._outlineProvider?.activeElement;
 	}
-
 
 	private _outlineProvider: NotebookCellOutlineProvider | undefined;
 
