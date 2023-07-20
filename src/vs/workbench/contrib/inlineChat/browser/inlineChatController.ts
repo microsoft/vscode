@@ -798,16 +798,18 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	acceptSession(): void {
+		if (this._activeSession?.asChangedText() && this._activeSession.lastExchange?.response instanceof EditResponse) {
+			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, InlineChatResponseFeedbackKind.Accepted);
+		}
 		this._messages.fire(Message.ACCEPT_SESSION);
 	}
 
 	cancelSession() {
 		let result: string | undefined;
-		if (this._strategy && this._activeSession) {
+		if (this._activeSession) {
 			const changedText = this._activeSession.asChangedText();
-			if (changedText && this._activeSession?.lastExchange?.response instanceof EditResponse) {
+			if (changedText && this._activeSession.lastExchange?.response instanceof EditResponse) {
 				this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, InlineChatResponseFeedbackKind.Undone);
-
 			}
 			result = changedText;
 		}

@@ -91,7 +91,8 @@ export interface IInlineChatProgressItem {
 export const enum InlineChatResponseFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
-	Undone = 2
+	Undone = 2,
+	Accepted = 3
 }
 
 export interface IInlineChatSessionProvider {
