@@ -55,7 +55,6 @@ steps:
         DBUS_LAUNCH_RESULT=$(sudo dbus-daemon --config-file=/usr/share/dbus-1/system.conf --print-address)
         echo "##vso[task.setvariable variable=DBUS_SESSION_BUS_ADDRESS]$DBUS_LAUNCH_RESULT"
       displayName: Setup system services
-      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - script: node build/setup-npm-registry.js $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -102,11 +101,6 @@ steps:
         imageName: vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
         containerCommand: uname
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - script: |
-      sudo apt-get update && sudo apt-get install -y libkrb5-dev
-    displayName: Install libkrb5-dev
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
       set -e
