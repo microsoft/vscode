@@ -11,7 +11,6 @@
 	box-sizing: border-box;
 	z-index: var(--z-index-notebook-sticky-scroll);
 	width: 100%;
-	font-size: 14px;
 	padding-left: 12px;
 	font-family: var(--notebook-cell-input-preview-font-family);
 }
