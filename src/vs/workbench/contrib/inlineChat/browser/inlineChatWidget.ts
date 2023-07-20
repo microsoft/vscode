@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, IInlineChatSlashCommand, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, MENU_INLINE_CHAT_WIDGET_TOGGLE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, IInlineChatSlashCommand, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, MENU_INLINE_CHAT_WIDGET_TOGGLE, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { EventType, Dimension, addDisposableListener, getActiveElement, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -234,9 +234,24 @@ export class InlineChatWidget {
 
 		// (1) inner cursor position (last/first line selected)
 		const updateInnerCursorFirstLast = () => {
-			const { lineNumber } = this._inputEditor.getPosition();
-			this._ctxInnerCursorFirst.set(lineNumber === 1);
-			this._ctxInnerCursorLast.set(lineNumber === this._inputModel.getLineCount());
+			const selection = this._inputEditor.getSelection();
+			let onFirst = false;
+			let onLast = false;
+			if (selection.isEmpty()) {
+				const selectionTop = this._inputEditor.getTopForPosition(selection.startLineNumber, selection.startColumn);
+				const fullRange = this._inputModel.getFullModelRange();
+				const firstViewLineTop = this._inputEditor.getTopForPosition(fullRange.startLineNumber, fullRange.startColumn);
+				const lastViewLineTop = this._inputEditor.getTopForPosition(fullRange.endLineNumber, fullRange.endColumn);
+
+				if (selectionTop === firstViewLineTop) {
+					onFirst = true;
+				}
+				if (selectionTop === lastViewLineTop) {
+					onLast = true;
+				}
+			}
+			this._ctxInnerCursorFirst.set(onFirst);
+			this._ctxInnerCursorLast.set(onLast);
 		};
 		this._store.add(this._inputEditor.onDidChangeCursorPosition(updateInnerCursorFirstLast));
 		updateInnerCursorFirstLast();
