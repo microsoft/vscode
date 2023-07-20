@@ -111,6 +111,11 @@ steps:
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['VSCODE_ARCH'], 'arm64'))
 
   - script: |
+      sudo apt-get update && sudo apt-get install -y libkrb5-dev
+    displayName: Install libkrb5-dev
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
       set -e
 
       for i in {1..5}; do # try 5 times

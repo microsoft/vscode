@@ -42,6 +42,10 @@ import { DiffEditorEditors } from './diffEditorEditors';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel';
 import { AccessibleDiffViewer } from 'vs/editor/browser/widget/diffEditorWidget2/accessibleDiffViewer';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { LengthObj } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
+import { Range } from 'vs/editor/common/core/range';
 
 export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
@@ -66,7 +70,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 	private unchangedRangesFeature!: UnchangedRangesFeature;
 
-	private _accessibleDiffViewerVisible = observableValue('accessibleDiffViewerVisible', false);
+	private _accessibleDiffViewerShouldBeVisible = observableValue('accessibleDiffViewerShouldBeVisible', false);
+	private _accessibleDiffViewerVisible = derived('accessibleDiffViewerVisible', reader =>
+		this._options.onlyShowAccessibleDiffViewer.read(reader)
+			? true
+			: this._accessibleDiffViewerShouldBeVisible.read(reader)
+	);
 	private _accessibleDiffViewer!: AccessibleDiffViewer;
 	private readonly _options: DiffEditorOptions;
 	private readonly _editors: DiffEditorEditors;
@@ -78,6 +87,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 	) {
 		super();
 		codeEditorService.willCreateDiffEditor();
@@ -163,6 +173,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 				readHotReloadableExport(AccessibleDiffViewer, reader),
 				this.elements.accessibleDiffViewer,
 				this._accessibleDiffViewerVisible,
+				(visible, tx) => this._accessibleDiffViewerShouldBeVisible.set(visible, tx),
+				this._options.onlyShowAccessibleDiffViewer.map(v => !v),
 				this._rootSizeObserver.width,
 				this._rootSizeObserver.height,
 				this._diffModel.map((m, r) => m?.diff.read(r)?.mappings.map(m => m.lineRangeMapping)),
@@ -228,6 +240,19 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 				event.event.stopPropagation();
 			}
 		}));
+
+		this._register(Event.runAndSubscribe(this._editors.modified.onDidChangeCursorPosition, (e) => {
+			if (e?.reason === CursorChangeReason.Explicit) {
+				const diff = this._diffModel.get()?.diff.get()?.mappings.find(m => m.lineRangeMapping.modifiedRange.contains(e.position.lineNumber));
+				if (diff?.lineRangeMapping.modifiedRange.isEmpty) {
+					this._audioCueService.playAudioCue(AudioCue.diffLineDeleted);
+				} else if (diff?.lineRangeMapping.originalRange.isEmpty) {
+					this._audioCueService.playAudioCue(AudioCue.diffLineInserted);
+				} else if (diff) {
+					this._audioCueService.playAudioCue(AudioCue.diffLineModified);
+				}
+			}
+		}));
 	}
 
 	public getContentHeight() {
@@ -245,19 +270,16 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		const sashLeft = this._sash.read(reader)?.sashLeft.read(reader);
 
 		const originalWidth = sashLeft ?? Math.max(5, this._editors.original.getLayoutInfo().decorationsLeft);
+		const modifiedWidth = width - originalWidth - (this._options.renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0);
 
 		this.elements.original.style.width = originalWidth + 'px';
 		this.elements.original.style.left = '0px';
 
-		this.elements.modified.style.width = (width - originalWidth) + 'px';
+		this.elements.modified.style.width = modifiedWidth + 'px';
 		this.elements.modified.style.left = originalWidth + 'px';
 
-		this._editors.original.layout({ width: originalWidth, height: height });
-		this._editors.modified.layout({
-			width: width - originalWidth -
-				(this._options.renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0),
-			height
-		});
+		this._editors.original.layout({ width: originalWidth, height });
+		this._editors.modified.layout({ width: modifiedWidth, height });
 
 		return {
 			modifiedEditor: this._editors.modified.getLayoutInfo(),
@@ -425,6 +447,14 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			diff = findLast(diffs, d => d.lineRangeMapping.modifiedRange.startLineNumber < curLineNumber) ?? diffs[diffs.length - 1];
 		}
 		this._goTo(diff);
+
+		if (diff.lineRangeMapping.modifiedRange.isEmpty) {
+			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted);
+		} else if (diff.lineRangeMapping.originalRange.isEmpty) {
+			this._audioCueService.playAudioCue(AudioCue.diffLineInserted);
+		} else if (diff) {
+			this._audioCueService.playAudioCue(AudioCue.diffLineModified);
+		}
 	}
 
 	revealFirstDiff(): void {
@@ -450,6 +480,71 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		const diffModel = this._diffModel.get();
 		if (!diffModel) { return; }
 		await diffModel.waitForDiff();
+	}
+
+	switchSide(): void {
+		const isModifiedFocus = this._editors.modified.hasWidgetFocus();
+		const source = isModifiedFocus ? this._editors.modified : this._editors.original;
+		const destination = isModifiedFocus ? this._editors.original : this._editors.modified;
+
+		const sourceSelection = source.getSelection();
+		if (sourceSelection) {
+			const mappings = this._diffModel.get()?.diff.get()?.mappings.map(m => isModifiedFocus ? m.lineRangeMapping.flip() : m.lineRangeMapping);
+			if (mappings) {
+				const newRange1 = translatePosition(sourceSelection.getStartPosition(), mappings);
+				const newRange2 = translatePosition(sourceSelection.getEndPosition(), mappings);
+				const range = Range.plusRange(newRange1, newRange2);
+				destination.setSelection(range);
+			}
+		}
+		destination.focus();
+	}
+}
+
+function translatePosition(posInOriginal: Position, mappings: LineRangeMapping[]): Range {
+	const mapping = findLast(mappings, m => m.originalRange.startLineNumber <= posInOriginal.lineNumber);
+	if (!mapping) {
+		// No changes before the position
+		return Range.fromPositions(posInOriginal);
+	}
+
+	if (mapping.originalRange.endLineNumberExclusive <= posInOriginal.lineNumber) {
+		const newLineNumber = posInOriginal.lineNumber - mapping.originalRange.endLineNumberExclusive + mapping.modifiedRange.endLineNumberExclusive;
+		return Range.fromPositions(new Position(newLineNumber, posInOriginal.column));
+	}
+
+	if (!mapping.innerChanges) {
+		// Only for legacy algorithm
+		return Range.fromPositions(new Position(mapping.modifiedRange.startLineNumber, 1));
+	}
+
+	const innerMapping = findLast(mapping.innerChanges, m => m.originalRange.getStartPosition().isBeforeOrEqual(posInOriginal));
+	if (!innerMapping) {
+		const newLineNumber = posInOriginal.lineNumber - mapping.originalRange.startLineNumber + mapping.modifiedRange.startLineNumber;
+		return Range.fromPositions(new Position(newLineNumber, posInOriginal.column));
+	}
+
+	if (innerMapping.originalRange.containsPosition(posInOriginal)) {
+		return innerMapping.modifiedRange;
+	} else {
+		const l = lengthBetweenPositions(innerMapping.originalRange.getEndPosition(), posInOriginal);
+		return Range.fromPositions(addLength(innerMapping.modifiedRange.getEndPosition(), l));
+	}
+}
+
+function lengthBetweenPositions(position1: Position, position2: Position): LengthObj {
+	if (position1.lineNumber === position2.lineNumber) {
+		return new LengthObj(0, position2.column - position1.column);
+	} else {
+		return new LengthObj(position2.lineNumber - position1.lineNumber, position2.column - 1);
+	}
+}
+
+function addLength(position: Position, length: LengthObj): Position {
+	if (length.lineCount === 0) {
+		return new Position(position.lineNumber, position.column + length.columnCount);
+	} else {
+		return new Position(position.lineNumber + length.lineCount, length.columnCount + 1);
 	}
 }
 

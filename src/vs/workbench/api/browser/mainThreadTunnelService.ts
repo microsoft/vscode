@@ -18,6 +18,8 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/tunnelView';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
 export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape, PortAttributesProvider {
@@ -32,7 +34,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		@INotificationService private readonly notificationService: INotificationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTunnelService);
@@ -192,6 +195,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		if (features) {
 			this.tunnelService.setTunnelFeatures(features);
 		}
+		// At this point we clearly want the ports view/features since we have a tunnel factory
+		this.contextKeyService.createKey(forwardedPortsViewEnabled.key, true);
 	}
 
 	async $setCandidateFilter(): Promise<void> {
