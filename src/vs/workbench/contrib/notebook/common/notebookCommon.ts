@@ -217,6 +217,7 @@ export interface ICellOutput {
 	onDidChangeData: Event<void>;
 	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
+	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
 }
 
 export interface CellInternalMetadataChangedEvent {
@@ -995,6 +996,7 @@ const textDecoder = new TextDecoder();
  * Given a stream of individual stdout outputs, this function will return the compressed lines, escaping some of the common terminal escape codes.
  * E.g. some terminal escape codes would result in the previous line getting cleared, such if we had 3 lines and
  * last line contained such a code, then the result string would be just the first two lines.
+ * @returns a single VSBuffer with the concatenated and compressed data, and whether any compression was done.
  */
 export function compressOutputItemStreams(outputs: Uint8Array[]) {
 	const buffers: Uint8Array[] = [];
@@ -1007,13 +1009,17 @@ export function compressOutputItemStreams(outputs: Uint8Array[]) {
 			startAppending = true;
 		}
 	}
-	compressStreamBuffer(buffers);
-	return formatStreamText(VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer))));
+
+	const didCompression = compressStreamBuffer(buffers);
+	const data = formatStreamText(VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer))));
+	return { data, didCompression };
 }
-const MOVE_CURSOR_1_LINE_COMMAND = `${String.fromCharCode(27)}[A`;
+
+export const MOVE_CURSOR_1_LINE_COMMAND = `${String.fromCharCode(27)}[A`;
 const MOVE_CURSOR_1_LINE_COMMAND_BYTES = MOVE_CURSOR_1_LINE_COMMAND.split('').map(c => c.charCodeAt(0));
 const LINE_FEED = 10;
 function compressStreamBuffer(streams: Uint8Array[]) {
+	let didCompress = false;
 	streams.forEach((stream, index) => {
 		if (index === 0 || stream.length < MOVE_CURSOR_1_LINE_COMMAND.length) {
 			return;
@@ -1028,10 +1034,13 @@ function compressStreamBuffer(streams: Uint8Array[]) {
 			if (lastIndexOfLineFeed === -1) {
 				return;
 			}
+
+			didCompress = true;
 			streams[index - 1] = previousStream.subarray(0, lastIndexOfLineFeed);
 			streams[index] = stream.subarray(MOVE_CURSOR_1_LINE_COMMAND.length);
 		}
 	});
+	return didCompress;
 }
 
 

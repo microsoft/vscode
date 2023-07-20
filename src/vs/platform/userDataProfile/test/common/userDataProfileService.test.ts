@@ -226,4 +226,13 @@ suite('UserDataProfileService (Common)', () => {
 		assert.strictEqual(profile.extensionsResource.toString(), testObject.defaultProfile.extensionsResource.toString());
 	});
 
+	test('update profile using default profile for keybindings', async () => {
+		let profile = await testObject.createNamedProfile('name');
+		profile = await testObject.updateProfile(profile, { useDefaultFlags: { keybindings: true } });
+
+		assert.strictEqual(profile.isDefault, false);
+		assert.deepStrictEqual(profile.useDefaultFlags, { keybindings: true });
+		assert.strictEqual(profile.keybindingsResource.toString(), testObject.defaultProfile.keybindingsResource.toString());
+	});
+
 });

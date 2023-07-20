@@ -56,6 +56,7 @@ import { CompletionItemKind } from 'vs/editor/common/languages';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 const $ = DOM.$;
 
@@ -132,6 +133,23 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.sortByPrecedenceAction = new Action(KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, localize('sortByPrecedeneLabel', "Sort by Precedence (Highest first)"), ThemeIcon.asClassName(keybindingsSortIcon));
 		this.sortByPrecedenceAction.checked = false;
 		this.overflowWidgetsDomNode = $('.keybindings-overflow-widgets-container.monaco-editor');
+	}
+
+	override create(parent: HTMLElement): void {
+		super.create(parent);
+		this._register(registerNavigableContainer({
+			focusNotifiers: [this],
+			focusNextWidget: () => {
+				if (this.searchWidget.hasFocus()) {
+					this.focusKeybindings();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (!this.searchWidget.hasFocus()) {
+					this.focusSearch();
+				}
+			}
+		}));
 	}
 
 	protected createEditor(parent: HTMLElement): void {

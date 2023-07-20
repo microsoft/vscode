@@ -541,7 +541,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}));
 		};
 		registerOpenExtensionsAction();
-		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => registerOpenExtensionsAction()));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => registerOpenExtensionsAction()));
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installExtensions',
@@ -1426,13 +1426,31 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
+			id: 'workbench.extensions.action.toggleApplyToAllProfiles',
+			title: { value: localize('workbench.extensions.action.toggleApplyToAllProfiles', "Apply Extension to all Profiles"), original: `Apply Extension to all Profiles` },
+			toggled: ContextKeyExpr.has('isApplicationScopedExtension'),
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '2_configure',
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('isDefaultApplicationScopedExtension').negate()),
+				order: 3
+			},
+			run: async (accessor: ServicesAccessor, id: string) => {
+				const extension = this.extensionsWorkbenchService.local.find(e => areSameExtensions({ id }, e.identifier));
+				if (extension) {
+					return this.extensionsWorkbenchService.toggleApplyExtensionToAllProfiles(extension);
+				}
+			}
+		});
+
+		this.registerExtensionAction({
 			id: TOGGLE_IGNORE_EXTENSION_ACTION_ID,
 			title: { value: localize('workbench.extensions.action.toggleIgnoreExtension', "Sync This Extension"), original: `Sync This Extension` },
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
 				when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, ContextKeyExpr.has('inExtensionEditor').negate()),
-				order: 3
+				order: 4
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const extension = this.extensionsWorkbenchService.local.find(e => areSameExtensions({ id }, e.identifier));

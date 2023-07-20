@@ -173,7 +173,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private viewHasSomeCollapsibleRootItem: IContextKey<boolean>;
 	private viewVisibleContextKey: IContextKey<boolean>;
 
-
+	private setTreeInputPromise: Promise<void> | undefined;
 	private horizontalScrolling: boolean | undefined;
 
 	private dragHandler!: DelayedDragHandler;
@@ -522,7 +522,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		// save view state
 		this._register(this.storageService.onWillSaveState(() => {
-			this.storageService.store(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.storeTreeViewState();
 		}));
 	}
 
@@ -538,6 +538,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		if (event && (event.affectsConfiguration('explorer.decorations.colors') || event.affectsConfiguration('explorer.decorations.badges'))) {
 			this.refresh(true);
 		}
+	}
+
+	private storeTreeViewState() {
+		this.storageService.store(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private setContextKeys(stat: ExplorerItem | null | undefined): void {
@@ -666,6 +670,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			return Promise.resolve(undefined);
 		}
 
+		// Wait for the last execution to complete before executing
+		if (this.setTreeInputPromise) {
+			await this.setTreeInputPromise;
+		}
+
 		const initialInputSetup = !this.tree.getInput();
 		if (initialInputSetup) {
 			perf.mark('code/willResolveExplorer');
@@ -688,7 +697,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const previousInput = this.tree.getInput();
-		const promise = this.tree.setInput(input, viewState).then(async () => {
+		const promise = this.setTreeInputPromise = this.tree.setInput(input, viewState).then(async () => {
 			if (Array.isArray(input)) {
 				if (!viewState || previousInput instanceof ExplorerItem) {
 					// There is no view state for this workspace (we transitioned from a folder workspace?), expand up to five roots.
@@ -883,6 +892,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const treeInputArray = Array.isArray(treeInput) ? treeInput : Array.from(treeInput.children.values());
 		// Has collapsible root when anything is expanded
 		this.viewHasSomeCollapsibleRootItem.set(hasExpandedNode(this.tree, treeInputArray));
+		// synchronize state to cache
+		this.storeTreeViewState();
 	}
 
 	override dispose(): void {

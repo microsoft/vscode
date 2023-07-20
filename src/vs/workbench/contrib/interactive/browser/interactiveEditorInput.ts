@@ -25,6 +25,14 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		return instantiationService.createInstance(InteractiveEditorInput, resource, inputResource, title, language);
 	}
 
+	private static windowNames: Record<string, string> = {};
+
+	static setName(notebookUri: URI, title: string | undefined) {
+		if (title) {
+			this.windowNames[notebookUri.path] = title;
+		}
+	}
+
 	static readonly ID: string = 'workbench.input.interactive';
 
 	public override get editorId(): string {
@@ -35,7 +43,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		return InteractiveEditorInput.ID;
 	}
 
-	private _initTitle?: string;
+	private name: string;
 
 	get language() {
 		return this._inputModelRef?.object.textEditorModel.getLanguageId() ?? this._initLanguage;
@@ -91,7 +99,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		super();
 		this._notebookEditorInput = input;
 		this._register(this._notebookEditorInput);
-		this._initTitle = title;
+		this.name = title ?? InteractiveEditorInput.windowNames[resource.path] ?? paths.basename(resource.path, paths.extname(resource.path));
 		this._initLanguage = languageId;
 		this._resource = resource;
 		this._inputResource = inputResource;
@@ -209,14 +217,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	}
 
 	override getName() {
-		if (this._initTitle) {
-			return this._initTitle;
-		}
-
-		const p = this.primary.resource!.path;
-		const basename = paths.basename(p);
-
-		return basename.substr(0, basename.length - paths.extname(p).length);
+		return this.name;
 	}
 
 	override isModified() {

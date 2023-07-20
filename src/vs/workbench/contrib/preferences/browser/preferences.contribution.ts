@@ -12,7 +12,6 @@ import 'vs/css!./media/preferences';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import * as nls from 'vs/nls';
-import { Event } from 'vs/base/common/event';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -227,7 +226,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			}));
 		};
 		registerOpenSettingsAction();
-		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => registerOpenSettingsAction()));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => registerOpenSettingsAction()));
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -867,7 +866,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			}));
 		};
 		registerOpenGlobalKeybindingsAction();
-		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => registerOpenGlobalKeybindingsAction()));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => registerOpenGlobalKeybindingsAction()));
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({

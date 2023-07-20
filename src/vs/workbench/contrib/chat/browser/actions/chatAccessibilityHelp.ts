@@ -10,10 +10,9 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-
-
+import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'panelChat' | 'inlineChat'): string {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -72,7 +71,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type);
 	accessibleViewService.show({
-		verbositySettingKey: type,
+		verbositySettingKey: type as AccessibilityVerbositySettingId,
 		provideContent: () => helpText,
 		onClose: () => {
 			if (type === 'panelChat' && cachedPosition) {

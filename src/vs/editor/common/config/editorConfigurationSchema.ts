@@ -216,6 +216,7 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 			description: nls.localize('useVersion2', "Controls whether the diff editor uses the new or the old implementation."),
+			tags: ['experimental'],
 		},
 		'diffEditor.experimental.showEmptyDecorations': {
 			type: 'boolean',

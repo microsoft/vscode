@@ -274,7 +274,10 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 						that.excludedExtensions.add(e.identifier.id.toLowerCase());
 					}
 				},
-				tooltip: localize('exclude', "Select {0} Extension", e.displayName || e.identifier.id)
+				tooltip: localize('exclude', "Select {0} Extension", e.displayName || e.identifier.id),
+				accessibilityInformation: {
+					label: localize('exclude', "Select {0} Extension", e.displayName || e.identifier.id),
+				}
 			} : undefined,
 			command: {
 				id: 'extension.open',
