@@ -86,11 +86,8 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 	protected _findPositionPreference(widgetHeight: number, showAtPosition: IPosition): ContentWidgetPositionPreference | undefined {
 		const maxHeightBelow = Math.min(this._availableVerticalSpaceBelow(showAtPosition) ?? Infinity, widgetHeight);
 		const maxHeightAbove = Math.min(this._availableVerticalSpaceAbove(showAtPosition) ?? Infinity, widgetHeight);
-		console.log('maxHeightBelow : ', maxHeightBelow);
-		console.log('maxHeightAbove : ', maxHeightAbove);
 		const maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow), widgetHeight);
 		const height = Math.min(widgetHeight, maxHeight);
-		console.log('height : ', height);
 		let renderingAbove: ContentWidgetPositionPreference;
 		if (this._editor.getOption(EditorOption.hover).above) {
 			renderingAbove = height <= maxHeightAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
