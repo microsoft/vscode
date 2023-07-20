@@ -6,7 +6,7 @@
 import { status } from 'vs/base/browser/ui/aria/aria';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { AudioCue, AudioCueGroupId, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
@@ -37,7 +37,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		const isPanelChat = typeof response !== 'string';
 		this._responsePendingAudioCue?.dispose();
 		this._runOnceScheduler?.cancel();
-		this._audioCueService.playRandomAudioCue(AudioCueGroupId.chatResponseReceived, true);
+		this._audioCueService.playAudioCue(AudioCue.chatResponseReceived, true);
 		this._hasReceivedRequest = false;
 		if (!response) {
 			return;

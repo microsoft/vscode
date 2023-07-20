@@ -368,4 +368,5 @@ export interface IChatWelcomeMessageViewModel {
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly content: IChatWelcomeMessageContent[];
+	currentRenderedHeight?: number;
 }

@@ -305,6 +305,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					return this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
 				}));
 		}
+
+		element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
 	}
 
 	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate) {
@@ -329,6 +331,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				templateData.elementDisposables.add(result);
 			}
 		}
+
+		element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
 	}
 
 	/**
