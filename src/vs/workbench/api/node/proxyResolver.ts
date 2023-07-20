@@ -136,8 +136,7 @@ async function lookupProxyAuthorization(
 			try {
 				const kerberos = await import('kerberos');
 				const url = new URL(proxyURL);
-				// TODO: Add core user setting.
-				const spn = configProvider.getConfiguration('github.copilot')?.advanced?.kerberosServicePrincipal as string | undefined
+				const spn = configProvider.getConfiguration('http').get<string>('proxyKerberosServicePrincipal')
 					|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
 				extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication lookup', `proxyURL:${proxyURL}`, `spn:${spn}`);
 				const client = await kerberos.initializeClient(spn);
