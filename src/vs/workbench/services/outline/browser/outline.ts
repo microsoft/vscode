@@ -20,7 +20,6 @@ export const IOutlineService = createDecorator<IOutlineService>('IOutlineService
 export const enum OutlineTarget {
 	OutlinePane = 1,
 	Breadcrumbs = 2,
-	NotebookStickyScroll = 3,
 	QuickPick = 4
 }
 

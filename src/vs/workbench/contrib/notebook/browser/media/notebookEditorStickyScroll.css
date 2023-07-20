@@ -6,7 +6,6 @@
 .monaco-workbench .notebookOverlay .notebook-sticky-scroll-container {
 	display: none;
 	position: absolute;
-	top: 26px;
 	background-color: var(--vscode-notebook-editorBackground);
 	border-bottom: solid 1px var(--vscode-notebook-cellToolbarSeparator);
 	box-sizing: border-box;

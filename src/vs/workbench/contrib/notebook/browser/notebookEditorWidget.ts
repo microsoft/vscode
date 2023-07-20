@@ -95,10 +95,10 @@ import { Schemas } from 'vs/base/common/network';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
 import { NotebookEditorStickyScroll } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll';
-import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
 const $ = DOM.$;
 
@@ -324,7 +324,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._register(this.instantiationService.createInstance(NotebookEditorContextKeys, this));
 
-		this._notebookOutline = this.instantiationService.createInstance(NotebookCellOutlineProvider, this, OutlineTarget.NotebookStickyScroll);
+		this._notebookOutline = this.instantiationService.createInstance(NotebookCellOutlineProvider, this, OutlineTarget.QuickPick);
 
 		this._register(notebookKernelService.onDidChangeSelectedNotebooks(e => {
 			if (isEqual(e.notebook, this.viewModel?.uri)) {

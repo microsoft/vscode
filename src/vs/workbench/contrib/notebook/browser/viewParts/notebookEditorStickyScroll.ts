@@ -30,6 +30,9 @@ export class NotebookEditorStickyScroll extends Disposable {
 			if (e.stickyScroll) {
 				this.updateConfig();
 			}
+			if (e.globalToolbar) {
+				this.setTop();
+			}
 		}));
 	}
 
@@ -40,6 +43,14 @@ export class NotebookEditorStickyScroll extends Disposable {
 			this._disposables.clear();
 			DOM.clearNode(this.domNode);
 			this.updateDisplay();
+		}
+	}
+
+	private setTop() {
+		if (this.notebookEditor.notebookOptions.getLayoutConfiguration().globalToolbar) {
+			this.domNode.style.top = '26px';
+		} else {
+			this.domNode.style.top = '0px';
 		}
 	}
 
@@ -214,19 +225,10 @@ export class NotebookEditorStickyScroll extends Disposable {
 					}
 					const nextSectionStickyHeight = this.computeStickyHeight(nextSectionEntry!);
 
-
-					// todo: this logic needs cleaning... bad. but it works for now.
-					// ? lines to render clearly needs a rethink, shouldn't be adding 100 to override it
-					if (entry?.parent?.parent === nextSectionEntry?.parent?.parent) {
-						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 100;
-						this.renderStickyLines(nextSectionEntry?.parent, this.domNode, linesToRender);
-						break;
-					} else if (entry?.parent === nextSectionEntry?.parent?.parent) {
-						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 100;
-						this.renderStickyLines(entry?.parent, this.domNode, linesToRender);
-						break;
-					} else if (entry?.parent?.parent === nextSectionEntry?.parent) {
-						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 100;
+					// this block of logic cleans transitions between two sections that share a parent.
+					// if the current section and the next section share a parent, then we can render the next section's sticky lines to avoid pop-in between
+					if (entry?.parent?.parent === nextSectionEntry?.parent) {
+						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 1;
 						this.renderStickyLines(nextSectionEntry?.parent, this.domNode, linesToRender);
 						break;
 					} else if (Math.abs(currentSectionStickyHeight - nextSectionStickyHeight) > 22) { // only shrink stickyi
@@ -255,6 +257,7 @@ export class NotebookEditorStickyScroll extends Disposable {
 		} else {
 			this.domNode.style.display = 'block';
 		}
+		this.setTop();
 	}
 
 	private computeStickyHeight(entry: OutlineEntry) {

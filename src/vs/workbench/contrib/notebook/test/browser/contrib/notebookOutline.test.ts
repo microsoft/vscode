@@ -18,7 +18,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 
-// todo: @Yoyokrazy make sure these work after the refactoring of notebook outline + new provider
 suite('Notebook Outline', function () {
 
 	let disposables: DisposableStore;
