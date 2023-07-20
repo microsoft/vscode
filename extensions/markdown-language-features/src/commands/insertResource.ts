@@ -8,7 +8,7 @@ import { Utils } from 'vscode-uri';
 import { Command } from '../commandManager';
 import { createUriListSnippet, mediaFileExtensions } from '../languageFeatures/copyFiles/shared';
 import { coalesce } from '../util/arrays';
-import { getDocumentDir, getParentDocumentUri } from '../util/document';
+import { getParentDocumentUri } from '../util/document';
 import { Schemes } from '../util/schemes';
 
 
@@ -79,9 +79,7 @@ async function insertLink(activeEditor: vscode.TextEditor, selectedFiles: vscode
 function createInsertLinkEdit(activeEditor: vscode.TextEditor, selectedFiles: vscode.Uri[], insertAsMedia: boolean, title = '', placeholderValue = 0, smartPaste = false) {
 	const snippetEdits = coalesce(activeEditor.selections.map((selection, i): vscode.SnippetTextEdit | undefined => {
 		const selectionText = activeEditor.document.getText(selection);
-		const dir = getDocumentDir(activeEditor.document);
-		const snippet = createUriListSnippet(dir, selectedFiles, title, placeholderValue, smartPaste, {
-
+		const snippet = createUriListSnippet(activeEditor.document, selectedFiles, title, placeholderValue, smartPaste, {
 			insertAsMedia,
 			placeholderText: selectionText,
 			placeholderStartIndex: (i + 1) * selectedFiles.length,
