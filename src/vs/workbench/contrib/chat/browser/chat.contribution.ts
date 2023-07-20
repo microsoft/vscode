@@ -90,7 +90,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			enum: [QuickQuestionMode.SingleQuestion, QuickQuestionMode.InputOnTopChat, QuickQuestionMode.InputOnBottomChat],
 			description: nls.localize('interactiveSession.quickQuestion.mode', "Controls the mode of quick question chat experience."),
-			default: QuickQuestionMode.SingleQuestion,
+			default: QuickQuestionMode.InputOnTopChat,
 		}
 	}
 });
