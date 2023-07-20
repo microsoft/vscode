@@ -50,7 +50,11 @@ export interface IAccessibleViewService {
 	show(provider: IAccessibleContentProvider): void;
 	next(): void;
 	previous(): void;
-	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string;
+	/**
+	 * If the setting is enabled, provides the open accessible view hint as a localized string.
+	 * @param verbositySettingKey The setting key for the verbosity of the feature
+	 */
+	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | undefined;
 }
 
 export const enum AccessibleViewType {
@@ -275,7 +279,10 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	previous(): void {
 		this._accessibleView?.previous();
 	}
-	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string {
+	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | undefined {
+		if (!this._configurationService.getValue(verbositySettingKey)) {
+			return;
+		}
 		let hint = '';
 		const keybinding = this._keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
 		if (this._configurationService.getValue(verbositySettingKey)) {

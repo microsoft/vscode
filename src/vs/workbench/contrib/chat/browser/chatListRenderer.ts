@@ -553,18 +553,18 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 	}
 
 	private _getLabelWithCodeBlockCount(element: IChatResponseViewModel): string {
-		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.Chat).trim();
+		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.Chat);
 		let label: string = '';
 		const codeBlockCount = marked.lexer(element.response.value).filter(token => token.type === 'code')?.length ?? 0;
 		switch (codeBlockCount) {
 			case 0:
-				label = localize('noCodeBlocks', "{0} {1}", element.response.value, accessibleViewHint);
+				label = accessibleViewHint ? localize('noCodeBlocksHint', "{0} {1}", element.response.value, accessibleViewHint) : localize('noCodeBlocks', "{0}", element.response.value);
 				break;
 			case 1:
-				label = localize('singleCodeBlock', "1 code block: {0} {1}", element.response.value, accessibleViewHint);
+				label = accessibleViewHint ? localize('singleCodeBlockHint', "1 code block: {0} {1}", element.response.value, accessibleViewHint) : localize('singleCodeBlock', "1 code block: {0}", element.response.value);
 				break;
 			default:
-				label = localize('multiCodeBlock', "{0} code blocks: {1}", codeBlockCount, element.response.value, accessibleViewHint);
+				label = accessibleViewHint ? localize('multiCodeBlockHint', "{0} code blocks: {1}", codeBlockCount, element.response.value, accessibleViewHint) : localize('multiCodeBlock', "{0} code blocks", codeBlockCount, element.response.value);
 				break;
 		}
 		return label;
