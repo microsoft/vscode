@@ -186,7 +186,7 @@ class ChatAccessibleViewContribution extends Disposable {
 						verifiedWidget.moveFocus(focusedItem, 'previous');
 						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
 					},
-					options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript', type: AccessibleViewType.View }
+					options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), type: AccessibleViewType.View }
 				});
 				return true;
 			}

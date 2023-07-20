@@ -117,6 +117,7 @@ class HoverAccessibleViewContribution extends Disposable {
 			if (!editorHoverContent) {
 				return false;
 			}
+			this._options.language = editor?.getModel()?.getLanguageId() ?? undefined;
 			accessibleViewService.show({
 				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
 				provideContent() { return editorHoverContent; },

@@ -116,7 +116,6 @@ export function showAccessibleOutput(accessibleViewService: IAccessibleViewServi
 		},
 		options: {
 			ariaLabel: localize('NotebookCellOutputAccessibleView', "Notebook Cell Output Accessible View"),
-			language: 'plaintext',
 			type: AccessibleViewType.View
 		}
 	});
