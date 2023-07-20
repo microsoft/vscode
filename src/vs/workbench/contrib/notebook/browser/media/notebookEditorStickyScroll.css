@@ -9,7 +9,7 @@
 	background-color: var(--vscode-notebook-editorBackground);
 	border-bottom: solid 1px var(--vscode-notebook-cellToolbarSeparator);
 	box-sizing: border-box;
-	z-index: 100;
+	z-index: var(--z-index-notebook-sticky-scroll);
 	width: 100%;
 	font-size: 14px;
 	padding-left: 12px;
