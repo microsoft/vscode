@@ -72,44 +72,10 @@ const smartPasteRegexes = [
 	{ regex: /`[^`]*`/g, is_markdown_link: false }, // In inline code
 	{ regex: /\$[^$]*\$/g, is_markdown_link: false }, // In inline math
 ];
-
-export interface SkinnyTextDocument extends vscode.TextDocument {
-
-	/**
-		 * Converts the position to a zero-based offset.
-		 *
-		 * The position will be {@link TextDocument.validatePosition adjusted}.
-		 *
-		 * @param position A position.
-		 * @return A valid zero-based offset.
-		 */
-	offsetAt(position: vscode.Position): number;
-
-	/**
-		 * Get the text of this document. A substring can be retrieved by providing
-		 * a range. The range will be {@link TextDocument.validateRange adjusted}.
-		 *
-		 * @param range Include only the text included by the range.
-		 * @return The text inside the provided range or the entire text.
-		 */
-	getText(range?: vscode.Range): string;
-
-	/**
-		 * The associated uri for this document.
-		 *
-		 * *Note* that most documents use the `file`-scheme, which means they are files on disk. However, **not** all documents are
-		 * saved on disk and therefore the `scheme` must be checked before trying to access the underlying file or siblings on disk.
-		 *
-		 * @see {@link FileSystemProvider}
-		 * @see {@link TextDocumentContentProvider}
-		 */
-	readonly uri: vscode.Uri;
-}
-
 export interface SmartPaste {
 
 	/**
-	 * `true` if the link is being pasted within a code block, math block, or a markdown link.
+	 * `true` if the link is not being pasted within a markdown link, code, or math.
 	 */
 	pasteAsMarkdownLink: boolean;
 
@@ -120,7 +86,7 @@ export interface SmartPaste {
 
 }
 
-export async function uriToWorkspaceEdit(document: SkinnyTextDocument, ranges: readonly vscode.Range[], urlList: string, token: vscode.CancellationToken): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string } | undefined> {
+export async function createEditAddingLinksForUriList(document: vscode.TextDocument, ranges: readonly vscode.Range[], urlList: string, token: vscode.CancellationToken, isExternalLink: boolean): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string } | undefined> {
 	if (ranges.length === 0) {
 		return;
 	}
@@ -138,7 +104,7 @@ export async function uriToWorkspaceEdit(document: SkinnyTextDocument, ranges: r
 			title = smartPaste.updateTitle ? '' : document.getText(ranges[i]);
 		}
 
-		const snippet = await tryGetUriListSnippet(document, urlList, token, title, placeHolderValue, smartPaste.pasteAsMarkdownLink);
+		const snippet = await tryGetUriListSnippet(document, urlList, token, title, placeHolderValue, smartPaste.pasteAsMarkdownLink, isExternalLink);
 		if (!snippet) {
 			return;
 		}
@@ -155,15 +121,16 @@ export async function uriToWorkspaceEdit(document: SkinnyTextDocument, ranges: r
 	return { additionalEdits, label };
 }
 
-export function checkSmartPaste(documentText: string, rangeStartOffset: number, rangeEndOffset: number): SmartPaste {
+export function checkSmartPaste(documentText: string, start: number, end: number): SmartPaste {
 	const SmartPaste: SmartPaste = { pasteAsMarkdownLink: true, updateTitle: false };
 	for (const regex of smartPasteRegexes) {
 		const matches = [...documentText.matchAll(regex.regex)];
 		for (const match of matches) {
 			if (match.index !== undefined) {
-				SmartPaste.pasteAsMarkdownLink = rangeStartOffset < match.index && rangeEndOffset > match.index + match[0].length;
-				SmartPaste.updateTitle = regex.is_markdown_link && rangeStartOffset === match.index && rangeEndOffset === match.index + match[0].length;
-				if (SmartPaste.pasteAsMarkdownLink || SmartPaste.updateTitle) {
+				const useDefaultPaste = start > match.index && end < match.index + match[0].length;
+				SmartPaste.pasteAsMarkdownLink = !useDefaultPaste;
+				SmartPaste.updateTitle = regex.is_markdown_link && start === match.index && end === match.index + match[0].length;
+				if (!SmartPaste.pasteAsMarkdownLink || SmartPaste.updateTitle) {
 					return SmartPaste;
 				}
 			}
@@ -172,7 +139,7 @@ export function checkSmartPaste(documentText: string, rangeStartOffset: number, 
 	return SmartPaste;
 }
 
-export async function tryGetUriListSnippet(document: SkinnyTextDocument, urlList: String, token: vscode.CancellationToken, title = '', placeHolderValue = 0, pasteAsMarkdownLink = true): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
+export async function tryGetUriListSnippet(document: vscode.TextDocument, urlList: String, token: vscode.CancellationToken, title = '', placeHolderValue = 0, pasteAsMarkdownLink = true, isExternalLink = false): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
 	if (token.isCancellationRequested) {
 		return undefined;
 	}
@@ -186,7 +153,7 @@ export async function tryGetUriListSnippet(document: SkinnyTextDocument, urlList
 		}
 	}
 
-	return createUriListSnippet(document, uris, title, placeHolderValue, pasteAsMarkdownLink);
+	return createUriListSnippet(document, uris, title, placeHolderValue, pasteAsMarkdownLink, isExternalLink);
 }
 
 interface UriListSnippetOptions {
@@ -205,30 +172,32 @@ interface UriListSnippetOptions {
 }
 
 export function createLinkSnippet(
-	snippet: vscode.SnippetString,
 	pasteAsMarkdownLink: boolean,
 	mdPath: string,
 	title: string,
 	uri: vscode.Uri,
 	placeholderValue: number,
+	isExternalLink: boolean,
 ): vscode.SnippetString {
 	const uriString = uri.toString(true);
+	const snippet = new vscode.SnippetString();
 	if (pasteAsMarkdownLink) {
 		snippet.appendText('[');
 		snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
-		snippet.appendText(externalUriSchemes.includes(uri.scheme) ? `](${uriString})` : `](${escapeMarkdownLinkPath(mdPath)})`);
+		snippet.appendText(isExternalLink ? `](${uriString})` : `](${escapeMarkdownLinkPath(mdPath)})`);
 	} else {
-		snippet.appendText(externalUriSchemes.includes(uri.scheme) ? uriString : escapeMarkdownLinkPath(mdPath));
+		snippet.appendText(isExternalLink ? uriString : escapeMarkdownLinkPath(mdPath));
 	}
 	return snippet;
 }
 
 export function createUriListSnippet(
-	document: SkinnyTextDocument,
+	document: vscode.TextDocument,
 	uris: readonly vscode.Uri[],
 	title = '',
 	placeholderValue = 0,
 	pasteAsMarkdownLink = true,
+	isExternalLink = false,
 	options?: UriListSnippetOptions,
 ): { snippet: vscode.SnippetString; label: string } | undefined {
 	if (!uris.length) {
@@ -275,7 +244,7 @@ export function createUriListSnippet(
 			}
 		} else {
 			insertedLinkCount++;
-			snippet = createLinkSnippet(snippet, pasteAsMarkdownLink, mdPath, title, uri, placeholderValue);
+			snippet = createLinkSnippet(pasteAsMarkdownLink, mdPath, title, uri, placeholderValue, isExternalLink);
 		}
 
 		if (i < uris.length - 1 && uris.length > 1) {
@@ -311,7 +280,7 @@ export function createUriListSnippet(
  * This tries copying files outside of the workspace into the workspace.
  */
 export async function createEditForMediaFiles(
-	document: SkinnyTextDocument,
+	document: vscode.TextDocument,
 	dataTransfer: vscode.DataTransfer,
 	token: vscode.CancellationToken
 ): Promise<{ snippet: vscode.SnippetString; label: string; additionalEdits: vscode.WorkspaceEdit } | undefined> {

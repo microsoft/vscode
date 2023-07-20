@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { externalUriSchemes, uriToWorkspaceEdit } from './shared';
+import { externalUriSchemes, createEditAddingLinksForUriList } from './shared';
 class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 
 	readonly id = 'insertMarkdownLink';
@@ -34,7 +34,7 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 		if (!urlList) {
 			return undefined;
 		}
-		const pasteEdit = await uriToWorkspaceEdit(document, ranges, urlList, token);
+		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, urlList, token, true);
 		if (!pasteEdit) {
 			return;
 		}
