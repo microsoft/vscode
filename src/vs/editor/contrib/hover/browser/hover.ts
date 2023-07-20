@@ -31,6 +31,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -82,7 +83,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hookEvents(): void {
-		const hideWidgetsEventHandler = () => this._hideWidgets();
+		const hideWidgetsEventHandler = () => this.hideWidgets();
 
 		const hoverOpts = this._editor.getOption(EditorOption.hover);
 		this._isHoverEnabled = hoverOpts.enabled;
@@ -108,7 +109,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	private _onEditorScrollChanged(e: IScrollEvent): void {
 		if (e.scrollTopChanged || e.scrollLeftChanged) {
-			this._hideWidgets();
+			this.hideWidgets();
 		}
 	}
 
@@ -132,7 +133,7 @@ export class ModesHoverController implements IEditorContribution {
 			this._hoverClicked = false;
 		}
 		if (!this._contentWidget?.widget.isResizing) {
-			this._hideWidgets();
+			this.hideWidgets();
 		}
 	}
 
@@ -148,7 +149,7 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 		if (!_sticky) {
-			this._hideWidgets();
+			this.hideWidgets();
 		}
 	}
 
@@ -201,7 +202,7 @@ export class ModesHoverController implements IEditorContribution {
 			(decoratorActivatedOn === 'clickAndHover' && !this._isHoverEnabled && !this._hoverActivatedByColorDecoratorClick)))
 			|| !mouseOnDecorator && !this._isHoverEnabled && !this._hoverActivatedByColorDecoratorClick
 		) {
-			this._hideWidgets();
+			this.hideWidgets();
 			return;
 		}
 
@@ -223,7 +224,7 @@ export class ModesHoverController implements IEditorContribution {
 		if (_sticky) {
 			return;
 		}
-		this._hideWidgets();
+		this.hideWidgets();
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
@@ -238,11 +239,11 @@ export class ModesHoverController implements IEditorContribution {
 		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift
 			&& !mightTriggerFocus) {
 			// Do not hide hover when a modifier key is pressed
-			this._hideWidgets();
+			this.hideWidgets();
 		}
 	}
 
-	private _hideWidgets(): void {
+	hideWidgets(): void {
 		if (_sticky) {
 			return;
 		}
@@ -361,6 +362,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		const commandService = accessor.get(ICommandService);
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -370,10 +372,13 @@ class ShowOrFocusHoverAction extends EditorAction {
 		}
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		const focus = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled || !!args?.focus;
-
+		const accessibilitySupport = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
+		const focus = accessibilitySupport || !!args?.focus;
 		if (controller.isHoverVisible) {
 			controller.focus();
+			if (accessibilitySupport) {
+				commandService.executeCommand('editor.action.accessibleView');
+			}
 		} else {
 			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
 		}
