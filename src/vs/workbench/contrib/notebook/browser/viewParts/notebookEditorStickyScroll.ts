@@ -228,7 +228,7 @@ export class NotebookEditorStickyScroll extends Disposable {
 					// this block of logic cleans transitions between two sections that share a parent.
 					// if the current section and the next section share a parent, then we can render the next section's sticky lines to avoid pop-in between
 					if (entry?.parent?.parent === nextSectionEntry?.parent) {
-						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 1;
+						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 100;
 						this.renderStickyLines(nextSectionEntry?.parent, this.domNode, linesToRender);
 						break;
 					} else if (Math.abs(currentSectionStickyHeight - nextSectionStickyHeight) > 22) { // only shrink stickyi
