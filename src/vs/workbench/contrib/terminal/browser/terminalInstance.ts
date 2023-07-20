@@ -316,6 +316,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidBlur = this._onDidBlur.event;
 	private readonly _onDidInputData = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidInputData = this._onDidInputData.event;
+	private readonly _onDidChangeSelection = this._register(new Emitter<ITerminalInstance>());
+	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 	private readonly _onRequestAddInstanceToGroup = this._register(new Emitter<IRequestAddInstanceToGroupEvent>());
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
@@ -758,7 +760,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						icon: Codicon.bell,
 						tooltip: nls.localize('bellStatus', "Bell")
 					}, this._configHelper.config.bellDuration);
-					this._audioCueService.playSound(AudioCue.terminalBell.sound);
+					this._audioCueService.playSound(AudioCue.terminalBell.sound.getSound());
 				}
 			});
 		}, 1000);
@@ -1722,6 +1724,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _onSelectionChange(): Promise<void> {
+		this._onDidChangeSelection.fire(this);
 		if (this._configurationService.getValue(TerminalSettingId.CopyOnSelection)) {
 			if (this.hasSelection()) {
 				await this.copySelection();

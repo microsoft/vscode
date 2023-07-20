@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
@@ -56,7 +54,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 	private readonly _resolver: CodeActionKeybindingResolver;
 
-	#disposed = false;
+	private _disposed = false;
 
 	constructor(
 		editor: ICodeEditor,
@@ -91,7 +89,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 	}
 
 	override dispose() {
-		this.#disposed = true;
+		this._disposed = true;
 		super.dispose();
 	}
 
@@ -150,7 +148,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			return;
 		}
 
-		if (this.#disposed) {
+		if (this._disposed) {
 			return;
 		}
 

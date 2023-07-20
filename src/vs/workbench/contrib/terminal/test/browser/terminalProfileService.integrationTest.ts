@@ -201,6 +201,9 @@ suite('TerminalProfileService', () => {
 		}
 		configurationService.setUserConfiguration('terminal', { integrated: defaultTerminalConfig });
 	});
+	teardown(() => {
+		instantiationService.dispose();
+	});
 	suite('Contributed Profiles', () => {
 		test('should filter out contributed profiles set to null (Linux)', async () => {
 			remoteAgentService.setEnvironment(OperatingSystem.Linux);

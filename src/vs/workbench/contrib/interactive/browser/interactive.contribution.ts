@@ -392,6 +392,7 @@ registerAction2(class extends Action2 {
 
 			counter++;
 		} while (existingNotebookDocument.has(notebookUri.toString()));
+		InteractiveEditorInput.setName(notebookUri, title);
 
 		logService.debug('Open new interactive window:', notebookUri.toString(), inputUri.toString());
 

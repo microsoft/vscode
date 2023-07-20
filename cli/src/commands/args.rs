@@ -174,7 +174,14 @@ pub enum Commands {
 
 	/// Runs the control server on process stdin/stdout
 	#[clap(hide = true)]
-	CommandShell,
+	CommandShell(CommandShellArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct CommandShellArgs {
+	/// Listen on a socket instead of stdin/stdout.
+	#[clap(long)]
+	pub on_socket: bool,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -548,6 +555,7 @@ pub enum OutputFormat {
 #[derive(Args, Clone, Debug, Default)]
 pub struct ExistingTunnelArgs {
 	/// Name you'd like to assign preexisting tunnel to use to connect the tunnel
+	/// Old option, new code sohuld just use `--name`.
 	#[clap(long, hide = true)]
 	pub tunnel_name: Option<String>,
 
@@ -649,6 +657,10 @@ pub struct TunnelServiceInstallArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+
+	/// Sets the machine name for port forwarding service
+	#[clap(long)]
+	pub name: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]

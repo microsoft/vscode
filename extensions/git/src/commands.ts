@@ -1973,6 +1973,16 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository, { postCommitCommand });
 	}
 
+	@command('git.commitAmend', { repository: true })
+	async commitAmend(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { amend: true });
+	}
+
+	@command('git.commitSigned', { repository: true })
+	async commitSigned(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { signoff: true });
+	}
+
 	@command('git.commitStaged', { repository: true })
 	async commitStaged(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository, { all: false });
@@ -2089,6 +2099,16 @@ export class CommandCenter {
 	@command('git.commitStagedSignedNoVerify', { repository: true })
 	async commitStagedSignedNoVerify(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository, { all: false, signoff: true, noVerify: true });
+	}
+
+	@command('git.commitAmendNoVerify', { repository: true })
+	async commitAmendNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { amend: true, noVerify: true });
+	}
+
+	@command('git.commitSignedNoVerify', { repository: true })
+	async commitSignedNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { signoff: true, noVerify: true });
 	}
 
 	@command('git.commitStagedAmendNoVerify', { repository: true })

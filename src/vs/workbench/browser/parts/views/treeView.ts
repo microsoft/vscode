@@ -215,6 +215,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	private root: ITreeItem;
 	private elementsToRefresh: ITreeItem[] = [];
+	private lastSelection: readonly ITreeItem[] = [];
+	private lastActive: ITreeItem;
 
 	private readonly _onDidExpandItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
 	readonly onDidExpandItem: Event<ITreeItem> = this._onDidExpandItem.event;
@@ -222,11 +224,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private readonly _onDidCollapseItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
 	readonly onDidCollapseItem: Event<ITreeItem> = this._onDidCollapseItem.event;
 
-	private _onDidChangeSelection: Emitter<readonly ITreeItem[]> = this._register(new Emitter<readonly ITreeItem[]>());
-	readonly onDidChangeSelection: Event<readonly ITreeItem[]> = this._onDidChangeSelection.event;
-
-	private _onDidChangeFocus: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
-	readonly onDidChangeFocus: Event<ITreeItem> = this._onDidChangeFocus.event;
+	private _onDidChangeSelectionAndFocus: Emitter<{ selection: readonly ITreeItem[]; focus: ITreeItem }> = this._register(new Emitter<{ selection: readonly ITreeItem[]; focus: ITreeItem }>());
+	readonly onDidChangeSelectionAndFocus: Event<{ selection: readonly ITreeItem[]; focus: ITreeItem }> = this._onDidChangeSelectionAndFocus.event;
 
 	private readonly _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -267,6 +266,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	) {
 		super();
 		this.root = new Root();
+		this.lastActive = this.root;
 		// Try not to add anything that could be costly to this constructor. It gets called once per tree view
 		// during startup, and anything added here can affect performance.
 	}
@@ -702,10 +702,17 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const customTreeKey = RawCustomTreeViewContextKey.bindTo(this.tree.contextKeyService);
 		customTreeKey.set(true);
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(treeMenus, e, actionRunner)));
-		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.elements)));
+
+		this._register(this.tree.onDidChangeSelection(e => {
+			this.lastSelection = e.elements;
+			this.lastActive = this.tree?.getFocus()[0] ?? this.lastActive;
+			this._onDidChangeSelectionAndFocus.fire({ selection: this.lastSelection, focus: this.lastActive });
+		}));
 		this._register(this.tree.onDidChangeFocus(e => {
-			if (e.elements.length) {
-				this._onDidChangeFocus.fire(e.elements[0]);
+			if (e.elements.length && (e.elements[0] !== this.lastActive)) {
+				this.lastActive = e.elements[0];
+				this.lastSelection = this.tree?.getSelection() ?? this.lastSelection;
+				this._onDidChangeSelectionAndFocus.fire({ selection: this.lastSelection, focus: this.lastActive });
 			}
 		}));
 		this._register(this.tree.onDidChangeCollapseState(e => {
@@ -957,7 +964,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			}
 			const newSelection = tree.getSelection();
 			if (oldSelection.length !== newSelection.length || oldSelection.some((value, index) => value.handle !== newSelection[index].handle)) {
-				this._onDidChangeSelection.fire(newSelection);
+				this.lastSelection = newSelection;
+				this._onDidChangeSelectionAndFocus.fire({ selection: this.lastSelection, focus: this.lastActive });
 			}
 			this.refreshing = false;
 			this._onDidCompleteRefresh.fire();
