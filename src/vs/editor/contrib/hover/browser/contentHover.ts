@@ -471,7 +471,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	private static _lastDimensions: dom.Dimension = new dom.Dimension(0, 0);
 
 	private _visibleData: ContentHoverVisibleData | undefined;
-	private _position: Position | undefined;
 	private _positionPreference: ContentWidgetPositionPreference | undefined;
 
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
@@ -732,8 +731,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		}
 		this._render(node, hoverData);
 		const widgetHeight = dom.getTotalHeight(this._hover.containerDomNode);
-		this._position = hoverData.showAtPosition;
-		this._positionPreference = this._findPositionPreference(widgetHeight, this._position) ?? ContentWidgetPositionPreference.ABOVE;
+		const widgetPosition = hoverData.showAtPosition;
+		this._positionPreference = this._findPositionPreference(widgetHeight, widgetPosition) ?? ContentWidgetPositionPreference.ABOVE;
 
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
@@ -792,9 +791,9 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			this._adjustContentsBottomPadding();
 			this._adjustHoverHeightForScrollbar(height);
 		}
-		if (this._position) {
+		if (this._visibleData?.showAtPosition) {
 			const widgetHeight = dom.getTotalHeight(this._hover.containerDomNode);
-			this._positionPreference = this._findPositionPreference(widgetHeight, this._position);
+			this._positionPreference = this._findPositionPreference(widgetHeight, this._visibleData.showAtPosition);
 		}
 		this._layoutContentWidget();
 	}
