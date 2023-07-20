@@ -717,23 +717,29 @@ class NotebookAccessibleViewContribution extends Disposable {
 				const outputTextModel = viewCell.model.outputs[i];
 				const [mimeTypes, pick] = outputViewModel.resolveMimeTypes(notebookEditor.textModel, undefined);
 				const mimeType = mimeTypes[pick].mimeType;
-				const pickedBuffer = outputTextModel.outputs.find(output => output.mime === mimeType)?.data.buffer;
+				let buffer = outputTextModel.outputs.find(output => output.mime === mimeType);
 
-				let text = `${mimeType}\n`;
-				if (!pickedBuffer || mimeType.startsWith('image')) {
-					const altBuffer = outputTextModel.outputs.find(output => !output.mime.startsWith('image'))?.data.buffer;
-					if (altBuffer) {
-						text = decoder.decode(altBuffer);
-					}
-				} else {
-					text = decoder.decode(pickedBuffer);
+				if (!buffer || mimeType.startsWith('image')) {
+					buffer = outputTextModel.outputs.find(output => !output.mime.startsWith('image'));
 				}
+
+				let text = `${mimeType}`; // default in case we can't get the text value for some reason.
+				if (buffer) {
+					const charLimit = 100_000;
+					text = decoder.decode(buffer.data.slice(0, charLimit).buffer);
+
+					if (buffer.data.byteLength > charLimit) {
+						text = text + '...(truncated)';
+					}
+
+					if (mimeType.endsWith('error')) {
+						text = text.replace(/\\u001b\[[0-9;]*m/gi, '').replaceAll('\\n', '\n');
+					}
+				}
+
 				const index = viewCell.outputsViewModels.length > 1
 					? `Cell output ${i + 1} of ${viewCell.outputsViewModels.length}\n`
 					: '';
-				if (mimeType.endsWith('error')) {
-					text = text.replace(/\\u001b\[[0-9;]*m/gi, '').replaceAll('\\n', '\n');
-				}
 				outputContent = outputContent.concat(`${index}${text}\n`);
 			}
 
