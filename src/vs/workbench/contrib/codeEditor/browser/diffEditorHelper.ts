@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityHelpAction, AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { localize } from 'vs/nls';
@@ -101,7 +101,7 @@ function createScreenReaderHelp(): IDisposable {
 		const keys = ['audioCues.diffLineDeleted', 'audioCues.diffLineInserted', 'audioCues.diffLineModified'];
 
 		accessibleViewService.show({
-			verbositySettingKey: 'diffEditor',
+			verbositySettingKey: AccessibilityVerbositySettingId.DiffEditor,
 			provideContent: () => [
 				localize('msg1', "You are in a diff editor."),
 				localize('msg2', "Press {0} or {1} to view the next or previous diff in the diff review mode that is optimized for screen readers.", next, previous),
