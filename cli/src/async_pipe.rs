@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 use crate::{constants::APPLICATION_NAME, util::errors::CodeError};
+use async_trait::async_trait;
 use std::path::{Path, PathBuf};
+use tokio::net::TcpListener;
 use uuid::Uuid;
 
 // todo: we could probably abstract this into some crate, if one doesn't already exist
@@ -179,5 +181,36 @@ pub fn get_socket_name() -> PathBuf {
 		} else {
 			PathBuf::from(format!(r"\\.\pipe\{}-{}", APPLICATION_NAME, Uuid::new_v4()))
 		}
+	}
+}
+
+pub type AcceptedRW = (
+	Box<dyn AsyncRead + Send + Unpin>,
+	Box<dyn AsyncWrite + Send + Unpin>,
+);
+
+#[async_trait]
+pub trait AsyncRWAccepter {
+	async fn accept_rw(&mut self) -> Result<AcceptedRW, CodeError>;
+}
+
+#[async_trait]
+impl AsyncRWAccepter for AsyncPipeListener {
+	async fn accept_rw(&mut self) -> Result<AcceptedRW, CodeError> {
+		let pipe = self.accept().await?;
+		let (read, write) = socket_stream_split(pipe);
+		Ok((Box::new(read), Box::new(write)))
+	}
+}
+
+#[async_trait]
+impl AsyncRWAccepter for TcpListener {
+	async fn accept_rw(&mut self) -> Result<AcceptedRW, CodeError> {
+		let (stream, _) = self
+			.accept()
+			.await
+			.map_err(CodeError::AsyncPipeListenerFailed)?;
+		let (read, write) = tokio::io::split(stream);
+		Ok((Box::new(read), Box::new(write)))
 	}
 }
