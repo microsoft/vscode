@@ -12,7 +12,6 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 export class NotebookEditorStickyScroll extends Disposable {
-	private _stickyScrollContent: StickyScrollContent | undefined;
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
@@ -23,58 +22,23 @@ export class NotebookEditorStickyScroll extends Disposable {
 	) {
 		super();
 
-		this._stickyScrollContent = new StickyScrollContent(this.notebookEditor, this.notebookOutline, this.notebookCellList);
-		DOM.append(this.domNode, this._stickyScrollContent.domNode);
-
-		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions((e) => {
-			if (e.stickyScroll) {
-				this._stickyScrollContent?.updateConfig();
-			}
-		}));
-
-	}
-
-	override dispose() {
-		this._disposables.dispose();
-		super.dispose();
-	}
-}
-
-
-class StickyScrollContent extends Disposable {
-	private readonly _stickyScrollContent: HTMLElement;
-	private initialized = false;
-	private _disposables = new DisposableStore();
-
-	get domNode() {
-		return this._stickyScrollContent;
-	}
-
-	constructor(
-		private readonly notebookEditor: INotebookEditor,
-		private readonly notebookOutline: NotebookCellOutlineProvider,
-		private readonly notebookCellList: INotebookCellList,
-	) {
-		super();
-
-		this._stickyScrollContent = document.createElement('div');
-		this._stickyScrollContent.classList.add('notebook-sticky-scroll-content');
 		if (this.notebookEditor.notebookOptions.getLayoutConfiguration().stickyScroll) {
 			this.init();
 		}
+
+		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions((e) => {
+			if (e.stickyScroll) {
+				this.updateConfig();
+			}
+		}));
 	}
 
-	override dispose() {
-		this._disposables.dispose();
-		super.dispose();
-	}
-
-	updateConfig() {
+	private updateConfig() {
 		if (this.notebookEditor.notebookOptions.getLayoutConfiguration().stickyScroll) {
 			this.init();
 		} else {
 			this._disposables.clear();
-			DOM.clearNode(this._stickyScrollContent);
+			DOM.clearNode(this.domNode);
 			this.updateDisplay();
 		}
 	}
@@ -82,16 +46,14 @@ class StickyScrollContent extends Disposable {
 	private init() {
 		this.notebookOutline.init();
 		this.initializeContent();
+
 		this._disposables.add(this.notebookOutline.onDidChange(() => {
 			this.updateContent();
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidAttachViewModel(() => {
-			if (!this.initialized) {
-				this.initialized = true;
-				this.notebookOutline.init();
-				this.initializeContent();
-			}
+			this.notebookOutline.init();
+			this.initializeContent();
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidScroll(() => {
@@ -131,7 +93,7 @@ class StickyScrollContent extends Disposable {
 			return;
 		}
 
-		DOM.clearNode(this._stickyScrollContent);
+		DOM.clearNode(this.domNode);
 		const editorScrollTop = this.notebookEditor.scrollTop;
 
 		let trackedEntry = undefined;
@@ -184,7 +146,7 @@ class StickyScrollContent extends Disposable {
 		// compute the space available for sticky lines, and render sticky lines
 
 		const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
-		this.renderStickyLines(trackedEntry?.parent, this._stickyScrollContent, linesToRender);
+		this.renderStickyLines(trackedEntry?.parent, this.domNode, linesToRender);
 		this.updateDisplay();
 	}
 
@@ -196,7 +158,7 @@ class StickyScrollContent extends Disposable {
 		// if that condition is true, break out of the loop with that cell as the tracked cell
 		// if that condition is false, continue to next cell
 
-		DOM.clearNode(this._stickyScrollContent);
+		DOM.clearNode(this.domNode);
 		const editorScrollTop = this.notebookEditor.scrollTop;
 
 		// find last code cell of section, store bottom scroll position in sectionBottom
@@ -237,7 +199,7 @@ class StickyScrollContent extends Disposable {
 					const currentSectionStickyHeight = this.computeStickyHeight(entry!);
 					if (editorScrollTop + currentSectionStickyHeight < sectionBottom) {
 						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
-						this.renderStickyLines(entry?.parent, this._stickyScrollContent, linesToRender);
+						this.renderStickyLines(entry?.parent, this.domNode, linesToRender);
 						break;
 					}
 
@@ -257,19 +219,19 @@ class StickyScrollContent extends Disposable {
 					// ? lines to render clearly needs a rethink, shouldn't be adding 100 to override it
 					if (entry?.parent?.parent === nextSectionEntry?.parent?.parent) {
 						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 100;
-						this.renderStickyLines(nextSectionEntry?.parent, this._stickyScrollContent, linesToRender);
+						this.renderStickyLines(nextSectionEntry?.parent, this.domNode, linesToRender);
 						break;
 					} else if (entry?.parent === nextSectionEntry?.parent?.parent) {
 						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 100;
-						this.renderStickyLines(entry?.parent, this._stickyScrollContent, linesToRender);
+						this.renderStickyLines(entry?.parent, this.domNode, linesToRender);
 						break;
 					} else if (entry?.parent?.parent === nextSectionEntry?.parent) {
 						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 100;
-						this.renderStickyLines(nextSectionEntry?.parent, this._stickyScrollContent, linesToRender);
+						this.renderStickyLines(nextSectionEntry?.parent, this.domNode, linesToRender);
 						break;
 					} else if (Math.abs(currentSectionStickyHeight - nextSectionStickyHeight) > 22) { // only shrink stickyi
 						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
-						this.renderStickyLines(entry?.parent, this._stickyScrollContent, linesToRender);
+						this.renderStickyLines(entry?.parent, this.domNode, linesToRender);
 						break;
 					}
 				}
@@ -278,7 +240,7 @@ class StickyScrollContent extends Disposable {
 				sectionBottom = this.notebookEditor.scrollTop + this.notebookEditor.getLayoutInfo().scrollHeight;
 				trackedEntry = this.getVisibleOutlineEntry(i);
 				const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
-				this.renderStickyLines(trackedEntry?.parent, this._stickyScrollContent, linesToRender);
+				this.renderStickyLines(trackedEntry?.parent, this.domNode, linesToRender);
 				break;
 			}
 		} // cell loop close
@@ -287,11 +249,11 @@ class StickyScrollContent extends Disposable {
 
 
 	private updateDisplay() {
-		const hasChildren = this._stickyScrollContent.hasChildNodes();
+		const hasChildren = this.domNode.hasChildNodes();
 		if (!hasChildren) {
-			this._stickyScrollContent.style.display = 'none';
+			this.domNode.style.display = 'none';
 		} else {
-			this._stickyScrollContent.style.display = 'block';
+			this.domNode.style.display = 'block';
 		}
 	}
 
@@ -333,5 +295,10 @@ class StickyScrollContent extends Disposable {
 		}
 
 		return stickyLine;
+	}
+
+	override dispose() {
+		this._disposables.dispose();
+		super.dispose();
 	}
 }
