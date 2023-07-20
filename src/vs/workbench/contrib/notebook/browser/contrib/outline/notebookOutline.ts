@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
@@ -24,6 +24,7 @@ import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { CellRevealType, INotebookEditorOptions, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
@@ -32,7 +33,6 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigCollapseItemsValues, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 
 
 class NotebookOutlineTemplate {
@@ -200,9 +200,6 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	private readonly _entriesDisposables = new DisposableStore();
 
 	readonly config: IOutlineListConfig<OutlineEntry>;
-	// get config(): IOutlineListConfig<OutlineEntry> {
-	// 	return this._outlineProvider?.config; //todo default valuehere
-	// }
 
 	readonly outlineKind = 'notebookCells';
 
@@ -231,10 +228,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			}
 		};
 
-
-
 		this._dispoables.add(_editor.onDidChangeModel(() => {
-			// this._recomputeState();
 			installSelectionListener();
 		}));
 

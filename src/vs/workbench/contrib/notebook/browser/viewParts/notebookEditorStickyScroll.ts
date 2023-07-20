@@ -6,7 +6,6 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { NotebookCellOutlineProvider, OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -19,21 +18,19 @@ export class NotebookEditorStickyScroll extends Disposable {
 	constructor(
 		private readonly domNode: HTMLElement,
 		private readonly notebookEditor: INotebookEditor,
-		private readonly notebookOptions: NotebookOptions,
 		private readonly notebookOutline: NotebookCellOutlineProvider,
 		private readonly notebookCellList: INotebookCellList
 	) {
 		super();
 
-		this._stickyScrollContent = new StickyScrollContent(this.notebookEditor, this.notebookOutline, this.notebookCellList, this.notebookOptions);
+		this._stickyScrollContent = new StickyScrollContent(this.notebookEditor, this.notebookOutline, this.notebookCellList);
 		DOM.append(this.domNode, this._stickyScrollContent.domNode);
 
-		this._register(this.notebookOptions.onDidChangeOptions((e) => {
+		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions((e) => {
 			if (e.stickyScroll) {
 				this._stickyScrollContent?.updateConfig();
 			}
 		}));
-
 
 	}
 
@@ -57,13 +54,12 @@ class StickyScrollContent extends Disposable {
 		private readonly notebookEditor: INotebookEditor,
 		private readonly notebookOutline: NotebookCellOutlineProvider,
 		private readonly notebookCellList: INotebookCellList,
-		private readonly notebookOptions: NotebookOptions,
 	) {
 		super();
 
 		this._stickyScrollContent = document.createElement('div');
 		this._stickyScrollContent.classList.add('notebook-sticky-scroll-content');
-		if (this.notebookOptions.getLayoutConfiguration().stickyScroll) {
+		if (this.notebookEditor.notebookOptions.getLayoutConfiguration().stickyScroll) {
 			this.init();
 		}
 	}
@@ -74,7 +70,7 @@ class StickyScrollContent extends Disposable {
 	}
 
 	updateConfig() {
-		if (this.notebookOptions.getLayoutConfiguration().stickyScroll) {
+		if (this.notebookEditor.notebookOptions.getLayoutConfiguration().stickyScroll) {
 			this.init();
 		} else {
 			this._disposables.clear();
@@ -93,7 +89,6 @@ class StickyScrollContent extends Disposable {
 		this._disposables.add(this.notebookEditor.onDidAttachViewModel(() => {
 			if (!this.initialized) {
 				this.initialized = true;
-
 				this.notebookOutline.init();
 				this.initializeContent();
 			}
@@ -133,7 +128,6 @@ class StickyScrollContent extends Disposable {
 		// find last code cell of section, store bottom scroll position in sectionBottom
 		const visibleRange = this.notebookEditor.visibleRanges[0];
 		if (!visibleRange) {
-
 			return;
 		}
 
@@ -193,6 +187,7 @@ class StickyScrollContent extends Disposable {
 		this.renderStickyLines(trackedEntry?.parent, this._stickyScrollContent, linesToRender);
 		this.updateDisplay();
 	}
+
 
 	private updateContent() {
 		// find first code cell in visible range. this marks the start of the first section
@@ -272,7 +267,6 @@ class StickyScrollContent extends Disposable {
 						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 100;
 						this.renderStickyLines(nextSectionEntry?.parent, this._stickyScrollContent, linesToRender);
 						break;
-						// }
 					} else if (Math.abs(currentSectionStickyHeight - nextSectionStickyHeight) > 22) { // only shrink stickyi
 						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
 						this.renderStickyLines(entry?.parent, this._stickyScrollContent, linesToRender);
@@ -290,6 +284,7 @@ class StickyScrollContent extends Disposable {
 		} // cell loop close
 		this.updateDisplay();
 	}
+
 
 	private updateDisplay() {
 		const hasChildren = this._stickyScrollContent.hasChildNodes();

@@ -848,7 +848,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.stickyScroll]: {
-			description: nls.localize('notebook.stickyScroll.description', "Control whether to render notebook Sticky Scroll headers in the notebook editor."),
+			description: nls.localize('notebook.stickyScroll.description', "Experimental. Control whether to render notebook Sticky Scroll headers in the notebook editor."),
 			type: 'boolean',
 			default: true,
 			tags: ['notebookLayout']
