@@ -199,11 +199,7 @@ class AccessibleView extends Disposable {
 			if (!domNode) {
 				return;
 			}
-			if (provider.options.language) {
-				model.setLanguage(provider.options.language);
-			} else {
-				model.setLanguage('markdown');
-			}
+			model.setLanguage(provider.options.language ?? 'markdown');
 			container.appendChild(this._editorContainer);
 			this._editorWidget.updateOptions({ ariaLabel: provider.next && provider.previous ? localize('accessibleViewAriaLabelWithNav', "{0} {1}", provider.options.ariaLabel, this._getNavigationAriaHint(provider.verbositySettingKey)) : localize('accessibleViewAriaLabel', "{0}", provider.options.ariaLabel) });
 			this._editorWidget.focus();
