@@ -18,6 +18,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch } from '@vscode/proxy-agent';
 
+const systemCertificatesV2Default = true;
+
 export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
@@ -74,12 +76,12 @@ function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType
 
 function certSettingV1(configProvider: ExtHostConfigProvider) {
 	const http = configProvider.getConfiguration('http');
-	return !http.get<boolean>('experimental.systemCertificatesV2') && !!http.get<boolean>('systemCertificates');
+	return !http.get<boolean>('experimental.systemCertificatesV2', systemCertificatesV2Default) && !!http.get<boolean>('systemCertificates');
 }
 
 function certSettingV2(configProvider: ExtHostConfigProvider) {
 	const http = configProvider.getConfiguration('http');
-	return !!http.get<boolean>('experimental.systemCertificatesV2') && !!http.get<boolean>('systemCertificates');
+	return !!http.get<boolean>('experimental.systemCertificatesV2', systemCertificatesV2Default) && !!http.get<boolean>('systemCertificates');
 }
 
 const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof http; https?: typeof https }>();
