@@ -34,7 +34,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'pane
 		if (upHistoryKeybinding && downHistoryKeybinding) {
 			content.push(localize('inlineChat.requestHistory', 'In the input box, use {0} and {1} to navigate your request history. Edit input and use enter or the submit button to run a new request.', upHistoryKeybinding, downHistoryKeybinding));
 		}
-		content.push(localize('inlineChat.contextActions', "Context menu actions may run a request prefixed with a /. Type / to discover more ready-made commands."));
+		content.push(localize('inlineChat.contextActions', "Context menu actions may run a request prefixed with a /. Type / to discover such ready-made commands."));
 		content.push(localize('inlineChat.fix', "If a fix action is invoked, a response will indicate the problem with the current code. A diff editor will be rendered and can be reached by tabbing."));
 		const diffReviewKeybinding = keybindingService.lookupKeybinding('editor.action.diffReview.next')?.getAriaLabel();
 		content.push(diffReviewKeybinding ? localize('inlineChat.diff', "Once in the diff editor, enter review mode with ({0}). Use up and down arrows to navigate lines with the proposed changes.", diffReviewKeybinding) : localize('inlineChat.diffNoKb', "Tab again to enter the Diff editor with the changes and enter review mode with the Go to Next Difference Command. Use Up/DownArrow to navigate lines with the proposed changes."));
