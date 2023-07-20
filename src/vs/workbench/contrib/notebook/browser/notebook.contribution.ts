@@ -732,7 +732,7 @@ class NotebookAccessibleViewContribution extends Disposable {
 					? `Cell output ${i + 1} of ${viewCell.outputsViewModels.length}\n`
 					: '';
 				if (mimeType.endsWith('error')) {
-					text = text.replace(/\\u001b\[[0-9;]*m/gi, '').replace('\\n', '\\\n');
+					text = text.replace(/\\u001b\[[0-9;]*m/gi, '').replaceAll('\\n', '\n');
 				}
 				outputContent = outputContent.concat(`${index}${text}\n`);
 			}
