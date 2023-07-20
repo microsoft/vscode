@@ -686,6 +686,26 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.setSelection(indices);
 	}
 
+	getCellViewScrollTop(cell: ICellViewModel) {
+		const index = this._getViewIndexUpperBound(cell);
+		if (index === undefined || index < 0 || index >= this.length) {
+			throw new ListError(this.listUser, `Invalid index ${index}`);
+		}
+
+		return this.view.elementTop(index);
+	}
+
+	getCellViewScrollBottom(cell: ICellViewModel) {
+		const index = this._getViewIndexUpperBound(cell);
+		if (index === undefined || index < 0 || index >= this.length) {
+			throw new ListError(this.listUser, `Invalid index ${index}`);
+		}
+
+		const top = this.view.elementTop(index);
+		const height = this.view.elementHeight(index);
+		return top + height;
+	}
+
 	override setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {
 		if (ignoreTextModelUpdate) {
 			super.setFocus(indexes, browserEvent);
