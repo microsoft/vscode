@@ -384,7 +384,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 		}
 		if (configurationService.getValue('accessibility.verbosity.hover') && accessibilityService.isScreenReaderOptimized()) {
 			const keybinding = keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel();
-			const hint = keybinding ? nls.localize('chatAccessibleViewHint', "Inspect the response in the accessible view with {0}", keybinding) : nls.localize('chatAccessibleViewHintNoKb', "Inspect the response in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
+			const hint = keybinding ? nls.localize('chatAccessibleViewHint', "Inspect this in the accessible view with {0}", keybinding) : nls.localize('chatAccessibleViewHintNoKb', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
 			status(hint);
 		}
 	}
