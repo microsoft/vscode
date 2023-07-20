@@ -141,38 +141,25 @@ suite('InteractiveChatController', function () {
 	});
 
 	test('creation, not showing anything', function () {
-		console.log('*** at the begining of creation');
 		ctrl = instaService.createInstance(TestController, editor);
 		assert.ok(ctrl);
 		assert.strictEqual(ctrl.getWidgetPosition(), undefined);
-		console.log('*** at the end of creation');
 	});
 
 	test('run (show/hide)', async function () {
-		console.log('*** at the beginning of run (show/hide)');
-
 		ctrl = instaService.createInstance(TestController, editor);
-		console.log('right before run');
 		const run = ctrl.run({ message: 'Hello', autoSend: true });
 
-		console.log('right before waitFor INIT_SEQUENCE_AUTO_SEND');
 		await ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
 		assert.ok(ctrl.getWidgetPosition() !== undefined);
-
-		console.log('right before cancel session');
 		ctrl.cancelSession();
 
-		console.log('right before run');
 		await run;
 
-		console.log('ctrl.getWidgetPosition() : ', ctrl.getWidgetPosition());
 		assert.ok(ctrl.getWidgetPosition() === undefined);
-		console.log('*** at the end of run (show/hide)');
 	});
 
 	test('wholeRange expands to whole lines, editor selection default', async function () {
-
-		console.log('*** at the beginning of wholeRange, editor selection default');
 
 		editor.setSelection(new Range(1, 1, 1, 3));
 		ctrl = instaService.createInstance(TestController, editor);
@@ -198,13 +185,9 @@ suite('InteractiveChatController', function () {
 
 		ctrl.cancelSession();
 		d.dispose();
-
-		console.log('*** at the end of wholeRange, editor selection default');
 	});
 
 	test('wholeRange expands to whole lines, session provided', async function () {
-
-		console.log('*** at the beginning of wholeRange, editor selection provided');
 
 		editor.setSelection(new Range(1, 1, 1, 1));
 		ctrl = instaService.createInstance(TestController, editor);
@@ -231,14 +214,9 @@ suite('InteractiveChatController', function () {
 
 		ctrl.cancelSession();
 		d.dispose();
-
-		console.log('*** at the end of wholeRange, editor selection provided');
 	});
 
 	test('typing outside of wholeRange finishes session', async function () {
-
-		console.log('*** at the beginning of typing outside');
-
 		ctrl = instaService.createInstance(TestController, editor);
 		ctrl.run({ message: 'Hello', autoSend: true });
 
@@ -252,13 +230,9 @@ suite('InteractiveChatController', function () {
 		editor.trigger('test', 'type', { text: 'a' });
 
 		await ctrl.waitFor([State.ACCEPT]);
-
-		console.log('*** at the end of typing outside');
 	});
 
 	test('\'whole range\' isn\'t updated for edits outside whole range #4346', async function () {
-
-		console.log('*** at the beginning of whole range isnt updated');
 
 		editor.setSelection(new Range(3, 1, 3, 1));
 
@@ -296,14 +270,9 @@ suite('InteractiveChatController', function () {
 		await ctrl.waitFor([State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 4, 12));
-
-		console.log('*** at the end of whole range isnt updated');
 	});
 
 	test('Stuck inline chat widget #211', async function () {
-
-		console.log('*** at the beginning of stuck inline chat');
-
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
 			prepareInlineChatSession() {
@@ -336,7 +305,5 @@ suite('InteractiveChatController', function () {
 
 		await p;
 		assert.strictEqual(ctrl.getWidgetPosition(), undefined);
-
-		console.log('*** at the end of stuck inline chat');
 	});
 });

@@ -521,7 +521,6 @@ export class InlineChatWidget {
 		this._elements.statusToolbar.classList.add('hidden');
 		this._elements.feedbackToolbar.classList.add('hidden');
 		this.hideCreatePreview();
-		console.log('inside of reset');
 		this.hideEditsPreview();
 		this._onDidChangeHeight.fire();
 	}
@@ -538,7 +537,6 @@ export class InlineChatWidget {
 
 	showEditsPreview(textModelv0: ITextModel, edits: ISingleEditOperation[], changes: readonly LineRangeMapping[]) {
 		if (changes.length === 0) {
-			console.log('inside of show edits preview');
 			this.hideEditsPreview();
 			return;
 		}
@@ -548,7 +546,6 @@ export class InlineChatWidget {
 		const languageSelection: ILanguageSelection = { languageId: textModelv0.getLanguageId(), onDidChange: Event.None };
 		const modified = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModelv0.createSnapshot()), languageSelection, undefined, true);
 		modified.applyEdits(edits, false);
-		console.log('inside of show edits preview');
 		this._previewDiffEditor.value.setModel({ original: textModelv0, modified });
 
 		// joined ranges
@@ -580,10 +577,7 @@ export class InlineChatWidget {
 	}
 
 	hideEditsPreview() {
-		// Error happens because this is called after the diff editor widget is already disposed.
-		console.log('inside of hide edits preview');
 		this._elements.previewDiff.classList.add('hidden');
-		// TODO: error is happening here
 		this._previewDiffEditor.value.setModel(null);
 		this._previewDiffModel.clear();
 		this._onDidChangeHeight.fire();
@@ -840,7 +834,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	override hide(): void {
-		console.log('inside of hide');
 		this.container!.classList.remove('inside-selection');
 		this._ctxVisible.reset();
 		this._ctxCursorPosition.reset();

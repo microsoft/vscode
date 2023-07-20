@@ -176,7 +176,6 @@ export class InlineChatController implements IEditorContribution {
 	private _currentRun?: Promise<void>;
 
 	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
-		console.log('inside of run');
 		this.finishExistingSession();
 		if (this._currentRun) {
 			await this._currentRun;
@@ -668,7 +667,6 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async [State.CANCEL]() {
-		console.log('inside of cancel function');
 		assertType(this._activeSession);
 		assertType(this._strategy);
 		this._sessionStore.clear();
@@ -773,7 +771,6 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	cancelSession() {
-		console.log('inside of the cancel session method');
 		let result: string | undefined;
 		if (this._strategy && this._activeSession) {
 			const changedText = this._activeSession.asChangedText();
@@ -788,7 +785,6 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	finishExistingSession(): void {
-		console.log('inside of finish existing session');
 		if (this._activeSession) {
 			if (this._activeSession.editMode === EditMode.Preview) {
 				this._log('finishing existing session, using CANCEL', this._activeSession.editMode);
