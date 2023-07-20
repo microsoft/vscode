@@ -57,7 +57,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/services/notebookRendererMessagingServiceImpl';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 // Editor Controller
 import 'vs/workbench/contrib/notebook/browser/controller/coreActions';
@@ -115,8 +114,8 @@ import { NotebookLoggingService } from 'vs/workbench/contrib/notebook/browser/se
 import product from 'vs/platform/product/common/product';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { runAccessibilityHelpAction } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityHelp';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { runAccessibilityHelpAction, showAccessibleOutput } from 'vs/workbench/contrib/notebook/browser/notebookAccessibility';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -697,74 +696,12 @@ class NotebookAccessibleViewContribution extends Disposable {
 		super();
 		this._register(AccessibleViewAction.addImplementation(100, 'notebook', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const editorService = accessor.get(IEditorService);
 
-			const activePane = accessor.get(IEditorService).activeEditorPane;
-			const notebookEditor = getNotebookEditorFromEditorPane(activePane);
-			const notebookViewModel = notebookEditor?.getViewModel();
-			const selections = notebookViewModel?.getSelections();
-			notebookViewModel?.getCellIndex;
-			const notebookDocument = notebookViewModel?.notebookDocument;
-
-			if (!selections || !notebookDocument || !notebookEditor?.textModel) {
-				return false;
-			}
-
-			const viewCell = notebookViewModel.viewCells[selections[0].start];
-			let outputContent = '';
-			const decoder = new TextDecoder();
-			for (let i = 0; i < viewCell.outputsViewModels.length; i++) {
-				const outputViewModel = viewCell.outputsViewModels[i];
-				const outputTextModel = viewCell.model.outputs[i];
-				const [mimeTypes, pick] = outputViewModel.resolveMimeTypes(notebookEditor.textModel, undefined);
-				const mimeType = mimeTypes[pick].mimeType;
-				let buffer = outputTextModel.outputs.find(output => output.mime === mimeType);
-
-				if (!buffer || mimeType.startsWith('image')) {
-					buffer = outputTextModel.outputs.find(output => !output.mime.startsWith('image'));
-				}
-
-				let text = `${mimeType}`; // default in case we can't get the text value for some reason.
-				if (buffer) {
-					const charLimit = 100_000;
-					text = decoder.decode(buffer.data.slice(0, charLimit).buffer);
-
-					if (buffer.data.byteLength > charLimit) {
-						text = text + '...(truncated)';
-					}
-
-					if (mimeType.endsWith('error')) {
-						text = text.replace(/\\u001b\[[0-9;]*m/gi, '').replaceAll('\\n', '\n');
-					}
-				}
-
-				const index = viewCell.outputsViewModels.length > 1
-					? `Cell output ${i + 1} of ${viewCell.outputsViewModels.length}\n`
-					: '';
-				outputContent = outputContent.concat(`${index}${text}\n`);
-			}
-
-			if (!outputContent) {
-				return false;
-			}
-
-			accessibleViewService.show({
-				verbositySettingKey: 'notebook',
-				provideContent(): string { return outputContent; },
-				onClose() {
-					notebookEditor?.setFocus(selections[0]);
-					activePane?.focus();
-				},
-				options: {
-					ariaLabel: nls.localize('NotebookCellOutputAccessibleView', "Notebook Cell Output Accessible View"),
-					language: 'plaintext',
-					type: AccessibleViewType.View
-				}
-			});
-			return true;
+			return showAccessibleOutput(accessibleViewService, editorService);
 		}, NOTEBOOK_OUTPUT_FOCUSED));
 	}
 }
-
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
