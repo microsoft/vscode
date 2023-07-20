@@ -176,13 +176,17 @@ export class InlineChatController implements IEditorContribution {
 		return this._zone.value.position;
 	}
 
-	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
-		this._log('session starting');
-		await this.finishExistingSession();
-		this._stashedSession.clear();
+	private _currentRun?: Promise<void>;
 
-		await this._nextState(State.CREATE_SESSION, options);
-		this._log('session done or paused');
+	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
+		this.finishExistingSession();
+		if (this._currentRun) {
+			await this._currentRun;
+		}
+		this._stashedSession.clear();
+		this._currentRun = this._nextState(State.CREATE_SESSION, options);
+		await this._currentRun;
+		this._currentRun = undefined;
 	}
 
 	// ---- state machine
@@ -815,7 +819,7 @@ export class InlineChatController implements IEditorContribution {
 		return result;
 	}
 
-	async finishExistingSession(): Promise<void> {
+	finishExistingSession(): void {
 		if (this._activeSession) {
 			if (this._activeSession.editMode === EditMode.Preview) {
 				this._log('finishing existing session, using CANCEL', this._activeSession.editMode);
