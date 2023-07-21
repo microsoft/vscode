@@ -335,7 +335,7 @@
 			"name": "keyword.operator.less"
 		},
 		{
-			"match": "\\b(not|and|when)\\b",
+			"match": "\\b(not|and|or|when)\\b",
 			"name": "keyword.control.logical.operator.less"
 		},
 		{
