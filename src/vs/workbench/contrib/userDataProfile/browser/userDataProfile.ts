@@ -350,16 +350,13 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					if (value) {
 						quickPickItems.push({ label: quickPick.value, description: localize('import from url', "Import from URL") });
 					}
+					quickPickItems.push({ label: localize('import from file', "Select File...") });
 					if (profileTemplateQuickPickItems.length) {
 						quickPickItems.push({
 							type: 'separator',
 							label: localize('templates', "Profile Templates")
 						}, ...profileTemplateQuickPickItems);
 					}
-					quickPickItems.push({
-						type: 'separator',
-					});
-					quickPickItems.push({ label: localize('import from file', "Select File...") });
 					quickPick.items = quickPickItems;
 				};
 
