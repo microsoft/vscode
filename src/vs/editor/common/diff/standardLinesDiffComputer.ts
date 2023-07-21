@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { DateTimeout, ISequence, ITimeout, InfiniteTimeout, SequenceDiff } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/algorithms/dynamicProgrammingDiffing';
-import { optimizeSequenceDiffs, randomRandomMatches, smoothenSequenceDiffs } from 'vs/editor/common/diff/algorithms/joinSequenceDiffs';
+import { optimizeSequenceDiffs, removeRandomMatches, smoothenSequenceDiffs } from 'vs/editor/common/diff/algorithms/joinSequenceDiffs';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/algorithms/myersDiffAlgorithm';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping, LinesDiff, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
@@ -213,7 +213,7 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		diffs = optimizeSequenceDiffs(slice1, slice2, diffs);
 		diffs = coverFullWords(slice1, slice2, diffs);
 		diffs = smoothenSequenceDiffs(slice1, slice2, diffs);
-		diffs = randomRandomMatches(slice1, slice2, diffs);
+		diffs = removeRandomMatches(slice1, slice2, diffs);
 
 		const result = diffs.map(
 			(d) =>
