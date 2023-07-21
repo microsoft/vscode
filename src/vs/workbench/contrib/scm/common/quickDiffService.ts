@@ -44,6 +44,10 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 	private readonly _onDidChangeQuickDiffProviders = this._register(new Emitter<void>());
 	readonly onDidChangeQuickDiffProviders = this._onDidChangeQuickDiffProviders.event;
 
+	// It is common to get many requests for the same resource back to back (ex. when editing a file)
+	// Cache the last resource so to avoid unneeded extension host round trips.
+	private cachedOriginalResource: { uri: URI; resources: Map<string, URI> } | undefined;
+
 	constructor(@IUriIdentityService private readonly uriIdentityService: IUriIdentityService) {
 		super();
 	}
@@ -63,6 +67,19 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 		return !!diff.originalResource && (typeof diff.label === 'string') && (typeof diff.isSCM === 'boolean');
 	}
 
+	private getOriginalResourceFromCache(provider: string, uri: URI): URI | undefined {
+		if (this.cachedOriginalResource?.uri.toString() === uri.toString()) {
+			return this.cachedOriginalResource.resources.get(provider);
+		}
+		return undefined;
+	}
+
+	private updateOriginalResourceCache(uri: URI, quickDiffs: QuickDiff[]) {
+		if (this.cachedOriginalResource?.uri.toString() !== uri.toString()) {
+			this.cachedOriginalResource = { uri, resources: new Map(quickDiffs.map(diff => ([diff.label, diff.originalResource]))) };
+		}
+	}
+
 	async getQuickDiffs(uri: URI, language: string = '', isSynchronized: boolean = false): Promise<QuickDiff[]> {
 		const providers = Array.from(this.quickDiffProviders)
 			.filter(provider => !provider.rootUri || this.uriIdentityService.extUri.isEqualOrParent(uri, provider.rootUri))
@@ -71,12 +88,14 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 		const diffs = await Promise.all(providers.map(async provider => {
 			const scoreValue = provider.selector ? score(provider.selector, uri, language, isSynchronized, undefined, undefined) : 10;
 			const diff: Partial<QuickDiff> = {
-				originalResource: scoreValue > 0 ? withNullAsUndefined(await provider.getOriginalResource(uri)) : undefined,
+				originalResource: scoreValue > 0 ? (this.getOriginalResourceFromCache(provider.label, uri) ?? withNullAsUndefined(await provider.getOriginalResource(uri))) : undefined,
 				label: provider.label,
 				isSCM: provider.isSCM
 			};
 			return diff;
 		}));
-		return diffs.filter<QuickDiff>(this.isQuickDiff);
+		const quickDiffs = diffs.filter<QuickDiff>(this.isQuickDiff);
+		this.updateOriginalResourceCache(uri, quickDiffs);
+		return quickDiffs;
 	}
 }
