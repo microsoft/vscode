@@ -159,7 +159,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	getMessage(): string | undefined {
-		return this._zone.value.widget.message;
+		return this._zone.value.widget.responseContent;
 	}
 
 	getId(): string {
