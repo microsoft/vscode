@@ -8,7 +8,7 @@ export type JSONLanguageStatus = { schemas: string[] };
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n, WorkspaceEdit, TextEditorOptions
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n, TextEditorOptions
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions,
@@ -164,13 +164,13 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
 	}));
 
-	toDispose.push(workspace.onWillSaveTextDocument(async (textDocumentWillSaveEvent) => {
+	toDispose.push(workspace.onWillSaveTextDocument(event => {
 		const sortOnSave = workspace.getConfiguration().get<boolean>(SettingIds.enableSortOnSave);
-		const document = textDocumentWillSaveEvent.document;
+		const document = event.document;
 		if (sortOnSave && (document.languageId === 'json' || document.languageId === 'jsonc')) {
 			const documentOptions = getOptionsForDocument(document);
 			const textEditsPromise = getSortTextEdits(document, documentOptions?.tabSize, documentOptions?.insertSpaces);
-			textDocumentWillSaveEvent.waitUntil(textEditsPromise);
+			event.waitUntil(textEditsPromise);
 		}
 	}));
 
