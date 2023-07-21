@@ -92,7 +92,7 @@ export interface IHostService {
 	 * Execute an asynchronous `expectedShutdownTask`. While this task is
 	 * in progress, attempts to quit the application will not be vetoed with a dialog.
 	 */
-	withSilentShutdown?<T>(expectedShutdownTask: () => Promise<T>): Promise<T>;
+	withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T>;
 
 	//#endregion
 }

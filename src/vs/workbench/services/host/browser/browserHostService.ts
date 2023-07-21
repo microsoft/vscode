@@ -132,15 +132,6 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.registerListeners();
 	}
 
-	async withSilentShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
-		try {
-			this.shutdownReason = HostShutdownReason.Api;
-			return await expectedShutdownTask();
-		} finally {
-			this.shutdownReason = HostShutdownReason.Unknown;
-		}
-	}
-
 	private registerListeners(): void {
 
 		// Veto shutdown depending on `window.confirmBeforeClose` setting
@@ -528,6 +519,15 @@ export class BrowserHostService extends Disposable implements IHostService {
 		await this.handleExpectedShutdown(ShutdownReason.CLOSE);
 
 		window.close();
+	}
+
+	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
+		try {
+			this.shutdownReason = HostShutdownReason.Api;
+			return await expectedShutdownTask();
+		} finally {
+			this.shutdownReason = HostShutdownReason.Unknown;
+		}
 	}
 
 	private async handleExpectedShutdown(reason: ShutdownReason): Promise<void> {

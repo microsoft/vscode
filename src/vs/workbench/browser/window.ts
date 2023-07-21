@@ -233,7 +233,7 @@ export class BrowserWindow extends Disposable {
 							);
 						}
 
-						await this.hostService.withSilentShutdown?.(() => this.dialogService.prompt({
+						await this.hostService.withExpectedShutdown(() => this.dialogService.prompt({
 							type: Severity.Info,
 							message: localize('openExternalDialogTitle', "All done. You can close this tab now."),
 							detail,
