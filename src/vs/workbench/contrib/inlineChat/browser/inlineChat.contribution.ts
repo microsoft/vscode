@@ -75,7 +75,7 @@ class InlineChatAccessibleViewContribution extends Disposable {
 			if (!controller) {
 				return false;
 			}
-			const inputFocused = editor.hasWidgetFocus();
+			const inputFocused = editor.hasTextFocus();
 			const responseContent = controller?.getMessage();
 			if (!responseContent) {
 				return false;
