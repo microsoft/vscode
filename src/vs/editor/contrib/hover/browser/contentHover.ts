@@ -791,6 +791,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			this._adjustContentsBottomPadding();
 			this._adjustHoverHeightForScrollbar(height);
 		}
+		if (this._visibleData?.showAtPosition) {
+			const widgetHeight = dom.getTotalHeight(this._hover.containerDomNode);
+			this._positionPreference = this._findPositionPreference(widgetHeight, this._visibleData.showAtPosition);
+		}
 		this._layoutContentWidget();
 	}
 
