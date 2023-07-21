@@ -84,6 +84,11 @@ export class ChatRequestModel implements IChatRequestModel {
 
 interface ResponsePart { string: IMarkdownString; resolving?: boolean }
 class Response {
+	private _onDidChangeValue = new Emitter<void>();
+	public get onDidChangeValue() {
+		return this._onDidChangeValue.event;
+	}
+
 	private _responseParts: ResponsePart[];
 	private _responseRepr: IMarkdownString;
 
@@ -96,7 +101,7 @@ class Response {
 		this._responseParts = [{ string: value }];
 	}
 
-	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string> }): void {
+	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string> }, quiet?: boolean): void {
 		if (typeof responsePart === 'string') {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
@@ -109,22 +114,25 @@ class Response {
 				this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart) };
 			}
 
-			this._updateRepr();
+			this._updateRepr(quiet);
 		} else {
 			// Add a new resolving part
 			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), resolving: true });
-			this._updateRepr();
+			this._updateRepr(quiet);
 
 			responsePart.resolvedContent?.then((content) => {
 				// Replace the resolving part's content with the resolved response
 				this._responseParts[responsePosition] = { string: new MarkdownString(content) };
-				this._updateRepr();
+				this._updateRepr(quiet);
 			});
 		}
 	}
 
-	private _updateRepr() {
+	private _updateRepr(quiet?: boolean) {
 		this._responseRepr = new MarkdownString(this._responseParts.map(r => r.string.value).join('\n'));
+		if (!quiet) {
+			this._onDidChangeValue.fire();
+		}
 	}
 }
 
@@ -192,17 +200,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	) {
 		super();
 		this._response = new Response(_response);
+		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
 	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string> }, quiet?: boolean) {
-		try {
-			this._response.updateContent(responsePart);
-		} finally {
-			if (!quiet) {
-				this._onDidChange.fire();
-			}
-		}
+		this._response.updateContent(responsePart, quiet);
 	}
 
 	setProviderResponseId(providerResponseId: string) {
