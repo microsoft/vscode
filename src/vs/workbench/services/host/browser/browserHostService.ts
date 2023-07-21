@@ -522,11 +522,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
+		const previousShutdownReason = this.shutdownReason;
 		try {
 			this.shutdownReason = HostShutdownReason.Api;
 			return await expectedShutdownTask();
 		} finally {
-			this.shutdownReason = HostShutdownReason.Unknown;
+			this.shutdownReason = previousShutdownReason;
 		}
 	}
 

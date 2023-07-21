@@ -233,6 +233,8 @@ export class BrowserWindow extends Disposable {
 							);
 						}
 
+						// While this dialog shows, closing the tab will not display a confirmation dialog
+						// to avoid showing the user two dialogs at once
 						await this.hostService.withExpectedShutdown(() => this.dialogService.prompt({
 							type: Severity.Info,
 							message: localize('openExternalDialogTitle', "All done. You can close this tab now."),
