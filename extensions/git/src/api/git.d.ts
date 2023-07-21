@@ -129,6 +129,7 @@ export interface LogOptions {
 	/** Max number of log entries to retrieve. If not specified, the default is 32. */
 	readonly maxEntries?: number;
 	readonly path?: string;
+	readonly between?: { fromRef: string, toRef: string };
 }
 
 export interface CommitOptions {
