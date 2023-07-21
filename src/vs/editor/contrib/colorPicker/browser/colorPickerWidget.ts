@@ -24,6 +24,9 @@ const $ = dom.$;
 
 export class ColorPickerHeader extends Disposable {
 
+	private readonly _onOriginalColorClicked = new Emitter<Color>();
+	readonly onOriginalColorClicked: Event<Color> = this._onOriginalColorClicked.event;
+
 	private readonly _domNode: HTMLElement;
 	private readonly _pickedColorNode: HTMLElement;
 	private readonly _pickedColorPresentation: HTMLElement;
@@ -56,6 +59,7 @@ export class ColorPickerHeader extends Disposable {
 		this._register(dom.addDisposableListener(this._pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorPresentation()));
 		this._register(dom.addDisposableListener(this._originalColorNode, dom.EventType.CLICK, () => {
 			this.model.color = this.model.originalColor;
+			this._onOriginalColorClicked.fire(this.model.color);
 			this.model.flushColor();
 		}));
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
@@ -316,7 +320,7 @@ class SaturationBox extends Disposable {
 		ctx.fill();
 	}
 
-	private paintSelection(s: number, v: number): void {
+	public paintSelection(s: number, v: number): void {
 		this.selection.style.left = `${s * this.width}px`;
 		this.selection.style.top = `${this.height - v * this.height}px`;
 	}
@@ -474,6 +478,11 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 
 		this.header = this._register(new ColorPickerHeader(element, this.model, themeService, standaloneColorPicker));
 		this.body = this._register(new ColorPickerBody(element, this.model, this.pixelRatio, standaloneColorPicker));
+
+		this.header.onOriginalColorClicked((color) => {
+			const hsva = this.model.color.hsva;
+			this.body.saturationBox.paintSelection(hsva.s, hsva.v);
+		});
 	}
 
 	getId(): string {
