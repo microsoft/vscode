@@ -96,7 +96,7 @@ class Response {
 		this._responseParts = [{ string: value }];
 	}
 
-	updateContent(responsePart: string | { placeholder: string }): void | DeferredPromise<string> {
+	updateContent(responsePart: string | { placeholder: string }): DeferredPromise<string> | void {
 		if (typeof responsePart === 'string') {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];

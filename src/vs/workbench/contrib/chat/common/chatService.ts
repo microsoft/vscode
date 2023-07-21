@@ -55,7 +55,7 @@ export interface IChatProvider {
 	resolveRequest?(session: IChat, context: any, token: CancellationToken): ProviderResult<IChatRequest>;
 	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IChatReplyFollowup[])[] | undefined>;
 	provideFollowups?(session: IChat, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
-	provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void | DeferredPromise<string>, token: CancellationToken): ProviderResult<IChatResponse>;
+	provideReply(request: IChatRequest, progress: (progress: IChatProgress) => DeferredPromise<string> | void, token: CancellationToken): ProviderResult<IChatResponse>;
 	provideSlashCommands?(session: IChat, token: CancellationToken): ProviderResult<ISlashCommand[]>;
 	removeRequest?(session: IChat, requestId: string): void;
 }

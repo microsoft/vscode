@@ -17,7 +17,7 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 	private readonly _providerRegistrations = this._register(new DisposableMap<number>());
-	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IChatProgress) => (void | DeferredPromise<string>)>();
+	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IChatProgress) => (DeferredPromise<string> | void)>();
 	private readonly _stateEmitters = new Map<number, Emitter<any>>();
 
 	private readonly _proxy: ExtHostChatShape;
@@ -137,7 +137,7 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		this._providerRegistrations.set(handle, unreg);
 	}
 
-	async $acceptResponseProgress(handle: number, sessionId: number, progress: IChatProgress, responsePartHandle?: number): Promise<void | number> {
+	async $acceptResponseProgress(handle: number, sessionId: number, progress: IChatProgress, responsePartHandle?: number): Promise<number | void> {
 		const id = `${handle}_${sessionId}`;
 		const deferredContentPromise = this._activeRequestProgressCallbacks.get(id)?.(progress);
 
