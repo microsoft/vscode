@@ -1245,6 +1245,30 @@ export class DebugSession implements IDebugSession {
 				this.cancelAllRequests();
 				this.model.clearThreads(this.getId(), true);
 				await this.fetchThreads(this.getStoppedDetails());
+
+				const focusedThread = this.debugService.getViewModel().focusedThread;
+				const focusedThreadDoesNotExist = focusedThread !== undefined && focusedThread.session === this && !this.threads.has(focusedThread.threadId);
+				if (focusedThreadDoesNotExist) {
+					this.debugService.focusStackFrame(undefined, undefined);
+				}
+				const thread = typeof event.body.threadId === 'number' ? this.getThread(event.body.threadId) : undefined;
+				if (thread) {
+					const promises = this.model.refreshTopOfCallstack(<Thread>thread);
+					const focus = async () => {
+						if (focusedThreadDoesNotExist || thread.getCallStack().length) {
+							const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+							if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
+								// Only take focus if nothing is focused, or if the focus is already on the current session
+								const preserveFocus = !this.configurationService.getValue<IDebugConfiguration>('debug').focusEditorOnBreak;
+								await this.debugService.focusStackFrame(undefined, thread, undefined, { preserveFocus });
+							}
+						}
+					};
+					await promises.topCallStack;
+					focus();
+					await promises.wholeCallStack;
+					focus();
+				}
 			}
 
 			const viewModel = this.debugService.getViewModel();
