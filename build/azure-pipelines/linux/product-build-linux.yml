@@ -253,6 +253,7 @@ steps:
         set -e
         docker run -v /mnt/vss/_work/1/s:/home/builduser/vscode \
         -v /mnt/vss/_work/1/s/.build/.netrc:/home/builduser/.netrc \
+        -v /mnt/vss/_work/1/VSCode-linux-$(VSCODE_ARCH):/home/builduser/VSCode-linux-$(VSCODE_ARCH) \
         -u 1000:1000 \
         -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH)-temp \
         yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
@@ -268,6 +269,7 @@ steps:
         set -e
         docker run -v /mnt/vss/_work/1/s:/home/builduser/vscode \
         -v /mnt/vss/_work/1/s/.build/.netrc:/home/builduser/.netrc \
+        -v /mnt/vss/_work/1/VSCode-linux-$(VSCODE_ARCH):/home/builduser/VSCode-linux-$(VSCODE_ARCH) \
         -u 1000:1000 \
         -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH)-temp \
         yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
