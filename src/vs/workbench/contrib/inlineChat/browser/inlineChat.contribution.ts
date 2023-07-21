@@ -60,7 +60,7 @@ Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
 
 
 class InlineChatAccessibleViewContribution extends Disposable {
-	static ID: 'chatAccessibleViewContribution';
+	static ID: 'inlineChatAccessibleViewContribution';
 	constructor() {
 		super();
 		this._register(AccessibleViewAction.addImplementation(100, 'inlineChat', accessor => {
