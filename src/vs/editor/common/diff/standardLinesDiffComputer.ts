@@ -169,6 +169,35 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			}
 		}
 
+		// Make sure all ranges are valid
+		assertFn(() => {
+			function validatePosition(pos: Position, lines: string[]): boolean {
+				if (pos.lineNumber < 1 || pos.lineNumber > lines.length) { return false; }
+				const line = lines[pos.lineNumber - 1];
+				if (pos.column < 1 || pos.column > line.length + 1) { return false; }
+				return true;
+			}
+
+			function validateRange(range: LineRange, lines: string[]): boolean {
+				if (range.startLineNumber < 1 || range.startLineNumber > lines.length + 1) { return false; }
+				if (range.endLineNumberExclusive < 1 || range.endLineNumberExclusive > lines.length + 1) { return false; }
+				return true;
+			}
+
+			for (const c of changes) {
+				if (!c.innerChanges) { return false; }
+				for (const ic of c.innerChanges) {
+					const valid = validatePosition(ic.modifiedRange.getStartPosition(), modifiedLines) && validatePosition(ic.modifiedRange.getEndPosition(), modifiedLines) &&
+						validatePosition(ic.originalRange.getStartPosition(), originalLines) && validatePosition(ic.originalRange.getEndPosition(), originalLines);
+					if (!valid) { return false; }
+				}
+				if (!validateRange(c.modifiedRange, modifiedLines) || !validateRange(c.originalRange, originalLines)) {
+					return false;
+				}
+			}
+			return true;
+		});
+
 		return new LinesDiff(changes, moves, hitTimeout);
 	}
 
