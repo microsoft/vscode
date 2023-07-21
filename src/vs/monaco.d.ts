@@ -6133,8 +6133,8 @@ declare namespace monaco.editor {
 		 * Update the editor's options after the editor has been created.
 		 */
 		updateOptions(newOptions: IDiffEditorOptions): void;
-		diffReviewNext(): void;
-		diffReviewPrev(): void;
+		accessibleDiffViewerNext(): void;
+		accessibleDiffViewerPrev(): void;
 	}
 
 	export class FontInfo extends BareFontInfo {

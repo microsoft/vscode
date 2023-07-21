@@ -103,6 +103,11 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			isEmbeddedDiffEditorKey.set(this._options.isInEmbeddedEditor.read(reader));
 		}));
 
+		const accessibleDiffViewerVisibleContextKeyValue = EditorContextKeys.accessibleDiffViewerVisible.bindTo(this._contextKeyService);
+		this._register(autorun('update accessibleDiffViewerVisible context key', reader => {
+			accessibleDiffViewerVisibleContextKeyValue.set(this._accessibleDiffViewerVisible.read(reader));
+		}));
+
 		this._domElement.appendChild(this.elements.root);
 
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
@@ -472,9 +477,9 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		});
 	}
 
-	diffReviewNext(): void { this._accessibleDiffViewer.next(); }
+	accessibleDiffViewerNext(): void { this._accessibleDiffViewer.next(); }
 
-	diffReviewPrev(): void { this._accessibleDiffViewer.prev(); }
+	accessibleDiffViewerPrev(): void { this._accessibleDiffViewer.prev(); }
 
 	async waitForDiff(): Promise<void> {
 		const diffModel = this._diffModel.get();

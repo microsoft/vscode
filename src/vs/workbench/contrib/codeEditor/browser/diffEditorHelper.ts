@@ -7,7 +7,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { DiffReviewNext, DiffReviewPrev } from 'vs/editor/browser/widget/diffEditor.contribution';
+import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from 'vs/editor/browser/widget/diffEditor.contribution';
 import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
 import { EmbeddedDiffEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
@@ -86,8 +86,8 @@ function createScreenReaderHelp(): IDisposable {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const keybindingService = accessor.get(IKeybindingService);
 
-		const next = keybindingService.lookupKeybinding(DiffReviewNext.id)?.getAriaLabel();
-		const previous = keybindingService.lookupKeybinding(DiffReviewPrev.id)?.getAriaLabel();
+		const next = keybindingService.lookupKeybinding(AccessibleDiffViewerNext.id)?.getAriaLabel();
+		const previous = keybindingService.lookupKeybinding(AccessibleDiffViewerPrev.id)?.getAriaLabel();
 
 		if (!(editorService.activeTextEditorControl instanceof DiffEditorWidget2)) {
 			return;

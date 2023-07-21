@@ -35,9 +35,9 @@ import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioC
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-const diffReviewInsertIcon = registerIcon('diff-review-insert', Codicon.add, localize('diffReviewInsertIcon', 'Icon for \'Insert\' in diff review.'));
-const diffReviewRemoveIcon = registerIcon('diff-review-remove', Codicon.remove, localize('diffReviewRemoveIcon', 'Icon for \'Remove\' in diff review.'));
-const diffReviewCloseIcon = registerIcon('diff-review-close', Codicon.close, localize('diffReviewCloseIcon', 'Icon for \'Close\' in diff review.'));
+const accessibleDiffViewerInsertIcon = registerIcon('diff-review-insert', Codicon.add, localize('accessibleDiffViewerInsertIcon', 'Icon for \'Insert\' in accessible diff viewer.'));
+const accessibleDiffViewerRemoveIcon = registerIcon('diff-review-remove', Codicon.remove, localize('accessibleDiffViewerRemoveIcon', 'Icon for \'Remove\' in accessible diff viewer.'));
+const accessibleDiffViewerCloseIcon = registerIcon('diff-review-close', Codicon.close, localize('accessibleDiffViewerCloseIcon', 'Icon for \'Close\' in accessible diff viewer.'));
 
 export class AccessibleDiffViewer extends Disposable {
 	constructor(
@@ -345,7 +345,7 @@ class View extends Disposable {
 				this._actionBar.push(new Action(
 					'diffreview.close',
 					localize('label.close', "Close"),
-					'close-diff-review ' + ThemeIcon.asClassName(diffReviewCloseIcon),
+					'close-diff-review ' + ThemeIcon.asClassName(accessibleDiffViewerCloseIcon),
 					true,
 					async () => _model.close()
 				), { label: false, icon: true });
@@ -526,12 +526,12 @@ class View extends Disposable {
 			case LineType.Added:
 				rowClassName = 'diff-review-row line-insert';
 				lineNumbersExtraClassName = ' char-insert';
-				spacerIcon = diffReviewInsertIcon;
+				spacerIcon = accessibleDiffViewerInsertIcon;
 				break;
 			case LineType.Deleted:
 				rowClassName = 'diff-review-row line-delete';
 				lineNumbersExtraClassName = ' char-delete';
-				spacerIcon = diffReviewRemoveIcon;
+				spacerIcon = accessibleDiffViewerRemoveIcon;
 				break;
 		}
 
