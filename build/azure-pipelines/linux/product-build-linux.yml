@@ -129,7 +129,7 @@ steps:
         -v /mnt/vss/_work/1/s:/home/builduser/vscode -v /mnt/vss/_work/1/s/.build/.netrc:/home/builduser/.netrc \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -u 1000:1000 \
-        -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH)-temp \
+        -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH) \
         /bin/bash -c "./build/azure-pipelines/linux/install.sh"
 
         sudo chown -R $USER:$USER /mnt/vss/_work/1/s
@@ -255,7 +255,7 @@ steps:
         -v /mnt/vss/_work/1/s/.build/.netrc:/home/builduser/.netrc \
         -v /mnt/vss/_work/1/VSCode-linux-$(VSCODE_ARCH):/home/builduser/VSCode-linux-$(VSCODE_ARCH) \
         -u 1000:1000 \
-        -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH)-temp \
+        -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH) \
         yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
       displayName: Prepare deb package
 
@@ -271,7 +271,7 @@ steps:
         -v /mnt/vss/_work/1/s/.build/.netrc:/home/builduser/.netrc \
         -v /mnt/vss/_work/1/VSCode-linux-$(VSCODE_ARCH):/home/builduser/VSCode-linux-$(VSCODE_ARCH) \
         -u 1000:1000 \
-        -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH)-temp \
+        -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH) \
         yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
       displayName: Prepare rpm package
 
