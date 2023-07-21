@@ -737,6 +737,10 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
+	private static isEditOrMarkdownResponse(response: EditResponse | MarkdownResponse | EmptyResponse | ErrorResponse | undefined): response is EditResponse | MarkdownResponse {
+		return response instanceof EditResponse || response instanceof MarkdownResponse;
+	}
+
 	// ---- controller API
 
 	acceptInput(): void {
@@ -793,7 +797,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	feedbackLast(helpful: boolean) {
-		if (this._activeSession?.lastExchange?.response instanceof EditResponse || this._activeSession?.lastExchange?.response instanceof MarkdownResponse) {
+		if (this._activeSession?.lastExchange && InlineChatController.isEditOrMarkdownResponse(this._activeSession.lastExchange.response)) {
 			const kind = helpful ? InlineChatResponseFeedbackKind.Helpful : InlineChatResponseFeedbackKind.Unhelpful;
 			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
@@ -808,18 +812,16 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	acceptSession(): void {
+		if (this._activeSession?.lastExchange && InlineChatController.isEditOrMarkdownResponse(this._activeSession.lastExchange.response)) {
+			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, InlineChatResponseFeedbackKind.Accepted);
+		}
 		this._messages.fire(Message.ACCEPT_SESSION);
 	}
 
 	cancelSession() {
-		let result: string | undefined;
-		if (this._strategy && this._activeSession) {
-			const changedText = this._activeSession.asChangedText();
-			if (changedText && this._activeSession?.lastExchange?.response instanceof EditResponse) {
-				this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, InlineChatResponseFeedbackKind.Undone);
-
-			}
-			result = changedText;
+		const result = this._activeSession?.asChangedText();
+		if (this._activeSession?.lastExchange && InlineChatController.isEditOrMarkdownResponse(this._activeSession.lastExchange.response)) {
+			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, InlineChatResponseFeedbackKind.Undone);
 		}
 		this._messages.fire(Message.CANCEL_SESSION);
 		return result;
