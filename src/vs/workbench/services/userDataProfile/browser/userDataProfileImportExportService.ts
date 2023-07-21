@@ -239,11 +239,20 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			owner: 'sandy081';
 			comment: 'Report when profile is about to be saved';
 		};
+		type CreateProfileInfoClassification = {
+			owner: 'sandy081';
+			comment: 'Report when profile is about to be created';
+			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Type of profile source' };
+		};
+		type CreateProfileInfoEvent = {
+			source: string | undefined;
+		};
+		const createProfileTelemetryData: CreateProfileInfoEvent = { source: source instanceof URI ? 'template' : isUserDataProfile(source) ? 'profile' : source ? 'external' : undefined };
 
 		if (profile) {
 			this.telemetryService.publicLog2<{}, SaveProfileInfoClassification>('userDataProfile.startEdit');
 		} else {
-			this.telemetryService.publicLog2<{}, SaveProfileInfoClassification>('userDataProfile.startCreate');
+			this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.startCreate', createProfileTelemetryData);
 		}
 
 		const disposables = new DisposableStore();
@@ -395,7 +404,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			if (profile) {
 				this.telemetryService.publicLog2<{}, SaveProfileInfoClassification>('userDataProfile.cancelEdit');
 			} else {
-				this.telemetryService.publicLog2<{}, SaveProfileInfoClassification>('userDataProfile.cancelCreate');
+				this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.cancelCreate', createProfileTelemetryData);
 			}
 			return;
 		}
@@ -414,16 +423,17 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				await this.userDataProfileManagementService.updateProfile(profile, { name: result.name, useDefaultFlags: profile.useDefaultFlags && !useDefaultFlags ? {} : useDefaultFlags });
 			} else {
 				if (source instanceof URI) {
-					this.telemetryService.publicLog2<{}, SaveProfileInfoClassification>('userDataProfile.createFromTemplate');
+					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromTemplate', createProfileTelemetryData);
 					await this.importProfile(source, { mode: 'apply', name: result.name, useDefaultFlags });
 				} else if (isUserDataProfileTemplate(source)) {
 					source.name = result.name;
+					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromExternalTemplate', createProfileTelemetryData);
 					await this.createAndSwitch(source, false, true, { useDefaultFlags }, localize('create profile', "Create Profile"));
 				} else if (source) {
-					this.telemetryService.publicLog2<{}, SaveProfileInfoClassification>('userDataProfile.createFromProfile');
+					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromProfile', createProfileTelemetryData);
 					await this.createFromProfile(source, result.name, { useDefaultFlags });
 				} else {
-					this.telemetryService.publicLog2<{}, SaveProfileInfoClassification>('userDataProfile.createEmptyProfile');
+					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createEmptyProfile', createProfileTelemetryData);
 					await this.userDataProfileManagementService.createAndEnterProfile(result.name, { useDefaultFlags });
 				}
 			}
