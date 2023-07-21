@@ -46,6 +46,7 @@ import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { LengthObj } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { Range } from 'vs/editor/common/core/range';
+import './colors';
 
 export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [

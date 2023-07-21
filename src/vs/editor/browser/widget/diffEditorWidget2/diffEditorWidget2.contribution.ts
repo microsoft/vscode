@@ -14,7 +14,6 @@ import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import './colors';
 
 export class ToggleCollapseUnchangedRegions extends Action2 {
 	constructor() {
