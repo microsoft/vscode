@@ -20,7 +20,7 @@ use super::{
 };
 
 use crate::{
-	async_pipe::{get_socket_name, listen_socket_rw_stream, socket_stream_split},
+	async_pipe::{get_socket_name, listen_socket_rw_stream, AsyncRWAccepter},
 	auth::Auth,
 	constants::{APPLICATION_NAME, TUNNEL_CLI_LOCK_NAME, TUNNEL_SERVICE_LOCK_NAME},
 	log,
@@ -35,7 +35,7 @@ use crate::{
 		singleton_server::{
 			make_singleton_server, start_singleton_server, BroadcastLogSink, SingletonServerArgs,
 		},
-		Next, ServeStreamParams, ServiceContainer, ServiceManager,
+		AuthRequired, Next, ServeStreamParams, ServiceContainer, ServiceManager,
 	},
 	util::{
 		app_lock::AppMutex,
@@ -128,36 +128,52 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 		log: ctx.log,
 		launcher_paths: ctx.paths,
 		platform,
-		requires_auth: true,
+		requires_auth: args
+			.require_token
+			.map(AuthRequired::VSDAWithToken)
+			.unwrap_or(AuthRequired::VSDA),
 		exit_barrier: ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
 		code_server_args: (&ctx.args).into(),
 	};
 
-	if !args.on_socket {
-		serve_stream(tokio::io::stdin(), tokio::io::stderr(), params).await;
-		return Ok(0);
-	}
+	let mut listener: Box<dyn AsyncRWAccepter> = match (args.on_port, args.on_socket) {
+		(_, true) => {
+			let socket = get_socket_name();
+			let listener = listen_socket_rw_stream(&socket)
+				.await
+				.map_err(|e| wrap(e, "error listening on socket"))?;
 
-	let socket = get_socket_name();
-	let mut listener = listen_socket_rw_stream(&socket)
-		.await
-		.map_err(|e| wrap(e, "error listening on socket"))?;
+			params
+				.log
+				.result(format!("Listening on {}", socket.display()));
 
-	params
-		.log
-		.result(format!("Listening on {}", socket.display()));
+			Box::new(listener)
+		}
+		(true, _) => {
+			let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+				.await
+				.map_err(|e| wrap(e, "error listening on port"))?;
+
+			params
+				.log
+				.result(format!("Listening on {}", listener.local_addr().unwrap()));
+
+			Box::new(listener)
+		}
+		_ => {
+			serve_stream(tokio::io::stdin(), tokio::io::stderr(), params).await;
+			return Ok(0);
+		}
+	};
 
 	let mut servers = FuturesUnordered::new();
 
 	loop {
 		tokio::select! {
 			Some(_) = servers.next() => {},
-			socket = listener.accept() => {
+			socket = listener.accept_rw() => {
 				match socket {
-					Ok(s) => {
-						let (read, write) = socket_stream_split(s);
-						servers.push(serve_stream(read, write, params.clone()));
-					},
+					Ok((read, write)) => servers.push(serve_stream(read, write, params.clone())),
 					Err(e) => {
 						error!(params.log, &format!("Error accepting connection: {}", e));
 						return Ok(1);

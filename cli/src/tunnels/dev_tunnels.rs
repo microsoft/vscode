@@ -33,6 +33,8 @@ use tunnels::management::{
 
 use super::wsl_detect::is_wsl_installed;
 
+static TUNNEL_COUNT_LIMIT_NAME: &str = "TunnelsPerUserPerLocation";
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PersistedTunnel {
 	pub name: String,
@@ -458,8 +460,6 @@ impl DevTunnels {
 
 		self.check_is_name_free(name).await?;
 
-		let mut tried_recycle = false;
-
 		let new_tunnel = Tunnel {
 			tags: vec![
 				name.to_string(),
@@ -480,13 +480,14 @@ impl DevTunnels {
 				Err(HttpError::ResponseError(e))
 					if e.status_code == StatusCode::TOO_MANY_REQUESTS =>
 				{
-					if !tried_recycle && self.try_recycle_tunnel().await? {
-						tried_recycle = true;
-						continue;
-					}
-
 					if let Some(d) = e.get_details() {
 						let detail = d.detail.unwrap_or_else(|| "unknown".to_string());
+						if detail.contains(TUNNEL_COUNT_LIMIT_NAME)
+							&& self.try_recycle_tunnel().await?
+						{
+							continue;
+						}
+
 						return Err(AnyError::from(TunnelCreationFailed(
 							name.to_string(),
 							detail,

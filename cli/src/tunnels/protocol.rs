@@ -200,6 +200,11 @@ pub const METHOD_CHALLENGE_ISSUE: &str = "challenge_issue";
 pub const METHOD_CHALLENGE_VERIFY: &str = "challenge_verify";
 
 #[derive(Serialize, Deserialize)]
+pub struct ChallengeIssueParams {
+	pub token: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct ChallengeIssueResponse {
 	pub challenge: String,
 }
