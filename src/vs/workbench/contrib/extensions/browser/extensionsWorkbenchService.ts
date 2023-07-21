@@ -1127,7 +1127,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 					if (isSameExtensionRunning) {
 						// Different version or target platform of same extension is running. Requires reload to run the current version
-						if (extension.version !== runningExtension.version || extension.local.targetPlatform !== runningExtension.targetPlatform) {
+						if (!runningExtension.isUnderDevelopment && (extension.version !== runningExtension.version || extension.local.targetPlatform !== runningExtension.targetPlatform)) {
 							return nls.localize('postUpdateTooltip', "Please reload Visual Studio Code to enable the updated extension.");
 						}
 
