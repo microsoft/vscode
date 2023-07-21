@@ -170,7 +170,8 @@ export class CenteredViewLayout implements IDisposable {
 			this.splitView = new SplitView(this.container, {
 				inverseAltBehavior: true,
 				orientation: Orientation.HORIZONTAL,
-				styles: this.style
+				styles: this.style,
+				sashWorkspaceEnabled: true
 			});
 			this.splitView.orthogonalStartSash = this.boundarySashes.top;
 			this.splitView.orthogonalEndSash = this.boundarySashes.bottom;

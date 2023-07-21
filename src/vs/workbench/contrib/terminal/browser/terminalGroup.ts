@@ -51,7 +51,7 @@ class SplitPaneContainer extends Disposable {
 	}
 
 	private _createSplitView(): void {
-		this._splitView = new SplitView(this._container, { orientation: this.orientation });
+		this._splitView = new SplitView(this._container, { orientation: this.orientation, sashWorkspaceEnabled: true });
 		this._splitViewDisposables.clear();
 		this._splitViewDisposables.add(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
 	}

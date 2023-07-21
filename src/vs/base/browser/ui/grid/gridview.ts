@@ -418,7 +418,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 		if (!childDescriptors) {
 			// Normal behavior, we have no children yet, just set up the splitview
-			this.splitview = new SplitView(this.element, { orientation, styles, proportionalLayout: splitviewProportionalLayout });
+			this.splitview = new SplitView(this.element, { orientation, styles, proportionalLayout: splitviewProportionalLayout, sashWorkspaceEnabled: true });
 			this.splitview.layout(size, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0, absoluteSize: size, absoluteOrthogonalSize: orthogonalSize });
 		} else {
 			// Reconstruction behavior, we want to reconstruct a splitview
@@ -433,7 +433,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 				size: this.orthogonalSize
 			};
 
-			const options = { proportionalLayout: splitviewProportionalLayout, orientation, styles };
+			const options = { proportionalLayout: splitviewProportionalLayout, orientation, styles, sashWorkspaceEnabled: true };
 
 			this.children = childDescriptors.map(c => c.node);
 			this.splitview = new SplitView(this.element, { ...options, descriptor });

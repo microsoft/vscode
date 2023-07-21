@@ -5,7 +5,7 @@
 
 import { $, addDisposableListener, append, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
-import { ISashEvent as IBaseSashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
+import { ISashEvent as IBaseSashEvent, ISashOptions, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { pushToEnd, pushToStart, range } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
@@ -196,6 +196,11 @@ export interface ISplitViewOptions<TLayoutContext = undefined> {
 	 * Override the orthogonal size of sashes.
 	 */
 	readonly getSashOrthogonalSize?: () => number;
+
+	/**
+	 * Opt sashes into the sash workpace.
+	 */
+	readonly sashWorkspaceEnabled?: boolean;
 }
 
 interface ISashEvent {
@@ -440,6 +445,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	private state: State = State.Idle;
 	private inverseAltBehavior: boolean;
 	private proportionalLayout: boolean;
+	private sashWorkspaceEnabled: boolean;
 	private readonly getSashOrthogonalSize: { (): number } | undefined;
 
 	private _onDidSashChange = this._register(new Emitter<number>());
@@ -556,6 +562,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		this.orientation = options.orientation ?? Orientation.VERTICAL;
 		this.inverseAltBehavior = options.inverseAltBehavior ?? false;
 		this.proportionalLayout = options.proportionalLayout ?? true;
+		this.sashWorkspaceEnabled = options.sashWorkspaceEnabled ?? false;
 		this.getSashOrthogonalSize = options.getSashOrthogonalSize;
 
 		this.el = document.createElement('div');
@@ -849,6 +856,15 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 				alt = !alt;
 			}
 
+			const upIndexes = range(index, -1);
+			const downIndexes = range(index + 1, this.viewItems.length);
+			const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);
+			const snapAfterIndex = this.findFirstSnapIndex(downIndexes);
+
+			if (typeof snapBeforeIndex === 'number' || typeof snapAfterIndex === 'number') {
+				alt = false; // when snapping, disable alt resizing
+			}
+
 			if (alt) {
 				// When we're using the last sash with Alt, we're resizing
 				// the view to the left/up, instead of right/down as usual
@@ -870,16 +886,12 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			let snapAfter: ISashDragSnapState | undefined;
 
 			if (!alt) {
-				const upIndexes = range(index, -1);
-				const downIndexes = range(index + 1, this.viewItems.length);
 				const minDeltaUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].minimumSize - sizes[i]), 0);
 				const maxDeltaUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].viewMaximumSize - sizes[i]), 0);
 				const maxDeltaDown = downIndexes.length === 0 ? Number.POSITIVE_INFINITY : downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].minimumSize), 0);
 				const minDeltaDown = downIndexes.length === 0 ? Number.NEGATIVE_INFINITY : downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].viewMaximumSize), 0);
 				const minDelta = Math.max(minDeltaUp, minDeltaDown);
 				const maxDelta = Math.min(maxDeltaDown, maxDeltaUp);
-				const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);
-				const snapAfterIndex = this.findFirstSnapIndex(downIndexes);
 
 				if (typeof snapBeforeIndex === 'number') {
 					const viewItem = this.viewItems[snapBeforeIndex];
@@ -1100,7 +1112,11 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		// Add sash
 		if (this.viewItems.length > 1) {
-			const opts = { orthogonalStartSash: this.orthogonalStartSash, orthogonalEndSash: this.orthogonalEndSash };
+			const opts: Partial<ISashOptions> = {
+				orthogonalStartSash: this.orthogonalStartSash,
+				orthogonalEndSash: this.orthogonalEndSash,
+				workspaceEnabled: this.sashWorkspaceEnabled
+			};
 
 			const sash = this.orientation === Orientation.VERTICAL
 				? new Sash(this.sashContainer, { getHorizontalSashTop: s => this.getSashPosition(s), getHorizontalSashWidth: this.getSashOrthogonalSize }, { ...opts, orientation: Orientation.HORIZONTAL })

@@ -139,7 +139,7 @@ export class TerminalTabbedView extends Disposable {
 			}
 		});
 
-		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL, proportionalLayout: false });
+		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL, proportionalLayout: false, sashWorkspaceEnabled: true });
 		this._setupSplitView(terminalOuterContainer);
 	}
 

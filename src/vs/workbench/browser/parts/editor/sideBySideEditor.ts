@@ -201,7 +201,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	private createSplitView(parent: HTMLElement, ratio?: number): void {
 
 		// Splitview widget
-		this.splitview = this.splitviewDisposables.add(new SplitView(parent, { orientation: this.orientation }));
+		this.splitview = this.splitviewDisposables.add(new SplitView(parent, { orientation: this.orientation, sashWorkspaceEnabled: true }));
 		this.splitviewDisposables.add(this.splitview.onDidSashReset(() => this.splitview?.distributeViewSizes()));
 
 		if (this.orientation === Orientation.HORIZONTAL) {

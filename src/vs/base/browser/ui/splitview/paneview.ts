@@ -479,7 +479,7 @@ export class PaneView extends Disposable {
 		this.dnd = options.dnd;
 		this.orientation = options.orientation ?? Orientation.VERTICAL;
 		this.element = append(container, $('.monaco-pane-view'));
-		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation }));
+		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation, sashWorkspaceEnabled: true }));
 		this.onDidSashReset = this.splitview.onDidSashReset;
 		this.onDidSashChange = this.splitview.onDidSashChange;
 		this.onDidScroll = this.splitview.onDidScroll;
@@ -587,7 +587,7 @@ export class PaneView extends Disposable {
 		this.splitview.dispose();
 		clearNode(this.element);
 
-		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation }));
+		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation, sashWorkspaceEnabled: true }));
 		this.updateSplitviewOrthogonalSashes(this.boundarySashes);
 
 		const newOrthogonalSize = this.orientation === Orientation.VERTICAL ? width : height;
