@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -217,7 +218,14 @@ export class ExtHostChat implements ExtHostChatShape {
 				if ('responseId' in progress) {
 					this._proxy.$acceptResponseProgress(handle, sessionId, { requestId: progress.responseId });
 				} else if ('placeholder' in progress && 'resolve' in progress) {
-					Promise.all([this._proxy.$acceptResponseProgress(handle, sessionId, progress), progress.resolvedContent]).then(([resolveHandle, result]) => this._proxy.$acceptResponseProgress(handle, sessionId, result, resolveHandle ?? undefined));
+					const resolvedContent = Promise.all([this._proxy.$acceptResponseProgress(handle, sessionId, progress), progress.resolvedContent]);
+					raceCancellation(resolvedContent, token).then((res) => {
+						if (!res) {
+							return; /* Cancelled */
+						}
+						const [progressHandle, progressContent] = res;
+						this._proxy.$acceptResponseProgress(handle, sessionId, progressContent, progressHandle ?? undefined);
+					});
 				} else {
 					this._proxy.$acceptResponseProgress(handle, sessionId, progress);
 				}
