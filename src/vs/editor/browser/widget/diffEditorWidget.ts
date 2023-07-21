@@ -445,11 +445,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return dom.isAncestor(document.activeElement, this._domElement);
 	}
 
-	public diffReviewNext(): void {
+	public accessibleDiffViewerNext(): void {
 		this._reviewPane.next();
 	}
 
-	public diffReviewPrev(): void {
+	public accessibleDiffViewerPrev(): void {
 		this._reviewPane.prev();
 	}
 
