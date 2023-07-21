@@ -12,6 +12,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'panelChat' | 'inlineChat'): string {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -33,11 +34,10 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'pane
 		if (upHistoryKeybinding && downHistoryKeybinding) {
 			content.push(localize('inlineChat.requestHistory', 'In the input box, use {0} and {1} to navigate your request history. Edit input and use enter or the submit button to run a new request.', upHistoryKeybinding, downHistoryKeybinding));
 		}
-		content.push(localize('inlineChat.contextActions', "Context menu actions may run a request prefixed with /fix or /explain. Type / to discover more ready-made commands."));
-		content.push(localize('inlineChat.fix', "When a request is prefixed with /fix, a response will indicate the problem with the current code. A diff editor will be rendered and can be reached by tabbing."));
+		content.push(localize('inlineChat.contextActions', "Context menu actions may run a request prefixed with a /. Type / to discover such ready-made commands."));
+		content.push(localize('inlineChat.fix', "If a fix action is invoked, a response will indicate the problem with the current code. A diff editor will be rendered and can be reached by tabbing."));
 		const diffReviewKeybinding = keybindingService.lookupKeybinding('editor.action.diffReview.next')?.getAriaLabel();
 		content.push(diffReviewKeybinding ? localize('inlineChat.diff', "Once in the diff editor, enter review mode with ({0}). Use up and down arrows to navigate lines with the proposed changes.", diffReviewKeybinding) : localize('inlineChat.diffNoKb', "Tab again to enter the Diff editor with the changes and enter review mode with the Go to Next Difference Command. Use Up/DownArrow to navigate lines with the proposed changes."));
-		content.push(localize('inlineChat.explain', "When a request is prefixed with /explain, a response will explain the code in the current selection and the chat view will be focused."));
 		content.push(localize('inlineChat.toolbar', "Use tab to reach conditional parts like commands, status, message responses and more."));
 	}
 	content.push(localize('chat.audioCues', "Audio cues can be changed via settings with a prefix of audioCues.chat. By default, if a request takes more than 4 seconds, you will hear an audio cue indicating that progress is still occurring."));
@@ -70,7 +70,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type);
 	accessibleViewService.show({
-		verbositySettingKey: type,
+		verbositySettingKey: type as AccessibilityVerbositySettingId,
 		provideContent: () => helpText,
 		onClose: () => {
 			if (type === 'panelChat' && cachedPosition) {

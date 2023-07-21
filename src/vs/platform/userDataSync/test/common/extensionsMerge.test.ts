@@ -1344,7 +1344,7 @@ suite('ExtensionsMerge', () => {
 		assert.deepStrictEqual(actual.local.added, []);
 		assert.deepStrictEqual(actual.local.removed, []);
 		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, localExtensions);
+		assert.deepStrictEqual(actual.remote?.all, [anExpectedSyncExtension({ identifier: { id: 'a', uuid: 'a' } })]);
 	});
 
 	test('sync merging when applicaiton scope is changed locally', () => {
@@ -1392,7 +1392,6 @@ suite('ExtensionsMerge', () => {
 			pinned: false,
 			preRelease: false,
 			installed: true,
-			isApplicationScoped: false,
 			...extension
 		};
 	}
@@ -1403,7 +1402,6 @@ suite('ExtensionsMerge', () => {
 			version: '1.0.0',
 			pinned: false,
 			preRelease: false,
-			isApplicationScoped: false,
 			...extension
 		};
 	}
@@ -1415,7 +1413,6 @@ suite('ExtensionsMerge', () => {
 			pinned: false,
 			preRelease: false,
 			installed: true,
-			isApplicationScoped: false,
 			...extension
 		};
 	}
@@ -1427,7 +1424,6 @@ suite('ExtensionsMerge', () => {
 			pinned: false,
 			preRelease: false,
 			installed: true,
-			isApplicationScoped: false,
 			...extension
 		};
 	}

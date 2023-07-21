@@ -1239,7 +1239,9 @@ class InputBox extends QuickInput implements IInputBox {
 		const visibilities: Visibilities = {
 			title: !!this.title || !!this.step || !!this.buttons.length,
 			description: !!this.description || !!this.step,
-			inputBox: true, message: true
+			inputBox: true,
+			message: true,
+			progressBar: true
 		};
 
 		this.ui.setVisibilities(visibilities);

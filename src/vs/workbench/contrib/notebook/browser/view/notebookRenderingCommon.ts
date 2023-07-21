@@ -54,6 +54,8 @@ export interface INotebookCellList {
 	attachViewModel(viewModel: NotebookViewModel): void;
 	attachWebview(element: HTMLElement): void;
 	clear(): void;
+	getCellViewScrollTop(cell: ICellViewModel): number;
+	getCellViewScrollBottom(cell: ICellViewModel): number;
 	getViewIndex(cell: ICellViewModel): number | undefined;
 	getViewIndex2(modelIndex: number): number | undefined;
 	getModelIndex(cell: CellViewModel): number | undefined;

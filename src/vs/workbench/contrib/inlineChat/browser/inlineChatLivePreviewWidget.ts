@@ -252,10 +252,13 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			return;
 		}
 
-		let hiddenRanges = lineRanges.map(lineRangeAsRange);
-		if (LineRange.fromRange(hiddenRanges.reduce(Range.plusRange)).equals(LineRange.ofLength(1, editor.getModel().getLineCount()))) {
-			// TODO not every line can be hidden, keep the first line around
+		let hiddenRanges: Range[];
+		const hiddenLinesCount = lineRanges.reduce((p, c) => p + c.length, 0); // assumes no overlap
+		if (hiddenLinesCount >= editor.getModel().getLineCount()) {
+			// TODO: not every line can be hidden, keep the first line around
 			hiddenRanges = [editor.getModel().getFullModelRange().delta(1)];
+		} else {
+			hiddenRanges = lineRanges.map(lineRangeAsRange);
 		}
 		editor.setHiddenAreas(hiddenRanges, InlineChatLivePreviewWidget._hideId);
 		this._logService.debug(`[IE] diff HIDING ${hiddenRanges} for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);

@@ -9,6 +9,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor): string {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -46,11 +49,75 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	const accessibleViewService = accessor.get(IAccessibleViewService);
 	const helpText = getAccessibilityHelpText(accessor);
 	accessibleViewService.show({
-		verbositySettingKey: 'notebook',
+		verbositySettingKey: AccessibilityVerbositySettingId.Notebook,
 		provideContent: () => helpText,
 		onClose: () => {
 			editor.focus();
 		},
 		options: { type: AccessibleViewType.HelpMenu, ariaLabel: 'Notebook accessibility help' }
 	});
+}
+
+export function showAccessibleOutput(accessibleViewService: IAccessibleViewService, editorService: IEditorService) {
+	const activePane = editorService.activeEditorPane;
+	const notebookEditor = getNotebookEditorFromEditorPane(activePane);
+	const notebookViewModel = notebookEditor?.getViewModel();
+	const selections = notebookViewModel?.getSelections();
+	const notebookDocument = notebookViewModel?.notebookDocument;
+
+	if (!selections || !notebookDocument || !notebookEditor?.textModel) {
+		return false;
+	}
+
+	const viewCell = notebookViewModel.viewCells[selections[0].start];
+	let outputContent = '';
+	const decoder = new TextDecoder();
+	for (let i = 0; i < viewCell.outputsViewModels.length; i++) {
+		const outputViewModel = viewCell.outputsViewModels[i];
+		const outputTextModel = viewCell.model.outputs[i];
+		const [mimeTypes, pick] = outputViewModel.resolveMimeTypes(notebookEditor.textModel, undefined);
+		const mimeType = mimeTypes[pick].mimeType;
+		let buffer = outputTextModel.outputs.find(output => output.mime === mimeType);
+
+		if (!buffer || mimeType.startsWith('image')) {
+			buffer = outputTextModel.outputs.find(output => !output.mime.startsWith('image'));
+		}
+
+		let text = `${mimeType}`; // default in case we can't get the text value for some reason.
+		if (buffer) {
+			const charLimit = 100_000;
+			text = decoder.decode(buffer.data.slice(0, charLimit).buffer);
+
+			if (buffer.data.byteLength > charLimit) {
+				text = text + '...(truncated)';
+			}
+
+			if (mimeType.endsWith('error')) {
+				text = text.replace(/\\u001b\[[0-9;]*m/gi, '').replaceAll('\\n', '\n');
+			}
+		}
+
+		const index = viewCell.outputsViewModels.length > 1
+			? `Cell output ${i + 1} of ${viewCell.outputsViewModels.length}\n`
+			: '';
+		outputContent = outputContent.concat(`${index}${text}\n`);
+	}
+
+	if (!outputContent) {
+		return false;
+	}
+
+	accessibleViewService.show({
+		verbositySettingKey: AccessibilityVerbositySettingId.Notebook,
+		provideContent(): string { return outputContent; },
+		onClose() {
+			notebookEditor?.setFocus(selections[0]);
+			activePane?.focus();
+		},
+		options: {
+			ariaLabel: localize('NotebookCellOutputAccessibleView', "Notebook Cell Output Accessible View"),
+			type: AccessibleViewType.View
+		}
+	});
+	return true;
 }

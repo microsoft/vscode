@@ -76,7 +76,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 
 		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
 
-		if (this.environmentService.remoteAuthority && viewEnabled) {
+		if (viewEnabled) {
 			const viewContainer = await this.getViewContainer();
 			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService, this.tunnelService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
@@ -84,7 +84,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 				this.remoteExplorerService.enablePortsFeatures();
 				viewsRegistry.registerViews([tunnelPanelDescriptor!], viewContainer);
 			}
-		} else if (this.environmentService.remoteAuthority) {
+		} else {
 			this.contextKeyListener = this.contextKeyService.onDidChangeContext(e => {
 				if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
 					this.enableForwardedPortsView();

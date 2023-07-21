@@ -85,7 +85,9 @@ export class ViewZoneManager extends Disposable {
 			const diff = diffModel?.diff.read(reader);
 			if (!diffModel || !diff) { return null; }
 			state.read(reader);
-			return computeRangeAlignment(this._editors.original, this._editors.modified, diff.mappings, alignmentViewZoneIdsOrig, alignmentViewZoneIdsMod);
+			const renderSideBySide = this._options.renderSideBySide.read(reader);
+			const innerHunkAlignment = renderSideBySide;
+			return computeRangeAlignment(this._editors.original, this._editors.modified, diff.mappings, alignmentViewZoneIdsOrig, alignmentViewZoneIdsMod, innerHunkAlignment);
 		});
 
 		const alignmentsSyncedMovedText = derived<ILineRangeAlignment[] | null>('alignments', (reader) => {
@@ -94,7 +96,7 @@ export class ViewZoneManager extends Disposable {
 			state.read(reader);
 			const mappings = syncedMovedText.changes.map(c => new DiffMapping(c));
 			// TODO dont include alignments outside syncedMovedText
-			return computeRangeAlignment(this._editors.original, this._editors.modified, mappings, alignmentViewZoneIdsOrig, alignmentViewZoneIdsMod);
+			return computeRangeAlignment(this._editors.original, this._editors.modified, mappings, alignmentViewZoneIdsOrig, alignmentViewZoneIdsMod, true);
 		});
 
 		function createFakeLinesDiv(): HTMLElement {
@@ -455,6 +457,7 @@ function computeRangeAlignment(
 	diffs: readonly DiffMapping[],
 	originalEditorAlignmentViewZones: ReadonlySet<string>,
 	modifiedEditorAlignmentViewZones: ReadonlySet<string>,
+	innerHunkAlignment: boolean,
 ): ILineRangeAlignment[] {
 	const originalLineHeightOverrides = new ArrayQueue(getAdditionalLineHeights(originalEditor, originalEditorAlignmentViewZones));
 	const modifiedLineHeightOverrides = new ArrayQueue(getAdditionalLineHeights(modifiedEditor, modifiedEditorAlignmentViewZones));
@@ -546,18 +549,21 @@ function computeRangeAlignment(
 				modifiedRange,
 				originalHeightInPx: originalRange.length * origLineHeight + originalAdditionalHeight,
 				modifiedHeightInPx: modifiedRange.length * modLineHeight + modifiedAdditionalHeight,
+				diff: m.lineRangeMapping,
 			});
 
 			lastOrigLineNumber = origLineNumberExclusive;
 			lastModLineNumber = modLineNumberExclusive;
 		}
 
-		for (const i of c.innerChanges || []) {
-			if (i.originalRange.startColumn > 1 && i.modifiedRange.startColumn > 1) {
-				// There is some unmodified text on this line
-				emitAlignment(i.originalRange.startLineNumber, i.modifiedRange.startLineNumber);
+		if (innerHunkAlignment) {
+			for (const i of c.innerChanges || []) {
+				if (i.originalRange.startColumn > 1 && i.modifiedRange.startColumn > 1) {
+					// There is some unmodified text on this line
+					emitAlignment(i.originalRange.startLineNumber, i.modifiedRange.startLineNumber);
+				}
+				emitAlignment(i.originalRange.endLineNumber, i.modifiedRange.endLineNumber);
 			}
-			emitAlignment(i.originalRange.endLineNumber, i.modifiedRange.endLineNumber);
 		}
 
 		emitAlignment(c.originalRange.endLineNumberExclusive, c.modifiedRange.endLineNumberExclusive);

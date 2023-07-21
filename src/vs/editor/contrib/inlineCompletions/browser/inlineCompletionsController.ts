@@ -179,9 +179,9 @@ export class InlineCompletionsController extends Disposable {
 
 			if (state.completion.semanticId !== lastInlineCompletionId) {
 				lastInlineCompletionId = state.completion.semanticId;
+				const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
 				this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-						const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
 						alert(state.ghostText.renderForScreenReader(lineText));
 					}
 				});
