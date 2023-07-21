@@ -13,15 +13,14 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 
 const enum ClassName {
 	Active = 'active',
@@ -62,7 +61,7 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		this._element.classList.add(ClassName.Widget);
 		this._editorContainer = document.createElement('div');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])
+			contributions: EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeActionController.ID)
 		};
 		const font = _xterm.getFont();
 		const editorOptions: IEditorConstructionOptions = {

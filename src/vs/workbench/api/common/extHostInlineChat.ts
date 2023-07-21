@@ -123,7 +123,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		return {
 			id,
 			placeholder: session.placeholder,
-			slashCommands: session.slashCommands?.map(c => ({ command: c.command, detail: c.detail, refer: c.refer })),
+			slashCommands: session.slashCommands?.map(c => ({ command: c.command, detail: c.detail, refer: c.refer, executeImmediately: c.executeImmediately })),
 			wholeRange: typeConvert.Range.from(session.wholeRange),
 			message: session.message
 		};
@@ -233,6 +233,9 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 					break;
 				case InlineChatResponseFeedbackKind.Undone:
 					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Undone;
+					break;
+				case InlineChatResponseFeedbackKind.Accepted:
+					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Accepted;
 					break;
 			}
 

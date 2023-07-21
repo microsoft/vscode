@@ -42,13 +42,13 @@ export class DiffEditorDecorations extends Disposable {
 		const originalDecorations: IModelDeltaDecoration[] = [];
 		const modifiedDecorations: IModelDeltaDecoration[] = [];
 		for (const m of diff.mappings) {
-			const fullRangeOriginal = LineRange.subtract(m.lineRangeMapping.originalRange, currentMove?.lineRangeMapping.originalRange)
+			const fullRangeOriginal = LineRange.subtract(m.lineRangeMapping.originalRange, currentMove?.lineRangeMapping.original)
 				.map(i => i.toInclusiveRange()).filter(isDefined);
 			for (const range of fullRangeOriginal) {
 				originalDecorations.push({ range, options: renderIndicators ? diffLineDeleteDecorationBackgroundWithIndicator : diffLineDeleteDecorationBackground });
 			}
 
-			const fullRangeModified = LineRange.subtract(m.lineRangeMapping.modifiedRange, currentMove?.lineRangeMapping.modifiedRange)
+			const fullRangeModified = LineRange.subtract(m.lineRangeMapping.modifiedRange, currentMove?.lineRangeMapping.modified)
 				.map(i => i.toInclusiveRange()).filter(isDefined);
 			for (const range of fullRangeModified) {
 				modifiedDecorations.push({ range, options: renderIndicators ? diffLineAddDecorationBackgroundWithIndicator : diffLineAddDecorationBackground });
@@ -64,8 +64,8 @@ export class DiffEditorDecorations extends Disposable {
 			} else {
 				for (const i of m.lineRangeMapping.innerChanges || []) {
 					if (currentMove
-						&& (currentMove.lineRangeMapping.originalRange.intersect(new LineRange(i.originalRange.startLineNumber, i.originalRange.endLineNumber))
-							|| currentMove.lineRangeMapping.modifiedRange.intersect(new LineRange(i.modifiedRange.startLineNumber, i.modifiedRange.endLineNumber)))) {
+						&& (currentMove.lineRangeMapping.original.intersect(new LineRange(i.originalRange.startLineNumber, i.originalRange.endLineNumber))
+							|| currentMove.lineRangeMapping.modified.intersect(new LineRange(i.modifiedRange.startLineNumber, i.modifiedRange.endLineNumber)))) {
 						continue;
 					}
 
@@ -104,7 +104,7 @@ export class DiffEditorDecorations extends Disposable {
 
 		for (const m of diff.movedTexts) {
 			originalDecorations.push({
-				range: m.lineRangeMapping.originalRange.toInclusiveRange()!, options: {
+				range: m.lineRangeMapping.original.toInclusiveRange()!, options: {
 					description: 'moved',
 					blockClassName: 'movedOriginal',
 					blockPadding: [MovedBlocksLinesPart.movedCodeBlockPadding, 0, MovedBlocksLinesPart.movedCodeBlockPadding, MovedBlocksLinesPart.movedCodeBlockPadding],
@@ -112,7 +112,7 @@ export class DiffEditorDecorations extends Disposable {
 			});
 
 			modifiedDecorations.push({
-				range: m.lineRangeMapping.modifiedRange.toInclusiveRange()!, options: {
+				range: m.lineRangeMapping.modified.toInclusiveRange()!, options: {
 					description: 'moved',
 					blockClassName: 'movedModified',
 					blockPadding: [4, 0, 4, 4],

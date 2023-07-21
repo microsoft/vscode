@@ -804,6 +804,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	interface ExtendedOutputItem extends rendererApi.OutputItem {
 		readonly _allOutputItems: ReadonlyArray<AdditionalOutputItemInfo>;
+		appendedText?(): string | undefined;
 	}
 
 	let hasWarnedAboutAllOutputItemsProposal = false;
@@ -813,7 +814,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		mime: string,
 		metadata: unknown,
 		valueBytes: Uint8Array,
-		allOutputItemData: ReadonlyArray<{ readonly mime: string }>
+		allOutputItemData: ReadonlyArray<{ readonly mime: string }>,
+		appended?: { valueBytes: Uint8Array; previousVersion: number }
 	): ExtendedOutputItem {
 
 		function create(
@@ -821,11 +823,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 			mime: string,
 			metadata: unknown,
 			valueBytes: Uint8Array,
+			appended?: { valueBytes: Uint8Array; previousVersion: number }
 		): ExtendedOutputItem {
 			return Object.freeze<ExtendedOutputItem>({
 				id,
 				mime,
 				metadata,
+
+				appendedText(): string | undefined {
+					if (appended) {
+						return textDecoder.decode(appended.valueBytes);
+					}
+					return undefined;
+				},
 
 				data(): Uint8Array {
 					return valueBytes;
@@ -874,7 +884,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 		}));
 
-		const item = create(id, mime, metadata, valueBytes);
+		const item = create(id, mime, metadata, valueBytes, appended);
 		allOutputItemCache.set(mime, Promise.resolve(item));
 		return item;
 	}
@@ -2611,13 +2621,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this._content = { preferredRendererId, preloadErrors };
 			if (content.type === 0 /* RenderOutputType.Html */) {
-				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
+				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent; // CodeQL [SM03712] The content comes from renderer extensions, not from direct user input.
 				this.element.innerHTML = trustedHtml as string;
 			} else if (preloadErrors.some(e => e instanceof Error)) {
 				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);
 			} else {
-				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs);
+				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs, content.output.appended);
 
 				const controller = new AbortController();
 				this.renderTaskAbort = controller;
