@@ -8,7 +8,7 @@ export type JSONLanguageStatus = { schemas: string[] };
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n, WorkspaceEdit
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions,
@@ -164,10 +164,14 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
 	}));
 
-	toDispose.push(workspace.onDidSaveTextDocument((textDocument) => {
+	toDispose.push(workspace.onDidSaveTextDocument(async (document) => {
 		const sortOnSave = workspace.getConfiguration().get<boolean>(SettingIds.enableSortOnSave);
-		if (sortOnSave && (textDocument.languageId === 'json' || textDocument.languageId === 'jsonc')) {
-
+		if (sortOnSave && (document.languageId === 'json' || document.languageId === 'jsonc')) {
+			// TODO: how to get the text editor options tabSize and insertSpaces
+			const textEdits = await getSortTextEdits(document);
+			const workspaceEdit = new WorkspaceEdit();
+			workspaceEdit.set(document.uri, textEdits);
+			workspace.applyEdit(workspaceEdit);
 		}
 	}));
 
@@ -177,19 +181,9 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			const textEditor = window.activeTextEditor;
 			if (textEditor) {
 				const document = textEditor.document;
-				const filesConfig = workspace.getConfiguration('files', document);
-				const options: SortOptions = {
-					tabSize: textEditor.options.tabSize ? Number(textEditor.options.tabSize) : 4,
-					insertSpaces: textEditor.options.insertSpaces ? Boolean(textEditor.options.insertSpaces) : true,
-					trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
-					trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
-					insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
-				};
-				const params: DocumentSortingParams = {
-					uri: document.uri.toString(),
-					options
-				};
-				const textEdits = await client.sendRequest(DocumentSortingRequest.type, params);
+				const tabSize = textEditor.options.tabSize ? Number(textEditor.options.tabSize) : 4;
+				const insertSpaces = textEditor.options.insertSpaces ? Boolean(textEditor.options.insertSpaces) : true;
+				const textEdits = await getSortTextEdits(document, tabSize, insertSpaces);
 				const success = await textEditor.edit(mutator => {
 					for (const edit of textEdits) {
 						mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
@@ -477,6 +471,22 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			schemaResolutionErrorStatusBarItem.tooltip = l10n.t('Downloading schemas is disabled. Click to configure.');
 			schemaResolutionErrorStatusBarItem.command = { command: 'workbench.action.openSettings', arguments: [SettingIds.enableSchemaDownload], title: '' };
 		}
+	}
+
+	async function getSortTextEdits(document: TextDocument, tabSize = 4, insertSpaces = true): Promise<TextEdit[]> {
+		const filesConfig = workspace.getConfiguration('files', document);
+		const options: SortOptions = {
+			tabSize: tabSize,
+			insertSpaces: insertSpaces,
+			trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
+			trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
+			insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+		};
+		const params: DocumentSortingParams = {
+			uri: document.uri.toString(),
+			options
+		};
+		return client.sendRequest(DocumentSortingRequest.type, params);
 	}
 
 	return client;
