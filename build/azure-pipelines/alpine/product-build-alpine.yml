@@ -78,6 +78,7 @@ steps:
         echo "Yarn failed $i, trying again..."
       done
     env:
+      npm_config_arch: $(NPM_ARCH)
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
