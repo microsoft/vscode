@@ -96,7 +96,7 @@ class Response {
 		this._responseParts = [{ string: value }];
 	}
 
-	updateContent(responsePart: string | { message: string }): void | DeferredPromise<string> {
+	updateContent(responsePart: string | { placeholder: string }): void | DeferredPromise<string> {
 		if (typeof responsePart === 'string') {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
@@ -112,7 +112,7 @@ class Response {
 			this._updateRepr();
 		} else {
 			// Add a new resolving part
-			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.message), resolving: true });
+			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), resolving: true });
 			this._updateRepr();
 
 			const deferredPromise = new DeferredPromise<string>();
@@ -197,7 +197,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
-	updateContent(responsePart: string | { message: string }, quiet?: boolean) {
+	updateContent(responsePart: string | { placeholder: string }, quiet?: boolean) {
 		try {
 			return this._response.updateContent(responsePart);
 		} finally {
@@ -507,7 +507,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if ('content' in progress) {
 			request.response.updateContent(progress.content, quiet);
-		} else if ('message' in progress) {
+		} else if ('placeholder' in progress) {
 			return request.response.updateContent(progress, quiet);
 		} else {
 			request.setProviderRequestId(progress.requestId);

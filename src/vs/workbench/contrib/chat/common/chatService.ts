@@ -44,7 +44,7 @@ export interface IChatResponse {
 }
 
 export type IChatProgress =
-	{ content: string } | { requestId: string } | { message: string };
+	{ content: string } | { requestId: string } | { placeholder: string };
 
 export interface IPersistedChatState { }
 export interface IChatProvider {

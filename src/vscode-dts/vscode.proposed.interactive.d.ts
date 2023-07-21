@@ -127,7 +127,7 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveProgressTask {
-		message: string;
+		placeholder: string;
 		resolvedContent: Thenable<InteractiveProgressContent>;
 	}
 
