@@ -7,7 +7,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtHostChatShape, ExtHostContext, IChatRequestDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostChatShape, ExtHostContext, IChatRequestDto, IChatResponseProgressDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChat, IChatDynamicRequest, IChatProgress, IChatRequest, IChatResponse, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -137,10 +137,10 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		this._providerRegistrations.set(handle, unreg);
 	}
 
-	async $acceptResponseProgress(handle: number, sessionId: number, progress: IChatProgress, responsePartHandle?: number): Promise<number | void> {
+	async $acceptResponseProgress(handle: number, sessionId: number, progress: IChatResponseProgressDto, responsePartHandle?: number): Promise<number | void> {
 		const id = `${handle}_${sessionId}`;
 
-		if ('placeholder' in progress && !responsePartHandle) {
+		if ('placeholder' in progress) {
 			const responsePartId = `${id}_${++this._responsePartHandlePool}`;
 			const deferredContentPromise = new DeferredPromise<string>();
 			this._activeResponsePartPromises.set(responsePartId, deferredContentPromise);
