@@ -45,7 +45,15 @@ steps:
       set -e
       # Start X server
       sudo apt-get update
-      sudo apt-get install -y pkg-config libxss1 dbus xvfb libgtk-3-0 libgbm1
+      sudo apt-get install -y pkg-config \
+        libxss1 \
+        dbus \
+        xvfb \
+        libgtk-3-0 \
+        libgbm1 \
+        libxkbfile-dev \
+        libsecret-1-dev \
+        libkrb5-dev
       sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
       sudo chmod +x /etc/init.d/xvfb
       sudo update-rc.d xvfb defaults
@@ -55,19 +63,6 @@ steps:
       DBUS_LAUNCH_RESULT=$(sudo dbus-daemon --config-file=/usr/share/dbus-1/system.conf --print-address)
       echo "##vso[task.setvariable variable=DBUS_SESSION_BUS_ADDRESS]$DBUS_LAUNCH_RESULT"
     displayName: Setup system services
-
-  - script: |
-      set -e
-      arch=$(VSCODE_ARCH)
-      if [ "$arch" = "x64" ]; then
-        arch="amd64"
-      fi
-      sudo dpkg --add-architecture $arch
-      sudo apt-get update
-      sudo apt-get install -y libxkbfile-dev:$arch \
-        libsecret-1-dev:$arch \
-        libkrb5-dev:$arch
-    displayName: Install architecture dependencies
 
   - script: node build/setup-npm-registry.js $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -256,9 +251,27 @@ steps:
 
     - script:  |
         set -e
+        docker run -v /mnt/vss/_work/1/s:/home/builduser/vscode \
+        -v /mnt/vss/_work/1/s/.build/.netrc:/home/builduser/.netrc \
+        -u 1000:1000 \
+        -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH)-temp \
+        yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
+      displayName: Prepare deb package
+
+    - script:  |
+        set -e
         yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
         echo "##vso[task.setvariable variable=DEB_PATH]$(ls .build/linux/deb/*/deb/*.deb)"
       displayName: Build deb package
+
+    - script:  |
+        set -e
+        docker run -v /mnt/vss/_work/1/s:/home/builduser/vscode \
+        -v /mnt/vss/_work/1/s/.build/.netrc:/home/builduser/.netrc \
+        -u 1000:1000 \
+        -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH)-temp \
+        yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
+      displayName: Prepare rpm package
 
     - script:  |
         set -e
