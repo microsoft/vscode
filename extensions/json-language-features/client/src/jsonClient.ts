@@ -8,7 +8,7 @@ export type JSONLanguageStatus = { schemas: string[] };
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n, WorkspaceEdit
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n, WorkspaceEdit, TextEditorOptions
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions,
@@ -164,14 +164,13 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
 	}));
 
-	toDispose.push(workspace.onDidSaveTextDocument(async (document) => {
+	toDispose.push(workspace.onWillSaveTextDocument(async (textDocumentWillSaveEvent) => {
 		const sortOnSave = workspace.getConfiguration().get<boolean>(SettingIds.enableSortOnSave);
+		const document = textDocumentWillSaveEvent.document;
 		if (sortOnSave && (document.languageId === 'json' || document.languageId === 'jsonc')) {
-			// TODO: how to get the text editor options tabSize and insertSpaces
-			const textEdits = await getSortTextEdits(document);
-			const workspaceEdit = new WorkspaceEdit();
-			workspaceEdit.set(document.uri, textEdits);
-			workspace.applyEdit(workspaceEdit);
+			const documentOptions = getOptionsForDocument(document);
+			const textEditsPromise = getSortTextEdits(document, documentOptions?.tabSize, documentOptions?.insertSpaces);
+			textDocumentWillSaveEvent.waitUntil(textEditsPromise);
 		}
 	}));
 
@@ -180,10 +179,8 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		if (isClientReady) {
 			const textEditor = window.activeTextEditor;
 			if (textEditor) {
-				const document = textEditor.document;
-				const tabSize = textEditor.options.tabSize ? Number(textEditor.options.tabSize) : 4;
-				const insertSpaces = textEditor.options.insertSpaces ? Boolean(textEditor.options.insertSpaces) : true;
-				const textEdits = await getSortTextEdits(document, tabSize, insertSpaces);
+				const documentOptions = textEditor.options;
+				const textEdits = await getSortTextEdits(textEditor.document, documentOptions.tabSize, documentOptions.insertSpaces);
 				const success = await textEditor.edit(mutator => {
 					for (const edit of textEdits) {
 						mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
@@ -473,11 +470,11 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		}
 	}
 
-	async function getSortTextEdits(document: TextDocument, tabSize = 4, insertSpaces = true): Promise<TextEdit[]> {
+	async function getSortTextEdits(document: TextDocument, tabSize: string | number = 4, insertSpaces: string | boolean = true): Promise<TextEdit[]> {
 		const filesConfig = workspace.getConfiguration('files', document);
 		const options: SortOptions = {
-			tabSize: tabSize,
-			insertSpaces: insertSpaces,
+			tabSize: Number(tabSize),
+			insertSpaces: Boolean(insertSpaces),
 			trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
 			trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
 			insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
@@ -631,4 +628,12 @@ function updateMarkdownString(h: MarkdownString): MarkdownString {
 
 function isSchemaResolveError(d: Diagnostic) {
 	return d.code === /* SchemaResolveError */ 0x300;
+}
+
+function getOptionsForDocument(document: TextDocument): TextEditorOptions | void {
+	for (const editor of window.visibleTextEditors) {
+		if (editor.document.uri.toString() === document.uri.toString()) {
+			return editor.options;
+		}
+	}
 }
