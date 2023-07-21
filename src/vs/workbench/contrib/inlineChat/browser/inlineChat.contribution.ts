@@ -75,7 +75,6 @@ class InlineChatAccessibleViewContribution extends Disposable {
 			if (!controller) {
 				return false;
 			}
-			const inputFocused = editor.hasTextFocus();
 			const responseContent = controller?.getMessage();
 			if (!responseContent) {
 				return false;
@@ -84,9 +83,7 @@ class InlineChatAccessibleViewContribution extends Disposable {
 				verbositySettingKey: AccessibilityVerbositySettingId.InlineChat,
 				provideContent(): string { return responseContent; },
 				onClose() {
-					if (inputFocused) {
-						controller.focus();
-					}
+					controller.focus();
 				},
 
 				options: { ariaLabel: localize('inlineChatAccessibleView', "Inline Chat Accessible View"), type: AccessibleViewType.View }
