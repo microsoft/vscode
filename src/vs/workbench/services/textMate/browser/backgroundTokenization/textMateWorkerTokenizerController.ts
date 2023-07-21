@@ -16,12 +16,14 @@ import { IModelContentChange, IModelContentChangedEvent } from 'vs/editor/common
 import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ArrayEdit, MonotonousIndexTransformer, SingleArrayEdit } from 'vs/workbench/services/textMate/browser/arrayOperation';
-import { TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/worker/textMate.worker';
-import type { StateDeltas } from 'vs/workbench/services/textMate/browser/workerHost/textMateWorkerHost';
+import type { StateDeltas, TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker';
 import type { applyStateStackDiff, StateStack } from 'vscode-textmate';
 
 export class TextMateWorkerTokenizerController extends Disposable {
-	private _pendingChanges: IModelContentChangedEvent[] = [];
+	private static _id = 0;
+
+	public readonly controllerId = TextMateWorkerTokenizerController._id++;
+	private readonly _pendingChanges: IModelContentChangedEvent[] = [];
 
 	/**
 	 * These states will eventually equal the worker states.
@@ -47,13 +49,13 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		this._register(keepAlive(this._loggingEnabled));
 
 		this._register(this._model.onDidChangeContent((e) => {
-			if (this.shouldLog) {
+			if (this._shouldLog) {
 				console.log('model change', {
 					fileName: this._model.uri.fsPath.split('\\').pop(),
 					changes: changesToString(e.changes),
 				});
 			}
-			this._worker.acceptModelChanged(this._model.uri.toString(), e);
+			this._worker.acceptModelChanged(this.controllerId, e);
 			this._pendingChanges.push(e);
 		}));
 
@@ -62,7 +64,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			const encodedLanguageId =
 				this._languageIdCodec.encodeLanguageId(languageId);
 			this._worker.acceptModelLanguageChanged(
-				this._model.uri.toString(),
+				this.controllerId,
 				languageId,
 				encodedLanguageId
 			);
@@ -78,27 +80,33 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			languageId,
 			encodedLanguageId,
 			maxTokenizationLineLength: this._maxTokenizationLineLength.get(),
+			controllerId: this.controllerId,
 		});
 
 		this._register(autorun('update maxTokenizationLineLength', reader => {
 			const maxTokenizationLineLength = this._maxTokenizationLineLength.read(reader);
-			this._worker.acceptMaxTokenizationLineLength(this._model.uri.toString(), maxTokenizationLineLength);
+			this._worker.acceptMaxTokenizationLineLength(this.controllerId, maxTokenizationLineLength);
 		}));
-	}
-
-	get shouldLog() {
-		return this._loggingEnabled.get();
 	}
 
 	public override dispose(): void {
 		super.dispose();
-		this._worker.acceptRemovedModel(this._model.uri.toString());
+		this._worker.acceptRemovedModel(this.controllerId);
+	}
+
+	public requestTokens(startLineNumber: number, endLineNumberExclusive: number): void {
+		this._worker.retokenize(this.controllerId, startLineNumber, endLineNumberExclusive);
 	}
 
 	/**
 	 * This method is called from the worker through the worker host.
 	 */
-	public async setTokensAndStates(versionId: number, rawTokens: ArrayBuffer, stateDeltas: StateDeltas[]): Promise<void> {
+	public async setTokensAndStates(controllerId: number, versionId: number, rawTokens: ArrayBuffer, stateDeltas: StateDeltas[]): Promise<void> {
+		if (this.controllerId !== controllerId) {
+			// This event is for an outdated controller (the worker didn't receive the delete/create messages yet), ignore the event.
+			return;
+		}
+
 		// _states state, change{k}, ..., change{versionId}, state delta base & rawTokens, change{j}, ..., change{m}, current renderer state
 		//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                ^^^^^^^^^^^^^^^^^^^^^^^^^
 		//                | past changes                                                   | future states
@@ -107,7 +115,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			new Uint8Array(rawTokens)
 		);
 
-		if (this.shouldLog) {
+		if (this._shouldLog) {
 			console.log('received background tokenization result', {
 				fileName: this._model.uri.fsPath.split('\\').pop(),
 				updatedTokenLines: tokens.map((t) => t.getLineRange()).join(' & '),
@@ -115,7 +123,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			});
 		}
 
-		if (this.shouldLog) {
+		if (this._shouldLog) {
 			const changes = this._pendingChanges.filter(c => c.versionId <= versionId).map(c => c.changes).map(c => changesToString(c)).join(' then ');
 			console.log('Applying changes to local states', changes);
 		}
@@ -130,7 +138,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		}
 
 		if (this._pendingChanges.length > 0) {
-			if (this.shouldLog) {
+			if (this._shouldLog) {
 				const changes = this._pendingChanges.map(c => c.changes).map(c => changesToString(c)).join(' then ');
 				console.log('Considering non-processed changes', changes);
 			}
@@ -205,6 +213,9 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		// First set states, then tokens, so that events fired from set tokens don't read invalid states
 		this._backgroundTokenizationStore.setTokens(tokens);
 	}
+
+	private get _shouldLog() { return this._loggingEnabled.get(); }
+
 }
 
 function fullLineArrayEditFromModelContentChange(c: IModelContentChange[]): ArrayEdit {

@@ -148,9 +148,9 @@ suite('InteractiveChatController', function () {
 
 	test('run (show/hide)', async function () {
 		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
 		const run = ctrl.run({ message: 'Hello', autoSend: true });
-
-		await ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
+		await p;
 		assert.ok(ctrl.getWidgetPosition() !== undefined);
 		ctrl.cancelSession();
 
@@ -218,9 +218,10 @@ suite('InteractiveChatController', function () {
 
 	test('typing outside of wholeRange finishes session', async function () {
 		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
 		ctrl.run({ message: 'Hello', autoSend: true });
 
-		await ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
+		await p;
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
@@ -257,9 +258,10 @@ suite('InteractiveChatController', function () {
 		});
 		store.add(d);
 		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor(TestController.INIT_SEQUENCE);
 		ctrl.run({ message: 'Hello', autoSend: false });
 
-		await ctrl.waitFor(TestController.INIT_SEQUENCE);
+		await p;
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
@@ -298,12 +300,13 @@ suite('InteractiveChatController', function () {
 		});
 		store.add(d);
 		ctrl = instaService.createInstance(TestController, editor);
-		const p = ctrl.run({ message: 'Hello', autoSend: true });
-
-		await ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST]);
-		ctrl.acceptSession();
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST]);
+		const r = ctrl.run({ message: 'Hello', autoSend: true });
 
 		await p;
+		ctrl.acceptSession();
+
+		await r;
 		assert.strictEqual(ctrl.getWidgetPosition(), undefined);
 	});
 });

@@ -682,6 +682,7 @@ export namespace Event {
 				}
 			};
 			observable.addObserver(observer);
+			observable.reportChanges();
 			return {
 				dispose() {
 					observable.removeObserver(observer);

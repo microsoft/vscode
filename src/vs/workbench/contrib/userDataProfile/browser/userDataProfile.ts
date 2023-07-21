@@ -212,8 +212,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id: `workbench.profiles.actions.editCurrentProfile`,
 					title: {
-						value: localize('edit profile', "Edit..."),
-						original: `Edit...`
+						value: localize('edit profile', "Edit Profile..."),
+						original: `Edit Profile...`
 					},
 					menu: [
 						{
@@ -238,8 +238,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id,
 					title: {
-						value: localize('show profile contents', "Show Contents..."),
-						original: `ShowContents...`
+						value: localize('show profile contents', "Show Profile Contents"),
+						original: `Show Profile Contents`
 					},
 					category: PROFILES_CATEGORY,
 					menu: [
@@ -426,7 +426,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.telemetryService.publicLog2<{}, CreateProfileInfoClassification>('userDataProfile.startCreate');
 
 		const disposables = new DisposableStore();
-		const title = profile ? localize('save profile', "Edit Profile...") : localize('create new profle', "Create New Profile...");
+		const title = profile ? localize('save profile', "Edit {0} Profile...", profile.name) : localize('create new profle', "Create New Profile...");
 
 		const settings: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Settings, label: localize('settings', "Settings"), picked: !profile?.useDefaultFlags?.settings };
 		const keybindings: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Keybindings, label: localize('keybindings', "Keyboard Shortcuts"), picked: !profile?.useDefaultFlags?.keybindings };
@@ -462,12 +462,12 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const validate = () => {
 			if (!profile && this.userDataProfilesService.profiles.some(p => p.name === quickPick.value)) {
 				quickPick.validationMessage = localize('profileExists', "Profile with name {0} already exists.", quickPick.value);
-				quickPick.severity = Severity.Error;
+				quickPick.severity = Severity.Warning;
 				return;
 			}
 			if (resources.every(resource => !resource.picked)) {
 				quickPick.validationMessage = localize('invalid configurations', "The profile should contain at least one configuration.");
-				quickPick.severity = Severity.Error;
+				quickPick.severity = Severity.Warning;
 				return;
 			}
 			quickPick.severity = Severity.Ignore;
@@ -478,7 +478,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			let needUpdate = false;
 			for (const resource of resources) {
 				resource.picked = items.includes(resource);
-				const description = resource.picked ? undefined : localize('use default profile', "Use Default Profile");
+				const description = resource.picked ? undefined : localize('use default profile', "Using Default Profile");
 				if (resource.description !== description) {
 					resource.description = description;
 					needUpdate = true;

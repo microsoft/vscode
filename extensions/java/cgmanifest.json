@@ -4,13 +4,14 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "atom/language-java",
-					"repositoryUrl": "https://github.com/atom/language-java",
-					"commitHash": "29f977dc42a7e2568b39bb6fb34c4ef108eb59b3"
+					"name": "redhat-developer/vscode-java",
+					"repositoryUrl": "https://github.com/redhat-developer/vscode-java",
+					"commitHash": "7a770ab6750b4b09173d98de14eb9792e3432b36"
 				}
 			},
 			"license": "MIT",
-			"version": "0.32.1"
+			"description": "This grammar was derived from https://github.com/atom/language-java/blob/master/grammars/java.cson.",
+			"version": "1.21.0"
 		}
 	],
 	"version": 1

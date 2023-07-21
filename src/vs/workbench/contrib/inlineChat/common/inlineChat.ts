@@ -24,6 +24,7 @@ export interface IInlineChatSlashCommand {
 	command: string;
 	detail?: string;
 	refer?: boolean;
+	executeImmediately?: boolean;
 }
 
 export interface IInlineChatSession {
@@ -90,7 +91,8 @@ export interface IInlineChatProgressItem {
 export const enum InlineChatResponseFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
-	Undone = 2
+	Undone = 2,
+	Accepted = 3
 }
 
 export interface IInlineChatSessionProvider {
