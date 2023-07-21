@@ -478,16 +478,14 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 
 		this.header = this._register(new ColorPickerHeader(element, this.model, themeService, standaloneColorPicker));
 		this.body = this._register(new ColorPickerBody(element, this.model, this.pixelRatio, standaloneColorPicker));
-
-		this.header.onOriginalColorClicked((color: Color) => {
-			console.log('color : ', color);
+		this._register(this.header.onOriginalColorClicked((color: Color) => {
 			const hsva = color.hsva;
 			this.body.saturationBox.paintSelection(hsva.s, hsva.v);
 			const hueStripValue = this.body.hueStrip.getValue(color);
 			this.body.hueStrip.updateSliderPosition(hueStripValue);
-			// const opacityStripValue = this.body.opacityStrip.getValue(color);
-			// this.body.opacityStrip.updateSliderPosition(opacityStripValue);
-		});
+			const opacityStripValue = this.body.opacityStrip.getValue(color);
+			this.body.opacityStrip.updateSliderPosition(opacityStripValue);
+		}));
 	}
 
 	getId(): string {
