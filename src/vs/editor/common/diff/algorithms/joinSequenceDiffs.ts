@@ -33,8 +33,11 @@ export function smoothenSequenceDiffs(sequence1: ISequence, sequence2: ISequence
 	return result;
 }
 
-export function randomRandomMatches(sequence1: LinesSliceCharSequence, sequence2: LinesSliceCharSequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
+export function removeRandomMatches(sequence1: LinesSliceCharSequence, sequence2: LinesSliceCharSequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	let diffs = sequenceDiffs;
+	if (diffs.length === 0) {
+		return diffs;
+	}
 
 	let counter = 0;
 	let shouldRepeat: boolean;
