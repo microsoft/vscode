@@ -3621,6 +3621,7 @@ declare module 'vscode' {
 	 * Use the {@link workspace.applyEdit applyEdit}-function to apply a workspace edit.
 	 */
 	export class WorkspaceEdit {
+
 		/**
 		 * The number of affected resources of textual or resource changes.
 		 */
