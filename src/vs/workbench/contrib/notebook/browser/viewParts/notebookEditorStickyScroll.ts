@@ -4,8 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -60,6 +67,7 @@ class NotebookStickyLine extends Disposable {
 		}));
 	}
 
+<<<<<<< HEAD
 	private focusCell() {
 		this.notebookEditor.focusNotebookCell(this.entry.cell, 'container');
 		const cellScrollTop = this.notebookEditor.getAbsoluteTopOfElement(this.entry.cell);
