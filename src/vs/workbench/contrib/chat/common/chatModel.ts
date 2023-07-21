@@ -96,7 +96,7 @@ class Response {
 		this._responseParts = [{ string: value }];
 	}
 
-	updateContent(responsePart: string | { message: string }): void | ((progress: { content: string }) => void) {
+	updateContent(responsePart: string | { message: string }): void | DeferredPromise<string> {
 		if (typeof responsePart === 'string') {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
@@ -115,11 +115,13 @@ class Response {
 			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.message), resolving: true });
 			this._updateRepr();
 
-			return (progress: { content: string }) => {
-				// Replace the resolving part's content with the actual response
-				this._responseParts[responsePosition] = { string: new MarkdownString(progress.content) };
-				this._responseRepr = new MarkdownString(this._responseParts.map(r => r.string.value).join('\n'));
-			};
+			const deferredPromise = new DeferredPromise<string>();
+			deferredPromise.p.then((content) => {
+				// Replace the resolving part's content with the resolved response
+				this._responseParts[responsePosition] = { string: new MarkdownString(content) };
+				this._updateRepr();
+			});
+			return deferredPromise;
 		}
 	}
 
@@ -490,7 +492,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
-	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress, quiet?: boolean): void | ((progress: { content: string }) => void) {
+	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress, quiet?: boolean): void | DeferredPromise<string> {
 		if (!this._session) {
 			throw new Error('acceptResponseProgress: No session');
 		}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -16,13 +17,13 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 	private readonly _providerRegistrations = this._register(new DisposableMap<number>());
-	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IChatProgress) => (void | ((progress: { content: string }) => void))>();
+	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IChatProgress) => (void | DeferredPromise<string>)>();
 	private readonly _stateEmitters = new Map<number, Emitter<any>>();
 
 	private readonly _proxy: ExtHostChatShape;
 
 	private _responsePartHandlePool = 0;
-	private readonly _activeResponsePartCallbacks = new Map<string, ((progress: { content: string }) => void)>();
+	private readonly _activeResponsePartCallbacks = new Map<string, DeferredPromise<string>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -138,18 +139,24 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 	async $acceptResponseProgress(handle: number, sessionId: number, progress: IChatProgress, responsePartHandle?: number): Promise<void | number> {
 		const id = `${handle}_${sessionId}`;
-		const responsePartCb = this._activeRequestProgressCallbacks.get(id)?.(progress);
-		if (responsePartCb && !responsePartHandle) {
+		const deferredContentPromise = this._activeRequestProgressCallbacks.get(id)?.(progress);
+
+		if (deferredContentPromise && !responsePartHandle) {
+			// This response progress has both an initial message as well as
+			// deferred content which will be resolved later
 			const responsePartId = `${id}_${++this._responsePartHandlePool}`;
-			this._activeResponsePartCallbacks.set(responsePartId, responsePartCb);
+			this._activeResponsePartCallbacks.set(responsePartId, deferredContentPromise);
 			return this._responsePartHandlePool;
 		} else if (responsePartHandle) {
+			// Complete an existing deferred promise with resolved content
 			const responsePartId = `${id}_${responsePartHandle}`;
-			const responsePartCb = this._activeResponsePartCallbacks.get(responsePartId);
-			if (responsePartCb && 'content' in progress) {
-				responsePartCb(progress);
+			const deferredContentPromise = this._activeResponsePartCallbacks.get(responsePartId);
+			if (deferredContentPromise && 'content' in progress) {
+				deferredContentPromise.complete(progress.content);
+				this._activeResponsePartCallbacks.delete(responsePartId);
 			}
-			this._activeRequestProgressCallbacks.delete(responsePartId);
+		} else {
+			this._activeRequestProgressCallbacks.delete(id);
 		}
 	}
 

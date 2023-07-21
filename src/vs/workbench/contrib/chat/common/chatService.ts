@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -54,7 +55,7 @@ export interface IChatProvider {
 	resolveRequest?(session: IChat, context: any, token: CancellationToken): ProviderResult<IChatRequest>;
 	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IChatReplyFollowup[])[] | undefined>;
 	provideFollowups?(session: IChat, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
-	provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void | ((progress: { content: string }) => void), token: CancellationToken): ProviderResult<IChatResponse>;
+	provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void | DeferredPromise<string>, token: CancellationToken): ProviderResult<IChatResponse>;
 	provideSlashCommands?(session: IChat, token: CancellationToken): ProviderResult<ISlashCommand[]>;
 	removeRequest?(session: IChat, requestId: string): void;
 }
