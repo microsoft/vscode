@@ -27,6 +27,8 @@ import { equals } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 suite('InteractiveChatController', function () {
 
@@ -104,6 +106,11 @@ suite('InteractiveChatController', function () {
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 				override acceptResponse(response?: IChatResponseViewModel): void { }
 				override acceptRequest(): void { }
+			}],
+			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
+				override getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {
+					return null;
+				}
 			}]
 		);
 
