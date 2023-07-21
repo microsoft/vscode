@@ -105,7 +105,6 @@ export async function createEditAddingLinksForUriList(
 	if (ranges.length === 0) {
 		return;
 	}
-	// const enabled = vscode.workspace.getConfiguration('markdown', document).get<'always' | 'smart' | 'never'>('editor.pasteUrlAsFormattedLink.enabled', 'always');
 	const edits: vscode.SnippetTextEdit[] = [];
 	let placeHolderValue: number = ranges.length;
 	let label: string = '';

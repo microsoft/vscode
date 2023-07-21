@@ -19,6 +19,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	private _responsePendingAudioCue: IDisposable | undefined;
 	private _hasReceivedRequest: boolean = false;
 	private _runOnceScheduler: RunOnceScheduler;
+	private _lastResponse: string | undefined;
 
 	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
@@ -37,6 +38,10 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		const isPanelChat = typeof response !== 'string';
 		this._responsePendingAudioCue?.dispose();
 		this._runOnceScheduler?.cancel();
+		if (this._lastResponse === response?.toString()) {
+			return;
+		}
+		this._lastResponse = response?.toString();
 		this._audioCueService.playAudioCue(AudioCue.chatResponseReceived, true);
 		this._hasReceivedRequest = false;
 		if (!response) {

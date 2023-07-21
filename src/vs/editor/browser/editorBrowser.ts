@@ -1263,9 +1263,9 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 */
 	revealFirstDiff(): unknown;
 
-	diffReviewNext(): void;
+	accessibleDiffViewerNext(): void;
 
-	diffReviewPrev(): void;
+	accessibleDiffViewerPrev(): void;
 }
 
 /**

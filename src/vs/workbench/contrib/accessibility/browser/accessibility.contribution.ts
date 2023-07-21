@@ -12,7 +12,7 @@ import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/b
 import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityHelpAction, AccessibleViewAction, AccessibleViewNextAction, AccessibleViewPreviousAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityHelpAction, AccessibilityVerbositySettingId, AccessibleViewAction, AccessibleViewNextAction, AccessibleViewPreviousAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import * as strings from 'vs/base/common/strings';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -36,7 +36,7 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 		this._editor.focus();
 	}
 	options: IAccessibleViewOptions = { type: AccessibleViewType.HelpMenu, ariaLabel: localize('editor-help', "editor accessibility help"), readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
-	verbositySettingKey: string = 'editor';
+	verbositySettingKey = AccessibilityVerbositySettingId.Editor;
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
@@ -117,8 +117,9 @@ class HoverAccessibleViewContribution extends Disposable {
 			if (!editorHoverContent) {
 				return false;
 			}
+			this._options.language = editor?.getModel()?.getLanguageId() ?? undefined;
 			accessibleViewService.show({
-				verbositySettingKey: 'hover',
+				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
 				provideContent() { return editorHoverContent; },
 				onClose() { },
 				options: this._options
@@ -135,7 +136,7 @@ class HoverAccessibleViewContribution extends Disposable {
 				return false;
 			}
 			accessibleViewService.show({
-				verbositySettingKey: 'hover',
+				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
 				provideContent() { return extensionHoverContent; },
 				onClose() { },
 				options: this._options
@@ -208,7 +209,7 @@ class NotificationAccessibleViewContribution extends Disposable {
 						list.focusPrevious();
 						renderAccessibleView();
 					},
-					verbositySettingKey: 'notifications',
+					verbositySettingKey: AccessibilityVerbositySettingId.Notification,
 					options: {
 						ariaLabel: localize('notification', "Notification Accessible View"),
 						type: AccessibleViewType.View

@@ -234,6 +234,9 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 				case InlineChatResponseFeedbackKind.Undone:
 					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Undone;
 					break;
+				case InlineChatResponseFeedbackKind.Accepted:
+					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Accepted;
+					break;
 			}
 
 			entry.provider.handleInteractiveEditorResponseFeedback?.(sessionData.session, response, apiKind);
