@@ -286,18 +286,9 @@ class SashWorkspace {
 			this.lastStartTimestamp = Date.now();
 		}
 
-		const sashes = [...this.getEnabledSashes()].sort(this.compareSashes.bind(this));
+		const sashes = this.getClosestSashes();
 
-		let areTopTwoOrthogonal = false;
-
-		if (sashes[0] === sashes[1]?.orthogonalStartSash || sashes[0] === sashes[1]?.orthogonalEndSash) {
-			areTopTwoOrthogonal = true;
-		} else if (sashes[1] === sashes[0]?.orthogonalStartSash || sashes[1] === sashes[0]?.orthogonalEndSash) {
-			areTopTwoOrthogonal = true;
-			[sashes[0], sashes[1]] = [sashes[1], sashes[0]];
-		}
-
-		if (this._closestSash === sashes[0] && (areTopTwoOrthogonal ? this._closestOrthogonalSash === sashes[1] : !this._closestOrthogonalSash)) {
+		if (this._closestSash === sashes[0] && this._closestOrthogonalSash === sashes[1]) {
 			return;
 		}
 
@@ -309,8 +300,7 @@ class SashWorkspace {
 			Sash.onMouseLeave(this._closestOrthogonalSash, { fromLinkedSash: true });
 		}
 
-		this._closestSash = sashes[0];
-		this._closestOrthogonalSash = areTopTwoOrthogonal ? sashes[1] : undefined;
+		[this._closestSash, this._closestOrthogonalSash] = sashes;
 
 		if (this._closestSash) {
 			Sash.onMouseEnter(this._closestSash, { fromLinkedSash: true, delay: Math.max(500 - (Date.now() - this.lastStartTimestamp), 0) });
@@ -350,6 +340,32 @@ class SashWorkspace {
 		this.active = false;
 	}
 
+	private getClosestSashes(): Sash[] {
+		const sashes = [...this.getEnabledSashes()]
+			.map(sash => ({ sash, ...this.getSashDistanceMetrics(sash) }))
+			.sort(this.compareSashDistanceMetrics.bind(this));
+
+		if (sashes.length <= 1) {
+			return sashes.map(s => s.sash);
+		}
+
+		if (sashes[1].sash === sashes[0].sash.orthogonalStartSash || sashes[1].sash === sashes[0].sash.orthogonalEndSash) {
+			[sashes[0], sashes[1]] = [sashes[1], sashes[0]]; // swap
+		}
+
+		if (sashes[0].sash === sashes[1].sash.orthogonalStartSash || sashes[0].sash === sashes[1].sash.orthogonalEndSash) {
+			if (sashes[0].d < sashes[1].d * 0.5) {
+				return [sashes[0].sash];
+			} else if (sashes[1].d < sashes[0].d * 0.5) {
+				return [sashes[1].sash];
+			} else {
+				return [sashes[0].sash, sashes[1].sash];
+			}
+		}
+
+		return [sashes[0].sash];
+	}
+
 	private *getEnabledSashes(): Iterable<Sash> {
 		for (const element of document.querySelectorAll('.monaco-sash')) {
 			if (!(element instanceof HTMLElement)) {
@@ -370,23 +386,22 @@ class SashWorkspace {
 		}
 	}
 
-	private compareSashes(a: Sash, b: Sash) {
-		const aRect = a.element.getBoundingClientRect();
-		const ax = this.mouseClientX < aRect.left ? aRect.left - this.mouseClientX : this.mouseClientX > aRect.right ? this.mouseClientX - aRect.right : 0;
-		const ay = this.mouseClientY < aRect.top ? aRect.top - this.mouseClientY : this.mouseClientY > aRect.bottom ? this.mouseClientY - aRect.bottom : 0;
-		const bRect = b.element.getBoundingClientRect();
-		const bx = this.mouseClientX < bRect.left ? bRect.left - this.mouseClientX : this.mouseClientX > bRect.right ? this.mouseClientX - bRect.right : 0;
-		const by = this.mouseClientY < bRect.top ? bRect.top - this.mouseClientY : this.mouseClientY > bRect.bottom ? this.mouseClientY - bRect.bottom : 0;
+	private getSashDistanceMetrics(sash: Sash): { x: number; y: number; d: number } {
+		const rect = sash.element.getBoundingClientRect();
+		const x = this.mouseClientX < rect.left ? rect.left - this.mouseClientX : this.mouseClientX > rect.right ? this.mouseClientX - rect.right : 0;
+		const y = this.mouseClientY < rect.top ? rect.top - this.mouseClientY : this.mouseClientY > rect.bottom ? this.mouseClientY - rect.bottom : 0;
+		const d = Math.sqrt(x * x + y * y);
+		return { x, y, d };
+	}
 
+	private compareSashDistanceMetrics({ x: ax, y: ay, d: ad }: { x: number; y: number; d: number }, { x: bx, y: by, d: bd }: { x: number; y: number; d: number }) {
 		if ((ax === 0 && ay === 0) || ((ax === 0 || ay === 0) && (bx !== 0 && by !== 0))) {
 			return -1;
 		} else if ((bx === 0 && by === 0) || ((bx === 0 || by === 0) && (ax !== 0 && ay !== 0))) {
 			return 1;
 		}
 
-		const aDist = Math.sqrt(ax * ax + ay * ay);
-		const bDist = Math.sqrt(bx * bx + by * by);
-		return aDist - bDist;
+		return ad - bd;
 	}
 
 	dispose(): void {
