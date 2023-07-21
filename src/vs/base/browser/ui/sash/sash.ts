@@ -354,14 +354,11 @@ export class Sash extends Disposable {
 		event.preventDefault();
 		event.stopPropagation();
 
-		const eventFactory = new MouseEventFactory();
 		(event as any).__orthogonalSashEvent = true;
-		Sash.WorkspaceClosestSash.onPointerStart(event, eventFactory);
-		Sash.WorkspaceClosestOrthogonalSash?.onPointerStart(event, eventFactory);
+		Sash.WorkspaceClosestSash.onPointerStart(event, new MouseEventFactory());
+		Sash.WorkspaceClosestOrthogonalSash?.onPointerStart(event, new MouseEventFactory());
 
-		console.log('LETS GO');
 		Sash.WorkspaceActive = true;
-		// cool
 	}
 
 	private static WorkspaceOnMouseUp(): void {
@@ -369,7 +366,6 @@ export class Sash extends Disposable {
 			return;
 		}
 
-		console.log('ENOUGH');
 		Sash.WorkspaceActive = false;
 	}
 
@@ -743,7 +739,6 @@ export class Sash extends Disposable {
 			EventHelper.stop(e, false);
 
 			this.el.removeChild(style);
-
 			this.el.classList.remove('active');
 			this._onDidEnd.fire();
 
