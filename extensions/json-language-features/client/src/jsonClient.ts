@@ -95,6 +95,7 @@ export type JSONSchemaSettings = {
 export namespace SettingIds {
 	export const enableFormatter = 'json.format.enable';
 	export const enableKeepLines = 'json.format.keepLines';
+	export const enableSortOnSave = 'json.sortOnSave.enable';
 	export const enableValidation = 'json.validate.enable';
 	export const enableSchemaDownload = 'json.schemaDownload.enable';
 	export const maxItemsComputed = 'json.maxItemsComputed';
@@ -161,6 +162,13 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			await client.sendNotification(SchemaContentChangeNotification.type, cachedSchemas);
 		}
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
+	}));
+
+	toDispose.push(workspace.onDidSaveTextDocument((textDocument) => {
+		const sortOnSave = workspace.getConfiguration().get<boolean>(SettingIds.enableSortOnSave);
+		if (sortOnSave && (textDocument.languageId === 'json' || textDocument.languageId === 'jsonc')) {
+
+		}
 	}));
 
 	toDispose.push(commands.registerCommand('json.sort', async () => {
