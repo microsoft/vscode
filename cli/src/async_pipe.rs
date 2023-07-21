@@ -6,6 +6,7 @@
 use crate::{constants::APPLICATION_NAME, util::errors::CodeError};
 use async_trait::async_trait;
 use std::path::{Path, PathBuf};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpListener;
 use uuid::Uuid;
 
@@ -41,7 +42,7 @@ cfg_if::cfg_if! {
 			pipe.into_split()
 		}
 	} else {
-		use tokio::{time::sleep, io::{AsyncRead, AsyncWrite, ReadBuf}};
+		use tokio::{time::sleep, io::ReadBuf};
 		use tokio::net::windows::named_pipe::{ClientOptions, ServerOptions, NamedPipeClient, NamedPipeServer};
 		use std::{time::Duration, pin::Pin, task::{Context, Poll}, io};
 		use pin_project::pin_project;
