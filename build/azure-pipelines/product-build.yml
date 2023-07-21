@@ -481,6 +481,7 @@ stages:
           - job: LinuxAlpine
             variables:
               VSCODE_ARCH: x64
+              NPM_ARCH: x64
             steps:
               - template: alpine/product-build-alpine.yml
 
@@ -489,6 +490,7 @@ stages:
             timeoutInMinutes: 120
             variables:
               VSCODE_ARCH: arm64
+              NPM_ARCH: arm64
             steps:
               - template: alpine/product-build-alpine.yml
 
