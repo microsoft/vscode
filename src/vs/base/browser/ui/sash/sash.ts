@@ -9,7 +9,7 @@ import { EventType, Gesture } from 'vs/base/browser/touch';
 import { Delayer } from 'vs/base/common/async';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import 'vs/css!./sash';
 
@@ -237,6 +237,163 @@ class OrthogonalPointerEventFactory implements IPointerEventFactory {
 
 const PointerEventsDisabledCssClass = 'pointer-events-disabled';
 
+class SashWorkspace {
+
+	private active = false;
+	private sashes = new WeakMap<HTMLElement, Sash>();
+	private _closestSash: Sash | undefined;
+	private _closestOrthogonalSash: Sash | undefined;
+	private lastStartTimestamp = 0;
+	private mouseClientX = 0;
+	private mouseClientY = 0;
+	private disposables = new DisposableStore();
+
+	get closestSash(): Sash | undefined { return this._closestSash; }
+	get closestOrthogonalSash(): Sash | undefined { return this._closestOrthogonalSash; }
+
+	constructor() {
+		this.disposables.add(new DomEmitter(window, 'mousemove')).event(this.onMouseMove, this, this.disposables);
+		this.disposables.add(new DomEmitter(window, 'mousedown', true)).event(this.onMouseDown, this, this.disposables);
+		this.disposables.add(new DomEmitter(window, 'mouseup', true)).event(this.onMouseUp, this, this.disposables);
+		ModifierKeyEmitter.getInstance().event(this.update, this, this.disposables);
+	}
+
+	add(sash: Sash): IDisposable {
+		this.sashes.set(sash.element, sash);
+		return toDisposable(() => this.sashes.delete(sash.element));
+	}
+
+	private update(): void {
+		if (this.active) {
+			return;
+		}
+
+		if (!ModifierKeyEmitter.getInstance().keyStatus.metaKey) {
+			if (this._closestSash) {
+				Sash.onMouseLeave(this._closestSash, { fromLinkedSash: true });
+				this._closestSash = undefined;
+			}
+
+			if (this._closestOrthogonalSash) {
+				Sash.onMouseLeave(this._closestOrthogonalSash, { fromLinkedSash: true });
+				this._closestOrthogonalSash = undefined;
+			}
+
+			return;
+		}
+
+		if (!this._closestSash) {
+			this.lastStartTimestamp = Date.now();
+		}
+
+		const sashes = [...this.getEnabledSashes()].sort(this.compareSashes.bind(this));
+
+		let areTopTwoOrthogonal = false;
+
+		if (sashes[0] === sashes[1]?.orthogonalStartSash || sashes[0] === sashes[1]?.orthogonalEndSash) {
+			areTopTwoOrthogonal = true;
+		} else if (sashes[1] === sashes[0]?.orthogonalStartSash || sashes[1] === sashes[0]?.orthogonalEndSash) {
+			areTopTwoOrthogonal = true;
+			[sashes[0], sashes[1]] = [sashes[1], sashes[0]];
+		}
+
+		if (this._closestSash === sashes[0] && (areTopTwoOrthogonal ? this._closestOrthogonalSash === sashes[1] : !this._closestOrthogonalSash)) {
+			return;
+		}
+
+		if (this._closestSash) {
+			Sash.onMouseLeave(this._closestSash, { fromLinkedSash: true });
+		}
+
+		if (this._closestOrthogonalSash) {
+			Sash.onMouseLeave(this._closestOrthogonalSash, { fromLinkedSash: true });
+		}
+
+		this._closestSash = sashes[0];
+		this._closestOrthogonalSash = areTopTwoOrthogonal ? sashes[1] : undefined;
+
+		if (this._closestSash) {
+			Sash.onMouseEnter(this._closestSash, { fromLinkedSash: true, delay: Math.max(500 - (Date.now() - this.lastStartTimestamp), 0) });
+		}
+
+		if (this._closestOrthogonalSash) {
+			Sash.onMouseEnter(this._closestOrthogonalSash, { fromLinkedSash: true, delay: Math.max(500 - (Date.now() - this.lastStartTimestamp), 0) });
+		}
+	}
+
+	private onMouseMove(e: MouseEvent): void {
+		this.mouseClientX = e.clientX;
+		this.mouseClientY = e.clientY;
+		this.update();
+	}
+
+	private onMouseDown(event: MouseEvent): void {
+		if (!this._closestSash) {
+			return;
+		}
+
+		if (event.button !== 0) {
+			return;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		(event as any).__orthogonalSashEvent = true;
+		this._closestSash.onPointerStart(event, new MouseEventFactory());
+		this._closestOrthogonalSash?.onPointerStart(event, new MouseEventFactory());
+
+		this.active = true;
+	}
+
+	private onMouseUp(): void {
+		this.active = false;
+	}
+
+	private *getEnabledSashes(): Iterable<Sash> {
+		for (const element of document.querySelectorAll('.monaco-sash')) {
+			if (!(element instanceof HTMLElement)) {
+				continue;
+			}
+
+			const sash = this.sashes.get(element);
+
+			if (!sash) {
+				continue;
+			}
+
+			if (sash.state === SashState.Disabled) {
+				continue;
+			}
+
+			yield sash;
+		}
+	}
+
+	private compareSashes(a: Sash, b: Sash) {
+		const aRect = a.element.getBoundingClientRect();
+		const ax = this.mouseClientX < aRect.left ? aRect.left - this.mouseClientX : this.mouseClientX > aRect.right ? this.mouseClientX - aRect.right : 0;
+		const ay = this.mouseClientY < aRect.top ? aRect.top - this.mouseClientY : this.mouseClientY > aRect.bottom ? this.mouseClientY - aRect.bottom : 0;
+		const bRect = b.element.getBoundingClientRect();
+		const bx = this.mouseClientX < bRect.left ? bRect.left - this.mouseClientX : this.mouseClientX > bRect.right ? this.mouseClientX - bRect.right : 0;
+		const by = this.mouseClientY < bRect.top ? bRect.top - this.mouseClientY : this.mouseClientY > bRect.bottom ? this.mouseClientY - bRect.bottom : 0;
+
+		if ((ax === 0 && ay === 0) || ((ax === 0 || ay === 0) && (bx !== 0 && by !== 0))) {
+			return -1;
+		} else if ((bx === 0 && by === 0) || ((bx === 0 || by === 0) && (ax !== 0 && ay !== 0))) {
+			return 1;
+		}
+
+		const aDist = Math.sqrt(ax * ax + ay * ay);
+		const bDist = Math.sqrt(bx * bx + by * by);
+		return aDist - bDist;
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
+	}
+}
+
 /**
  * The {@link Sash} is the UI component which allows the user to resize other
  * components. It's usually an invisible horizontal or vertical line which, when
@@ -252,163 +409,9 @@ const PointerEventsDisabledCssClass = 'pointer-events-disabled';
  */
 export class Sash extends Disposable {
 
-	static WorkspaceActive: boolean = false;
-	private static WorkspaceInitialized = false;
-	private static WorkspaceSashes = new WeakMap<HTMLElement, Sash>();
-	private static WorkspaceClosestSash: Sash | undefined;
-	private static WorkspaceClosestOrthogonalSash: Sash | undefined;
-	private static WorkspaceLastStartTimestamp = 0;
-	private static WorkspaceMouseClientX = 0;
-	private static WorkspaceMouseClientY = 0;
-	private static WorkspaceDisposables = new DisposableStore();
+	private static Workspace = new SashWorkspace();
 
-	private static EnsureWorkspace(): void {
-		if (Sash.WorkspaceInitialized) {
-			return;
-		}
-
-		const onMouseMove = Sash.WorkspaceDisposables.add(new DomEmitter(window, 'mousemove'));
-		onMouseMove.event(Sash.WorkspaceOnMouseMove, this, Sash.WorkspaceDisposables);
-		const onMouseDown = Sash.WorkspaceDisposables.add(new DomEmitter(window, 'mousedown', true));
-		onMouseDown.event(Sash.WorkspaceOnMouseDown, this, Sash.WorkspaceDisposables);
-		const onMouseUp = Sash.WorkspaceDisposables.add(new DomEmitter(window, 'mouseup', true));
-		onMouseUp.event(Sash.WorkspaceOnMouseUp, this, Sash.WorkspaceDisposables);
-		ModifierKeyEmitter.getInstance().event(Sash.WorkspaceUpdate, this, Sash.WorkspaceDisposables);
-		Sash.WorkspaceInitialized = true;
-	}
-
-	private static WorkspaceOnMouseMove(e: MouseEvent): void {
-		Sash.WorkspaceMouseClientX = e.clientX;
-		Sash.WorkspaceMouseClientY = e.clientY;
-		Sash.WorkspaceUpdate();
-	}
-
-	private static WorkspaceUpdate(): void {
-		if (Sash.WorkspaceActive) {
-			return;
-		}
-
-		if (!ModifierKeyEmitter.getInstance().keyStatus.metaKey) {
-			if (Sash.WorkspaceClosestSash) {
-				Sash.onMouseLeave(Sash.WorkspaceClosestSash, { fromLinkedSash: true });
-				Sash.WorkspaceClosestSash = undefined;
-			}
-
-			if (Sash.WorkspaceClosestOrthogonalSash) {
-				Sash.onMouseLeave(Sash.WorkspaceClosestOrthogonalSash, { fromLinkedSash: true });
-				Sash.WorkspaceClosestOrthogonalSash = undefined;
-			}
-
-			return;
-		}
-
-		if (!Sash.WorkspaceClosestSash) {
-			Sash.WorkspaceLastStartTimestamp = Date.now();
-		}
-
-		const sashes = [...Sash.WorkspaceGetEnabledSashes()]
-			.sort(Sash.WorkspaceCompareSashes);
-
-		let areTopTwoOrthogonal = false;
-
-		if (sashes[0] === sashes[1]?.orthogonalStartSash || sashes[0] === sashes[1]?.orthogonalEndSash) {
-			areTopTwoOrthogonal = true;
-		} else if (sashes[1] === sashes[0]?.orthogonalStartSash || sashes[1] === sashes[0]?.orthogonalEndSash) {
-			areTopTwoOrthogonal = true;
-			[sashes[0], sashes[1]] = [sashes[1], sashes[0]];
-		}
-
-		if (Sash.WorkspaceClosestSash === sashes[0] && (areTopTwoOrthogonal ? Sash.WorkspaceClosestOrthogonalSash === sashes[1] : !Sash.WorkspaceClosestOrthogonalSash)) {
-			return;
-		}
-
-		if (Sash.WorkspaceClosestSash) {
-			Sash.onMouseLeave(Sash.WorkspaceClosestSash, { fromLinkedSash: true });
-		}
-
-		if (Sash.WorkspaceClosestOrthogonalSash) {
-			Sash.onMouseLeave(Sash.WorkspaceClosestOrthogonalSash, { fromLinkedSash: true });
-		}
-
-		Sash.WorkspaceClosestSash = sashes[0];
-		Sash.WorkspaceClosestOrthogonalSash = areTopTwoOrthogonal ? sashes[1] : undefined;
-
-		if (Sash.WorkspaceClosestSash) {
-			Sash.onMouseEnter(Sash.WorkspaceClosestSash, { fromLinkedSash: true, delay: Math.max(500 - (Date.now() - Sash.WorkspaceLastStartTimestamp), 0) });
-		}
-
-		if (Sash.WorkspaceClosestOrthogonalSash) {
-			Sash.onMouseEnter(Sash.WorkspaceClosestOrthogonalSash, { fromLinkedSash: true, delay: Math.max(500 - (Date.now() - Sash.WorkspaceLastStartTimestamp), 0) });
-		}
-	}
-
-	private static WorkspaceOnMouseDown(event: MouseEvent): void {
-		if (!Sash.WorkspaceClosestSash) {
-			return;
-		}
-
-		if (event.button !== 0) {
-			return;
-		}
-
-		event.preventDefault();
-		event.stopPropagation();
-
-		(event as any).__orthogonalSashEvent = true;
-		Sash.WorkspaceClosestSash.onPointerStart(event, new MouseEventFactory());
-		Sash.WorkspaceClosestOrthogonalSash?.onPointerStart(event, new MouseEventFactory());
-
-		Sash.WorkspaceActive = true;
-	}
-
-	private static WorkspaceOnMouseUp(): void {
-		if (!Sash.WorkspaceActive) {
-			return;
-		}
-
-		Sash.WorkspaceActive = false;
-	}
-
-	private static WorkspaceCompareSashes(a: Sash, b: Sash) {
-		const aRect = a.el.getBoundingClientRect();
-		const ax = Sash.WorkspaceMouseClientX < aRect.left ? aRect.left - Sash.WorkspaceMouseClientX : Sash.WorkspaceMouseClientX > aRect.right ? Sash.WorkspaceMouseClientX - aRect.right : 0;
-		const ay = Sash.WorkspaceMouseClientY < aRect.top ? aRect.top - Sash.WorkspaceMouseClientY : Sash.WorkspaceMouseClientY > aRect.bottom ? Sash.WorkspaceMouseClientY - aRect.bottom : 0;
-		const bRect = b.el.getBoundingClientRect();
-		const bx = Sash.WorkspaceMouseClientX < bRect.left ? bRect.left - Sash.WorkspaceMouseClientX : Sash.WorkspaceMouseClientX > bRect.right ? Sash.WorkspaceMouseClientX - bRect.right : 0;
-		const by = Sash.WorkspaceMouseClientY < bRect.top ? bRect.top - Sash.WorkspaceMouseClientY : Sash.WorkspaceMouseClientY > bRect.bottom ? Sash.WorkspaceMouseClientY - bRect.bottom : 0;
-
-		if ((ax === 0 && ay === 0) || ((ax === 0 || ay === 0) && (bx !== 0 && by !== 0))) {
-			return -1;
-		} else if ((bx === 0 && by === 0) || ((bx === 0 || by === 0) && (ax !== 0 && ay !== 0))) {
-			return 1;
-		}
-
-		const aDist = Math.sqrt(ax * ax + ay * ay);
-		const bDist = Math.sqrt(bx * bx + by * by);
-		return aDist - bDist;
-	}
-
-	private static *WorkspaceGetEnabledSashes(): Iterable<Sash> {
-		for (const element of document.querySelectorAll('.monaco-sash')) {
-			if (!(element instanceof HTMLElement)) {
-				continue;
-			}
-
-			const sash = Sash.WorkspaceSashes.get(element);
-
-			if (!sash) {
-				continue;
-			}
-
-			if (sash.state === SashState.Disabled) {
-				continue;
-			}
-
-			yield sash;
-		}
-	}
-
-	private el: HTMLElement;
+	readonly element: HTMLElement;
 	private layoutProvider: ISashLayoutProvider;
 	private orientation: Orientation;
 	private size: number;
@@ -443,9 +446,9 @@ export class Sash extends Disposable {
 			return;
 		}
 
-		this.el.classList.toggle('disabled', state === SashState.Disabled);
-		this.el.classList.toggle('minimum', state === SashState.AtMinimum);
-		this.el.classList.toggle('maximum', state === SashState.AtMaximum);
+		this.element.classList.toggle('disabled', state === SashState.Disabled);
+		this.element.classList.toggle('minimum', state === SashState.AtMinimum);
+		this.element.classList.toggle('maximum', state === SashState.AtMaximum);
 
 		this._state = state;
 		this.onDidEnablementChange.fire(state);
@@ -501,7 +504,7 @@ export class Sash extends Disposable {
 				this.orthogonalStartDragHandleDisposables.clear();
 
 				if (state !== SashState.Disabled) {
-					this._orthogonalStartDragHandle = append(this.el, $('.orthogonal-drag-handle.start'));
+					this._orthogonalStartDragHandle = append(this.element, $('.orthogonal-drag-handle.start'));
 					this.orthogonalStartDragHandleDisposables.add(toDisposable(() => this._orthogonalStartDragHandle!.remove()));
 					this.orthogonalStartDragHandleDisposables.add(new DomEmitter(this._orthogonalStartDragHandle, 'mouseenter')).event
 						(() => Sash.onMouseEnter(sash), undefined, this.orthogonalStartDragHandleDisposables);
@@ -539,7 +542,7 @@ export class Sash extends Disposable {
 				this.orthogonalEndDragHandleDisposables.clear();
 
 				if (state !== SashState.Disabled) {
-					this._orthogonalEndDragHandle = append(this.el, $('.orthogonal-drag-handle.end'));
+					this._orthogonalEndDragHandle = append(this.element, $('.orthogonal-drag-handle.end'));
 					this.orthogonalEndDragHandleDisposables.add(toDisposable(() => this._orthogonalEndDragHandle!.remove()));
 					this.orthogonalEndDragHandleDisposables.add(new DomEmitter(this._orthogonalEndDragHandle, 'mouseenter')).event
 						(() => Sash.onMouseEnter(sash), undefined, this.orthogonalEndDragHandleDisposables);
@@ -575,35 +578,30 @@ export class Sash extends Disposable {
 	constructor(container: HTMLElement, layoutProvider: ISashLayoutProvider, options: ISashOptions) {
 		super();
 
-		this.el = append(container, $('.monaco-sash'));
-
-		if (options.workspaceEnabled) {
-			Sash.EnsureWorkspace();
-			Sash.WorkspaceSashes.set(this.el, this);
-		}
+		this.element = append(container, $('.monaco-sash'));
 
 		if (options.orthogonalEdge) {
-			this.el.classList.add(`orthogonal-edge-${options.orthogonalEdge}`);
+			this.element.classList.add(`orthogonal-edge-${options.orthogonalEdge}`);
 		}
 
 		if (isMacintosh) {
-			this.el.classList.add('mac');
+			this.element.classList.add('mac');
 		}
 
-		const onMouseDown = this._register(new DomEmitter(this.el, 'mousedown')).event;
+		const onMouseDown = this._register(new DomEmitter(this.element, 'mousedown')).event;
 		this._register(onMouseDown(e => this.onPointerStart(e, new MouseEventFactory()), this));
-		const onMouseDoubleClick = this._register(new DomEmitter(this.el, 'dblclick')).event;
+		const onMouseDoubleClick = this._register(new DomEmitter(this.element, 'dblclick')).event;
 		this._register(onMouseDoubleClick(this.onPointerDoublePress, this));
-		const onMouseEnter = this._register(new DomEmitter(this.el, 'mouseenter')).event;
-		this._register(Event.filter(onMouseEnter, () => !Sash.WorkspaceClosestSash)(() => Sash.onMouseEnter(this)));
-		const onMouseLeave = this._register(new DomEmitter(this.el, 'mouseleave')).event;
-		this._register(Event.filter(onMouseLeave, () => !Sash.WorkspaceClosestSash)(() => Sash.onMouseLeave(this)));
+		const onMouseEnter = this._register(new DomEmitter(this.element, 'mouseenter')).event;
+		this._register(Event.filter(onMouseEnter, () => !Sash.Workspace.closestSash)(() => Sash.onMouseEnter(this)));
+		const onMouseLeave = this._register(new DomEmitter(this.element, 'mouseleave')).event;
+		this._register(Event.filter(onMouseLeave, () => !Sash.Workspace.closestSash)(() => Sash.onMouseLeave(this)));
 
-		this._register(Gesture.addTarget(this.el));
+		this._register(Gesture.addTarget(this.element));
 
-		const onTouchStart = this._register(new DomEmitter(this.el, EventType.Start)).event;
-		this._register(onTouchStart(e => this.onPointerStart(e, new GestureEventFactory(this.el)), this));
-		const onTap = this._register(new DomEmitter(this.el, EventType.Tap)).event;
+		const onTouchStart = this._register(new DomEmitter(this.element, EventType.Start)).event;
+		this._register(onTouchStart(e => this.onPointerStart(e, new GestureEventFactory(this.element)), this));
+		const onTap = this._register(new DomEmitter(this.element, EventType.Tap)).event;
 
 		let doubleTapTimeout: any = undefined;
 		this._register(onTap(event => {
@@ -622,9 +620,9 @@ export class Sash extends Disposable {
 			this.size = options.size;
 
 			if (options.orientation === Orientation.VERTICAL) {
-				this.el.style.width = `${this.size}px`;
+				this.element.style.width = `${this.size}px`;
 			} else {
-				this.el.style.height = `${this.size}px`;
+				this.element.style.height = `${this.size}px`;
 			}
 		} else {
 			this.size = globalSize;
@@ -644,19 +642,23 @@ export class Sash extends Disposable {
 		this.orientation = options.orientation || Orientation.VERTICAL;
 
 		if (this.orientation === Orientation.HORIZONTAL) {
-			this.el.classList.add('horizontal');
-			this.el.classList.remove('vertical');
+			this.element.classList.add('horizontal');
+			this.element.classList.remove('vertical');
 		} else {
-			this.el.classList.remove('horizontal');
-			this.el.classList.add('vertical');
+			this.element.classList.remove('horizontal');
+			this.element.classList.add('vertical');
 		}
 
-		this.el.classList.toggle('debug', DEBUG);
+		this.element.classList.toggle('debug', DEBUG);
+
+		if (options.workspaceEnabled) {
+			this._register(Sash.Workspace.add(this));
+		}
 
 		this.layout();
 	}
 
-	private onPointerStart(event: PointerEvent, pointerEventFactory: IPointerEventFactory): void {
+	/* private */ onPointerStart(event: PointerEvent, pointerEventFactory: IPointerEventFactory): void {
 		EventHelper.stop(event);
 
 		let isMultisashResize = false;
@@ -690,11 +692,11 @@ export class Sash extends Disposable {
 		const altKey = event.altKey;
 		const startEvent: ISashEvent = { startX, currentX: startX, startY, currentY: startY, altKey };
 
-		this.el.classList.add('active');
+		this.element.classList.add('active');
 		this._onDidStart.fire(startEvent);
 
 		// fix https://github.com/microsoft/vscode/issues/21675
-		const style = createStyleSheet(this.el);
+		const style = createStyleSheet(this.element);
 		const updateStyle = () => {
 			let cursor = '';
 
@@ -738,8 +740,8 @@ export class Sash extends Disposable {
 		const onPointerUp = (e: PointerEvent) => {
 			EventHelper.stop(e, false);
 
-			this.el.removeChild(style);
-			this.el.classList.remove('active');
+			this.element.removeChild(style);
+			this.element.classList.remove('active');
 			this._onDidEnd.fire();
 
 			disposables.dispose();
@@ -769,11 +771,11 @@ export class Sash extends Disposable {
 	}
 
 	static onMouseEnter(sash: Sash, options: { fromLinkedSash?: boolean; delay?: number } = {}): void {
-		if (sash.el.classList.contains('active')) {
+		if (sash.element.classList.contains('active')) {
 			sash.hoverDelayer.cancel();
-			sash.el.classList.add('hover');
+			sash.element.classList.add('hover');
 		} else {
-			sash.hoverDelayer.trigger(() => sash.el.classList.add('hover'), options.delay ?? sash.hoverDelay).then(undefined, () => { });
+			sash.hoverDelayer.trigger(() => sash.element.classList.add('hover'), options.delay ?? sash.hoverDelay).then(undefined, () => { });
 		}
 
 		if (!options.fromLinkedSash && sash.linkedSash) {
@@ -783,7 +785,7 @@ export class Sash extends Disposable {
 
 	static onMouseLeave(sash: Sash, options: { fromLinkedSash?: boolean } = {}): void {
 		sash.hoverDelayer.cancel();
-		sash.el.classList.remove('hover');
+		sash.element.classList.remove('hover');
 
 		if (!options.fromLinkedSash && sash.linkedSash) {
 			Sash.onMouseLeave(sash.linkedSash, { ...options, fromLinkedSash: true });
@@ -806,25 +808,25 @@ export class Sash extends Disposable {
 	layout(): void {
 		if (this.orientation === Orientation.VERTICAL) {
 			const verticalProvider = (<IVerticalSashLayoutProvider>this.layoutProvider);
-			this.el.style.left = verticalProvider.getVerticalSashLeft(this) - (this.size / 2) + 'px';
+			this.element.style.left = verticalProvider.getVerticalSashLeft(this) - (this.size / 2) + 'px';
 
 			if (verticalProvider.getVerticalSashTop) {
-				this.el.style.top = verticalProvider.getVerticalSashTop(this) + 'px';
+				this.element.style.top = verticalProvider.getVerticalSashTop(this) + 'px';
 			}
 
 			if (verticalProvider.getVerticalSashHeight) {
-				this.el.style.height = verticalProvider.getVerticalSashHeight(this) + 'px';
+				this.element.style.height = verticalProvider.getVerticalSashHeight(this) + 'px';
 			}
 		} else {
 			const horizontalProvider = (<IHorizontalSashLayoutProvider>this.layoutProvider);
-			this.el.style.top = horizontalProvider.getHorizontalSashTop(this) - (this.size / 2) + 'px';
+			this.element.style.top = horizontalProvider.getHorizontalSashTop(this) - (this.size / 2) + 'px';
 
 			if (horizontalProvider.getHorizontalSashLeft) {
-				this.el.style.left = horizontalProvider.getHorizontalSashLeft(this) + 'px';
+				this.element.style.left = horizontalProvider.getHorizontalSashLeft(this) + 'px';
 			}
 
 			if (horizontalProvider.getHorizontalSashWidth) {
-				this.el.style.width = horizontalProvider.getHorizontalSashWidth(this) + 'px';
+				this.element.style.width = horizontalProvider.getHorizontalSashWidth(this) + 'px';
 			}
 		}
 	}
@@ -845,7 +847,6 @@ export class Sash extends Disposable {
 
 	override dispose(): void {
 		super.dispose();
-		Sash.WorkspaceSashes.delete(this.el);
-		this.el.remove();
+		this.element.remove();
 	}
 }
