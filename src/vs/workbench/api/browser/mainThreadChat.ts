@@ -16,10 +16,13 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 	private readonly _providerRegistrations = this._register(new DisposableMap<number>());
-	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IChatProgress) => void>();
+	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IChatProgress) => (void | ((progress: { content: string }) => void))>();
 	private readonly _stateEmitters = new Map<number, Emitter<any>>();
 
 	private readonly _proxy: ExtHostChatShape;
+
+	private _responsePartHandlePool = 0;
+	private readonly _activeResponsePartCallbacks = new Map<string, ((progress: { content: string }) => void)>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -133,9 +136,21 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		this._providerRegistrations.set(handle, unreg);
 	}
 
-	$acceptResponseProgress(handle: number, sessionId: number, progress: IChatProgress): void {
+	async $acceptResponseProgress(handle: number, sessionId: number, progress: IChatProgress, responsePartHandle?: number): Promise<void | number> {
 		const id = `${handle}_${sessionId}`;
-		this._activeRequestProgressCallbacks.get(id)?.(progress);
+		const responsePartCb = this._activeRequestProgressCallbacks.get(id)?.(progress);
+		if (responsePartCb && !responsePartHandle) {
+			const responsePartId = `${id}_${++this._responsePartHandlePool}`;
+			this._activeResponsePartCallbacks.set(responsePartId, responsePartCb);
+			return this._responsePartHandlePool;
+		} else if (responsePartHandle) {
+			const responsePartId = `${id}_${responsePartHandle}`;
+			const responsePartCb = this._activeResponsePartCallbacks.get(responsePartId);
+			if (responsePartCb && 'content' in progress) {
+				responsePartCb(progress);
+			}
+			this._activeRequestProgressCallbacks.delete(responsePartId);
+		}
 	}
 
 	async $acceptChatState(sessionId: number, state: any): Promise<void> {

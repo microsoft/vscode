@@ -1172,7 +1172,7 @@ export interface MainThreadChatShape extends IDisposable {
 	$addRequest(context: any): void;
 	$sendRequestToProvider(providerId: string, message: IChatDynamicRequest): void;
 	$unregisterChatProvider(handle: number): Promise<void>;
-	$acceptResponseProgress(handle: number, sessionId: number, progress: IChatProgress): void;
+	$acceptResponseProgress(handle: number, sessionId: number, progress: IChatProgress, responsePartHandle?: number): Promise<number | void>;
 	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void;
 
 	$registerSlashCommandProvider(handle: number, chatProviderId: string): Promise<void>;

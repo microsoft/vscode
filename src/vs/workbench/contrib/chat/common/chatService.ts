@@ -43,7 +43,7 @@ export interface IChatResponse {
 }
 
 export type IChatProgress =
-	{ content: string } | { requestId: string };
+	{ content: string } | { requestId: string } | { message: string };
 
 export interface IPersistedChatState { }
 export interface IChatProvider {
@@ -54,7 +54,7 @@ export interface IChatProvider {
 	resolveRequest?(session: IChat, context: any, token: CancellationToken): ProviderResult<IChatRequest>;
 	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IChatReplyFollowup[])[] | undefined>;
 	provideFollowups?(session: IChat, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
-	provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void, token: CancellationToken): ProviderResult<IChatResponse>;
+	provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void | ((progress: { content: string }) => void), token: CancellationToken): ProviderResult<IChatResponse>;
 	provideSlashCommands?(session: IChat, token: CancellationToken): ProviderResult<ISlashCommand[]>;
 	removeRequest?(session: IChat, requestId: string): void;
 }

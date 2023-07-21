@@ -126,7 +126,12 @@ declare module 'vscode' {
 		responseId: string;
 	}
 
-	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId;
+	export interface InteractiveProgressTask {
+		message: string;
+		resolve: (token: CancellationToken) => Thenable<InteractiveProgressContent>;
+	}
+
+	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId | InteractiveProgressTask;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;

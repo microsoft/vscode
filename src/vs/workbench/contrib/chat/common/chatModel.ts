@@ -81,6 +81,53 @@ export class ChatRequestModel implements IChatRequestModel {
 	}
 }
 
+
+interface ResponsePart { string: IMarkdownString; resolving?: boolean }
+class Response {
+	private _responseParts: ResponsePart[];
+	private _responseRepr: IMarkdownString;
+
+	get value(): IMarkdownString {
+		return this._responseRepr;
+	}
+
+	constructor(value: IMarkdownString) {
+		this._responseRepr = value;
+		this._responseParts = [{ string: value }];
+	}
+
+	updateContent(responsePart: string | { message: string }): void | ((progress: { content: string }) => void) {
+		if (typeof responsePart === 'string') {
+			const responsePartLength = this._responseParts.length - 1;
+			const lastResponsePart = this._responseParts[responsePartLength];
+
+			if (lastResponsePart.resolving === true) {
+				// The last part is resolving, start a new part
+				this._responseParts.push({ string: new MarkdownString(responsePart) });
+			} else {
+				// Combine this part with the last, non-resolving part
+				this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart) };
+			}
+
+			this._updateRepr();
+		} else {
+			// Add a new resolving part
+			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.message), resolving: true });
+			this._updateRepr();
+
+			return (progress: { content: string }) => {
+				// Replace the resolving part's content with the actual response
+				this._responseParts[responsePosition] = { string: new MarkdownString(progress.content) };
+				this._responseRepr = new MarkdownString(this._responseParts.map(r => r.string.value).join('\n'));
+			};
+		}
+	}
+
+	private _updateRepr() {
+		this._responseRepr = new MarkdownString(this._responseParts.map(r => r.string.value).join('\n'));
+	}
+}
+
 export class ChatResponseModel extends Disposable implements IChatResponseModel {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -112,8 +159,9 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._followups;
 	}
 
+	private _response: Response;
 	public get response(): IMarkdownString {
-		return this._response;
+		return this._response.value;
 	}
 
 	public get errorDetails(): IChatResponseErrorDetails | undefined {
@@ -133,7 +181,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	constructor(
-		private _response: IMarkdownString,
+		_response: IMarkdownString,
 		public readonly session: ChatModel,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
@@ -143,13 +191,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		private _followups?: IChatFollowup[]
 	) {
 		super();
+		this._response = new Response(_response);
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
-	updateContent(responsePart: string, quiet?: boolean) {
-		this._response = new MarkdownString(this.response.value + responsePart);
-		if (!quiet) {
-			this._onDidChange.fire();
+	updateContent(responsePart: string | { message: string }, quiet?: boolean) {
+		try {
+			return this._response.updateContent(responsePart);
+		} finally {
+			if (!quiet) {
+				this._onDidChange.fire();
+			}
 		}
 	}
 
@@ -438,7 +490,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
-	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress, quiet?: boolean): void {
+	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress, quiet?: boolean): void | ((progress: { content: string }) => void) {
 		if (!this._session) {
 			throw new Error('acceptResponseProgress: No session');
 		}
@@ -453,6 +505,8 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if ('content' in progress) {
 			request.response.updateContent(progress.content, quiet);
+		} else if ('message' in progress) {
+			return request.response.updateContent(progress, quiet);
 		} else {
 			request.setProviderRequestId(progress.requestId);
 			request.response.setProviderResponseId(progress.requestId);
