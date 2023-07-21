@@ -94,7 +94,7 @@ import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/no
 import { Schemas } from 'vs/base/common/network';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
-import { NotebookEditorStickyScroll } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll';
+import { NotebookStickyScrollController } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll';
 import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -1046,7 +1046,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private _registerNotebookStickyScroll() {
-		this._register(this.instantiationService.createInstance(NotebookEditorStickyScroll, this._notebookStickyScrollContainer, this, this._notebookOutline, this._list));
+		this._register(this.instantiationService.createInstance(NotebookStickyScrollController, this._notebookStickyScrollContainer, this, this._notebookOutline, this._list));
 	}
 
 	private _updateOutputRenderers() {
