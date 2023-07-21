@@ -96,7 +96,7 @@ class Response {
 		this._responseParts = [{ string: value }];
 	}
 
-	updateContent(responsePart: string | { placeholder: string }): DeferredPromise<string> | void {
+	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string> }): void {
 		if (typeof responsePart === 'string') {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
@@ -115,13 +115,11 @@ class Response {
 			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), resolving: true });
 			this._updateRepr();
 
-			const deferredPromise = new DeferredPromise<string>();
-			deferredPromise.p.then((content) => {
+			responsePart.resolvedContent?.then((content) => {
 				// Replace the resolving part's content with the resolved response
 				this._responseParts[responsePosition] = { string: new MarkdownString(content) };
 				this._updateRepr();
 			});
-			return deferredPromise;
 		}
 	}
 
@@ -197,9 +195,9 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
-	updateContent(responsePart: string | { placeholder: string }, quiet?: boolean) {
+	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string> }, quiet?: boolean) {
 		try {
-			return this._response.updateContent(responsePart);
+			this._response.updateContent(responsePart);
 		} finally {
 			if (!quiet) {
 				this._onDidChange.fire();
@@ -492,7 +490,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
-	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress, quiet?: boolean): void | DeferredPromise<string> {
+	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress, quiet?: boolean): void {
 		if (!this._session) {
 			throw new Error('acceptResponseProgress: No session');
 		}
@@ -508,7 +506,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		if ('content' in progress) {
 			request.response.updateContent(progress.content, quiet);
 		} else if ('placeholder' in progress) {
-			return request.response.updateContent(progress, quiet);
+			request.response.updateContent(progress, quiet);
 		} else {
 			request.setProviderRequestId(progress.requestId);
 			request.response.setProviderResponseId(progress.requestId);

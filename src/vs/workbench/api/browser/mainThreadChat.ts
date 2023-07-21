@@ -23,7 +23,7 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 	private readonly _proxy: ExtHostChatShape;
 
 	private _responsePartHandlePool = 0;
-	private readonly _activeResponsePartCallbacks = new Map<string, DeferredPromise<string>>();
+	private readonly _activeResponsePartPromises = new Map<string, DeferredPromise<string>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -139,23 +139,24 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 	async $acceptResponseProgress(handle: number, sessionId: number, progress: IChatProgress, responsePartHandle?: number): Promise<number | void> {
 		const id = `${handle}_${sessionId}`;
-		const deferredContentPromise = this._activeRequestProgressCallbacks.get(id)?.(progress);
 
-		if (deferredContentPromise && !responsePartHandle) {
-			// This response progress has both an initial message as well as
-			// deferred content which will be resolved later
+		if ('placeholder' in progress && !responsePartHandle) {
 			const responsePartId = `${id}_${++this._responsePartHandlePool}`;
-			this._activeResponsePartCallbacks.set(responsePartId, deferredContentPromise);
+			const deferredContentPromise = new DeferredPromise<string>();
+			this._activeResponsePartPromises.set(responsePartId, deferredContentPromise);
+			this._activeRequestProgressCallbacks.get(id)?.({ ...progress, resolvedContent: deferredContentPromise.p });
 			return this._responsePartHandlePool;
 		} else if (responsePartHandle) {
 			// Complete an existing deferred promise with resolved content
 			const responsePartId = `${id}_${responsePartHandle}`;
-			const deferredContentPromise = this._activeResponsePartCallbacks.get(responsePartId);
+			const deferredContentPromise = this._activeResponsePartPromises.get(responsePartId);
 			if (deferredContentPromise && 'content' in progress) {
 				deferredContentPromise.complete(progress.content);
-				this._activeResponsePartCallbacks.delete(responsePartId);
+				this._activeResponsePartPromises.delete(responsePartId);
 			}
 		}
+
+		this._activeRequestProgressCallbacks.get(id)?.(progress);
 	}
 
 	async $acceptChatState(sessionId: number, state: any): Promise<void> {

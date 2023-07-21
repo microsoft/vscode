@@ -430,7 +430,7 @@ export class ChatService extends Disposable implements IChatService {
 					this.trace('sendRequest', `Provider returned id for session ${model.sessionId}, ${progress.requestId}`);
 				}
 
-				return model.acceptResponseProgress(request, progress);
+				model.acceptResponseProgress(request, progress);
 			};
 
 			const stopWatch = new StopWatch(false);
