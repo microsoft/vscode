@@ -51,7 +51,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
-import { IChatProgress, IChatResponseErrorDetails, IChatDynamicRequest, IChatFollowup, IChatReplyFollowup, IChatUserActionEvent, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatResponseErrorDetails, IChatDynamicRequest, IChatFollowup, IChatReplyFollowup, IChatUserActionEvent, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -1166,13 +1166,15 @@ export interface IChatResponseDto {
 	};
 }
 
+export type IChatResponseProgressDto = { content: string } | { requestId: string } | { placeholder: string };
+
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
 	$acceptChatState(sessionId: number, state: any): Promise<void>;
 	$addRequest(context: any): void;
 	$sendRequestToProvider(providerId: string, message: IChatDynamicRequest): void;
 	$unregisterChatProvider(handle: number): Promise<void>;
-	$acceptResponseProgress(handle: number, sessionId: number, progress: IChatProgress): void;
+	$acceptResponseProgress(handle: number, sessionId: number, progress: IChatResponseProgressDto, responsePartHandle?: number): Promise<number | void>;
 	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void;
 
 	$registerSlashCommandProvider(handle: number, chatProviderId: string): Promise<void>;

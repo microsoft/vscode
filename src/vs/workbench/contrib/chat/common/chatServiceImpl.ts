@@ -424,6 +424,8 @@ export class ChatService extends Disposable implements IChatService {
 				gotProgress = true;
 				if ('content' in progress) {
 					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progress.content.length} chars`);
+				} else if ('placeholder' in progress) {
+					this.trace('sendRequest', `Provider returned placeholder for session ${model.sessionId}, ${progress.placeholder}`);
 				} else {
 					this.trace('sendRequest', `Provider returned id for session ${model.sessionId}, ${progress.requestId}`);
 				}
