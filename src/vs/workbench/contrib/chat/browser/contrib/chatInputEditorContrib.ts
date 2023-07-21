@@ -15,27 +15,22 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { editorForeground, textCodeBlockBackground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Selection } from 'vs/editor/common/core/selection';
+import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
-const slashCommandContentWidgetId = 'chat-session-content-widget';
 
 class InputEditorDecorations extends Disposable {
 
-	private _slashCommandDomNode = document.createElement('div');
-	private _slashCommandContentWidget: IContentWidget | undefined;
+	private _slashCommandContentWidget: SlashCommandContentWidget | undefined;
 	private _previouslyUsedSlashCommands = new Set<string>();
 
 	constructor(
@@ -66,7 +61,7 @@ class InputEditorDecorations extends Disposable {
 
 	private updateRegisteredDecorationTypes() {
 		this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
-		this.updateInputEditorContentWidgets({ hide: true });
+		this._slashCommandContentWidget?.hide();
 		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
 			opacity: '0',
 			after: {
@@ -109,7 +104,7 @@ class InputEditorDecorations extends Disposable {
 				}
 			];
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, decoration);
-			this.updateInputEditorContentWidgets({ hide: true });
+			this._slashCommandContentWidget?.hide();
 			return;
 		}
 
@@ -142,9 +137,14 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (command && inputValue.startsWith(`/${command.command} `)) {
-			this.updateInputEditorContentWidgets({ command: command.command });
+			if (!this._slashCommandContentWidget) {
+				this._slashCommandContentWidget = new SlashCommandContentWidget(this.widget.inputEditor);
+				this._store.add(this._slashCommandContentWidget);
+			}
+			this._slashCommandContentWidget.setCommandText(command.command);
+			this._slashCommandContentWidget.show();
 		} else {
-			this.updateInputEditorContentWidgets({ hide: true });
+			this._slashCommandContentWidget?.hide();
 		}
 
 		if (command && command.detail) {
@@ -163,40 +163,6 @@ class InputEditorDecorations extends Disposable {
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, []);
 		}
 	}
-
-	private async updateInputEditorContentWidgets(arg: { command: string } | { hide: true }) {
-		const domNode = this._slashCommandDomNode;
-
-		if (this._slashCommandContentWidget && 'hide' in arg) {
-			domNode.toggleAttribute('hidden', true);
-			this.widget.inputEditor.removeContentWidget(this._slashCommandContentWidget);
-			return;
-		} else if ('command' in arg) {
-			const theme = this.themeService.getColorTheme();
-			domNode.style.padding = '0 0.4em';
-			domNode.style.borderRadius = '3px';
-			domNode.style.backgroundColor = theme.getColor(textCodeBlockBackground)?.toString() ?? '';
-			domNode.style.color = theme.getColor(textLinkForeground)?.toString() ?? '';
-			domNode.innerText = `${arg.command} `;
-			domNode.toggleAttribute('hidden', false);
-
-			this._slashCommandContentWidget = {
-				getId() { return slashCommandContentWidgetId; },
-				getDomNode() { return domNode; },
-				getPosition() {
-					return {
-						position: {
-							lineNumber: 1,
-							column: 1
-						},
-						preference: [ContentWidgetPositionPreference.EXACT]
-					};
-				},
-			};
-
-			this.widget.inputEditor.addContentWidget(this._slashCommandContentWidget);
-		}
-	}
 }
 
 class InputEditorSlashCommandFollowups extends Disposable {
@@ -206,7 +172,6 @@ class InputEditorSlashCommandFollowups extends Disposable {
 	) {
 		super();
 		this._register(this.chatService.onDidSubmitSlashCommand(({ slashCommand, sessionId }) => this.repopulateSlashCommand(slashCommand, sessionId)));
-		this._register(this.widget.inputEditor.onKeyUp((e) => this.handleKeyUp(e)));
 	}
 
 	private async repopulateSlashCommand(slashCommand: string, sessionId: string) {
@@ -225,22 +190,6 @@ class InputEditorSlashCommandFollowups extends Disposable {
 			this.widget.inputEditor.setValue(value);
 			this.widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
 
-		}
-	}
-
-	private handleKeyUp(e: IKeyboardEvent) {
-		if (e.keyCode !== KeyCode.Backspace) {
-			return;
-		}
-
-		const value = this.widget.inputEditor.getValue().split(' ')[0];
-		const currentSelection = this.widget.inputEditor.getSelection();
-		if (!value.startsWith('/') || !currentSelection?.isEmpty() || currentSelection?.startLineNumber !== 1 || currentSelection?.startColumn !== value.length + 1) {
-			return;
-		}
-
-		if (this.widget.getSlashCommandsSync()?.find((command) => `/${command.command}` === value)) {
-			this.widget.inputEditor.executeEdits('chat-input-editor-slash-commands', [{ range: new Range(1, 1, 1, currentSelection.startColumn), text: null }], [new Selection(1, 1, 1, 1)]);
 		}
 	}
 }
