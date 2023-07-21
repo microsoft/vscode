@@ -1131,16 +1131,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.view.domNode.focus();
 	}
 
-	getAbsoluteTopOfElement(element: ICellViewModel): number {
-		const index = this._getViewIndexUpperBound(element);
-		if (index === undefined || index < 0 || index >= this.length) {
-			this._getViewIndexUpperBound(element);
-			throw new ListError(this.listUser, `Invalid index ${index}`);
-		}
-
-		return this.view.elementTop(index);
-	}
-
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
 		this.view.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
