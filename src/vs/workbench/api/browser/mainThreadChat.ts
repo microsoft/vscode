@@ -155,8 +155,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 				deferredContentPromise.complete(progress.content);
 				this._activeResponsePartCallbacks.delete(responsePartId);
 			}
-		} else {
-			this._activeRequestProgressCallbacks.delete(id);
 		}
 	}
 
