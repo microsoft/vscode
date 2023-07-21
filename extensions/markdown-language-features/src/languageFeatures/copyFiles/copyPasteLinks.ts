@@ -34,7 +34,8 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 		if (!urlList) {
 			return undefined;
 		}
-		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, urlList, token, true);
+		const smartPaste = vscode.workspace.getConfiguration('markdown', document).get<'always' | 'smart' | 'never'>('editor.pasteUrlAsFormattedLink.enabled', 'always');
+		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, urlList, token, true, smartPaste === 'smart');
 		if (!pasteEdit) {
 			return;
 		}

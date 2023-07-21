@@ -60,7 +60,7 @@ export class InsertImageFromWorkspace implements Command {
 }
 
 function getDefaultUri(document: vscode.TextDocument) {
-	const docUri = getParentDocumentUri(document);
+	const docUri = getParentDocumentUri(document.uri);
 	if (docUri.scheme === Schemes.untitled) {
 		return vscode.workspace.workspaceFolders?.[0]?.uri;
 	}

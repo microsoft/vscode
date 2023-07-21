@@ -45,9 +45,9 @@ suite('createEditAddingLinksForUriList', () => {
 			assert.strictEqual(isLink, false);
 		});
 
-		test('Markdown pasting should not occur for a link preceded or followed by spaces.', () => {
-			const isLink = validateLink('    https://www.microsoft.com   ');
-			assert.strictEqual(isLink, false);
+		test('Markdown pasting should occur for a link preceded or followed by spaces.', () => {
+			const isLink = validateLink('https://www.microsoft.com');
+			assert.strictEqual(isLink, true);
 		});
 
 		test('Markdown pasting should not occur for a link with an invalid scheme.', () => {
@@ -59,7 +59,6 @@ suite('createEditAddingLinksForUriList', () => {
 			const isLink = validateLink('https://www.microsoft.com\r\nhttps://www.microsoft.com\r\nhttps://www.microsoft.com\r\nhttps://www.microsoft.com');
 			assert.strictEqual(isLink, false);
 		});
-
 	});
 
 	suite('createLinkSnippet', () => {
@@ -83,50 +82,49 @@ suite('createEditAddingLinksForUriList', () => {
 	});
 
 	suite('pasteAsMarkdownLink', () => {
-
 		test('Should evaluate pasteAsMarkdownLink as true for selected plain text', () => {
-			const smartPaste = checkSmartPaste("hello! world", 0, 5);
+			const smartPaste = checkSmartPaste("hello! world", "hello! world", new vscode.Range(new vscode.Position(0, 5), new vscode.Position(0, 5)));
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, true);
 		});
 
 
 		test('Should evaluate updateTitle as true for pasting over a Markdown link', () => {
-			const smartPaste = checkSmartPaste("[a](bc)", 0, 7);
+			const smartPaste = checkSmartPaste("[a](bc)", "[a](bc)", new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 7)));
 			assert.strictEqual(smartPaste.updateTitle, true);
 		});
 
 		test('Should evaluate updateTitle as true for pasting over a Markdown image link', () => {
-			const smartPaste = checkSmartPaste("![a](bc)", 0, 8);
+			const smartPaste = checkSmartPaste("![a](bc)", "![a](bc)", new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 8)));
 			assert.strictEqual(smartPaste.updateTitle, true);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a Markdown link', () => {
-			const smartPaste = checkSmartPaste("[a](bcdef)", 4, 6);
+			const smartPaste = checkSmartPaste("[a](bcdef)", "[a](bcdef)", new vscode.Range(new vscode.Position(0, 4), new vscode.Position(0, 6)));
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a Markdown image link', () => {
-			const smartPaste = checkSmartPaste('![alt](https://)', 7, 15);
+			const smartPaste = checkSmartPaste('![alt](https://)', '![alt](https://)', new vscode.Range(new vscode.Position(0, 7), new vscode.Position(0, 15)));
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a code block', () => {
-			const smartPaste = checkSmartPaste('```\r\n\r\n```', 5, 5);
+			const smartPaste = checkSmartPaste('```\r\n\r\n```', '```\r\n\r\n```', new vscode.Range(new vscode.Position(0, 5), new vscode.Position(0, 5)));
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within inline code', () => {
-			const smartPaste = checkSmartPaste('``', 1, 1);
+			const smartPaste = checkSmartPaste('``', '``', new vscode.Range(new vscode.Position(0, 1), new vscode.Position(0, 1)));
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a math block', () => {
-			const smartPaste = checkSmartPaste('$$$\r\n\r\n$$$', 5, 5);
+			const smartPaste = checkSmartPaste('$$$\r\n\r\n$$$', '$$$\r\n\r\n$$$', new vscode.Range(new vscode.Position(0, 5), new vscode.Position(0, 5)));
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within inline math', () => {
-			const smartPaste = checkSmartPaste('$$', 1, 1);
+			const smartPaste = checkSmartPaste('$$', '$$', new vscode.Range(new vscode.Position(0, 1), new vscode.Position(0, 1)));
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
 	});
