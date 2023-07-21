@@ -101,7 +101,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	*/
 	/* Version 4: Change settings from `sync.${setting}` to `settingsSync.{setting}` */
 	/* Version 5: Introduce extension state */
-	protected readonly version: number = 5;
+	/* Version 6: Added isApplicationScoped property */
+	protected readonly version: number = 6;
 
 	private readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'extensions.json');
 	private readonly baseResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' });
@@ -377,7 +378,7 @@ export class LocalExtensionsProvider {
 				.map(extension => {
 					const { identifier, isBuiltin, manifest, preRelease, pinned, isApplicationScoped } = extension;
 					const syncExntesion: ILocalSyncExtension = { identifier, preRelease, version: manifest.version, pinned: !!pinned };
-					if (!isApplicationScopedExtension(manifest)) {
+					if (isApplicationScoped && !isApplicationScopedExtension(manifest)) {
 						syncExntesion.isApplicationScoped = isApplicationScoped;
 					}
 					if (disabledExtensions.some(disabledExtension => areSameExtensions(disabledExtension, identifier))) {
