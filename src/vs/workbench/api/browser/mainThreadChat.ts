@@ -58,7 +58,9 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 	}
 
 	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void {
-		this._chatService.transferChatSession(sessionId, URI.revive(toWorkspace));
+		const widget = this._chatWidgetService.lastFocusedWidget;
+		const inputValue = widget?.inputEditor.getValue() ?? '';
+		this._chatService.transferChatSession({ sessionProviderId: sessionId, inputValue: inputValue }, URI.revive(toWorkspace));
 	}
 
 	async $registerChatProvider(handle: number, id: string): Promise<void> {

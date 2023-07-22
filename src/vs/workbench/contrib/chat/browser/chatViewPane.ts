@@ -102,7 +102,14 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 			}));
 			this._widget.render(parent);
 
-			const sessionId = this.chatService.transferredSessionId ?? this.viewState.sessionId;
+			let sessionId: string | undefined;
+			if (this.chatService.transferredSessionId) {
+				sessionId = this.chatService.transferredSessionId;
+				this.viewState.inputValue = this.chatService.transferredInputValue;
+			} else {
+				sessionId = this.viewState.sessionId;
+			}
+
 			const initialModel = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
 			this.updateModel(initialModel);
 		} catch (e) {
