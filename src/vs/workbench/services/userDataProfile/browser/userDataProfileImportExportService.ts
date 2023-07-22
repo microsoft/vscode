@@ -1129,9 +1129,9 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 			const children = await (<IProfileResourceTreeItem>element).getChildren();
 			if (children) {
 				for (const child of children) {
-					child.checkbox = child.parent.checkbox && child.checkbox
-						? { ...child.checkbox, isChecked: child.parent.checkbox.isChecked ? child.checkbox.isChecked : false }
-						: undefined;
+					if (child.parent.checkbox && child.checkbox) {
+						child.checkbox.isChecked = child.parent.checkbox.isChecked && child.checkbox.isChecked;
+					}
 				}
 			}
 			return children;
@@ -1213,7 +1213,10 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 	}
 
 	private isSelected(treeItem: IProfileResourceTreeItem): boolean {
-		return treeItem.checkbox?.isChecked ?? true;
+		if (treeItem.checkbox) {
+			return treeItem.checkbox.isChecked || !!treeItem.children?.some(child => child.checkbox?.isChecked ?? true);
+		}
+		return true;
 	}
 
 	protected abstract fetchRoots(): Promise<IProfileResourceTreeItem[]>;
