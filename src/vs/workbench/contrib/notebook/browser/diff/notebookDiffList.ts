@@ -322,7 +322,7 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		return new NotebookMouseController(this);
 	}
 
-	getAbsoluteTopOfElement(element: DiffElementViewModelBase): number {
+	getCellViewScrollTop(element: DiffElementViewModelBase): number {
 		const index = this.indexOf(element);
 		// if (index === undefined || index < 0 || index >= this.length) {
 		// 	this._getViewIndexUpperBound(element);

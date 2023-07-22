@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtHostChatShape, ExtHostContext, IChatRequestDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostChatShape, ExtHostContext, IChatRequestDto, IChatResponseProgressDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChat, IChatDynamicRequest, IChatProgress, IChatRequest, IChatResponse, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -16,10 +17,13 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 	private readonly _providerRegistrations = this._register(new DisposableMap<number>());
-	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IChatProgress) => void>();
+	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IChatProgress) => (DeferredPromise<string> | void)>();
 	private readonly _stateEmitters = new Map<number, Emitter<any>>();
 
 	private readonly _proxy: ExtHostChatShape;
+
+	private _responsePartHandlePool = 0;
+	private readonly _activeResponsePartPromises = new Map<string, DeferredPromise<string>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -133,8 +137,25 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		this._providerRegistrations.set(handle, unreg);
 	}
 
-	$acceptResponseProgress(handle: number, sessionId: number, progress: IChatProgress): void {
+	async $acceptResponseProgress(handle: number, sessionId: number, progress: IChatResponseProgressDto, responsePartHandle?: number): Promise<number | void> {
 		const id = `${handle}_${sessionId}`;
+
+		if ('placeholder' in progress) {
+			const responsePartId = `${id}_${++this._responsePartHandlePool}`;
+			const deferredContentPromise = new DeferredPromise<string>();
+			this._activeResponsePartPromises.set(responsePartId, deferredContentPromise);
+			this._activeRequestProgressCallbacks.get(id)?.({ ...progress, resolvedContent: deferredContentPromise.p });
+			return this._responsePartHandlePool;
+		} else if (responsePartHandle) {
+			// Complete an existing deferred promise with resolved content
+			const responsePartId = `${id}_${responsePartHandle}`;
+			const deferredContentPromise = this._activeResponsePartPromises.get(responsePartId);
+			if (deferredContentPromise && 'content' in progress) {
+				deferredContentPromise.complete(progress.content);
+				this._activeResponsePartPromises.delete(responsePartId);
+			}
+		}
+
 		this._activeRequestProgressCallbacks.get(id)?.(progress);
 	}
 
