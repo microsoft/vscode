@@ -3,12 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { NotebookCellOutlineProvider, OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+
+export class ToggleNotebookStickyScroll extends Action2 {
+
+	constructor() {
+		super({
+			id: 'notebook.action.toggleNotebookStickyScroll',
+			title: {
+				value: localize('toggleStickyScroll', "Toggle Notebook Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
+				original: 'Toggle Notebook Sticky Scroll',
+			},
+			category: Categories.View,
+			toggled: {
+				condition: ContextKeyExpr.equals('config.notebook.stickyScroll.enabled', true),
+				title: localize('notebookStickyScroll', "Notebook Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'miNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Notebook Sticky Scroll"),
+			},
+			menu: [
+				{ id: MenuId.CommandPalette },
+				{ id: MenuId.NotebookStickyScrollContext }
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const newValue = !configurationService.getValue('notebook.stickyScroll.enabled');
+		return configurationService.updateValue('notebook.stickyScroll.enabled', newValue);
+	}
+}
 
 class NotebookStickyLine extends Disposable {
 	constructor(
@@ -56,10 +93,10 @@ export class NotebookStickyScroll extends Disposable {
 		private readonly domNode: HTMLElement,
 		private readonly notebookEditor: INotebookEditor,
 		private readonly notebookOutline: NotebookCellOutlineProvider,
-		private readonly notebookCellList: INotebookCellList
+		private readonly notebookCellList: INotebookCellList,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
 		super();
-
 
 		if (this.notebookEditor.notebookOptions.getLayoutConfiguration().stickyScroll) {
 			this.init();
@@ -73,6 +110,17 @@ export class NotebookStickyScroll extends Disposable {
 				this.setTop();
 			}
 		}));
+
+		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.CONTEXT_MENU, async (event: MouseEvent) => {
+			this.onContextMenu(event);
+		}));
+	}
+
+	private onContextMenu(event: MouseEvent) {
+		this._contextMenuService.showContextMenu({
+			menuId: MenuId.NotebookStickyScrollContext,
+			getAnchor: () => event,
+		});
 	}
 
 	private updateConfig() {
@@ -388,3 +436,5 @@ export class NotebookStickyScroll extends Disposable {
 		super.dispose();
 	}
 }
+
+registerAction2(ToggleNotebookStickyScroll);
