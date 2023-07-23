@@ -189,12 +189,16 @@ export interface IChatProviderInfo {
 	displayName: string;
 }
 
+export interface IChatTransferredSessionData {
+	sessionId: string;
+	inputValue: string;
+}
+
 export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
 	_serviceBrand: undefined;
-	transferredSessionId: string | undefined;
-	transferredInputValue: string | undefined;
+	transferredSessionData: IChatTransferredSessionData | undefined;
 
 	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
@@ -202,6 +206,7 @@ export interface IChatService {
 	getProviderInfos(): IChatProviderInfo[];
 	startSession(providerId: string, token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;
+	getSessionId(sessionProviderId: number): string | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
 	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined;
 
@@ -222,5 +227,5 @@ export interface IChatService {
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
 
-	transferChatSession(transferredSessionData: { sessionProviderId: number; inputValue: string }, toWorkspace: URI): void;
+	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 }
