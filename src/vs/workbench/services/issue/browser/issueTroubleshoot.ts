@@ -161,6 +161,11 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	}
 
 	private async reproduceIssueWithExtensionsDisabled(): Promise<void> {
+		if (!(await this.extensionManagementService.getInstalled(ExtensionType.User)).length) {
+			this.state = new TroubleShootState(TroubleshootStage.WORKBENCH, this.state!.profile);
+			return;
+		}
+
 		const result = await this.askToReproduceIssue(localize('profile.extensions.disabled', "Issue troubleshooting is active and has temporarily disabled all installed extensions. Check if you can still reproduce the problem and proceed by selecting from these options."));
 		if (result === 'good') {
 			const profile = this.userDataProfilesService.profiles.find(p => p.id === this.state!.profile) ?? this.userDataProfilesService.defaultProfile;
