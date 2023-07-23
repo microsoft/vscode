@@ -53,7 +53,7 @@ export class AskQuickQuestionAction extends Action2 {
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				group: '0_workbench_toggles',
-				when: ContextKeyExpr.equals('config.chat.experimental.defaultMode', 'quickQuestion'),
+				when: ContextKeyExpr.notEquals('config.chat.experimental.defaultMode', 'chatView'),
 				order: 0
 			}
 		});

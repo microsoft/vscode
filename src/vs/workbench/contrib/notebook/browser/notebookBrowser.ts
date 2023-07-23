@@ -567,6 +567,11 @@ export interface INotebookEditor {
 	removeClassName(className: string): void;
 
 	/**
+	 * Set scrollTop value of the notebook editor.
+	 */
+	setScrollTop(scrollTop: number): void;
+
+	/**
 	 * The range will be revealed with as little scrolling as possible.
 	 */
 	revealCellRangeInView(range: ICellRange): void;

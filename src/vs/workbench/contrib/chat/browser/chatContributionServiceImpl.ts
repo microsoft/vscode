@@ -127,7 +127,7 @@ export class ChatContributionService implements IChatContributionService {
 			ctorDescriptor: new SyncDescriptor(ChatViewPane, [<IChatViewOptions>{ providerId: providerDescriptor.id }]),
 			when: ContextKeyExpr.and(
 				ContextKeyExpr.deserialize(providerDescriptor.when),
-				ContextKeyExpr.equals('config.chat.experimental.defaultMode', 'chatView')
+				ContextKeyExpr.notEquals('config.chat.experimental.defaultMode', 'quickQuestion')
 			)
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, viewContainer);

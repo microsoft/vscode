@@ -43,7 +43,7 @@ export interface IChatResponse {
 }
 
 export type IChatProgress =
-	{ content: string } | { requestId: string };
+	{ content: string } | { requestId: string } | { placeholder: string; resolvedContent: Promise<string> };
 
 export interface IPersistedChatState { }
 export interface IChatProvider {

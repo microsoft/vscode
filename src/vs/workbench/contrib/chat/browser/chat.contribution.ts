@@ -81,7 +81,12 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.defaultMode': {
 			type: 'string',
 			tags: ['experimental'],
-			enum: ['chatView', 'quickQuestion'],
+			enum: ['chatView', 'quickQuestion', 'both'],
+			enumDescriptions: [
+				nls.localize('interactiveSession.defaultMode.chatView', "Use the chat view as the default mode. Displays the chat icon in the Activity Bar."),
+				nls.localize('interactiveSession.defaultMode.quickQuestion', "Use the quick question as the default mode. Displays the chat icon in the Title Bar."),
+				nls.localize('interactiveSession.defaultMode.both', "Displays the chat icon in the Activity Bar and the Title Bar which open their respective chat modes.")
+			],
 			description: nls.localize('interactiveSession.defaultMode', "Controls the default mode of the chat experience."),
 			default: 'chatView'
 		},
