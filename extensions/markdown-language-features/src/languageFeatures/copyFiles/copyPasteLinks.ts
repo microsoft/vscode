@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { externalUriSchemes, createEditAddingLinksForUriList } from './shared';
+import { externalUriSchemes, createEditAddingLinksForUriList, getPasteUrlAsFormattedLinkSetting } from './shared';
 class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 
 	readonly id = 'insertMarkdownLink';
@@ -14,8 +14,8 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 		dataTransfer: vscode.DataTransfer,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit | undefined> {
-		const enabled = vscode.workspace.getConfiguration('markdown', document).get<'always' | 'smart' | 'never'>('editor.pasteUrlAsFormattedLink.enabled', 'smart');
-		if (enabled === 'never') {
+		const pasteUrlSetting = await getPasteUrlAsFormattedLinkSetting(document);
+		if (pasteUrlSetting === 'never') {
 			return;
 		}
 
@@ -26,7 +26,7 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		if (!validateLink(urlList)) {
+		if (!validateLink(urlList).isValid) {
 			return;
 		}
 
@@ -34,8 +34,8 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 		if (!urlList) {
 			return undefined;
 		}
-		const smartPaste = vscode.workspace.getConfiguration('markdown', document).get<'always' | 'smart' | 'never'>('editor.pasteUrlAsFormattedLink.enabled', 'always');
-		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, urlList, token, true, smartPaste === 'smart');
+
+		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, validateLink(urlList).cleanedUrlList, true, pasteUrlSetting === 'smart', token);
 		if (!pasteEdit) {
 			return;
 		}
@@ -46,12 +46,12 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 	}
 }
 
-export function validateLink(urlList: string): boolean {
-	const url = urlList?.split(/\s+/);
-	if (url.length > 1 || !externalUriSchemes.includes(vscode.Uri.parse(url[0]).scheme)) {
-		return false;
-	}
-	return true;
+// filter out white spaces
+export function validateLink(urlList: string): { isValid: boolean; cleanedUrlList: string } {
+	const url = urlList?.split(' ').filter(item => item !== '');
+	const cleanedUrlList = url[0];
+	const isValid = url.length === 1 && !urlList.includes('\n') && externalUriSchemes.includes(vscode.Uri.parse(cleanedUrlList).scheme);
+	return { isValid, cleanedUrlList };
 }
 
 export function registerLinkPasteSupport(selector: vscode.DocumentSelector,) {

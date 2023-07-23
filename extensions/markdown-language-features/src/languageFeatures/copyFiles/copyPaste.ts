@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Schemes } from '../../util/schemes';
-import { createEditForMediaFiles, createEditAddingLinksForUriList, mediaMimes } from './shared';
+import { createEditForMediaFiles, createEditAddingLinksForUriList, mediaMimes, getPasteUrlAsFormattedLinkSetting } from './shared';
 
 class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
@@ -32,8 +32,8 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		if (!urlList) {
 			return;
 		}
-		const smartPaste = vscode.workspace.getConfiguration('markdown', document).get<'always' | 'smart' | 'never'>('editor.pasteUrlAsFormattedLink.enabled', 'always');
-		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, urlList, token, false, smartPaste === 'smart');
+		const pasteUrlSetting = await getPasteUrlAsFormattedLinkSetting(document);
+		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, urlList, false, pasteUrlSetting === 'smart', token);
 		if (!pasteEdit) {
 			return;
 		}

@@ -63,13 +63,13 @@ export const mediaMimes = new Set([
 ]);
 
 const smartPasteRegexes = [
-	{ regex: /\[.*\]\(.*\)/g, is_markdown_link: true, is_inline: true }, // Is a Markdown Link
-	{ regex: /!\[.*\]\(.*\)/g, is_markdown_link: true, is_inline: true }, // Is a Markdown Image Link
-	{ regex: /\[([^\]]*)\]\(([^)]*)\)/g, is_markdown_link: false, is_inline: true }, // In a Markdown link
-	{ regex: /^```[\s\S]*?```$/gm, is_markdown_link: false, is_inline: false }, // In a fenced code block
-	{ regex: /^\$\$[\s\S]*?\$\$$/gm, is_markdown_link: false, is_inline: false }, // In a fenced math block
-	{ regex: /`[^`]*`/g, is_markdown_link: false, is_inline: true }, // In inline code
-	{ regex: /\$[^$]*\$/g, is_markdown_link: false, is_inline: true }, // In inline math
+	{ regex: /\[.*\]\(.*\)/g, isMarkdownLink: true, isInline: true }, // Is a Markdown Link
+	{ regex: /!\[.*\]\(.*\)/g, isMarkdownLink: true, isInline: true }, // Is a Markdown Image Link
+	{ regex: /\[([^\]]*)\]\(([^)]*)\)/g, isMarkdownLink: false, isInline: true }, // In a Markdown link
+	{ regex: /^```[\s\S]*?```$/gm, isMarkdownLink: false, isInline: false }, // In a fenced code block
+	{ regex: /^\$\$[\s\S]*?\$\$$/gm, isMarkdownLink: false, isInline: false }, // In a fenced math block
+	{ regex: /`[^`]*`/g, isMarkdownLink: false, isInline: true }, // In inline code
+	{ regex: /\$[^$]*\$/g, isMarkdownLink: false, isInline: true }, // In inline math
 ];
 
 export interface SkinnyTextDocument {
@@ -93,13 +93,23 @@ export interface SmartPaste {
 
 }
 
+export enum PasteUrlAsFormattedLink {
+	Always = 'always',
+	Smart = 'smart',
+	Never = 'never'
+}
+
+export async function getPasteUrlAsFormattedLinkSetting(document: vscode.TextDocument): Promise<PasteUrlAsFormattedLink> {
+	return vscode.workspace.getConfiguration('markdown', document).get<PasteUrlAsFormattedLink>('editor.pasteUrlAsFormattedLink.enabled', PasteUrlAsFormattedLink.Always);
+}
+
 export async function createEditAddingLinksForUriList(
 	document: SkinnyTextDocument,
 	ranges: readonly vscode.Range[],
 	urlList: string,
-	token: vscode.CancellationToken,
 	isExternalLink: boolean,
-	useSmartPaste: boolean
+	useSmartPaste: boolean,
+	token: vscode.CancellationToken,
 ): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string } | undefined> {
 
 	if (ranges.length === 0) {
@@ -110,17 +120,16 @@ export async function createEditAddingLinksForUriList(
 	let label: string = '';
 	let smartPaste = { pasteAsMarkdownLink: true, updateTitle: false };
 
-	for (let i = 0; i < ranges.length; i++) {
-
-		let title = document.getText(ranges[i]);
+	for (const range of ranges) {
+		let title = document.getText(range);
 		const selectedRange: vscode.Range = new vscode.Range(
-			new vscode.Position(ranges[i].start.line, document.offsetAt(ranges[i].start)),
-			new vscode.Position(ranges[i].end.line, document.offsetAt(ranges[i].end))
+			new vscode.Position(range.start.line, document.offsetAt(range.start)),
+			new vscode.Position(range.end.line, document.offsetAt(range.end))
 		);
 
 		if (useSmartPaste) {
-			smartPaste = checkSmartPaste(document.getText(), document.lineAt(selectedRange.start).text, selectedRange);
-			title = smartPaste.updateTitle ? '' : document.getText(ranges[i]);
+			smartPaste = checkSmartPaste(document, selectedRange);
+			title = smartPaste.updateTitle ? '' : document.getText(range);
 		}
 
 		const snippet = await tryGetUriListSnippet(document, urlList, token, title, placeHolderValue, smartPaste.pasteAsMarkdownLink, isExternalLink);
@@ -130,7 +139,7 @@ export async function createEditAddingLinksForUriList(
 
 		smartPaste.pasteAsMarkdownLink = true;
 		placeHolderValue--;
-		edits.push(new vscode.SnippetTextEdit(ranges[i], snippet.snippet));
+		edits.push(new vscode.SnippetTextEdit(range, snippet.snippet));
 		label = snippet.label;
 	}
 
@@ -140,15 +149,15 @@ export async function createEditAddingLinksForUriList(
 	return { additionalEdits, label };
 }
 
-export function checkSmartPaste(documentText: string, lineText: string, selectedRange: vscode.Range): SmartPaste {
+export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range): SmartPaste {
 	const SmartPaste: SmartPaste = { pasteAsMarkdownLink: true, updateTitle: false };
 	for (const regex of smartPasteRegexes) {
-		const matches = regex.is_inline ? [...lineText.matchAll(regex.regex)] : [...documentText.matchAll(regex.regex)];
+		const matches = regex.isInline ? [...document.lineAt(selectedRange.start).text.matchAll(regex.regex)] : [...document.getText().matchAll(regex.regex)];
 		for (const match of matches) {
 			if (match.index !== undefined) {
 				const useDefaultPaste = selectedRange.start.character > match.index && selectedRange.end.character < match.index + match[0].length;
 				SmartPaste.pasteAsMarkdownLink = !useDefaultPaste;
-				SmartPaste.updateTitle = regex.is_markdown_link && selectedRange.start.character === match.index && selectedRange.end.character === match.index + match[0].length;
+				SmartPaste.updateTitle = regex.isMarkdownLink && selectedRange.start.character === match.index && selectedRange.end.character === match.index + match[0].length;
 				if (!SmartPaste.pasteAsMarkdownLink || SmartPaste.updateTitle) {
 					return SmartPaste;
 				}
@@ -191,6 +200,7 @@ interface UriListSnippetOptions {
 }
 
 export function createLinkSnippet(
+	snippet: vscode.SnippetString,
 	pasteAsMarkdownLink: boolean,
 	mdPath: string,
 	title: string,
@@ -199,7 +209,6 @@ export function createLinkSnippet(
 	isExternalLink: boolean,
 ): vscode.SnippetString {
 	const uriString = uri.toString(true);
-	const snippet = new vscode.SnippetString();
 	if (pasteAsMarkdownLink) {
 		snippet.appendText('[');
 		snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
@@ -263,7 +272,7 @@ export function createUriListSnippet(
 			}
 		} else {
 			insertedLinkCount++;
-			snippet = createLinkSnippet(pasteAsMarkdownLink, mdPath, title, uri, placeholderValue, isExternalLink);
+			snippet = createLinkSnippet(snippet, pasteAsMarkdownLink, mdPath, title, uri, placeholderValue, isExternalLink);
 		}
 
 		if (i < uris.length - 1 && uris.length > 1) {
