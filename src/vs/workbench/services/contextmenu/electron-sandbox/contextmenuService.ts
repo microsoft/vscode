@@ -27,6 +27,7 @@ import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/context
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export class ContextMenuService implements IContextMenuService {
 
@@ -156,9 +157,15 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					y += 4 / zoom;
 				}
 			} else {
-				const pos: { x: number; y: number } = anchor;
-				x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
-				y = pos.y;
+				if (anchor instanceof StandardMouseEvent) {
+					x = anchor.posx;
+					y = anchor.posy;
+				} else {
+					x = anchor.x;
+					y = anchor.y;
+				}
+
+				x++; // prevent first item from being selected automatically under mouse
 			}
 
 			x *= zoom;

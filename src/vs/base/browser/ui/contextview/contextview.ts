@@ -5,6 +5,7 @@
 
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import * as DOM from 'vs/base/browser/dom';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { Range } from 'vs/base/common/range';
@@ -36,7 +37,7 @@ export const enum AnchorAxisAlignment {
 }
 
 export interface IDelegate {
-	getAnchor(): HTMLElement | IAnchor;
+	getAnchor(): HTMLElement | StandardMouseEvent | IAnchor;
 	render(container: HTMLElement): IDisposable | null;
 	focus?(): void;
 	layout?(): void;
@@ -270,6 +271,13 @@ export class ContextView extends Disposable {
 				left: elementPosition.left * zoom,
 				width: elementPosition.width * zoom,
 				height: elementPosition.height * zoom
+			};
+		} else if (anchor instanceof StandardMouseEvent) {
+			around = {
+				top: anchor.posy,
+				left: anchor.posx,
+				width: 1,
+				height: 2
 			};
 		} else {
 			around = {

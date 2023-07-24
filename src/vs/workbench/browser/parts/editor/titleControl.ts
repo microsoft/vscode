@@ -379,10 +379,9 @@ export abstract class TitleControl extends Themable {
 		applyAvailableEditorIds(this.editorAvailableEditorIds, editor, this.editorResolverService);
 
 		// Find target anchor
-		let anchor: HTMLElement | { x: number; y: number } = node;
+		let anchor: HTMLElement | StandardMouseEvent = node;
 		if (e instanceof MouseEvent) {
-			const event = new StandardMouseEvent(e);
-			anchor = { x: event.posx, y: event.posy };
+			anchor = new StandardMouseEvent(e);
 		}
 
 		// Show it
