@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertFn } from 'vs/base/common/assert';
 import { IdleDeadline, runWhenIdle } from 'vs/base/common/async';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { setTimeout0 } from 'vs/base/common/platform';
@@ -68,7 +69,7 @@ export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState>
 
 			const r = safeTokenize(this._languageIdCodec, languageId, this.tokenizationSupport, text, true, lineToTokenize.startState);
 			builder.add(lineToTokenize.lineNumber, r.tokens);
-			this!.store.setEndState(lineToTokenize.lineNumber, r.endState as TState);
+			this.store.setEndState(lineToTokenize.lineNumber, r.endState as TState);
 		}
 	}
 
@@ -220,9 +221,9 @@ export class TrackingTokenizationStateStore<TState extends IState> {
 		if (!state) {
 			throw new BugIndicatingError('Cannot set null/undefined state');
 		}
-		if (lineNumber > 1 && !this.tokenizationStateStore.getEndState(lineNumber - 1)) {
-			throw new BugIndicatingError('Cannot set state before setting previous state');
-		}
+
+		// Cannot set state before setting previous state
+		assertFn(() => lineNumber === 1 || !!this.tokenizationStateStore.getEndState(lineNumber - 1));
 
 		while (true) {
 			const min = this._invalidEndStatesLineNumbers.min;
