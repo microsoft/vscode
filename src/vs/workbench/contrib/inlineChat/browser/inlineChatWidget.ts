@@ -797,7 +797,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			if (!this.widget.hasFocus()) {
 				this.widget.focus();
 			}
-		}));
+		}, true));
 
 		// todo@jrieken listen ONLY when showing
 		const updateCursorIsAboveContextKey = () => {
