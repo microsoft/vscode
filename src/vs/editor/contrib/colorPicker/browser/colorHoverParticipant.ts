@@ -94,7 +94,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	public onEscape() {
 		const uri = this._editor.getModel()?.uri;
 		if (uri) {
-			for (let i = 0; i < NUMBER_COLOR_EDITS; i++) {
+			for (let i = 0; i <= NUMBER_COLOR_EDITS; i++) {
 				this._undoRedoService.undo(uri);
 			}
 			NUMBER_COLOR_EDITS = 0;
@@ -248,28 +248,27 @@ function _updateEditorModel(editor: ICodeEditor, range: Range, model: ColorPicke
 			model.presentation.textEdit.range.endColumn
 		);
 		const trackedRange = editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
-		editor.pushUndoStop();
-		NUMBER_COLOR_EDITS += 1;
-		editor.executeEdits('colorpicker', textEdits);
+		executeEdits(editor, textEdits);
 		newRange = editor.getModel()!._getTrackedRange(trackedRange) || newRange;
 	} else {
 		textEdits = [{ range, text: model.presentation.label, forceMoveMarkers: false }];
 		newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
-		editor.pushUndoStop();
-		NUMBER_COLOR_EDITS += 1;
-		editor.executeEdits('colorpicker', textEdits);
+		executeEdits(editor, textEdits);
 	}
 
 	if (model.presentation.additionalTextEdits) {
 		textEdits = [...model.presentation.additionalTextEdits];
-		NUMBER_COLOR_EDITS += 1;
-		editor.executeEdits('colorpicker', textEdits);
+		executeEdits(editor, textEdits);
 		if (context) {
 			context.hide();
 		}
 	}
-	editor.pushUndoStop();
 	return newRange;
+}
+
+function executeEdits(editor: ICodeEditor, edits: ISingleEditOperation[]) {
+	NUMBER_COLOR_EDITS += 1;
+	editor.executeEdits('colorpicker', edits);
 }
 
 async function _updateColorPresentations(editorModel: ITextModel, colorPickerModel: ColorPickerModel, color: Color, range: Range, colorHover: ColorHover | StandaloneColorPickerHover) {
