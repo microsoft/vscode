@@ -128,10 +128,20 @@ declare module 'vscode' {
 
 	export interface InteractiveProgressTask {
 		placeholder: string;
-		resolvedContent: Thenable<InteractiveProgressContent>;
+		resolvedContent: Thenable<InteractiveProgressContent | InteractiveProgressFileTree>;
 	}
 
-	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId | InteractiveProgressTask;
+	export interface FileTreeData {
+		label: string;
+		uri: Uri;
+		children?: FileTreeData[];
+	}
+
+	export interface InteractiveProgressFileTree {
+		treeData: FileTreeData;
+	}
+
+	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId | InteractiveProgressTask | InteractiveProgressFileTree;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
