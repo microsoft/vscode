@@ -79,8 +79,6 @@ export class NativeWindow extends Disposable {
 
 	private readonly customTitleContextMenuDisposable = this._register(new DisposableStore());
 
-	private previousConfiguredZoomLevel: number | undefined;
-
 	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 	private pendingFoldersToAdd: URI[] = [];
 
@@ -320,7 +318,6 @@ export class NativeWindow extends Disposable {
 		});
 
 		// Zoom level changes
-		this.updateWindowZoomLevel();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.zoomLevel')) {
 				this.updateWindowZoomLevel();
@@ -605,21 +602,10 @@ export class NativeWindow extends Disposable {
 
 	private updateWindowZoomLevel(): void {
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
+		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
 
-		let configuredZoomLevel = 0;
-		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
-			configuredZoomLevel = windowConfig.window.zoomLevel;
-
-			// Leave early if the configured zoom level did not change (https://github.com/microsoft/vscode/issues/1536)
-			if (this.previousConfiguredZoomLevel === configuredZoomLevel) {
-				return;
-			}
-
-			this.previousConfiguredZoomLevel = configuredZoomLevel;
-		}
-
-		if (getZoomLevel() !== configuredZoomLevel) {
-			applyZoom(configuredZoomLevel);
+		if (getZoomLevel() !== windowZoomLevel) {
+			applyZoom(windowZoomLevel);
 		}
 	}
 
