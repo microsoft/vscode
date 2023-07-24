@@ -427,7 +427,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (obj.welcomeMessage) {
 			const content = obj.welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item);
-			this._welcomeMessage = new ChatWelcomeMessageModel(content, obj.responderUsername, obj.responderAvatarIconUri && URI.revive(obj.responderAvatarIconUri));
+			this._welcomeMessage = new ChatWelcomeMessageModel(this, content);
 		}
 
 		return requests.map((raw: ISerializableChatRequestData) => {
@@ -638,7 +638,18 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 		return this._id;
 	}
 
-	constructor(public readonly content: IChatWelcomeMessageContent[], public readonly username: string, public readonly avatarIconUri?: URI) {
+	constructor(
+		private readonly session: ChatModel,
+		public readonly content: IChatWelcomeMessageContent[],
+	) {
 		this._id = 'welcome_' + ChatWelcomeMessageModel.nextId++;
+	}
+
+	public get username(): string {
+		return this.session.responderUsername;
+	}
+
+	public get avatarIconUri(): URI | undefined {
+		return this.session.responderAvatarIconUri;
 	}
 }
