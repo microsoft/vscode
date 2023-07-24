@@ -89,7 +89,7 @@
     "native-is-elevated": "0.7.0",
     "native-keymap": "^3.3.2",
     "native-watchdog": "^1.4.1",
-    "node-pty": "1.1.0-beta1",
+    "node-pty": "1.1.0-beta3",
     "tas-client-umd": "0.1.8",
     "v8-inspect-profiler": "^0.1.0",
     "vscode-oniguruma": "1.7.0",
