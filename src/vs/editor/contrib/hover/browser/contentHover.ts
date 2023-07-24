@@ -7,7 +7,6 @@ import * as dom from 'vs/base/browser/dom';
 import { HoverAction, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -74,11 +73,6 @@ export class ContentHoverController extends Disposable {
 			}
 			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
 			this._withResult(new HoverResult(this._computer.anchor, messages, result.isComplete));
-		}));
-		this._register(dom.addStandardDisposableListener(this._widget.getDomNode(), 'keydown', (e) => {
-			if (e.equals(KeyCode.Escape)) {
-				this.hide();
-			}
 		}));
 		this._register(TokenizationRegistry.onDidChange(() => {
 			if (this._widget.position && this._currentResult) {
@@ -218,6 +212,9 @@ export class ContentHoverController extends Disposable {
 		this._computer.anchor = null;
 		this._hoverOperation.cancel();
 		this._setCurrentResult(null);
+		for (const participant of this._participants) {
+			participant.onHide?.();
+		}
 	}
 
 	public get isColorPickerVisible(): boolean {
@@ -373,9 +370,9 @@ export class ContentHoverController extends Disposable {
 		};
 	}
 
-	public accept() {
+	public onEscape() {
 		for (const participant of this._participants) {
-			participant.onAccept?.();
+			participant.onEscape?.();
 		}
 	}
 

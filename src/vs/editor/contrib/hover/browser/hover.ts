@@ -269,8 +269,9 @@ export class ModesHoverController implements IEditorContribution {
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 
-	public accept(): void {
-		this._contentWidget?.accept();
+	public escape(): void {
+		this._contentWidget?.onEscape();
+		this._hideWidgets();
 	}
 
 	public focus(): void {
@@ -680,21 +681,21 @@ class GoToBottomHoverAction extends EditorAction {
 	}
 }
 
-class AcceptHoverAction extends EditorAction {
+class EscapeHoverAction extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.acceptHover',
+			id: 'editor.action.escapeHover',
 			label: nls.localize({
-				key: 'acceptHover',
+				key: 'escapeHover',
 				comment: [
-					'Action that toggles the onAccept method of the content hover participants.'
+					'Action that toggles the onEscape method of the content hover participants.'
 				]
-			}, "Accept Hover"),
-			alias: 'Accept Hover',
+			}, "Escape Hover"),
+			alias: 'Escape Hover',
 			precondition: EditorContextKeys.hoverFocused,
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
-				primary: KeyCode.Enter,
+				primary: KeyCode.Escape,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -705,7 +706,7 @@ class AcceptHoverAction extends EditorAction {
 		if (!controller) {
 			return;
 		}
-		controller.accept();
+		controller.escape();
 	}
 }
 
@@ -720,7 +721,7 @@ registerEditorAction(PageUpHoverAction);
 registerEditorAction(PageDownHoverAction);
 registerEditorAction(GoToTopHoverAction);
 registerEditorAction(GoToBottomHoverAction);
-registerEditorAction(AcceptHoverAction);
+registerEditorAction(EscapeHoverAction);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);
 HoverParticipantRegistry.register(MarkerHoverParticipant);
 

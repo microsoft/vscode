@@ -20,6 +20,7 @@ import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRend
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 export class ColorHover implements IHoverPart {
 
@@ -49,11 +50,10 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 
 	public readonly hoverOrdinal: number = 2;
 
-	private _context: IEditorHoverRenderContext | undefined;
-
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService
 	) { }
 
 	public computeSync(_anchor: HoverAnchor, _lineDecorations: IModelDecoration[]): ColorHover[] {
@@ -92,7 +92,17 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	}
 
 	public onEscape() {
+		const uri = this._editor.getModel()?.uri;
+		if (uri) {
+			for (let i = 0; i < NUMBER_COLOR_EDITS; i++) {
+				this._undoRedoService.undo(uri);
+			}
+			NUMBER_COLOR_EDITS = 0;
+		}
+	}
 
+	public onHide() {
+		NUMBER_COLOR_EDITS = 0;
 	}
 }
 
@@ -163,6 +173,7 @@ export class StandaloneColorPickerParticipant {
 		return this._color;
 	}
 }
+let NUMBER_COLOR_EDITS: number = 0;
 
 async function _createColorHover<T extends ColorHoverParticipant | StandaloneColorPickerParticipant>(participant: T, editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<T extends ColorHoverParticipant ? ColorHover : StandaloneColorPickerHover>;
 async function _createColorHover(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover | StandaloneColorPickerHover> {
@@ -238,17 +249,20 @@ function _updateEditorModel(editor: ICodeEditor, range: Range, model: ColorPicke
 		);
 		const trackedRange = editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
 		editor.pushUndoStop();
+		NUMBER_COLOR_EDITS += 1;
 		editor.executeEdits('colorpicker', textEdits);
 		newRange = editor.getModel()!._getTrackedRange(trackedRange) || newRange;
 	} else {
 		textEdits = [{ range, text: model.presentation.label, forceMoveMarkers: false }];
 		newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
 		editor.pushUndoStop();
+		NUMBER_COLOR_EDITS += 1;
 		editor.executeEdits('colorpicker', textEdits);
 	}
 
 	if (model.presentation.additionalTextEdits) {
 		textEdits = [...model.presentation.additionalTextEdits];
+		NUMBER_COLOR_EDITS += 1;
 		editor.executeEdits('colorpicker', textEdits);
 		if (context) {
 			context.hide();
