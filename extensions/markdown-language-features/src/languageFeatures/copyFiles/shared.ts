@@ -76,7 +76,6 @@ export interface SkinnyTextDocument {
 	offsetAt(position: vscode.Position): number;
 	getText(range?: vscode.Range): string;
 	readonly uri: vscode.Uri;
-	lineAt(position: vscode.Position): vscode.TextLine;
 }
 
 export interface SmartPaste {

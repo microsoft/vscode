@@ -47,18 +47,19 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 }
 
 export function validateLink(urlList: string): { isValid: boolean; cleanedUrlList: string } {
-	const cleanedUrlList = urlList?.trim();
 	let isValid = false;
-	let new_uri = undefined;
+	let uri = undefined;
+	const trimmedUrlList = urlList?.trim(); //remove leading and trailing whitespace and new lines
 	try {
-		new_uri = vscode.Uri.parse(cleanedUrlList);
+		uri = vscode.Uri.parse(trimmedUrlList);
 	} catch (error) {
-		return { isValid: false, cleanedUrlList };
+		return { isValid: false, cleanedUrlList: urlList };
 	}
-	if (new_uri) {
-		isValid = !cleanedUrlList.includes('\n') && externalUriSchemes.includes(new_uri.scheme);
+	const splitUrlList = trimmedUrlList.split(' ').filter(item => item !== ''); //split on spaces and remove empty strings
+	if (uri) {
+		isValid = splitUrlList.length === 1 && !splitUrlList[0].includes('\n') && externalUriSchemes.includes(vscode.Uri.parse(splitUrlList[0]).scheme);
 	}
-	return { isValid, cleanedUrlList };
+	return { isValid, cleanedUrlList: splitUrlList[0] };
 }
 
 export function registerLinkPasteSupport(selector: vscode.DocumentSelector,) {

@@ -9,23 +9,23 @@ import { SkinnyTextDocument, checkSmartPaste, createEditAddingLinksForUriList, a
 import { validateLink } from '../languageFeatures/copyFiles/copyPasteLinks';
 suite('createEditAddingLinksForUriList', () => {
 
-	test('link to link snippet', async () => {
+	test('Markdown Link Pasting should occur for a valid link (end to end)', async () => {
 		// createEditAddingLinksForUriList -> checkSmartPaste -> tryGetUriListSnippet -> createUriListSnippet -> createLinkSnippet
 
 		const skinnyDocument: SkinnyTextDocument = {
 			uri: vscode.Uri.parse('file:///path/to/your/file'),
 			offsetAt: function () { return 0; },
 			getText: function () { return 'hello world!'; },
-			lineAt: function (position: vscode.Position) {
-				return {
-					lineNumber: 0,
-					text: 'hello world!',
-					range: new vscode.Range(position, position),
-					rangeIncludingLineBreak: new vscode.Range(position, position),
-					firstNonWhitespaceCharacterIndex: 0,
-					isEmptyOrWhitespace: false
-				} as vscode.TextLine;
-			}
+			// lineAt: function (position: vscode.Position) {
+			// 	return {
+			// 		lineNumber: 0,
+			// 		text: 'hello world!',
+			// 		range: new vscode.Range(position, position),
+			// 		rangeIncludingLineBreak: new vscode.Range(position, position),
+			// 		firstNonWhitespaceCharacterIndex: 0,
+			// 		isEmptyOrWhitespace: false
+			// 	} as vscode.TextLine;
+			// }
 		};
 
 		const result = await createEditAddingLinksForUriList(skinnyDocument, [new vscode.Range(0, 0, 0, 12)], 'https://www.microsoft.com/', true, true, new vscode.CancellationTokenSource().token);
@@ -96,7 +96,7 @@ suite('createEditAddingLinksForUriList', () => {
 		});
 	});
 
-	suite('createLinkSnippet', () => {
+	suite('appendToLinkSnippet', () => {
 		test('Should not create Markdown link snippet when pasteAsMarkdownLink is false', () => {
 			const uri = vscode.Uri.parse('https://www.microsoft.com/');
 			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), false, 'https:/www.microsoft.com', '', uri, 0, true);
@@ -117,22 +117,22 @@ suite('createEditAddingLinksForUriList', () => {
 	});
 
 
-	suite('pasteAsMarkdownLink', () => {
+	suite('checkSmartPaste', () => {
 
 		const skinnyDocument: SkinnyTextDocument = {
 			uri: vscode.Uri.file('/path/to/your/file'),
 			offsetAt: function () { return 0; },
 			getText: function () { return 'hello world!'; },
-			lineAt: function (position: vscode.Position) {
-				return {
-					lineNumber: 0,
-					text: 'hello world!',
-					range: new vscode.Range(position, position),
-					rangeIncludingLineBreak: new vscode.Range(position, position),
-					firstNonWhitespaceCharacterIndex: 0,
-					isEmptyOrWhitespace: false
-				} as vscode.TextLine;
-			}
+			// lineAt: function (position: vscode.Position) {
+			// 	return {
+			// 		lineNumber: 0,
+			// 		text: 'hello world!',
+			// 		range: new vscode.Range(position, position),
+			// 		rangeIncludingLineBreak: new vscode.Range(position, position),
+			// 		firstNonWhitespaceCharacterIndex: 0,
+			// 		isEmptyOrWhitespace: false
+			// 	} as vscode.TextLine;
+			// }
 		};
 
 		test('Should evaluate pasteAsMarkdownLink as true for selected plain text', () => {
@@ -158,17 +158,7 @@ suite('createEditAddingLinksForUriList', () => {
 		const linkSkinnyDoc: SkinnyTextDocument = {
 			uri: vscode.Uri.file('/path/to/your/file'),
 			offsetAt: function () { return 0; },
-			getText: function () { return 'hello world!'; },
-			lineAt: function (position: vscode.Position) {
-				return {
-					lineNumber: 0,
-					text: '[a](bcdef)',
-					range: new vscode.Range(position, position),
-					rangeIncludingLineBreak: new vscode.Range(position, position),
-					firstNonWhitespaceCharacterIndex: 0,
-					isEmptyOrWhitespace: false
-				} as vscode.TextLine;
-			}
+			getText: function () { return '[a](bcdef)'; },
 		};
 
 		test('Should evaluate updateTitle as true for pasting over a Markdown link', () => {
@@ -188,17 +178,7 @@ suite('createEditAddingLinksForUriList', () => {
 		const imageLinkSkinnyDoc: SkinnyTextDocument = {
 			uri: vscode.Uri.file('/path/to/your/file'),
 			offsetAt: function () { return 0; },
-			getText: function () { return 'hello world!'; },
-			lineAt: function (position: vscode.Position) {
-				return {
-					lineNumber: 0,
-					text: '![a](bcdef)',
-					range: new vscode.Range(position, position),
-					rangeIncludingLineBreak: new vscode.Range(position, position),
-					firstNonWhitespaceCharacterIndex: 0,
-					isEmptyOrWhitespace: false
-				} as vscode.TextLine;
-			}
+			getText: function () { return '![a](bcdef)'; },
 		};
 
 		test('Should evaluate updateTitle as true for pasting over a Markdown image link', () => {
@@ -216,17 +196,7 @@ suite('createEditAddingLinksForUriList', () => {
 		const inlineCodeSkinnyCode: SkinnyTextDocument = {
 			uri: vscode.Uri.file('/path/to/your/file'),
 			offsetAt: function () { return 0; },
-			getText: function () { return 'hello world!'; },
-			lineAt: function (position: vscode.Position) {
-				return {
-					lineNumber: 0,
-					text: '``',
-					range: new vscode.Range(position, position),
-					rangeIncludingLineBreak: new vscode.Range(position, position),
-					firstNonWhitespaceCharacterIndex: 0,
-					isEmptyOrWhitespace: false
-				} as vscode.TextLine;
-			}
+			getText: function () { return '``'; },
 		};
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within inline code', () => {
@@ -238,17 +208,7 @@ suite('createEditAddingLinksForUriList', () => {
 		const inlineMathSkinnyDoc: SkinnyTextDocument = {
 			uri: vscode.Uri.file('/path/to/your/file'),
 			offsetAt: function () { return 0; },
-			getText: function () { return 'hello world!'; },
-			lineAt: function (position: vscode.Position) {
-				return {
-					lineNumber: 0,
-					text: '$$',
-					range: new vscode.Range(position, position),
-					rangeIncludingLineBreak: new vscode.Range(position, position),
-					firstNonWhitespaceCharacterIndex: 0,
-					isEmptyOrWhitespace: false
-				} as vscode.TextLine;
-			}
+			getText: function () { return '$$'; },
 		};
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within inline math', () => {
