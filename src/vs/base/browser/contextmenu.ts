@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { AnchorAlignment, AnchorAxisAlignment, IAnchor } from 'vs/base/browser/ui/contextview/contextview';
@@ -19,7 +19,7 @@ export interface IContextMenuEvent {
 }
 
 export interface IContextMenuDelegate {
-	getAnchor(): HTMLElement | StandardMouseEvent | OmitOptional<IAnchor>;
+	getAnchor(): HTMLElement | IMouseEvent | OmitOptional<IAnchor>;
 	getActions(): readonly IAction[];
 	getCheckedActionsRepresentation?(action: IAction): 'radio' | 'checkbox';
 	getActionViewItem?(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined;

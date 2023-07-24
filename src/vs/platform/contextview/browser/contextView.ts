@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { AnchorAlignment, AnchorAxisAlignment, IAnchor, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
@@ -31,7 +31,7 @@ export interface IContextViewDelegate {
 
 	canRelayout?: boolean; // Default: true
 
-	getAnchor(): HTMLElement | StandardMouseEvent | OmitOptional<IAnchor>;
+	getAnchor(): HTMLElement | IMouseEvent | OmitOptional<IAnchor>;
 	render(container: HTMLElement): IDisposable;
 	onDOMEvent?(e: any, activeElement: HTMLElement): void;
 	onHide?(data?: any): void;
