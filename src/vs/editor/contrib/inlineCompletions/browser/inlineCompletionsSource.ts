@@ -221,7 +221,13 @@ export class UpToDateInlineCompletions implements IDisposable {
 	public dispose(): void {
 		this._refCount--;
 		if (this._refCount === 0) {
-			this.textModel.deltaDecorations(this._inlineCompletions.map(i => i.decorationId), []);
+			setTimeout(() => {
+				// To fix https://github.com/microsoft/vscode/issues/188348
+				if (!this.textModel.isDisposed()) {
+					// This is just cleanup. It's ok if it happens with a delay.
+					this.textModel.deltaDecorations(this._inlineCompletions.map(i => i.decorationId), []);
+				}
+			}, 0);
 			this.inlineCompletionProviderResult.dispose();
 			for (const i of this._prependedInlineCompletionItems) {
 				i.source.removeRef();

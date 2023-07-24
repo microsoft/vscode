@@ -2174,7 +2174,7 @@ export class OpenMessageInEditorAction extends Action2 {
 			id: OpenMessageInEditorAction.ID,
 			f1: false,
 			title: { value: localize('testing.openMessageInEditor', "Open in Editor"), original: 'Open in Editor' },
-			icon: Codicon.linkExternal,
+			icon: Codicon.goToFile,
 			category: Categories.Test,
 			menu: [{ id: MenuId.TestPeekTitle }],
 		});

@@ -221,7 +221,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override notebookOptions = notebookOptions;
 		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
 		override onDidChangeCellState: Event<NotebookCellStateChangedEvent> = new Emitter<NotebookCellStateChangedEvent>().event;
-		override _getViewModel(): NotebookViewModel {
+		override getViewModel(): NotebookViewModel {
 			return viewModel;
 		}
 		override textModel = viewModel.notebookDocument;
