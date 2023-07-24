@@ -153,10 +153,8 @@ class ChatAccessibleViewContribution extends Disposable {
 				if (!widget) {
 					return false;
 				}
-
-				const chatInputFocused = initialRender && !!(codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor());
-
-				if (chatInputFocused) {
+				const chatInputFocused = initialRender && !!codeEditorService.getFocusedCodeEditor();
+				if (initialRender && chatInputFocused) {
 					widget.focusLastMessage();
 					widget = widgetService.lastFocusedWidget;
 				}
