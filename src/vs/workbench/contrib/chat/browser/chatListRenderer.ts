@@ -476,7 +476,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return undefined;
 		}
 
-		return getNWords(element.response.value, numWordsToRender);
+		return getNWords(element.response.asString(), numWordsToRender);
 	}
 
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
@@ -555,16 +555,16 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 	private _getLabelWithCodeBlockCount(element: IChatResponseViewModel): string {
 		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.Chat);
 		let label: string = '';
-		const codeBlockCount = marked.lexer(element.response.value).filter(token => token.type === 'code')?.length ?? 0;
+		const codeBlockCount = marked.lexer(element.response.asString()).filter(token => token.type === 'code')?.length ?? 0;
 		switch (codeBlockCount) {
 			case 0:
-				label = accessibleViewHint ? localize('noCodeBlocksHint', "{0} {1}", element.response.value, accessibleViewHint) : localize('noCodeBlocks', "{0}", element.response.value);
+				label = accessibleViewHint ? localize('noCodeBlocksHint', "{0} {1}", element.response.asString(), accessibleViewHint) : localize('noCodeBlocks', "{0}", element.response.asString());
 				break;
 			case 1:
-				label = accessibleViewHint ? localize('singleCodeBlockHint', "1 code block: {0} {1}", element.response.value, accessibleViewHint) : localize('singleCodeBlock', "1 code block: {0}", element.response.value);
+				label = accessibleViewHint ? localize('singleCodeBlockHint', "1 code block: {0} {1}", element.response.asString(), accessibleViewHint) : localize('singleCodeBlock', "1 code block: {0}", element.response.asString());
 				break;
 			default:
-				label = accessibleViewHint ? localize('multiCodeBlockHint', "{0} code blocks: {1}", codeBlockCount, element.response.value, accessibleViewHint) : localize('multiCodeBlock', "{0} code blocks", codeBlockCount, element.response.value);
+				label = accessibleViewHint ? localize('multiCodeBlockHint', "{0} code blocks: {1}", codeBlockCount, element.response.asString(), accessibleViewHint) : localize('multiCodeBlock', "{0} code blocks", codeBlockCount, element.response.asString());
 				break;
 		}
 		return label;

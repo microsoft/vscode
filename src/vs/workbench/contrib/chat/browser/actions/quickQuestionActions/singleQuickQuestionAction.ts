@@ -248,7 +248,7 @@ class InteractiveQuickPickSession extends Disposable {
 
 		const requests = this._model.getRequests().reverse();
 		const response = requests.find(r => r.response?.response.value !== undefined);
-		const message = response?.response?.response.value;
+		const message = response?.response?.response.asString();
 		if (message) {
 			this._chatService.addCompleteRequest(widget.viewModel.sessionId, value, { message });
 		} else if (value) {

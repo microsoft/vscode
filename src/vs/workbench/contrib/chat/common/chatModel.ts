@@ -22,6 +22,13 @@ export interface IChatRequestModel {
 	readonly response: IChatResponseModel | undefined;
 }
 
+export interface IResponse {
+	readonly value: (IMarkdownString | IChatResponseProgressFileTreeData)[];
+	onDidChangeValue: Event<void>;
+	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void;
+	asString(): string;
+}
+
 export interface IChatResponseModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
@@ -30,7 +37,7 @@ export interface IChatResponseModel {
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
-	readonly response: IMarkdownString;
+	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
@@ -82,23 +89,27 @@ export class ChatRequestModel implements IChatRequestModel {
 }
 
 
-interface ResponsePart { string: IMarkdownString; resolving?: boolean }
-class Response {
+type ResponsePart = { string: IMarkdownString; resolving?: boolean } | { treeData: IChatResponseProgressFileTreeData; resolving: false };
+export class Response implements IResponse {
 	private _onDidChangeValue = new Emitter<void>();
 	public get onDidChangeValue() {
 		return this._onDidChangeValue.event;
 	}
 
 	private _responseParts: ResponsePart[];
-	private _responseRepr: IMarkdownString;
+	private _responseRepr: (IMarkdownString | IChatResponseProgressFileTreeData)[];
 
-	get value(): IMarkdownString {
+	get value(): (IMarkdownString | IChatResponseProgressFileTreeData)[] {
 		return this._responseRepr;
 	}
 
 	constructor(value: IMarkdownString) {
-		this._responseRepr = value;
+		this._responseRepr = [value];
 		this._responseParts = [{ string: value }];
+	}
+
+	asString(): string { // TODO@joyceerhl
+		return new MarkdownString(this._responseRepr.filter((part) => typeof part === 'string').join('\n')).value;
 	}
 
 	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void {
@@ -106,11 +117,11 @@ class Response {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
 
-			if (lastResponsePart.resolving === true) {
-				// The last part is resolving, start a new part
+			if (lastResponsePart.resolving === true || 'treeData' in lastResponsePart) {
+				// The last part is resolving or a tree data item, start a new part
 				this._responseParts.push({ string: new MarkdownString(responsePart) });
 			} else {
-				// Combine this part with the last, non-resolving part
+				// Combine this part with the last, non-resolving string part
 				this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart) };
 			}
 
@@ -125,13 +136,22 @@ class Response {
 				if (typeof content === 'string') {
 					this._responseParts[responsePosition] = { string: new MarkdownString(content) };
 					this._updateRepr(quiet);
+				} else if (content.treeData) {
+					this._responseParts[responsePosition] = { resolving: false, treeData: content.treeData };
+					this._updateRepr(quiet);
 				}
 			});
 		}
 	}
 
 	private _updateRepr(quiet?: boolean) {
-		this._responseRepr = new MarkdownString(this._responseParts.map(r => r.string.value).join('\n'));
+		this._responseRepr = this._responseParts.map(part => {
+			if ('treeData' in part) {
+				return part.treeData;
+			}
+			return part.string;
+		});
+
 		if (!quiet) {
 			this._onDidChangeValue.fire();
 		}
@@ -169,9 +189,9 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._followups;
 	}
 
-	private _response: Response;
-	public get response(): IMarkdownString {
-		return this._response.value;
+	private _response: IResponse;
+	public get response(): IResponse {
+		return this._response;
 	}
 
 	public get errorDetails(): IChatResponseErrorDetails | undefined {
@@ -263,7 +283,7 @@ export interface ISerializableChatsData {
 export interface ISerializableChatRequestData {
 	providerRequestId: string | undefined;
 	message: string;
-	response: string | undefined;
+	response: (IMarkdownString | IChatResponseProgressFileTreeData)[] | undefined;
 	responseErrorDetails: IChatResponseErrorDetails | undefined;
 	followups: IChatFollowup[] | undefined;
 	isCanceled: boolean | undefined;
@@ -435,7 +455,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		return requests.map((raw: ISerializableChatRequestData) => {
 			const request = new ChatRequestModel(this, raw.message, raw.providerRequestId);
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new ChatResponseModel(new MarkdownString(raw.response), this, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
+				request.response = new ChatResponseModel(new MarkdownString(raw.response), this, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups); //
 			}
 			return request;
 		});

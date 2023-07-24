@@ -174,7 +174,7 @@ class ChatAccessibleViewContribution extends Disposable {
 
 				widget.focus(focusedItem);
 
-				const responseContent = isResponseVM(focusedItem) ? focusedItem.response.value : undefined;
+				const responseContent = isResponseVM(focusedItem) ? focusedItem.response.asString() : undefined;
 				if (!responseContent) {
 					return false;
 				}
