@@ -158,6 +158,9 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			} else if (isAnchor(anchor)) {
 				x = anchor.x;
 				y = anchor.y;
+			} else {
+				// We leave x/y undefined in this case which will result in
+				// Electron taking care of opening the menu at the cursor position.
 			}
 
 			if (typeof x === 'number') {
