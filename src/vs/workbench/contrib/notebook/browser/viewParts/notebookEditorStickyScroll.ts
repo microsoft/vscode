@@ -16,6 +16,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { NotebookCellOutlineProvider, OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export class ToggleNotebookStickyScroll extends Action2 {
 
@@ -116,7 +117,8 @@ export class NotebookStickyScroll extends Disposable {
 		}));
 	}
 
-	private onContextMenu(event: MouseEvent) {
+	private onContextMenu(e: MouseEvent) {
+		const event = new StandardMouseEvent(e);
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.NotebookStickyScrollContext,
 			getAnchor: () => event,

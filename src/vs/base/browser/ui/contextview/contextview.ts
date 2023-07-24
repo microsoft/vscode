@@ -5,9 +5,11 @@
 
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import * as DOM from 'vs/base/browser/dom';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { Range } from 'vs/base/common/range';
+import { OmitOptional } from 'vs/base/common/types';
 import 'vs/css!./contextview';
 
 export const enum ContextViewDOMPosition {
@@ -23,6 +25,12 @@ export interface IAnchor {
 	height?: number;
 }
 
+export function isAnchor(obj: unknown): obj is IAnchor | OmitOptional<IAnchor> {
+	const anchor = obj as IAnchor | OmitOptional<IAnchor> | undefined;
+
+	return !!anchor && typeof anchor.x === 'number' && typeof anchor.y === 'number';
+}
+
 export const enum AnchorAlignment {
 	LEFT, RIGHT
 }
@@ -36,7 +44,7 @@ export const enum AnchorAxisAlignment {
 }
 
 export interface IDelegate {
-	getAnchor(): HTMLElement | IAnchor;
+	getAnchor(): HTMLElement | IMouseEvent | IAnchor;
 	render(container: HTMLElement): IDisposable | null;
 	focus?(): void;
 	layout?(): void;
@@ -271,12 +279,19 @@ export class ContextView extends Disposable {
 				width: elementPosition.width * zoom,
 				height: elementPosition.height * zoom
 			};
-		} else {
+		} else if (isAnchor(anchor)) {
 			around = {
 				top: anchor.y,
 				left: anchor.x,
 				width: anchor.width || 1,
 				height: anchor.height || 2
+			};
+		} else {
+			around = {
+				top: anchor.posy,
+				left: anchor.posx,
+				width: 1,
+				height: 2
 			};
 		}
 

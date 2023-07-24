@@ -149,13 +149,9 @@ abstract class AbstractGlobalActivityActionViewItem extends ActivityActionViewIt
 			const actions = await this.resolveContextMenuActions(disposables);
 
 			const event = new StandardMouseEvent(e);
-			const anchor = {
-				x: event.posx,
-				y: event.posy
-			};
 
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				getAnchor: () => event,
 				getActions: () => actions,
 				onHide: () => disposables.dispose()
 			});

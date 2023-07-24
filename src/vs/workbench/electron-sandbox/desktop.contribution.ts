@@ -229,6 +229,12 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'description': localize('windowControlsOverlay', "Use window controls provided by the platform instead of our HTML-based window controls. Changes require a full restart to apply."),
 				'included': isWindows
 			},
+			'window.experimental.nativeContextMenuLocation': { // TODO@bpasero remove me eventually
+				'type': 'boolean',
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION,
+				'description': localize('nativeContextMenuLocation', "Let the OS handle positioning of the context menu in cases where it should appear under the mouse.")
+			},
 			'window.dialogStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom'],

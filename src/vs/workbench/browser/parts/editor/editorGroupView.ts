@@ -374,10 +374,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Find target anchor
-		let anchor: HTMLElement | { x: number; y: number } = this.element;
+		let anchor: HTMLElement | StandardMouseEvent = this.element;
 		if (e instanceof MouseEvent) {
-			const event = new StandardMouseEvent(e);
-			anchor = { x: event.posx, y: event.posy };
+			anchor = new StandardMouseEvent(e);
 		}
 
 		// Show it
