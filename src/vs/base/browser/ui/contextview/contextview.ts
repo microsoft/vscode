@@ -26,7 +26,7 @@ export interface IAnchor {
 }
 
 export function isAnchor(obj: unknown): obj is IAnchor | OmitOptional<IAnchor> {
-	const anchor = obj as IAnchor | undefined;
+	const anchor = obj as IAnchor | OmitOptional<IAnchor> | undefined;
 
 	return !!anchor && typeof anchor.x === 'number' && typeof anchor.y === 'number';
 }
