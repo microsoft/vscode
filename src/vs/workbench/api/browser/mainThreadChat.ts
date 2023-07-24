@@ -156,6 +156,10 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			}
 		}
 
+		if ('treeData' in progress) {
+			return;
+		}
+
 		this._activeRequestProgressCallbacks.get(id)?.(progress);
 	}
 

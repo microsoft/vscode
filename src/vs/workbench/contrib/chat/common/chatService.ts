@@ -42,8 +42,14 @@ export interface IChatResponse {
 	};
 }
 
+export interface IChatResponseProgressFileTreeData {
+	label: string;
+	uri: URI;
+	children?: IChatResponseProgressFileTreeData[];
+}
+
 export type IChatProgress =
-	{ content: string } | { requestId: string } | { placeholder: string; resolvedContent: Promise<string> };
+	{ content: string } | { requestId: string } | { placeholder: string; resolvedContent: Promise<string | { treeData: IChatResponseProgressFileTreeData }> };
 
 export interface IPersistedChatState { }
 export interface IChatProvider {

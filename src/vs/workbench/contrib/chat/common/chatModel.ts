@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -101,7 +101,7 @@ class Response {
 		this._responseParts = [{ string: value }];
 	}
 
-	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string> }, quiet?: boolean): void {
+	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void {
 		if (typeof responsePart === 'string') {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
@@ -115,15 +115,17 @@ class Response {
 			}
 
 			this._updateRepr(quiet);
-		} else {
+		} else if ('placeholder' in responsePart) {
 			// Add a new resolving part
 			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), resolving: true });
 			this._updateRepr(quiet);
 
 			responsePart.resolvedContent?.then((content) => {
 				// Replace the resolving part's content with the resolved response
-				this._responseParts[responsePosition] = { string: new MarkdownString(content) };
-				this._updateRepr(quiet);
+				if (typeof content === 'string') {
+					this._responseParts[responsePosition] = { string: new MarkdownString(content) };
+					this._updateRepr(quiet);
+				}
 			});
 		}
 	}
@@ -204,7 +206,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
-	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string> }, quiet?: boolean) {
+	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
 	}
 
