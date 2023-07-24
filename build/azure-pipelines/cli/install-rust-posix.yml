@@ -23,5 +23,4 @@ steps:
       set -e
       rustc --version
       cargo --version
-      rustup --version
     displayName: "Check Rust versions"

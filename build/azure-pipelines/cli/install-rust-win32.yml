@@ -1,7 +1,7 @@
 parameters:
   - name: channel
     type: string
-    default: 1.70.0
+    default: 1.71.0
   - name: targets
     default: []
     type: object
@@ -23,5 +23,4 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       exec { rustc --version }
       exec { cargo --version }
-      exec { rustup --version }
     displayName: "Check Rust versions"
