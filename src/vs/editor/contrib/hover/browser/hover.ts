@@ -269,6 +269,10 @@ export class ModesHoverController implements IEditorContribution {
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 
+	public accept(): void {
+		this._contentWidget?.accept();
+	}
+
 	public focus(): void {
 		this._contentWidget?.focus();
 	}
@@ -676,6 +680,35 @@ class GoToBottomHoverAction extends EditorAction {
 	}
 }
 
+class AcceptHoverAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.acceptHover',
+			label: nls.localize({
+				key: 'acceptHover',
+				comment: [
+					'Action that toggles the onAccept method of the content hover participants.'
+				]
+			}, "Accept Hover"),
+			alias: 'Accept Hover',
+			precondition: EditorContextKeys.hoverFocused,
+			kbOpts: {
+				kbExpr: EditorContextKeys.hoverFocused,
+				primary: KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const controller = ModesHoverController.get(editor);
+		if (!controller) {
+			return;
+		}
+		controller.accept();
+	}
+}
+
 registerEditorContribution(ModesHoverController.ID, ModesHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowOrFocusHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
@@ -687,6 +720,7 @@ registerEditorAction(PageUpHoverAction);
 registerEditorAction(PageDownHoverAction);
 registerEditorAction(GoToTopHoverAction);
 registerEditorAction(GoToBottomHoverAction);
+registerEditorAction(AcceptHoverAction);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);
 HoverParticipantRegistry.register(MarkerHoverParticipant);
 

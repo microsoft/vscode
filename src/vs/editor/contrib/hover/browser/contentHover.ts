@@ -373,6 +373,12 @@ export class ContentHoverController extends Disposable {
 		};
 	}
 
+	public accept() {
+		for (const participant of this._participants) {
+			participant.onAccept?.();
+		}
+	}
+
 	public focus(): void {
 		this._widget.focus();
 	}

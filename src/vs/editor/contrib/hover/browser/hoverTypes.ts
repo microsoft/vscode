@@ -123,6 +123,7 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IDisposable;
+	onAccept?(): void;
 }
 
 export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;
