@@ -89,7 +89,7 @@ export class ChatRequestModel implements IChatRequestModel {
 }
 
 
-type ResponsePart = { string: IMarkdownString; resolving?: boolean } | { treeData: IChatResponseProgressFileTreeData; resolving: false };
+type ResponsePart = { string: IMarkdownString; resolving?: boolean } | { treeData: IChatResponseProgressFileTreeData; resolving?: undefined };
 export class Response implements IResponse {
 	private _onDidChangeValue = new Emitter<void>();
 	public get onDidChangeValue() {
@@ -103,9 +103,9 @@ export class Response implements IResponse {
 		return this._responseRepr;
 	}
 
-	constructor(value: IMarkdownString) {
-		this._responseRepr = [value];
-		this._responseParts = [{ string: value }];
+	constructor(value: IMarkdownString | (IMarkdownString | IChatResponseProgressFileTreeData)[]) {
+		this._responseRepr = Array.isArray(value) ? value : [value];
+		this._responseParts = Array.isArray(value) ? value.map((v) => ('value' in v ? { string: v } : { treeData: v })) : [{ string: value }];
 	}
 
 	asString(): string { // TODO@joyceerhl
@@ -137,7 +137,7 @@ export class Response implements IResponse {
 					this._responseParts[responsePosition] = { string: new MarkdownString(content) };
 					this._updateRepr(quiet);
 				} else if (content.treeData) {
-					this._responseParts[responsePosition] = { resolving: false, treeData: content.treeData };
+					this._responseParts[responsePosition] = { treeData: content.treeData };
 					this._updateRepr(quiet);
 				}
 			});
@@ -211,7 +211,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	constructor(
-		_response: IMarkdownString,
+		_response: IMarkdownString | (IMarkdownString | IChatResponseProgressFileTreeData)[],
 		public readonly session: ChatModel,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
@@ -455,7 +455,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		return requests.map((raw: ISerializableChatRequestData) => {
 			const request = new ChatRequestModel(this, raw.message, raw.providerRequestId);
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new ChatResponseModel(new MarkdownString(raw.response), this, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups); //
+				request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
 			}
 			return request;
 		});
