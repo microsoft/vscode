@@ -100,7 +100,7 @@ export enum PasteUrlAsFormattedLink {
 }
 
 export async function getPasteUrlAsFormattedLinkSetting(document: vscode.TextDocument): Promise<PasteUrlAsFormattedLink> {
-	return vscode.workspace.getConfiguration('markdown', document).get<PasteUrlAsFormattedLink>('editor.pasteUrlAsFormattedLink.enabled', PasteUrlAsFormattedLink.Always);
+	return vscode.workspace.getConfiguration('markdown', document).get<PasteUrlAsFormattedLink>('editor.pasteUrlAsFormattedLink.enabled', PasteUrlAsFormattedLink.Smart);
 }
 
 export async function createEditAddingLinksForUriList(
@@ -199,7 +199,7 @@ interface UriListSnippetOptions {
 	readonly separator?: string;
 }
 
-export function createLinkSnippet(
+export function appendToLinkSnippet(
 	snippet: vscode.SnippetString,
 	pasteAsMarkdownLink: boolean,
 	mdPath: string,
@@ -272,7 +272,7 @@ export function createUriListSnippet(
 			}
 		} else {
 			insertedLinkCount++;
-			snippet = createLinkSnippet(snippet, pasteAsMarkdownLink, mdPath, title, uri, placeholderValue, isExternalLink);
+			snippet = appendToLinkSnippet(snippet, pasteAsMarkdownLink, mdPath, title, uri, placeholderValue, isExternalLink);
 		}
 
 		if (i < uris.length - 1 && uris.length > 1) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { externalUriSchemes, createEditAddingLinksForUriList, getPasteUrlAsFormattedLinkSetting } from './shared';
+import { externalUriSchemes, createEditAddingLinksForUriList, getPasteUrlAsFormattedLinkSetting, PasteUrlAsFormattedLink } from './shared';
 class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 
 	readonly id = 'insertMarkdownLink';
@@ -15,7 +15,7 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit | undefined> {
 		const pasteUrlSetting = await getPasteUrlAsFormattedLinkSetting(document);
-		if (pasteUrlSetting === 'never') {
+		if (pasteUrlSetting === PasteUrlAsFormattedLink.Never) {
 			return;
 		}
 
@@ -35,7 +35,7 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 			return undefined;
 		}
 
-		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, validateLink(urlList).cleanedUrlList, true, pasteUrlSetting === 'smart', token);
+		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, validateLink(urlList).cleanedUrlList, true, pasteUrlSetting === PasteUrlAsFormattedLink.Smart, token);
 		if (!pasteEdit) {
 			return;
 		}
@@ -46,11 +46,18 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 	}
 }
 
-// filter out white spaces
 export function validateLink(urlList: string): { isValid: boolean; cleanedUrlList: string } {
-	const url = urlList?.split(' ').filter(item => item !== '');
-	const cleanedUrlList = url[0];
-	const isValid = url.length === 1 && !urlList.includes('\n') && externalUriSchemes.includes(vscode.Uri.parse(cleanedUrlList).scheme);
+	const cleanedUrlList = urlList?.trim();
+	let isValid = false;
+	let new_uri = undefined;
+	try {
+		new_uri = vscode.Uri.parse(cleanedUrlList);
+	} catch (error) {
+		return { isValid: false, cleanedUrlList };
+	}
+	if (new_uri) {
+		isValid = !cleanedUrlList.includes('\n') && externalUriSchemes.includes(new_uri.scheme);
+	}
 	return { isValid, cleanedUrlList };
 }
 

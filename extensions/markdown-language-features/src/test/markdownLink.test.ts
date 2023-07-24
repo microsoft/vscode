@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import 'mocha';
-import { SkinnyTextDocument, checkSmartPaste, createEditAddingLinksForUriList, createLinkSnippet } from '../languageFeatures/copyFiles/shared';
+import { SkinnyTextDocument, checkSmartPaste, createEditAddingLinksForUriList, appendToLinkSnippet } from '../languageFeatures/copyFiles/shared';
 import { validateLink } from '../languageFeatures/copyFiles/copyPasteLinks';
 suite('createEditAddingLinksForUriList', () => {
 
@@ -37,6 +37,16 @@ suite('createEditAddingLinksForUriList', () => {
 
 		test('Markdown pasting should occur for a valid link.', () => {
 			const isLink = validateLink('https://www.microsoft.com/').isValid;
+			assert.strictEqual(isLink, true);
+		});
+
+		test('Markdown pasting should occur for a valid link preceded by a new line.', () => {
+			const isLink = validateLink('\r\nhttps://www.microsoft.com/').isValid;
+			assert.strictEqual(isLink, true);
+		});
+
+		test('Markdown pasting should occur for a valid link followed by a new line.', () => {
+			const isLink = validateLink('https://www.microsoft.com/\r\n').isValid;
 			assert.strictEqual(isLink, true);
 		});
 
@@ -89,19 +99,19 @@ suite('createEditAddingLinksForUriList', () => {
 	suite('createLinkSnippet', () => {
 		test('Should not create Markdown link snippet when pasteAsMarkdownLink is false', () => {
 			const uri = vscode.Uri.parse('https://www.microsoft.com/');
-			const snippet = createLinkSnippet(new vscode.SnippetString(''), false, 'https:/www.microsoft.com', '', uri, 0, true);
+			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), false, 'https:/www.microsoft.com', '', uri, 0, true);
 			assert.strictEqual(snippet?.value, 'https://www.microsoft.com/');
 		});
 
 		test('Should create Markdown link snippet when pasteAsMarkdownLink is true', () => {
 			const uri = vscode.Uri.parse('https://www.microsoft.com/');
-			const snippet = createLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uri, 0, true);
+			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uri, 0, true);
 			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com/)');
 		});
 
 		test('Should use an unencoded URI string in Markdown link when passing in an external browser link', () => {
 			const uri = vscode.Uri.parse('https://www.microsoft.com/');
-			const snippet = createLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uri, 0, true);
+			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uri, 0, true);
 			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com/)');
 		});
 	});

@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Schemes } from '../../util/schemes';
-import { createEditForMediaFiles, createEditAddingLinksForUriList, mediaMimes, getPasteUrlAsFormattedLinkSetting } from './shared';
+import { createEditForMediaFiles, createEditAddingLinksForUriList, mediaMimes, getPasteUrlAsFormattedLinkSetting, PasteUrlAsFormattedLink } from './shared';
 
 class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
@@ -33,7 +33,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 		const pasteUrlSetting = await getPasteUrlAsFormattedLinkSetting(document);
-		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, urlList, false, pasteUrlSetting === 'smart', token);
+		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, urlList, false, pasteUrlSetting === PasteUrlAsFormattedLink.Smart, token);
 		if (!pasteEdit) {
 			return;
 		}
