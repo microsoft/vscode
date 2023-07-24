@@ -88,13 +88,11 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
-		this._context = context;
 		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
 	}
 
-	public onAccept() {
-		this._context?.hide();
-		this._editor.focus();
+	public onEscape() {
+
 	}
 }
 
