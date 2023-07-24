@@ -20,7 +20,7 @@ import { equals, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MarkdownString, ViewBadge, DataTransfer } from 'vs/workbench/api/common/extHostTypeConverters';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ITreeViewsDnDService, TreeViewsDnDService } from 'vs/editor/common/services/treeViewsDnd';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
@@ -95,7 +95,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		const proxyOptions = { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag, hasHandleDrop, manuallyManageCheckboxes: !!options.manageCheckboxStateManually };
 		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, proxyOptions);
-		return {
+		const view = {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
 			get onDidExpandElement() { return treeView.onDidExpandElement; },
 			get selection() { return treeView.selectedElements; },
@@ -114,7 +114,10 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				return treeView.onDidChangeCheckboxState;
 			},
 			get message() { return treeView.message; },
-			set message(message: string) {
+			set message(message: string | vscode.MarkdownString) {
+				if (isMarkdownString(message)) {
+					checkProposedApiEnabled(extension, 'treeViewMarkdownMessage');
+				}
 				treeView.message = message;
 			},
 			get title() { return treeView.title; },
@@ -150,6 +153,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				treeView.dispose();
 			}
 		};
+		return view as vscode.TreeView<T>;
 	}
 
 	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[] | undefined> {
@@ -382,7 +386,7 @@ class ExtHostTreeView<T> extends Disposable {
 				});
 			}
 			if (message) {
-				this.proxy.$setMessage(this.viewId, this._message);
+				this.proxy.$setMessage(this.viewId, MarkdownString.fromStrict(this._message) ?? '');
 			}
 		}));
 	}
@@ -427,12 +431,12 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	private _message: string = '';
-	get message(): string {
+	private _message: string | vscode.MarkdownString = '';
+	get message(): string | vscode.MarkdownString {
 		return this._message;
 	}
 
-	set message(message: string) {
+	set message(message: string | vscode.MarkdownString) {
 		this._message = message;
 		this._onDidChangeData.fire({ message: true, element: false });
 	}
