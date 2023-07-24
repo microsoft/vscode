@@ -50,14 +50,13 @@
 	flex: 1;
 	white-space: nowrap;
 	overflow: hidden;
+	min-width: 228px;
 }
 
 .colorpicker-header .picked-color .picked-color-presentation {
 	white-space: nowrap;
 	margin-left: 5px;
 	margin-right: 5px;
-	min-width: 202px;
-	text-align: center;
 }
 
 .colorpicker-header .picked-color .codicon {
