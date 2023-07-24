@@ -9,6 +9,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { Range } from 'vs/base/common/range';
+import { OmitOptional } from 'vs/base/common/types';
 import 'vs/css!./contextview';
 
 export const enum ContextViewDOMPosition {
@@ -24,7 +25,7 @@ export interface IAnchor {
 	height?: number;
 }
 
-export function isAnchor(obj: unknown): obj is IAnchor {
+export function isAnchor(obj: unknown): obj is IAnchor | OmitOptional<IAnchor> {
 	const anchor = obj as IAnchor | undefined;
 
 	return !!anchor && typeof anchor.x === 'number' && typeof anchor.y === 'number';

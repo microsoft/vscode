@@ -27,7 +27,6 @@ import { AnchorAlignment, AnchorAxisAlignment, isAnchor } from 'vs/base/browser/
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export class ContextMenuService implements IContextMenuService {
 
@@ -104,8 +103,8 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			const menu = this.createMenu(delegate, actions, onHide);
 			const anchor = delegate.getAnchor();
 
-			let x: number;
-			let y: number;
+			let x: number | undefined;
+			let y: number | undefined;
 
 			let zoom = getZoomFactor();
 			if (dom.isHTMLElement(anchor)) {
@@ -156,26 +155,20 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				if (isMacintosh) {
 					y += 4 / zoom;
 				}
-			} else {
-				if (isAnchor(anchor)) {
-					x = anchor.x;
-					y = anchor.y;
-				} else {
-					x = (anchor as IMouseEvent).posx;
-					y = (anchor as IMouseEvent).posy;
-				}
-
-				x++; // prevent first item from being selected automatically under mouse
+			} else if (isAnchor(anchor)) {
+				x = anchor.x;
+				y = anchor.y;
 			}
 
-			x *= zoom;
-			y *= zoom;
+			if (typeof x === 'number') {
+				x = Math.floor(x * zoom);
+			}
 
-			popup(menu, {
-				x: Math.floor(x),
-				y: Math.floor(y),
-				positioningItem: delegate.autoSelectFirstItem ? 0 : undefined,
-			}, () => onHide());
+			if (typeof y === 'number') {
+				y = Math.floor(y * zoom);
+			}
+
+			popup(menu, { x, y, positioningItem: delegate.autoSelectFirstItem ? 0 : undefined, }, () => onHide());
 
 			this._onDidShowContextMenu.fire();
 		}
