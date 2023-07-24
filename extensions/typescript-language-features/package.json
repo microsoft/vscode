@@ -63,7 +63,8 @@
     "onCommand:typescript.fileReferences",
     "onTaskType:typescript",
     "onLanguage:jsonc",
-    "onWalkthrough:nodejsWelcome"
+    "onWalkthrough:nodejsWelcome",
+    "workspaceContains:**/tsconfig.json"
   ],
   "main": "./out/extension",
   "browser": "./dist/browser/extension",
