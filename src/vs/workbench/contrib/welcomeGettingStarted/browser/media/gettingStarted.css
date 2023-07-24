@@ -973,10 +973,6 @@
 	border: inherit;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .progress-bar-outer {
-	background-color: var(--vscode-welcomePage-progress-background);
-}
-
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .progress-bar-inner {
 	background-color: var(--vscode-welcomePage-progress-foreground);
 }
