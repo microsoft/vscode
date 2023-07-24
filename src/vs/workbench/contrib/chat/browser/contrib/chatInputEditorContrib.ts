@@ -23,6 +23,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
+import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
@@ -38,6 +40,7 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatService private readonly chatService: IChatService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -138,7 +141,7 @@ class InputEditorDecorations extends Disposable {
 
 		if (command && inputValue.startsWith(`/${command.command} `)) {
 			if (!this._slashCommandContentWidget) {
-				this._slashCommandContentWidget = new SlashCommandContentWidget(this.widget.inputEditor);
+				this._slashCommandContentWidget = new SlashCommandContentWidget(this.widget.inputEditor, this.accessibilityService);
 				this._store.add(this._slashCommandContentWidget);
 			}
 			this._slashCommandContentWidget.setCommandText(command.command);
@@ -165,7 +168,7 @@ class InputEditorDecorations extends Disposable {
 	}
 }
 
-class InputEditorSlashCommandFollowups extends Disposable {
+class InputEditorSlashCommandMode extends Disposable {
 	constructor(
 		private readonly widget: IChatWidget,
 		@IChatService private readonly chatService: IChatService
@@ -194,7 +197,7 @@ class InputEditorSlashCommandFollowups extends Disposable {
 	}
 }
 
-ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandFollowups);
+ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandMode);
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -230,7 +233,8 @@ class SlashCommandCompletions extends Disposable {
 							detail: c.detail,
 							range: new Range(1, 1, 1, 1),
 							sortText: c.sortText ?? c.command,
-							kind: CompletionItemKind.Text // The icons are disabled here anyway
+							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+							command: c.executeImmediately ? { id: SubmitAction.ID, title: withSlash, arguments: [{ widget }] } : undefined,
 						};
 					})
 				};

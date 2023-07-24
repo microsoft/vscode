@@ -4092,7 +4092,8 @@ export enum InteractiveSessionCopyKind {
 export enum InteractiveEditorResponseFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
-	Undone = 2
+	Undone = 2,
+	Accepted = 3
 }
 
 //#endregion

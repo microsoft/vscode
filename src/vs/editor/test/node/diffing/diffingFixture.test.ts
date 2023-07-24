@@ -59,8 +59,8 @@ suite('diff fixtures', () => {
 			modified: { content: secondContent, fileName: `./${secondFileName}` },
 			diffs: getDiffs(diff.changes),
 			moves: diff.moves.map(v => ({
-				originalRange: v.lineRangeMapping.originalRange.toString(),
-				modifiedRange: v.lineRangeMapping.modifiedRange.toString(),
+				originalRange: v.lineRangeMapping.original.toString(),
+				modifiedRange: v.lineRangeMapping.modified.toString(),
 				changes: getDiffs(v.changes),
 			}))
 		};

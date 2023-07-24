@@ -128,7 +128,14 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 		}
 
 		this._onDidChangeValueDisposable?.dispose();
-		this._onDidChangeValueDisposable = storageService.onDidChangeValue(e => this.onDidChangeValue(e.key));
+		this._onDidChangeValueDisposable = storageService.onDidChangeValue(e => {
+			// We only care about changes to the application scope since SecretStorage
+			// only stores secrets in the application scope but this seems to fire
+			// 2 events. Once for APP scope and once for PROFILE scope. ref #188460
+			if (e.scope === StorageScope.APPLICATION) {
+				this.onDidChangeValue(e.key);
+			}
+		});
 		return storageService;
 	}
 

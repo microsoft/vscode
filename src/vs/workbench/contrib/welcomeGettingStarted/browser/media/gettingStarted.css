@@ -627,10 +627,6 @@
 	display: inline;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started div {
-	text-align: center;
-}
-
 .monaco-workbench .part.editor>.content .gettingStartedContainer.noExtensions .index-list.featured-extensions {
 	display: none;
 }

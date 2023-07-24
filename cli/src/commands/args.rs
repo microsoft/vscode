@@ -182,6 +182,12 @@ pub struct CommandShellArgs {
 	/// Listen on a socket instead of stdin/stdout.
 	#[clap(long)]
 	pub on_socket: bool,
+	/// Listen on a port instead of stdin/stdout.
+	#[clap(long)]
+	pub on_port: bool,
+	/// Require the given token string to be given in the handshake.
+	#[clap(long)]
+	pub require_token: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]

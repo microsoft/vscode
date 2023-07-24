@@ -75,6 +75,7 @@ export class ExtHostTerminal {
 	private _rows: number | undefined;
 	private _exitStatus: vscode.TerminalExitStatus | undefined;
 	private _state: vscode.TerminalState = { isInteractedWith: false };
+	private _selection: string | undefined;
 
 	public isOpen: boolean = false;
 
@@ -105,6 +106,9 @@ export class ExtHostTerminal {
 			},
 			get state(): vscode.TerminalState {
 				return that._state;
+			},
+			get selection(): string | undefined {
+				return that._selection;
 			},
 			sendText(text: string, addNewLine: boolean = true): void {
 				that._checkDisposed();
@@ -231,6 +235,10 @@ export class ExtHostTerminal {
 			return true;
 		}
 		return false;
+	}
+
+	public setSelection(selection: string | undefined): void {
+		this._selection = selection;
 	}
 
 	public _setProcessId(processId: number | undefined): void {
@@ -613,6 +621,10 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (terminal?.setInteractedWith()) {
 			this._onDidChangeTerminalState.fire(terminal.value);
 		}
+	}
+
+	public $acceptTerminalSelection(id: number, selection: string | undefined): void {
+		this._getTerminalById(id)?.setSelection(selection);
 	}
 
 	public $acceptProcessResize(id: number, cols: number, rows: number): void {

@@ -111,7 +111,7 @@ registerTerminalAction({
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	keybinding: [
 		{
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
 			weight: KeybindingWeight.WorkbenchContrib + 2,
 			when: TerminalContextKeys.accessibleBufferFocus
 		}
