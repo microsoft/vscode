@@ -97,19 +97,26 @@ export class Response implements IResponse {
 	}
 
 	private _responseParts: ResponsePart[];
-	private _responseRepr: (IMarkdownString | IChatResponseProgressFileTreeData)[];
+	private _responseData: (IMarkdownString | IChatResponseProgressFileTreeData)[];
+	private _responseRepr: string;
 
 	get value(): (IMarkdownString | IChatResponseProgressFileTreeData)[] {
-		return this._responseRepr;
+		return this._responseData;
 	}
 
 	constructor(value: IMarkdownString | (IMarkdownString | IChatResponseProgressFileTreeData)[]) {
-		this._responseRepr = Array.isArray(value) ? value : [value];
+		this._responseData = Array.isArray(value) ? value : [value];
 		this._responseParts = Array.isArray(value) ? value.map((v) => ('value' in v ? { string: v } : { treeData: v })) : [{ string: value }];
+		this._responseRepr = this._responseParts.map((part) => {
+			if ('treeData' in part) {
+				return '';
+			}
+			return part.string.value;
+		}).join('\n');
 	}
 
-	asString(): string { // TODO@joyceerhl
-		return new MarkdownString(this._responseRepr.filter((part) => typeof part === 'string').join('\n')).value;
+	asString(): string {
+		return this._responseRepr;
 	}
 
 	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void {
@@ -145,12 +152,19 @@ export class Response implements IResponse {
 	}
 
 	private _updateRepr(quiet?: boolean) {
-		this._responseRepr = this._responseParts.map(part => {
+		this._responseData = this._responseParts.map(part => {
 			if ('treeData' in part) {
 				return part.treeData;
 			}
 			return part.string;
 		});
+
+		this._responseRepr = this._responseParts.map(part => {
+			if ('treeData' in part) {
+				return '';
+			}
+			return part.string.value;
+		}).join('\n');
 
 		if (!quiet) {
 			this._onDidChangeValue.fire();
