@@ -76,6 +76,7 @@ export const referenceGeneratedDepsByArch = {
 		'libnss3.so(NSS_3.11)(64bit)',
 		'libnss3.so(NSS_3.12)(64bit)',
 		'libnss3.so(NSS_3.12.1)(64bit)',
+		'libnss3.so(NSS_3.13)(64bit)',
 		'libnss3.so(NSS_3.2)(64bit)',
 		'libnss3.so(NSS_3.22)(64bit)',
 		'libnss3.so(NSS_3.3)(64bit)',
