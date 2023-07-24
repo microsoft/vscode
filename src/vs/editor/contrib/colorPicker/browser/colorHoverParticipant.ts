@@ -22,6 +22,8 @@ import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
+let NUMBER_COLOR_EDITS: number = 0;
+
 export class ColorHover implements IHoverPart {
 
 	/**
@@ -97,8 +99,8 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			for (let i = 0; i <= NUMBER_COLOR_EDITS; i++) {
 				this._undoRedoService.undo(uri);
 			}
-			NUMBER_COLOR_EDITS = 0;
 		}
+		NUMBER_COLOR_EDITS = 0;
 	}
 
 	public onHide() {
@@ -173,7 +175,6 @@ export class StandaloneColorPickerParticipant {
 		return this._color;
 	}
 }
-let NUMBER_COLOR_EDITS: number = 0;
 
 async function _createColorHover<T extends ColorHoverParticipant | StandaloneColorPickerParticipant>(participant: T, editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<T extends ColorHoverParticipant ? ColorHover : StandaloneColorPickerHover>;
 async function _createColorHover(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover | StandaloneColorPickerHover> {
