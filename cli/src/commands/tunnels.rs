@@ -5,6 +5,7 @@
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose as b64, Engine as _};
+use futures::{stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{str::FromStr, time::Duration};
@@ -12,13 +13,14 @@ use sysinfo::Pid;
 
 use super::{
 	args::{
-		AuthProvider, CliCore, ExistingTunnelArgs, TunnelRenameArgs, TunnelServeArgs,
-		TunnelServiceSubCommands, TunnelUserSubCommands,
+		AuthProvider, CliCore, CommandShellArgs, ExistingTunnelArgs, TunnelRenameArgs,
+		TunnelServeArgs, TunnelServiceSubCommands, TunnelUserSubCommands,
 	},
 	CommandContext,
 };
 
 use crate::{
+	async_pipe::{get_socket_name, listen_socket_rw_stream, AsyncRWAccepter},
 	auth::Auth,
 	constants::{APPLICATION_NAME, TUNNEL_CLI_LOCK_NAME, TUNNEL_SERVICE_LOCK_NAME},
 	log,
@@ -33,7 +35,7 @@ use crate::{
 		singleton_server::{
 			make_singleton_server, start_singleton_server, BroadcastLogSink, SingletonServerArgs,
 		},
-		Next, ServeStreamParams, ServiceContainer, ServiceManager,
+		AuthRequired, Next, ServeStreamParams, ServiceContainer, ServiceManager,
 	},
 	util::{
 		app_lock::AppMutex,
@@ -59,20 +61,31 @@ impl From<AuthProvider> for crate::auth::AuthProvider {
 	}
 }
 
-impl From<ExistingTunnelArgs> for Option<dev_tunnels::ExistingTunnel> {
-	fn from(d: ExistingTunnelArgs) -> Option<dev_tunnels::ExistingTunnel> {
-		if let (Some(tunnel_id), Some(tunnel_name), Some(cluster), Some(host_token)) =
-			(d.tunnel_id, d.tunnel_name, d.cluster, d.host_token)
-		{
+fn fulfill_existing_tunnel_args(
+	d: ExistingTunnelArgs,
+	name_arg: &Option<String>,
+) -> Option<dev_tunnels::ExistingTunnel> {
+	let tunnel_name = d.tunnel_name.or_else(|| name_arg.clone());
+
+	match (d.tunnel_id, d.cluster, d.host_token) {
+		(Some(tunnel_id), None, Some(host_token)) => {
+			let i = tunnel_id.find('.')?;
 			Some(dev_tunnels::ExistingTunnel {
-				tunnel_id,
+				tunnel_id: tunnel_id[..i].to_string(),
+				cluster: tunnel_id[i + 1..].to_string(),
 				tunnel_name,
 				host_token,
-				cluster,
 			})
-		} else {
-			None
 		}
+
+		(Some(tunnel_id), Some(cluster), Some(host_token)) => Some(dev_tunnels::ExistingTunnel {
+			tunnel_id,
+			tunnel_name,
+			host_token,
+			cluster,
+		}),
+
+		_ => None,
 	}
 }
 
@@ -109,23 +122,71 @@ impl ServiceContainer for TunnelServiceContainer {
 	}
 }
 
-pub async fn command_shell(ctx: CommandContext) -> Result<i32, AnyError> {
+pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Result<i32, AnyError> {
 	let platform = PreReqChecker::new().verify().await?;
-	serve_stream(
-		tokio::io::stdin(),
-		tokio::io::stderr(),
-		ServeStreamParams {
-			log: ctx.log,
-			launcher_paths: ctx.paths,
-			platform,
-			requires_auth: true,
-			exit_barrier: ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
-			code_server_args: (&ctx.args).into(),
-		},
-	)
-	.await;
+	let mut params = ServeStreamParams {
+		log: ctx.log,
+		launcher_paths: ctx.paths,
+		platform,
+		requires_auth: args
+			.require_token
+			.map(AuthRequired::VSDAWithToken)
+			.unwrap_or(AuthRequired::VSDA),
+		exit_barrier: ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
+		code_server_args: (&ctx.args).into(),
+	};
 
-	Ok(0)
+	let mut listener: Box<dyn AsyncRWAccepter> = match (args.on_port, args.on_socket) {
+		(_, true) => {
+			let socket = get_socket_name();
+			let listener = listen_socket_rw_stream(&socket)
+				.await
+				.map_err(|e| wrap(e, "error listening on socket"))?;
+
+			params
+				.log
+				.result(format!("Listening on {}", socket.display()));
+
+			Box::new(listener)
+		}
+		(true, _) => {
+			let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+				.await
+				.map_err(|e| wrap(e, "error listening on port"))?;
+
+			params
+				.log
+				.result(format!("Listening on {}", listener.local_addr().unwrap()));
+
+			Box::new(listener)
+		}
+		_ => {
+			serve_stream(tokio::io::stdin(), tokio::io::stderr(), params).await;
+			return Ok(0);
+		}
+	};
+
+	let mut servers = FuturesUnordered::new();
+
+	loop {
+		tokio::select! {
+			Some(_) = servers.next() => {},
+			socket = listener.accept_rw() => {
+				match socket {
+					Ok((read, write)) => servers.push(serve_stream(read, write, params.clone())),
+					Err(e) => {
+						error!(params.log, &format!("Error accepting connection: {}", e));
+						return Ok(1);
+					}
+				}
+			},
+			_ = params.exit_barrier.wait() => {
+				// wait for all servers to finish up:
+				while (servers.next().await).is_some() { }
+				return Ok(0);
+			}
+		}
+	}
 }
 
 pub async fn service(
@@ -135,10 +196,17 @@ pub async fn service(
 	let manager = create_service_manager(ctx.log.clone(), &ctx.paths);
 	match service_args {
 		TunnelServiceSubCommands::Install(args) => {
-			// ensure logged in, otherwise subsequent serving will fail
-			Auth::new(&ctx.paths, ctx.log.clone())
-				.get_credential()
-				.await?;
+			let auth = Auth::new(&ctx.paths, ctx.log.clone());
+
+			if let Some(name) = &args.name {
+				// ensure the name matches, and tunnel exists
+				dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths)
+					.rename_tunnel(name)
+					.await?;
+			} else {
+				// still ensure they're logged in, otherwise subsequent serving will fail
+				auth.get_credential().await?;
+			}
 
 			// likewise for license consent
 			legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
@@ -203,20 +271,20 @@ pub async fn user(ctx: CommandContext, user_args: TunnelUserSubCommands) -> Resu
 	Ok(0)
 }
 
-/// Remove the tunnel used by this gateway, if any.
+/// Remove the tunnel used by this tunnel, if any.
 pub async fn rename(ctx: CommandContext, rename_args: TunnelRenameArgs) -> Result<i32, AnyError> {
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths);
 	dt.rename_tunnel(&rename_args.name).await?;
 	ctx.log.result(format!(
-		"Successfully renamed this gateway to {}",
+		"Successfully renamed this tunnel to {}",
 		&rename_args.name
 	));
 
 	Ok(0)
 }
 
-/// Remove the tunnel used by this gateway, if any.
+/// Remove the tunnel used by this tunnel, if any.
 pub async fn unregister(ctx: CommandContext) -> Result<i32, AnyError> {
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths);
@@ -405,8 +473,10 @@ async fn serve_with_csa(
 	let auth = Auth::new(&paths, log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&log, auth, &paths);
 	loop {
-		let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
-			dt.start_existing_tunnel(d).await
+		let tunnel = if let Some(t) =
+			fulfill_existing_tunnel_args(gateway_args.tunnel.clone(), &gateway_args.name)
+		{
+			dt.start_existing_tunnel(t).await
 		} else {
 			dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name)
 				.await

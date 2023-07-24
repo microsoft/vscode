@@ -3,15 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'vscode' {
-	/**
-	 * Represents an item that can be selected from
-	 * a list of items.
-	 */
-	export interface QuickPickItem {
-		/**
-		 * The icon path or {@link ThemeIcon} for the QuickPickItem.
-		 */
-		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
-	}
+.chat-slash-command-content-widget {
+	padding: 0 0.4em;
+	border-radius: 3px;
+	background-color: var(--vscode-textCodeBlock-background);
+	color: var(--vscode-textLink-foreground);
 }

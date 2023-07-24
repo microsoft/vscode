@@ -221,7 +221,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override notebookOptions = notebookOptions;
 		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
 		override onDidChangeCellState: Event<NotebookCellStateChangedEvent> = new Emitter<NotebookCellStateChangedEvent>().event;
-		override _getViewModel(): NotebookViewModel {
+		override getViewModel(): NotebookViewModel {
 			return viewModel;
 		}
 		override textModel = viewModel.notebookDocument;
@@ -286,6 +286,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override deltaCellDecorations() { return []; }
 		override onDidChangeVisibleRanges = Event.None;
 		override visibleRanges: ICellRange[] = [{ start: 0, end: 100 }];
+		override getId(): string { return ''; }
 	};
 
 	return { editor: notebookEditor, viewModel };

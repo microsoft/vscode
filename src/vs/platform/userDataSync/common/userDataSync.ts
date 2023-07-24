@@ -21,7 +21,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export function getDisallowedIgnoredSettings(): string[] {
 	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -325,6 +325,7 @@ export interface ISyncUserDataProfile {
 	readonly collection: string;
 	readonly name: string;
 	readonly shortName?: string;
+	readonly useDefaultFlags?: UseDefaultProfileFlags;
 }
 
 export type ISyncExtension = ILocalSyncExtension | IRemoteSyncExtension;
@@ -336,6 +337,7 @@ export interface ILocalSyncExtension {
 	preRelease: boolean;
 	disabled?: boolean;
 	installed?: boolean;
+	isApplicationScoped?: boolean;
 	state?: IStringDictionary<any>;
 }
 
@@ -346,6 +348,7 @@ export interface IRemoteSyncExtension {
 	preRelease?: boolean;
 	disabled?: boolean;
 	installed?: boolean;
+	isApplicationScoped?: boolean;
 	state?: IStringDictionary<any>;
 }
 

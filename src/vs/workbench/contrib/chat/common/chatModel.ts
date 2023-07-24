@@ -81,6 +81,61 @@ export class ChatRequestModel implements IChatRequestModel {
 	}
 }
 
+
+interface ResponsePart { string: IMarkdownString; resolving?: boolean }
+class Response {
+	private _onDidChangeValue = new Emitter<void>();
+	public get onDidChangeValue() {
+		return this._onDidChangeValue.event;
+	}
+
+	private _responseParts: ResponsePart[];
+	private _responseRepr: IMarkdownString;
+
+	get value(): IMarkdownString {
+		return this._responseRepr;
+	}
+
+	constructor(value: IMarkdownString) {
+		this._responseRepr = value;
+		this._responseParts = [{ string: value }];
+	}
+
+	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string> }, quiet?: boolean): void {
+		if (typeof responsePart === 'string') {
+			const responsePartLength = this._responseParts.length - 1;
+			const lastResponsePart = this._responseParts[responsePartLength];
+
+			if (lastResponsePart.resolving === true) {
+				// The last part is resolving, start a new part
+				this._responseParts.push({ string: new MarkdownString(responsePart) });
+			} else {
+				// Combine this part with the last, non-resolving part
+				this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart) };
+			}
+
+			this._updateRepr(quiet);
+		} else {
+			// Add a new resolving part
+			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), resolving: true });
+			this._updateRepr(quiet);
+
+			responsePart.resolvedContent?.then((content) => {
+				// Replace the resolving part's content with the resolved response
+				this._responseParts[responsePosition] = { string: new MarkdownString(content) };
+				this._updateRepr(quiet);
+			});
+		}
+	}
+
+	private _updateRepr(quiet?: boolean) {
+		this._responseRepr = new MarkdownString(this._responseParts.map(r => r.string.value).join('\n'));
+		if (!quiet) {
+			this._onDidChangeValue.fire();
+		}
+	}
+}
+
 export class ChatResponseModel extends Disposable implements IChatResponseModel {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -112,8 +167,9 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._followups;
 	}
 
+	private _response: Response;
 	public get response(): IMarkdownString {
-		return this._response;
+		return this._response.value;
 	}
 
 	public get errorDetails(): IChatResponseErrorDetails | undefined {
@@ -133,7 +189,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	constructor(
-		private _response: IMarkdownString,
+		_response: IMarkdownString,
 		public readonly session: ChatModel,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
@@ -143,14 +199,13 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		private _followups?: IChatFollowup[]
 	) {
 		super();
+		this._response = new Response(_response);
+		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
-	updateContent(responsePart: string, quiet?: boolean) {
-		this._response = new MarkdownString(this.response.value + responsePart);
-		if (!quiet) {
-			this._onDidChange.fire();
-		}
+	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string> }, quiet?: boolean) {
+		this._response.updateContent(responsePart, quiet);
 	}
 
 	setProviderResponseId(providerResponseId: string) {
@@ -453,6 +508,8 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if ('content' in progress) {
 			request.response.updateContent(progress.content, quiet);
+		} else if ('placeholder' in progress) {
+			request.response.updateContent(progress, quiet);
 		} else {
 			request.setProviderRequestId(progress.requestId);
 			request.response.setProviderResponseId(progress.requestId);

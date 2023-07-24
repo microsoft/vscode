@@ -5,55 +5,78 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
+import { ILocalizedString } from 'vs/platform/action/common/action';
+import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-class DiffReviewNext extends EditorAction {
+const accessibleDiffViewerCategory: ILocalizedString = {
+	value: localize('accessibleDiffViewer', 'Accessible Diff Viewer'),
+	original: 'Accessible Diff Viewer',
+};
+
+export class AccessibleDiffViewerNext extends EditorAction2 {
+	public static id = 'editor.action.accessibleDiffViewer.next';
+
 	constructor() {
 		super({
-			id: 'editor.action.diffReview.next',
-			label: localize('editor.action.diffReview.next', "Go to Next Difference"),
-			alias: 'Go to Next Difference',
+			id: AccessibleDiffViewerNext.id,
+			title: { value: localize('editor.action.accessibleDiffViewer.next', "Go to Next Difference"), original: 'Go to Next Difference' },
+			category: accessibleDiffViewerCategory,
 			precondition: ContextKeyExpr.has('isInDiffEditor'),
-			kbOpts: {
-				kbExpr: null,
+			keybinding: {
 				primary: KeyCode.F7,
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			f1: true,
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
-		diffEditor?.diffReviewNext();
+		diffEditor?.accessibleDiffViewerNext();
 	}
 }
 
-class DiffReviewPrev extends EditorAction {
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: AccessibleDiffViewerNext.id,
+		title: localize('Open Accessible Diff Viewer', "Open Accessible Diff Viewer"),
+	},
+	order: 10,
+	group: '2_diff',
+	when: EditorContextKeys.accessibleDiffViewerVisible.negate(),
+});
+
+export class AccessibleDiffViewerPrev extends EditorAction2 {
+	public static id = 'editor.action.accessibleDiffViewer.prev';
+
 	constructor() {
 		super({
-			id: 'editor.action.diffReview.prev',
-			label: localize('editor.action.diffReview.prev', "Go to Previous Difference"),
-			alias: 'Go to Previous Difference',
+			id: AccessibleDiffViewerPrev.id,
+			title: { value: localize('editor.action.accessibleDiffViewer.prev', "Go to Previous Difference"), original: 'Go to Previous Difference' },
+			category: accessibleDiffViewerCategory,
 			precondition: ContextKeyExpr.has('isInDiffEditor'),
-			kbOpts: {
-				kbExpr: null,
+			keybinding: {
 				primary: KeyMod.Shift | KeyCode.F7,
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			f1: true,
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
-		diffEditor?.diffReviewPrev();
+		diffEditor?.accessibleDiffViewerPrev();
 	}
 }
 
-function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor | null {
+export function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor | null {
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const diffEditors = codeEditorService.listDiffEditors();
 	const activeCodeEditor = codeEditorService.getFocusedCodeEditor() ?? codeEditorService.getActiveCodeEditor();
@@ -70,5 +93,8 @@ function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor | null {
 	return null;
 }
 
-registerEditorAction(DiffReviewNext);
-registerEditorAction(DiffReviewPrev);
+CommandsRegistry.registerCommandAlias('editor.action.diffReview.next', AccessibleDiffViewerNext.id);
+registerAction2(AccessibleDiffViewerNext);
+
+CommandsRegistry.registerCommandAlias('editor.action.diffReview.prev', AccessibleDiffViewerPrev.id);
+registerAction2(AccessibleDiffViewerPrev);

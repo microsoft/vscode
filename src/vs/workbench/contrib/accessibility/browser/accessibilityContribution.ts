@@ -17,7 +17,10 @@ export const enum AccessibilityVerbositySettingId {
 	Chat = 'accessibility.verbosity.panelChat',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
-	Notebook = 'accessibility.verbosity.notebook'
+	Notebook = 'accessibility.verbosity.notebook',
+	Editor = 'accessibility.verbosity.editor',
+	Hover = 'accessibility.verbosity.hover',
+	Notification = 'accessibility.verbosity.notification'
 }
 
 const baseProperty: object = {
@@ -44,7 +47,7 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.InlineChat]: {
-			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu when the input is focused'),
+			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints which describe how to use the feature when the input is focused'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
@@ -53,6 +56,14 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Notebook]: {
 			description: localize('verbosity.notebook', 'Provide information about how to focus the cell container or inner editor when a notebook cell is focused.'),
+			...baseProperty
+		},
+		[AccessibilityVerbositySettingId.Hover]: {
+			description: localize('verbosity.hover', 'Provide information about how to open the hover in an accessible view.'),
+			...baseProperty
+		},
+		[AccessibilityVerbositySettingId.Notification]: {
+			description: localize('verbosity.notification', 'Provide information about how to open the notification in an accessible view.'),
 			...baseProperty
 		}
 	}
@@ -103,6 +114,37 @@ export const AccessibleViewAction = registerCommand(new MultiCommand({
 		menuId: MenuId.CommandPalette,
 		group: '',
 		title: localize('editor.action.accessibleView', "Open Accessible View"),
+		order: 1
+	}],
+}));
+
+
+export const AccessibleViewNextAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibleViewNext',
+	precondition: undefined,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.BracketRight,
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	menuOpts: [{
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: localize('editor.action.accessibleViewNext', "Show Next in Accessible View"),
+		order: 1
+	}],
+}));
+
+export const AccessibleViewPreviousAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibleViewPrevious',
+	precondition: undefined,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.BracketLeft,
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	menuOpts: [{
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: localize('editor.action.accessibleViewPrevious', "Show Previous in Accessible View"),
 		order: 1
 	}],
 }));

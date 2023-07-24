@@ -767,11 +767,14 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 
 	private async getRepositoryExact(repoPath: string): Promise<Repository | undefined> {
 		const repoPathCanonical = await fs.promises.realpath(repoPath, { encoding: 'utf8' });
-		const openRepository = this.openRepositories.find(async r => {
-			const rootPathCanonical = await fs.promises.realpath(r.repository.root, { encoding: 'utf8' });
-			return pathEquals(rootPathCanonical, repoPathCanonical);
-		});
-		return openRepository?.repository;
+
+		for (const openRepository of this.openRepositories) {
+			const rootPathCanonical = await fs.promises.realpath(openRepository.repository.root, { encoding: 'utf8' });
+			if (pathEquals(rootPathCanonical, repoPathCanonical)) {
+				return openRepository.repository;
+			}
+		}
+		return undefined;
 	}
 
 	private getOpenRepository(repository: Repository): OpenRepository | undefined;

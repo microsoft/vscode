@@ -44,9 +44,6 @@ export class InlineCompletionsModel extends Disposable {
 	private _isAcceptingPartially = false;
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
 
-	private _isNavigatingCurrentInlineCompletion = false;
-	public get isNavigatingCurrentInlineCompletion() { return this._isNavigatingCurrentInlineCompletion; }
-
 	constructor(
 		public readonly textModel: ITextModel,
 		public readonly selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
@@ -68,7 +65,7 @@ export class InlineCompletionsModel extends Disposable {
 		let lastItem: InlineCompletionWithUpdatedRange | undefined = undefined;
 		this._register(autorun('call handleItemDidShow', reader => {
 			const item = this.state.read(reader);
-			const completion = item?.completion;
+			const completion = item?.inlineCompletion;
 			if (completion?.semanticId !== lastItem?.semanticId) {
 				lastItem = completion;
 				if (completion) {
@@ -194,7 +191,7 @@ export class InlineCompletionsModel extends Disposable {
 
 	public readonly state = derived<{
 		suggestItem: SuggestItemInfo | undefined;
-		completion: InlineCompletionWithUpdatedRange | undefined;
+		inlineCompletion: InlineCompletionWithUpdatedRange | undefined;
 		ghostText: GhostTextOrReplacement;
 	} | undefined>('ghostTextAndCompletion', (reader) => {
 		const model = this.textModel;
@@ -228,7 +225,7 @@ export class InlineCompletionsModel extends Disposable {
 
 			// Show an invisible ghost text to reserve space
 			const ghostText = newGhostText ?? new GhostText(edit.range.endLineNumber, []);
-			return { ghostText, completion: augmentedCompletion?.completion, suggestItem };
+			return { ghostText, inlineCompletion: augmentedCompletion?.completion, suggestItem };
 		} else {
 			if (!this._isActive.read(reader)) { return undefined; }
 			const item = this.selectedInlineCompletion.read(reader);
@@ -238,7 +235,7 @@ export class InlineCompletionsModel extends Disposable {
 			const mode = this._inlineSuggestMode.read(reader);
 			const cursor = this.cursorPosition.read(reader);
 			const ghostText = replacement.computeGhostText(model, mode, cursor);
-			return ghostText ? { ghostText, completion: item, suggestItem: undefined } : undefined;
+			return ghostText ? { ghostText, inlineCompletion: item, suggestItem: undefined } : undefined;
 		}
 	});
 
@@ -251,17 +248,12 @@ export class InlineCompletionsModel extends Disposable {
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
 		await this.triggerExplicitly();
 
-		this._isNavigatingCurrentInlineCompletion = true;
-		try {
-			const completions = this._filteredInlineCompletionItems.get() || [];
-			if (completions.length > 0) {
-				const newIdx = (this.selectedInlineCompletionIndex.get() + delta + completions.length) % completions.length;
-				this._selectedInlineCompletionId.set(completions[newIdx].semanticId, undefined);
-			} else {
-				this._selectedInlineCompletionId.set(undefined, undefined);
-			}
-		} finally {
-			this._isNavigatingCurrentInlineCompletion = false;
+		const completions = this._filteredInlineCompletionItems.get() || [];
+		if (completions.length > 0) {
+			const newIdx = (this.selectedInlineCompletionIndex.get() + delta + completions.length) % completions.length;
+			this._selectedInlineCompletionId.set(completions[newIdx].semanticId, undefined);
+		} else {
+			this._selectedInlineCompletionId.set(undefined, undefined);
 		}
 	}
 
@@ -279,10 +271,10 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		const state = this.state.get();
-		if (!state || state.ghostText.isEmpty() || !state.completion) {
+		if (!state || state.ghostText.isEmpty() || !state.inlineCompletion) {
 			return;
 		}
-		const completion = state.completion.toInlineCompletion(undefined);
+		const completion = state.inlineCompletion.toInlineCompletion(undefined);
 
 		editor.pushUndoStop();
 		if (completion.snippetInfo) {
@@ -371,11 +363,11 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		const state = this.state.get();
-		if (!state || state.ghostText.isEmpty() || !state.completion) {
+		if (!state || state.ghostText.isEmpty() || !state.inlineCompletion) {
 			return;
 		}
 		const ghostText = state.ghostText;
-		const completion = state.completion.toInlineCompletion(undefined);
+		const completion = state.inlineCompletion.toInlineCompletion(undefined);
 
 		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
 			// not in WYSIWYG mode, partial commit might change completion, thus it is not supported

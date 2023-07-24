@@ -55,6 +55,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	private readonly recommendationsByPattern = new Map<string, IStringDictionary<IFileOpenCondition[]>>();
 	private readonly fileBasedRecommendations = new Map<string, { recommendedTime: number }>();
 	private readonly fileBasedImportantRecommendations = new Set<string>();
+	private readonly processedFileExtensions: string[] = [];
 
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> {
 		const recommendations: ExtensionRecommendation[] = [];
@@ -156,7 +157,11 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		this.promptRecommendedExtensionForFileExtension(uri, extname(uri).toLowerCase());
+		const fileExtension = extname(uri).toLowerCase();
+		if (!this.processedFileExtensions.includes(fileExtension)) {
+			this.processedFileExtensions.push(fileExtension);
+			this.promptRecommendedExtensionForFileExtension(uri, fileExtension);
+		}
 	}
 
 	/**

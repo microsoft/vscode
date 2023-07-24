@@ -34,7 +34,7 @@ mod service_macos;
 mod service_windows;
 mod socket_signal;
 
-pub use control_server::{serve, serve_stream, Next, ServeStreamParams};
+pub use control_server::{serve, serve_stream, Next, ServeStreamParams, AuthRequired};
 pub use nosleep::SleepInhibitor;
 pub use service::{
 	create_service_manager, ServiceContainer, ServiceManager, SERVICE_LOG_FILE_NAME,

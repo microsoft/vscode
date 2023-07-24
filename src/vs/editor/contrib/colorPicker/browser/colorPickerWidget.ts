@@ -38,9 +38,9 @@ export class ColorPickerHeader extends Disposable {
 		dom.append(container, this._domNode);
 
 		this._pickedColorNode = dom.append(this._domNode, $('.picked-color'));
-		this._pickedColorPresentation = dom.append(this._pickedColorNode, document.createElement('div'));
+		dom.append(this._pickedColorNode, $('span.codicon.codicon-color-mode'));
+		this._pickedColorPresentation = dom.append(this._pickedColorNode, document.createElement('span'));
 		this._pickedColorPresentation.classList.add('picked-color-presentation');
-		dom.append(this._pickedColorNode, $('.codicon.codicon-color-mode'));
 
 		const tooltip = localize('clickToToggleColorOptions', "Click to toggle color options (rgb/hsl/hex)");
 		this._pickedColorNode.setAttribute('title', tooltip);

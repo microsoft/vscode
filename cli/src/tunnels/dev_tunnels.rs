@@ -33,6 +33,8 @@ use tunnels::management::{
 
 use super::wsl_detect::is_wsl_installed;
 
+static TUNNEL_COUNT_LIMIT_NAME: &str = "TunnelsPerUserPerLocation";
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PersistedTunnel {
 	pub name: String,
@@ -229,7 +231,7 @@ lazy_static! {
 #[derive(Clone, Debug)]
 pub struct ExistingTunnel {
 	/// Name you'd like to assign preexisting tunnel to use to connect to the VS Code Server
-	pub tunnel_name: String,
+	pub tunnel_name: Option<String>,
 
 	/// Token to authenticate and use preexisting tunnel
 	pub host_token: String,
@@ -275,7 +277,9 @@ impl DevTunnels {
 
 	/// Renames the current tunnel to the new name.
 	pub async fn rename_tunnel(&mut self, name: &str) -> Result<(), AnyError> {
-		self.update_tunnel_name(None, name).await.map(|_| ())
+		self.update_tunnel_name(self.launcher_tunnel.load(), name)
+			.await
+			.map(|_| ())
 	}
 
 	/// Updates the name of the existing persisted tunnel to the new name.
@@ -286,28 +290,34 @@ impl DevTunnels {
 		name: &str,
 	) -> Result<(Tunnel, PersistedTunnel), AnyError> {
 		let name = name.to_ascii_lowercase();
-		self.check_is_name_free(&name).await?;
-
-		debug!(self.log, "Tunnel name changed, applying updates...");
 
 		let (mut full_tunnel, mut persisted, is_new) = match persisted {
 			Some(persisted) => {
+				debug!(
+					self.log,
+					"Found a persisted tunnel, seeing if the name matches..."
+				);
 				self.get_or_create_tunnel(persisted, Some(&name), NO_REQUEST_OPTIONS)
 					.await
 			}
-			None => self
-				.create_tunnel(&name, NO_REQUEST_OPTIONS)
-				.await
-				.map(|(pt, t)| (t, pt, true)),
+			None => {
+				debug!(self.log, "Creating a new tunnel with the requested name");
+				self.create_tunnel(&name, NO_REQUEST_OPTIONS)
+					.await
+					.map(|(pt, t)| (t, pt, true))
+			}
 		}?;
 
-		if is_new {
+		let desired_tags = self.get_tags(&name);
+		if is_new || vec_eq_as_set(&full_tunnel.tags, &desired_tags) {
 			return Ok((full_tunnel, persisted));
 		}
 
-		full_tunnel.tags = self.get_tags(&name);
+		debug!(self.log, "Tunnel name changed, applying updates...");
 
-		let new_tunnel = spanf!(
+		full_tunnel.tags = desired_tags;
+
+		let updated_tunnel = spanf!(
 			self.log,
 			self.log.span("dev-tunnel.tag.update"),
 			self.client.update_tunnel(&full_tunnel, NO_REQUEST_OPTIONS)
@@ -317,7 +327,7 @@ impl DevTunnels {
 		persisted.name = name;
 		self.launcher_tunnel.save(Some(persisted.clone()))?;
 
-		Ok((new_tunnel, persisted))
+		Ok((updated_tunnel, persisted))
 	}
 
 	/// Gets the persisted tunnel from the service, or creates a new one.
@@ -385,7 +395,12 @@ impl DevTunnels {
 		};
 
 		tunnel = self
-			.sync_tunnel_tags(&persisted.name, tunnel, &HOST_TUNNEL_REQUEST_OPTIONS)
+			.sync_tunnel_tags(
+				&self.client,
+				&persisted.name,
+				tunnel,
+				&HOST_TUNNEL_REQUEST_OPTIONS,
+			)
 			.await?;
 
 		let locator = TunnelLocator::try_from(&tunnel).unwrap();
@@ -443,7 +458,7 @@ impl DevTunnels {
 	) -> Result<(PersistedTunnel, Tunnel), AnyError> {
 		info!(self.log, "Creating tunnel with the name: {}", name);
 
-		let mut tried_recycle = false;
+		self.check_is_name_free(name).await?;
 
 		let new_tunnel = Tunnel {
 			tags: vec![
@@ -465,13 +480,14 @@ impl DevTunnels {
 				Err(HttpError::ResponseError(e))
 					if e.status_code == StatusCode::TOO_MANY_REQUESTS =>
 				{
-					if !tried_recycle && self.try_recycle_tunnel().await? {
-						tried_recycle = true;
-						continue;
-					}
-
 					if let Some(d) = e.get_details() {
 						let detail = d.detail.unwrap_or_else(|| "unknown".to_string());
+						if detail.contains(TUNNEL_COUNT_LIMIT_NAME)
+							&& self.try_recycle_tunnel().await?
+						{
+							continue;
+						}
+
 						return Err(AnyError::from(TunnelCreationFailed(
 							name.to_string(),
 							detail,
@@ -522,12 +538,13 @@ impl DevTunnels {
 	/// other version tags.
 	async fn sync_tunnel_tags(
 		&self,
+		client: &TunnelManagementClient,
 		name: &str,
 		tunnel: Tunnel,
 		options: &TunnelRequestOptions,
 	) -> Result<Tunnel, AnyError> {
 		let new_tags = self.get_tags(name);
-		if vec_eq_unsorted(&tunnel.tags, &new_tags) {
+		if vec_eq_as_set(&tunnel.tags, &new_tags) {
 			return Ok(tunnel);
 		}
 
@@ -548,7 +565,7 @@ impl DevTunnels {
 		let result = spanf!(
 			self.log,
 			self.log.span("dev-tunnel.protocol-tag-update"),
-			self.client.update_tunnel(&tunnel_update, options)
+			client.update_tunnel(&tunnel_update, options)
 		);
 
 		result.map_err(|e| wrap(e, "tunnel tag update failed").into())
@@ -610,7 +627,7 @@ impl DevTunnels {
 	}
 
 	async fn check_is_name_free(&mut self, name: &str) -> Result<(), AnyError> {
-		let existing = spanf!(
+		let existing: Vec<Tunnel> = spanf!(
 			self.log,
 			self.log.span("dev-tunnel.rename.search"),
 			self.client.list_all_tunnels(&TunnelRequestOptions {
@@ -627,6 +644,12 @@ impl DevTunnels {
 			)));
 		};
 		Ok(())
+	}
+
+	fn get_placeholder_name() -> String {
+		let mut n = clean_hostname_for_tunnel(&gethostname::gethostname().to_string_lossy());
+		n.make_ascii_lowercase();
+		n
 	}
 
 	async fn get_name_for_tunnel(
@@ -660,10 +683,7 @@ impl DevTunnels {
 			use_random_name = true;
 		}
 
-		let mut placeholder_name =
-			clean_hostname_for_tunnel(&gethostname::gethostname().to_string_lossy());
-		placeholder_name.make_ascii_lowercase();
-
+		let mut placeholder_name = Self::get_placeholder_name();
 		if !is_name_free(&placeholder_name) {
 			for i in 2.. {
 				let fixed_name = format!("{}{}", placeholder_name, i);
@@ -705,7 +725,10 @@ impl DevTunnels {
 		tunnel: ExistingTunnel,
 	) -> Result<ActiveTunnel, AnyError> {
 		let tunnel_details = PersistedTunnel {
-			name: tunnel.tunnel_name,
+			name: match tunnel.tunnel_name {
+				Some(n) => n,
+				None => Self::get_placeholder_name(),
+			},
 			id: tunnel.tunnel_id,
 			cluster: tunnel.cluster,
 		};
@@ -715,10 +738,23 @@ impl DevTunnels {
 			tunnel.host_token.clone(),
 		));
 
+		let client = mgmt.into();
+		self.sync_tunnel_tags(
+			&client,
+			&tunnel_details.name,
+			Tunnel {
+				cluster_id: Some(tunnel_details.cluster.clone()),
+				tunnel_id: Some(tunnel_details.id.clone()),
+				..Default::default()
+			},
+			&HOST_TUNNEL_REQUEST_OPTIONS,
+		)
+		.await?;
+
 		self.start_tunnel(
 			tunnel_details.locator(),
 			&tunnel_details,
-			mgmt.into(),
+			client,
 			StaticAccessTokenProvider::new(tunnel.host_token),
 		)
 		.await
@@ -998,7 +1034,7 @@ fn clean_hostname_for_tunnel(hostname: &str) -> String {
 	}
 }
 
-fn vec_eq_unsorted(a: &[String], b: &[String]) -> bool {
+fn vec_eq_as_set(a: &[String], b: &[String]) -> bool {
 	if a.len() != b.len() {
 		return false;
 	}
