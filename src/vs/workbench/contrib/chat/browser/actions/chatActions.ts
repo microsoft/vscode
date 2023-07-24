@@ -111,7 +111,7 @@ export function registerChatActions() {
 					return;
 				}
 				runAccessibilityHelpAction(accessor, codeEditor, 'panelChat');
-			}, CONTEXT_IN_CHAT_INPUT));
+			}, CONTEXT_IN_CHAT_SESSION));
 		}
 	}
 
