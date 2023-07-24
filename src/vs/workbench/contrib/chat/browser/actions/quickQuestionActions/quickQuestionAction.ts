@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { localize } from 'vs/nls';
-import { Action2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
@@ -25,6 +27,7 @@ export interface IQuickQuestionMode {
 	run(accessor: ServicesAccessor, query: string): void;
 }
 
+// TODO: This should be registered per chat-provider probably.
 export class AskQuickQuestionAction extends Action2 {
 
 	private static readonly modeRegistry: Map<QuickQuestionMode, Lazy<IQuickQuestionMode>> = new Map();
@@ -35,8 +38,9 @@ export class AskQuickQuestionAction extends Action2 {
 	constructor() {
 		super({
 			id: ASK_QUICK_QUESTION_ACTION_ID,
-			title: { value: localize('askQuickQuestion', "Ask Quick Question"), original: 'Ask Quick Question' },
+			title: { value: localize('chat', "Chat"), original: 'Chat' },
 			precondition: CONTEXT_PROVIDER_EXISTS,
+			icon: Codicon.commentDiscussion,
 			f1: false,
 			category: CHAT_CATEGORY,
 			keybinding: {
@@ -46,6 +50,12 @@ export class AskQuickQuestionAction extends Action2 {
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyI
 				}
 			},
+			menu: {
+				id: MenuId.LayoutControlMenu,
+				group: '0_workbench_toggles',
+				when: ContextKeyExpr.equals('config.chat.experimental.defaultMode', 'quickQuestion'),
+				order: 0
+			}
 		});
 	}
 

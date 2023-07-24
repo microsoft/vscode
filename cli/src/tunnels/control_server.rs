@@ -233,6 +233,7 @@ pub async fn serve(
 	}
 }
 
+#[derive(Clone)]
 pub struct ServeStreamParams {
 	pub log: log::Logger,
 	pub launcher_paths: LauncherPaths,

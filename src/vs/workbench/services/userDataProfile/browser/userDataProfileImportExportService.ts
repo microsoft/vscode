@@ -58,7 +58,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { asText, IRequestService } from 'vs/platform/request/common/request';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { isUndefined } from 'vs/base/common/types';
+import { Mutable, isUndefined } from 'vs/base/common/types';
 import { Action, ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { isWeb } from 'vs/base/common/platform';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -204,7 +204,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				location: ProgressLocation.Window,
 				command: showWindowLogActionId,
 				title: localize('resolving uri', "{0}: Resolving profile content...", options?.mode ? localize('preview profile', "Preview Profile") : localize('import profile', "Create Profile")),
-			}, () => this.resolveProfileTemplate(uri));
+			}, () => this.resolveProfileTemplate(uri, options));
 			if (!profileTemplate) {
 				return;
 			}
@@ -348,15 +348,19 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 	}
 
-	private async resolveProfileTemplate(uri: URI): Promise<IUserDataProfileTemplate | null> {
+	private async resolveProfileTemplate(uri: URI, options?: IProfileImportOptions): Promise<IUserDataProfileTemplate | null> {
 		const profileContent = await this.resolveProfileContent(uri);
 		if (profileContent === null) {
 			return null;
 		}
 
-		const profileTemplate: IUserDataProfileTemplate = JSON.parse(profileContent);
+		const profileTemplate: Mutable<IUserDataProfileTemplate> = JSON.parse(profileContent);
 		if (!isUserDataProfileTemplate(profileTemplate)) {
 			throw new Error('Invalid profile content.');
+		}
+
+		if (options?.name) {
+			profileTemplate.name = options.name;
 		}
 
 		return profileTemplate;
@@ -486,27 +490,27 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			return undefined;
 		}
 
-		if (profileTemplate.settings) {
+		if (profileTemplate.settings && !profile.useDefaultFlags?.settings) {
 			progress(localize('progress settings', "Applying Settings..."));
 			await this.instantiationService.createInstance(SettingsResource).apply(profileTemplate.settings, profile);
 		}
-		if (profileTemplate.keybindings) {
+		if (profileTemplate.keybindings && !profile.useDefaultFlags?.keybindings) {
 			progress(localize('progress keybindings', "Applying Keyboard Shortcuts..."));
 			await this.instantiationService.createInstance(KeybindingsResource).apply(profileTemplate.keybindings, profile);
 		}
-		if (profileTemplate.tasks) {
+		if (profileTemplate.tasks && !profile.useDefaultFlags?.tasks) {
 			progress(localize('progress tasks', "Applying Tasks..."));
 			await this.instantiationService.createInstance(TasksResource).apply(profileTemplate.tasks, profile);
 		}
-		if (profileTemplate.snippets) {
+		if (profileTemplate.snippets && !profile.useDefaultFlags?.snippets) {
 			progress(localize('progress snippets', "Applying Snippets..."));
 			await this.instantiationService.createInstance(SnippetsResource).apply(profileTemplate.snippets, profile);
 		}
-		if (profileTemplate.globalState) {
+		if (profileTemplate.globalState && !profile.useDefaultFlags?.globalState) {
 			progress(localize('progress global state', "Applying State..."));
 			await this.instantiationService.createInstance(GlobalStateResource).apply(profileTemplate.globalState, profile);
 		}
-		if (profileTemplate.extensions && extensions) {
+		if (profileTemplate.extensions && extensions && !profile.useDefaultFlags?.extensions) {
 			progress(localize('progress extensions', "Applying Extensions..."));
 			await this.instantiationService.createInstance(ExtensionsResource).apply(profileTemplate.extensions, profile);
 		}
@@ -895,7 +899,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 			if (children) {
 				for (const child of children) {
 					child.checkbox = child.parent.checkbox && child.checkbox
-						? { isChecked: child.parent.checkbox.isChecked ? child.checkbox.isChecked : false }
+						? { ...child.checkbox, isChecked: child.parent.checkbox.isChecked ? child.checkbox.isChecked : false }
 						: undefined;
 				}
 			}
@@ -914,7 +918,13 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 			this.rootsPromise = (async () => {
 				this.roots = await this.fetchRoots();
 				for (const root of this.roots) {
-					root.checkbox = { isChecked: !root.isFromDefaultProfile(), tooltip: localize('select', "Select {0}", root.label.label) };
+					root.checkbox = {
+						isChecked: !root.isFromDefaultProfile(),
+						tooltip: localize('select', "Select {0}", root.label.label),
+						accessibilityInformation: {
+							label: localize('select', "Select {0}", root.label.label),
+						}
+					};
 					if (root.isFromDefaultProfile()) {
 						root.description = localize('from default', "From Default Profile");
 					}

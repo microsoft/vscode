@@ -15,7 +15,7 @@ import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffEditorOptions } from './diffEditorOptions';
-import { IObservable, IReader } from 'vs/base/common/observable';
+import { IReader } from 'vs/base/common/observable';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class DiffEditorEditors extends Disposable {
@@ -31,7 +31,6 @@ export class DiffEditorEditors extends Disposable {
 		private readonly _options: DiffEditorOptions,
 		codeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
 		private readonly _createInnerEditor: (instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>, editorWidgetOptions: ICodeEditorWidgetOptions) => CodeEditorWidget,
-		private readonly _modifiedReadOnlyOverride: IObservable<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
@@ -117,7 +116,6 @@ export class DiffEditorEditors extends Disposable {
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
 		result.extraEditorClassName = 'modified-in-monaco-diff-editor';
-		result.readOnly = this._modifiedReadOnlyOverride.read(reader) || this._options.editorOptions.get().readOnly;
 		return result;
 	}
 
@@ -161,6 +159,6 @@ export class DiffEditorEditors extends Disposable {
 		} else if (ariaLabel) {
 			return ariaLabel.replaceAll(ariaNavigationTip, '');
 		}
-		return undefined;
+		return '';
 	}
 }

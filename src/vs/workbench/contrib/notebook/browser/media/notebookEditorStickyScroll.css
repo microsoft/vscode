@@ -1,0 +1,16 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .notebookOverlay .notebook-sticky-scroll-container {
+	display: none;
+	position: absolute;
+	background-color: var(--vscode-notebook-editorBackground);
+	border-bottom: solid 1px var(--vscode-notebook-cellToolbarSeparator);
+	box-sizing: border-box;
+	z-index: var(--z-index-notebook-sticky-scroll);
+	width: 100%;
+	padding-left: 12px;
+	font-family: var(--notebook-cell-input-preview-font-family);
+}

@@ -15,7 +15,7 @@ import { IUserDataProfile, IUserDataProfilesService, ProfileResourceType, UseDef
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILE_FILTER, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ProfilesMenu, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TITLE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
@@ -41,6 +41,8 @@ interface IProfileTemplateInfo {
 	readonly name: string;
 	readonly url: string;
 }
+
+type IProfileTemplateQuickPickItem = IQuickPickItem & IProfileTemplateInfo;
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -212,8 +214,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id: `workbench.profiles.actions.editCurrentProfile`,
 					title: {
-						value: localize('edit profile', "Edit..."),
-						original: `Edit...`
+						value: localize('edit profile', "Edit Profile..."),
+						original: `Edit Profile...`
 					},
 					menu: [
 						{
@@ -238,8 +240,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id,
 					title: {
-						value: localize('show profile contents', "Show Contents..."),
-						original: `ShowContents...`
+						value: localize('show profile contents', "Show Profile Contents"),
+						original: `Show Profile Contents`
 					},
 					category: PROFILES_CATEGORY,
 					menu: [
@@ -308,6 +310,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	private registerImportProfileAction(): IDisposable {
 		const disposables = new DisposableStore();
 		const id = 'workbench.profiles.actions.importProfile';
+		const that = this;
 		disposables.add(registerAction2(class ImportProfileAction extends Action2 {
 			constructor() {
 				super({
@@ -340,21 +343,41 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 				const disposables = new DisposableStore();
 				const quickPick = disposables.add(quickInputService.createQuickPick());
+				const profileTemplateQuickPickItems = await that.getProfileTemplatesQuickPickItems();
+
 				const updateQuickPickItems = (value?: string) => {
-					const selectFromFileItem: IQuickPickItem = { label: localize('import from file', "Create from profile template file") };
-					quickPick.items = value ? [{ label: localize('import from url', "Create from profile template URL"), description: quickPick.value }, selectFromFileItem] : [selectFromFileItem];
+					const quickPickItems: (IQuickPickItem | IQuickPickSeparator)[] = [];
+					if (value) {
+						quickPickItems.push({ label: quickPick.value, description: localize('import from url', "Import from URL") });
+					}
+					quickPickItems.push({ label: localize('import from file', "Select File...") });
+					if (profileTemplateQuickPickItems.length) {
+						quickPickItems.push({
+							type: 'separator',
+							label: localize('templates', "Profile Templates")
+						}, ...profileTemplateQuickPickItems);
+					}
+					quickPick.items = quickPickItems;
 				};
-				quickPick.title = localize('import profile quick pick title', "Create Profile from Profile Template...");
-				quickPick.placeholder = localize('import profile placeholder', "Provide profile template URL or select profile template file");
+
+				quickPick.title = localize('import profile quick pick title', "Import from Profile Template...");
+				quickPick.placeholder = localize('import profile placeholder', "Provide Profile Template URL");
 				quickPick.ignoreFocusOut = true;
 				disposables.add(quickPick.onDidChangeValue(updateQuickPickItems));
 				updateQuickPickItems();
 				quickPick.matchOnLabel = false;
 				quickPick.matchOnDescription = false;
 				disposables.add(quickPick.onDidAccept(async () => {
+					quickPick.hide();
+					const selectedItem = quickPick.selectedItems[0];
+					if (!selectedItem) {
+						return;
+					}
 					try {
-						quickPick.hide();
-						const profile = quickPick.selectedItems[0].description ? URI.parse(quickPick.value) : await this.getProfileUriFromFileSystem(fileDialogService);
+						if ((<IProfileTemplateQuickPickItem>selectedItem).url) {
+							return await that.saveProfile(undefined, (<IProfileTemplateQuickPickItem>selectedItem).url);
+						}
+						const profile = selectedItem.label === quickPick.value ? URI.parse(quickPick.value) : await this.getProfileUriFromFileSystem(fileDialogService);
 						if (profile) {
 							await userDataProfileImportExportService.importProfile(profile);
 						}
@@ -426,7 +449,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.telemetryService.publicLog2<{}, CreateProfileInfoClassification>('userDataProfile.startCreate');
 
 		const disposables = new DisposableStore();
-		const title = profile ? localize('save profile', "Edit Profile...") : localize('create new profle', "Create New Profile...");
+		const title = profile ? localize('save profile', "Edit {0} Profile...", profile.name) : localize('create new profle', "Create New Profile...");
 
 		const settings: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Settings, label: localize('settings', "Settings"), picked: !profile?.useDefaultFlags?.settings };
 		const keybindings: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Keybindings, label: localize('keybindings', "Keyboard Shortcuts"), picked: !profile?.useDefaultFlags?.keybindings };
@@ -462,12 +485,12 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const validate = () => {
 			if (!profile && this.userDataProfilesService.profiles.some(p => p.name === quickPick.value)) {
 				quickPick.validationMessage = localize('profileExists', "Profile with name {0} already exists.", quickPick.value);
-				quickPick.severity = Severity.Error;
+				quickPick.severity = Severity.Warning;
 				return;
 			}
 			if (resources.every(resource => !resource.picked)) {
 				quickPick.validationMessage = localize('invalid configurations', "The profile should contain at least one configuration.");
-				quickPick.severity = Severity.Error;
+				quickPick.severity = Severity.Warning;
 				return;
 			}
 			quickPick.severity = Severity.Ignore;
@@ -478,7 +501,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			let needUpdate = false;
 			for (const resource of resources) {
 				resource.picked = items.includes(resource);
-				const description = resource.picked ? undefined : localize('use default profile', "Use Default Profile");
+				const description = resource.picked ? undefined : localize('use default profile', "Using Default Profile");
 				if (resource.description !== description) {
 					resource.description = description;
 					needUpdate = true;
@@ -541,24 +564,18 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			selectBox.render(append(domNode, $('.profile-type-select-container')));
 			quickPick.widget = domNode;
 
-			const updateOptions = () => {
-				const index = findOptionIndex();
-				if (index <= 0) {
-					return;
+			const updateQuickpickInfo = () => {
+				const option = profileOptions[findOptionIndex()];
+				for (const resource of resources) {
+					resource.picked = option.source && !isString(option.source) ? !option.source?.useDefaultFlags?.[resource.id] : true;
 				}
-				const option = profileOptions[index];
-				if (!isString(option.source)) {
-					for (const resource of resources) {
-						resource.picked = option.source?.useDefaultFlags?.[resource.id];
-					}
-					update();
-				}
+				update();
 			};
 
-			updateOptions();
+			updateQuickpickInfo();
 			disposables.add(selectBox.onDidSelect(({ index }) => {
 				source = profileOptions[index].source;
-				updateOptions();
+				updateQuickpickInfo();
 			}));
 		}
 
@@ -705,6 +722,18 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				return accessor.get(IOpenerService).open(URI.parse('https://aka.ms/vscode-profiles-help'));
 			}
 		}));
+	}
+
+	private async getProfileTemplatesQuickPickItems(): Promise<IProfileTemplateQuickPickItem[]> {
+		const quickPickItems: IProfileTemplateQuickPickItem[] = [];
+		const profileTemplates = await this.getProfileTemplatesFromProduct();
+		for (const template of profileTemplates) {
+			quickPickItems.push({
+				label: template.name,
+				...template
+			});
+		}
+		return quickPickItems;
 	}
 
 	private async getProfileTemplatesFromProduct(): Promise<IProfileTemplateInfo[]> {

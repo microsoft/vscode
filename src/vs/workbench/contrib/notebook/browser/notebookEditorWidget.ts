@@ -12,6 +12,10 @@ import 'vs/css!./media/notebookToolbar';
 import 'vs/css!./media/notebookDnd';
 import 'vs/css!./media/notebookFolding';
 import 'vs/css!./media/notebookCellOutput';
+import 'vs/css!./media/notebookEditorStickyScroll';
+import 'vs/css!./media/notebookKernelActionViewItem';
+import 'vs/css!./media/notebookOutline';
+
 import { PixelRatio } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -90,6 +94,11 @@ import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/no
 import { Schemas } from 'vs/base/common/network';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
+import { NotebookEditorStickyScroll } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll';
+import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
 const $ = DOM.$;
 
@@ -169,6 +178,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _overlayContainer!: HTMLElement;
 	private _notebookTopToolbarContainer!: HTMLElement;
 	private _notebookTopToolbar!: NotebookEditorWorkbenchToolbar;
+	private _notebookStickyScrollContainer!: HTMLElement;
 	private _notebookOverviewRulerContainer!: HTMLElement;
 	private _notebookOverviewRuler!: NotebookOverviewRuler;
 	private _body!: HTMLElement;
@@ -259,6 +269,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	public readonly scopedContextKeyService: IContextKeyService;
 	private readonly instantiationService: IInstantiationService;
 	private readonly _notebookOptions: NotebookOptions;
+	public readonly _notebookOutline: NotebookCellOutlineProvider;
 
 	private _currentProgress: IProgressRunner | undefined;
 
@@ -284,6 +295,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 		@IEditorProgressService private editorProgressService: IEditorProgressService,
 		@INotebookLoggingService readonly logService: INotebookLoggingService,
+		@IKeybindingService readonly keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -311,6 +323,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		this._register(this.instantiationService.createInstance(NotebookEditorContextKeys, this));
+
+		this._notebookOutline = this.instantiationService.createInstance(NotebookCellOutlineProvider, this, OutlineTarget.QuickPick);
 
 		this._register(notebookKernelService.onDidChangeSelectedNotebooks(e => {
 			if (isEqual(e.notebook, this.viewModel?.uri)) {
@@ -439,7 +453,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._uuid;
 	}
 
-	_getViewModel(): NotebookViewModel | undefined {
+	getViewModel(): NotebookViewModel | undefined {
 		return this.viewModel;
 	}
 
@@ -562,6 +576,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._notebookTopToolbarContainer.classList.add('notebook-toolbar-container');
 		this._notebookTopToolbarContainer.style.display = 'none';
 		DOM.append(parent, this._notebookTopToolbarContainer);
+
+		this._notebookStickyScrollContainer = document.createElement('div');
+		this._notebookStickyScrollContainer.classList.add('notebook-sticky-scroll-container');
+		DOM.append(parent, this._notebookStickyScrollContainer);
+
 		this._body = document.createElement('div');
 		DOM.append(parent, this._body);
 
@@ -851,6 +870,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._listDelegate = this.instantiationService.createInstance(NotebookCellListDelegate);
 		this._register(this._listDelegate);
 
+		const createNotebookAriaLabel = () => {
+			const keybinding = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
+
+			if (this.configurationService.getValue(AccessibilityVerbositySettingId.Notebook)) {
+				return keybinding
+					? nls.localize('notebookTreeAriaLabelHelp', "Notebook\nUse {0} for accessibility help", keybinding)
+					: nls.localize('notebookTreeAriaLabelHelpNoKb', "Notebook\nRun the Open Accessibility Help command for more information", keybinding);
+			}
+			return nls.localize('notebookTreeAriaLabel', "Notebook");
+		};
+
 		this._list = this.instantiationService.createInstance(
 			NotebookCellList,
 			'NotebookCellList',
@@ -904,9 +934,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 						return '';
 					},
-					getWidgetAriaLabel() {
-						return nls.localize('notebookTreeAriaLabel', "Notebook");
-					}
+					getWidgetAriaLabel: createNotebookAriaLabel
 				},
 			},
 		);
@@ -987,6 +1015,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		this._registerNotebookActionsToolbar();
+		this._registerNotebookStickyScroll();
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Notebook)) {
+				this._list.ariaLabel = createNotebookAriaLabel();
+			}
+		}));
 	}
 
 	private showListContextMenu(e: IListContextMenuEvent<CellViewModel>) {
@@ -1008,6 +1043,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this.layout(this._dimension);
 			}
 		}));
+	}
+
+	private _registerNotebookStickyScroll() {
+		this._register(this.instantiationService.createInstance(NotebookEditorStickyScroll, this._notebookStickyScrollContainer, this, this._notebookOutline, this._list));
 	}
 
 	private _updateOutputRenderers() {
@@ -3071,6 +3110,7 @@ registerZIndex(ZIndex.Base, 28, 'notebook-cell-bottom-toolbar-container');
 registerZIndex(ZIndex.Base, 29, 'notebook-run-button-container');
 registerZIndex(ZIndex.Base, 29, 'notebook-input-collapse-condicon');
 registerZIndex(ZIndex.Base, 30, 'notebook-cell-output-toolbar');
+registerZIndex(ZIndex.Base, 31, 'notebook-sticky-scroll');
 registerZIndex(ZIndex.Sash, 1, 'notebook-cell-expand-part-button');
 registerZIndex(ZIndex.Sash, 2, 'notebook-cell-toolbar');
 registerZIndex(ZIndex.Sash, 3, 'notebook-cell-toolbar-dropdown-active');

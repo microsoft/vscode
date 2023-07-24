@@ -35,6 +35,7 @@ import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { ColorId, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 import { Color } from 'vs/base/common/color';
 import { IME } from 'vs/base/common/ime';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -140,7 +141,12 @@ export class TextAreaHandler extends ViewPart {
 	public readonly textAreaCover: FastDomNode<HTMLElement>;
 	private readonly _textAreaInput: TextAreaInput;
 
-	constructor(context: ViewContext, viewController: ViewController, visibleRangeProvider: IVisibleRangeProvider) {
+	constructor(
+		context: ViewContext,
+		viewController: ViewController,
+		visibleRangeProvider: IVisibleRangeProvider,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
+	) {
 		super(context);
 
 		this._viewController = viewController;
@@ -553,7 +559,21 @@ export class TextAreaHandler extends ViewPart {
 	private _getAriaLabel(options: IComputedEditorOptions): string {
 		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		if (accessibilitySupport === AccessibilitySupport.Disabled) {
-			return nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press {0} for options.", platform.isLinux ? 'Shift+Alt+F1' : 'Alt+F1');
+
+			const toggleKeybindingLabel = this._keybindingService.lookupKeybinding('editor.action.toggleScreenReaderAccessibilityMode')?.getAriaLabel();
+			const runCommandKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.showCommands')?.getAriaLabel();
+			const keybindingEditorKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.openGlobalKeybindings')?.getAriaLabel();
+			const editorNotAccessibleMessage = nls.localize('accessibilityModeOff', "The editor is not accessible at this time.");
+			if (toggleKeybindingLabel) {
+				return nls.localize('accessibilityOffAriaLabel', "{0} To enable screen reader optimized mode, use {1}", editorNotAccessibleMessage, toggleKeybindingLabel);
+			} else if (runCommandKeybindingLabel) {
+				return nls.localize('accessibilityOffAriaLabelNoKb', "{0} To enable screen reader optimized mode, open the quick pick with {1} and run the command Toggle Screen Reader Accessibility Mode, which is currently not triggerable via keyboard.", editorNotAccessibleMessage, runCommandKeybindingLabel);
+			} else if (keybindingEditorKeybindingLabel) {
+				return nls.localize('accessibilityOffAriaLabelNoKbs', "{0} Please assign a keybinding for the command Toggle Screen Reader Accessibility Mode by accessing the keybindings editor with {1} and run it.", editorNotAccessibleMessage, keybindingEditorKeybindingLabel);
+			} else {
+				// SOS
+				return editorNotAccessibleMessage;
+			}
 		}
 		return options.get(EditorOption.ariaLabel);
 	}

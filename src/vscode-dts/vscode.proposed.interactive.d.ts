@@ -9,6 +9,11 @@ declare module 'vscode' {
 		command: string;
 		detail?: string;
 		refer?: boolean;
+		/**
+		 * Whether the command should execute as soon
+		 * as it is entered. Defaults to `false`.
+		 */
+		executeImmediately?: boolean;
 		// kind: CompletionItemKind;
 	}
 
@@ -48,7 +53,8 @@ declare module 'vscode' {
 	export enum InteractiveEditorResponseFeedbackKind {
 		Unhelpful = 0,
 		Helpful = 1,
-		Undone = 2
+		Undone = 2,
+		Accepted = 3
 	}
 
 	export interface TextDocumentContext {
@@ -130,10 +136,11 @@ declare module 'vscode' {
 
 	export interface InteractiveSessionSlashCommand {
 		command: string;
-		shouldRepopulate?: boolean;
 		kind: CompletionItemKind;
 		detail?: string;
+		shouldRepopulate?: boolean;
 		followupPlaceholder?: string;
+		executeImmediately?: boolean;
 	}
 
 	export interface InteractiveSessionReplyFollowup {
