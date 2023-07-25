@@ -320,16 +320,18 @@ class SaturationBox extends Disposable {
 		ctx.fill();
 	}
 
-	public paintSelection(s: number, v: number): void {
+	private paintSelection(s: number, v: number): void {
 		this.selection.style.left = `${s * this.width}px`;
 		this.selection.style.top = `${this.height - v * this.height}px`;
 	}
 
-	private onDidChangeColor(): void {
+	private onDidChangeColor(color: Color): void {
 		if (this.monitor && this.monitor.isMonitoring()) {
 			return;
 		}
 		this.paint();
+		const hsva = color.hsva;
+		this.paintSelection(hsva.s, hsva.v);
 	}
 }
 
@@ -359,6 +361,7 @@ abstract class Strip extends Disposable {
 		this.slider.style.top = `0px`;
 
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.POINTER_DOWN, e => this.onPointerDown(e)));
+		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this.layout();
 	}
 
@@ -366,6 +369,11 @@ abstract class Strip extends Disposable {
 		this.height = this.domNode.offsetHeight - this.slider.offsetHeight;
 
 		const value = this.getValue(this.model.color);
+		this.updateSliderPosition(value);
+	}
+
+	protected onDidChangeColor(color: Color) {
+		const value = this.getValue(color);
 		this.updateSliderPosition(value);
 	}
 
@@ -398,11 +406,11 @@ abstract class Strip extends Disposable {
 		this._onDidChange.fire(value);
 	}
 
-	public updateSliderPosition(value: number): void {
+	private updateSliderPosition(value: number): void {
 		this.slider.style.top = `${(1 - value) * this.height}px`;
 	}
 
-	public abstract getValue(color: Color): number;
+	protected abstract getValue(color: Color): number;
 }
 
 class OpacityStrip extends Strip {
@@ -415,7 +423,8 @@ class OpacityStrip extends Strip {
 		this.onDidChangeColor(this.model.color);
 	}
 
-	private onDidChangeColor(color: Color): void {
+	protected override onDidChangeColor(color: Color): void {
+		super.onDidChangeColor(color);
 		const { r, g, b } = color.rgba;
 		const opaque = new Color(new RGBA(r, g, b, 1));
 		const transparent = new Color(new RGBA(r, g, b, 0));
@@ -423,7 +432,7 @@ class OpacityStrip extends Strip {
 		this.overlay.style.background = `linear-gradient(to bottom, ${opaque} 0%, ${transparent} 100%)`;
 	}
 
-	public getValue(color: Color): number {
+	protected getValue(color: Color): number {
 		return color.hsva.a;
 	}
 }
@@ -435,7 +444,7 @@ class HueStrip extends Strip {
 		this.domNode.classList.add('hue-strip');
 	}
 
-	public getValue(color: Color): number {
+	protected getValue(color: Color): number {
 		return 1 - (color.hsva.h / 360);
 	}
 }
@@ -478,14 +487,6 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 
 		this.header = this._register(new ColorPickerHeader(element, this.model, themeService, standaloneColorPicker));
 		this.body = this._register(new ColorPickerBody(element, this.model, this.pixelRatio, standaloneColorPicker));
-		this._register(this.header.onOriginalColorClicked((color: Color) => {
-			const hsva = color.hsva;
-			this.body.saturationBox.paintSelection(hsva.s, hsva.v);
-			const hueStripValue = this.body.hueStrip.getValue(color);
-			this.body.hueStrip.updateSliderPosition(hueStripValue);
-			const opacityStripValue = this.body.opacityStrip.getValue(color);
-			this.body.opacityStrip.updateSliderPosition(opacityStripValue);
-		}));
 	}
 
 	getId(): string {
