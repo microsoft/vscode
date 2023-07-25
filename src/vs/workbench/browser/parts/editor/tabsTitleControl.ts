@@ -886,7 +886,7 @@ export class TabsTitleControl extends TitleControl {
 		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, e => {
 			if (e.button === 1 /* Middle Button*/) {
 				const editor = this.group.getEditorByIndex(index);
-				if (editor && this.group.isPinned(editor) && this.accessor.partOptions.preventMiddleClickClosePinnedTab) {
+				if (editor && this.group.isSticky(editor) && this.accessor.partOptions.preventMiddleClickClosePinnedTab) {
 					return;
 				}
 
