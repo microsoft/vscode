@@ -648,12 +648,12 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 					return that.progressService.withProgress({
 						location: IMPORT_PROFILE_PREVIEW_VIEW,
 					}, async progress => {
-						disposable.dispose();
 						view.setMessage(undefined);
 						const profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
 						if (profileTemplate.extensions) {
 							await that.instantiationService.createInstance(ExtensionsResource).apply(profileTemplate.extensions, importedProfile);
 						}
+						disposable.dispose();
 					});
 				}
 			}));
