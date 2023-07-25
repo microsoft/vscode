@@ -24,9 +24,6 @@ const $ = dom.$;
 
 export class ColorPickerHeader extends Disposable {
 
-	private readonly _onOriginalColorClicked = new Emitter<Color>();
-	readonly onOriginalColorClicked: Event<Color> = this._onOriginalColorClicked.event;
-
 	private readonly _domNode: HTMLElement;
 	private readonly _pickedColorNode: HTMLElement;
 	private readonly _pickedColorPresentation: HTMLElement;
@@ -59,7 +56,6 @@ export class ColorPickerHeader extends Disposable {
 		this._register(dom.addDisposableListener(this._pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorPresentation()));
 		this._register(dom.addDisposableListener(this._originalColorNode, dom.EventType.CLICK, () => {
 			this.model.color = this.model.originalColor;
-			this._onOriginalColorClicked.fire(this.model.color);
 			this.model.flushColor();
 		}));
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
@@ -419,7 +415,6 @@ class OpacityStrip extends Strip {
 		super(container, model, showingStandaloneColorPicker);
 		this.domNode.classList.add('opacity-strip');
 
-		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this.onDidChangeColor(this.model.color);
 	}
 
