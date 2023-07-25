@@ -229,12 +229,12 @@ class SlashCommandCompletions extends Disposable {
 						const withSlash = `/${c.command}`;
 						return <CompletionItem>{
 							label: withSlash,
-							insertText: `${withSlash} `,
+							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							detail: c.detail,
 							range: new Range(1, 1, 1, 1),
 							sortText: c.sortText ?? c.command,
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: SubmitAction.ID, title: withSlash, arguments: [{ widget }] } : undefined,
+							command: c.executeImmediately ? { id: SubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: withSlash }] } : undefined,
 						};
 					})
 				};
