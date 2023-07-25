@@ -50,7 +50,6 @@
 	flex: 1;
 	white-space: nowrap;
 	overflow: hidden;
-	min-width: 228px;
 }
 
 .colorpicker-header .picked-color .picked-color-presentation {
