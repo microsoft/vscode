@@ -557,7 +557,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _setHoverTextMaxWidth(width: number | string) {
 		const transformedWidth = typeof width === 'number' ? `${width}px` : width;
-		this._hover.containerDomNode.style.setProperty('--vscode-hover-maxWidth', transformedWidth);
+		this._hover.containerDomNode.style.setProperty('--hover-maxWidth', transformedWidth);
 	}
 
 	private _setHoverWidgetMaxDimensions(width: number | string, height: number | string): void {
