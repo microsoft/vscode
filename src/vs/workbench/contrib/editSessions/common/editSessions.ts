@@ -38,7 +38,7 @@ export interface IEditSessionsStorageService {
 	lastReadResources: Map<SyncResource, { ref: string; content: string }>;
 	lastWrittenResources: Map<SyncResource, { ref: string; content: string }>;
 
-	initialize(silent?: boolean): Promise<boolean>;
+	initialize(reason: 'read' | 'write', silent?: boolean): Promise<boolean>;
 	read(resource: SyncResource, ref: string | undefined): Promise<{ ref: string; content: string } | undefined>;
 	write(resource: SyncResource, content: string | EditSession): Promise<string>;
 	delete(resource: SyncResource, ref: string | null): Promise<void>;

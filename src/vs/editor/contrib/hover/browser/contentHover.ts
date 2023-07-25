@@ -30,7 +30,7 @@ export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
 
-	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
+	private readonly _widget: ContentHoverWidget;
 
 	getWidgetContent(): string | undefined {
 		const node = this._widget.getDomNode();
@@ -51,6 +51,11 @@ export class ContentHoverController extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
+
+		const minimumHeight = this._editor.getOption(EditorOption.lineHeight) + 8;
+		const minimumWidth = 4 / 3 * minimumHeight;
+		const minimumSize = new dom.Dimension(minimumWidth, minimumHeight);
+		this._widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor, minimumSize));
 
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
@@ -215,16 +220,24 @@ export class ContentHoverController extends Disposable {
 		this._setCurrentResult(null);
 	}
 
-	public isColorPickerVisible(): boolean {
+	public get isColorPickerVisible(): boolean {
 		return this._widget.isColorPickerVisible;
 	}
 
-	public isVisibleFromKeyboard(): boolean {
+	public get isVisibleFromKeyboard(): boolean {
 		return this._widget.isVisibleFromKeyboard;
 	}
 
-	public isVisible(): boolean {
+	public get isVisible(): boolean {
 		return this._widget.isVisible;
+	}
+
+	public get isFocused(): boolean {
+		return this._widget.isFocused;
+	}
+
+	public get isResizing(): boolean {
+		return this._widget.isResizing;
 	}
 
 	public containsNode(node: Node | null | undefined): boolean {
@@ -476,11 +489,16 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		return this._hoverVisibleKey.get() ?? false;
 	}
 
+	public get isFocused(): boolean {
+		return this._hoverFocusedKey.get() ?? false;
+	}
+
 	constructor(
 		editor: ICodeEditor,
+		minimumSize: dom.Dimension,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(editor);
+		super(editor, minimumSize);
 		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(contextKeyService);
 		this._hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(contextKeyService);
 
@@ -777,6 +795,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (this._hasHorizontalScrollbar()) {
 			this._adjustContentsBottomPadding();
 			this._adjustHoverHeightForScrollbar(height);
+		}
+		if (this._visibleData?.showAtPosition) {
+			const widgetHeight = dom.getTotalHeight(this._hover.containerDomNode);
+			this._positionPreference = this._findPositionPreference(widgetHeight, this._visibleData.showAtPosition);
 		}
 		this._layoutContentWidget();
 	}

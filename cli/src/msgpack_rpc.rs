@@ -122,7 +122,7 @@ pub struct MsgPackCodec<T> {
 impl<T> MsgPackCodec<T> {
 	pub fn new() -> Self {
 		Self {
-			_marker: std::marker::PhantomData::default(),
+			_marker: std::marker::PhantomData,
 		}
 	}
 }

@@ -73,6 +73,12 @@ windows-foreground-love/build/**
 windows-foreground-love/src/**
 !windows-foreground-love/**/*.node
 
+kerberos/binding.gyp
+kerberos/build/**
+kerberos/src/**
+kerberos/node_modules/**
+!kerberos/**/*.node
+
 keytar/binding.gyp
 keytar/build/**
 keytar/src/**

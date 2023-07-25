@@ -316,7 +316,6 @@
 		"--vscode-inlineChatInput-border",
 		"--vscode-inlineChatInput-focusBorder",
 		"--vscode-inlineChatInput-placeholderForeground",
-		"--vscode-inlineChatrDiff-removed",
 		"--vscode-input-background",
 		"--vscode-input-border",
 		"--vscode-input-foreground",
@@ -757,6 +756,7 @@
 		"--z-index-notebook-progress-bar",
 		"--z-index-notebook-scrollbar",
 		"--z-index-run-button-container",
+		"--z-index-notebook-sticky-scroll",
 		"--zoom-factor"
 	]
 }

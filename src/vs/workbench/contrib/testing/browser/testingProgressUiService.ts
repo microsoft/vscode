@@ -115,7 +115,7 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 				this.updateCountsEmitter.fire(collected);
 				this.updateTextEmitter.fire(getTestProgressText(false, collected));
 			} else {
-				this.updateTextEmitter.fire('');
+				this.updateTextEmitter.fire('\xA0');
 				this.updateCountsEmitter.fire(collectTestStateCounts(false));
 			}
 

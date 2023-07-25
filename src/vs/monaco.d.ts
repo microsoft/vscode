@@ -2480,6 +2480,7 @@ declare namespace monaco.editor {
 		toInclusiveRange(): Range | null;
 		toExclusiveRange(): Range;
 		mapToLineArray<T>(f: (lineNumber: number) => T): T[];
+		forEach(f: (lineNumber: number) => void): void;
 		includes(lineNumber: number): boolean;
 	}
 
@@ -2539,9 +2540,9 @@ declare namespace monaco.editor {
 	}
 
 	export class SimpleLineRangeMapping {
-		readonly originalRange: LineRange;
-		readonly modifiedRange: LineRange;
-		constructor(originalRange: LineRange, modifiedRange: LineRange);
+		readonly original: LineRange;
+		readonly modified: LineRange;
+		constructor(original: LineRange, modified: LineRange);
 		toString(): string;
 		flip(): SimpleLineRangeMapping;
 	}
@@ -3974,6 +3975,10 @@ declare namespace monaco.editor {
 		 * Defaults to false
 		 */
 		isInEmbeddedEditor?: boolean;
+		/**
+		 * If the diff editor should only show the difference review mode.
+		 */
+		onlyShowAccessibleDiffViewer?: boolean;
 	}
 
 	/**
@@ -6065,6 +6070,11 @@ declare namespace monaco.editor {
 		 */
 		applyFontInfo(target: HTMLElement): void;
 		setBanner(bannerDomNode: HTMLElement | null, height: number): void;
+		/**
+		 * Is called when the model has been set, view state was restored and options are updated.
+		 * This is the best place to compute data for the viewport (such as tokens).
+		 */
+		handleInitialized?(): void;
 	}
 
 	/**
@@ -6123,8 +6133,8 @@ declare namespace monaco.editor {
 		 * Update the editor's options after the editor has been created.
 		 */
 		updateOptions(newOptions: IDiffEditorOptions): void;
-		diffReviewNext(): void;
-		diffReviewPrev(): void;
+		accessibleDiffViewerNext(): void;
+		accessibleDiffViewerPrev(): void;
 	}
 
 	export class FontInfo extends BareFontInfo {

@@ -7,7 +7,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
-export function registerStickyScroll(notebookEditor: INotebookEditor, cell: ICellViewModel, element: HTMLElement, opts?: { extraOffset?: number; min?: number }): IDisposable {
+export function registerCellToolbarStickyScroll(notebookEditor: INotebookEditor, cell: ICellViewModel, element: HTMLElement, opts?: { extraOffset?: number; min?: number }): IDisposable {
 	const extraOffset = opts?.extraOffset ?? 0;
 	const min = opts?.min ?? 0;
 
@@ -15,8 +15,7 @@ export function registerStickyScroll(notebookEditor: INotebookEditor, cell: ICel
 		if (cell.isInputCollapsed) {
 			element.style.top = '';
 		} else {
-			const scrollPadding = notebookEditor.notebookOptions.computeTopInsertToolbarHeight(notebookEditor.textModel?.viewType);
-			const scrollTop = notebookEditor.scrollTop - scrollPadding;
+			const scrollTop = notebookEditor.scrollTop;
 			const elementTop = notebookEditor.getAbsoluteTopOfElement(cell);
 			const diff = scrollTop - elementTop + extraOffset;
 			const maxTop = cell.layoutInfo.editorHeight + cell.layoutInfo.statusBarHeight - 45; // subtract roughly the height of the execution order label plus padding

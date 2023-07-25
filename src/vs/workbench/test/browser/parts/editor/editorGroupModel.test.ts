@@ -28,8 +28,18 @@ import { isEqual } from 'vs/base/common/resources';
 
 suite('EditorGroupModel', () => {
 
+	let testInstService: TestInstantiationService | undefined;
+
+	suiteTeardown(() => {
+		testInstService?.dispose();
+		testInstService = undefined;
+	});
+
 	function inst(): IInstantiationService {
-		const inst = new TestInstantiationService();
+		if (!testInstService) {
+			testInstService = new TestInstantiationService();
+		}
+		const inst = testInstService;
 		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(ILifecycleService, new TestLifecycleService());
 		inst.stub(IWorkspaceContextService, new TestContextService());

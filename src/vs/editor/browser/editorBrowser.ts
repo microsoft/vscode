@@ -1086,6 +1086,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	hasModel(): this is IActiveCodeEditor;
 
 	setBanner(bannerDomNode: HTMLElement | null, height: number): void;
+
+	/**
+	 * Is called when the model has been set, view state was restored and options are updated.
+	 * This is the best place to compute data for the viewport (such as tokens).
+	 */
+	handleInitialized?(): void;
 }
 
 /**
@@ -1257,9 +1263,9 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 */
 	revealFirstDiff(): unknown;
 
-	diffReviewNext(): void;
+	accessibleDiffViewerNext(): void;
 
-	diffReviewPrev(): void;
+	accessibleDiffViewerPrev(): void;
 }
 
 /**

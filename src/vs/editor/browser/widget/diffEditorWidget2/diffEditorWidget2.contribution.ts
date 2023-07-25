@@ -5,12 +5,15 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { findFocusedDiffEditor } from 'vs/editor/browser/widget/diffEditor.contribution';
+import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
 import { localize } from 'vs/nls';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import './colors';
 
 export class ToggleCollapseUnchangedRegions extends Action2 {
 	constructor() {
@@ -88,3 +91,29 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	group: '1_diff',
 	when: ContextKeyEqualsExpr.create('diffEditorVersion', 2)
 });
+
+const diffEditorCategory: ILocalizedString = {
+	value: localize('diffEditor', 'Diff Editor'),
+	original: 'Diff Editor',
+};
+export class SwitchSide extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'diffEditor.switchSide',
+			title: { value: localize('switchSide', "Switch Side"), original: 'Switch Side' },
+			icon: Codicon.arrowSwap,
+			precondition: ContextKeyExpr.and(ContextKeyEqualsExpr.create('diffEditorVersion', 2), ContextKeyExpr.has('isInDiffEditor')),
+			f1: true,
+			category: diffEditorCategory,
+		});
+	}
+
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]): void {
+		const diffEditor = findFocusedDiffEditor(accessor);
+		if (diffEditor instanceof DiffEditorWidget2) {
+			diffEditor.switchSide();
+		}
+	}
+}
+
+registerAction2(SwitchSide);

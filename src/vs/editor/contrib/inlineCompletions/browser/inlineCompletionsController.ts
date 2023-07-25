@@ -172,20 +172,16 @@ export class InlineCompletionsController extends Disposable {
 		this._register(autorun('play audio cue & read suggestion', reader => {
 			const model = this.model.read(reader);
 			const state = model?.state.read(reader);
-			if (!model || !state || !state.completion) {
+			if (!model || !state || !state.inlineCompletion) {
 				lastInlineCompletionId = undefined;
 				return;
 			}
 
-			if (state.completion.semanticId !== lastInlineCompletionId) {
-				lastInlineCompletionId = state.completion.semanticId;
-				if (model.isNavigatingCurrentInlineCompletion) {
-					return;
-				}
-
+			if (state.inlineCompletion.semanticId !== lastInlineCompletionId) {
+				lastInlineCompletionId = state.inlineCompletion.semanticId;
+				const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
 				this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-						const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
 						alert(state.ghostText.renderForScreenReader(lineText));
 					}
 				});

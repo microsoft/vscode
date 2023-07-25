@@ -829,10 +829,8 @@ export class CommentController implements IEditorContribution {
 
 		if (newCommentInfos.length > 1) {
 			if (e && range) {
-				const anchor = { x: e.event.posx, y: e.event.posy };
-
 				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
+					getAnchor: () => e.event,
 					getActions: () => this.getContextMenuActions(newCommentInfos, range),
 					getActionsContext: () => newCommentInfos.length ? newCommentInfos[0] : undefined,
 					onHide: () => { this._addInProgress = false; }

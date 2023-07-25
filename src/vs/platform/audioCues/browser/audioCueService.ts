@@ -23,7 +23,6 @@ export interface IAudioCueService {
 
 	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
 	playAudioCueLoop(cue: AudioCue, milliseconds: number): IDisposable;
-	playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): void;
 }
 
 export class AudioCueService extends Disposable implements IAudioCueService {
@@ -43,25 +42,16 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 
 	public async playAudioCue(cue: AudioCue, allowManyInParallel = false): Promise<void> {
 		if (this.isEnabled(cue)) {
-			await this.playSound(cue.sound, allowManyInParallel);
+			await this.playSound(cue.sound.getSound(), allowManyInParallel);
 		}
 	}
 
 	public async playAudioCues(cues: AudioCue[]): Promise<void> {
 		// Some audio cues might reuse sounds. Don't play the same sound twice.
-		const sounds = new Set(cues.filter(cue => this.isEnabled(cue)).map(cue => cue.sound));
+		const sounds = new Set(cues.filter(cue => this.isEnabled(cue)).map(cue => cue.sound.getSound()));
 		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
 	}
 
-	/**
-	 * Gaming and other apps often play a sound variant when the same event happens again
-	 * for an improved experience. This function plays a random sound from the given group to accomplish that.
-	 */
-	public playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): void {
-		const cues = AudioCue.allAudioCues.filter(cue => cue.groupId === groupId);
-		const index = Math.floor(Math.random() * cues.length);
-		this.playAudioCue(cues[index], allowManyInParallel);
-	}
 
 	private getVolumeInPercent(): number {
 		const volume = this.configurationService.getValue<number>('audioCues.volume');
@@ -206,7 +196,6 @@ export class Sound {
 		return sound;
 	}
 
-
 	public static readonly error = Sound.register({ fileName: 'error.mp3' });
 	public static readonly warning = Sound.register({ fileName: 'warning.mp3' });
 	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.mp3' });
@@ -228,19 +217,36 @@ export class Sound {
 	private constructor(public readonly fileName: string) { }
 }
 
-export const enum AudioCueGroupId {
-	chatResponseReceived = 'chatResponseReceived'
+export class SoundSource {
+	constructor(
+		public readonly randomOneOf: Sound[]
+	) { }
+
+	public getSound(deterministic = false): Sound {
+		if (deterministic || this.randomOneOf.length === 1) {
+			return this.randomOneOf[0];
+		} else {
+			const index = Math.floor(Math.random() * this.randomOneOf.length);
+			return this.randomOneOf[index];
+		}
+	}
 }
 
 export class AudioCue {
 	private static _audioCues = new Set<AudioCue>();
 	private static register(options: {
 		name: string;
-		sound: Sound;
+		sound: Sound | {
+			/**
+			 * Gaming and other apps often play a sound variant when the same event happens again
+			 * for an improved experience. This option enables audio cues to play a random sound.
+			 */
+			randomOneOf: Sound[];
+		};
 		settingsKey: string;
-		groupId?: AudioCueGroupId;
 	}): AudioCue {
-		const audioCue = new AudioCue(options.sound, options.name, options.settingsKey, options.groupId);
+		const soundSource = new SoundSource('randomOneOf' in options.sound ? options.sound.randomOneOf : [options.sound]);
+		const audioCue = new AudioCue(soundSource, options.name, options.settingsKey);
 		AudioCue._audioCues.add(audioCue);
 		return audioCue;
 	}
@@ -353,30 +359,17 @@ export class AudioCue {
 		settingsKey: 'audioCues.chatRequestSent'
 	});
 
-	private static readonly chatResponseReceived = {
+	public static readonly chatResponseReceived = AudioCue.register({
 		name: localize('audioCues.chatResponseReceived', 'Chat Response Received'),
 		settingsKey: 'audioCues.chatResponseReceived',
-		groupId: AudioCueGroupId.chatResponseReceived
-	};
-
-	public static readonly chatResponseReceived1 = AudioCue.register({
-		sound: Sound.chatResponseReceived1,
-		...this.chatResponseReceived
-	});
-
-	public static readonly chatResponseReceived2 = AudioCue.register({
-		sound: Sound.chatResponseReceived2,
-		...this.chatResponseReceived
-	});
-
-	public static readonly chatResponseReceived3 = AudioCue.register({
-		sound: Sound.chatResponseReceived3,
-		...this.chatResponseReceived
-	});
-
-	public static readonly chatResponseReceived4 = AudioCue.register({
-		sound: Sound.chatResponseReceived4,
-		...this.chatResponseReceived
+		sound: {
+			randomOneOf: [
+				Sound.chatResponseReceived1,
+				Sound.chatResponseReceived2,
+				Sound.chatResponseReceived3,
+				Sound.chatResponseReceived4
+			]
+		}
 	});
 
 	public static readonly chatResponsePending = AudioCue.register({
@@ -386,9 +379,8 @@ export class AudioCue {
 	});
 
 	private constructor(
-		public readonly sound: Sound,
+		public readonly sound: SoundSource,
 		public readonly name: string,
 		public readonly settingsKey: string,
-		public readonly groupId?: string
 	) { }
 }

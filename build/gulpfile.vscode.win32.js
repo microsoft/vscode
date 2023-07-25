@@ -98,6 +98,7 @@ function buildWin32Setup(arch, target) {
 			AppMutex: product.win32MutexName,
 			TunnelMutex: product.win32TunnelMutex,
 			TunnelServiceMutex: product.win32TunnelServiceMutex,
+			TunnelApplicationName: product.tunnelApplicationName,
 			ApplicationName: product.applicationName,
 			Arch: arch,
 			AppId: { 'ia32': ia32AppId, 'x64': x64AppId, 'arm64': arm64AppId }[arch],

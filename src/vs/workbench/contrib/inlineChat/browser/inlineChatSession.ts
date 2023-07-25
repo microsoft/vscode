@@ -296,7 +296,7 @@ export class MarkdownResponse {
 
 export class EditResponse {
 
-	readonly localEdits: TextEdit[] = [];
+	readonly allLocalEdits: TextEdit[][] = [];
 	readonly singleCreateFileEdit: { uri: URI; edits: Promise<TextEdit>[] } | undefined;
 	readonly workspaceEdits: ResourceEdit[] | undefined;
 	readonly workspaceEditsIncludeLocalEdits: boolean = false;
@@ -304,11 +304,15 @@ export class EditResponse {
 	constructor(
 		localUri: URI,
 		readonly modelAltVersionId: number,
-		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse
+		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse,
+		progressEdits: TextEdit[][],
 	) {
+
+		this.allLocalEdits.push(...progressEdits);
+
 		if (raw.type === 'editorEdit') {
 			//
-			this.localEdits = raw.edits;
+			this.allLocalEdits.push(raw.edits);
 			this.singleCreateFileEdit = undefined;
 			this.workspaceEdits = undefined;
 
@@ -318,6 +322,7 @@ export class EditResponse {
 			this.workspaceEdits = edits;
 
 			let isComplexEdit = false;
+			const localEdits: TextEdit[] = [];
 
 			for (const edit of edits) {
 				if (edit instanceof ResourceFileEdit) {
@@ -336,7 +341,7 @@ export class EditResponse {
 				} else if (edit instanceof ResourceTextEdit) {
 					//
 					if (isEqual(edit.resource, localUri)) {
-						this.localEdits.push(edit.textEdit);
+						localEdits.push(edit.textEdit);
 						this.workspaceEditsIncludeLocalEdits = true;
 
 					} else if (isEqual(this.singleCreateFileEdit?.uri, edit.resource)) {
@@ -346,7 +351,9 @@ export class EditResponse {
 					}
 				}
 			}
-
+			if (localEdits.length > 0) {
+				this.allLocalEdits.push(localEdits);
+			}
 			if (isComplexEdit) {
 				this.singleCreateFileEdit = undefined;
 			}

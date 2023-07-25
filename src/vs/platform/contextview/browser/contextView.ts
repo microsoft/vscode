@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { AnchorAlignment, AnchorAxisAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { AnchorAlignment, AnchorAxisAlignment, IAnchor, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { OmitOptional } from 'vs/base/common/types';
 import { IMenuActionOptions, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -29,7 +31,7 @@ export interface IContextViewDelegate {
 
 	canRelayout?: boolean; // Default: true
 
-	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number };
+	getAnchor(): HTMLElement | IMouseEvent | OmitOptional<IAnchor>;
 	render(container: HTMLElement): IDisposable;
 	onDOMEvent?(e: any, activeElement: HTMLElement): void;
 	onHide?(data?: any): void;

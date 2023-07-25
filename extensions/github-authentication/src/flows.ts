@@ -201,7 +201,8 @@ const allFlows: IFlow[] = [
 			supportsGitHubEnterpriseServer: false,
 			supportsHostedGitHubEnterprise: true,
 			supportsRemoteExtensionHost: true,
-			supportsWebWorkerExtensionHost: true,
+			// Web worker can't open a port to listen for the redirect
+			supportsWebWorkerExtensionHost: false,
 			// exchanging a code for a token requires a client secret
 			supportsNoClientSecret: false,
 			supportsSupportedClients: true,
