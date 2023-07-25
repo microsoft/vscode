@@ -117,7 +117,7 @@ class Response {
 			this._updateRepr(quiet);
 		} else {
 			// Add a new resolving part
-			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), resolving: true });
+			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), resolving: true }) - 1;
 			this._updateRepr(quiet);
 
 			responsePart.resolvedContent?.then((content) => {
@@ -129,7 +129,7 @@ class Response {
 	}
 
 	private _updateRepr(quiet?: boolean) {
-		this._responseRepr = new MarkdownString(this._responseParts.map(r => r.string.value).join('\n'));
+		this._responseRepr = new MarkdownString(this._responseParts.map(r => r.string.value).join('\n\n'));
 		if (!quiet) {
 			this._onDidChangeValue.fire();
 		}
