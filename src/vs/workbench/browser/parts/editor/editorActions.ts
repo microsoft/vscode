@@ -461,12 +461,8 @@ export class CloseOneEditorAction extends Action {
 			group = this.editorGroupService.activeGroup;
 		}
 
-
-		// Close specific editor in group, Unless the editor is pinned
+		// Close specific editor in group
 		if (typeof editorIndex === 'number') {
-			if (group.isSticky(group.editors[editorIndex])) {
-				return;
-			}
 			const editorAtIndex = group.getEditorByIndex(editorIndex);
 			if (editorAtIndex) {
 				await group.closeEditor(editorAtIndex, { preserveFocus: context?.preserveFocus });
@@ -474,9 +470,8 @@ export class CloseOneEditorAction extends Action {
 			}
 		}
 
-
-		// Otherwise close active editor in group, Unless the editor is pinned
-		if (group.activeEditor && !group.isSticky(group.activeEditor)) {
+		// Otherwise close active editor in group
+		if (group.activeEditor) {
 			await group.closeEditor(group.activeEditor, { preserveFocus: context?.preserveFocus });
 			return;
 		}
