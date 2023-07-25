@@ -58,7 +58,14 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 	}
 
 	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void {
-		this._chatService.transferChatSession(sessionId, URI.revive(toWorkspace));
+		const sessionIdStr = this._chatService.getSessionId(sessionId);
+		if (!sessionIdStr) {
+			throw new Error(`Failed to transfer session. Unknown session provider ID: ${sessionId}`);
+		}
+
+		const widget = this._chatWidgetService.getWidgetBySessionId(sessionIdStr);
+		const inputValue = widget?.inputEditor.getValue() ?? '';
+		this._chatService.transferChatSession({ sessionId: sessionIdStr, inputValue: inputValue }, URI.revive(toWorkspace));
 	}
 
 	async $registerChatProvider(handle: number, id: string): Promise<void> {
