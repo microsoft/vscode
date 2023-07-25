@@ -35,7 +35,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private static SETTINGS = [
 		'window.titleBarStyle',
-		'window.experimental.windowControlsOverlay.enabled',
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
