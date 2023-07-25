@@ -14,6 +14,7 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatExecuteActionContext {
 	widget: IChatWidget;
+	inputValue?: string;
 }
 
 function isExecuteActionContext(thing: unknown): thing is IChatExecuteActionContext {
@@ -48,7 +49,7 @@ export class SubmitAction extends Action2 {
 			return;
 		}
 
-		context.widget.acceptInput();
+		context.widget.acceptInput(context.inputValue);
 	}
 }
 
