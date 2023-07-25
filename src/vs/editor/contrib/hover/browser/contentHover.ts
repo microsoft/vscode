@@ -545,25 +545,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		container.style.maxHeight = transformedHeight;
 	}
 
-	private _setContentsDomNodeMaxDimensions(width: number | string, height: number | string): void {
-		const contentsDomNode = this._hover.contentsDomNode;
-		ContentHoverWidget._applyMaxDimensions(contentsDomNode, width, height);
-	}
-
-	private _setContainerDomNodeMaxDimensions(width: number | string, height: number | string): void {
-		const containerDomNode = this._hover.containerDomNode;
-		ContentHoverWidget._applyMaxDimensions(containerDomNode, width, height);
-	}
-
-	private _setHoverTextMaxWidth(width: number | string) {
-		const transformedWidth = typeof width === 'number' ? `${width}px` : width;
-		this._hover.containerDomNode.style.setProperty('--hover-maxWidth', transformedWidth);
-	}
-
 	private _setHoverWidgetMaxDimensions(width: number | string, height: number | string): void {
-		this._setContentsDomNodeMaxDimensions(width, height);
-		this._setContainerDomNodeMaxDimensions(width, height);
-		this._setHoverTextMaxWidth(width);
+		ContentHoverWidget._applyMaxDimensions(this._hover.contentsDomNode, width, height);
+		ContentHoverWidget._applyMaxDimensions(this._hover.containerDomNode, width, height);
+		this._hover.containerDomNode.style.setProperty('--hover-maxWidth', typeof width === 'number' ? `${width}px` : width);
 		this._layoutContentWidget();
 	}
 
