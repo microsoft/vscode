@@ -278,7 +278,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private basicRenderElement(markdownValue: string, element: ChatTreeItem, index: number, templateData: IChatListItemTemplate) {
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete);
-		const result = this.renderMarkdown(new MarkdownString(markdownValue), element, templateData.elementDisposables, templateData, fillInIncompleteTokens);
+		const result = this.renderMarkdown(new MarkdownString(markdownValue, { supportThemeIcons: true }), element, templateData.elementDisposables, templateData, fillInIncompleteTokens);
 		dom.clearNode(templateData.value);
 		templateData.value.appendChild(result.element);
 		templateData.elementDisposables.add(result);
