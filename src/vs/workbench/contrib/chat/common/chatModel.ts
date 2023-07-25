@@ -122,7 +122,7 @@ class Response {
 
 			responsePart.resolvedContent?.then((content) => {
 				// Replace the resolving part's content with the resolved response
-				this._responseParts[responsePosition] = { string: new MarkdownString(content) };
+				this._responseParts[responsePosition] = { string: new MarkdownString(content), resolving: true };
 				this._updateRepr(quiet);
 			});
 		}
