@@ -268,6 +268,9 @@ export class OpenEditorsView extends ViewPane {
 		// Open when selecting via keyboard
 		this._register(this.list.onMouseMiddleClick(e => {
 			if (e && e.element instanceof OpenEditor) {
+				if (e.element.group.isPinned(e.element.editor) && this.configurationService.getValue('workbench.editor.preventPinnedTabClose')) {
+					return;
+				}
 				e.element.group.closeEditor(e.element.editor, { preserveFocus: true });
 			}
 		}));

@@ -103,6 +103,9 @@ export class NoTabsTitleControl extends TitleControl {
 
 	private onTitleAuxClick(e: MouseEvent): void {
 		if (e.button === 1 /* Middle Button */ && this.group.activeEditor) {
+			if (this.group.isPinned(this.group.activeEditor) && this.accessor.partOptions.preventPinnedTabClose) {
+				return;
+			}
 			EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
 			this.group.closeEditor(this.group.activeEditor);

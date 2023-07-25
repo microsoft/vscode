@@ -885,6 +885,11 @@ export class TabsTitleControl extends TitleControl {
 		// Close on mouse middle click
 		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, e => {
 			if (e.button === 1 /* Middle Button*/) {
+				const editor = this.group.getEditorByIndex(index);
+				if (editor && this.group.isPinned(editor) && this.accessor.partOptions.preventPinnedTabClose) {
+					return;
+				}
+
 				EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
 				this.blockRevealActiveTabOnce();
