@@ -14,7 +14,7 @@ import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { assertAllDefined } from 'vs/base/common/types';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
@@ -41,13 +41,8 @@ export class NotificationsList extends Disposable {
 		super();
 	}
 
-	show(focus?: boolean): void {
+	show(): void {
 		if (this.isVisible) {
-			if (focus) {
-				const list = assertIsDefined(this.list);
-				list.domFocus();
-			}
-
 			return; // already visible
 		}
 
@@ -58,12 +53,6 @@ export class NotificationsList extends Disposable {
 
 		// Make visible
 		this.isVisible = true;
-
-		// Focus
-		if (focus) {
-			const list = assertIsDefined(this.list);
-			list.domFocus();
-		}
 	}
 
 	private createNotificationsList(): void {
@@ -233,8 +222,8 @@ export class NotificationsList extends Disposable {
 	}
 
 	focusFirst(): void {
-		if (!this.isVisible || !this.list) {
-			return; // hidden
+		if (!this.list) {
+			return; // not created yet
 		}
 
 		this.list.focusFirst();
@@ -242,8 +231,8 @@ export class NotificationsList extends Disposable {
 	}
 
 	hasFocus(): boolean {
-		if (!this.isVisible || !this.listContainer) {
-			return false; // hidden
+		if (!this.listContainer) {
+			return false; // not created yet
 		}
 
 		return isAncestor(document.activeElement, this.listContainer);
