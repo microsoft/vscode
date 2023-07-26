@@ -6,7 +6,7 @@
 import 'vs/css!./media/tabstitlecontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, isPreventClosePinnedTab, EditorCloseMethod } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -886,10 +886,9 @@ export class TabsTitleControl extends TitleControl {
 		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, e => {
 			if (e.button === 1 /* Middle Button*/) {
 				const editor = this.group.getEditorByIndex(index);
-				if (editor && this.group.isSticky(editor)) {
-					if (this.accessor.partOptions.preventPinnedTabClose === 'always' || this.accessor.partOptions.preventPinnedTabClose === 'onlyMouse') {
-						return;
-					}
+
+				if (editor && (isPreventClosePinnedTab(this.group, editor, EditorCloseMethod.MOUSE, this.accessor.partOptions.preventPinnedTabClose))) {
+					return;
 				}
 
 				EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);

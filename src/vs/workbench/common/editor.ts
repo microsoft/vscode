@@ -1098,7 +1098,7 @@ interface IEditorPartConfiguration {
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;
 	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
-	preventPinnedTabClose?: 'always' | 'onlyKeyboard' | 'onlyMouse' | 'never';
+	preventPinnedTabClose?: PreventClosePinnedScene;
 	titleScrollbarSizing?: 'default' | 'large';
 	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;
@@ -1339,6 +1339,27 @@ class EditorResourceAccessorImpl {
 
 		return undefined;
 	}
+}
+
+export type PreventClosePinnedScene = 'always' | 'onlyKeyboard' | 'onlyMouse' | 'never' | undefined;
+
+export enum EditorCloseMethod {
+	UNKNOWN,
+	KEYBOARD,
+	MOUSE
+}
+
+export function isPreventClosePinnedTab(group: IEditorGroup, editor: EditorInput, closeMethod: EditorCloseMethod, preventScene: PreventClosePinnedScene): boolean {
+	if (!editor || !group.isSticky(editor)) {
+		return false;
+	}
+	switch (preventScene) {
+		case 'always': return true;
+		case 'never': return false;
+		case 'onlyMouse': return closeMethod === EditorCloseMethod.MOUSE;
+		case 'onlyKeyboard': return closeMethod === EditorCloseMethod.KEYBOARD;
+	}
+	return true;
 }
 
 export const EditorResourceAccessor = new EditorResourceAccessorImpl();

@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, IVisibleEditorPane, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, isEditorInputWithOptionsAndGroup, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, IVisibleEditorPane, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, isEditorInputWithOptionsAndGroup, IUntitledTextResourceEditorInput, isPreventClosePinnedTab, EditorCloseMethod, PreventClosePinnedScene } from 'vs/workbench/common/editor';
 import { TextCompareEditorVisibleContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, TextCompareEditorActiveContext, SideBySideEditorActiveContext } from 'vs/workbench/common/contextkeys';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -794,12 +794,9 @@ function registerCloseEditorCommands() {
 		if (keepStickyEditors && !resourceOrContext && !context) {
 			const activeGroup = editorGroupsService.activeGroup;
 			const activeEditor = activeGroup.activeEditor;
+			const preventClosePinned = accessor.get(IConfigurationService).getValue<PreventClosePinnedScene>('workbench.editor.preventPinnedTabClose');
 
-			const configurationService = accessor.get(IConfigurationService);
-			const preventClosePinned = configurationService.getValue<'always' | 'onlyKeyboard' | 'onlyMouse' | 'never'>('workbench.editor.preventPinnedTabClose');
-			const isNeedPreventClose = preventClosePinned === 'always' || preventClosePinned === 'onlyKeyboard';
-			if (activeEditor && activeGroup.isSticky(activeEditor) && isNeedPreventClose) {
-
+			if (activeEditor && isPreventClosePinnedTab(activeGroup, activeEditor, EditorCloseMethod.KEYBOARD, preventClosePinned)) {
 				// Open next recently active in same group
 				const nextNonStickyEditorInGroup = activeGroup.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: true })[0];
 				if (nextNonStickyEditorInGroup) {
