@@ -79,8 +79,10 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		if (this._isVisible) {
 			const notificationsList = assertIsDefined(this.notificationsList);
 
-			// Make visible and focus first
-			notificationsList.show(true /* focus */);
+			// Make visible
+			notificationsList.show();
+
+			// Focus first
 			notificationsList.focusFirst();
 
 			return; // already visible
