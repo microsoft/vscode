@@ -377,7 +377,7 @@ class MinimapLayout {
 			const partialLine = (scrollTop - viewportStartLineNumberVerticalOffset) / lineHeight;
 
 			let sliderTopAligned: number;
-			if (scrollTop > options.paddingTop) {
+			if (scrollTop >= options.paddingTop) {
 				sliderTopAligned = (viewportStartLineNumber - startLineNumber + topPaddingLineCount + partialLine) * minimapLineHeight / pixelRatio;
 			} else {
 				sliderTopAligned = (scrollTop / options.paddingTop) * (topPaddingLineCount + partialLine) * minimapLineHeight / pixelRatio;
