@@ -20,10 +20,10 @@ async function getLocationLinks<T>(
 	registry: LanguageFeatureRegistry<T>,
 	provide: (provider: T, model: ITextModel, position: Position) => ProviderResult<LocationLink | LocationLink[]>
 ): Promise<LocationLink[]> {
-	const provider = registry.ordered(model);
+	const providers = registry.ordered(model);
 
 	// get results
-	const promises = provider.map((provider): Promise<LocationLink | LocationLink[] | undefined> => {
+	const promises = providers.map((provider): Promise<LocationLink | LocationLink[] | undefined> => {
 		return Promise.resolve(provide(provider, model, position)).then(undefined, err => {
 			onUnexpectedExternalError(err);
 			return undefined;

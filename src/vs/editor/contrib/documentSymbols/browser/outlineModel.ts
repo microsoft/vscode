@@ -196,8 +196,8 @@ export class OutlineModel extends TreeElement {
 
 		const cts = new CancellationTokenSource(token);
 		const result = new OutlineModel(textModel.uri);
-		const provider = registry.ordered(textModel);
-		const promises = provider.map((provider, index) => {
+		const providers = registry.ordered(textModel);
+		const promises = providers.map((provider, index) => {
 
 			const id = TreeElement.findId(`provider_${index}`, result);
 			const group = new OutlineGroup(id, result, provider.displayName ?? 'Unknown Outline Provider', index);
@@ -221,8 +221,8 @@ export class OutlineModel extends TreeElement {
 		});
 
 		const listener = registry.onDidChange(() => {
-			const newProvider = registry.ordered(textModel);
-			if (!equals(newProvider, provider)) {
+			const newProviders = registry.ordered(textModel);
+			if (!equals(newProviders, providers)) {
 				cts.cancel();
 			}
 		});
@@ -433,14 +433,14 @@ export class OutlineModelService implements IOutlineModelService {
 	async getOrCreate(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
 		const registry = this._languageFeaturesService.documentSymbolProvider;
-		const provider = registry.ordered(textModel);
+		const providers = registry.ordered(textModel);
 
 		let data = this._cache.get(textModel.id);
-		if (!data || data.versionId !== textModel.getVersionId() || !equals(data.provider, provider)) {
+		if (!data || data.versionId !== textModel.getVersionId() || !equals(data.provider, providers)) {
 			const source = new CancellationTokenSource();
 			data = {
 				versionId: textModel.getVersionId(),
-				provider,
+				provider: providers,
 				promiseCnt: 0,
 				source,
 				promise: OutlineModel.create(registry, textModel, source.token),

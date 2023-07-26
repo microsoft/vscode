@@ -44,11 +44,11 @@ export class CodeLensModel {
 
 export async function getCodeLensModel(registry: LanguageFeatureRegistry<CodeLensProvider>, model: ITextModel, token: CancellationToken): Promise<CodeLensModel> {
 
-	const provider = registry.ordered(model);
+	const providers = registry.ordered(model);
 	const providerRanks = new Map<CodeLensProvider, number>();
 	const result = new CodeLensModel();
 
-	const promises = provider.map(async (provider, i) => {
+	const promises = providers.map(async (provider, i) => {
 
 		providerRanks.set(provider, i);
 
