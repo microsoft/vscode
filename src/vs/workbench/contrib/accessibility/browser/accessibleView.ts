@@ -25,7 +25,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId, AccessibleViewAction, AccessibleViewNextAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId, AccessibleViewAction, AccessibleViewNextAction, AccessibleViewPreviousAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 const enum DEFAULT {
 	WIDTH = 800,
@@ -247,7 +247,7 @@ class AccessibleView extends Disposable {
 	private _getNavigationAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string {
 		let hint = '';
 		const nextKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewNextAction.id)?.getAriaLabel();
-		const previousKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewNextAction.id)?.getAriaLabel();
+		const previousKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewPreviousAction.id)?.getAriaLabel();
 		if (this._configurationService.getValue(verbositySettingKey)) {
 			hint = (nextKeybinding && previousKeybinding) ? localize('chatAccessibleViewNextPreviousHint', "Show the next {0} or previous {1} item in the accessible view", nextKeybinding, previousKeybinding) : localize('chatAccessibleViewNextPreviousHintNoKb', "Show the next or previous item in the accessible view by configuring keybindings for Show Next / Previous in Accessible View");
 		}
