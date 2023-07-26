@@ -170,17 +170,17 @@ export async function tryGetUriListSnippet(document: SkinnyTextDocument, urlList
 	if (token.isCancellationRequested) {
 		return undefined;
 	}
-
+	const uriStrings: string[] = [];
 	const uris: vscode.Uri[] = [];
 	for (const resource of urlList.split(/\r?\n/g)) {
 		try {
 			uris.push(vscode.Uri.parse(resource));
+			uriStrings.push(resource);
 		} catch {
 			// noop
 		}
 	}
-
-	return createUriListSnippet(document, uris, title, placeHolderValue, pasteAsMarkdownLink, isExternalLink);
+	return createUriListSnippet(document, uris, uriStrings, title, placeHolderValue, pasteAsMarkdownLink, isExternalLink);
 }
 
 interface UriListSnippetOptions {
@@ -203,11 +203,10 @@ export function appendToLinkSnippet(
 	pasteAsMarkdownLink: boolean,
 	mdPath: string,
 	title: string,
-	uri: vscode.Uri,
+	uriString: string,
 	placeholderValue: number,
 	isExternalLink: boolean,
 ): vscode.SnippetString {
-	const uriString = uri.toString(true);
 	if (pasteAsMarkdownLink) {
 		snippet.appendText('[');
 		snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
@@ -221,6 +220,7 @@ export function appendToLinkSnippet(
 export function createUriListSnippet(
 	document: SkinnyTextDocument,
 	uris: readonly vscode.Uri[],
+	uriStrings?: readonly string[],
 	title = '',
 	placeholderValue = 0,
 	pasteAsMarkdownLink = true,
@@ -271,7 +271,9 @@ export function createUriListSnippet(
 			}
 		} else {
 			insertedLinkCount++;
-			snippet = appendToLinkSnippet(snippet, pasteAsMarkdownLink, mdPath, title, uri, placeholderValue, isExternalLink);
+			if (uriStrings) {
+				snippet = appendToLinkSnippet(snippet, pasteAsMarkdownLink, mdPath, title, uriStrings[i], placeholderValue, isExternalLink);
+			}
 		}
 
 		if (i < uris.length - 1 && uris.length > 1) {
