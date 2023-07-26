@@ -84,6 +84,6 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 				InlineChatController.get(editor)?.focus();
 			}
 		},
-		options: { type: AccessibleViewType.HelpMenu, ariaLabel: type === 'panelChat' ? localize('chat-help-label', "Chat accessibility help") : localize('inline-chat-label', "Inline chat accessibility help") }
+		options: { type: AccessibleViewType.Help, ariaLabel: type === 'panelChat' ? localize('chat-help-label', "Chat accessibility help") : localize('inline-chat-label', "Inline chat accessibility help") }
 	});
 }

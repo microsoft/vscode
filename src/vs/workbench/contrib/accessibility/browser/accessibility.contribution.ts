@@ -35,7 +35,7 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 	onClose() {
 		this._editor.focus();
 	}
-	options: IAccessibleViewOptions = { type: AccessibleViewType.HelpMenu, ariaLabel: localize('editor-help', "editor accessibility help"), readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
+	options: IAccessibleViewOptions = { type: AccessibleViewType.Help, ariaLabel: localize('editor-help', "editor accessibility help"), readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
 	verbositySettingKey = AccessibilityVerbositySettingId.Editor;
 	constructor(
 		private readonly _editor: ICodeEditor,

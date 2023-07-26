@@ -2971,7 +2971,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			if (!globTasksDetected && groupTasks.length === 0) {
-				groupTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build, true);
+				groupTasks = await this._findWorkspaceTasksInGroup(taskGroup, true);
 			}
 
 			const handleMultipleTasks = (areGlobTasks: boolean) => {

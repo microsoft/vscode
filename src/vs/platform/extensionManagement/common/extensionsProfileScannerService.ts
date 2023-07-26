@@ -127,8 +127,8 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 			await this.withProfileExtensions(profileLocation, profileExtensions => {
 				const result: IScannedProfileExtension[] = [];
 				for (const extension of profileExtensions) {
-					if (extensions.some(([e]) => areSameExtensions(e.identifier, extension.identifier) && e.manifest.version !== extension.version)) {
-						// Remove the existing extension with different version
+					if (extensions.some(([e]) => areSameExtensions(e.identifier, extension.identifier))) {
+						// Remove the existing extension
 						extensionsToRemove.push(extension);
 					} else {
 						result.push(extension);

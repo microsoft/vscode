@@ -117,19 +117,19 @@ class Response {
 			this._updateRepr(quiet);
 		} else {
 			// Add a new resolving part
-			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), resolving: true });
+			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), resolving: true }) - 1;
 			this._updateRepr(quiet);
 
 			responsePart.resolvedContent?.then((content) => {
 				// Replace the resolving part's content with the resolved response
-				this._responseParts[responsePosition] = { string: new MarkdownString(content) };
+				this._responseParts[responsePosition] = { string: new MarkdownString(content), resolving: true };
 				this._updateRepr(quiet);
 			});
 		}
 	}
 
 	private _updateRepr(quiet?: boolean) {
-		this._responseRepr = new MarkdownString(this._responseParts.map(r => r.string.value).join('\n'));
+		this._responseRepr = new MarkdownString(this._responseParts.map(r => r.string.value).join('\n\n'));
 		if (!quiet) {
 			this._onDidChangeValue.fire();
 		}
@@ -427,7 +427,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (obj.welcomeMessage) {
 			const content = obj.welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item);
-			this._welcomeMessage = new ChatWelcomeMessageModel(content, obj.responderUsername, obj.responderAvatarIconUri && URI.revive(obj.responderAvatarIconUri));
+			this._welcomeMessage = new ChatWelcomeMessageModel(this, content);
 		}
 
 		return requests.map((raw: ISerializableChatRequestData) => {
@@ -638,7 +638,18 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 		return this._id;
 	}
 
-	constructor(public readonly content: IChatWelcomeMessageContent[], public readonly username: string, public readonly avatarIconUri?: URI) {
+	constructor(
+		private readonly session: ChatModel,
+		public readonly content: IChatWelcomeMessageContent[],
+	) {
 		this._id = 'welcome_' + ChatWelcomeMessageModel.nextId++;
+	}
+
+	public get username(): string {
+		return this.session.responderUsername;
+	}
+
+	public get avatarIconUri(): URI | undefined {
+		return this.session.responderAvatarIconUri;
 	}
 }
