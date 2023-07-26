@@ -289,6 +289,7 @@ export class ContentHoverController extends Disposable {
 			statusBar,
 			setColorPicker: (widget) => colorPicker = widget,
 			onContentsChanged: () => this._widget.onContentsChanged(),
+			setMinimumDimensions: (dimensions: dom.Dimension) => this._widget.setMinimumDimensions(dimensions),
 			hide: () => this.hide()
 		};
 
@@ -776,6 +777,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		const maxRenderingHeight = this._findMaximumRenderingHeight() ?? Infinity;
 		this._setContainerDomNodeDimensions(dom.getTotalWidth(containerDomNode), Math.min(maxRenderingHeight, height));
 		this._setContentsDomNodeDimensions(dom.getTotalWidth(contentsDomNode), Math.min(maxRenderingHeight, height - SCROLLBAR_WIDTH));
+	}
+
+	public setMinimumDimensions(dimensions: dom.Dimension): void {
+		this._resizableNode.minSize = dimensions;
 	}
 
 	public onContentsChanged(): void {
