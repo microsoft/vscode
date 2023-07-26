@@ -26,7 +26,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
-import product from 'vs/platform/product/common/product';
 import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 // Actions
@@ -230,6 +229,12 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'description': localize('windowControlsOverlay', "Use window controls provided by the platform instead of our HTML-based window controls. Changes require a full restart to apply."),
 				'included': isWindows
 			},
+			'window.experimental.nativeContextMenuLocation': { // TODO@bpasero remove me eventually
+				'type': 'boolean',
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION,
+				'description': localize('nativeContextMenuLocation', "Let the OS handle positioning of the context menu in cases where it should appear under the mouse.")
+			},
 			'window.dialogStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom'],
@@ -257,14 +262,6 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
-			},
-			'window.experimental.useSandbox': { // TODO@bpasero remove me once sandbox is final
-				type: 'boolean',
-				description: localize('experimentalUseSandbox', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
-				default: product.quality !== 'stable', // disabled by default in stable for now
-				tags: product.quality === 'stable' ? ['experimental'] : undefined,
-				'scope': ConfigurationScope.APPLICATION,
-				ignoreSync: true
 			}
 		}
 	});
@@ -354,6 +351,10 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 			'log-level': {
 				type: ['string', 'array'],
 				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
+			},
+			'disable-chromium-sandbox': {
+				type: 'boolean',
+				description: localize('argv.disableChromiumSandbox', "Disables the Chromium sandbox. This is useful when running VS Code as elevated on Linux and running under Applocker on Windows.")
 			}
 		}
 	};

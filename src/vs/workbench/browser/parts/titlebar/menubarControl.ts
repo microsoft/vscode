@@ -459,9 +459,6 @@ export class CustomMenubarControl extends MenubarControl {
 		const state = this.updateService.state;
 
 		switch (state.type) {
-			case StateType.Uninitialized:
-				return null;
-
 			case StateType.Idle:
 				return new Action('update.check', localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
 					this.updateService.checkForUpdates(true));
@@ -486,6 +483,9 @@ export class CustomMenubarControl extends MenubarControl {
 			case StateType.Ready:
 				return new Action('update.restart', localize({ key: 'restartToUpdate', comment: ['&& denotes a mnemonic'] }, "Restart to &&Update"), undefined, true, () =>
 					this.updateService.quitAndInstall());
+
+			default:
+				return null;
 		}
 	}
 

@@ -1,7 +1,7 @@
 {
   "name": "vscode-markdown-languageserver",
   "description": "Markdown language server",
-  "version": "0.3.0",
+  "version": "0.4.0-alpha.5",
   "author": "Microsoft Corporation",
   "license": "MIT",
   "engines": {
@@ -15,11 +15,11 @@
   ],
   "dependencies": {
     "@vscode/l10n": "^0.0.11",
-    "vscode-languageserver": "^8.0.2",
-    "vscode-languageserver-textdocument": "^1.0.5",
-    "vscode-languageserver-types": "^3.17.1",
-    "vscode-markdown-languageservice": "^0.3.0",
-    "vscode-uri": "^3.0.3"
+    "vscode-languageserver": "^8.1.0",
+    "vscode-languageserver-textdocument": "^1.0.8",
+    "vscode-languageserver-types": "^3.17.3",
+    "vscode-markdown-languageservice": "^0.4.0-alpha.5",
+    "vscode-uri": "^3.0.7"
   },
   "devDependencies": {
     "@types/node": "16.x"

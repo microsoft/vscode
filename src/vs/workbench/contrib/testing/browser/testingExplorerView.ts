@@ -17,8 +17,9 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { fuzzyContains } from 'vs/base/common/strings';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
@@ -40,22 +41,21 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
-import { ByNameTestItemElement, HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
+import { TreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/treeProjection';
+import { ListProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/listProjection';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import { TestingObjectTree } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingObjectTree';
 import { ISerializedTestTreeCollapseState } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingViewState';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
-import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
-import { TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
+import { CountSummary, ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
+import { TestingConfigKeys, TestingCountBadge, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
@@ -66,10 +66,12 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
 import { ITestRunProfile, InternalTestItem, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 const enum LastFocusState {
 	Input,
@@ -81,8 +83,10 @@ export class TestingExplorerView extends ViewPane {
 	private filterActionBar = this._register(new MutableDisposable());
 	private container!: HTMLElement;
 	private treeHeader!: HTMLElement;
+	private countSummary: CountSummary | undefined;
 	private discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly filter = this._register(new MutableDisposable<TestingExplorerFilter>());
+	private readonly badgeDisposable = this._register(new MutableDisposable<IDisposable>());
 	private readonly filterFocusListener = this._register(new MutableDisposable());
 	private readonly dimensions = { width: 0, height: 0 };
 	private lastFocusState = LastFocusState.Input;
@@ -93,6 +97,7 @@ export class TestingExplorerView extends ViewPane {
 
 	constructor(
 		options: IViewletViewOptions,
+		@IActivityService private readonly activityService: IActivityService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -121,6 +126,8 @@ export class TestingExplorerView extends ViewPane {
 		}));
 
 		this._register(testProfileService.onDidChange(() => this.updateActions()));
+		const onDidChangeTestingCountBadge = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('testing.countBadge'));
+		this._register(onDidChangeTestingCountBadge(this.renderActivityCount, this));
 	}
 
 	public override shouldShowWelcome() {
@@ -144,13 +151,6 @@ export class TestingExplorerView extends ViewPane {
 		const projection = this.viewModel.projection.value;
 		if (!projection) {
 			return { include: [], exclude: [] };
-		}
-
-		if (projection instanceof ByNameTestItemElement) {
-			return {
-				include: [...this.testService.collection.rootItems],
-				exclude: [],
-			};
 		}
 
 		// To calculate includes and excludes, we include the first children that
@@ -249,6 +249,23 @@ export class TestingExplorerView extends ViewPane {
 		return { include: [...include], exclude };
 	}
 
+	override render(): void {
+		super.render();
+		this._register(registerNavigableContainer({
+			focusNotifiers: [this],
+			focusNextWidget: () => {
+				if (!this.viewModel.tree.isDOMFocused()) {
+					this.viewModel.tree.domFocus();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (this.viewModel.tree.isDOMFocused()) {
+					this.filter.value?.focus();
+				}
+			}
+		}));
+	}
+
 	/**
 	 * @override
 	 */
@@ -269,6 +286,11 @@ export class TestingExplorerView extends ViewPane {
 				this.layoutBody();
 			}
 		}));
+		this._register(this.testProgressService.onCountChange((text: CountSummary) => {
+			this.countSummary = text;
+			this.renderActivityCount();
+		}));
+		this.testProgressService.update();
 
 		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility);
@@ -417,6 +439,27 @@ export class TestingExplorerView extends ViewPane {
 		}
 	}
 
+	private renderActivityCount() {
+		const countBadgeType = this.configurationService.getValue<TestingCountBadge>(TestingConfigKeys.CountBadge);
+		if (!this.countSummary || countBadgeType === TestingCountBadge.Off || this.countSummary[countBadgeType] === 0) {
+			this.badgeDisposable.value = undefined;
+		} else {
+			const badge = new NumberBadge(this.countSummary[countBadgeType], num => this.getLocalizedBadgeString(countBadgeType, num));
+			this.badgeDisposable.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge });
+		}
+	}
+
+	private getLocalizedBadgeString(countBadgeType: TestingCountBadge, count: number): string {
+		switch (countBadgeType) {
+			case TestingCountBadge.Passed:
+				return localize('testingCountBadgePassed', '{0} passed tests', count);
+			case TestingCountBadge.Skipped:
+				return localize('testingCountBadgeSkipped', '{0} skipped tests', count);
+			default:
+				return localize('testingCountBadgeFailed', '{0} failed tests', count);
+		}
+	}
+
 	/**
 	 * @override
 	 */
@@ -515,6 +558,7 @@ class TestingExplorerViewModel extends Disposable {
 		@ITestingPeekOpener private readonly peekOpener: ITestingPeekOpener,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
+		@ICommandService commandService: ICommandService,
 	) {
 		super();
 
@@ -541,7 +585,8 @@ class TestingExplorerViewModel extends Disposable {
 				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
-				findWidgetEnabled: false
+				findWidgetEnabled: false,
+				openOnSingleClick: false,
 			}) as TestingObjectTree<FuzzyScore>;
 
 
@@ -586,6 +631,12 @@ class TestingExplorerViewModel extends Disposable {
 			filterState.fuzzy.onDidChange,
 			testService.excluded.onTestExclusionsChanged,
 		)(this.tree.refilter, this.tree));
+
+		this._register(this.tree.onDidOpen(e => {
+			if (e.element instanceof TestItemTreeElement && !e.element.children.size && e.element.test.item.uri) {
+				commandService.executeCommand('vscode.revealTest', e.element.test.item.extId);
+			}
+		}));
 
 		this._register(this.tree);
 
@@ -847,9 +898,9 @@ class TestingExplorerViewModel extends Disposable {
 
 		const lastState = this.lastViewState.get({});
 		if (this._viewMode.get() === TestExplorerViewMode.List) {
-			this.projection.value = this.instantiationService.createInstance(HierarchicalByNameProjection, lastState);
+			this.projection.value = this.instantiationService.createInstance(ListProjection, lastState);
 		} else {
-			this.projection.value = this.instantiationService.createInstance(HierarchicalByLocationProjection, lastState);
+			this.projection.value = this.instantiationService.createInstance(TreeProjection, lastState);
 		}
 
 		const scheduler = new RunOnceScheduler(() => this.applyProjectionChanges(), 200);
@@ -1003,7 +1054,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 		for (let e: TestItemTreeElement | null = element; e; e = e.parent) {
 			// start as included if the first glob is a negation
 			let included = this.state.globList[0].include === false ? FilterResult.Include : FilterResult.Inherit;
-			const data = e.label.toLowerCase();
+			const data = e.test.item.label.toLowerCase();
 
 			for (const { include, text } of this.state.globList) {
 				if (fuzzy ? fuzzyContains(data, text) : data.includes(text)) {
@@ -1056,9 +1107,11 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 			}
 		}
 
+		const sa = a.test.item.sortText;
+		const sb = b.test.item.sortText;
 		// If tests are in the same location and there's no preferred sortText,
 		// keep the extension's insertion order (#163449).
-		return inSameLocation && !a.sortText && !b.sortText ? 0 : (a.sortText || a.label).localeCompare(b.sortText || b.label);
+		return inSameLocation && !sa && !sb ? 0 : (sa || a.test.item.label).localeCompare(sb || b.test.item.label);
 	}
 }
 
@@ -1102,7 +1155,7 @@ class TestExplorerActionRunner extends ActionRunner {
 }
 
 const getLabelForTestTreeElement = (element: TestItemTreeElement) => {
-	let label = labelForTestInState(element.description || element.label, element.state);
+	let label = labelForTestInState(element.description || element.test.item.label, element.state);
 
 	if (element instanceof TestItemTreeElement) {
 		if (element.duration !== undefined) {
@@ -1137,7 +1190,7 @@ class ListAccessibilityProvider implements IListAccessibilityProvider<TestExplor
 
 class TreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelProvider<TestExplorerTreeElement> {
 	getKeyboardNavigationLabel(element: TestExplorerTreeElement) {
-		return element instanceof TestTreeErrorMessage ? element.message : element.label;
+		return element instanceof TestTreeErrorMessage ? element.message : element.test.item.label;
 	}
 }
 
@@ -1199,18 +1252,18 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 	}
 }
 
-interface IActionableElementTemplateData {
+interface ITestElementTemplateData {
 	current?: TestItemTreeElement;
 	label: HTMLElement;
 	icon: HTMLElement;
 	wrapper: HTMLElement;
 	actionBar: ActionBar;
-	elementDisposable: IDisposable[];
-	templateDisposable: IDisposable[];
+	elementDisposable: DisposableStore;
+	templateDisposable: DisposableStore;
 }
 
 class TestItemRenderer extends Disposable
-	implements ITreeRenderer<TestItemTreeElement, FuzzyScore, IActionableElementTemplateData> {
+	implements ITreeRenderer<TestItemTreeElement, FuzzyScore, ITestElementTemplateData> {
 	public static readonly ID = 'testItem';
 
 	constructor(
@@ -1233,48 +1286,47 @@ class TestItemRenderer extends Disposable
 	/**
 	 * @inheritdoc
 	 */
-	public renderTemplate(container: HTMLElement): IActionableElementTemplateData {
+	public renderTemplate(container: HTMLElement): ITestElementTemplateData {
 		const wrapper = dom.append(container, dom.$('.test-item'));
 
 		const icon = dom.append(wrapper, dom.$('.computed-state'));
 		const label = dom.append(wrapper, dom.$('.label'));
+		const disposable = new DisposableStore();
 
 		dom.append(wrapper, dom.$(ThemeIcon.asCSSSelector(icons.testingHiddenIcon)));
-		const actionBar = new ActionBar(wrapper, {
+		const actionBar = disposable.add(new ActionBar(wrapper, {
 			actionRunner: this.actionRunner,
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
 					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
 					: undefined
-		});
+		}));
 
-		const crListener = this.crService.onDidChange(changed => {
+		disposable.add(this.crService.onDidChange(changed => {
 			if (templateData.current && (!changed || changed === templateData.current.test.item.extId)) {
 				this.fillActionBar(templateData.current, templateData);
 			}
-		});
+		}));
 
-		const templateData: IActionableElementTemplateData = { wrapper, label, actionBar, icon, elementDisposable: [], templateDisposable: [actionBar, crListener] };
+		const templateData: ITestElementTemplateData = { wrapper, label, actionBar, icon, elementDisposable: new DisposableStore(), templateDisposable: disposable };
 		return templateData;
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	disposeTemplate(templateData: IActionableElementTemplateData): void {
-		dispose(templateData.templateDisposable);
-		templateData.templateDisposable = [];
+	disposeTemplate(templateData: ITestElementTemplateData): void {
+		templateData.templateDisposable.clear();
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	disposeElement(_element: ITreeNode<TestItemTreeElement, FuzzyScore>, _: number, templateData: IActionableElementTemplateData): void {
-		dispose(templateData.elementDisposable);
-		templateData.elementDisposable = [];
+	disposeElement(_element: ITreeNode<TestItemTreeElement, FuzzyScore>, _: number, templateData: ITestElementTemplateData): void {
+		templateData.elementDisposable.clear();
 	}
 
-	private fillActionBar(element: TestItemTreeElement, data: IActionableElementTemplateData) {
+	private fillActionBar(element: TestItemTreeElement, data: ITestElementTemplateData) {
 		const { actions, contextOverlay } = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.crService, this.profiles, element);
 		data.actionBar.domNode.classList.toggle('testing-is-continuous-run', !!contextOverlay.getContextKeyValue(TestingContextKeys.isContinuousModeOn.key));
 		data.actionBar.clear();
@@ -1285,10 +1337,17 @@ class TestItemRenderer extends Disposable
 	/**
 	 * @inheritdoc
 	 */
-	public renderElement(node: ITreeNode<TestItemTreeElement, FuzzyScore>, _depth: number, data: IActionableElementTemplateData): void {
+	public renderElement(node: ITreeNode<TestItemTreeElement, FuzzyScore>, _depth: number, data: ITestElementTemplateData): void {
+		data.elementDisposable.clear();
 		data.current = node.element;
 		this.fillActionBar(node.element, data);
 
+
+		data.elementDisposable.add(node.element.onChange(() => this._renderElement(node, data)));
+		this._renderElement(node, data);
+	}
+
+	public _renderElement(node: ITreeNode<TestItemTreeElement, FuzzyScore>, data: ITestElementTemplateData): void {
 		const testHidden = this.testService.excluded.contains(node.element.test);
 		data.wrapper.classList.toggle('test-is-hidden', testHidden);
 
@@ -1303,8 +1362,8 @@ class TestItemRenderer extends Disposable
 		}
 
 		data.label.title = getLabelForTestTreeElement(node.element);
-		if (node.element.label.trim()) {
-			dom.reset(data.label, ...renderLabelWithIcons(node.element.label));
+		if (node.element.test.item.label.trim()) {
+			dom.reset(data.label, ...renderLabelWithIcons(node.element.test.item.label));
 		} else {
 			data.label.textContent = String.fromCharCode(0xA0); // &nbsp;
 		}

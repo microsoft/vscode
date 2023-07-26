@@ -9,19 +9,26 @@ declare module 'vscode' {
 
 	export interface DocumentDropEdit {
 		/**
+		 * Identifies the type of edit.
+		 *
+		 * This id should be unique within the extension but does not need to be unique across extensions.
+		 */
+		id?: string;
+
+		/**
+		 * The relative priority of this edit. Higher priority items are shown first in the UI.
+		 *
+		 * Defaults to `0`.
+		 */
+		priority?: number;
+
+		/**
 		 * Human readable label that describes the edit.
 		 */
 		label?: string;
 	}
 
 	export interface DocumentDropEditProviderMetadata {
-		/**
-		 * Unique identifier for the provider.
-		 *
-		 * This id should be unique within the extension but does not need to be unique across extensions.
-		 */
-		readonly id: string;
-
 		/**
 		 * List of data transfer types that the provider supports.
 		 *

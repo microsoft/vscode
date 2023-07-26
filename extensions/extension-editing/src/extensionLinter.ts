@@ -30,7 +30,6 @@ const svgsNotValid = l10n.t("SVGs are not a valid image source.");
 const embeddedSvgsNotValid = l10n.t("Embedded SVGs are not a valid image source.");
 const dataUrlsNotValid = l10n.t("Data URLs are not a valid image source.");
 const relativeUrlRequiresHttpsRepository = l10n.t("Relative image URLs require a repository with HTTPS protocol to be specified in the package.json.");
-const relativeIconUrlRequiresHttpsRepository = l10n.t("An icon requires a repository with HTTPS protocol to be specified in this package.json.");
 const relativeBadgeUrlRequiresHttpsRepository = l10n.t("Relative badge URLs require a repository with HTTPS protocol to be specified in this package.json.");
 const apiProposalNotListed = l10n.t("This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
 const implicitActivationEvent = l10n.t("This activation event cannot be explicitly listed by your extension.");
@@ -458,11 +457,10 @@ export class ExtensionLinter {
 			diagnostics.push(new Diagnostic(range, dataUrlsNotValid, DiagnosticSeverity.Warning));
 		}
 
-		if (!hasScheme && !info.hasHttpsRepository) {
+		if (!hasScheme && !info.hasHttpsRepository && context !== Context.ICON) {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			const message = (() => {
 				switch (context) {
-					case Context.ICON: return relativeIconUrlRequiresHttpsRepository;
 					case Context.BADGE: return relativeBadgeUrlRequiresHttpsRepository;
 					default: return relativeUrlRequiresHttpsRepository;
 				}

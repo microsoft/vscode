@@ -10,7 +10,7 @@ const _registry: [ServiceIdentifier<any>, SyncDescriptor<any>][] = [];
 
 export const enum InstantiationType {
 	/**
-	 * Instantiate this service as soon as a consumer depdends on it. _Note_ that this
+	 * Instantiate this service as soon as a consumer depends on it. _Note_ that this
 	 * is more costly as some upfront work is done that is likely not needed
 	 */
 	Eager = 0,

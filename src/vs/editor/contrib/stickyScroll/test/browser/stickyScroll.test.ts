@@ -19,6 +19,8 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 suite('Sticky Scroll Tests', () => {
 
@@ -27,6 +29,10 @@ suite('Sticky Scroll Tests', () => {
 		[ILogService, new NullLogService()],
 		[IContextMenuService, new class extends mock<IContextMenuService>() { }],
 		[ILanguageConfigurationService, new TestLanguageConfigurationService()],
+		[IEnvironmentService, new class extends mock<IEnvironmentService>() {
+			override isBuilt: boolean = true;
+			override isExtensionDevelopment: boolean = false;
+		}],
 		[ILanguageFeatureDebounceService, new SyncDescriptor(LanguageFeatureDebounceService)],
 	);
 
@@ -110,120 +116,124 @@ suite('Sticky Scroll Tests', () => {
 		};
 	}
 
-	test('Testing the function getCandidateStickyLinesIntersecting', async () => {
-		const model = createTextModel(text);
-		await withAsyncTestCodeEditor(model, {
-			stickyScroll: {
-				enabled: true,
-				maxLineCount: 5,
-				defaultModel: 'outlineModel'
-			}, serviceCollection: serviceCollection
-		}, async (editor, _viewModel, instantiationService) => {
-			const languageService = instantiationService.get(ILanguageFeaturesService);
-			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
-			languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
-			const provider: StickyLineCandidateProvider = new StickyLineCandidateProvider(editor, languageService, languageConfigurationService);
-			await provider.update();
-			assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 1, endLineNumber: 4 }), [new StickyLineCandidate(1, 2, 1)]);
-			assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 8, endLineNumber: 10 }), [new StickyLineCandidate(7, 11, 1), new StickyLineCandidate(9, 11, 2), new StickyLineCandidate(10, 10, 3)]);
-			assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 10, endLineNumber: 13 }), [new StickyLineCandidate(7, 11, 1), new StickyLineCandidate(9, 11, 2), new StickyLineCandidate(10, 10, 3)]);
+	test('Testing the function getCandidateStickyLinesIntersecting', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const model = createTextModel(text);
+			await withAsyncTestCodeEditor(model, {
+				stickyScroll: {
+					enabled: true,
+					maxLineCount: 5,
+					defaultModel: 'outlineModel'
+				}, serviceCollection: serviceCollection
+			}, async (editor, _viewModel, instantiationService) => {
+				const languageService = instantiationService.get(ILanguageFeaturesService);
+				const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+				languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
+				const provider: StickyLineCandidateProvider = new StickyLineCandidateProvider(editor, languageService, languageConfigurationService);
+				await provider.update();
+				assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 1, endLineNumber: 4 }), [new StickyLineCandidate(1, 2, 1)]);
+				assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 8, endLineNumber: 10 }), [new StickyLineCandidate(7, 11, 1), new StickyLineCandidate(9, 11, 2), new StickyLineCandidate(10, 10, 3)]);
+				assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 10, endLineNumber: 13 }), [new StickyLineCandidate(7, 11, 1), new StickyLineCandidate(9, 11, 2), new StickyLineCandidate(10, 10, 3)]);
 
-			provider.dispose();
-			model.dispose();
+				provider.dispose();
+				model.dispose();
+			});
 		});
 	});
 
-	test('issue #157180: Render the correct line corresponding to the scope definition', async () => {
+	test('issue #157180: Render the correct line corresponding to the scope definition', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const model = createTextModel(text);
+			await withAsyncTestCodeEditor(model, {
+				stickyScroll: {
+					enabled: true,
+					maxLineCount: 5,
+					defaultModel: 'outlineModel'
+				}, serviceCollection
+			}, async (editor, _viewModel, instantiationService) => {
 
-		const model = createTextModel(text);
-		await withAsyncTestCodeEditor(model, {
-			stickyScroll: {
-				enabled: true,
-				maxLineCount: 5,
-				defaultModel: 'outlineModel'
-			}, serviceCollection
-		}, async (editor, _viewModel, instantiationService) => {
+				const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
+				const lineHeight: number = editor.getOption(EditorOption.lineHeight);
+				const languageService: ILanguageFeaturesService = instantiationService.get(ILanguageFeaturesService);
+				languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
+				await stickyScrollController.stickyScrollCandidateProvider.update();
+				let state;
 
-			const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
-			const lineHeight: number = editor.getOption(EditorOption.lineHeight);
-			const languageService: ILanguageFeaturesService = instantiationService.get(ILanguageFeaturesService);
-			languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
-			await stickyScrollController.stickyScrollCandidateProvider.update();
-			let state;
+				editor.setScrollTop(1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, [1]);
 
-			editor.setScrollTop(1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, [1]);
+				editor.setScrollTop(lineHeight + 1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, [1]);
 
-			editor.setScrollTop(lineHeight + 1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, [1]);
+				editor.setScrollTop(4 * lineHeight + 1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, []);
 
-			editor.setScrollTop(4 * lineHeight + 1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, []);
+				editor.setScrollTop(8 * lineHeight + 1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, [7, 9]);
 
-			editor.setScrollTop(8 * lineHeight + 1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, [7, 9]);
+				editor.setScrollTop(9 * lineHeight + 1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, [7, 9]);
 
-			editor.setScrollTop(9 * lineHeight + 1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, [7, 9]);
+				editor.setScrollTop(10 * lineHeight + 1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, [7]);
 
-			editor.setScrollTop(10 * lineHeight + 1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, [7]);
-
-			stickyScrollController.dispose();
-			stickyScrollController.stickyScrollCandidateProvider.dispose();
-			model.dispose();
+				stickyScrollController.dispose();
+				stickyScrollController.stickyScrollCandidateProvider.dispose();
+				model.dispose();
+			});
 		});
 	});
 
-	test('issue #156268 : Do not reveal sticky lines when they are in a folded region ', async () => {
+	test('issue #156268 : Do not reveal sticky lines when they are in a folded region ', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const model = createTextModel(text);
+			await withAsyncTestCodeEditor(model, {
+				stickyScroll: {
+					enabled: true,
+					maxLineCount: 5,
+					defaultModel: 'outlineModel'
+				}, serviceCollection
+			}, async (editor, viewModel, instantiationService) => {
 
-		const model = createTextModel(text);
-		await withAsyncTestCodeEditor(model, {
-			stickyScroll: {
-				enabled: true,
-				maxLineCount: 5,
-				defaultModel: 'outlineModel'
-			}, serviceCollection
-		}, async (editor, viewModel, instantiationService) => {
+				const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
+				const lineHeight = editor.getOption(EditorOption.lineHeight);
 
-			const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
-			const lineHeight = editor.getOption(EditorOption.lineHeight);
+				const languageService = instantiationService.get(ILanguageFeaturesService);
+				languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
+				await stickyScrollController.stickyScrollCandidateProvider.update();
+				editor.setHiddenAreas([{ startLineNumber: 2, endLineNumber: 2, startColumn: 1, endColumn: 1 }, { startLineNumber: 10, endLineNumber: 11, startColumn: 1, endColumn: 1 }]);
+				let state;
 
-			const languageService = instantiationService.get(ILanguageFeaturesService);
-			languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
-			await stickyScrollController.stickyScrollCandidateProvider.update();
-			editor.setHiddenAreas([{ startLineNumber: 2, endLineNumber: 2, startColumn: 1, endColumn: 1 }, { startLineNumber: 10, endLineNumber: 11, startColumn: 1, endColumn: 1 }]);
-			let state;
+				editor.setScrollTop(1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, [1]);
 
-			editor.setScrollTop(1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, [1]);
+				editor.setScrollTop(lineHeight + 1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, []);
 
-			editor.setScrollTop(lineHeight + 1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, []);
+				editor.setScrollTop(6 * lineHeight + 1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, [7, 9]);
 
-			editor.setScrollTop(6 * lineHeight + 1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, [7, 9]);
+				editor.setScrollTop(7 * lineHeight + 1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, [7]);
 
-			editor.setScrollTop(7 * lineHeight + 1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, [7]);
+				editor.setScrollTop(10 * lineHeight + 1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, []);
 
-			editor.setScrollTop(10 * lineHeight + 1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, []);
-
-			stickyScrollController.dispose();
-			stickyScrollController.stickyScrollCandidateProvider.dispose();
-			model.dispose();
+				stickyScrollController.dispose();
+				stickyScrollController.stickyScrollCandidateProvider.dispose();
+				model.dispose();
+			});
 		});
 	});
 
@@ -274,49 +284,50 @@ suite('Sticky Scroll Tests', () => {
 		};
 	}
 
-	test('issue #159271 : render the correct widget state when the child scope starts on the same line as the parent scope', async () => {
+	test('issue #159271 : render the correct widget state when the child scope starts on the same line as the parent scope', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const model = createTextModel(textWithScopesWithSameStartingLines);
+			await withAsyncTestCodeEditor(model, {
+				stickyScroll: {
+					enabled: true,
+					maxLineCount: 5,
+					defaultModel: 'outlineModel'
+				}, serviceCollection
+			}, async (editor, _viewModel, instantiationService) => {
 
-		const model = createTextModel(textWithScopesWithSameStartingLines);
-		await withAsyncTestCodeEditor(model, {
-			stickyScroll: {
-				enabled: true,
-				maxLineCount: 5,
-				defaultModel: 'outlineModel'
-			}, serviceCollection
-		}, async (editor, _viewModel, instantiationService) => {
+				const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
+				await stickyScrollController.stickyScrollCandidateProvider.update();
+				const lineHeight = editor.getOption(EditorOption.lineHeight);
 
-			const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
-			await stickyScrollController.stickyScrollCandidateProvider.update();
-			const lineHeight = editor.getOption(EditorOption.lineHeight);
+				const languageService = instantiationService.get(ILanguageFeaturesService);
+				languageService.documentSymbolProvider.register('*', documentSymbolProviderForSecondTestModel());
+				await stickyScrollController.stickyScrollCandidateProvider.update();
+				let state;
 
-			const languageService = instantiationService.get(ILanguageFeaturesService);
-			languageService.documentSymbolProvider.register('*', documentSymbolProviderForSecondTestModel());
-			await stickyScrollController.stickyScrollCandidateProvider.update();
-			let state;
+				editor.setScrollTop(1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, [1, 2]);
 
-			editor.setScrollTop(1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, [1, 2]);
+				editor.setScrollTop(lineHeight + 1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, [1, 2]);
 
-			editor.setScrollTop(lineHeight + 1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, [1, 2]);
+				editor.setScrollTop(2 * lineHeight + 1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, [1]);
 
-			editor.setScrollTop(2 * lineHeight + 1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, [1]);
+				editor.setScrollTop(3 * lineHeight + 1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, [1]);
 
-			editor.setScrollTop(3 * lineHeight + 1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, [1]);
+				editor.setScrollTop(4 * lineHeight + 1);
+				state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.lineNumbers, []);
 
-			editor.setScrollTop(4 * lineHeight + 1);
-			state = stickyScrollController.findScrollWidgetState();
-			assert.deepStrictEqual(state.lineNumbers, []);
-
-			stickyScrollController.dispose();
-			stickyScrollController.stickyScrollCandidateProvider.dispose();
-			model.dispose();
+				stickyScrollController.dispose();
+				stickyScrollController.stickyScrollCandidateProvider.dispose();
+				model.dispose();
+			});
 		});
 	});
 });

@@ -19,7 +19,7 @@ import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/co
 import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
@@ -111,8 +111,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			experiments: experiments?.join('\n'),
 			restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
 			isUnsupported,
-			githubAccessToken,
-			isSandboxed: process.sandboxed
+			githubAccessToken
 		}, dataOverrides);
 		return this.issueMainService.openReporter(issueReporterData);
 	}

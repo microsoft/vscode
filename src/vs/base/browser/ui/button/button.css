@@ -132,3 +132,41 @@
 	margin: 0 0.2em;
 	color: inherit !important;
 }
+
+/* default color styles - based on CSS variables */
+
+.monaco-button.default-colors,
+.monaco-button-dropdown.default-colors > .monaco-button{
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+}
+
+.monaco-button.default-colors:hover,
+.monaco-button-dropdown.default-colors > .monaco-button:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.monaco-button.default-colors.secondary,
+.monaco-button-dropdown.default-colors > .monaco-button.secondary {
+	color: var(--vscode-button-secondaryForeground);
+	background-color: var(--vscode-button-secondaryBackground);
+}
+
+.monaco-button.default-colors.secondary:hover,
+.monaco-button-dropdown.default-colors > .monaco-button.secondary:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.monaco-button-dropdown.default-colors .monaco-button-dropdown-separator {
+	background-color: var(--vscode-button-background);
+	border-top: 1px solid var(--vscode-button-border);
+	border-bottom: 1px solid var(--vscode-button-border);
+}
+
+.monaco-button-dropdown.default-colors .monaco-button.secondary + .monaco-button-dropdown-separator {
+	background-color: var(--vscode-button-secondaryBackground);
+}
+
+.monaco-button-dropdown.default-colors .monaco-button-dropdown-separator > div {
+	background-color: var(--vscode-button-separator);
+}

@@ -10,7 +10,7 @@ import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { randomPath } from 'vs/base/common/extpath';
 import { FileAccess } from 'vs/base/common/network';
-import { join, sep } from 'vs/base/common/path';
+import { basename, dirname, join, sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { configureFlushOnWrite, Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
@@ -88,6 +88,14 @@ flakySuite('PFS', function () {
 		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
 
 		await Promises.rm(testDir, RimRafMode.MOVE);
+		assert.ok(!fs.existsSync(testDir));
+	});
+
+	test('rimraf - simple - move (with moveToPath)', async () => {
+		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
+		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+
+		await Promises.rm(testDir, RimRafMode.MOVE, join(dirname(testDir), `${basename(testDir)}.vsctmp`));
 		assert.ok(!fs.existsSync(testDir));
 	});
 

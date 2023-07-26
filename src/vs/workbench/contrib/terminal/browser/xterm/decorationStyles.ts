@@ -11,8 +11,8 @@ import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/life
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 const enum DecorationStyles {

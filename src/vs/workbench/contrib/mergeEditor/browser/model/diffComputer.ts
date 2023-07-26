@@ -41,6 +41,7 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 			{
 				ignoreTrimWhitespace: false,
 				maxComputationTimeMs: 0,
+				computeMoves: false,
 			},
 			diffAlgorithm,
 		);

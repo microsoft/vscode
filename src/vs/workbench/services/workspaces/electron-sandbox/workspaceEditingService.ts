@@ -154,7 +154,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	}
 
 	async enterWorkspace(workspaceUri: URI): Promise<void> {
-		const stopped = await this.extensionService.stopExtensionHosts();
+		const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Opening a multi-root workspace."));
 		if (!stopped) {
 			return;
 		}

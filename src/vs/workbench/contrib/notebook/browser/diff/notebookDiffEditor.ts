@@ -151,7 +151,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
-		this._notebookOptions = new NotebookOptions(this.configurationService, notebookExecutionStateService);
+		this._notebookOptions = new NotebookOptions(this.configurationService, notebookExecutionStateService, false);
 		this._register(this._notebookOptions);
 		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
 		this._fontInfo = FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value));
@@ -181,6 +181,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	async focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'output' | 'editor' | 'container'): Promise<void> {
 		// throw new Error('Method not implemented.');
+	}
+
+	didFocusOutputInputChange(inputFocused: boolean): void {
+		// noop
 	}
 
 	getScrollTop() {
@@ -264,7 +268,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				mouseSupport: true,
 				multipleSelectionSupport: false,
 				typeNavigationEnabled: true,
-				additionalScrollHeight: 0,
+				paddingBottom: 0,
 				// transformOptimization: (isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				styleController: (_suffix: string) => { return this._list!; },
 				overrideStyles: {
@@ -364,7 +368,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					// output is already gone
 					removedItems.push(key);
 				} else {
-					const cellTop = this._list.getAbsoluteTopOfElement(value.cellInfo.diffElement);
+					const cellTop = this._list.getCellViewScrollTop(value.cellInfo.diffElement);
 					const outputIndex = cell.outputsViewModels.indexOf(key);
 					const outputOffset = value.cellInfo.diffElement.getOutputOffsetInCell(diffSide, outputIndex);
 					updateItems.push({
@@ -868,10 +872,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			}
 
 			if (!activeWebview.insetMapping.has(output.source)) {
-				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
+				const cellTop = this._list.getCellViewScrollTop(cellDiffViewModel);
 				await activeWebview.createOutput({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, getOffset());
 			} else {
-				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
+				const cellTop = this._list.getCellViewScrollTop(cellDiffViewModel);
 				const outputIndex = cellViewModel.outputsViewModels.indexOf(output.source);
 				const outputOffset = cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
 				activeWebview.updateScrollTops([{
@@ -923,7 +927,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				return;
 			}
 
-			const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
+			const cellTop = this._list.getCellViewScrollTop(cellDiffViewModel);
 			const outputIndex = cellViewModel.outputsViewModels.indexOf(displayOutput);
 			const outputOffset = cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
 			activeWebview.updateScrollTops([{

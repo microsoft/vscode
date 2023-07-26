@@ -18,10 +18,9 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import * as strings from 'vs/base/common/strings';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
-import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
+import { status } from 'vs/base/browser/ui/aria/aria';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
@@ -34,14 +33,18 @@ interface IFindOptions {
 	showCommonFindToggles?: boolean;
 	checkImeCompletionState?: boolean;
 	showResultCount?: boolean;
-	appendCaseSensitiveLabel?: string;
-	appendRegexLabel?: string;
-	appendWholeWordsLabel?: string;
+	appendCaseSensitiveActionId?: string;
+	appendRegexActionId?: string;
+	appendWholeWordsActionId?: string;
+	previousMatchActionId?: string;
+	nextMatchActionId?: string;
+	closeWidgetActionId?: string;
+	matchesLimit?: number;
 	type?: 'Terminal' | 'Webview';
 }
 
 const SIMPLE_FIND_WIDGET_INITIAL_WIDTH = 310;
-const MATCHES_COUNT_WIDTH = 68;
+const MATCHES_COUNT_WIDTH = 73;
 
 export abstract class SimpleFindWidget extends Widget {
 	private readonly _findInput: FindInput;
@@ -52,6 +55,7 @@ export abstract class SimpleFindWidget extends Widget {
 	private readonly _updateHistoryDelayer: Delayer<void>;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
+	private readonly _matchesLimit: number;
 	private _matchesCount: HTMLElement | undefined;
 
 	private _isVisible: boolean = false;
@@ -67,6 +71,8 @@ export abstract class SimpleFindWidget extends Widget {
 		private readonly _keybindingService: IKeybindingService
 	) {
 		super();
+
+		this._matchesLimit = options.matchesLimit ?? Number.MAX_SAFE_INTEGER;
 
 		this._findInput = this._register(new ContextScopedFindInput(null, contextViewService, {
 			label: NLS_FIND_INPUT_LABEL,
@@ -85,9 +91,9 @@ export abstract class SimpleFindWidget extends Widget {
 				}
 			},
 			showCommonFindToggles: options.showCommonFindToggles,
-			appendCaseSensitiveLabel: options.appendCaseSensitiveLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindCaseSensitive) : undefined,
-			appendRegexLabel: options.appendRegexLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindRegex) : undefined,
-			appendWholeWordsLabel: options.appendWholeWordsLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindWholeWord) : undefined,
+			appendCaseSensitiveLabel: options.appendCaseSensitiveActionId ? this._getKeybinding(options.appendCaseSensitiveActionId) : undefined,
+			appendRegexLabel: options.appendRegexActionId ? this._getKeybinding(options.appendRegexActionId) : undefined,
+			appendWholeWordsLabel: options.appendWholeWordsActionId ? this._getKeybinding(options.appendWholeWordsActionId) : undefined,
 			showHistoryHint: () => showHistoryKeybindingHint(_keybindingService),
 			inputBoxStyles: defaultInputBoxStyles,
 			toggleStyles: defaultToggleStyles
@@ -127,7 +133,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}));
 
 		this.prevBtn = this._register(new SimpleButton({
-			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
+			label: NLS_PREVIOUS_MATCH_BTN_LABEL + (options.previousMatchActionId ? this._getKeybinding(options.previousMatchActionId) : ''),
 			icon: findPreviousMatchIcon,
 			onTrigger: () => {
 				this.find(true);
@@ -135,7 +141,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}));
 
 		this.nextBtn = this._register(new SimpleButton({
-			label: NLS_NEXT_MATCH_BTN_LABEL,
+			label: NLS_NEXT_MATCH_BTN_LABEL + (options.nextMatchActionId ? this._getKeybinding(options.nextMatchActionId) : ''),
 			icon: findNextMatchIcon,
 			onTrigger: () => {
 				this.find(false);
@@ -143,7 +149,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}));
 
 		const closeBtn = this._register(new SimpleButton({
-			label: NLS_CLOSE_BTN_LABEL,
+			label: NLS_CLOSE_BTN_LABEL + (options.closeWidgetActionId ? this._getKeybinding(options.closeWidgetActionId) : ''),
 			icon: widgetClose,
 			onTrigger: () => {
 				this.hide();
@@ -251,7 +257,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 
 		this._isVisible = true;
-		this.updateButtons(this._foundMatch);
+		this.updateResultCount();
 		this.layout();
 
 		setTimeout(() => {
@@ -354,17 +360,23 @@ export abstract class SimpleFindWidget extends Widget {
 
 		const count = await this._getResultCount();
 		this._matchesCount.innerText = '';
+		const showRedOutline = (this.inputValue.length > 0 && count?.resultCount === 0);
+		this._matchesCount.classList.toggle('no-results', showRedOutline);
 		let label = '';
-		this._matchesCount.classList.toggle('no-results', false);
-		if (count?.resultCount !== undefined && count?.resultCount === 0) {
-			label = NLS_NO_RESULTS;
-			if (!!this.inputValue) {
-				this._matchesCount.classList.toggle('no-results', true);
+		if (count?.resultCount) {
+			let matchesCount: string = String(count.resultCount);
+			if (count.resultCount >= this._matchesLimit) {
+				matchesCount += '+';
 			}
-		} else if (count?.resultCount) {
-			label = strings.format(NLS_MATCHES_LOCATION, count.resultIndex + 1, count?.resultCount);
+			let matchesPosition: string = String(count.resultIndex + 1);
+			if (matchesPosition === '0') {
+				matchesPosition = '?';
+			}
+			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
+		} else {
+			label = NLS_NO_RESULTS;
 		}
-		alertFn(this._announceSearchResults(label, this.inputValue));
+		status(this._announceSearchResults(label, this.inputValue));
 		this._matchesCount.appendChild(document.createTextNode(label));
 		this._foundMatch = !!count && count.resultCount > 0;
 		this.updateButtons(this._foundMatch);

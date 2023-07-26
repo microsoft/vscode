@@ -50,8 +50,7 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		this.logService.error('UpdateService error:', err);
 
 		// only show message when explicitly checking for updates
-		const shouldShowMessage = this.state.type === StateType.CheckingForUpdates ? this.state.explicit : true;
-		const message: string | undefined = shouldShowMessage ? err : undefined;
+		const message = (this.state.type === StateType.CheckingForUpdates && this.state.explicit) ? err : undefined;
 		this.setState(State.Idle(UpdateType.Archive, message));
 	}
 

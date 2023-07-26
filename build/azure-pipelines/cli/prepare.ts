@@ -38,6 +38,7 @@ const makeQualityMap = <T>(m: (productJson: any, quality: string) => T): Record<
  */
 const setLauncherEnvironmentVars = () => {
 	const vars = new Map([
+		['VSCODE_CLI_ALREADY_PREPARED', 'true'],
 		['VSCODE_CLI_REMOTE_LICENSE_TEXT', product.serverLicense?.join('\\n')],
 		['VSCODE_CLI_REMOTE_LICENSE_PROMPT', product.serverLicensePrompt],
 		['VSCODE_CLI_AI_KEY', product.aiConfig?.cliKey],
@@ -54,6 +55,7 @@ const setLauncherEnvironmentVars = () => {
 		['VSCODE_CLI_TUNNEL_SERVICE_MUTEX', product.win32TunnelServiceMutex],
 		['VSCODE_CLI_TUNNEL_CLI_MUTEX', product.win32TunnelMutex],
 		['VSCODE_CLI_COMMIT', commit],
+		['VSCODE_CLI_DEFAULT_PARENT_DATA_DIR', product.dataFolderName],
 		[
 			'VSCODE_CLI_WIN32_APP_IDS',
 			!isOSS && JSON.stringify(

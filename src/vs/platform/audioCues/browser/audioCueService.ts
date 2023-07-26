@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,6 +22,7 @@ export interface IAudioCueService {
 	onEnabledChanged(cue: AudioCue): Event<void>;
 
 	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
+	playAudioCueLoop(cue: AudioCue, milliseconds: number): IDisposable;
 }
 
 export class AudioCueService extends Disposable implements IAudioCueService {
@@ -41,15 +42,16 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 
 	public async playAudioCue(cue: AudioCue, allowManyInParallel = false): Promise<void> {
 		if (this.isEnabled(cue)) {
-			await this.playSound(cue.sound, allowManyInParallel);
+			await this.playSound(cue.sound.getSound(), allowManyInParallel);
 		}
 	}
 
 	public async playAudioCues(cues: AudioCue[]): Promise<void> {
 		// Some audio cues might reuse sounds. Don't play the same sound twice.
-		const sounds = new Set(cues.filter(cue => this.isEnabled(cue)).map(cue => cue.sound));
+		const sounds = new Set(cues.filter(cue => this.isEnabled(cue)).map(cue => cue.sound.getSound()));
 		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
 	}
+
 
 	private getVolumeInPercent(): number {
 		const volume = this.configurationService.getValue<number>('audioCues.volume');
@@ -66,7 +68,6 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		if (!allowManyInParallel && this.playingSounds.has(sound)) {
 			return;
 		}
-
 		this.playingSounds.add(sound);
 		const url = FileAccess.asBrowserUri(`vs/platform/audioCues/browser/media/${sound.fileName}`).toString(true);
 
@@ -85,6 +86,23 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		} finally {
 			this.playingSounds.delete(sound);
 		}
+	}
+
+	public playAudioCueLoop(cue: AudioCue, milliseconds: number): IDisposable {
+		let playing = true;
+		const playSound = () => {
+			if (playing) {
+				this.playAudioCue(cue, true).finally(() => {
+					setTimeout(() => {
+						if (playing) {
+							playSound();
+						}
+					}, milliseconds);
+				});
+			}
+		};
+		playSound();
+		return toDisposable(() => playing = false);
 	}
 
 	private readonly obsoleteAudioCuesEnabled = observableFromEvent(
@@ -178,7 +196,6 @@ export class Sound {
 		return sound;
 	}
 
-
 	public static readonly error = Sound.register({ fileName: 'error.mp3' });
 	public static readonly warning = Sound.register({ fileName: 'warning.mp3' });
 	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.mp3' });
@@ -190,19 +207,46 @@ export class Sound {
 	public static readonly diffLineInserted = Sound.register({ fileName: 'diffLineInserted.mp3' });
 	public static readonly diffLineDeleted = Sound.register({ fileName: 'diffLineDeleted.mp3' });
 	public static readonly diffLineModified = Sound.register({ fileName: 'diffLineModified.mp3' });
+	public static readonly chatRequestSent = Sound.register({ fileName: 'chatRequestSent.mp3' });
+	public static readonly chatResponsePending = Sound.register({ fileName: 'chatResponsePending.mp3' });
+	public static readonly chatResponseReceived1 = Sound.register({ fileName: 'chatResponseReceived1.mp3' });
+	public static readonly chatResponseReceived2 = Sound.register({ fileName: 'chatResponseReceived2.mp3' });
+	public static readonly chatResponseReceived3 = Sound.register({ fileName: 'chatResponseReceived3.mp3' });
+	public static readonly chatResponseReceived4 = Sound.register({ fileName: 'chatResponseReceived4.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
 
+export class SoundSource {
+	constructor(
+		public readonly randomOneOf: Sound[]
+	) { }
+
+	public getSound(deterministic = false): Sound {
+		if (deterministic || this.randomOneOf.length === 1) {
+			return this.randomOneOf[0];
+		} else {
+			const index = Math.floor(Math.random() * this.randomOneOf.length);
+			return this.randomOneOf[index];
+		}
+	}
+}
+
 export class AudioCue {
 	private static _audioCues = new Set<AudioCue>();
-
 	private static register(options: {
 		name: string;
-		sound: Sound;
+		sound: Sound | {
+			/**
+			 * Gaming and other apps often play a sound variant when the same event happens again
+			 * for an improved experience. This option enables audio cues to play a random sound.
+			 */
+			randomOneOf: Sound[];
+		};
 		settingsKey: string;
 	}): AudioCue {
-		const audioCue = new AudioCue(options.sound, options.name, options.settingsKey);
+		const soundSource = new SoundSource('randomOneOf' in options.sound ? options.sound.randomOneOf : [options.sound]);
+		const audioCue = new AudioCue(soundSource, options.name, options.settingsKey);
 		AudioCue._audioCues.add(audioCue);
 		return audioCue;
 	}
@@ -309,8 +353,33 @@ export class AudioCue {
 		settingsKey: 'audioCues.diffLineModified'
 	});
 
+	public static readonly chatRequestSent = AudioCue.register({
+		name: localize('audioCues.chatRequestSent', 'Chat Request Sent'),
+		sound: Sound.chatRequestSent,
+		settingsKey: 'audioCues.chatRequestSent'
+	});
+
+	public static readonly chatResponseReceived = AudioCue.register({
+		name: localize('audioCues.chatResponseReceived', 'Chat Response Received'),
+		settingsKey: 'audioCues.chatResponseReceived',
+		sound: {
+			randomOneOf: [
+				Sound.chatResponseReceived1,
+				Sound.chatResponseReceived2,
+				Sound.chatResponseReceived3,
+				Sound.chatResponseReceived4
+			]
+		}
+	});
+
+	public static readonly chatResponsePending = AudioCue.register({
+		name: localize('audioCues.chatResponsePending', 'Chat Response Pending'),
+		sound: Sound.chatResponsePending,
+		settingsKey: 'audioCues.chatResponsePending'
+	});
+
 	private constructor(
-		public readonly sound: Sound,
+		public readonly sound: SoundSource,
 		public readonly name: string,
 		public readonly settingsKey: string,
 	) { }

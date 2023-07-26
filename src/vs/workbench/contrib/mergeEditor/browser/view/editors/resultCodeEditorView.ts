@@ -10,9 +10,7 @@ import { CompareResult } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, autorunWithStore, derived, IObservable } from 'vs/base/common/observable';
-import { IEditorContributionDescription, EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
-import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -157,12 +155,14 @@ export class ResultCodeEditorView extends CodeEditorView {
 
 			if (modifiedBaseRange) {
 				const blockClassNames = ['merge-editor-block'];
+				let blockPadding: [top: number, right: number, bottom: number, left: number] = [0, 0, 0, 0];
 				const isHandled = model.isHandled(modifiedBaseRange).read(reader);
 				if (isHandled) {
 					blockClassNames.push('handled');
 				}
 				if (modifiedBaseRange === activeModifiedBaseRange) {
 					blockClassNames.push('focused');
+					blockPadding = [0, 2, 0, 2];
 				}
 				if (modifiedBaseRange.isConflicting) {
 					blockClassNames.push('conflicting');
@@ -179,6 +179,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 					options: {
 						showIfCollapsed: true,
 						blockClassName: blockClassNames.join(' '),
+						blockPadding,
 						blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
 						description: 'Result Diff',
 						minimap: {
@@ -223,8 +224,4 @@ export class ResultCodeEditorView extends CodeEditorView {
 		}
 		return result;
 	});
-
-	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
-		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
-	}
 }

@@ -49,7 +49,7 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  - script: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libsecret-1-dev libnotify-bin
+  - script: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libsecret-1-dev libnotify-bin libkrb5-dev
     displayName: Install build tools
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -93,10 +93,16 @@ steps:
 
   - template: common/install-builtin-extensions.yml
 
-  - script: yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
-    env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Compile & Hygiene
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: yarn npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Compile & Hygiene
+  - ${{ else }}:
+    - script: yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Compile & Hygiene
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |

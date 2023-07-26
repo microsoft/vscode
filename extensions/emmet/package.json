@@ -482,11 +482,10 @@
     "@types/node": "16.x"
   },
   "dependencies": {
-    "@emmetio/abbreviation": "^2.2.0",
     "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
     "@emmetio/html-matcher": "^0.3.3",
-    "@emmetio/math-expression": "^1.0.4",
-    "@vscode/emmet-helper": "^2.3.0",
+    "@emmetio/math-expression": "^1.0.5",
+    "@vscode/emmet-helper": "^2.8.8",
     "image-size": "~1.0.0",
     "vscode-languageserver-textdocument": "^1.0.1"
   },
