@@ -29,6 +29,7 @@ class ToggleScreenReaderMode extends Action2 {
 			},
 			{
 				primary: KeyMod.Alt | KeyCode.F1 | KeyMod.Shift,
+				linux: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F4 },
 				weight: KeybindingWeight.WorkbenchContrib + 10,
 			}]
 		});
