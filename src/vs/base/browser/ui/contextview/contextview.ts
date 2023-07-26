@@ -5,7 +5,7 @@
 
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import * as DOM from 'vs/base/browser/dom';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { Range } from 'vs/base/common/range';
@@ -44,7 +44,13 @@ export const enum AnchorAxisAlignment {
 }
 
 export interface IDelegate {
-	getAnchor(): HTMLElement | IMouseEvent | IAnchor;
+	/**
+	 * The anchor where to position the context view.
+	 * Use a `HTMLElement` to position the view at the element,
+	 * a `StandardMouseEvent` to position it at the mouse position
+	 * or an `IAnchor` to position it at a specific location.
+	 */
+	getAnchor(): HTMLElement | StandardMouseEvent | IAnchor;
 	render(container: HTMLElement): IDisposable | null;
 	focus?(): void;
 	layout?(): void;
