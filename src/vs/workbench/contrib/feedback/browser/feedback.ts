@@ -100,7 +100,7 @@ export class FeedbackWidget extends Disposable {
 		}));
 	}
 
-	private getAnchor(): HTMLElement | IAnchor {
+	private getAnchor(): IAnchor {
 		const dimension = this.layoutService.dimension;
 
 		return {

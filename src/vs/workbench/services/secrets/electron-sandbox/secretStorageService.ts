@@ -8,7 +8,7 @@ import { isLinux } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEncryptionService, KnownStorageProvider, isGnome, isKwallet } from 'vs/platform/encryption/common/encryptionService';
+import { IEncryptionService, KnownStorageProvider, PasswordStoreCLIOption, isGnome, isKwallet } from 'vs/platform/encryption/common/encryptionService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -72,7 +72,7 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 				label: localize('usePlainText', "Use weaker encryption"),
 				run: async () => {
 					await this._encryptionService.setUsePlainTextEncryption();
-					await this._jsonEditingService.write(this._environmentService.argvResource, [{ path: ['password-store'], value: 'basic_text' }], true);
+					await this._jsonEditingService.write(this._environmentService.argvResource, [{ path: ['password-store'], value: PasswordStoreCLIOption.basic }], true);
 					this.reinitialize();
 				}
 			};

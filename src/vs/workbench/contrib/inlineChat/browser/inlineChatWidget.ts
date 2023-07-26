@@ -52,6 +52,7 @@ import { IMenuWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platf
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -377,7 +378,8 @@ export class InlineChatWidget {
 		}));
 	}
 
-	private _onContextMenu(event: MouseEvent) {
+	private _onContextMenu(e: MouseEvent) {
+		const event = new StandardMouseEvent(e);
 		this._contextMenuService.showContextMenu({
 			menuId: MENU_INLINE_CHAT_WIDGET_TOGGLE,
 			getAnchor: () => event,
@@ -797,7 +799,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			if (!this.widget.hasFocus()) {
 				this.widget.focus();
 			}
-		}));
+		}, true));
 
 		// todo@jrieken listen ONLY when showing
 		const updateCursorIsAboveContextKey = () => {

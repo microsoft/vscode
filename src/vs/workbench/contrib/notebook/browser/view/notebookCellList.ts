@@ -135,8 +135,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private _isInLayout: boolean = false;
 
-	private readonly _viewContext: ViewContext;
-
 	private _webviewElement: FastDomNode<HTMLElement> | null = null;
 
 	get webviewElement() {
@@ -161,7 +159,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, configurationService, instantiationService);
 		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
-		this._viewContext = viewContext;
 		this._previousFocusedElements = this.getFocusedElements();
 		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
 			this._previousFocusedElements.forEach(element => {
@@ -826,9 +823,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const scrollHeight = this.view.scrollHeight;
 		const scrollTop = this.getViewScrollTop();
 		const wrapperBottom = this.getViewScrollBottom();
-		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
 
-		this.view.setScrollTop(scrollHeight - (wrapperBottom - scrollTop) - topInsertToolbarHeight);
+		this.view.setScrollTop(scrollHeight - (wrapperBottom - scrollTop));
 	}
 
 	//#region Reveal Cell synchronously
@@ -1226,8 +1222,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	getViewScrollBottom() {
-		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
-		return this.getViewScrollTop() + this.view.renderHeight - topInsertToolbarHeight;
+		return this.getViewScrollTop() + this.view.renderHeight;
 	}
 
 	setCellEditorSelection(cell: ICellViewModel, range: Range) {
