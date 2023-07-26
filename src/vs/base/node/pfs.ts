@@ -491,7 +491,7 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
 /**
  * A drop-in replacement for `fs.rename` that:
  * - allows to move across multiple disks
- * - attempts to retry the operation for certain error codes
+ * - attempts to retry the operation for certain error codes on Windows
  */
 async function move(source: string, target: string, windowsRetryTimeout = 60000 /* matches graceful-fs */): Promise<void> {
 	if (source === target) {
@@ -538,6 +538,17 @@ async function renameWithRetry(source: string, target: string, startTime: number
 			console.error(`[node.js fs] rename failed after ${attempt} retries with error: ${error}`);
 
 			throw error; // give up after configurable timeout
+		}
+
+		if (attempt === 0) {
+			try {
+				const { stat } = await SymlinkSupport.stat(target);
+				if (!stat.isFile()) {
+					throw error; // if target is not a file, EPERM error may be raised and we should not attempt to retry
+				}
+			} catch (error) {
+				// Ignore
+			}
 		}
 
 		// Delay with incremental backoff up to 100ms
