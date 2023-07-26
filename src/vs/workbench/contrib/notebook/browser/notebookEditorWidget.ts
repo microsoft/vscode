@@ -179,6 +179,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _notebookTopToolbarContainer!: HTMLElement;
 	private _notebookTopToolbar!: NotebookEditorWorkbenchToolbar;
 	private _notebookStickyScrollContainer!: HTMLElement;
+	private _notebookStickyScroll!: NotebookStickyScroll;
 	private _notebookOverviewRulerContainer!: HTMLElement;
 	private _notebookOverviewRuler!: NotebookOverviewRuler;
 	private _body!: HTMLElement;
@@ -1046,7 +1047,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private _registerNotebookStickyScroll() {
-		this._register(this.instantiationService.createInstance(NotebookStickyScroll, this._notebookStickyScrollContainer, this, this._notebookOutline, this._list));
+		this._notebookStickyScroll = this._register(this.instantiationService.createInstance(NotebookStickyScroll, this._notebookStickyScrollContainer, this, this._notebookOutline, this._list));
 	}
 
 	private _updateOutputRenderers() {
@@ -2601,7 +2602,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			width: this._dimension?.width ?? 0,
 			height: this._dimension?.height ?? 0,
 			scrollHeight: this._list?.getScrollHeight() ?? 0,
-			fontInfo: this._fontInfo!
+			fontInfo: this._fontInfo!,
+			stickyHeight: this._notebookStickyScroll.getCurrentStickyHeight()
 		};
 	}
 
