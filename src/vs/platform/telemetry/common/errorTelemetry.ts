@@ -78,7 +78,7 @@ export default abstract class BaseErrorTelemetry {
 
 	private _onErrorEvent(err: any): void {
 
-		if (!err) {
+		if (!err || err.code) {
 			return;
 		}
 
