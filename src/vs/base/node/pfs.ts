@@ -541,13 +541,18 @@ async function renameWithRetry(source: string, target: string, startTime: number
 		}
 
 		if (attempt === 0) {
+			let abortRetry = false;
 			try {
 				const { stat } = await SymlinkSupport.stat(target);
 				if (!stat.isFile()) {
-					throw error; // if target is not a file, EPERM error may be raised and we should not attempt to retry
+					abortRetry = true; // if target is not a file, EPERM error may be raised and we should not attempt to retry
 				}
 			} catch (error) {
 				// Ignore
+			}
+
+			if (abortRetry) {
+				throw error;
 			}
 		}
 
