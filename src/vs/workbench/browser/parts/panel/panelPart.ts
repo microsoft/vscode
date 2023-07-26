@@ -417,7 +417,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			disposables.clear();
 			this.onDidRegisterExtensions();
 			this.compositeBar.onDidChange(() => this.saveCachedPanels(), this, disposables);
-			this.storageService.onDidChangeValue(e => this.onDidStorageValueChange(e), this, disposables);
+			this.storageService.onDidChangeValue(StorageScope.PROFILE, this.pinnedPanelsKey)(e => this.onDidStorageValueChange(e), this, disposables);
 		}));
 
 	}
@@ -782,8 +782,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private onDidStorageValueChange(e: IStorageValueChangeEvent): void {
-		if (e.key === this.pinnedPanelsKey && e.scope === StorageScope.PROFILE
-			&& this.cachedPanelsValue !== this.getStoredCachedPanelsValue() /* This checks if current window changed the value or not */) {
+		if (this.cachedPanelsValue !== this.getStoredCachedPanelsValue() /* This checks if current window changed the value or not */) {
 			this._cachedPanelsValue = undefined;
 			const newCompositeItems: ICompositeBarItem[] = [];
 			const compositeItems = this.compositeBar.getCompositeBarItems();

@@ -47,9 +47,13 @@ export interface IStorageService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Emitted whenever data is updated or deleted.
+	 * Emitted whenever data is updated or deleted on the given
+	 * scope and optional key.
+	 *
+	 * @param scope the `StorageScope` to listen to changes
+	 * @param key the optional key to filter for
 	 */
-	readonly onDidChangeValue: Event<IStorageValueChangeEvent>;
+	onDidChangeValue(scope: StorageScope, key?: string,): Event<IStorageValueChangeEvent>;
 
 	/**
 	 * Emitted whenever target of a storage entry changes.
@@ -294,7 +298,6 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	private static DEFAULT_FLUSH_INTERVAL = 60 * 1000; // every minute
 
 	private readonly _onDidChangeValue = this._register(new PauseableEmitter<IStorageValueChangeEvent>());
-	readonly onDidChangeValue = this._onDidChangeValue.event;
 
 	private readonly _onDidChangeTarget = this._register(new PauseableEmitter<IStorageTargetChangeEvent>());
 	readonly onDidChangeTarget = this._onDidChangeTarget.event;
@@ -309,6 +312,10 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	constructor(private readonly options: IStorageServiceOptions = { flushInterval: AbstractStorageService.DEFAULT_FLUSH_INTERVAL }) {
 		super();
+	}
+
+	onDidChangeValue(scope: StorageScope, key?: string): Event<IStorageValueChangeEvent> {
+		return Event.filter(this._onDidChangeValue.event, e => e.scope === scope && (key === undefined || e.key === key));
 	}
 
 	private doFlushWhenIdle(): void {

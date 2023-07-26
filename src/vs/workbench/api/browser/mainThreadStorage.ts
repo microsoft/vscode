@@ -29,12 +29,11 @@ export class MainThreadStorage implements MainThreadStorageShape {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostStorage);
 
-		this._storageListener = this._storageService.onDidChangeValue(e => {
-			const shared = e.scope === StorageScope.PROFILE;
-			if (shared && this._sharedStorageKeysToWatch.has(e.key)) {
-				const rawState = this._extensionStorageService.getExtensionStateRaw(e.key, shared);
+		this._storageListener = this._storageService.onDidChangeValue(StorageScope.PROFILE)(e => {
+			if (this._sharedStorageKeysToWatch.has(e.key)) {
+				const rawState = this._extensionStorageService.getExtensionStateRaw(e.key, true);
 				if (typeof rawState === 'string') {
-					this._proxy.$acceptValue(shared, e.key, rawState);
+					this._proxy.$acceptValue(true, e.key, rawState);
 				}
 			}
 		});

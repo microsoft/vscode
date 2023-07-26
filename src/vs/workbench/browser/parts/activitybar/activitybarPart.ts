@@ -247,7 +247,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			disposables.clear();
 			this.onDidRegisterExtensions();
 			this.compositeBar.onDidChange(() => this.saveCachedViewContainers(), this, disposables);
-			this.storageService.onDidChangeValue(e => this.onDidStorageValueChange(e), this, disposables);
+			this.storageService.onDidChangeValue(StorageScope.PROFILE, ActivitybarPart.PINNED_VIEW_CONTAINERS)(e => this.onDidStorageValueChange(e), this, disposables);
 		}));
 
 		// Register for configuration changes
@@ -808,8 +808,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private onDidStorageValueChange(e: IStorageValueChangeEvent): void {
-		if (e.key === ActivitybarPart.PINNED_VIEW_CONTAINERS && e.scope === StorageScope.PROFILE
-			&& this.pinnedViewContainersValue !== this.getStoredPinnedViewContainersValue() /* This checks if current window changed the value or not */) {
+		if (this.pinnedViewContainersValue !== this.getStoredPinnedViewContainersValue() /* This checks if current window changed the value or not */) {
 			this._pinnedViewContainersValue = undefined;
 			this._cachedViewContainers = undefined;
 

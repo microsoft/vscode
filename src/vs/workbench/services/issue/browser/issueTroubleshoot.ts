@@ -332,10 +332,8 @@ class IssueTroubleshootUi extends Disposable {
 		if (troubleshootIssueService.isActive()) {
 			troubleshootIssueService.resume();
 		}
-		this._register(storageService.onDidChangeValue(e => {
-			if (e.key === TroubleshootIssueService.storageKey) {
-				this.updateContext();
-			}
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, TroubleshootIssueService.storageKey)(() => {
+			this.updateContext();
 		}));
 	}
 

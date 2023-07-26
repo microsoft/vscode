@@ -579,11 +579,10 @@ export class TunnelModel extends Disposable {
 		if (!this.restoreListener) {
 			// It's possible that at restore time the value hasn't synced.
 			const key = await this.getStorageKey();
-			this.restoreListener = this._register(this.storageService.onDidChangeValue(async (e) => {
+			this.restoreListener = this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE)(async (e) => {
 				if (e.key === key) {
 					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(key, StorageScope.PROFILE));
 					await this.restoreForwarded();
-
 				}
 			}));
 		}

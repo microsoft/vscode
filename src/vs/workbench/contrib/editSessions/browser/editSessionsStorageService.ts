@@ -91,7 +91,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		this._register(this.authenticationService.onDidChangeSessions((e) => this.onDidChangeSessions(e.event)));
 
 		// If another window changes the preferred session storage, reset our cached auth state in memory
-		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EditSessionsWorkbenchService.CACHED_SESSION_STORAGE_KEY)(e => this.onDidChangeStorage(e)));
 
 		this.registerSignInAction();
 		this.registerResetAuthenticationAction();
@@ -432,17 +432,13 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	}
 
 	private async onDidChangeStorage(e: IStorageValueChangeEvent): Promise<void> {
-		if (e.key === EditSessionsWorkbenchService.CACHED_SESSION_STORAGE_KEY
-			&& e.scope === StorageScope.APPLICATION
-		) {
-			const newSessionId = this.existingSessionId;
-			const previousSessionId = this.authenticationInfo?.sessionId;
+		const newSessionId = this.existingSessionId;
+		const previousSessionId = this.authenticationInfo?.sessionId;
 
-			if (previousSessionId !== newSessionId) {
-				this.logService.trace(`Resetting authentication state because authentication session ID preference changed from ${previousSessionId} to ${newSessionId}.`);
-				this.authenticationInfo = undefined;
-				this.initialized = false;
-			}
+		if (previousSessionId !== newSessionId) {
+			this.logService.trace(`Resetting authentication state because authentication session ID preference changed from ${previousSessionId} to ${newSessionId}.`);
+			this.authenticationInfo = undefined;
+			this.initialized = false;
 		}
 	}
 

@@ -49,16 +49,14 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 	private registerListeners(): void {
 
 		// Storage
-		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, BrowserWorkspacesService.RECENTLY_OPENED_KEY)(e => this.onDidChangeStorage(e)));
 
 		// Workspace
 		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onDidChangeWorkspaceFolders(e)));
 	}
 
 	private onDidChangeStorage(e: IStorageValueChangeEvent): void {
-		if (e.key === BrowserWorkspacesService.RECENTLY_OPENED_KEY && e.scope === StorageScope.APPLICATION) {
-			this._onRecentlyOpenedChange.fire();
-		}
+		this._onRecentlyOpenedChange.fire();
 	}
 
 	private onDidChangeWorkspaceFolders(e: IWorkspaceFoldersChangeEvent): void {

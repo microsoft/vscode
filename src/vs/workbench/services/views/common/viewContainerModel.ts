@@ -95,7 +95,7 @@ class ViewDescriptorsState extends Disposable {
 
 		this.globalViewsStateStorageId = getViewsStateStorageId(viewContainerStorageId);
 		this.workspaceViewsStateStorageId = viewContainerStorageId;
-		this._register(this.storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.globalViewsStateStorageId)(e => this.onDidStorageChange(e)));
 
 		this.state = this.initialize();
 
@@ -149,8 +149,7 @@ class ViewDescriptorsState extends Disposable {
 	}
 
 	private onDidStorageChange(e: IStorageValueChangeEvent): void {
-		if (e.key === this.globalViewsStateStorageId && e.scope === StorageScope.PROFILE
-			&& this.globalViewsStatesValue !== this.getStoredGlobalViewsStatesValue() /* This checks if current window changed the value or not */) {
+		if (this.globalViewsStatesValue !== this.getStoredGlobalViewsStatesValue() /* This checks if current window changed the value or not */) {
 			this._globalViewsStatesValue = undefined;
 			const storedViewsVisibilityStates = this.getStoredGlobalState();
 			const storedWorkspaceViewsStates = this.getStoredWorkspaceState();

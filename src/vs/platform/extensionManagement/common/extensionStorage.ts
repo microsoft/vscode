@@ -103,13 +103,10 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 	) {
 		super();
 		this.extensionsWithKeysForSync = ExtensionStorageService.readAllExtensionsWithKeysForSync(storageService);
-		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorageValue(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE)(e => this.onDidChangeStorageValue(e)));
 	}
 
 	private onDidChangeStorageValue(e: IStorageValueChangeEvent): void {
-		if (e.scope !== StorageScope.PROFILE) {
-			return;
-		}
 
 		// State of extension with keys for sync has changed
 		if (this.extensionsWithKeysForSync.has(e.key.toLowerCase())) {

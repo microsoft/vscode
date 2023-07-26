@@ -135,8 +135,8 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 		});
 
 		// Listen to cache changes from other windows
-		this._storageService.onDidChangeValue(e => {
-			if (e.key === this._getTimestampStorageKey() && !this._isStale) {
+		this._storageService.onDidChangeValue(StorageScope.APPLICATION, this._getTimestampStorageKey())(e => {
+			if (!this._isStale) {
 				this._isStale = this._storageService.getNumber(this._getTimestampStorageKey(), StorageScope.APPLICATION, 0) !== this._timestamp;
 			}
 		});

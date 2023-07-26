@@ -70,7 +70,7 @@ suite('FindController', async () => {
 	serviceCollection.set(IStorageService, {
 		_serviceBrand: undefined,
 		onDidChangeTarget: Event.None,
-		onDidChangeValue: Event.None,
+		onDidChangeValue: () => Event.None,
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
@@ -504,7 +504,7 @@ suite('FindController query options persistence', async () => {
 	serviceCollection.set(IStorageService, {
 		_serviceBrand: undefined,
 		onDidChangeTarget: Event.None,
-		onDidChangeValue: Event.None,
+		onDidChangeValue: () => Event.None,
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],

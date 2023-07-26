@@ -25,7 +25,7 @@ export class UserDataProfileStorageService extends AbstractUserDataProfileStorag
 	) {
 		super(storageService);
 		this._register(Event.filter(storageService.onDidChangeTarget, e => e.scope === StorageScope.PROFILE)(e => this.onDidChangeStorageTargetInCurrentProfile()));
-		this._register(Event.filter(storageService.onDidChangeValue, e => e.scope === StorageScope.PROFILE)(e => this.onDidChangeStorageValueInCurrentProfile(e)));
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE)(e => this.onDidChangeStorageValueInCurrentProfile(e)));
 	}
 
 	private onDidChangeStorageTargetInCurrentProfile(): void {

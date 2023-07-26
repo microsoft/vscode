@@ -102,7 +102,7 @@ export class StorageManager extends Disposable {
 
 	constructor(private storageService: IStorageService) {
 		super();
-		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE)(e => this.onDidStorageChange(e)));
 	}
 
 	get(key: string, scope: StorageScope): IExtensionIdentifier[] {
@@ -134,18 +134,16 @@ export class StorageManager extends Disposable {
 	}
 
 	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {
-		if (storageChangeEvent.scope === StorageScope.PROFILE) {
-			if (!isUndefinedOrNull(this.storage[storageChangeEvent.key])) {
-				const newValue = this._get(storageChangeEvent.key, storageChangeEvent.scope);
-				if (newValue !== this.storage[storageChangeEvent.key]) {
-					const oldValues = this.get(storageChangeEvent.key, storageChangeEvent.scope);
-					delete this.storage[storageChangeEvent.key];
-					const newValues = this.get(storageChangeEvent.key, storageChangeEvent.scope);
-					const added = oldValues.filter(oldValue => !newValues.some(newValue => areSameExtensions(oldValue, newValue)));
-					const removed = newValues.filter(newValue => !oldValues.some(oldValue => areSameExtensions(oldValue, newValue)));
-					if (added.length || removed.length) {
-						this._onDidChange.fire([...added, ...removed]);
-					}
+		if (!isUndefinedOrNull(this.storage[storageChangeEvent.key])) {
+			const newValue = this._get(storageChangeEvent.key, storageChangeEvent.scope);
+			if (newValue !== this.storage[storageChangeEvent.key]) {
+				const oldValues = this.get(storageChangeEvent.key, storageChangeEvent.scope);
+				delete this.storage[storageChangeEvent.key];
+				const newValues = this.get(storageChangeEvent.key, storageChangeEvent.scope);
+				const added = oldValues.filter(oldValue => !newValues.some(newValue => areSameExtensions(oldValue, newValue)));
+				const removed = newValues.filter(newValue => !oldValues.some(oldValue => areSameExtensions(oldValue, newValue)));
+				if (added.length || removed.length) {
+					this._onDidChange.fire([...added, ...removed]);
 				}
 			}
 		}

@@ -36,7 +36,7 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 	) {
 		super();
-		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
+		this._register(storageService.onDidChangeValue(StorageScope.APPLICATION)(e => this.onDidStorageChange(e)));
 	}
 
 	isEnabled(): boolean {
@@ -81,10 +81,6 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 	}
 
 	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {
-		if (storageChangeEvent.scope !== StorageScope.APPLICATION) {
-			return;
-		}
-
 		if (enablementKey === storageChangeEvent.key) {
 			this._onDidChangeEnablement.fire(this.isEnabled());
 			return;

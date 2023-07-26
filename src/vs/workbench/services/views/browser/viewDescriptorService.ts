@@ -103,7 +103,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this._onDidChangeViewContainers.fire({ removed: [{ container: viewContainer, location: this.getViewContainerLocation(viewContainer) }], added: [] });
 		}));
 
-		this._register(this.storageService.onDidChangeValue((e) => { this.onDidStorageChange(e); }));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, ViewDescriptorService.VIEWS_CUSTOMIZATIONS)((e) => { this.onDidStorageChange(e); }));
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.whenExtensionsRegistered());
 
@@ -506,8 +506,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private onDidStorageChange(e: IStorageValueChangeEvent): void {
-		if (e.key === ViewDescriptorService.VIEWS_CUSTOMIZATIONS && e.scope === StorageScope.PROFILE
-			&& JSON.stringify(this.viewCustomizations) !== this.getStoredViewCustomizationsValue() /* This checks if current window changed the value or not */) {
+		if (JSON.stringify(this.viewCustomizations) !== this.getStoredViewCustomizationsValue() /* This checks if current window changed the value or not */) {
 			this.onDidViewCustomizationsStorageChange();
 		}
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export interface IStoredValueSerialization<T> {
 	deserialize(data: string): T;
@@ -36,7 +36,7 @@ export class StoredValue<T> {
 	/**
 	 * Emitted whenever the value is updated or deleted.
 	 */
-	public readonly onDidChange = Event.filter(this.storage.onDidChangeValue, e => e.key === this.key);
+	public readonly onDidChange: Event<IStorageValueChangeEvent>;
 
 	constructor(
 		options: IStoredValueOptions<T>,
@@ -46,6 +46,7 @@ export class StoredValue<T> {
 		this.scope = options.scope;
 		this.target = options.target;
 		this.serialization = options.serialization ?? defaultSerialization;
+		this.onDidChange = this.storage.onDidChangeValue(this.scope, this.key);
 	}
 
 	/**

@@ -32,7 +32,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 	test('Storage change source', () => {
 		const storageValueChangeEvents: IStorageValueChangeEvent[] = [];
-		storageService.onDidChangeValue(e => storageValueChangeEvents.push(e));
+		storageService.onDidChangeValue(StorageScope.WORKSPACE)(e => storageValueChangeEvents.push(e));
 
 		// Explicit external source
 		storageService.storeAll([{ key: 'testExternalChange', value: 'foobar', scope: StorageScope.WORKSPACE, target: StorageTarget.MACHINE }], true);
@@ -51,7 +51,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 	function storeData(scope: StorageScope): void {
 		let storageValueChangeEvents: IStorageValueChangeEvent[] = [];
-		storageService.onDidChangeValue(e => storageValueChangeEvents.push(e));
+		storageService.onDidChangeValue(scope)(e => storageValueChangeEvents.push(e));
 
 		strictEqual(storageService.get('test.get', scope, 'foobar'), 'foobar');
 		strictEqual(storageService.get('test.get', scope, ''), '');
@@ -127,7 +127,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 	function removeData(scope: StorageScope): void {
 		const storageValueChangeEvents: IStorageValueChangeEvent[] = [];
-		storageService.onDidChangeValue(e => storageValueChangeEvents.push(e));
+		storageService.onDidChangeValue(scope)(e => storageValueChangeEvents.push(e));
 
 		storageService.store('test.remove', 'foobar', scope, StorageTarget.MACHINE);
 		strictEqual('foobar', storageService.get('test.remove', scope, (undefined)!));
@@ -143,9 +143,6 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		let storageTargetEvent: IStorageTargetChangeEvent | undefined = undefined;
 		storageService.onDidChangeTarget(e => storageTargetEvent = e);
 
-		let storageValueChangeEvent: IStorageValueChangeEvent | undefined = undefined;
-		storageService.onDidChangeValue(e => storageValueChangeEvent = e);
-
 		// Empty
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.PROFILE, StorageScope.APPLICATION]) {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
@@ -153,8 +150,12 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 			}
 		}
 
+		let storageValueChangeEvent: IStorageValueChangeEvent | undefined = undefined;
+
 		// Add values
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.PROFILE, StorageScope.APPLICATION]) {
+			storageService.onDidChangeValue(scope)(e => storageValueChangeEvent = e);
+
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
 				storageTargetEvent = Object.create(null);
 				storageValueChangeEvent = Object.create(null);

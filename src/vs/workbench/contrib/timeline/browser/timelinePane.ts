@@ -291,7 +291,7 @@ export class TimelinePane extends ViewPane {
 		this.timelineExcludeSourcesContext.set(excludedSourcesString);
 		this.excludedSources = new Set(JSON.parse(excludedSourcesString));
 
-		this._register(storageService.onDidChangeValue(this.onStorageServiceChanged, this));
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, 'timeline.excludeSources')(this.onStorageServiceChanged, this));
 		this._register(configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this));
 		this._register(timelineService.onDidChangeProviders(this.onProvidersChanged, this));
 		this._register(timelineService.onDidChangeTimeline(this.onTimelineChanged, this));
@@ -355,18 +355,16 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onStorageServiceChanged(e: IStorageValueChangeEvent) {
-		if (e.key === 'timeline.excludeSources') {
-			const excludedSourcesString = this.storageService.get('timeline.excludeSources', StorageScope.PROFILE, '[]');
-			this.timelineExcludeSourcesContext.set(excludedSourcesString);
-			this.excludedSources = new Set(JSON.parse(excludedSourcesString));
+		const excludedSourcesString = this.storageService.get('timeline.excludeSources', StorageScope.PROFILE, '[]');
+		this.timelineExcludeSourcesContext.set(excludedSourcesString);
+		this.excludedSources = new Set(JSON.parse(excludedSourcesString));
 
-			const missing = this.timelineService.getSources()
-				.filter(({ id }) => !this.excludedSources.has(id) && !this.timelinesBySource.has(id));
-			if (missing.length !== 0) {
-				this.loadTimeline(true, missing.map(({ id }) => id));
-			} else {
-				this.refresh();
-			}
+		const missing = this.timelineService.getSources()
+			.filter(({ id }) => !this.excludedSources.has(id) && !this.timelinesBySource.has(id));
+		if (missing.length !== 0) {
+			this.loadTimeline(true, missing.map(({ id }) => id));
+		} else {
+			this.refresh();
 		}
 	}
 

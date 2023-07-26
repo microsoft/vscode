@@ -1246,7 +1246,7 @@ class ViewModel {
 			this.sortKey = this.getViewModelSortKey();
 		});
 
-		this.storageService.onDidChangeValue(e => {
+		this.storageService.onDidChangeValue(StorageScope.WORKSPACE)(e => {
 			switch (e.key) {
 				case 'scm.viewMode':
 					this.mode = this.getViewModelMode();
