@@ -192,6 +192,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						value: localize('edit profile', "Edit Profile..."),
 						original: `Edit Profile...`
 					},
+					f1: true,
 					menu: [
 						{
 							id: ProfilesMenu,

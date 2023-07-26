@@ -40,7 +40,7 @@ import { ITextMateThemingRule, IWorkbenchColorTheme, IWorkbenchThemeService } fr
 import type { IGrammar, IOnigLib, IRawTheme } from 'vscode-textmate';
 
 export class TextMateTokenizationFeature extends Disposable implements ITextMateTokenizationService {
-	private static reportTokenizationTimeCounter = 0;
+	private static reportTokenizationTimeCounter = { sync: 0, async: 0 };
 	public _serviceBrand: undefined;
 
 	private readonly _styleElement: HTMLStyleElement;
@@ -376,17 +376,19 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 	}
 
 	private _reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, fromWorker: boolean, isRandomSample: boolean): void {
+		const key = fromWorker ? 'async' : 'sync';
+
 		// 50 events per hour (one event has a low probability)
-		if (TextMateTokenizationFeature.reportTokenizationTimeCounter > 50) {
+		if (TextMateTokenizationFeature.reportTokenizationTimeCounter[key] > 50) {
 			// Don't flood telemetry with too many events
 			return;
 		}
-		if (TextMateTokenizationFeature.reportTokenizationTimeCounter === 0) {
+		if (TextMateTokenizationFeature.reportTokenizationTimeCounter[key] === 0) {
 			setTimeout(() => {
-				TextMateTokenizationFeature.reportTokenizationTimeCounter = 0;
+				TextMateTokenizationFeature.reportTokenizationTimeCounter[key] = 0;
 			}, 1000 * 60 * 60);
 		}
-		TextMateTokenizationFeature.reportTokenizationTimeCounter++;
+		TextMateTokenizationFeature.reportTokenizationTimeCounter[key]++;
 
 		this._telemetryService.publicLog2<{
 			timeMs: number;
