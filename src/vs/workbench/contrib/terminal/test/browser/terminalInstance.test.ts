@@ -190,6 +190,10 @@ suite('Workbench - TerminalInstance', () => {
 			emptyContextService.setWorkspace(emptyWorkspace);
 		});
 
+		teardown(() => {
+			instantiationService.dispose();
+		});
+
 		test('should resolve to "" when the template variables are empty', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '', description: '' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!);

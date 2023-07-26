@@ -132,7 +132,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	constructor(
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -155,7 +154,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		super(
 			notificationService,
 			storageService,
-			telemetryService,
 			contextMenuService,
 			layoutService,
 			keybindingService,
@@ -932,7 +930,6 @@ export class PanelPart extends BasePanelPart {
 		super(
 			notificationService,
 			storageService,
-			telemetryService,
 			contextMenuService,
 			layoutService,
 			keybindingService,

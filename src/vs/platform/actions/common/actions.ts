@@ -145,6 +145,7 @@ export class MenuId {
 	static readonly InteractiveCellExecute = new MenuId('InteractiveCellExecute');
 	static readonly InteractiveInputExecute = new MenuId('InteractiveInputExecute');
 	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
+	static readonly NotebookStickyScrollContext = new MenuId('NotebookStickyScrollContext');
 	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
 	static readonly NotebookCellDelete = new MenuId('NotebookCellDelete');
 	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
@@ -183,7 +184,7 @@ export class MenuId {
 	static readonly InlineSuggestionToolbar = new MenuId('InlineSuggestionToolbar');
 	static readonly ChatContext = new MenuId('ChatContext');
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
-	static readonly ChatTitle = new MenuId('ChatTitle');
+	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
 	static readonly ChatExecute = new MenuId('ChatExecute');
 
 	/**
@@ -460,7 +461,7 @@ export class MenuItemAction implements IAction {
 				icon = toggled.icon;
 			}
 
-			if (toggled.title) {
+			if (this.checked && toggled.title) {
 				this.label = typeof toggled.title === 'string' ? toggled.title : toggled.title.value;
 			}
 		}

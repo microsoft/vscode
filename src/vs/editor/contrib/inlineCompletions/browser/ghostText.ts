@@ -114,6 +114,10 @@ export class GhostTextReplacement {
 	get lineCount(): number {
 		return this.newLines.length;
 	}
+
+	isEmpty(): boolean {
+		return this.parts.every(p => p.lines.length === 0);
+	}
 }
 
 export type GhostTextOrReplacement = GhostText | GhostTextReplacement;

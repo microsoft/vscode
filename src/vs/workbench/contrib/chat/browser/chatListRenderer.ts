@@ -18,6 +18,7 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
+import { marked } from 'vs/base/common/marked/marked';
 import { FileAccess } from 'vs/base/common/network';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -37,6 +38,7 @@ import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTo
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -47,23 +49,21 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IChatCodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
+import { ChatTreeItem, IChatCodeBlockInfo } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
+import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
+import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatReplyFollowup, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IChatCodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
-import { IChatCodeBlockInfo } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
-import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatReplyFollowup, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatRequestViewModel, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 const $ = dom.$;
-
-export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
 
 interface IChatListItemTemplate {
 	rowContainer: HTMLElement;
@@ -116,7 +116,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ILogService private readonly logService: ILogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatService private readonly chatService: IChatService,
+		@IChatService private readonly chatService: IChatService
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -192,12 +192,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(rowContainer));
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
-		const titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, header, MenuId.ChatTitle, {
+		const titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, header, MenuId.ChatMessageTitle, {
 			menuOptions: {
 				shouldForwardArgs: true
 			},
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
-				if (action instanceof MenuItemAction) {
+				if (action instanceof MenuItemAction && (action.item.id === 'workbench.action.chat.voteDown' || action.item.id === 'workbench.action.chat.voteUp')) {
 					return scopedInstantiationService.createInstance(ChatVoteButton, action, options as IMenuEntryActionViewItemOptions);
 				}
 
@@ -217,6 +217,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				'welcome';
 		this.traceLayout('renderElement', `${kind}, index=${index}`);
 
+		CONTEXT_RESPONSE.bindTo(templateData.contextKeyService).set(isResponseVM(element));
+		CONTEXT_REQUEST.bindTo(templateData.contextKeyService).set(isRequestVM(element));
 		CONTEXT_RESPONSE_HAS_PROVIDER_ID.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.providerResponseId);
 		if (isResponseVM(element)) {
 			CONTEXT_RESPONSE_VOTE.bindTo(templateData.contextKeyService).set(element.vote === InteractiveSessionVoteDirection.Up ? 'up' : element.vote === InteractiveSessionVoteDirection.Down ? 'down' : '');
@@ -304,6 +306,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					return this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
 				}));
 		}
+
+		element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
 	}
 
 	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate) {
@@ -328,6 +332,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				templateData.elementDisposables.add(result);
 			}
 		}
+
+		element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
 	}
 
 	/**
@@ -349,15 +355,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else {
 			const renderValue = this.getWordsForProgressiveRender(element);
 			isFullyRendered = !!element.renderData?.isFullyRendered;
-			if (isFullyRendered) {
-				// We've reached the end of the available content, so do a normal render
-				this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
-				if (element.isComplete) {
-					this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
-					element.renderData = undefined;
-				} else {
-					this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
-				}
+			if (isFullyRendered && element.isComplete) {
+				// Response is done and content is rendered, so do a normal render
+				this.traceLayout('runProgressiveRender', `end progressive render, index=${index} and clearing renderData, response is complete, index=${index}`);
+				element.renderData = undefined;
 				disposables.clear();
 				this.basicRenderElement(element.response.value, element, index, templateData);
 			} else if (renderValue) {
@@ -367,11 +368,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					isFullyRendered: renderValue.isFullString
 				};
 
-				// Don't add the cursor if it will go after a codeblock, since this will always cause layout shifting
-				// when the codeblock is the last thing in the response, and that happens often.
-				const plusCursor = renderValue.value.match(/```\s*$/) ?
-					renderValue.value :
-					renderValue.value + ` ${ChatListItemRenderer.cursorCharacter}`;
+				const plusCursor = (renderValue.value.match(/```\s*$/) ?
+					renderValue.value + '\n\n' :
+					renderValue.value) + ` ${ChatListItemRenderer.cursorCharacter}`;
 				const result = this.renderMarkdown(new MarkdownString(plusCursor), element, disposables, templateData, true);
 				// Doing the progressive render
 				dom.clearNode(templateData.value);
@@ -401,7 +400,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const slashCommands = this.delegate.getSlashCommands();
 		const usedSlashCommand = slashCommands.find(s => markdown.value.startsWith(`/${s.command} `));
 		const toRender = usedSlashCommand ? markdown.value.slice(usedSlashCommand.command.length + 2) : markdown.value;
-		markdown = new MarkdownString(toRender);
+		markdown = new MarkdownString(toRender, {
+			isTrusted: {
+				enabledCommands: ['vscode.open']
+			},
+		});
 
 		const codeblocks: IChatCodeBlockInfo[] = [];
 		const result = this.renderer.render(markdown, {
@@ -516,6 +519,11 @@ export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
 
+	constructor(
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
+	) {
+
+	}
 	getWidgetRole(): AriaRole {
 		return 'list';
 	}
@@ -534,7 +542,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		}
 
 		if (isResponseVM(element)) {
-			return element.response.value;
+			return this._getLabelWithCodeBlockCount(element);
 		}
 
 		if (isWelcomeVM(element)) {
@@ -542,6 +550,24 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		}
 
 		return '';
+	}
+
+	private _getLabelWithCodeBlockCount(element: IChatResponseViewModel): string {
+		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.Chat);
+		let label: string = '';
+		const codeBlockCount = marked.lexer(element.response.value).filter(token => token.type === 'code')?.length ?? 0;
+		switch (codeBlockCount) {
+			case 0:
+				label = accessibleViewHint ? localize('noCodeBlocksHint', "{0} {1}", element.response.value, accessibleViewHint) : localize('noCodeBlocks', "{0}", element.response.value);
+				break;
+			case 1:
+				label = accessibleViewHint ? localize('singleCodeBlockHint', "1 code block: {0} {1}", element.response.value, accessibleViewHint) : localize('singleCodeBlock', "1 code block: {0}", element.response.value);
+				break;
+			default:
+				label = accessibleViewHint ? localize('multiCodeBlockHint', "{0} code blocks: {1}", codeBlockCount, element.response.value, accessibleViewHint) : localize('multiCodeBlock', "{0} code blocks", codeBlockCount, element.response.value);
+				break;
+		}
+		return label;
 	}
 }
 
@@ -606,7 +632,7 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 		}));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.editor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, editorElement, {
-			...getSimpleEditorOptions(),
+			...getSimpleEditorOptions(this.configurationService),
 			readOnly: true,
 			lineNumbers: 'off',
 			selectOnLineNumbers: true,
@@ -633,7 +659,6 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 				SmartSelectController.ID,
 			])
 		}));
-
 
 		this._register(this.options.onDidChange(() => {
 			this.editor.updateOptions(this.getEditorOptionsFromConfig());
@@ -723,7 +748,7 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 		this.setLanguage(vscodeLanguageId);
 
 		this.layout(width);
-
+		this.editor.updateOptions({ ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1) });
 		this.toolbar.context = <IChatCodeBlockActionContext>{
 			code: data.text,
 			codeBlockIndex: data.codeBlockIndex,

@@ -488,7 +488,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	// --- suggest
 
-	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange; replace: IRange }, data: ISuggestDataDto): languages.CompletionItem {
+	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange; replace: IRange }, data: ISuggestDataDto, extensionId: ExtensionIdentifier): languages.CompletionItem {
 
 		const label = data[ISuggestDataDtoField.label];
 		const commandId = data[ISuggestDataDtoField.commandId];
@@ -497,6 +497,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 		return {
 			label,
+			extensionId,
 			kind: data[ISuggestDataDtoField.kind] ?? languages.CompletionItemKind.Property,
 			tags: data[ISuggestDataDtoField.kindModifier],
 			detail: data[ISuggestDataDtoField.detail],
@@ -520,17 +521,17 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		};
 	}
 
-	$registerCompletionsProvider(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void {
+	$registerCompletionsProvider(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void {
 		const provider: languages.CompletionItemProvider = {
 			triggerCharacters,
-			_debugDisplayName: displayName,
+			_debugDisplayName: `${extensionId.value}(${triggerCharacters.join('')})`,
 			provideCompletionItems: async (model: ITextModel, position: EditorPosition, context: languages.CompletionContext, token: CancellationToken): Promise<languages.CompletionList | undefined> => {
 				const result = await this._proxy.$provideCompletionItems(handle, model.uri, position, context, token);
 				if (!result) {
 					return result;
 				}
 				return {
-					suggestions: result[ISuggestResultDtoField.completions].map(d => MainThreadLanguageFeatures._inflateSuggestDto(result[ISuggestResultDtoField.defaultRanges], d)),
+					suggestions: result[ISuggestResultDtoField.completions].map(d => MainThreadLanguageFeatures._inflateSuggestDto(result[ISuggestResultDtoField.defaultRanges], d, extensionId)),
 					incomplete: result[ISuggestResultDtoField.isIncomplete] || false,
 					duration: result[ISuggestResultDtoField.duration],
 					dispose: () => {
@@ -548,7 +549,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 						return suggestion;
 					}
 
-					const newSuggestion = MainThreadLanguageFeatures._inflateSuggestDto(suggestion.range, result);
+					const newSuggestion = MainThreadLanguageFeatures._inflateSuggestDto(suggestion.range, result, extensionId);
 					return mixin(suggestion, newSuggestion, true);
 				});
 			};
@@ -556,7 +557,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.completionProvider.register(selector, provider));
 	}
 
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean): void {
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, yieldsToExtensionIds: string[]): void {
 		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
@@ -573,6 +574,11 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			},
 			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
 				this._proxy.$freeInlineCompletionsList(handle, completions.pid);
+			},
+			groupId: extensionId,
+			yieldsToGroupIds: yieldsToExtensionIds,
+			toString() {
+				return `InlineCompletionsProvider(${extensionId})`;
 			}
 		};
 		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
@@ -846,7 +852,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			__electricCharacterSupport: undefined
 		};
 
-		if (_configuration.__characterPairSupport) {
+		if (_configuration.autoClosingPairs) {
+			configuration.autoClosingPairs = _configuration.autoClosingPairs;
+		} else if (_configuration.__characterPairSupport) {
 			// backwards compatibility
 			configuration.autoClosingPairs = _configuration.__characterPairSupport.autoClosingPairs;
 		}

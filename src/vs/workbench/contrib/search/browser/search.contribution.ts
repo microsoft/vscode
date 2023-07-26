@@ -21,6 +21,7 @@ import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor,
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
+import { registerContributions as notebookSearchContributions } from 'vs/workbench/contrib/search/browser/notebookSearchContributions';
 import { searchViewIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
@@ -46,6 +47,7 @@ registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, Instantiation
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
 
 replaceContributions();
+notebookSearchContributions();
 searchWidgetContributions();
 
 const SEARCH_MODE_CONFIG = 'search.mode';
@@ -349,6 +351,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('scm.defaultViewMode.list', "Shows search results as a list.")
 			],
 			'description': nls.localize('search.defaultViewMode', "Controls the default search result view mode.")
+		},
+		'search.experimental.closedNotebookRichContentResults': {
+			type: 'boolean',
+			description: nls.localize('search.experimental.closedNotebookResults', "Show notebook editor rich content results for closed notebooks. Please refresh your search results after changing this setting."),
+			default: false
 		}
 	}
 });

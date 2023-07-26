@@ -73,7 +73,7 @@ import './mainThreadNotebookDocumentsAndEditors';
 import './mainThreadNotebookRenderers';
 import './mainThreadNotebookSaveParticipant';
 import './mainThreadInteractive';
-import './mainThreadInteractiveEditor';
+import './mainThreadInlineChat';
 import './mainThreadChat';
 import './mainThreadTask';
 import './mainThreadLabelService';

@@ -34,50 +34,6 @@ class RepositoryPick implements QuickPickItem {
 	constructor(public readonly repository: Repository, public readonly index: number) { }
 }
 
-abstract class RepositoryMap<T = void> extends Map<string, T> {
-	constructor() {
-		super();
-		this.updateContextKey();
-	}
-
-	override set(key: string, value: T): this {
-		const result = super.set(key, value);
-		this.updateContextKey();
-
-		return result;
-	}
-
-	override delete(key: string): boolean {
-		const result = super.delete(key);
-		this.updateContextKey();
-
-		return result;
-	}
-
-	abstract updateContextKey(): void;
-}
-
-/**
- * Key   - normalized path used in user interface
- * Value - path extracted from the output of the `git status` command
- *         used when calling `git config --global --add safe.directory`
- */
-class UnsafeRepositoryMap extends RepositoryMap<string> {
-	updateContextKey(): void {
-		commands.executeCommand('setContext', 'git.unsafeRepositoryCount', this.size);
-	}
-}
-
-/**
- * Key   - normalized path used in user interface
- * Value - value indicating whether the repository should be opened
- */
-class ParentRepositoryMap extends RepositoryMap {
-	updateContextKey(): void {
-		commands.executeCommand('setContext', 'git.parentRepositoryCount', this.size);
-	}
-}
-
 export interface ModelChangeEvent {
 	repository: Repository;
 	uri: Uri;
@@ -90,6 +46,128 @@ export interface OriginalResourceChangeEvent {
 
 interface OpenRepository extends Disposable {
 	repository: Repository;
+}
+
+class ClosedRepositoriesManager {
+
+	private _repositories: Set<string>;
+	get repositories(): string[] {
+		return [...this._repositories.values()];
+	}
+
+	constructor(private readonly workspaceState: Memento) {
+		this._repositories = new Set<string>(workspaceState.get<string[]>('closedRepositories', []));
+		this.onDidChangeRepositories();
+	}
+
+	addRepository(repository: string): void {
+		this._repositories.add(repository);
+		this.onDidChangeRepositories();
+	}
+
+	deleteRepository(repository: string): boolean {
+		const result = this._repositories.delete(repository);
+		if (result) {
+			this.onDidChangeRepositories();
+		}
+
+		return result;
+	}
+
+	isRepositoryClosed(repository: string): boolean {
+		return this._repositories.has(repository);
+	}
+
+	private onDidChangeRepositories(): void {
+		this.workspaceState.update('closedRepositories', [...this._repositories.values()]);
+		commands.executeCommand('setContext', 'git.closedRepositoryCount', this._repositories.size);
+	}
+}
+
+class ParentRepositoriesManager {
+
+	/**
+	 * Key   - normalized path used in user interface
+	 * Value - value indicating whether the repository should be opened
+	 */
+	private _repositories = new Set<string>;
+	get repositories(): string[] {
+		return [...this._repositories.values()];
+	}
+
+	constructor(private readonly globalState: Memento) {
+		this.onDidChangeRepositories();
+	}
+
+	addRepository(repository: string): void {
+		this._repositories.add(repository);
+		this.onDidChangeRepositories();
+	}
+
+	deleteRepository(repository: string): boolean {
+		const result = this._repositories.delete(repository);
+		if (result) {
+			this.onDidChangeRepositories();
+		}
+
+		return result;
+	}
+
+	hasRepository(repository: string): boolean {
+		return this._repositories.has(repository);
+	}
+
+	openRepository(repository: string): void {
+		this.globalState.update(`parentRepository:${repository}`, true);
+		this.deleteRepository(repository);
+	}
+
+	private onDidChangeRepositories(): void {
+		commands.executeCommand('setContext', 'git.parentRepositoryCount', this._repositories.size);
+	}
+}
+
+class UnsafeRepositoriesManager {
+
+	/**
+	 * Key   - normalized path used in user interface
+	 * Value - path extracted from the output of the `git status` command
+	 *         used when calling `git config --global --add safe.directory`
+	 */
+	private _repositories = new Map<string, string>();
+	get repositories(): string[] {
+		return [...this._repositories.keys()];
+	}
+
+	constructor() {
+		this.onDidChangeRepositories();
+	}
+
+	addRepository(repository: string, path: string): void {
+		this._repositories.set(repository, path);
+		this.onDidChangeRepositories();
+	}
+
+	deleteRepository(repository: string): boolean {
+		const result = this._repositories.delete(repository);
+		if (result) {
+			this.onDidChangeRepositories();
+		}
+
+		return result;
+	}
+
+	getRepositoryPath(repository: string): string | undefined {
+		return this._repositories.get(repository);
+	}
+
+	hasRepository(repository: string): boolean {
+		return this._repositories.has(repository);
+	}
+
+	private onDidChangeRepositories(): void {
+		commands.executeCommand('setContext', 'git.unsafeRepositoryCount', this._repositories.size);
+	}
 }
 
 export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry {
@@ -159,14 +237,19 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
-	private _unsafeRepositories = new UnsafeRepositoryMap();
-	get unsafeRepositories(): UnsafeRepositoryMap {
-		return this._unsafeRepositories;
+	private _unsafeRepositoriesManager: UnsafeRepositoriesManager;
+	get unsafeRepositories(): string[] {
+		return this._unsafeRepositoriesManager.repositories;
 	}
 
-	private _parentRepositories = new ParentRepositoryMap();
-	get parentRepositories(): ParentRepositoryMap {
-		return this._parentRepositories;
+	private _parentRepositoriesManager: ParentRepositoriesManager;
+	get parentRepositories(): string[] {
+		return this._parentRepositoriesManager.repositories;
+	}
+
+	private _closedRepositoriesManager: ClosedRepositoriesManager;
+	get closedRepositories(): string[] {
+		return [...this._closedRepositoriesManager.repositories];
 	}
 
 	/**
@@ -181,7 +264,12 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 
 	private disposables: Disposable[] = [];
 
-	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
+	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, readonly workspaceState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
+		// Repositories managers
+		this._closedRepositoriesManager = new ClosedRepositoriesManager(workspaceState);
+		this._parentRepositoriesManager = new ParentRepositoriesManager(globalState);
+		this._unsafeRepositoriesManager = new UnsafeRepositoriesManager();
+
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
@@ -216,11 +304,11 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			await initialScanFn();
 		}
 
-		if (this._parentRepositories.size !== 0 &&
+		if (this.parentRepositories.length !== 0 &&
 			parentRepositoryConfig === 'prompt') {
 			// Parent repositories notification
 			this.showParentRepositoryNotification();
-		} else if (this._unsafeRepositories.size !== 0) {
+		} else if (this.unsafeRepositories.length !== 0) {
 			// Unsafe repositories notification
 			this.showUnsafeRepositoryNotification();
 		}
@@ -403,10 +491,11 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	}
 
 	@sequentialize
-	async openRepository(repoPath: string): Promise<void> {
+	async openRepository(repoPath: string, openIfClosed = false): Promise<void> {
 		this.logger.trace(`Opening repository: ${repoPath}`);
-		if (this.getRepositoryExact(repoPath)) {
-			this.logger.trace(`Repository for path ${repoPath} already exists`);
+		const existingRepository = await this.getRepositoryExact(repoPath);
+		if (existingRepository) {
+			this.logger.trace(`Repository for path ${repoPath} already exists: ${existingRepository.root})`);
 			return;
 		}
 
@@ -436,8 +525,9 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			const { repositoryRoot, unsafeRepositoryMatch } = await this.getRepositoryRoot(repoPath);
 			this.logger.trace(`Repository root for path ${repoPath} is: ${repositoryRoot}`);
 
-			if (this.getRepositoryExact(repositoryRoot)) {
-				this.logger.trace(`Repository for path ${repositoryRoot} already exists`);
+			const existingRepository = await this.getRepositoryExact(repositoryRoot);
+			if (existingRepository) {
+				this.logger.trace(`Repository for path ${repositoryRoot} already exists: ${existingRepository.root}`);
 				return;
 			}
 
@@ -453,13 +543,13 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 				if (isRepositoryOutsideWorkspace) {
 					this.logger.trace(`Repository in parent folder: ${repositoryRoot}`);
 
-					if (!this._parentRepositories.has(repositoryRoot)) {
+					if (!this._parentRepositoriesManager.hasRepository(repositoryRoot)) {
 						// Show a notification if the parent repository is opened after the initial scan
 						if (this.state === 'initialized' && parentRepositoryConfig === 'prompt') {
 							this.showParentRepositoryNotification();
 						}
 
-						this._parentRepositories.set(repositoryRoot);
+						this._parentRepositoriesManager.addRepository(repositoryRoot);
 					}
 
 					return;
@@ -471,12 +561,18 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 				this.logger.trace(`Unsafe repository: ${repositoryRoot}`);
 
 				// Show a notification if the unsafe repository is opened after the initial scan
-				if (this._state === 'initialized' && !this._unsafeRepositories.has(repositoryRoot)) {
+				if (this._state === 'initialized' && !this._unsafeRepositoriesManager.hasRepository(repositoryRoot)) {
 					this.showUnsafeRepositoryNotification();
 				}
 
-				this._unsafeRepositories.set(repositoryRoot, unsafeRepositoryMatch[2]);
+				this._unsafeRepositoriesManager.addRepository(repositoryRoot, unsafeRepositoryMatch[2]);
 
+				return;
+			}
+
+			// Handle repositories that were closed by the user
+			if (!openIfClosed && this._closedRepositoriesManager.isRepositoryClosed(repositoryRoot)) {
+				this.logger.trace(`Repository for path ${repositoryRoot} is closed`);
 				return;
 			}
 
@@ -485,7 +581,11 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			const repository = new Repository(this.git.open(repositoryRoot, dotGit, this.logger), this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
-			repository.status(); // do not await this, we want SCM to know about the repo asap
+			this._closedRepositoriesManager.deleteRepository(repository.root);
+
+			// Do not await this, we want SCM
+			// to know about the repo asap
+			repository.status();
 		} catch (err) {
 			// noop
 			this.logger.trace(`Opening repository for path='${repoPath}' failed; ex=${err}`);
@@ -493,11 +593,8 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	}
 
 	async openParentRepository(repoPath: string): Promise<void> {
-		// Mark the repository to be opened from the parent folders
-		this.globalState.update(`parentRepository:${repoPath}`, true);
-
 		await this.openRepository(repoPath);
-		this.parentRepositories.delete(repoPath);
+		this._parentRepositoriesManager.openRepository(repoPath);
 	}
 
 	private async getRepositoryRoot(repoPath: string): Promise<{ repositoryRoot: string; unsafeRepositoryMatch: RegExpMatchArray | null }> {
@@ -633,6 +730,8 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		}
 
 		this.logger.info(`Close repository: ${repository.root}`);
+		this._closedRepositoriesManager.addRepository(openRepository.repository.root);
+
 		openRepository.dispose();
 	}
 
@@ -666,10 +765,16 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		return liveRepository && liveRepository.repository;
 	}
 
-	private getRepositoryExact(repoPath: string): Repository | undefined {
-		const openRepository = this.openRepositories
-			.find(r => pathEquals(r.repository.root, repoPath));
-		return openRepository?.repository;
+	private async getRepositoryExact(repoPath: string): Promise<Repository | undefined> {
+		const repoPathCanonical = await fs.promises.realpath(repoPath, { encoding: 'utf8' });
+
+		for (const openRepository of this.openRepositories) {
+			const rootPathCanonical = await fs.promises.realpath(openRepository.repository.root, { encoding: 'utf8' });
+			if (pathEquals(rootPathCanonical, repoPathCanonical)) {
+				return openRepository.repository;
+			}
+		}
+		return undefined;
 	}
 
 	private getOpenRepository(repository: Repository): OpenRepository | undefined;
@@ -818,6 +923,14 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		return [...this.pushErrorHandlers];
 	}
 
+	getUnsafeRepositoryPath(repository: string): string | undefined {
+		return this._unsafeRepositoriesManager.getRepositoryPath(repository);
+	}
+
+	deleteUnsafeRepository(repository: string): boolean {
+		return this._unsafeRepositoriesManager.deleteRepository(repository);
+	}
+
 	private async isRepositoryOutsideWorkspace(repositoryPath: string): Promise<boolean> {
 		const workspaceFolders = (workspace.workspaceFolders || [])
 			.filter(folder => folder.uri.scheme === 'file');
@@ -826,12 +939,14 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			return true;
 		}
 
-		const result = await Promise.all(workspaceFolders.map(async folder => {
-			const workspaceFolderRealPath = await this.getWorkspaceFolderRealPath(folder);
-			return workspaceFolderRealPath ? pathEquals(workspaceFolderRealPath, repositoryPath) || isDescendant(workspaceFolderRealPath, repositoryPath) : undefined;
-		}));
+		// The repository path may be a canonical path or it may contain a symbolic link so we have
+		// to match it against the workspace folders and the canonical paths of the workspace folders
+		const workspaceFolderPaths = new Set<string | undefined>([
+			...workspaceFolders.map(folder => folder.uri.fsPath),
+			...await Promise.all(workspaceFolders.map(folder => this.getWorkspaceFolderRealPath(folder)))
+		]);
 
-		return !result.some(r => r);
+		return !Array.from(workspaceFolderPaths).some(folder => folder && (pathEquals(folder, repositoryPath) || isDescendant(folder, repositoryPath)));
 	}
 
 	private async getWorkspaceFolderRealPath(workspaceFolder: WorkspaceFolder): Promise<string | undefined> {
@@ -851,7 +966,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	}
 
 	private async showParentRepositoryNotification(): Promise<void> {
-		const message = this.parentRepositories.size === 1 ?
+		const message = this.parentRepositories.length === 1 ?
 			l10n.t('A git repository was found in the parent folders of the workspace or the open file(s). Would you like to open the repository?') :
 			l10n.t('Git repositories were found in the parent folders of the workspace or the open file(s). Would you like to open the repositories?');
 
@@ -869,7 +984,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			await config.update('openRepositoryInParentFolders', choice === always ? 'always' : 'never', true);
 
 			if (choice === always) {
-				for (const parentRepository of [...this.parentRepositories.keys()]) {
+				for (const parentRepository of this.parentRepositories) {
 					await this.openParentRepository(parentRepository);
 				}
 			}
@@ -884,7 +999,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			return;
 		}
 
-		const message = this._unsafeRepositories.size === 1 ?
+		const message = this.unsafeRepositories.length === 1 ?
 			l10n.t('The git repository in the current folder is potentially unsafe as the folder is owned by someone other than the current user.') :
 			l10n.t('The git repositories in the current folder are potentially unsafe as the folders are owned by someone other than the current user.');
 

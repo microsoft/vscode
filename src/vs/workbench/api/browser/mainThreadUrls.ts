@@ -5,18 +5,19 @@
 
 import { ExtHostContext, MainContext, MainThreadUrlsShape, ExtHostUrlsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
-import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
+import { IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionUrlHandler } from 'vs/workbench/services/extensions/browser/extensionUrlHandler';
+import { IExtensionContributedURLHandler, IExtensionUrlHandler } from 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
-class ExtensionUrlHandler implements IURLHandler {
+class ExtensionUrlHandler implements IExtensionContributedURLHandler {
 
 	constructor(
 		private readonly proxy: ExtHostUrlsShape,
 		private readonly handle: number,
-		readonly extensionId: ExtensionIdentifier
+		readonly extensionId: ExtensionIdentifier,
+		readonly extensionDisplayName: string
 	) { }
 
 	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
@@ -42,8 +43,8 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUrls);
 	}
 
-	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void> {
-		const handler = new ExtensionUrlHandler(this.proxy, handle, extensionId);
+	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier, extensionDisplayName: string): Promise<void> {
+		const handler = new ExtensionUrlHandler(this.proxy, handle, extensionId, extensionDisplayName);
 		const disposable = this.urlService.registerHandler(handler);
 
 		this.handlers.set(handle, { extensionId, disposable });

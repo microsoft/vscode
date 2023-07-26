@@ -438,8 +438,16 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return this.tree.contentHeight;
 	}
 
+	get contentWidth(): number {
+		return this.tree.contentWidth;
+	}
+
 	get onDidChangeContentHeight(): Event<number> {
 		return this.tree.onDidChangeContentHeight;
+	}
+
+	get onDidChangeContentWidth(): Event<number> {
+		return this.tree.onDidChangeContentWidth;
 	}
 
 	get scrollTop(): number {

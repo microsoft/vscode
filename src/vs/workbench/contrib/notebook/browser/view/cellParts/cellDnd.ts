@@ -140,7 +140,7 @@ export class CellDragAndDropController extends Disposable {
 			return undefined;
 		}
 
-		const cellTop = this.list.getAbsoluteTopOfElement(draggedOverCell);
+		const cellTop = this.list.getCellViewScrollTop(draggedOverCell);
 		const cellHeight = this.list.elementHeight(draggedOverCell);
 
 		const dragPosInElement = dragOffset - cellTop;
@@ -228,7 +228,7 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	private _dropImpl(draggedCell: ICellViewModel, dropDirection: 'above' | 'below', ctx: { ctrlKey: boolean; altKey: boolean }, draggedOverCell: ICellViewModel) {
-		const cellTop = this.list.getAbsoluteTopOfElement(draggedOverCell);
+		const cellTop = this.list.getCellViewScrollTop(draggedOverCell);
 		const cellHeight = this.list.elementHeight(draggedOverCell);
 		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? cellTop : cellTop + cellHeight;
 		const { bottomToolbarGap } = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
@@ -358,7 +358,7 @@ export class CellDragAndDropController extends Disposable {
 
 		const target = this.list.elementAt(dragOffsetY);
 		if (target && target !== cell) {
-			const cellTop = this.list.getAbsoluteTopOfElement(target);
+			const cellTop = this.list.getCellViewScrollTop(target);
 			const cellHeight = this.list.elementHeight(target);
 
 			const dropDirection = this.getExplicitDragDropDirection(dragOffsetY, cellTop, cellHeight);
@@ -400,7 +400,7 @@ export class CellDragAndDropController extends Disposable {
 			return;
 		}
 
-		const cellTop = this.list.getAbsoluteTopOfElement(target);
+		const cellTop = this.list.getCellViewScrollTop(target);
 		const cellHeight = this.list.elementHeight(target);
 		const dropDirection = this.getExplicitDragDropDirection(ctx.dragOffsetY, cellTop, cellHeight);
 		this._dropImpl(cell, dropDirection, ctx, target);

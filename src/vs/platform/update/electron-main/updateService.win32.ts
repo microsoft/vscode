@@ -22,7 +22,7 @@ import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeH
 import { IProductService } from 'vs/platform/product/common/productService';
 import { asJson, IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from 'vs/platform/update/common/update';
+import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from 'vs/platform/update/common/update';
 import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 
 async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
@@ -73,6 +73,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	protected override async initialize(): Promise<void> {
 		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
+			this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
 			this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
 			return;
 		}
@@ -144,7 +145,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 						this.availableUpdate = { packagePath };
 
-						if (fastUpdatesEnabled && update.supportsFastUpdate) {
+						if (fastUpdatesEnabled) {
 							if (this.productService.target === 'user') {
 								this.doApplyUpdate();
 							} else {
@@ -238,7 +239,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
-		if (this.state.update.supportsFastUpdate && this.availableUpdate.updateFilePath) {
+		if (this.availableUpdate.updateFilePath) {
 			fs.unlinkSync(this.availableUpdate.updateFilePath);
 		} else {
 			spawn(this.availableUpdate.packagePath, ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
@@ -258,7 +259,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		}
 
 		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-		const update: IUpdate = { version: 'unknown', productVersion: 'unknown', supportsFastUpdate: !!fastUpdatesEnabled };
+		const update: IUpdate = { version: 'unknown', productVersion: 'unknown' };
 
 		this.setState(State.Downloading(update));
 		this.availableUpdate = { packagePath };

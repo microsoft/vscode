@@ -69,7 +69,7 @@ suite('ExtensionsMerge', () => {
 			aLocalSyncExtension({ identifier: { id: 'c', uuid: 'c' } }),
 		];
 		const skippedExtension = [
-			anSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
+			aSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
 		];
 		const expected = [...localExtensions];
 
@@ -88,7 +88,7 @@ suite('ExtensionsMerge', () => {
 			aLocalSyncExtension({ identifier: { id: 'c', uuid: 'c' } }),
 		];
 		const skippedExtension = [
-			anSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
+			aSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
 		];
 		const expected = [localExtensions[1], localExtensions[2]];
 
@@ -106,8 +106,8 @@ suite('ExtensionsMerge', () => {
 			aLocalSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
 		];
 		const remoteExtensions = [
-			anSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
-			anSyncExtension({ identifier: { id: 'c', uuid: 'c' } }),
+			aSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
+			aSyncExtension({ identifier: { id: 'c', uuid: 'c' } }),
 		];
 		const expected = [
 			anExpectedSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
@@ -133,8 +133,8 @@ suite('ExtensionsMerge', () => {
 			aLocalSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
 		];
 		const remoteExtensions = [
-			anSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
-			anSyncExtension({ identifier: { id: 'c', uuid: 'c' } }),
+			aSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
+			aSyncExtension({ identifier: { id: 'c', uuid: 'c' } }),
 		];
 		const expected = [
 			anExpectedSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
@@ -155,16 +155,16 @@ suite('ExtensionsMerge', () => {
 
 	test('merge local and remote extensions when remote is moved forwarded', () => {
 		const baseExtensions = [
-			anSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
-			anSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
+			aSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
+			aSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
 		];
 		const localExtensions = [
 			aLocalSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
 			aLocalSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
 		];
 		const remoteExtensions = [
-			anSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
-			anSyncExtension({ identifier: { id: 'c', uuid: 'c' } }),
+			aSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
+			aSyncExtension({ identifier: { id: 'c', uuid: 'c' } }),
 		];
 
 		const actual = merge(localExtensions, remoteExtensions, baseExtensions, [], [], []);
@@ -238,7 +238,7 @@ suite('ExtensionsMerge', () => {
 			aLocalSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
 		];
 		const skippedExtensions = [
-			anSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
+			aSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
 		];
 		const remoteExtensions = [
 			aRemoteSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
@@ -265,7 +265,7 @@ suite('ExtensionsMerge', () => {
 			aLocalSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
 		];
 		const skippedExtensions = [
-			anSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
+			aSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
 		];
 		const remoteExtensions = [
 			aRemoteSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
@@ -364,7 +364,7 @@ suite('ExtensionsMerge', () => {
 			aRemoteSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
 		];
 		const skippedExtensions = [
-			anSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
+			aSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
 		];
 		const localExtensions = [
 			aLocalSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
@@ -394,7 +394,7 @@ suite('ExtensionsMerge', () => {
 			aRemoteSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
 		];
 		const skippedExtensions = [
-			anSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
+			aSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
 		];
 		const localExtensions = [
 			aLocalSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
@@ -481,7 +481,7 @@ suite('ExtensionsMerge', () => {
 			aRemoteSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
 		];
 		const skippedExtensions = [
-			anSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
+			aSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
 		];
 		const localExtensions = [
 			aLocalSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
@@ -512,7 +512,7 @@ suite('ExtensionsMerge', () => {
 			aRemoteSyncExtension({ identifier: { id: 'd', uuid: 'd' } }),
 		];
 		const skippedExtensions = [
-			anSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
+			aSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
 		];
 		const localExtensions = [
 			aLocalSyncExtension({ identifier: { id: 'b', uuid: 'b' } }),
@@ -1317,6 +1317,74 @@ suite('ExtensionsMerge', () => {
 		assert.deepStrictEqual(actual.remote, null);
 	});
 
+	test('sync adding local application scoped extension', () => {
+		const localExtensions = [
+			aLocalSyncExtension({ identifier: { id: 'a', uuid: 'a' }, isApplicationScoped: true }),
+		];
+
+		const actual = merge(localExtensions, null, null, [], [], []);
+
+		assert.deepStrictEqual(actual.local.added, []);
+		assert.deepStrictEqual(actual.local.removed, []);
+		assert.deepStrictEqual(actual.local.updated, []);
+		assert.deepStrictEqual(actual.remote?.all, localExtensions);
+	});
+
+	test('sync merging local extension with isApplicationScoped property and remote does not has isApplicationScoped property', () => {
+		const localExtensions = [
+			aLocalSyncExtension({ identifier: { id: 'a', uuid: 'a' }, isApplicationScoped: false }),
+		];
+
+		const baseExtensions = [
+			aSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
+		];
+
+		const actual = merge(localExtensions, baseExtensions, baseExtensions, [], [], []);
+
+		assert.deepStrictEqual(actual.local.added, []);
+		assert.deepStrictEqual(actual.local.removed, []);
+		assert.deepStrictEqual(actual.local.updated, []);
+		assert.deepStrictEqual(actual.remote?.all, [anExpectedSyncExtension({ identifier: { id: 'a', uuid: 'a' } })]);
+	});
+
+	test('sync merging when applicaiton scope is changed locally', () => {
+		const localExtensions = [
+			aLocalSyncExtension({ identifier: { id: 'a', uuid: 'a' }, isApplicationScoped: true }),
+		];
+
+		const baseExtensions = [
+			aRemoteSyncExtension({ identifier: { id: 'a', uuid: 'a' }, isApplicationScoped: false }),
+		];
+
+		const actual = merge(localExtensions, baseExtensions, baseExtensions, [], [], []);
+
+		assert.deepStrictEqual(actual.local.added, []);
+		assert.deepStrictEqual(actual.local.removed, []);
+		assert.deepStrictEqual(actual.local.updated, []);
+		assert.deepStrictEqual(actual.remote?.all, localExtensions);
+	});
+
+	test('sync merging when applicaiton scope is changed remotely', () => {
+		const localExtensions = [
+			aLocalSyncExtension({ identifier: { id: 'a', uuid: 'a' }, isApplicationScoped: false }),
+		];
+
+		const baseExtensions = [
+			aRemoteSyncExtension({ identifier: { id: 'a', uuid: 'a' }, isApplicationScoped: false }),
+		];
+
+		const remoteExtensions = [
+			aRemoteSyncExtension({ identifier: { id: 'a', uuid: 'a' }, isApplicationScoped: true }),
+		];
+
+		const actual = merge(localExtensions, remoteExtensions, baseExtensions, [], [], []);
+
+		assert.deepStrictEqual(actual.local.added, []);
+		assert.deepStrictEqual(actual.local.removed, []);
+		assert.deepStrictEqual(actual.local.updated, [anExpectedSyncExtension({ identifier: { id: 'a', uuid: 'a' }, isApplicationScoped: true })]);
+		assert.deepStrictEqual(actual.remote, null);
+	});
+
 	function anExpectedSyncExtension(extension: Partial<ISyncExtension>): ISyncExtension {
 		return {
 			identifier: { id: 'a', uuid: 'a' },
@@ -1360,7 +1428,7 @@ suite('ExtensionsMerge', () => {
 		};
 	}
 
-	function anSyncExtension(extension: Partial<ISyncExtension>): ISyncExtension {
+	function aSyncExtension(extension: Partial<ISyncExtension>): ISyncExtension {
 		return {
 			identifier: { id: 'a', uuid: 'a' },
 			version: '1.0.0',

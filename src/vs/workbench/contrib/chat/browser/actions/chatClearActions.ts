@@ -59,7 +59,10 @@ export function registerClearActions() {
 				f1: true,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyMod.WinCtrl | KeyCode.KeyL,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyL,
+					mac: {
+						primary: KeyMod.WinCtrl | KeyCode.KeyL
+					},
 					when: CONTEXT_IN_CHAT_SESSION
 				}
 			});

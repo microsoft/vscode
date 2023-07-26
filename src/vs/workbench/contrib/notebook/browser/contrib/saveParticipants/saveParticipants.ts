@@ -30,6 +30,8 @@ import { CodeActionTriggerType, CodeActionProvider, IWorkspaceTextEdit } from 'v
 import { applyCodeAction, ApplyCodeActionReason, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { isEqual } from 'vs/base/common/resources';
 
+const NotebookCodeAction = new CodeActionKind('notebook');
+
 
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
@@ -133,9 +135,9 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 			return undefined;
 		}
 
-		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems);
+		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems).filter(x => !NotebookCodeAction.contains(x));
+		const notebookCodeActionsOnSave = this.createCodeActionsOnSave(settingItems).filter(x => NotebookCodeAction.contains(x));
 
-		// TODO: potentially modify to account for new `Notebook` code action kind
 		// prioritize `source.fixAll` code actions
 		if (!Array.isArray(setting)) {
 			codeActionsOnSave.sort((a, b) => {
@@ -152,7 +154,10 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 			});
 		}
 
-		if (!codeActionsOnSave.length) {
+
+
+
+		if (!codeActionsOnSave.length && !notebookCodeActionsOnSave.length) {
 			return undefined;
 		}
 
@@ -162,9 +167,28 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 				.filter(x => setting[x] === false)
 				.map(x => new CodeActionKind(x));
 
+		const nbDisposable = new DisposableStore();
 
-		progress.report({ message: localize('notebookSaveParticipants.codeActions', "Running code actions") });
+		// run notebook code actions
+		progress.report({ message: localize('notebookSaveParticipants.notebookCodeActions', "Running 'Notebook' code actions") });
+		try {
+			const cell = notebookModel.cells[0];
+			const ref = await this.textModelService.createModelReference(cell.uri);
+			nbDisposable.add(ref);
+
+			const textEditorModel = ref.object.textEditorModel;
+
+			await this.applyOnSaveActions(textEditorModel, notebookCodeActionsOnSave, excludedActions, progress, token);
+		} catch {
+			this.logService.error('Failed to apply notebook code action on save');
+		} finally {
+			progress.report({ increment: 100 });
+			nbDisposable.dispose();
+		}
+
+		// run cell level code actions
 		const disposable = new DisposableStore();
+		progress.report({ message: localize('notebookSaveParticipants.cellCodeActions', "Running code actions") });
 		try {
 			await Promise.all(notebookModel.cells.map(async cell => {
 				const ref = await this.textModelService.createModelReference(cell.uri);
@@ -224,14 +248,16 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 				for (const action of actionsToRun.validActions) {
 					const codeActionEdits = action.action.edit?.edits;
 					let breakFlag = false;
-					for (const edit of codeActionEdits ?? []) {
-						const workspaceTextEdit = edit as IWorkspaceTextEdit;
-						if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
-							continue;
-						} else {
-							// error -> applied to multiple resources
-							breakFlag = true;
-							break;
+					if (!action.action.kind?.includes('notebook')) {
+						for (const edit of codeActionEdits ?? []) {
+							const workspaceTextEdit = edit as IWorkspaceTextEdit;
+							if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
+								continue;
+							} else {
+								// error -> applied to multiple resources
+								breakFlag = true;
+								break;
+							}
 						}
 					}
 					if (breakFlag) {
@@ -254,7 +280,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
 		return getCodeActions(this.languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), {
-			type: CodeActionTriggerType.Auto,
+			type: CodeActionTriggerType.Invoke,
 			triggerAction: CodeActionTriggerSource.OnSave,
 			filter: { include: codeActionKind, excludes: excludes, includeSourceActions: true },
 		}, progress, token);
