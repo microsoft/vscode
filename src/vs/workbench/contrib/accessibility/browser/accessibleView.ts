@@ -57,7 +57,7 @@ export interface IAccessibleViewService {
 }
 
 export const enum AccessibleViewType {
-	HelpMenu = 'helpMenu',
+	Help = 'help',
 	View = 'view'
 }
 
@@ -134,7 +134,7 @@ class AccessibleView extends Disposable {
 				return this._render(provider, container);
 			},
 			onHide: () => {
-				if (provider.options.type === AccessibleViewType.HelpMenu) {
+				if (provider.options.type === AccessibleViewType.Help) {
 					this._accessiblityHelpIsShown.reset();
 				} else {
 					this._accessibleViewIsShown.reset();
@@ -143,7 +143,7 @@ class AccessibleView extends Disposable {
 			}
 		};
 		this._contextViewService.showContextView(delegate);
-		if (provider.options.type === AccessibleViewType.HelpMenu) {
+		if (provider.options.type === AccessibleViewType.Help) {
 			this._accessiblityHelpIsShown.set(true);
 		} else {
 			this._accessibleViewIsShown.set(true);
@@ -170,10 +170,10 @@ class AccessibleView extends Disposable {
 		const settingKey = `accessibility.verbosity.${provider.verbositySettingKey}`;
 		const value = this._configurationService.getValue(settingKey);
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\nPress H now to open a browser window with more information related to accessibility.\n") : '';
-		const disableHelpHint = provider.options.type === AccessibleViewType.HelpMenu && !!value ? localize('disable-help-hint', '\nTo disable the `accessibility.verbosity` hint for this feature, press D now.\n') : '\n';
+		const disableHelpHint = provider.options.type === AccessibleViewType.Help && !!value ? localize('disable-help-hint', '\nTo disable the `accessibility.verbosity` hint for this feature, press D now.\n') : '\n';
 		const accessibilitySupport = this._accessibilityService.isScreenReaderOptimized();
 		let message = '';
-		if (provider.options.type === AccessibleViewType.HelpMenu) {
+		if (provider.options.type === AccessibleViewType.Help) {
 			const turnOnMessage = (
 				isMacintosh
 					? AccessibilityHelpNLS.changeConfigToOnMac
@@ -188,7 +188,7 @@ class AccessibleView extends Disposable {
 			}
 		}
 
-		const fragment = message + provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', 'Exit this menu via the Escape key.');
+		const fragment = message + provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', 'Exit this dialog via the Escape key.');
 
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.verbositySettingKey}`, scheme: 'accessible-view', fragment })).then((model) => {
 			if (!model) {
