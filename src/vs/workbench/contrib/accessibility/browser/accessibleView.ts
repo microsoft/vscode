@@ -211,7 +211,6 @@ class AccessibleView extends Disposable {
 				this._configurationService.updateValue(settingKey, false);
 			}
 			provider.onKeyDown?.(e);
-			// e.stopPropagation();
 		}));
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Escape) {

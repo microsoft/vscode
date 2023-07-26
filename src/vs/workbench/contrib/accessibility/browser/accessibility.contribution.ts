@@ -114,14 +114,16 @@ class HoverAccessibleViewContribution extends Disposable {
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 			const editorHoverContent = editor ? ModesHoverController.get(editor)?.getWidgetContent() ?? undefined : undefined;
-			if (!editorHoverContent) {
+			if (!editor || !editorHoverContent) {
 				return false;
 			}
 			this._options.language = editor?.getModel()?.getLanguageId() ?? undefined;
 			accessibleViewService.show({
 				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
 				provideContent() { return editorHoverContent; },
-				onClose() { },
+				onClose() {
+					ModesHoverController.get(editor)?.focus();
+				},
 				options: this._options
 			});
 			return true;
