@@ -2603,7 +2603,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			height: this._dimension?.height ?? 0,
 			scrollHeight: this._list?.getScrollHeight() ?? 0,
 			fontInfo: this._fontInfo!,
-			stickyHeight: this._notebookStickyScroll?.getCurrentStickyHeight()
+			stickyHeight: this._notebookStickyScroll?.getCurrentStickyHeight() ?? 0
 		};
 	}
 
