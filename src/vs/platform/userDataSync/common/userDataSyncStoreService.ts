@@ -534,8 +534,8 @@ export class UserDataSyncStoreClient extends Disposable {
 		if (isSuccess) {
 			this.logService.trace('Request succeeded', requestInfo);
 		} else {
-			this.logService.info('Request failed', requestInfo);
 			failureMessage = await asText(context) || '';
+			this.logService.info('Request failed', requestInfo, failureMessage);
 		}
 
 		if (context.res.statusCode === 401 || context.res.statusCode === 403) {
