@@ -67,6 +67,7 @@ const smartPasteRegexes = [
 	{ regex: /!\[.*\]\(.*\)/g, isMarkdownLink: true, isInline: true }, // Is a Markdown Image Link
 	{ regex: /\[([^\]]*)\]\(([^)]*)\)/g, isMarkdownLink: false, isInline: true }, // In a Markdown link
 	{ regex: /^```[\s\S]*?```$/gm, isMarkdownLink: false, isInline: false }, // In a fenced code block
+	{ regex: /^~~~[\s\S]*?~~~$/gm, isMarkdownLink: false, isInline: false }, // In a fenced code block
 	{ regex: /^\$\$[\s\S]*?\$\$$/gm, isMarkdownLink: false, isInline: false }, // In a fenced math block
 	{ regex: /`[^`]*`/g, isMarkdownLink: false, isInline: true }, // In inline code
 	{ regex: /\$[^$]*\$/g, isMarkdownLink: false, isInline: true }, // In inline math
