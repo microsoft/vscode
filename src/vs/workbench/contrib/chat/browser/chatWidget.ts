@@ -189,7 +189,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		const indexToFocus = type === 'next' ? targetIndex + 1 : targetIndex - 1;
-		if (indexToFocus < 0 || indexToFocus === responseItems.length - 1) {
+		if (indexToFocus < 0 || indexToFocus > responseItems.length - 1) {
 			return;
 		}
 		this.focus(responseItems[indexToFocus]);
