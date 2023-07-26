@@ -211,9 +211,9 @@ export function appendToLinkSnippet(
 	if (pasteAsMarkdownLink) {
 		snippet.appendText('[');
 		snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
-		snippet.appendText(isExternalLink ? `](${uriString})` : `](${escapeMarkdownLinkPath(mdPath)})`);
+		snippet.appendText(isExternalLink ? `](${escapeParentheses(uriString)})` : `](${escapeMarkdownLinkPath(mdPath)})`);
 	} else {
-		snippet.appendText(isExternalLink ? uriString : escapeMarkdownLinkPath(mdPath));
+		snippet.appendText(isExternalLink ? escapeParentheses(uriString) : escapeMarkdownLinkPath(mdPath));
 	}
 	return snippet;
 }
@@ -401,6 +401,11 @@ function escapeMarkdownLinkPath(mdPath: string): string {
 
 function escapeBrackets(value: string): string {
 	value = value.replace(/[\[\]]/g, '\\$&');
+	return value;
+}
+
+function escapeParentheses(value: string): string {
+	value = value.replace(/[()]/g, '\\$&');
 	return value;
 }
 
