@@ -33,6 +33,11 @@ export interface IUserDataProfileService {
 	getShortName(profile: IUserDataProfile): string;
 }
 
+export interface IProfileTemplateInfo {
+	readonly name: string;
+	readonly url: string;
+}
+
 export const IUserDataProfileManagementService = createDecorator<IUserDataProfileManagementService>('IUserDataProfileManagementService');
 export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
@@ -42,6 +47,7 @@ export interface IUserDataProfileManagementService {
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<void>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
+	getBuiltinProfileTemplates(): Promise<IProfileTemplateInfo[]>;
 
 }
 
@@ -87,7 +93,8 @@ export interface IUserDataProfileImportExportService {
 	exportProfile(): Promise<void>;
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
-	createFromProfile(profile: IUserDataProfile, name: string, options?: IUserDataProfileOptions): Promise<void>;
+	createProfile(from?: IUserDataProfile | URI): Promise<void>;
+	editProfile(profile: IUserDataProfile): Promise<void>;
 	createTroubleshootProfile(): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }

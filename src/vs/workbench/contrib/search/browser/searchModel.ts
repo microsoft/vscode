@@ -625,6 +625,12 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 	setSelectedMatch(match: Match | null): void {
 		if (match) {
+
+			if (!this.isMatchSelected(match) && match instanceof MatchInNotebook) {
+				this._selectedMatch = match;
+				return;
+			}
+
 			if (!this._textMatches.has(match.id())) {
 				return;
 			}
@@ -765,6 +771,9 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._findMatchDecorationModel?.stopWebviewFind();
 		this._findMatchDecorationModel?.dispose();
 		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditorWidget, this.searchInstanceID);
+		if (this._selectedMatch instanceof MatchInNotebook) {
+			this.highlightCurrentFindMatchDecoration(this._selectedMatch);
+		}
 	}
 
 	private _removeNotebookHighlights(): void {
@@ -780,6 +789,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 			return;
 		}
 
+		const oldCellMatches = new Map<string, CellMatch>(this._cellMatches);
 		if (this._notebookEditorWidget.getId() !== this._lastEditorWidgetIdForUpdate) {
 			this._cellMatches.clear();
 			this._lastEditorWidgetIdForUpdate = this._notebookEditorWidget.getId();
@@ -790,10 +800,9 @@ export class FileMatch extends Disposable implements IFileMatch {
 			let existingCell = this._cellMatches.get(match.cell.id);
 			if (this._notebookEditorWidget && !existingCell) {
 				const index = this._notebookEditorWidget.getCellIndex(match.cell);
-				const existingRawCell = this._cellMatches.get(`${rawCellPrefix}${index}`);
+				const existingRawCell = oldCellMatches.get(`${rawCellPrefix}${index}`);
 				if (existingRawCell) {
 					existingRawCell.setCellModel(match.cell);
-					this._cellMatches.delete(`${rawCellPrefix}${index}`);
 					existingCell = existingRawCell;
 				}
 			}
@@ -805,6 +814,9 @@ export class FileMatch extends Disposable implements IFileMatch {
 		});
 
 		this._findMatchDecorationModel?.setAllFindMatchesDecorations(matches);
+		if (this._selectedMatch instanceof MatchInNotebook) {
+			this.highlightCurrentFindMatchDecoration(this._selectedMatch);
+		}
 		this._onChange.fire({ forceUpdateModel: modelChange });
 	}
 

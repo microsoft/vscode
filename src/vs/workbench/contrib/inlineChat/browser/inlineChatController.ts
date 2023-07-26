@@ -158,6 +158,10 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
+	getMessage(): string | undefined {
+		return this._zone.value.widget.responseContent;
+	}
+
 	getId(): string {
 		return INLINE_CHAT_ID;
 	}
@@ -176,13 +180,17 @@ export class InlineChatController implements IEditorContribution {
 		return this._zone.value.position;
 	}
 
-	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
-		this._log('session starting');
-		await this.finishExistingSession();
-		this._stashedSession.clear();
+	private _currentRun?: Promise<void>;
 
-		await this._nextState(State.CREATE_SESSION, options);
-		this._log('session done or paused');
+	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
+		this.finishExistingSession();
+		if (this._currentRun) {
+			await this._currentRun;
+		}
+		this._stashedSession.clear();
+		this._currentRun = this._nextState(State.CREATE_SESSION, options);
+		await this._currentRun;
+		this._currentRun = undefined;
 	}
 
 	// ---- state machine
@@ -304,10 +312,16 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
 		this._zone.value.widget.onDidChangeInput(_ => {
-			const pos = this._zone.value.position;
-			if (pos && this._zone.value.widget.hasFocus() && this._zone.value.widget.value) {
-				this._editor.revealPosition(pos, ScrollType.Smooth);
+			const start = this._zone.value.position;
+			if (!start || !this._zone.value.widget.hasFocus() || !this._zone.value.widget.value || !this._editor.hasModel()) {
+				return;
 			}
+			const nextLine = start.lineNumber + 1;
+			if (nextLine >= this._editor.getModel().getLineCount()) {
+				// last line isn't supported
+				return;
+			}
+			this._editor.revealLine(nextLine, ScrollType.Smooth);
 		});
 
 		this._showWidget(true, options.position);
@@ -620,6 +634,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}
 		this._ctxResponseTypes.set(responseTypes);
+		this._ctxDidEdit.set(this._activeSession.hasChangedText);
 
 		if (response instanceof EmptyResponse) {
 			// show status message
@@ -727,6 +742,10 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
+	private static isEditOrMarkdownResponse(response: EditResponse | MarkdownResponse | EmptyResponse | ErrorResponse | undefined): response is EditResponse | MarkdownResponse {
+		return response instanceof EditResponse || response instanceof MarkdownResponse;
+	}
+
 	// ---- controller API
 
 	acceptInput(): void {
@@ -783,7 +802,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	feedbackLast(helpful: boolean) {
-		if (this._activeSession?.lastExchange?.response instanceof EditResponse || this._activeSession?.lastExchange?.response instanceof MarkdownResponse) {
+		if (this._activeSession?.lastExchange && InlineChatController.isEditOrMarkdownResponse(this._activeSession.lastExchange.response)) {
 			const kind = helpful ? InlineChatResponseFeedbackKind.Helpful : InlineChatResponseFeedbackKind.Unhelpful;
 			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
@@ -798,24 +817,22 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	acceptSession(): void {
+		if (this._activeSession?.lastExchange && InlineChatController.isEditOrMarkdownResponse(this._activeSession.lastExchange.response)) {
+			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, InlineChatResponseFeedbackKind.Accepted);
+		}
 		this._messages.fire(Message.ACCEPT_SESSION);
 	}
 
 	cancelSession() {
-		let result: string | undefined;
-		if (this._strategy && this._activeSession) {
-			const changedText = this._activeSession.asChangedText();
-			if (changedText && this._activeSession?.lastExchange?.response instanceof EditResponse) {
-				this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, InlineChatResponseFeedbackKind.Undone);
-
-			}
-			result = changedText;
+		const result = this._activeSession?.asChangedText();
+		if (this._activeSession?.lastExchange && InlineChatController.isEditOrMarkdownResponse(this._activeSession.lastExchange.response)) {
+			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, InlineChatResponseFeedbackKind.Undone);
 		}
 		this._messages.fire(Message.CANCEL_SESSION);
 		return result;
 	}
 
-	async finishExistingSession(): Promise<void> {
+	finishExistingSession(): void {
 		if (this._activeSession) {
 			if (this._activeSession.editMode === EditMode.Preview) {
 				this._log('finishing existing session, using CANCEL', this._activeSession.editMode);

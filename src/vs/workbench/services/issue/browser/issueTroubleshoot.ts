@@ -161,6 +161,11 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	}
 
 	private async reproduceIssueWithExtensionsDisabled(): Promise<void> {
+		if (!(await this.extensionManagementService.getInstalled(ExtensionType.User)).length) {
+			this.state = new TroubleShootState(TroubleshootStage.WORKBENCH, this.state!.profile);
+			return;
+		}
+
 		const result = await this.askToReproduceIssue(localize('profile.extensions.disabled', "Issue troubleshooting is active and has temporarily disabled all installed extensions. Check if you can still reproduce the problem and proceed by selecting from these options."));
 		if (result === 'good') {
 			const profile = this.userDataProfilesService.profiles.find(p => p.id === this.state!.profile) ?? this.userDataProfilesService.defaultProfile;
@@ -199,11 +204,11 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	private askToReproduceIssue(message: string): Promise<TroubleShootResult> {
 		return new Promise((c, e) => {
 			const goodPrompt: IPromptChoice = {
-				label: localize('I cannot reproduce', "I can't reproduce"),
+				label: localize('I cannot reproduce', "I Can't Reproduce"),
 				run: () => c('good')
 			};
 			const badPrompt: IPromptChoice = {
-				label: localize('This is Bad', "I can reproduce"),
+				label: localize('This is Bad', "I Can Reproduce"),
 				run: () => c('bad')
 			};
 			const stop: IPromptChoice = {

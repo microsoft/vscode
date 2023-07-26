@@ -218,6 +218,7 @@ export interface ICellOutput {
 	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
 	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
+	bumpVersion(): void;
 }
 
 export interface CellInternalMetadataChangedEvent {
@@ -927,6 +928,7 @@ export const NotebookSetting = {
 	focusIndicator: 'notebook.cellFocusIndicator',
 	insertToolbarLocation: 'notebook.insertToolbarLocation',
 	globalToolbar: 'notebook.globalToolbar',
+	stickyScroll: 'notebook.stickyScroll.enabled',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
 	showFoldingControls: 'notebook.showFoldingControls',
