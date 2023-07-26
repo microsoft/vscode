@@ -574,6 +574,10 @@ export class ChatWidgetService implements IChatWidgetService {
 		return this._widgets.find(w => isEqual(w.inputUri, uri));
 	}
 
+	getWidgetBySessionId(sessionId: string): ChatWidget | undefined {
+		return this._widgets.find(w => w.viewModel?.sessionId === sessionId);
+	}
+
 	async revealViewForProvider(providerId: string): Promise<ChatWidget | undefined> {
 		const viewId = this.chatContributionService.getViewIdForProvider(providerId);
 		const view = await this.viewsService.openView<ChatViewPane>(viewId);

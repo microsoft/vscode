@@ -559,10 +559,13 @@ function computeRangeAlignment(
 		if (innerHunkAlignment) {
 			for (const i of c.innerChanges || []) {
 				if (i.originalRange.startColumn > 1 && i.modifiedRange.startColumn > 1) {
-					// There is some unmodified text on this line
+					// There is some unmodified text on this line before the diff
 					emitAlignment(i.originalRange.startLineNumber, i.modifiedRange.startLineNumber);
 				}
-				emitAlignment(i.originalRange.endLineNumber, i.modifiedRange.endLineNumber);
+				if (i.originalRange.endColumn < originalEditor.getModel()!.getLineMaxColumn(i.originalRange.endLineNumber)) {
+					// // There is some unmodified text on this line after the diff
+					emitAlignment(i.originalRange.endLineNumber, i.modifiedRange.endLineNumber);
+				}
 			}
 		}
 

@@ -78,12 +78,24 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in chat codeblocks. Use 0 to compute the line height from the font size."),
 			default: 0
 		},
+		'chat.experimental.defaultMode': {
+			type: 'string',
+			tags: ['experimental'],
+			enum: ['chatView', 'quickQuestion', 'both'],
+			enumDescriptions: [
+				nls.localize('interactiveSession.defaultMode.chatView', "Use the chat view as the default mode. Displays the chat icon in the Activity Bar."),
+				nls.localize('interactiveSession.defaultMode.quickQuestion', "Use the quick question as the default mode. Displays the chat icon in the Title Bar."),
+				nls.localize('interactiveSession.defaultMode.both', "Displays the chat icon in the Activity Bar and the Title Bar which open their respective chat modes.")
+			],
+			description: nls.localize('interactiveSession.defaultMode', "Controls the default mode of the chat experience."),
+			default: 'chatView'
+		},
 		'chat.experimental.quickQuestion.mode': {
 			type: 'string',
 			tags: ['experimental'],
 			enum: [QuickQuestionMode.SingleQuestion, QuickQuestionMode.InputOnTopChat, QuickQuestionMode.InputOnBottomChat],
 			description: nls.localize('interactiveSession.quickQuestion.mode', "Controls the mode of quick question chat experience."),
-			default: QuickQuestionMode.SingleQuestion,
+			default: QuickQuestionMode.InputOnTopChat,
 		}
 	}
 });
@@ -137,16 +149,13 @@ class ChatAccessibleViewContribution extends Disposable {
 			const codeEditorService = accessor.get(ICodeEditorService);
 			return renderAccessibleView(accessibleViewService, widgetService, codeEditorService, true);
 			function renderAccessibleView(accessibleViewService: IAccessibleViewService, widgetService: IChatWidgetService, codeEditorService: ICodeEditorService, initialRender?: boolean): boolean {
-				let widget = widgetService.lastFocusedWidget;
+				const widget = widgetService.lastFocusedWidget;
 				if (!widget) {
 					return false;
 				}
-
-				const chatInputFocused = initialRender && !!(codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor());
-
-				if (chatInputFocused) {
+				const chatInputFocused = initialRender && !!codeEditorService.getFocusedCodeEditor();
+				if (initialRender && chatInputFocused) {
 					widget.focusLastMessage();
-					widget = widgetService.lastFocusedWidget;
 				}
 
 				if (!widget) {
@@ -171,10 +180,10 @@ class ChatAccessibleViewContribution extends Disposable {
 					verbositySettingKey: AccessibilityVerbositySettingId.Chat,
 					provideContent(): string { return responseContent; },
 					onClose() {
+						verifiedWidget.reveal(focusedItem);
 						if (chatInputFocused) {
 							verifiedWidget.focusInput();
 						} else {
-							verifiedWidget.reveal(focusedItem);
 							verifiedWidget.focus(focusedItem);
 						}
 					},
@@ -186,7 +195,7 @@ class ChatAccessibleViewContribution extends Disposable {
 						verifiedWidget.moveFocus(focusedItem, 'previous');
 						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
 					},
-					options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript', type: AccessibleViewType.View }
+					options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), type: AccessibleViewType.View }
 				});
 				return true;
 			}

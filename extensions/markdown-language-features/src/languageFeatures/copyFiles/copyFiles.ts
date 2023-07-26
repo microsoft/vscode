@@ -81,7 +81,7 @@ export class NewFilePathGenerator {
 }
 
 function getDesiredNewFilePath(config: CopyFileConfiguration, document: vscode.TextDocument, file: vscode.DataTransferFile): vscode.Uri {
-	const docUri = getParentDocumentUri(document);
+	const docUri = getParentDocumentUri(document.uri);
 	for (const [rawGlob, rawDest] of Object.entries(config.destination)) {
 		for (const glob of parseGlob(rawGlob)) {
 			if (picomatch.isMatch(docUri.path, glob, { dot: true })) {

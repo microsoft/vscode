@@ -290,6 +290,7 @@ export class TestingExplorerView extends ViewPane {
 			this.countSummary = text;
 			this.renderActivityCount();
 		}));
+		this.testProgressService.update();
 
 		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility);

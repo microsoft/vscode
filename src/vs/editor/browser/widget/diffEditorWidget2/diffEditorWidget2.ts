@@ -46,6 +46,7 @@ import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { LengthObj } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { Range } from 'vs/editor/common/core/range';
+import './colors';
 
 export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
@@ -101,6 +102,11 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		const isEmbeddedDiffEditorKey = EditorContextKeys.isEmbeddedDiffEditor.bindTo(this._contextKeyService);
 		this._register(autorun('update isEmbeddedDiffEditorKey', reader => {
 			isEmbeddedDiffEditorKey.set(this._options.isInEmbeddedEditor.read(reader));
+		}));
+
+		const accessibleDiffViewerVisibleContextKeyValue = EditorContextKeys.accessibleDiffViewerVisible.bindTo(this._contextKeyService);
+		this._register(autorun('update accessibleDiffViewerVisible context key', reader => {
+			accessibleDiffViewerVisibleContextKeyValue.set(this._accessibleDiffViewerVisible.read(reader));
 		}));
 
 		this._domElement.appendChild(this.elements.root);
@@ -472,9 +478,9 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		});
 	}
 
-	diffReviewNext(): void { this._accessibleDiffViewer.next(); }
+	accessibleDiffViewerNext(): void { this._accessibleDiffViewer.next(); }
 
-	diffReviewPrev(): void { this._accessibleDiffViewer.prev(); }
+	accessibleDiffViewerPrev(): void { this._accessibleDiffViewer.prev(); }
 
 	async waitForDiff(): Promise<void> {
 		const diffModel = this._diffModel.get();

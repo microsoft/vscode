@@ -14,7 +14,6 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/wi
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
-import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -24,7 +23,7 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId, AccessibleViewAction, AccessibleViewNextAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
@@ -50,7 +49,11 @@ export interface IAccessibleViewService {
 	show(provider: IAccessibleContentProvider): void;
 	next(): void;
 	previous(): void;
-	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string;
+	/**
+	 * If the setting is enabled, provides the open accessible view hint as a localized string.
+	 * @param verbositySettingKey The setting key for the verbosity of the feature
+	 */
+	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null;
 }
 
 export const enum AccessibleViewType {
@@ -61,6 +64,9 @@ export const enum AccessibleViewType {
 export interface IAccessibleViewOptions {
 	ariaLabel: string;
 	readMoreUrl?: string;
+	/**
+	 * Defaults to markdown
+	 */
 	language?: string;
 	type: AccessibleViewType;
 }
@@ -91,7 +97,7 @@ class AccessibleView extends Disposable {
 		this._editorContainer = document.createElement('div');
 		this._editorContainer.classList.add('accessible-view');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			contributions: [...EditorExtensionsRegistry.getEditorContributions(), ...EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])]
+			contributions: EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeActionController.ID)
 		};
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(this._configurationService),
@@ -193,9 +199,7 @@ class AccessibleView extends Disposable {
 			if (!domNode) {
 				return;
 			}
-			if (provider.options.language) {
-				model.setLanguage(provider.options.language);
-			}
+			model.setLanguage(provider.options.language ?? 'markdown');
 			container.appendChild(this._editorContainer);
 			this._editorWidget.updateOptions({ ariaLabel: provider.next && provider.previous ? localize('accessibleViewAriaLabelWithNav', "{0} {1}", provider.options.ariaLabel, this._getNavigationAriaHint(provider.verbositySettingKey)) : localize('accessibleViewAriaLabel', "{0}", provider.options.ariaLabel) });
 			this._editorWidget.focus();
@@ -275,12 +279,11 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	previous(): void {
 		this._accessibleView?.previous();
 	}
-	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string {
-		let hint = '';
-		const keybinding = this._keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
-		if (this._configurationService.getValue(verbositySettingKey)) {
-			hint = keybinding ? localize('chatAccessibleViewHint', "Inspect the response in the accessible view with {0}", keybinding) : localize('chatAccessibleViewHintNoKb', "Inspect the response in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
+	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {
+		if (!this._configurationService.getValue(verbositySettingKey)) {
+			return null;
 		}
-		return hint;
+		const keybinding = this._keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
+		return keybinding ? localize('chatAccessibleViewHint', "Inspect this in the accessible view with {0}", keybinding) : localize('chatAccessibleViewHintNoKb', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
 	}
 }
