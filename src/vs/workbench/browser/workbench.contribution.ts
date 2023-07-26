@@ -176,10 +176,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the size of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
 			},
-			'workbench.editor.preventMiddleClickClosePinnedTab': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('preventMiddleClickClosePinnedTab', "Controls the behavior of prevent closing the pinned tab when using mouse middle click."),
+			'workbench.editor.preventPinnedTabClose': {
+				'type': 'string',
+				'enum': ['always', 'onlyKeyboard', 'onlyMouse', 'never'],
+				'default': 'always',
+				'enumDescriptions': [
+					localize('workbench.editor.preventPinnedTabClose.always', "Always prevent closing the pinned tab when using mouse and keyboard."),
+					localize('workbench.editor.preventPinnedTabClose.onlyKeyboard', "Prevent closing the pinned tab when using keyboard command."),
+					localize('workbench.editor.preventPinnedTabClose.onlyMouse', "Prevent closing the pinned tab when using mouse middle click."),
+					localize('workbench.editor.preventPinnedTabClose.never', "Do not prevent the close tab operation")
+				],
 			},
 			'workbench.editor.splitSizing': {
 				'type': 'string',

@@ -886,8 +886,10 @@ export class TabsTitleControl extends TitleControl {
 		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, e => {
 			if (e.button === 1 /* Middle Button*/) {
 				const editor = this.group.getEditorByIndex(index);
-				if (editor && this.group.isSticky(editor) && this.accessor.partOptions.preventMiddleClickClosePinnedTab) {
-					return;
+				if (editor && this.group.isSticky(editor)) {
+					if (this.accessor.partOptions.preventPinnedTabClose === 'always' || this.accessor.partOptions.preventPinnedTabClose === 'onlyMouse') {
+						return;
+					}
 				}
 
 				EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);

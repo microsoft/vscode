@@ -268,8 +268,11 @@ export class OpenEditorsView extends ViewPane {
 		// Open when selecting via keyboard
 		this._register(this.list.onMouseMiddleClick(e => {
 			if (e && e.element instanceof OpenEditor) {
-				if (e.element.group.isSticky(e.element.editor) && this.configurationService.getValue('workbench.editor.preventMiddleClickClosePinnedTab')) {
-					return;
+				if (e.element.group.isSticky(e.element.editor)) {
+					const preventClosePinned = this.configurationService.getValue<'always' | 'onlyKeyboard' | 'onlyMouse' | 'never'>('workbench.editor.preventPinnedTabClose');
+					if (preventClosePinned === 'always' || preventClosePinned === 'onlyMouse') {
+						return;
+					}
 				}
 				e.element.group.closeEditor(e.element.editor, { preserveFocus: true });
 			}

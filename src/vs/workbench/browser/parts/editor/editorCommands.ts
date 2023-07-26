@@ -795,7 +795,10 @@ function registerCloseEditorCommands() {
 			const activeGroup = editorGroupsService.activeGroup;
 			const activeEditor = activeGroup.activeEditor;
 
-			if (activeEditor && activeGroup.isSticky(activeEditor)) {
+			const configurationService = accessor.get(IConfigurationService);
+			const preventClosePinned = configurationService.getValue<'always' | 'onlyKeyboard' | 'onlyMouse' | 'never'>('workbench.editor.preventPinnedTabClose');
+			const isNeedPreventClose = preventClosePinned === 'always' || preventClosePinned === 'onlyKeyboard';
+			if (activeEditor && activeGroup.isSticky(activeEditor) && isNeedPreventClose) {
 
 				// Open next recently active in same group
 				const nextNonStickyEditorInGroup = activeGroup.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: true })[0];

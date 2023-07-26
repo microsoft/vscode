@@ -1098,7 +1098,7 @@ interface IEditorPartConfiguration {
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;
 	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
-	preventMiddleClickClosePinnedTab?: boolean;
+	preventPinnedTabClose?: 'always' | 'onlyKeyboard' | 'onlyMouse' | 'never';
 	titleScrollbarSizing?: 'default' | 'large';
 	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;
