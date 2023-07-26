@@ -992,9 +992,9 @@ class UnifiedEnvironmentVariableCollection {
 
 	public getVariableMap(scope: vscode.EnvironmentVariableScope | undefined): Map<string, vscode.EnvironmentVariableMutator> {
 		const map = new Map<string, vscode.EnvironmentVariableMutator>();
-		for (const [key, value] of this.map) {
+		for (const [_, value] of this.map) {
 			if (this.getScopeKey(value.scope) === this.getScopeKey(scope)) {
-				map.set(key, convertMutator(value));
+				map.set(value.variable, convertMutator(value));
 			}
 		}
 		return map;
