@@ -121,14 +121,14 @@ class InputEditorDecorations extends Disposable {
 					range: {
 						startLineNumber: 1,
 						endLineNumber: 1,
-						startColumn: command && typeof command !== 'string' ? (command?.command.length + 2) : 1,
+						startColumn: command ? command.command.length : 1,
 						endColumn: 1000
 					},
 					renderOptions: {
 						after: {
 							contentText: shouldRenderFollowupPlaceholder ? command.followupPlaceholder : command.detail,
 							color: this.getPlaceholderColor(),
-							padding: '0 0 0 5px'
+							padding: '0 0 0 3px'
 						}
 					}
 				}];
