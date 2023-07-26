@@ -204,11 +204,11 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	private askToReproduceIssue(message: string): Promise<TroubleShootResult> {
 		return new Promise((c, e) => {
 			const goodPrompt: IPromptChoice = {
-				label: localize('I cannot reproduce', "I can't reproduce"),
+				label: localize('I cannot reproduce', "I Can't Reproduce"),
 				run: () => c('good')
 			};
 			const badPrompt: IPromptChoice = {
-				label: localize('This is Bad', "I can reproduce"),
+				label: localize('This is Bad', "I Can Reproduce"),
 				run: () => c('bad')
 			};
 			const stop: IPromptChoice = {

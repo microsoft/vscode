@@ -114,6 +114,9 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				Some(args::TunnelSubcommand::Service(service_args)) => {
 					tunnels::service(context_no_logger(), service_args).await
 				}
+				Some(args::TunnelSubcommand::ForwardInternal(forward_args)) => {
+					tunnels::forward(context_no_logger(), forward_args).await
+				}
 				None => tunnels::serve(context_no_logger(), tunnel_args.serve_args).await,
 			},
 		},
