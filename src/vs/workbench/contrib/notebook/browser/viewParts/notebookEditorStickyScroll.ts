@@ -64,8 +64,27 @@ class NotebookStickyLine extends Disposable {
 		this.notebookEditor.focusNotebookCell(this.entry.cell, 'container');
 		const cellScrollTop = this.notebookEditor.getAbsoluteTopOfElement(this.entry.cell);
 		const parentCount = this.getParentCount();
+		const childCount = this.getChildCount();
 		// 1.1 addresses visible cell padding, to make sure we don't focus md cell and also render its sticky line
-		this.notebookEditor.setScrollTop(cellScrollTop - (parentCount + 1.1) * 22);
+		this.notebookEditor.setScrollTop(cellScrollTop - (parentCount + childCount + 0.1) * 22);
+	}
+
+	private getChildCount() {
+		let count = 0;
+		const rootEntry = this.entry;
+		const flatList: OutlineEntry[] = [];
+		rootEntry.asFlatList(flatList);
+
+		for (const child of flatList) {
+			if (child.cell.cellKind === CellKind.Code) {
+				// this is to address sequential md header cells, so code cells dont effect focus scrolltop
+				break;
+			}
+			if (child.level > this.entry.level) {
+				count++;
+			}
+		}
+		return count;
 	}
 
 	private getParentCount() {
@@ -77,6 +96,7 @@ class NotebookStickyLine extends Disposable {
 		}
 		return count;
 	}
+
 }
 
 
