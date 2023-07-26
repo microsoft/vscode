@@ -56,7 +56,6 @@ class NotebookStickyLine extends Disposable {
 	) {
 		super();
 		this._register(DOM.addDisposableListener(this.element, DOM.EventType.CLICK, (e) => {
-			console.log('click on sticky line');
 			this.focusCell();
 		}));
 	}
@@ -70,7 +69,7 @@ class NotebookStickyLine extends Disposable {
 	}
 
 	private getParentCount() {
-		let count = 0;
+		let count = 1;
 		let entry = this.entry;
 		while (entry.parent) {
 			count++;
@@ -78,7 +77,6 @@ class NotebookStickyLine extends Disposable {
 		}
 		return count;
 	}
-
 }
 
 
