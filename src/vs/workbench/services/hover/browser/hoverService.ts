@@ -145,7 +145,6 @@ function getHoverOptionsIdentity(options: IHoverOptions | undefined): IHoverOpti
 
 class HoverContextViewDelegate implements IDelegate {
 
-	container: HTMLElement | undefined;
 	get anchorPosition() {
 		return this._hover.anchor;
 	}
