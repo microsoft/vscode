@@ -90,6 +90,10 @@ export class NotebookStickyScroll extends Disposable {
 		return this.domNode;
 	}
 
+	getCurrentStickyHeight() {
+		return this.currentStickyLines.size * 22;
+	}
+
 	constructor(
 		private readonly domNode: HTMLElement,
 		private readonly notebookEditor: INotebookEditor,
