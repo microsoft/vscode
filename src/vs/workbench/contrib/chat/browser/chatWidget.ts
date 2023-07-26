@@ -434,7 +434,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const editorValue = this.inputPart.inputEditor.getValue();
 
 			// Shortcut for /clear command
-			if (editorValue.trim() === '/clear' || typeof query === 'string' && query.trim() === '/clear') {
+			if (!query && editorValue.trim() === '/clear' || typeof query === 'string' && query.trim() === '/clear') {
 				// Small hack, if this becomes a repeated pattern, we should have a real internal slash command provider system
 				this.instantiationService.invokeFunction(clearChatSession, this);
 				return;
