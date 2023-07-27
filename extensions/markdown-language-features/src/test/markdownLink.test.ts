@@ -141,8 +141,15 @@ suite('createEditAddingLinksForUriList', () => {
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, true);
 		});
 
-		test('Should evaluate pasteAsMarkdownLink as false for pasting within a code block', () => {
+		test('Should evaluate pasteAsMarkdownLink as false for pasting within a backtick code block', () => {
 			skinnyDocument.getText = function () { return '```\r\n\r\n```'; };
+			const range = new vscode.Range(0, 5, 0, 5);
+			const smartPaste = checkSmartPaste(skinnyDocument, range);
+			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
+		});
+
+		test('Should evaluate pasteAsMarkdownLink as false for pasting within a tilde code block', () => {
+			skinnyDocument.getText = function () { return '~~~\r\n\r\n~~~'; };
 			const range = new vscode.Range(0, 5, 0, 5);
 			const smartPaste = checkSmartPaste(skinnyDocument, range);
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);

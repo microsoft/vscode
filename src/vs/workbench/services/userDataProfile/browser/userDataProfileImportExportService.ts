@@ -1228,7 +1228,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 
 	private isSelected(treeItem: IProfileResourceTreeItem): boolean {
 		if (treeItem.checkbox) {
-			return treeItem.checkbox.isChecked || !!treeItem.children?.some(child => child.checkbox?.isChecked ?? true);
+			return treeItem.checkbox.isChecked || !!treeItem.children?.some(child => child.checkbox?.isChecked);
 		}
 		return true;
 	}
