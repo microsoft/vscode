@@ -57,7 +57,8 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 	private _currentTokenColorMap: string[] | null = null;
 	private readonly _threadedBackgroundTokenizerFactory = this._instantiationService.createInstance(
 		ThreadedBackgroundTokenizerFactory,
-		(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample) => this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, true, isRandomSample)
+		(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample) => this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, true, isRandomSample),
+		() => this.getAsyncTokenizationEnabled(),
 	);
 
 	constructor(
@@ -87,6 +88,14 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		this._languageService.onDidRequestRichLanguageFeatures((languageId) => {
 			this._createdModes.push(languageId);
 		});
+	}
+
+	private getAsyncTokenizationEnabled(): boolean {
+		return !!this._configurationService.getValue<boolean>('editor.experimental.asyncTokenization');
+	}
+
+	private getAsyncTokenizationVerification(): boolean {
+		return !!this._configurationService.getValue<boolean>('editor.experimental.asyncTokenizationVerification');
 	}
 
 	private _handleGrammarsExtPoint(extensions: readonly IExtensionPointUser<ITMSyntaxExtensionPoint[]>[]): void {
@@ -287,7 +296,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 				r.initialState,
 				r.containsEmbeddedLanguages,
 				(textModel, tokenStore) => this._threadedBackgroundTokenizerFactory.createBackgroundTokenizer(textModel, tokenStore, maxTokenizationLineLength),
-				() => this._configurationService.getValue<boolean>('editor.experimental.asyncTokenizationVerification'),
+				() => this.getAsyncTokenizationVerification(),
 				(timeMs, lineLength, isRandomSample) => {
 					this._reportTokenizationTime(timeMs, languageId, r.sourceExtensionId, lineLength, false, isRandomSample);
 				},
@@ -397,6 +406,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			fromWorker: boolean;
 			sourceExtensionId: string | undefined;
 			isRandomSample: boolean;
+			tokenizationSetting: number;
 		}, {
 			owner: 'hediet';
 
@@ -406,6 +416,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			fromWorker: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To figure out if this line was tokenized sync or async' };
 			sourceExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To figure out which extension contributed the grammar' };
 			isRandomSample: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To figure out if this is a random sample or measured because of some other condition.' };
+			tokenizationSetting: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand if the user has async tokenization enabled. 0=sync, 1=async, 2=verification' };
 
 			comment: 'This event gives insight about the performance certain grammars.';
 		}>('editor.tokenizedLine', {
@@ -415,6 +426,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			fromWorker,
 			sourceExtensionId,
 			isRandomSample,
+			tokenizationSetting: this.getAsyncTokenizationEnabled() ? (this.getAsyncTokenizationVerification() ? 2 : 1) : 0,
 		});
 	}
 }
