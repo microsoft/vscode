@@ -96,7 +96,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._contextKeyService.createKey('isInDiffEditor', true);
 		this._contextKeyService.createKey('diffEditorVersion', 2);
 
-		this._options = new DiffEditorOptions(options);
+		this._domElement.appendChild(this.elements.root);
+
+		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
+		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
+
+		this._options = new DiffEditorOptions(options, this._rootSizeObserver.width);
 
 		this._contextKeyService.createKey(EditorContextKeys.isEmbeddedDiffEditor.key, false);
 		const isEmbeddedDiffEditorKey = EditorContextKeys.isEmbeddedDiffEditor.bindTo(this._contextKeyService);
@@ -104,15 +109,10 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			isEmbeddedDiffEditorKey.set(this._options.isInEmbeddedEditor.read(reader));
 		}));
 
-		const accessibleDiffViewerVisibleContextKeyValue = EditorContextKeys.accessibleDiffViewerVisible.bindTo(this._contextKeyService);
+		const diffEditorRenderSideBySideInlineBreakpointReachedContextKeyValue = EditorContextKeys.diffEditorRenderSideBySideInlineBreakpointReached.bindTo(this._contextKeyService);
 		this._register(autorun('update accessibleDiffViewerVisible context key', reader => {
-			accessibleDiffViewerVisibleContextKeyValue.set(this._accessibleDiffViewerVisible.read(reader));
+			diffEditorRenderSideBySideInlineBreakpointReachedContextKeyValue.set(this._options.couldShowInlineViewBecauseOfSize.read(reader));
 		}));
-
-		this._domElement.appendChild(this.elements.root);
-
-		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
-		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
 
 		this._editors = this._register(this._instantiationService.createInstance(
 			DiffEditorEditors,
