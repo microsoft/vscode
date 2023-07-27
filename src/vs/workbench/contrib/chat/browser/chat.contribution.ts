@@ -193,18 +193,20 @@ class ChatAccessibleViewContribution extends Disposable {
 					},
 					next() {
 						verifiedWidget.moveFocus(focusedItem, 'next');
-						if (responseIndex) {
-							if (!!responseIndex && !!length && responseIndex + 1 <= length) {
-								alert(`Focused ${responseIndex + 1} of ${length}`);
+						if (!!responseIndex) {
+							const notificationNumber = responseIndex + 1;
+							if (!!notificationNumber && !!length && notificationNumber + 1 <= length) {
+								alert(`Focused ${notificationNumber + 1} of ${length}`);
 							}
 						}
 						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
 					},
 					previous() {
 						verifiedWidget.moveFocus(focusedItem, 'previous');
-						if (responseIndex) {
-							if (!!responseIndex && !!length && responseIndex - 1 > 0) {
-								alert(`Focused ${responseIndex + 1} of ${length}`);
+						if (!!responseIndex) {
+							const notificationNumber = responseIndex + 1;
+							if (!!notificationNumber && !!length && notificationNumber - 1 > 0) {
+								alert(`Focused ${notificationNumber - 1} of ${length}`);
 							}
 						}
 						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);

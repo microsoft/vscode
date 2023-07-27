@@ -210,7 +210,7 @@ class NotificationAccessibleViewContribution extends Disposable {
 						}
 						focusList();
 						list.focusNext();
-						if (notificationIndex) {
+						if (!!notificationIndex) {
 							const notificationNumber = notificationIndex + 1;
 							if (!!notificationNumber && !!length && notificationNumber + 1 <= length) {
 								alert(`Focused ${notificationNumber + 1} of ${length}`);
@@ -224,7 +224,7 @@ class NotificationAccessibleViewContribution extends Disposable {
 						}
 						focusList();
 						list.focusPrevious();
-						if (notificationIndex) {
+						if (!!notificationIndex) {
 							const notificationNumber = notificationIndex + 1;
 							if (!!notificationNumber && !!length && notificationNumber - 1 > 0) {
 								alert(`Focused ${notificationNumber - 1} of ${length}`);
