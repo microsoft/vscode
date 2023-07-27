@@ -35,7 +35,7 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 	onClose() {
 		this._editor.focus();
 	}
-	options: IAccessibleViewOptions = { type: AccessibleViewType.HelpMenu, ariaLabel: localize('editor-help', "editor accessibility help"), readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
+	options: IAccessibleViewOptions = { type: AccessibleViewType.Help, ariaLabel: localize('editor-help', "editor accessibility help"), readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
 	verbositySettingKey = AccessibilityVerbositySettingId.Editor;
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -114,14 +114,16 @@ class HoverAccessibleViewContribution extends Disposable {
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 			const editorHoverContent = editor ? ModesHoverController.get(editor)?.getWidgetContent() ?? undefined : undefined;
-			if (!editorHoverContent) {
+			if (!editor || !editorHoverContent) {
 				return false;
 			}
 			this._options.language = editor?.getModel()?.getLanguageId() ?? undefined;
 			accessibleViewService.show({
 				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
 				provideContent() { return editorHoverContent; },
-				onClose() { },
+				onClose() {
+					ModesHoverController.get(editor)?.focus();
+				},
 				options: this._options
 			});
 			return true;
