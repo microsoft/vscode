@@ -114,6 +114,18 @@ suite('createEditAddingLinksForUriList', () => {
 			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uriString, 0, true);
 			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com)');
 		});
+
+		test('Should not decode an encoded URI string when passing in an external browser link', () => {
+			const uriString = 'https://www.microsoft.com/%20';
+			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uriString, 0, true);
+			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com/%20)');
+		});
+
+		test('Should not encode an unencoded URI string when passing in an external browser link', () => {
+			const uriString = 'https://www.example.com/path?query=value&another=value#fragment';
+			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uriString, 0, true);
+			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.example.com/path?query=value&another=value#fragment)');
+		});
 	});
 
 
