@@ -100,19 +100,19 @@ suite('createEditAddingLinksForUriList', () => {
 		test('Should not create Markdown link snippet when pasteAsMarkdownLink is false', () => {
 			const uriString = 'https://www.microsoft.com';
 			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), false, 'https:/www.microsoft.com', '', uriString, 0, true);
-			assert.strictEqual(snippet?.value, 'https://www.microsoft.com/');
+			assert.strictEqual(snippet?.value, 'https://www.microsoft.com');
 		});
 
 		test('Should create Markdown link snippet when pasteAsMarkdownLink is true', () => {
 			const uriString = 'https://www.microsoft.com';
 			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uriString, 0, true);
-			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com/)');
+			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com)');
 		});
 
 		test('Should use an unencoded URI string in Markdown link when passing in an external browser link', () => {
 			const uriString = 'https://www.microsoft.com';
 			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uriString, 0, true);
-			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com/)');
+			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com)');
 		});
 	});
 
