@@ -142,19 +142,19 @@ name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 resources:
   containers:
     - container: vscode-bionic-x64
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-x64
+      image: vscodehub.azurecr.io/vscode-linux-build-agent@sha256:ea3279b32c851c49c9e1ed24d270c6d0408274802a7a845f22896cff3e35655a
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-arm64
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-arm64
+      image: vscodehub.azurecr.io/vscode-linux-build-agent@sha256:ffe901d8c1ac63da359b1e33c6da60d836adc6b6a766e626dcc12a24e2edfc6f
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-armhf
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-armhf
+      image: vscodehub.azurecr.io/vscode-linux-build-agent@sha256:4b76e1f7d47c2087b74ed8bc2138b1f48c39ebc4341073c46a8454e75c4776dc
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: snapcraft
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
+      image: vscodehub.azurecr.io/vscode-linux-build-agent@sha256:7c69481e907f50cf9f73abb579d2ae91849db611bb1e0eb19ef1f33d43796d9a
       endpoint: VSCodeHub
   pipelines:
     - pipeline: vscode-7pm-kick-off
