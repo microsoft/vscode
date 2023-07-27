@@ -262,7 +262,7 @@ export function alertFocusChange(index: number | undefined, length: number | und
 	}
 	const number = index + 1;
 
-	if (type === 'next' && number + 1 > length) {
+	if (type === 'next' && number + 1 <= length) {
 		alert(`Focused ${number + 1} of ${length}`);
 	} else if (type === 'previous' && number - 1 > 0) {
 		alert(`Focused ${number - 1} of ${length}`);
