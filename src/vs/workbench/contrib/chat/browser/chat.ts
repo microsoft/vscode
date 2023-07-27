@@ -28,6 +28,8 @@ export interface IChatWidgetService {
 	revealViewForProvider(providerId: string): Promise<IChatWidget | undefined>;
 
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
+
+	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
 }
 
 

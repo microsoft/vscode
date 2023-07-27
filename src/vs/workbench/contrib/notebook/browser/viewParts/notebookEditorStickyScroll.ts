@@ -16,6 +16,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { NotebookCellOutlineProvider, OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export class ToggleNotebookStickyScroll extends Action2 {
 
@@ -89,6 +90,10 @@ export class NotebookStickyScroll extends Disposable {
 		return this.domNode;
 	}
 
+	getCurrentStickyHeight() {
+		return this.currentStickyLines.size * 22;
+	}
+
 	constructor(
 		private readonly domNode: HTMLElement,
 		private readonly notebookEditor: INotebookEditor,
@@ -116,7 +121,8 @@ export class NotebookStickyScroll extends Disposable {
 		}));
 	}
 
-	private onContextMenu(event: MouseEvent) {
+	private onContextMenu(e: MouseEvent) {
+		const event = new StandardMouseEvent(e);
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.NotebookStickyScrollContext,
 			getAnchor: () => event,
@@ -211,10 +217,10 @@ export class NotebookStickyScroll extends Disposable {
 			}
 
 			// if we are here, the cell is a code cell.
-			// check next cell, if markdown, that means this is the end of the section
-			const nextCell = this.notebookEditor.cellAt(i + 1);
-			if (nextCell) {
-				if (nextCell.cellKind === CellKind.Markup) {
+			// check next visible cell, if markdown, that means this is the end of the section
+			const nextVisibleCell = this.notebookEditor.cellAt(i + 1);
+			if (nextVisibleCell && i + 1 < visibleRange.end) {
+				if (nextVisibleCell.cellKind === CellKind.Markup) {
 					// this is the end of the section
 					// store the bottom scroll position of this cell
 					sectionBottom = this.notebookCellList.getCellViewScrollBottom(cell);
@@ -297,9 +303,9 @@ export class NotebookStickyScroll extends Disposable {
 
 			// if we are here, the cell is a code cell.
 			// check next cell, if markdown, that means this is the end of the section
-			const nextCell = this.notebookEditor.cellAt(i + 1);
-			if (nextCell) {
-				if (nextCell.cellKind === CellKind.Markup) {
+			const nextVisibleCell = this.notebookEditor.cellAt(i + 1);
+			if (nextVisibleCell && i + 1 < visibleRange.end) {
+				if (nextVisibleCell.cellKind === CellKind.Markup) {
 					// this is the end of the section
 					// store the bottom scroll position of this cell
 					sectionBottom = this.notebookCellList.getCellViewScrollBottom(cell);
@@ -374,8 +380,8 @@ export class NotebookStickyScroll extends Disposable {
 	}
 
 	private updateDisplay() {
-		const hasChildren = this.domNode.hasChildNodes();
-		if (!hasChildren) {
+		const hasSticky = this.currentStickyLines.size > 0;
+		if (!hasSticky) {
 			this.domNode.style.display = 'none';
 		} else {
 			this.domNode.style.display = 'block';
@@ -398,6 +404,11 @@ export class NotebookStickyScroll extends Disposable {
 
 		const elementsToRender = [];
 		while (currentEntry) {
+			if (currentEntry.level === 7) {
+				// level 7 represents a comment in python, which we don't want to render
+				currentEntry = currentEntry.parent;
+				continue;
+			}
 			const lineToRender = this.createStickyElement(currentEntry, partial);
 			newMap.set(currentEntry, lineToRender);
 			elementsToRender.unshift(lineToRender);

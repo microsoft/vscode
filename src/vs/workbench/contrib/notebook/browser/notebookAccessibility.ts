@@ -54,7 +54,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 		onClose: () => {
 			editor.focus();
 		},
-		options: { type: AccessibleViewType.HelpMenu, ariaLabel: 'Notebook accessibility help' }
+		options: { type: AccessibleViewType.Help, ariaLabel: 'Notebook accessibility help' }
 	});
 }
 

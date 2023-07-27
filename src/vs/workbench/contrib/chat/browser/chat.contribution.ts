@@ -149,16 +149,13 @@ class ChatAccessibleViewContribution extends Disposable {
 			const codeEditorService = accessor.get(ICodeEditorService);
 			return renderAccessibleView(accessibleViewService, widgetService, codeEditorService, true);
 			function renderAccessibleView(accessibleViewService: IAccessibleViewService, widgetService: IChatWidgetService, codeEditorService: ICodeEditorService, initialRender?: boolean): boolean {
-				let widget = widgetService.lastFocusedWidget;
+				const widget = widgetService.lastFocusedWidget;
 				if (!widget) {
 					return false;
 				}
-
-				const chatInputFocused = initialRender && !!(codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor());
-
-				if (chatInputFocused) {
+				const chatInputFocused = initialRender && !!codeEditorService.getFocusedCodeEditor();
+				if (initialRender && chatInputFocused) {
 					widget.focusLastMessage();
-					widget = widgetService.lastFocusedWidget;
 				}
 
 				if (!widget) {
@@ -183,10 +180,10 @@ class ChatAccessibleViewContribution extends Disposable {
 					verbositySettingKey: AccessibilityVerbositySettingId.Chat,
 					provideContent(): string { return responseContent; },
 					onClose() {
+						verifiedWidget.reveal(focusedItem);
 						if (chatInputFocused) {
 							verifiedWidget.focusInput();
 						} else {
-							verifiedWidget.reveal(focusedItem);
 							verifiedWidget.focus(focusedItem);
 						}
 					},
