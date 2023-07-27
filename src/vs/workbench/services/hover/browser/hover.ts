@@ -37,6 +37,12 @@ export interface IHoverService {
 	 * "locked" via the alt/option key.
 	 */
 	hideHover(): void;
+
+	/**
+	 * This should only be used until we have the ability to show multiple context views
+	 * simultaneously. #188822
+	 */
+	showAndFocusLastHover(): void;
 }
 
 export interface IHoverWidget extends IDisposable {
