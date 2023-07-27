@@ -133,6 +133,11 @@ export interface ILifecycleMainService {
 	relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void>;
 
 	/**
+	 * Sets a custom handler
+	 */
+	setRelaunchHandler(handler: (() => void) | undefined): void;
+
+	/**
 	 * Shutdown the application normally. All lifecycle event handlers are triggered.
 	 */
 	quit(willRestart?: boolean): Promise<boolean /* veto */>;
@@ -552,7 +557,29 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		});
 	}
 
-	quit(willRestart?: boolean): Promise<boolean /* veto */> {
+	async quit(willRestart?: boolean): Promise<boolean /* veto */> {
+		const veto = await this.doQuit(willRestart);
+		if (!veto && willRestart) {
+			// Windows: we are about to restart and as such we need to restore the original
+			// current working directory we had on startup to get the exact same startup
+			// behaviour. As such, we briefly change back to that directory and then when
+			// Code starts it will set it back to the installation directory again.
+			try {
+				if (isWindows) {
+					const currentWorkingDir = cwd();
+					if (currentWorkingDir !== process.cwd()) {
+						process.chdir(currentWorkingDir);
+					}
+				}
+			} catch (err) {
+				this.logService.error(err);
+			}
+		}
+
+		return veto;
+	}
+
+	private doQuit(willRestart?: boolean): Promise<boolean /* veto */> {
 		this.trace(`Lifecycle#quit() - begin (willRestart: ${willRestart})`);
 
 		if (this.pendingQuitPromise) {
@@ -588,6 +615,12 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		}
 	}
 
+	private relaunchHandler: (() => void) | undefined = undefined;
+
+	setRelaunchHandler(handler: (() => void) | undefined): void {
+		this.relaunchHandler = handler;
+	}
+
 	async relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void> {
 		this.trace('Lifecycle#relaunch()');
 
@@ -606,24 +639,14 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		}
 
 		const quitListener = () => {
-			// Windows: we are about to restart and as such we need to restore the original
-			// current working directory we had on startup to get the exact same startup
-			// behaviour. As such, we briefly change back to that directory and then when
-			// Code starts it will set it back to the installation directory again.
-			try {
-				if (isWindows) {
-					const currentWorkingDir = cwd();
-					if (currentWorkingDir !== process.cwd()) {
-						process.chdir(currentWorkingDir);
-					}
-				}
-			} catch (err) {
-				this.logService.error(err);
-			}
+			this.trace('Lifecycle#relaunch() - calling app.relaunch()');
 
 			// relaunch after we are sure there is no veto
-			this.trace('Lifecycle#relaunch() - calling app.relaunch()');
-			app.relaunch({ args });
+			if (!options?.addArgs && !options?.removeArgs && this.relaunchHandler) {
+				this.relaunchHandler();
+			} else {
+				app.relaunch({ args });
+			}
 		};
 		app.once('quit', quitListener);
 

@@ -43,6 +43,12 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.logService.info('update#setState', state.type);
 		this._state = state;
 		this._onStateChange.fire(state);
+
+		if (state.type === StateType.Ready) {
+			this.lifecycleMainService.setRelaunchHandler(() => this.doQuitAndInstall());
+		} else {
+			this.lifecycleMainService.setRelaunchHandler(undefined);
+		}
 	}
 
 	constructor(
