@@ -176,15 +176,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the size of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
 			},
-			'workbench.editor.preventPinnedTabClose': {
+			'workbench.editor.preventPinnedEditorClose': {
 				'type': 'string',
-				'enum': ['always', 'onlyKeyboard', 'onlyMouse', 'never'],
-				'default': 'always',
+				'enum': ['keyboardAndMouse', 'keyboard', 'mouse', 'never'],
+				'default': 'keyboardAndMouse',
 				'enumDescriptions': [
-					localize('workbench.editor.preventPinnedTabClose.always', "Always prevent closing the pinned tab when using mouse and keyboard."),
-					localize('workbench.editor.preventPinnedTabClose.onlyKeyboard', "Prevent closing the pinned tab when using keyboard command."),
-					localize('workbench.editor.preventPinnedTabClose.onlyMouse', "Prevent closing the pinned tab when using mouse middle click."),
-					localize('workbench.editor.preventPinnedTabClose.never', "Do not prevent the close tab operation")
+					localize('workbench.editor.preventPinnedEditorClose.always', "Always prevent closing the pinned editor when using mouse middle click or keyboard."),
+					localize('workbench.editor.preventPinnedEditorClose.onlyKeyboard', "Prevent closing the pinned editor when using the keyboard."),
+					localize('workbench.editor.preventPinnedEditorClose.onlyMouse', "Prevent closing the pinned editor when using mouse middle click."),
+					localize('workbench.editor.preventPinnedEditorClose.never', "Never prevent closing a pinned editor.")
 				],
 			},
 			'workbench.editor.splitSizing': {

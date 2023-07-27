@@ -1098,7 +1098,7 @@ interface IEditorPartConfiguration {
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;
 	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
-	preventPinnedTabClose?: PreventClosePinnedScene;
+	preventPinnedEditorClose?: PreventPinnedEditorClose;
 	titleScrollbarSizing?: 'default' | 'large';
 	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;
@@ -1341,7 +1341,7 @@ class EditorResourceAccessorImpl {
 	}
 }
 
-export type PreventClosePinnedScene = 'always' | 'onlyKeyboard' | 'onlyMouse' | 'never' | undefined;
+export type PreventPinnedEditorClose = 'keyboardAndMouse' | 'keyboard' | 'mouse' | 'never' | undefined;
 
 export enum EditorCloseMethod {
 	UNKNOWN,
@@ -1349,17 +1349,18 @@ export enum EditorCloseMethod {
 	MOUSE
 }
 
-export function isPreventClosePinnedTab(group: IEditorGroup, editor: EditorInput, closeMethod: EditorCloseMethod, preventScene: PreventClosePinnedScene): boolean {
-	if (!editor || !group.isSticky(editor)) {
-		return false;
+export function preventEditorClose(group: IEditorGroup, editor: EditorInput, method: EditorCloseMethod, configuration: IEditorPartConfiguration): boolean {
+	if (!group.isSticky(editor)) {
+		return false; // only interested in sticky editors
 	}
-	switch (preventScene) {
-		case 'always': return true;
-		case 'never': return false;
-		case 'onlyMouse': return closeMethod === EditorCloseMethod.MOUSE;
-		case 'onlyKeyboard': return closeMethod === EditorCloseMethod.KEYBOARD;
+
+	switch (configuration.preventPinnedEditorClose) {
+		case 'keyboardAndMouse': return method === EditorCloseMethod.MOUSE || method === EditorCloseMethod.KEYBOARD;
+		case 'mouse': return method === EditorCloseMethod.MOUSE;
+		case 'keyboard': return method === EditorCloseMethod.KEYBOARD;
 	}
-	return true;
+
+	return false;
 }
 
 export const EditorResourceAccessor = new EditorResourceAccessorImpl();
