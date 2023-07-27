@@ -44,7 +44,7 @@ import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatCo
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -193,22 +193,12 @@ class ChatAccessibleViewContribution extends Disposable {
 					},
 					next() {
 						verifiedWidget.moveFocus(focusedItem, 'next');
-						if (!!responseIndex) {
-							const notificationNumber = responseIndex + 1;
-							if (!!notificationNumber && !!length && notificationNumber + 1 <= length) {
-								alert(`Focused ${notificationNumber + 1} of ${length}`);
-							}
-						}
+						alertFocusChange(responseIndex, length, 'next');
 						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
 					},
 					previous() {
 						verifiedWidget.moveFocus(focusedItem, 'previous');
-						if (!!responseIndex) {
-							const notificationNumber = responseIndex + 1;
-							if (!!notificationNumber && !!length && notificationNumber - 1 > 0) {
-								alert(`Focused ${notificationNumber - 1} of ${length}`);
-							}
-						}
+						alertFocusChange(responseIndex, length, 'previous');
 						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
 					},
 					options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), type: AccessibleViewType.View }

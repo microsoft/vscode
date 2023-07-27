@@ -210,12 +210,7 @@ class NotificationAccessibleViewContribution extends Disposable {
 						}
 						focusList();
 						list.focusNext();
-						if (!!notificationIndex) {
-							const notificationNumber = notificationIndex + 1;
-							if (!!notificationNumber && !!length && notificationNumber + 1 <= length) {
-								alert(`Focused ${notificationNumber + 1} of ${length}`);
-							}
-						}
+						alertFocusChange(notificationIndex, length, 'next');
 						renderAccessibleView();
 					},
 					previous(): void {
@@ -224,12 +219,7 @@ class NotificationAccessibleViewContribution extends Disposable {
 						}
 						focusList();
 						list.focusPrevious();
-						if (!!notificationIndex) {
-							const notificationNumber = notificationIndex + 1;
-							if (!!notificationNumber && !!length && notificationNumber - 1 > 0) {
-								alert(`Focused ${notificationNumber - 1} of ${length}`);
-							}
-						}
+						alertFocusChange(notificationIndex, length, 'previous');
 						renderAccessibleView();
 					},
 					verbositySettingKey: AccessibilityVerbositySettingId.Notification,
@@ -265,3 +255,17 @@ class AccessibleViewNavigatorContribution extends Disposable {
 }
 
 workbenchContributionsRegistry.registerWorkbenchContribution(AccessibleViewNavigatorContribution, LifecyclePhase.Eventually);
+
+export function alertFocusChange(index: number | undefined, length: number | undefined, type: 'next' | 'previous'): void {
+	if (index === undefined || length === undefined) {
+		return;
+	}
+	const number = index + 1;
+
+	if (type === 'next' && number + 1 > length) {
+		alert(`Focused ${number + 1} of ${length}`);
+	} else if (type === 'previous' && number - 1 > 0) {
+		alert(`Focused ${number - 1} of ${length}`);
+	}
+	return;
+}
