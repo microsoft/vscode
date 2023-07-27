@@ -55,8 +55,7 @@ class NotebookStickyLine extends Disposable {
 		public readonly notebookEditor: INotebookEditor,
 	) {
 		super();
-		this._register(DOM.addDisposableListener(this.element, DOM.EventType.CLICK, (e) => {
-			console.log('click on sticky line');
+		this._register(DOM.addDisposableListener(this.element, DOM.EventType.CLICK, () => {
 			this.focusCell();
 		}));
 	}
@@ -78,7 +77,6 @@ class NotebookStickyLine extends Disposable {
 		}
 		return count;
 	}
-
 }
 
 
@@ -134,6 +132,9 @@ export class NotebookStickyScroll extends Disposable {
 			this.init();
 		} else {
 			this._disposables.clear();
+			this.currentStickyLines.forEach((value) => {
+				value.dispose();
+			});
 			DOM.clearNode(this.domNode);
 			this.updateDisplay();
 		}
@@ -444,6 +445,9 @@ export class NotebookStickyScroll extends Disposable {
 
 	override dispose() {
 		this._disposables.dispose();
+		this.currentStickyLines.forEach((value) => {
+			value.dispose();
+		});
 		super.dispose();
 	}
 }
