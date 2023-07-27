@@ -999,6 +999,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			height: this._dimension!.height,
 			fontInfo: this._fontInfo!,
 			scrollHeight: this._list?.getScrollHeight() ?? 0,
+			stickyHeight: 0,
 		};
 	}
 

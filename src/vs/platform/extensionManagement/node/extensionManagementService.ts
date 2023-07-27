@@ -570,8 +570,10 @@ export class ExtensionsScanner extends Disposable {
 		await this.withUninstalledExtensions(uninstalled => delete uninstalled[extensionKey.toString()]);
 	}
 
-	removeExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
-		return this.deleteExtensionFromLocation(extension.identifier.id, extension.location, type);
+	async removeExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
+		if (this.uriIdentityService.extUri.isEqualOrParent(this.extensionsScannerService.userExtensionsLocation, extension.location)) {
+			return this.deleteExtensionFromLocation(extension.identifier.id, extension.location, type);
+		}
 	}
 
 	async removeUninstalledExtension(extension: ILocalExtension | IScannedExtension): Promise<void> {

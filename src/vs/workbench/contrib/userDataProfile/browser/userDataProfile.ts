@@ -186,17 +186,20 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const that = this;
 		return registerAction2(class RenameCurrentProfileAction extends Action2 {
 			constructor() {
+				const when = ContextKeyExpr.and(ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id), IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.toNegated());
 				super({
 					id: `workbench.profiles.actions.editCurrentProfile`,
 					title: {
 						value: localize('edit profile', "Edit Profile..."),
 						original: `Edit Profile...`
 					},
+					precondition: when,
+					f1: true,
 					menu: [
 						{
 							id: ProfilesMenu,
 							group: '2_manage_current',
-							when: ContextKeyExpr.and(ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id), IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.toNegated()),
+							when,
 							order: 2
 						}
 					]
