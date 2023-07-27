@@ -71,8 +71,8 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	private updateModel(model?: IChatModel | undefined): void {
 		this.modelDisposables.clear();
 
-		model = model ?? (this.chatService.transferredSessionId
-			? this.chatService.getOrRestoreSession(this.chatService.transferredSessionId)
+		model = model ?? (this.chatService.transferredSessionData?.sessionId
+			? this.chatService.getOrRestoreSession(this.chatService.transferredSessionData.sessionId)
 			: this.chatService.startSession(this.chatViewOptions.providerId, CancellationToken.None));
 		if (!model) {
 			throw new Error('Could not start chat session');
@@ -102,7 +102,14 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 			}));
 			this._widget.render(parent);
 
-			const sessionId = this.chatService.transferredSessionId ?? this.viewState.sessionId;
+			let sessionId: string | undefined;
+			if (this.chatService.transferredSessionData) {
+				sessionId = this.chatService.transferredSessionData.sessionId;
+				this.viewState.inputValue = this.chatService.transferredSessionData.inputValue;
+			} else {
+				sessionId = this.viewState.sessionId;
+			}
+
 			const initialModel = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
 			this.updateModel(initialModel);
 		} catch (e) {

@@ -481,7 +481,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				sticky: true,
 			}, async progress => {
 				const reportProgress = (message: string) => progress.report({ message: localize('create from profile', "Create Profile: {0}", message) });
-				const profile = await this.doCreateProfile(profileTemplate, false, false, { useDefaultFlags: this.userDataProfileService.currentProfile.useDefaultFlags }, reportProgress);
+				const profile = await this.doCreateProfile(profileTemplate, false, false, { useDefaultFlags: options?.useDefaultFlags }, reportProgress);
 				if (profile) {
 					reportProgress(localize('progress extensions', "Applying Extensions..."));
 					await this.instantiationService.createInstance(ExtensionsResource).copy(this.userDataProfileService.currentProfile, profile, false);
@@ -1228,7 +1228,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 
 	private isSelected(treeItem: IProfileResourceTreeItem): boolean {
 		if (treeItem.checkbox) {
-			return treeItem.checkbox.isChecked || !!treeItem.children?.some(child => child.checkbox?.isChecked ?? true);
+			return treeItem.checkbox.isChecked || !!treeItem.children?.some(child => child.checkbox?.isChecked);
 		}
 		return true;
 	}

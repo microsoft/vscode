@@ -23,6 +23,7 @@ export class HoverService implements IHoverService {
 
 	private _currentHoverOptions: IHoverOptions | undefined;
 	private _currentHover: HoverWidget | undefined;
+	private _lastHoverOptions: IHoverOptions | undefined;
 
 	private _lastFocusedElementBeforeOpen: HTMLElement | undefined;
 
@@ -40,6 +41,7 @@ export class HoverService implements IHoverService {
 			return undefined;
 		}
 		this._currentHoverOptions = options;
+		this._lastHoverOptions = options;
 		if (options.trapFocus && document.activeElement) {
 			this._lastFocusedElementBeforeOpen = document.activeElement as HTMLElement;
 		} else {
@@ -106,6 +108,13 @@ export class HoverService implements IHoverService {
 		if (!entry.isIntersecting) {
 			hover.dispose();
 		}
+	}
+
+	showAndFocusLastHover(): void {
+		if (!this._lastHoverOptions) {
+			return;
+		}
+		this.showHover(this._lastHoverOptions, true);
 	}
 
 	private _keyDown(e: KeyboardEvent, hover: HoverWidget, hideOnKeyDown: boolean) {
