@@ -28,6 +28,7 @@ import { IListService, WorkbenchList } from 'vs/platform/list/browser/listServic
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { IAccessibleViewService, AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
@@ -173,13 +174,16 @@ class NotificationAccessibleViewContribution extends Disposable {
 				}
 				commandService.executeCommand('notifications.showList');
 				let notificationIndex: number | undefined;
+				let length: number | undefined;
 				const list = listService.lastFocusedList;
 				if (list instanceof WorkbenchList) {
 					notificationIndex = list.indexOf(notification);
+					length = list.length;
 				}
 				if (notificationIndex === undefined) {
 					return false;
 				}
+
 				function focusList(): void {
 					commandService.executeCommand('notifications.showList');
 					if (list && notificationIndex !== undefined) {
@@ -206,6 +210,12 @@ class NotificationAccessibleViewContribution extends Disposable {
 						}
 						focusList();
 						list.focusNext();
+						if (notificationIndex) {
+							const notificationNumber = notificationIndex + 1;
+							if (!!notificationNumber && !!length && notificationNumber + 1 <= length) {
+								alert(`Focused ${notificationNumber + 1} of ${length}`);
+							}
+						}
 						renderAccessibleView();
 					},
 					previous(): void {
@@ -214,6 +224,12 @@ class NotificationAccessibleViewContribution extends Disposable {
 						}
 						focusList();
 						list.focusPrevious();
+						if (notificationIndex) {
+							const notificationNumber = notificationIndex + 1;
+							if (!!notificationNumber && !!length && notificationNumber - 1 > 0) {
+								alert(`Focused ${notificationNumber - 1} of ${length}`);
+							}
+						}
 						renderAccessibleView();
 					},
 					verbositySettingKey: AccessibilityVerbositySettingId.Notification,

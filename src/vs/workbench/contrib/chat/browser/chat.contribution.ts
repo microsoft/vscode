@@ -44,6 +44,7 @@ import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatCo
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -175,6 +176,9 @@ class ChatAccessibleViewContribution extends Disposable {
 				if (!responseContent) {
 					return false;
 				}
+				const responses = verifiedWidget.viewModel?.getItems().filter(i => isResponseVM(i));
+				const length = responses?.length;
+				const responseIndex = responses?.findIndex(i => i === focusedItem);
 
 				accessibleViewService.show({
 					verbositySettingKey: AccessibilityVerbositySettingId.Chat,
@@ -189,10 +193,20 @@ class ChatAccessibleViewContribution extends Disposable {
 					},
 					next() {
 						verifiedWidget.moveFocus(focusedItem, 'next');
+						if (responseIndex) {
+							if (!!responseIndex && !!length && responseIndex + 1 <= length) {
+								alert(`Focused ${responseIndex + 1} of ${length}`);
+							}
+						}
 						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
 					},
 					previous() {
 						verifiedWidget.moveFocus(focusedItem, 'previous');
+						if (responseIndex) {
+							if (!!responseIndex && !!length && responseIndex - 1 > 0) {
+								alert(`Focused ${responseIndex + 1} of ${length}`);
+							}
+						}
 						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
 					},
 					options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), type: AccessibleViewType.View }

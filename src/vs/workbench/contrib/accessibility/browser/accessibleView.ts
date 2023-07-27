@@ -271,6 +271,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 			this._accessibleView = this._register(this._instantiationService.createInstance(AccessibleView));
 		}
 		this._accessibleView.show(provider);
+
 	}
 	next(): void {
 		this._accessibleView?.next();
