@@ -792,7 +792,7 @@ function registerCloseEditorCommands() {
 			keepStickyEditors = editorGroupsService.partOptions.preventPinnedEditorClose === 'keyboard' || editorGroupsService.partOptions.preventPinnedEditorClose === 'keyboardAndMouse'; // respect setting otherwise
 		}
 
-		// Skip over sticky editora and select next if we are configured to do so
+		// Skip over sticky editor and select next if we are configured to do so
 		if (keepStickyEditors) {
 			const activeGroup = editorGroupsService.activeGroup;
 			const activeEditor = activeGroup.activeEditor;
