@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import { SkinnyTextDocument, checkSmartPaste, createEditAddingLinksForUriList, appendToLinkSnippet } from '../languageFeatures/copyFiles/shared';
 import { validateLink } from '../languageFeatures/copyFiles/copyPasteLinks';
+
 suite('createEditAddingLinksForUriList', () => {
 
 	test('Markdown Link Pasting should occur for a valid link (end to end)', async () => {
@@ -16,21 +17,11 @@ suite('createEditAddingLinksForUriList', () => {
 			uri: vscode.Uri.parse('file:///path/to/your/file'),
 			offsetAt: function () { return 0; },
 			getText: function () { return 'hello world!'; },
-			// lineAt: function (position: vscode.Position) {
-			// 	return {
-			// 		lineNumber: 0,
-			// 		text: 'hello world!',
-			// 		range: new vscode.Range(position, position),
-			// 		rangeIncludingLineBreak: new vscode.Range(position, position),
-			// 		firstNonWhitespaceCharacterIndex: 0,
-			// 		isEmptyOrWhitespace: false
-			// 	} as vscode.TextLine;
-			// }
 		};
 
 		const result = await createEditAddingLinksForUriList(skinnyDocument, [new vscode.Range(0, 0, 0, 12)], 'https://www.microsoft.com/', true, true, new vscode.CancellationTokenSource().token);
 		// need to check the actual result -> snippet value
-		assert.strictEqual(result?.label, 'Insert Markdown Link');
+		assert.strictEqual(result?.label, 'Smartly Insert Link');
 	});
 
 	suite('validateLink', () => {
@@ -123,28 +114,20 @@ suite('createEditAddingLinksForUriList', () => {
 			uri: vscode.Uri.file('/path/to/your/file'),
 			offsetAt: function () { return 0; },
 			getText: function () { return 'hello world!'; },
-			// lineAt: function (position: vscode.Position) {
-			// 	return {
-			// 		lineNumber: 0,
-			// 		text: 'hello world!',
-			// 		range: new vscode.Range(position, position),
-			// 		rangeIncludingLineBreak: new vscode.Range(position, position),
-			// 		firstNonWhitespaceCharacterIndex: 0,
-			// 		isEmptyOrWhitespace: false
-			// 	} as vscode.TextLine;
-			// }
 		};
 
 		test('Should evaluate pasteAsMarkdownLink as true for selected plain text', () => {
 			const range = new vscode.Range(0, 5, 0, 5);
-			const smartPaste = checkSmartPaste(skinnyDocument, range);
+			let smartPaste = { useSmartPaste: true, pasteAsMarkdownLink: true, updateTitle: false };
+			smartPaste = checkSmartPaste(skinnyDocument, smartPaste, range);
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, true);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a backtick code block', () => {
 			skinnyDocument.getText = function () { return '```\r\n\r\n```'; };
 			const range = new vscode.Range(0, 5, 0, 5);
-			const smartPaste = checkSmartPaste(skinnyDocument, range);
+			let smartPaste = { useSmartPaste: true, pasteAsMarkdownLink: true, updateTitle: false };
+			smartPaste = checkSmartPaste(skinnyDocument, smartPaste, range);
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
 
@@ -158,69 +141,56 @@ suite('createEditAddingLinksForUriList', () => {
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a math block', () => {
 			skinnyDocument.getText = function () { return '$$$\r\n\r\n$$$'; };
 			const range = new vscode.Range(0, 5, 0, 5);
-			const smartPaste = checkSmartPaste(skinnyDocument, range);
+			let smartPaste = { useSmartPaste: true, pasteAsMarkdownLink: true, updateTitle: false };
+			smartPaste = checkSmartPaste(skinnyDocument, smartPaste, range);
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
 
-		const linkSkinnyDoc: SkinnyTextDocument = {
-			uri: vscode.Uri.file('/path/to/your/file'),
-			offsetAt: function () { return 0; },
-			getText: function () { return '[a](bcdef)'; },
-		};
-
 		test('Should evaluate updateTitle as true for pasting over a Markdown link', () => {
+			skinnyDocument.getText = function () { return '[a](bcdef)'; };
 			const range = new vscode.Range(0, 0, 0, 10);
-			const smartPaste = checkSmartPaste(linkSkinnyDoc, range);
+			let smartPaste = { useSmartPaste: true, pasteAsMarkdownLink: true, updateTitle: false };
+			smartPaste = checkSmartPaste(skinnyDocument, smartPaste, range);
 			assert.strictEqual(smartPaste.updateTitle, true);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a Markdown link', () => {
+			skinnyDocument.getText = function () { return '[a](bcdef)'; };
 			const range = new vscode.Range(0, 4, 0, 6);
-			const smartPaste = checkSmartPaste(linkSkinnyDoc, range);
-
+			let smartPaste = { useSmartPaste: true, pasteAsMarkdownLink: true, updateTitle: false };
+			smartPaste = checkSmartPaste(skinnyDocument, smartPaste, range);
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
 
-
-		const imageLinkSkinnyDoc: SkinnyTextDocument = {
-			uri: vscode.Uri.file('/path/to/your/file'),
-			offsetAt: function () { return 0; },
-			getText: function () { return '![a](bcdef)'; },
-		};
-
 		test('Should evaluate updateTitle as true for pasting over a Markdown image link', () => {
+			skinnyDocument.getText = function () { return '![a](bcdef)'; };
 			const range = new vscode.Range(0, 0, 0, 11);
-			const smartPaste = checkSmartPaste(imageLinkSkinnyDoc, range);
+			let smartPaste = { useSmartPaste: true, pasteAsMarkdownLink: true, updateTitle: false };
+			smartPaste = checkSmartPaste(skinnyDocument, smartPaste, range);
 			assert.strictEqual(smartPaste.updateTitle, true);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a Markdown image link', () => {
+			skinnyDocument.getText = function () { return '![a](bcdef)'; };
 			const range = new vscode.Range(0, 5, 0, 10);
-			const smartPaste = checkSmartPaste(imageLinkSkinnyDoc, range);
+			let smartPaste = { useSmartPaste: true, pasteAsMarkdownLink: true, updateTitle: false };
+			smartPaste = checkSmartPaste(skinnyDocument, smartPaste, range);
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
-
-		const inlineCodeSkinnyCode: SkinnyTextDocument = {
-			uri: vscode.Uri.file('/path/to/your/file'),
-			offsetAt: function () { return 0; },
-			getText: function () { return '``'; },
-		};
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within inline code', () => {
+			skinnyDocument.getText = function () { return '``'; };
 			const range = new vscode.Range(0, 1, 0, 1);
-			const smartPaste = checkSmartPaste(inlineCodeSkinnyCode, range);
+			let smartPaste = { useSmartPaste: true, pasteAsMarkdownLink: true, updateTitle: false };
+			smartPaste = checkSmartPaste(skinnyDocument, smartPaste, range);
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
 
-		const inlineMathSkinnyDoc: SkinnyTextDocument = {
-			uri: vscode.Uri.file('/path/to/your/file'),
-			offsetAt: function () { return 0; },
-			getText: function () { return '$$'; },
-		};
-
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within inline math', () => {
+			skinnyDocument.getText = function () { return '$$'; };
 			const range = new vscode.Range(0, 1, 0, 1);
-			const smartPaste = checkSmartPaste(inlineMathSkinnyDoc, range);
+			let smartPaste = { useSmartPaste: true, pasteAsMarkdownLink: true, updateTitle: false };
+			smartPaste = checkSmartPaste(skinnyDocument, smartPaste, range);
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
 	});
