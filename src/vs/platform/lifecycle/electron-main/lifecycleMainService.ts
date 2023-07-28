@@ -654,9 +654,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		}
 
 		const quitListener = () => {
-			if (this.relaunchHandler?.handleRelaunch(options)) {
-				// handled outside
-			} else {
+			if (!this.relaunchHandler?.handleRelaunch(options)) {
 				this.trace('Lifecycle#relaunch() - calling app.relaunch()');
 				app.relaunch({ args });
 			}
