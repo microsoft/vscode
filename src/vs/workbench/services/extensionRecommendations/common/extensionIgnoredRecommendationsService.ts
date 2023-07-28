@@ -5,9 +5,9 @@
 
 import { distinct } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionIgnoredRecommendationsService, IgnoredRecommendationChangeNotification } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 
@@ -37,7 +37,7 @@ export class ExtensionIgnoredRecommendationsService extends Disposable implement
 	) {
 		super();
 		this._globalIgnoredRecommendations = this.getCachedIgnoredRecommendations();
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, ignoredRecommendationsStorageKey)(e => this.onDidStorageChange(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, ignoredRecommendationsStorageKey, this._register(new DisposableStore()))(e => this.onDidStorageChange()));
 
 		this.initIgnoredWorkspaceRecommendations();
 	}
@@ -69,7 +69,7 @@ export class ExtensionIgnoredRecommendationsService extends Disposable implement
 		return ignoredRecommendations.map(e => e.toLowerCase());
 	}
 
-	private onDidStorageChange(e: IStorageValueChangeEvent): void {
+	private onDidStorageChange(): void {
 		if (this.ignoredRecommendationsValue !== this.getStoredIgnoredRecommendationsValue() /* This checks if current window changed the value or not */) {
 			this._ignoredRecommendationsValue = undefined;
 			this._globalIgnoredRecommendations = this.getCachedIgnoredRecommendations();

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export interface IStoredValueSerialization<T> {
@@ -26,7 +27,7 @@ interface IStoredValueOptions<T> {
 /**
  * todo@connor4312: is this worthy to be in common?
  */
-export class StoredValue<T> {
+export class StoredValue<T> extends Disposable {
 	private readonly serialization: IStoredValueSerialization<T>;
 	private readonly key: string;
 	private readonly scope: StorageScope;
@@ -42,11 +43,13 @@ export class StoredValue<T> {
 		options: IStoredValueOptions<T>,
 		@IStorageService private readonly storage: IStorageService,
 	) {
+		super();
+
 		this.key = options.key;
 		this.scope = options.scope;
 		this.target = options.target;
 		this.serialization = options.serialization ?? defaultSerialization;
-		this.onDidChange = this.storage.onDidChangeValue(this.scope, this.key);
+		this.onDidChange = this.storage.onDidChangeValue(this.scope, this.key, this._register(new DisposableStore()));
 	}
 
 	/**

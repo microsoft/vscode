@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isStatusbarEntryLocation, IStatusbarEntryPriority, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { hide, show, isAncestor } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter } from 'vs/base/common/event';
 
 export interface IStatusbarViewModelEntry {
@@ -57,10 +57,10 @@ export class StatusbarViewModel extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, StatusbarViewModel.HIDDEN_ENTRIES_KEY)(e => this.onDidStorageValueChange(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, StatusbarViewModel.HIDDEN_ENTRIES_KEY, this._register(new DisposableStore()))(e => this.onDidStorageValueChange()));
 	}
 
-	private onDidStorageValueChange(event: IStorageValueChangeEvent): void {
+	private onDidStorageValueChange(): void {
 
 		// Keep current hidden entries
 		const currentlyHidden = new Set(this.hidden);

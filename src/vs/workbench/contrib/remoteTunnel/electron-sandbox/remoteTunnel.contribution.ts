@@ -214,12 +214,13 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			return true;
 		};
 		if (await shouldRecommend()) {
-			const storageListener = this.storageService.onDidChangeValue(StorageScope.APPLICATION, REMOTE_TUNNEL_USED_STORAGE_KEY)(async e => {
+			const disposables = this._register(new DisposableStore());
+			disposables.add(this.storageService.onDidChangeValue(StorageScope.APPLICATION, REMOTE_TUNNEL_USED_STORAGE_KEY, disposables)(async () => {
 				const success = await recommed();
 				if (success) {
-					storageListener.dispose();
+					disposables.dispose();
 				}
-			});
+			}));
 		}
 	}
 

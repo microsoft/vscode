@@ -83,7 +83,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
-		_storageService.onDidChangeValue(StorageScope.PROFILE, EditorStatusContribution._keyDedicatedItems)(this._handleStorageChange, this, this._disposables);
+		_storageService.onDidChangeValue(StorageScope.PROFILE, EditorStatusContribution._keyDedicatedItems, this._disposables)(this._handleStorageChange, this, this._disposables);
 		this._restoreState();
 		this._interactionCounter = new StoredCounter(_storageService, 'languageStatus.interactCount');
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -190,7 +190,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private registerListeners(): void {
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(async () => await this.updateWorkspaceTrust()));
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, this.storageKey)(async changeEvent => {
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, this.storageKey, this._register(new DisposableStore()))(async () => {
 			/* This will only execute if storage was changed by a user action in a separate window */
 			if (JSON.stringify(this._trustStateInfo) !== JSON.stringify(this.loadTrustInfo())) {
 				this._trustStateInfo = this.loadTrustInfo();

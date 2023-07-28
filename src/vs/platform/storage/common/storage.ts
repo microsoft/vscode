@@ -5,7 +5,7 @@
 
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { Disposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { mark } from 'vs/base/common/performance';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { InMemoryStorageDatabase, IStorage, IStorageChangeEvent, Storage, StorageHint, StorageValue } from 'vs/base/parts/storage/common/storage';
@@ -42,6 +42,18 @@ export interface IStorageEntry {
 	readonly target: StorageTarget;
 }
 
+export interface IWorkspaceStorageValueChangeEvent extends IStorageValueChangeEvent {
+	readonly scope: StorageScope.WORKSPACE;
+}
+
+export interface IProfileStorageValueChangeEvent extends IStorageValueChangeEvent {
+	readonly scope: StorageScope.PROFILE;
+}
+
+export interface IApplicationStorageValueChangeEvent extends IStorageValueChangeEvent {
+	readonly scope: StorageScope.APPLICATION;
+}
+
 export interface IStorageService {
 
 	readonly _serviceBrand: undefined;
@@ -51,9 +63,13 @@ export interface IStorageService {
 	 * scope and optional key.
 	 *
 	 * @param scope the `StorageScope` to listen to changes
-	 * @param key the optional key to filter for
+	 * @param key the optional key to filter for or all keys of
+	 * the scope if `undefined`
 	 */
-	onDidChangeValue(scope: StorageScope, key?: string,): Event<IStorageValueChangeEvent>;
+	onDidChangeValue(scope: StorageScope.WORKSPACE, key: string | undefined, disposable: DisposableStore): Event<IWorkspaceStorageValueChangeEvent>;
+	onDidChangeValue(scope: StorageScope.PROFILE, key: string | undefined, disposable: DisposableStore): Event<IProfileStorageValueChangeEvent>;
+	onDidChangeValue(scope: StorageScope.APPLICATION, key: string | undefined, disposable: DisposableStore): Event<IApplicationStorageValueChangeEvent>;
+	onDidChangeValue(scope: StorageScope, key: string | undefined, disposable: DisposableStore): Event<IStorageValueChangeEvent>;
 
 	/**
 	 * Emitted whenever target of a storage entry changes.
@@ -314,8 +330,11 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		super();
 	}
 
-	onDidChangeValue(scope: StorageScope, key?: string): Event<IStorageValueChangeEvent> {
-		return Event.filter(this._onDidChangeValue.event, e => e.scope === scope && (key === undefined || e.key === key));
+	onDidChangeValue(scope: StorageScope.WORKSPACE, key: string | undefined, disposable: DisposableStore): Event<IWorkspaceStorageValueChangeEvent>;
+	onDidChangeValue(scope: StorageScope.PROFILE, key: string | undefined, disposable: DisposableStore): Event<IProfileStorageValueChangeEvent>;
+	onDidChangeValue(scope: StorageScope.APPLICATION, key: string | undefined, disposable: DisposableStore): Event<IApplicationStorageValueChangeEvent>;
+	onDidChangeValue(scope: StorageScope, key: string | undefined, disposable: DisposableStore): Event<IStorageValueChangeEvent> {
+		return Event.filter(this._onDidChangeValue.event, e => e.scope === scope && (key === undefined || e.key === key), disposable);
 	}
 
 	private doFlushWhenIdle(): void {
