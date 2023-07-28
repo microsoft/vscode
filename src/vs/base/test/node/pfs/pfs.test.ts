@@ -208,6 +208,33 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(parentDir));
 	});
 
+	test('rename without retry', async () => {
+		const sourceDir = FileAccess.asFileUri('vs/base/test/node/pfs/fixtures').fsPath;
+		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
+		const targetDir = randomPath(parentDir);
+		const targetDir2 = randomPath(parentDir);
+
+		await Promises.copy(sourceDir, targetDir, { preserveSymlinks: true });
+		await Promises.rename(targetDir, targetDir2, false);
+
+		assert.ok(!fs.existsSync(targetDir));
+		assert.ok(fs.existsSync(targetDir2));
+		assert.ok(fs.existsSync(join(targetDir2, 'index.html')));
+		assert.ok(fs.existsSync(join(targetDir2, 'site.css')));
+		assert.ok(fs.existsSync(join(targetDir2, 'examples')));
+		assert.ok(fs.statSync(join(targetDir2, 'examples')).isDirectory());
+		assert.ok(fs.existsSync(join(targetDir2, 'examples', 'small.jxs')));
+
+		await Promises.rename(join(targetDir2, 'index.html'), join(targetDir2, 'index_moved.html'), false);
+
+		assert.ok(!fs.existsSync(join(targetDir2, 'index.html')));
+		assert.ok(fs.existsSync(join(targetDir2, 'index_moved.html')));
+
+		await Promises.rm(parentDir);
+
+		assert.ok(!fs.existsSync(parentDir));
+	});
+
 	test('copy handles symbolic links', async () => {
 		const symbolicLinkTarget = randomPath(testDir);
 		const symLink = randomPath(testDir);
