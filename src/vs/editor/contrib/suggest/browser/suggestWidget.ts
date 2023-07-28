@@ -34,6 +34,7 @@ import { CompletionItem, Context as SuggestContext, suggestWidgetStatusbarMenu }
 import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } from './suggestWidgetDetails';
 import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
 import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { status } from 'vs/base/browser/ui/aria/aria';
 
 /**
  * Suggest widget colors
@@ -206,6 +207,9 @@ export class SuggestWidget implements IDisposable {
 		}));
 
 		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
+		// this._messageElement.setAttribute('aria-live', 'polite');
+		// this._messageElement.setAttribute('aria-atomic', 'true');
+		// this._messageElement.setAttribute('role', 'alert');
 		this._listElement = dom.append(this.element.domNode, dom.$('.tree'));
 
 		const details = instantiationService.createInstance(SuggestDetailsWidget, this.editor);
@@ -463,6 +467,7 @@ export class SuggestWidget implements IDisposable {
 				this._details.hide();
 				this._show();
 				this._focusedItem = undefined;
+				status(SuggestWidget.LOADING_MESSAGE);
 				break;
 			case State.Empty:
 				this.element.domNode.classList.add('message');
@@ -472,6 +477,7 @@ export class SuggestWidget implements IDisposable {
 				this._details.hide();
 				this._show();
 				this._focusedItem = undefined;
+				status(SuggestWidget.NO_SUGGESTIONS_MESSAGE);
 				break;
 			case State.Open:
 				dom.hide(this._messageElement);
