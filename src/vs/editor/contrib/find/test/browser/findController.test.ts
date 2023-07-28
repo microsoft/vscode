@@ -63,7 +63,7 @@ function executeAction(instantiationService: IInstantiationService, editor: ICod
 	});
 }
 
-suite('FindController', async () => {
+suite('FindController', () => {
 	const queryState: { [key: string]: any } = {};
 	let clipboardState = '';
 	const serviceCollection = new ServiceCollection();
@@ -495,7 +495,7 @@ suite('FindController', async () => {
 	});
 });
 
-suite('FindController query options persistence', async () => {
+suite('FindController query options persistence', () => {
 	let queryState: { [key: string]: any } = {};
 	queryState['editor.isRegex'] = false;
 	queryState['editor.matchCase'] = false;
