@@ -17,7 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 export class MainThreadStorage implements MainThreadStorageShape {
 
 	private readonly _proxy: ExtHostStorageShape;
-	private readonly _disposable = new DisposableStore();
+	private readonly _storageListener = new DisposableStore();
 	private readonly _sharedStorageKeysToWatch: Map<string, boolean> = new Map<string, boolean>();
 
 	constructor(
@@ -29,7 +29,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostStorage);
 
-		this._disposable.add(this._storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._disposable)(e => {
+		this._storageListener.add(this._storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._storageListener)(e => {
 			if (this._sharedStorageKeysToWatch.has(e.key)) {
 				const rawState = this._extensionStorageService.getExtensionStateRaw(e.key, true);
 				if (typeof rawState === 'string') {
@@ -40,7 +40,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 	}
 
 	dispose(): void {
-		this._disposable.dispose();
+		this._storageListener.dispose();
 	}
 
 	async $initializeExtensionStorage(shared: boolean, extensionId: string): Promise<string | undefined> {

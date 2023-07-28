@@ -50,6 +50,31 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		strictEqual(storageValueChangeEvent?.external, false);
 	});
 
+	test('Storage change event scope (all keys)', () => {
+		const storageValueChangeEvents: IStorageValueChangeEvent[] = [];
+		storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, new DisposableStore())(e => storageValueChangeEvents.push(e));
+
+		storageService.store('testChange', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		storageService.store('testChange2', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		storageService.store('testChange', 'foobar', StorageScope.APPLICATION, StorageTarget.MACHINE);
+		storageService.store('testChange', 'foobar', StorageScope.PROFILE, StorageTarget.MACHINE);
+		storageService.store('testChange2', 'foobar', StorageScope.PROFILE, StorageTarget.MACHINE);
+		strictEqual(storageValueChangeEvents.length, 2);
+	});
+
+	test('Storage change event scope (specific key)', () => {
+		const storageValueChangeEvents: IStorageValueChangeEvent[] = [];
+		storageService.onDidChangeValue(StorageScope.WORKSPACE, 'testChange', new DisposableStore())(e => storageValueChangeEvents.push(e));
+
+		storageService.store('testChange', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		storageService.store('testChange', 'foobar', StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store('testChange', 'foobar', StorageScope.APPLICATION, StorageTarget.MACHINE);
+		storageService.store('testChange2', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'testChange');
+		ok(storageValueChangeEvent);
+		strictEqual(storageValueChangeEvents.length, 1);
+	});
+
 	function storeData(scope: StorageScope): void {
 		let storageValueChangeEvents: IStorageValueChangeEvent[] = [];
 		storageService.onDidChangeValue(scope, undefined, new DisposableStore())(e => storageValueChangeEvents.push(e));

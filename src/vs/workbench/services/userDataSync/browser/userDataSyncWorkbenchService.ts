@@ -187,6 +187,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		await this.update();
 
 		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => this.updateAuthenticationProviders()));
+
 		this._register(
 			Event.any(
 				Event.filter(
