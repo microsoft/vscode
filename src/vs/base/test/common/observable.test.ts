@@ -992,6 +992,29 @@ suite('observables', () => {
 			'event fired',
 		]);
 	});
+
+	test('dont run autorun after dispose', () => {
+		const log = new Log();
+		const myObservable = new LoggingObservableValue('myObservable', 0, log);
+
+		const d = autorun('update', reader => {
+			const v = myObservable.read(reader);
+			log.log('autorun, myObservable:' + v);
+		});
+
+		transaction(tx => {
+			myObservable.set(1, tx);
+			d.dispose();
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'myObservable.firstObserverAdded',
+			'myObservable.get',
+			'autorun, myObservable:0',
+			'myObservable.set (value 1)',
+			'myObservable.lastObserverRemoved',
+		]);
+	});
 });
 
 export class LoggingObserver implements IObserver {
