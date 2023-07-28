@@ -38,7 +38,7 @@ export class HoverService implements IHoverService {
 		contextMenuService.onDidShowContextMenu(() => this.hideHover());
 	}
 
-	showHover(options: IHoverOptions, focus?: boolean, skipLastFocusedUpdate?: boolean): IHoverWidget | undefined {
+	showHover(options: Readonly<IHoverOptions>, focus?: boolean, skipLastFocusedUpdate?: boolean): IHoverWidget | undefined {
 		if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
 			return undefined;
 		}
