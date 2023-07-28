@@ -42,6 +42,9 @@ export interface IStickyScrollController {
 	selectEditor(): void;
 }
 
+// TODO: take into account the case that when there is a mouse up and previously shift was held, render normally
+// TODO: also when you move out of sticky scroll, and previously rendering with end of scope line, then this needs to be rendered normally
+
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
 
 	static readonly ID = 'store.contrib.stickyScrollController';
