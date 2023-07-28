@@ -630,10 +630,11 @@ function isSchemaResolveError(d: Diagnostic) {
 	return d.code === /* SchemaResolveError */ 0x300;
 }
 
-function getOptionsForDocument(document: TextDocument): TextEditorOptions | void {
+function getOptionsForDocument(document: TextDocument): TextEditorOptions | undefined {
 	for (const editor of window.visibleTextEditors) {
 		if (editor.document.uri.toString() === document.uri.toString()) {
 			return editor.options;
 		}
 	}
+	return;
 }
