@@ -489,11 +489,11 @@ class TestingExplorerViewModel extends Disposable {
 	private readonly _viewSorting = TestingContextKeys.viewSorting.bindTo(this.contextKeyService);
 	private readonly welcomeVisibilityEmitter = new Emitter<WelcomeExperience>();
 	private readonly actionRunner = new TestExplorerActionRunner(() => this.tree.getSelection().filter(isDefined));
-	private readonly lastViewState = new StoredValue<ISerializedTestTreeCollapseState>({
+	private readonly lastViewState = this._register(new StoredValue<ISerializedTestTreeCollapseState>({
 		key: 'testing.treeState',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.MACHINE,
-	}, this.storageService);
+	}, this.storageService));
 	private readonly noTestForDocumentWidget: NoTestsForDocumentWidget;
 
 	/**
