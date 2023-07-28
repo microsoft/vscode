@@ -207,9 +207,6 @@ export class SuggestWidget implements IDisposable {
 		}));
 
 		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
-		// this._messageElement.setAttribute('aria-live', 'polite');
-		// this._messageElement.setAttribute('aria-atomic', 'true');
-		// this._messageElement.setAttribute('role', 'alert');
 		this._listElement = dom.append(this.element.domNode, dom.$('.tree'));
 
 		const details = instantiationService.createInstance(SuggestDetailsWidget, this.editor);
