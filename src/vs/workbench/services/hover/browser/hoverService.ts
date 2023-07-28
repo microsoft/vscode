@@ -44,8 +44,8 @@ export class HoverService implements IHoverService {
 		}
 		this._currentHoverOptions = options;
 		this._lastHoverOptions = options;
-		// HACK, remove when #189076 is fixed
 		const trapFocus = options.trapFocus || this._accessibilityService.isScreenReaderOptimized();
+		// HACK, remove this check when #189076 is fixed
 		if (!skipLastFocusedUpdate) {
 			if (trapFocus && document.activeElement) {
 				this._lastFocusedElementBeforeOpen = document.activeElement as HTMLElement;
