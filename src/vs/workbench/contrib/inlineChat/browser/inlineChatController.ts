@@ -196,6 +196,7 @@ export class InlineChatController implements IEditorContribution {
 	// ---- state machine
 
 	private _showWidget(initialRender: boolean = false, position?: IPosition) {
+		console.log('position inside of _showWidget : ', position);
 		assertType(this._editor.hasModel());
 
 		let widgetPosition: Position;
@@ -488,6 +489,7 @@ export class InlineChatController implements IEditorContribution {
 			wholeRange: this._activeSession.wholeRange.value,
 			live: this._activeSession.editMode !== EditMode.Preview // TODO@jrieken let extension know what document is used for previewing
 		};
+		console.log('request from make request : ', request);
 		this._chatAccessibilityService.acceptRequest();
 
 		const progressEdits: TextEdit[][] = [];
