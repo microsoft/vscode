@@ -37,13 +37,14 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import '../common/chatColors';
 import { registerMoveActions } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { registerClearActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
-import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
+import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -78,12 +79,24 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in chat codeblocks. Use 0 to compute the line height from the font size."),
 			default: 0
 		},
+		'chat.experimental.defaultMode': {
+			type: 'string',
+			tags: ['experimental'],
+			enum: ['chatView', 'quickQuestion', 'both'],
+			enumDescriptions: [
+				nls.localize('interactiveSession.defaultMode.chatView', "Use the chat view as the default mode. Displays the chat icon in the Activity Bar."),
+				nls.localize('interactiveSession.defaultMode.quickQuestion', "Use the quick question as the default mode. Displays the chat icon in the Title Bar."),
+				nls.localize('interactiveSession.defaultMode.both', "Displays the chat icon in the Activity Bar and the Title Bar which open their respective chat modes.")
+			],
+			description: nls.localize('interactiveSession.defaultMode', "Controls the default mode of the chat experience."),
+			default: 'chatView'
+		},
 		'chat.experimental.quickQuestion.mode': {
 			type: 'string',
 			tags: ['experimental'],
 			enum: [QuickQuestionMode.SingleQuestion, QuickQuestionMode.InputOnTopChat, QuickQuestionMode.InputOnBottomChat],
 			description: nls.localize('interactiveSession.quickQuestion.mode', "Controls the mode of quick question chat experience."),
-			default: QuickQuestionMode.SingleQuestion,
+			default: QuickQuestionMode.InputOnTopChat,
 		}
 	}
 });
@@ -135,48 +148,63 @@ class ChatAccessibleViewContribution extends Disposable {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const widgetService = accessor.get(IChatWidgetService);
 			const codeEditorService = accessor.get(ICodeEditorService);
+			return renderAccessibleView(accessibleViewService, widgetService, codeEditorService, true);
+			function renderAccessibleView(accessibleViewService: IAccessibleViewService, widgetService: IChatWidgetService, codeEditorService: ICodeEditorService, initialRender?: boolean): boolean {
+				const widget = widgetService.lastFocusedWidget;
+				if (!widget) {
+					return false;
+				}
+				const chatInputFocused = initialRender && !!codeEditorService.getFocusedCodeEditor();
+				if (initialRender && chatInputFocused) {
+					widget.focusLastMessage();
+				}
 
-			let widget = widgetService.lastFocusedWidget;
-			if (!widget) {
-				return false;
+				if (!widget) {
+					return false;
+				}
+
+				const verifiedWidget: IChatWidget = widget;
+				const focusedItem = verifiedWidget.getFocus();
+
+				if (!focusedItem) {
+					return false;
+				}
+
+				widget.focus(focusedItem);
+
+				const responseContent = isResponseVM(focusedItem) ? focusedItem.response.value : undefined;
+				if (!responseContent) {
+					return false;
+				}
+				const responses = verifiedWidget.viewModel?.getItems().filter(i => isResponseVM(i));
+				const length = responses?.length;
+				const responseIndex = responses?.findIndex(i => i === focusedItem);
+
+				accessibleViewService.show({
+					verbositySettingKey: AccessibilityVerbositySettingId.Chat,
+					provideContent(): string { return responseContent; },
+					onClose() {
+						verifiedWidget.reveal(focusedItem);
+						if (chatInputFocused) {
+							verifiedWidget.focusInput();
+						} else {
+							verifiedWidget.focus(focusedItem);
+						}
+					},
+					next() {
+						verifiedWidget.moveFocus(focusedItem, 'next');
+						alertFocusChange(responseIndex, length, 'next');
+						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
+					},
+					previous() {
+						verifiedWidget.moveFocus(focusedItem, 'previous');
+						alertFocusChange(responseIndex, length, 'previous');
+						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
+					},
+					options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), type: AccessibleViewType.View }
+				});
+				return true;
 			}
-
-			const chatInputFocused = !!(codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor());
-
-			if (chatInputFocused) {
-				widget.focusLastMessage();
-				widget = widgetService.lastFocusedWidget;
-			}
-
-			if (!widget) {
-				return false;
-			}
-
-			const verifiedWidget: IChatWidget = widget;
-			const focusedItem = verifiedWidget.getFocus();
-
-			if (!focusedItem) {
-				return false;
-			}
-
-			const responseContent = isResponseVM(focusedItem) ? focusedItem.response.value : undefined;
-			if (!responseContent) {
-				return false;
-			}
-
-			accessibleViewService.show({
-				verbositySettingKey: 'panelChat',
-				provideContent(): string { return responseContent; },
-				onClose() {
-					if (chatInputFocused) {
-						verifiedWidget.focusInput();
-					} else {
-						verifiedWidget.focus(focusedItem);
-					}
-				},
-				options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript', type: AccessibleViewType.View }
-			});
-			return true;
 		}, CONTEXT_IN_CHAT_SESSION));
 	}
 }

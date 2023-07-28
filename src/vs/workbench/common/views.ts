@@ -653,7 +653,7 @@ export interface ITreeView extends IDisposable {
 
 	manuallyManageCheckboxes: boolean;
 
-	message?: string;
+	message?: string | IMarkdownString;
 
 	title: string;
 

@@ -28,6 +28,8 @@ export interface IChatWidgetService {
 	revealViewForProvider(providerId: string): Promise<IChatWidget | undefined>;
 
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
+
+	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
 }
 
 
@@ -56,6 +58,7 @@ export interface IChatWidget {
 
 	reveal(item: ChatTreeItem): void;
 	focus(item: ChatTreeItem): void;
+	moveFocus(item: ChatTreeItem, type: 'next' | 'previous'): void;
 	getFocus(): ChatTreeItem | undefined;
 	acceptInput(query?: string): void;
 	focusLastMessage(): void;

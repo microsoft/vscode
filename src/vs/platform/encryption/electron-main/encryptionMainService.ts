@@ -5,7 +5,7 @@
 
 import { safeStorage as safeStorageElectron, app } from 'electron';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { KnownStorageProvider, IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
+import { KnownStorageProvider, IEncryptionMainService, PasswordStoreCLIOption } from 'vs/platform/encryption/common/encryptionService';
 import { ILogService } from 'vs/platform/log/common/log';
 
 // These APIs are currently only supported in our custom build of electron so
@@ -25,7 +25,7 @@ export class EncryptionMainService implements IEncryptionMainService {
 		@ILogService private readonly logService: ILogService
 	) {
 		// if this commandLine switch is set, the user has opted in to using basic text encryption
-		if (app.commandLine.getSwitchValue('password-store') === 'basic_text') {
+		if (app.commandLine.getSwitchValue('password-store') === PasswordStoreCLIOption.basic) {
 			safeStorage.setUsePlainTextEncryption?.(true);
 		}
 	}

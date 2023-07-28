@@ -9,7 +9,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export const ISecretStorageService = createDecorator<ISecretStorageService>('secretStorageService');
 
@@ -38,7 +38,7 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 
 	private _type: 'in-memory' | 'persisted' | 'unknown' = 'unknown';
 
-	private _onDidChangeValueDisposable: IDisposable | undefined;
+	private readonly _onDidChangeValueDisposable = new DisposableStore();
 
 	constructor(
 		@IStorageService private _storageService: IStorageService,
@@ -127,8 +127,10 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 			storageService = new InMemoryStorageService();
 		}
 
-		this._onDidChangeValueDisposable?.dispose();
-		this._onDidChangeValueDisposable = storageService.onDidChangeValue(e => this.onDidChangeValue(e.key));
+		this._onDidChangeValueDisposable.clear();
+		this._onDidChangeValueDisposable.add(storageService.onDidChangeValue(StorageScope.APPLICATION, undefined, this._onDidChangeValueDisposable)(e => {
+			this.onDidChangeValue(e.key);
+		}));
 		return storageService;
 	}
 

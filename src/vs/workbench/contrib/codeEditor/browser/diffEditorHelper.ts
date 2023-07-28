@@ -7,7 +7,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { DiffReviewNext, DiffReviewPrev } from 'vs/editor/browser/widget/diffEditor.contribution';
+import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from 'vs/editor/browser/widget/diffEditor.contribution';
 import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
 import { EmbeddedDiffEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityHelpAction, AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { localize } from 'vs/nls';
@@ -86,8 +86,8 @@ function createScreenReaderHelp(): IDisposable {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const keybindingService = accessor.get(IKeybindingService);
 
-		const next = keybindingService.lookupKeybinding(DiffReviewNext.id)?.getAriaLabel();
-		const previous = keybindingService.lookupKeybinding(DiffReviewPrev.id)?.getAriaLabel();
+		const next = keybindingService.lookupKeybinding(AccessibleDiffViewerNext.id)?.getAriaLabel();
+		const previous = keybindingService.lookupKeybinding(AccessibleDiffViewerPrev.id)?.getAriaLabel();
 
 		if (!(editorService.activeTextEditorControl instanceof DiffEditorWidget2)) {
 			return;
@@ -101,7 +101,7 @@ function createScreenReaderHelp(): IDisposable {
 		const keys = ['audioCues.diffLineDeleted', 'audioCues.diffLineInserted', 'audioCues.diffLineModified'];
 
 		accessibleViewService.show({
-			verbositySettingKey: 'diffEditor',
+			verbositySettingKey: AccessibilityVerbositySettingId.DiffEditor,
 			provideContent: () => [
 				localize('msg1', "You are in a diff editor."),
 				localize('msg2', "Press {0} or {1} to view the next or previous diff in the diff review mode that is optimized for screen readers.", next, previous),
@@ -110,7 +110,7 @@ function createScreenReaderHelp(): IDisposable {
 			onClose: () => {
 				codeEditor.focus();
 			},
-			options: { type: AccessibleViewType.HelpMenu, ariaLabel: localize('chat-help-label', "Diff editor accessibility help") }
+			options: { type: AccessibleViewType.Help, ariaLabel: localize('chat-help-label', "Diff editor accessibility help") }
 		});
 	}, ContextKeyExpr.and(
 		ContextKeyEqualsExpr.create('diffEditorVersion', 2),

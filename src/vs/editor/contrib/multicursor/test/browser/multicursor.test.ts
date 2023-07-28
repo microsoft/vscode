@@ -86,7 +86,8 @@ suite('Multicursor selection', () => {
 	const serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, {
 		_serviceBrand: undefined,
-		onDidChangeValue: Event.None,
+		onDidChangeValue: () => { throw new Error(); },
+		onDidChangeValue2: Event.None,
 		onDidChangeTarget: Event.None,
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],

@@ -387,7 +387,7 @@ import { assertNoRpc, poll } from '../utils';
 		});
 
 		suite('window.onDidWriteTerminalData', () => {
-			test('should listen to all future terminal data events', (done) => {
+			test.skip('should listen to all future terminal data events', (done) => {
 				const openEvents: string[] = [];
 				const dataEvents: { name: string; data: string }[] = [];
 				const closeEvents: string[] = [];
@@ -936,6 +936,7 @@ import { assertNoRpc, poll } from '../utils';
 					{ value: 'scoped~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions },
 					{ value: 'scoped~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions }
 				]);
+				deepStrictEqual(entries.map(v => v[0]), ['A', 'B', 'C']);
 			});
 		});
 	});

@@ -218,6 +218,7 @@ export interface ICellOutput {
 	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
 	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
+	bumpVersion(): void;
 }
 
 export interface CellInternalMetadataChangedEvent {
@@ -927,6 +928,7 @@ export const NotebookSetting = {
 	focusIndicator: 'notebook.cellFocusIndicator',
 	insertToolbarLocation: 'notebook.insertToolbarLocation',
 	globalToolbar: 'notebook.globalToolbar',
+	stickyScroll: 'notebook.stickyScroll.enabled',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
 	showFoldingControls: 'notebook.showFoldingControls',
@@ -1010,8 +1012,10 @@ export function compressOutputItemStreams(outputs: Uint8Array[]) {
 		}
 	}
 
-	const didCompression = compressStreamBuffer(buffers);
-	const data = formatStreamText(VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer))));
+	let didCompression = compressStreamBuffer(buffers);
+	const concatenated = VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer)));
+	const data = formatStreamText(concatenated);
+	didCompression = didCompression || data.byteLength !== concatenated.byteLength;
 	return { data, didCompression };
 }
 

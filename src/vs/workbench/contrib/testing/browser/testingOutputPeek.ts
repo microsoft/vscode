@@ -152,11 +152,11 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	private lastUri?: TestUriWithDocument;
 
 	/** @inheritdoc */
-	public readonly historyVisible = MutableObservableValue.stored(new StoredValue<boolean>({
+	public readonly historyVisible = MutableObservableValue.stored(this._register(new StoredValue<boolean>({
 		key: 'testHistoryVisibleInPeek',
 		scope: StorageScope.PROFILE,
 		target: StorageTarget.USER,
-	}, this.storageService), false);
+	}, this.storageService)), false);
 
 	constructor(
 		@IConfigurationService private readonly configuration: IConfigurationService,
@@ -2174,7 +2174,7 @@ export class OpenMessageInEditorAction extends Action2 {
 			id: OpenMessageInEditorAction.ID,
 			f1: false,
 			title: { value: localize('testing.openMessageInEditor', "Open in Editor"), original: 'Open in Editor' },
-			icon: Codicon.linkExternal,
+			icon: Codicon.goToFile,
 			category: Categories.Test,
 			menu: [{ id: MenuId.TestPeekTitle }],
 		});

@@ -118,7 +118,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService
+		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
@@ -175,6 +176,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	focusInput(): void {
 		this.inputPart.focus();
+	}
+
+	moveFocus(item: ChatTreeItem, type: 'next' | 'previous'): void {
+		const items = this.viewModel?.getItems();
+		if (!items) {
+			return;
+		}
+		const responseItems = items.filter(i => isResponseVM(i));
+		const targetIndex = responseItems.indexOf(item);
+		if (targetIndex === undefined) {
+			return;
+		}
+		const indexToFocus = type === 'next' ? targetIndex + 1 : targetIndex - 1;
+		if (indexToFocus < 0 || indexToFocus > responseItems.length - 1) {
+			return;
+		}
+		this.focus(responseItems[indexToFocus]);
 	}
 
 	private onDidChangeItems() {
@@ -288,7 +306,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				horizontalScrolling: false,
 				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
-				accessibilityProvider: new ChatAccessibilityProvider(),
+				accessibilityProvider: this._instantiationService.createInstance(ChatAccessibilityProvider),
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: ChatTreeItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
 				setRowLineHeight: false,
 				overrideStyles: {
@@ -416,7 +434,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const editorValue = this.inputPart.inputEditor.getValue();
 
 			// Shortcut for /clear command
-			if (!query && editorValue.trim() === '/clear') {
+			if (!query && editorValue.trim() === '/clear' || typeof query === 'string' && query.trim() === '/clear') {
 				// Small hack, if this becomes a repeated pattern, we should have a real internal slash command provider system
 				this.instantiationService.invokeFunction(clearChatSession, this);
 				return;
@@ -554,6 +572,10 @@ export class ChatWidgetService implements IChatWidgetService {
 
 	getWidgetByInputUri(uri: URI): ChatWidget | undefined {
 		return this._widgets.find(w => isEqual(w.inputUri, uri));
+	}
+
+	getWidgetBySessionId(sessionId: string): ChatWidget | undefined {
+		return this._widgets.find(w => w.viewModel?.sessionId === sessionId);
 	}
 
 	async revealViewForProvider(providerId: string): Promise<ChatWidget | undefined> {

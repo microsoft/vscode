@@ -569,15 +569,17 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const stat = e.element;
 		let anchor = e.anchor;
 
-		// Compressed folders
-		if (stat) {
-			const controller = this.renderer.getCompressedNavigationController(stat);
+		// Adjust for compressed folders (except when mouse is used)
+		if (DOM.isHTMLElement(anchor)) {
+			if (stat) {
+				const controller = this.renderer.getCompressedNavigationController(stat);
 
-			if (controller) {
-				if (e.browserEvent instanceof KeyboardEvent || isCompressedFolderName(e.browserEvent.target)) {
-					anchor = controller.labels[controller.index];
-				} else {
-					controller.last();
+				if (controller) {
+					if (e.browserEvent instanceof KeyboardEvent || isCompressedFolderName(e.browserEvent.target)) {
+						anchor = controller.labels[controller.index];
+					} else {
+						controller.last();
+					}
 				}
 			}
 		}

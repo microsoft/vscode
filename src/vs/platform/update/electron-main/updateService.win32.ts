@@ -137,7 +137,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 							return this.requestService.request({ url }, CancellationToken.None)
 								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
 								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
-								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath))
+								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath, false /* no retry */))
 								.then(() => updatePackagePath);
 						});
 					}).then(packagePath => {

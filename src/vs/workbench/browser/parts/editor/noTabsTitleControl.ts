@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notabstitlecontrol';
-import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, preventEditorClose, EditorCloseMethod } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { TitleControl, IToolbarActions, ITitleControlDimensions } from 'vs/workbench/browser/parts/editor/titleControl';
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
@@ -105,7 +105,9 @@ export class NoTabsTitleControl extends TitleControl {
 		if (e.button === 1 /* Middle Button */ && this.group.activeEditor) {
 			EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
-			this.group.closeEditor(this.group.activeEditor);
+			if (!preventEditorClose(this.group, this.group.activeEditor, EditorCloseMethod.MOUSE, this.accessor.partOptions)) {
+				this.group.closeEditor(this.group.activeEditor);
+			}
 		}
 	}
 

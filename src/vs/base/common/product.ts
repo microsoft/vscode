@@ -130,11 +130,6 @@ export interface IProductConfiguration {
 		readonly ariaKey: string;
 	};
 
-	readonly sendASmile?: {
-		readonly reportIssueUrl: string;
-		readonly requestFeatureUrl: string;
-	};
-
 	readonly documentationUrl?: string;
 	readonly serverDocumentationUrl?: string;
 	readonly releaseNotesUrl?: string;
@@ -144,7 +139,7 @@ export interface IProductConfiguration {
 	readonly introductoryVideosUrl?: string;
 	readonly tipsAndTricksUrl?: string;
 	readonly newsletterSignupUrl?: string;
-	readonly twitterUrl?: string;
+	readonly youTubeUrl?: string;
 	readonly requestFeatureUrl?: string;
 	readonly reportIssueUrl?: string;
 	readonly reportMarketplaceIssueUrl?: string;
