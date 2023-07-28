@@ -90,7 +90,28 @@ export function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor |
 			return diffEditor;
 		}
 	}
+
+	if (document.activeElement) {
+		for (const d of diffEditors) {
+			const container = d.getContainerDomNode();
+			if (isElementOrParentOf(container, document.activeElement)) {
+				return d;
+			}
+		}
+	}
+
 	return null;
+}
+
+function isElementOrParentOf(elementOrParent: Element, element: Element): boolean {
+	let e: Element | null = element;
+	while (e) {
+		if (e === elementOrParent) {
+			return true;
+		}
+		e = e.parentElement;
+	}
+	return false;
 }
 
 CommandsRegistry.registerCommandAlias('editor.action.diffReview.next', AccessibleDiffViewerNext.id);
