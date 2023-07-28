@@ -11,15 +11,13 @@ import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/edi
 import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget';
 import { IStickyLineCandidateProvider, StickyLineCandidateProvider } from './stickyScrollProvider';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { getDefinitionsAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
-import { goToDefinitionWithLocation } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
@@ -27,11 +25,10 @@ import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/langu
 import * as dom from 'vs/base/browser/dom';
 import { StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-
-interface CustomMouseEvent {
-	detail: string;
-	element: HTMLElement;
-}
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
+import { DefinitionAction, SymbolNavigationAnchor } from 'vs/editor/contrib/gotoSymbol/browser/goToCommands';
+import { Location } from 'vs/editor/common/languages';
 
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
@@ -69,6 +66,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _focused = false;
 	private _positionRevealed = false;
 	private _onMouseDown = false;
+	private _startLineNumbers: number[] = [];
+	private _endLineNumbers: number[] = [];
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -115,7 +114,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(focusTracker.onDidFocus(_ => {
 			this.focus();
 		}));
-		this._register(this._createClickLinkGesture());
+		this._register(this._navigationDisposables());
 		// Suppose that mouse down on the sticky scroll, then do not focus on the sticky scroll because this will be followed by the revealing of a position
 		this._register(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_DOWN, (e) => {
 			this._onMouseDown = true;
@@ -197,24 +196,28 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._editor.focus();
 	}
 
-	private _createClickLinkGesture(): IDisposable {
+	private _revealPositionInCenter(position: IPosition): void {
+		this._positionRevealed = true;
+		this._editor.revealPositionInCenter(position);
+		this._editor.setSelection(Range.fromPositions(position));
+		this._editor.focus();
+	}
 
-		const linkGestureStore = new DisposableStore();
+	private _navigationDisposables(): IDisposable {
+
+		const store = new DisposableStore();
 		const sessionStore = new DisposableStore();
-		linkGestureStore.add(sessionStore);
-		const gesture = new ClickLinkGesture(this._editor, true);
-		linkGestureStore.add(gesture);
+		store.add(sessionStore);
+		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_OVER, (e) => {
 
-		linkGestureStore.add(gesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, _keyboardEvent]) => {
-			if (!this._editor.hasModel() || !mouseEvent.hasTriggerModifier) {
+			if (!this._editor.hasModel() || !e.metaKey) {
 				sessionStore.clear();
 				return;
 			}
-			const targetMouseEvent = mouseEvent.target as unknown as CustomMouseEvent;
-			if (targetMouseEvent.detail === this._stickyScrollWidget.getId()
-				&& targetMouseEvent.element.innerText === targetMouseEvent.element.innerHTML) {
+			const targetMouseEvent = e.target;
+			if (targetMouseEvent && targetMouseEvent instanceof HTMLElement && targetMouseEvent.innerText === targetMouseEvent.innerHTML) {
 
-				const text = targetMouseEvent.element.innerText;
+				const text = targetMouseEvent.innerText;
 				if (this._stickyScrollWidget.hoverOnColumn === -1) {
 					return;
 				}
@@ -225,7 +228,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				if (!stickyPositionProjectedOnEditor.equalsRange(this._stickyRangeProjectedOnEditor)) {
 					this._stickyRangeProjectedOnEditor = stickyPositionProjectedOnEditor;
 					sessionStore.clear();
-				} else if (targetMouseEvent.element.style.textDecoration === 'underline') {
+				} else if (targetMouseEvent.style.textDecoration === 'underline') {
 					return;
 				}
 
@@ -240,16 +243,15 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					}
 					if (candidateDefinitions.length !== 0) {
 						this._candidateDefinitionsLength = candidateDefinitions.length;
-						const childHTML: HTMLElement = targetMouseEvent.element;
-						if (currentHTMLChild !== childHTML) {
+						if (currentHTMLChild !== targetMouseEvent) {
 							sessionStore.clear();
-							currentHTMLChild = childHTML;
+							currentHTMLChild = targetMouseEvent;
 							currentHTMLChild.style.textDecoration = 'underline';
 							sessionStore.add(toDisposable(() => {
 								currentHTMLChild.style.textDecoration = 'none';
 							}));
 						} else if (!currentHTMLChild) {
-							currentHTMLChild = childHTML;
+							currentHTMLChild = targetMouseEvent;
 							currentHTMLChild.style.textDecoration = 'underline';
 							sessionStore.add(toDisposable(() => {
 								currentHTMLChild.style.textDecoration = 'none';
@@ -262,15 +264,15 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			} else {
 				sessionStore.clear();
 			}
-		}));
-		linkGestureStore.add(gesture.onCancel(() => {
-			sessionStore.clear();
-		}));
-		linkGestureStore.add(gesture.onExecute(async e => {
-			if ((e.target as unknown as CustomMouseEvent).detail !== this._stickyScrollWidget.getId()) {
-				return;
+		})
+		);
+		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_UP, (e) => {
+			if (e.metaKey) {
+				sessionStore.clear();
 			}
-			if (e.hasTriggerModifier) {
+		}));
+		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_DOWN, (e) => {
+			if (e.metaKey) {
 				// Control click
 				if (this._candidateDefinitionsLength > 1) {
 					if (this._focused) {
@@ -280,7 +282,16 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				}
 				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
 
-			} else if (!e.isRightClick) {
+			} else if (e.shiftKey) {
+				// Shift key
+				if (this._focused) {
+					this._disposeFocusStickyScrollStore();
+				}
+				const index = this._startLineNumbers.indexOf(this._stickyScrollWidget.hoverOnLine);
+				if (index !== -1) {
+					this._revealPositionInCenter({ lineNumber: this._endLineNumbers[index], column: this._stickyScrollWidget.hoverOnColumn });
+				}
+			} else {
 				// Normal click
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
@@ -288,7 +299,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				this._revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: this._stickyScrollWidget.hoverOnColumn });
 			}
 		}));
-		return linkGestureStore;
+		return store;
 	}
 
 	private _onContextMenu(e: MouseEvent) {
@@ -398,7 +409,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const maxNumberStickyLines = Math.min(this._maxStickyLines, this._editor.getOption(EditorOption.stickyScroll).maxLineCount);
 		const scrollTop: number = this._editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
-		const lineNumbers: number[] = [];
+		const startLineNumbers: number[] = [];
+		const endLineNumbers: number[] = [];
 		const arrayVisibleRanges = this._editor.getVisibleRanges();
 		if (arrayVisibleRanges.length !== 0) {
 			const fullVisibleRange = new StickyRange(arrayVisibleRanges[0].startLineNumber, arrayVisibleRanges[arrayVisibleRanges.length - 1].endLineNumber);
@@ -416,24 +428,48 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
 
 					if (topOfElementAtDepth > topOfEndLine && topOfElementAtDepth <= bottomOfEndLine) {
-						lineNumbers.push(start);
+						startLineNumbers.push(start);
+						endLineNumbers.push(end);
 						lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
 						break;
 					}
 					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth <= bottomOfEndLine) {
-						lineNumbers.push(start);
+						startLineNumbers.push(start);
+						endLineNumbers.push(end);
 					}
-					if (lineNumbers.length === maxNumberStickyLines) {
+					if (startLineNumbers.length === maxNumberStickyLines) {
 						break;
 					}
 				}
 			}
 		}
-		return new StickyScrollWidgetState(lineNumbers, lastLineRelativePosition);
+		this._startLineNumbers = startLineNumbers;
+		this._endLineNumbers = endLineNumbers;
+		return new StickyScrollWidgetState(startLineNumbers, lastLineRelativePosition);
 	}
 
 	override dispose(): void {
 		super.dispose();
 		this._sessionStore.dispose();
 	}
+}
+
+export async function goToDefinitionWithLocation(accessor: ServicesAccessor, event: MouseEvent, editor: IActiveCodeEditor, location: Location) {
+
+	const resolverService = accessor.get(ITextModelService);
+	const ref = await resolverService.createModelReference(location.uri);
+
+	await editor.invokeWithinContext(async (accessor) => {
+
+		const openToSide = event.ctrlKey;
+		const contextKeyService = accessor.get(IContextKeyService);
+
+		const isInPeek = PeekContext.inPeekEditor.getValue(contextKeyService);
+		const canPeek = !openToSide && editor.getOption(EditorOption.definitionLinkOpensInPeek) && !isInPeek;
+
+		const action = new DefinitionAction({ openToSide, openInPeek: canPeek, muteMessage: true }, { title: { value: '', original: '' }, id: '', precondition: undefined });
+		return action.run(accessor, new SymbolNavigationAnchor(ref.object.textEditorModel, Range.getStartPosition(location.range)), Range.lift(location.range));
+	});
+
+	ref.dispose();
 }
