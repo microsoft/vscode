@@ -243,6 +243,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	private readonly phaseWhen = new Map<LifecycleMainPhase, Barrier>();
 
+	private relaunchHandler: IRelaunchHandler | undefined = undefined;
+
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IStateService private readonly stateService: IStateService,
@@ -630,8 +632,6 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		}
 	}
 
-	private relaunchHandler: IRelaunchHandler | undefined = undefined;
-
 	setRelaunchHandler(handler: IRelaunchHandler): void {
 		this.relaunchHandler = handler;
 	}
@@ -654,12 +654,10 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		}
 
 		const quitListener = () => {
-			this.trace('Lifecycle#relaunch() - calling app.relaunch()');
-
-			// relaunch after we are sure there is no veto
 			if (this.relaunchHandler?.handleRelaunch(options)) {
 				// handled outside
 			} else {
+				this.trace('Lifecycle#relaunch() - calling app.relaunch()');
 				app.relaunch({ args });
 			}
 		};
