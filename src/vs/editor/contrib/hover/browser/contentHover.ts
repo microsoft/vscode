@@ -53,7 +53,7 @@ export class ContentHoverController extends Disposable {
 		super();
 
 		const minimumHeight = this._editor.getOption(EditorOption.lineHeight) + 8;
-		const minimumWidth = 4 / 3 * minimumHeight;
+		const minimumWidth = 150;
 		const minimumSize = new dom.Dimension(minimumWidth, minimumHeight);
 		this._widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor, minimumSize));
 
@@ -473,6 +473,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _visibleData: ContentHoverVisibleData | undefined;
 	private _positionPreference: ContentWidgetPositionPreference | undefined;
+	private _minimumSize: dom.Dimension;
 
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
@@ -500,6 +501,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(editor, minimumSize);
+		this._minimumSize = minimumSize;
 		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(contextKeyService);
 		this._hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(contextKeyService);
 
@@ -783,6 +785,12 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._resizableNode.minSize = dimensions;
 	}
 
+	private _updateMinimumWidth(width: number) {
+		if (width < this._minimumSize.width) {
+			this.setMinimumDimensions(new dom.Dimension(width, this._minimumSize.height));
+		}
+	}
+
 	public onContentsChanged(): void {
 		this._removeConstraintsRenderNormally();
 		const containerDomNode = this._hover.containerDomNode;
@@ -795,6 +803,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 		height = dom.getTotalHeight(containerDomNode);
 		width = dom.getTotalWidth(containerDomNode);
+		this._updateMinimumWidth(width);
 		this._resizableNode.layout(height, width);
 
 		if (this._hasHorizontalScrollbar()) {
