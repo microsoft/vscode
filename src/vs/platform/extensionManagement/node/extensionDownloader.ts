@@ -128,7 +128,7 @@ export class ExtensionsDownloader extends Disposable {
 
 		try {
 			// Rename temp location to original
-			await FSPromises.move(tempLocation.fsPath, location.fsPath, 2 * 60 * 1000 /* Retry for 2 minutes */);
+			await FSPromises.rename(tempLocation.fsPath, location.fsPath, 2 * 60 * 1000 /* Retry for 2 minutes */);
 		} catch (error) {
 			try {
 				await this.fileService.del(tempLocation);

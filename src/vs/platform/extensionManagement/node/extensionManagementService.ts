@@ -644,7 +644,7 @@ export class ExtensionsScanner extends Disposable {
 
 	private async rename(extractPath: string, renamePath: string): Promise<void> {
 		try {
-			await pfs.Promises.move(extractPath, renamePath, 2 * 60 * 1000 /* Retry for 2 minutes */);
+			await pfs.Promises.rename(extractPath, renamePath, 2 * 60 * 1000 /* Retry for 2 minutes */);
 		} catch (error) {
 			throw new ExtensionManagementError(error.message || nls.localize('renameError', "Unknown error while renaming {0} to {1}", extractPath, renamePath), error.code || ExtensionManagementErrorCode.Rename);
 		}
