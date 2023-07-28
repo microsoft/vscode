@@ -493,20 +493,20 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
  * - allows to move across multiple disks
  * - attempts to retry the operation for certain error codes on Windows
  */
-async function move(source: string, target: string, windowsRetryTimeout = 60000 /* matches graceful-fs */): Promise<void> {
+async function rename(source: string, target: string, windowsRetryTimeout: number | false = 60000 /* matches graceful-fs */): Promise<void> {
 	if (source === target) {
 		return;  // simulate node.js behaviour here and do a no-op if paths match
 	}
 
 	try {
-		if (isWindows) {
+		if (isWindows && typeof windowsRetryTimeout === 'number') {
 			// On Windows, a rename can fail when either source or target
 			// is locked by AV software. We do leverage graceful-fs to iron
 			// out these issues, however in case the target file exists,
 			// graceful-fs will immediately return without retry for fs.rename().
 			await renameWithRetry(source, target, Date.now(), windowsRetryTimeout);
 		} else {
-			await Promises.rename(source, target);
+			await promisify(fs.rename)(source, target);
 		}
 	} catch (error) {
 		// In two cases we fallback to classic copy and delete:
@@ -528,7 +528,7 @@ async function move(source: string, target: string, windowsRetryTimeout = 60000 
 
 async function renameWithRetry(source: string, target: string, startTime: number, retryTimeout: number, attempt = 0): Promise<void> {
 	try {
-		return await Promises.rename(source, target);
+		return await promisify(fs.rename)(source, target);
 	} catch (error) {
 		if (error.code !== 'EACCES' && error.code !== 'EPERM' && error.code !== 'EBUSY') {
 			throw error; // only for errors we think are temporary
@@ -740,7 +740,6 @@ export const Promises = new class {
 	get fdatasync() { return promisify(fs.fdatasync); }
 	get truncate() { return promisify(fs.truncate); }
 
-	get rename() { return promisify(fs.rename); }
 	get copyFile() { return promisify(fs.copyFile); }
 
 	get open() { return promisify(fs.open); }
@@ -779,7 +778,7 @@ export const Promises = new class {
 
 	get rm() { return rimraf; }
 
-	get move() { return move; }
+	get rename() { return rename; }
 	get copy() { return copy; }
 
 	//#endregion
