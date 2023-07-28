@@ -145,6 +145,7 @@ export interface IHoverOptions {
 	 * Whether to trap focus in the following ways:
 	 * - When the hover closes, focus goes to the element that had focus before the hover opened
 	 * - If there are elements in the hover to focus, focus stays inside of the hover when tabbing
+	 * Note that this is overridden to true when in screen reader optimized mode.
 	 */
 	trapFocus?: boolean;
 
