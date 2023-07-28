@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/878aefe73f942ac68dc4a46a0f154661bcb9eff4",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/772323937fedd65c6dc1c8ce6ea41d97415ed7d1",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -287,6 +287,9 @@
 					"include": "#nameof-expression"
 				},
 				{
+					"include": "#default-literal-expression"
+				},
+				{
 					"include": "#throw-expression"
 				},
 				{
@@ -297,6 +300,9 @@
 				},
 				{
 					"include": "#verbatim-interpolated-string"
+				},
+				{
+					"include": "#type-builtin"
 				},
 				{
 					"include": "#this-or-base-expression"
@@ -2733,6 +2739,14 @@
 				}
 			]
 		},
+		"default-literal-expression": {
+			"match": "(?<!\\.)\\b(default)\\b",
+			"captures": {
+				"1": {
+					"name": "keyword.other.default.cs"
+				}
+			}
+		},
 		"throw-expression": {
 			"match": "(?<!\\.)\\b(throw)\\b",
 			"captures": {
@@ -3673,7 +3687,7 @@
 			]
 		},
 		"object-creation-expression-with-parameters": {
-			"begin": "(?x)\n(new)\\s+\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(?=\\()",
+			"begin": "(?x)\n(new)(?:\\s+\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n))?\\s*\n(?=\\()",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.new.cs"

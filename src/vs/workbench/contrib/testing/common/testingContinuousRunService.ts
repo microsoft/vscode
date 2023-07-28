@@ -77,7 +77,7 @@ export class TestingContinuousRunService extends Disposable implements ITestingC
 	) {
 		super();
 		this.isGloballyOn = TestingContextKeys.isContinuousModeOn.bindTo(contextKeyService);
-		this.lastRun = new StoredValue<Set<number>>({
+		this.lastRun = this._register(new StoredValue<Set<number>>({
 			key: 'lastContinuousRunProfileIds',
 			scope: StorageScope.WORKSPACE,
 			target: StorageTarget.MACHINE,
@@ -85,7 +85,7 @@ export class TestingContinuousRunService extends Disposable implements ITestingC
 				deserialize: v => new Set(JSON.parse(v)),
 				serialize: v => JSON.stringify([...v])
 			},
-		}, storageService);
+		}, storageService));
 	}
 
 	/** @inheritdoc */
