@@ -38,6 +38,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
+import { ISelection } from 'vs/editor/common/core/selection';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -63,6 +64,7 @@ const enum Message {
 }
 
 export interface InlineChatRunOptions {
+	initialSelection?: ISelection;
 	initialRange?: IRange;
 	message?: string;
 	autoSend?: boolean;
@@ -462,7 +464,7 @@ export class InlineChatController implements IEditorContribution {
 		return State.MAKE_REQUEST;
 	}
 
-	private async [State.MAKE_REQUEST](): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL | State.ACCEPT> {
+	private async [State.MAKE_REQUEST](options: InlineChatRunOptions): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL | State.ACCEPT> {
 		assertType(this._editor.hasModel());
 		assertType(this._activeSession);
 		assertType(this._activeSession.lastInput);
@@ -485,7 +487,7 @@ export class InlineChatController implements IEditorContribution {
 			requestId: generateUuid(),
 			prompt: this._activeSession.lastInput.value,
 			attempt: this._activeSession.lastInput.attempt,
-			selection: this._editor.getSelection(),
+			selection: options.initialSelection ?? this._editor.getSelection(),
 			wholeRange: this._activeSession.wholeRange.value,
 			live: this._activeSession.editMode !== EditMode.Preview // TODO@jrieken let extension know what document is used for previewing
 		};
