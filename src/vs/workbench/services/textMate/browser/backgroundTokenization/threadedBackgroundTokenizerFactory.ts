@@ -38,6 +38,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 
 	constructor(
 		private readonly _reportTokenizationTime: (timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean) => void,
+		private readonly _shouldTokenizeAsync: () => boolean,
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
@@ -55,9 +56,8 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 
 	// Will be recreated after worker is disposed (because tokenizer is re-registered when languages change)
 	public createBackgroundTokenizer(textModel: ITextModel, tokenStore: IBackgroundTokenizationStore, maxTokenizationLineLength: IObservable<number>): IBackgroundTokenizer | undefined {
-		const shouldTokenizeAsync = this._configurationService.getValue<boolean>('editor.experimental.asyncTokenization');
 		// fallback to default sync background tokenizer
-		if (shouldTokenizeAsync !== true || textModel.isTooLargeForSyncing()) { return undefined; }
+		if (!this._shouldTokenizeAsync() || textModel.isTooLargeForSyncing()) { return undefined; }
 
 		const store = new DisposableStore();
 		const controllerContainer = this._getWorkerProxy().then((workerProxy) => {

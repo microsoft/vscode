@@ -231,7 +231,7 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 			},
 			'window.experimental.nativeContextMenuLocation': { // TODO@bpasero remove me eventually
 				'type': 'boolean',
-				'default': false,
+				'default': true,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('nativeContextMenuLocation', "Let the OS handle positioning of the context menu in cases where it should appear under the mouse.")
 			},

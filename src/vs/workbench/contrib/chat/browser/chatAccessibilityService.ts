@@ -38,17 +38,17 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		const isPanelChat = typeof response !== 'string';
 		this._responsePendingAudioCue?.dispose();
 		this._runOnceScheduler?.cancel();
-		if (this._lastResponse === response?.toString()) {
+		const responseContent = typeof response === 'string' ? response : response?.response.value;
+		if (this._lastResponse === responseContent) {
 			return;
 		}
-		this._lastResponse = response?.toString();
 		this._audioCueService.playAudioCue(AudioCue.chatResponseReceived, true);
 		this._hasReceivedRequest = false;
 		if (!response) {
 			return;
 		}
 		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
-		const content = isPanelChat ? response.response.value : response;
-		status(content + errorDetails);
+		this._lastResponse = responseContent;
+		status(responseContent + errorDetails);
 	}
 }

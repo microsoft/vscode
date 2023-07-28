@@ -118,7 +118,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	}
 
 	private _runIfNeeded() {
-		if (this.state === AutorunState.upToDate) {
+		if (this.state === AutorunState.upToDate || this.disposed) {
 			return;
 		}
 
