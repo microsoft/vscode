@@ -26,10 +26,10 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId, AccessibleViewAction, AccessibleViewNextAction, AccessibleViewPreviousAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
-const enum DEFAULT {
-	WIDTH = 800,
-	TOP = 3
+const enum DIMENSIONS {
+	MAX_WIDTH = 600
 }
 
 export interface IAccessibleContentProvider {
@@ -89,7 +89,8 @@ class AccessibleView extends Disposable {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ILayoutService private readonly _layoutService: ILayoutService
 	) {
 		super();
 		this._accessiblityHelpIsShown = accessibilityHelpIsShown.bindTo(this._contextKeyService);
@@ -128,7 +129,7 @@ class AccessibleView extends Disposable {
 
 	show(provider: IAccessibleContentProvider): void {
 		const delegate: IContextViewDelegate = {
-			getAnchor: () => { return { x: (window.innerWidth / 2) - (DEFAULT.WIDTH / 2), y: DEFAULT.TOP }; },
+			getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
 			render: (container) => {
 				container.classList.add('accessible-view-container');
 				return this._render(provider, container);
@@ -228,11 +229,16 @@ class AccessibleView extends Disposable {
 		}));
 		disposableStore.add(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
 		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
+		disposableStore.add(this._layoutService.onDidLayout(() => this._layout()));
 		return disposableStore;
 	}
 
 	private _layout(): void {
-		this._editorWidget.layout({ width: DEFAULT.WIDTH, height: this._editorWidget.getContentHeight() });
+		const dimension = this._layoutService.dimension;
+		const maxHeight = dimension.height && dimension.height * .4;
+		const height = Math.min(maxHeight, this._editorWidget.getContentHeight());
+		const width = Math.min(dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH);
+		this._editorWidget.layout({ width, height });
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
@@ -271,6 +277,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 			this._accessibleView = this._register(this._instantiationService.createInstance(AccessibleView));
 		}
 		this._accessibleView.show(provider);
+
 	}
 	next(): void {
 		this._accessibleView?.next();

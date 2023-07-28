@@ -502,7 +502,7 @@
           "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
-          "default":"smart",
+          "default":"never",
           "enum": [
             "always",
             "smart",
