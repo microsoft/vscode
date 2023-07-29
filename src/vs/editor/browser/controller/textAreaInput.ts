@@ -346,6 +346,19 @@ export class TextAreaInput extends Disposable {
 			this._onCompositionEnd.fire();
 		}));
 
+		this._register(this._textArea.onBeforeInput((e) => {
+			e.preventDefault();
+			const { data, inputType } = e;
+			if (inputType === 'insertText') {
+				this._onType.fire({
+					positionDelta: 0,
+					replaceNextCharCnt: 0,
+					replacePrevCharCnt: 0,
+					text: data || ''
+				});
+			}
+			console.log({ data, inputType });
+		}));
 		this._register(this._textArea.onInput((e) => {
 			if (_debugComposition) {
 				console.log(`[input]`, e);
