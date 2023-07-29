@@ -16,7 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
 import { Schemas } from 'vs/base/common/network';
 import { Emitter, Event } from 'vs/base/common/event';
-import { minimapWarning, minimapError } from 'vs/platform/theme/common/colorRegistry';
+import { minimapInfo, minimapWarning, minimapError } from 'vs/platform/theme/common/colorRegistry';
 import { ResourceMap } from 'vs/base/common/map';
 
 
@@ -195,6 +195,15 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 				}
 				zIndex = 0;
 				break;
+			case MarkerSeverity.Info:
+				className = ClassName.EditorInfoDecoration;
+				color = themeColorFromId(overviewRulerInfo);
+				zIndex = 10;
+				minimap = {
+					color: themeColorFromId(minimapInfo),
+					position: MinimapPosition.Inline
+				};
+				break;
 			case MarkerSeverity.Warning:
 				className = ClassName.EditorWarningDecoration;
 				color = themeColorFromId(overviewRulerWarning);
@@ -203,11 +212,6 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 					color: themeColorFromId(minimapWarning),
 					position: MinimapPosition.Inline
 				};
-				break;
-			case MarkerSeverity.Info:
-				className = ClassName.EditorInfoDecoration;
-				color = themeColorFromId(overviewRulerInfo);
-				zIndex = 10;
 				break;
 			case MarkerSeverity.Error:
 			default:
