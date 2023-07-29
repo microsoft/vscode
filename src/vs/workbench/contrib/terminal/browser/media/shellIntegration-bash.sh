@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------------------------
 
 # Prevent the script recursing when setting up
-if [[ -n "$VSCODE_SHELL_INTEGRATION" ]]; then
+if [[ -n "${VSCODE_SHELL_INTEGRATION:-}" ]]; then
 	builtin return
 fi
 
@@ -33,7 +33,7 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 		builtin unset VSCODE_SHELL_LOGIN
 
 		# Apply any explicit path prefix (see #99878)
-		if [ -n "$VSCODE_PATH_PREFIX" ]; then
+		if [ -n "${VSCODE_PATH_PREFIX:-}" ]; then
 			export PATH=$VSCODE_PATH_PREFIX$PATH
 			builtin unset VSCODE_PATH_PREFIX
 		fi
