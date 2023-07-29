@@ -529,6 +529,17 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'onExit'
 		},
+		[TerminalSettingId.HideOnStartup]: {
+			description: localize('terminal.integrated.hideOnStartup', "Whether to hide the terminal view on startup, avoiding creating a terminal when there are no persistent sessions."),
+			type: 'string',
+			enum: ['never', 'whenEmpty', 'always'],
+			markdownEnumDescriptions: [
+				localize('hideOnStartup.never', "Never hide the terminal view on startup."),
+				localize('hideOnStartup.whenEmpty', "Only hide the terminal when there are no persistent sessions restored."),
+				localize('hideOnStartup.always', "Always hide the terminal, even when there are persistent sessions restored.")
+			],
+			default: 'never'
+		},
 		[TerminalSettingId.CustomGlyphs]: {
 			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
 			type: 'boolean',
