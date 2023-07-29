@@ -11,6 +11,10 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MenuId } from 'vs/platform/actions/common/actions';
 
+export const enum AccessibilitySettingId {
+	UnfocusedViewOpacity = 'accessibility.unfocusedViewOpacity'
+}
+
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
@@ -65,6 +69,12 @@ const configuration: IConfigurationNode = {
 		[AccessibilityVerbositySettingId.Notification]: {
 			description: localize('verbosity.notification', 'Provide information about how to open the notification in an accessible view.'),
 			...baseProperty
+		},
+		[AccessibilitySettingId.UnfocusedViewOpacity]: {
+			description: localize('unfocusedViewOpacity', 'The opacity percentage to use for unfocused editors and terminals.'),
+			type: 'number',
+			default: 1,
+			tags: ['accessibility']
 		}
 	}
 };
