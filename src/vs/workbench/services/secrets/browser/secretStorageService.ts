@@ -5,14 +5,12 @@
 
 import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ISecretStorageProvider, ISecretStorageService, SecretStorageService } from 'vs/platform/secrets/common/secrets';
+import { ISecretStorageProvider, ISecretStorageService, BaseSecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
-export class BrowserSecretStorageService extends SecretStorageService {
+export class BrowserSecretStorageService extends BaseSecretStorageService {
 
 	private readonly _secretStorageProvider: ISecretStorageProvider | undefined;
 
@@ -20,11 +18,9 @@ export class BrowserSecretStorageService extends SecretStorageService {
 		@IStorageService storageService: IStorageService,
 		@IEncryptionService encryptionService: IEncryptionService,
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@INotificationService notificationService: INotificationService,
 		@ILogService logService: ILogService
 	) {
-		super(storageService, encryptionService, instantiationService, notificationService, logService);
+		super(storageService, encryptionService, logService);
 
 		if (environmentService.options?.secretStorageProvider) {
 			this._secretStorageProvider = environmentService.options.secretStorageProvider;

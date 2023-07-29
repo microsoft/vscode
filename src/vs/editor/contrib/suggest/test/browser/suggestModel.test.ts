@@ -181,6 +181,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	}
 
 	const alwaysEmptySupport: CompletionItemProvider = {
+		_debugDisplayName: 'test',
 		provideCompletionItems(doc, pos): CompletionList {
 			return {
 				incomplete: false,
@@ -190,6 +191,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	};
 
 	const alwaysSomethingSupport: CompletionItemProvider = {
+		_debugDisplayName: 'test',
 		provideCompletionItems(doc, pos): CompletionList {
 			return {
 				incomplete: false,
@@ -330,6 +332,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('#17400: Keep filtering suggestModel.ts after space', function () {
 
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos): CompletionList {
 				return {
 					incomplete: false,
@@ -380,6 +383,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('#21484: Trigger character always force a new completion session', function () {
 
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos): CompletionList {
 				return {
 					incomplete: false,
@@ -394,6 +398,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		}));
 
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			triggerCharacters: ['.'],
 			provideCompletionItems(doc, pos): CompletionList {
 				return {
@@ -505,6 +510,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('Incomplete suggestion results cause re-triggering when typing w/o further context, #28400 (1/2)', function () {
 
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos): CompletionList {
 				return {
 					incomplete: true,
@@ -542,6 +548,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('Incomplete suggestion results cause re-triggering when typing w/o further context, #28400 (2/2)', function () {
 
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos): CompletionList {
 				return {
 					incomplete: true,
@@ -585,6 +592,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('Trigger character is provided in suggest context', function () {
 		let triggerCharacter = '';
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			triggerCharacters: ['.'],
 			provideCompletionItems(doc, pos, context): CompletionList {
 				assert.strictEqual(context.triggerKind, CompletionTriggerKind.TriggerCharacter);
@@ -618,6 +626,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 	test('Mac press and hold accent character insertion does not update suggestions, #35269', function () {
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos): CompletionList {
 				return {
 					incomplete: true,
@@ -690,6 +699,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 	test('Text changes for completion CodeAction are affected by the completion #39893', function () {
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos): CompletionList {
 				return {
 					incomplete: true,
@@ -764,6 +774,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		let disposeB = 0;
 
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					incomplete: true,
@@ -779,6 +790,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			}
 		}));
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					incomplete: false,
@@ -833,6 +845,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		let countB = 0;
 
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				countA += 1;
 				return {
@@ -847,6 +860,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			}
 		}));
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				countB += 1;
 				if (!doc.getWordUntilPosition(pos).word.startsWith('a')) {
@@ -896,6 +910,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('registerCompletionItemProvider with letters as trigger characters block other completion items to show up #127815', async function () {
 
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -908,6 +923,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			}
 		}));
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			triggerCharacters: ['a', '.'],
 			provideCompletionItems(doc, pos) {
 				return {
@@ -951,6 +967,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('Unexpected suggest scoring #167242', async function () {
 		disposables.add(registry.register('*', {
 			// word-based
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				const word = doc.getWordUntilPosition(pos);
 				return {
@@ -965,6 +982,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		}));
 		disposables.add(registry.register({ scheme: 'test' }, {
 			// JSON-based
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -1008,6 +1026,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		const requestCounts = [0, 0];
 
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 
 			provideCompletionItems(doc, pos) {
 				requestCounts[0] += 1;
@@ -1027,6 +1046,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			}
 		}));
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			triggerCharacters: ['2'],
 			provideCompletionItems(doc, pos, ctx) {
 				requestCounts[1] += 1;
@@ -1077,6 +1097,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('Set refilter-flag, keep triggerKind', function () {
 
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			triggerCharacters: ['.'],
 			provideCompletionItems(doc, pos, ctx) {
 				return {
@@ -1132,6 +1153,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('Snippets gone from IntelliSense #173244', function () {
 
 		const snippetProvider: CompletionItemProvider = {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos, ctx) {
 				return {
 					suggestions: [{
@@ -1152,6 +1174,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		}));
 
 		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
 			triggerCharacters: ['.'],
 			provideCompletionItems(doc, pos, ctx) {
 				return {

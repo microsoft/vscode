@@ -122,10 +122,10 @@ import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEd
 import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalBackend, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ICreateTerminalOptions, IDeserializedTerminalEditorInput, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { assertIsDefined } from 'vs/base/common/types';
-import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalBackend, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -243,7 +243,7 @@ export function workbenchInstantiationService(
 	},
 	disposables: DisposableStore = new DisposableStore()
 ): TestInstantiationService {
-	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
+	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()])));
 
 	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
 	instantiationService.stub(IWorkingCopyService, disposables.add(new TestWorkingCopyService()));
@@ -561,6 +561,7 @@ export class TestFileDialogService implements IFileDialogService {
 	async defaultFilePath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
 	async defaultFolderPath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
 	async defaultWorkspacePath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
+	async preferredHome(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
 	pickFileFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
 	pickFileAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
 	pickFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
@@ -748,6 +749,7 @@ class TestHoverService implements IHoverService {
 		};
 		return this.currentHover;
 	}
+	showAndFocusLastHover(): void { }
 	hideHover(): void {
 		this.currentHover?.dispose();
 	}
@@ -1434,6 +1436,9 @@ export class TestHostService implements IHostService {
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
 	async close(): Promise<void> { }
+	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
+		return await expectedShutdownTask();
+	}
 
 	async focus(options?: { force: boolean }): Promise<void> { }
 
@@ -1600,6 +1605,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	gotSavedAs = false;
 	gotReverted = false;
 	dirty = false;
+	modified: boolean | undefined;
 	private fails = false;
 
 	disableToUntyped = false;
@@ -1666,6 +1672,10 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 			return undefined;
 		}
 		return { resource: this.resource };
+	}
+	setModified(): void { this.modified = true; }
+	override isModified(): boolean {
+		return this.modified === undefined ? this.dirty : this.modified;
 	}
 	setDirty(): void { this.dirty = true; }
 	override isDirty(): boolean {
@@ -2032,13 +2042,14 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 		throw new Error('Method not implemented.');
 	}
 	copyExtensions(): Promise<void> { throw new Error('Not Supported'); }
+	toggleAppliationScope(): Promise<ILocalExtension> { throw new Error('Not Supported'); }
 	installExtensionsFromProfile(): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
+	whenProfileChanged(from: IUserDataProfile, to: IUserDataProfile): Promise<void> { throw new Error('Not Supported'); }
 }
 
 export class TestUserDataProfileService implements IUserDataProfileService {
 
 	readonly _serviceBrand: undefined;
-	readonly onDidUpdateCurrentProfile = Event.None;
 	readonly onDidChangeCurrentProfile = Event.None;
 	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }), URI.file('tests').with({ scheme: 'vscode-tests' }));
 	async updateCurrentProfile(): Promise<void> { }

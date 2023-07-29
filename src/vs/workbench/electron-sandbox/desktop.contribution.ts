@@ -229,6 +229,12 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'description': localize('windowControlsOverlay', "Use window controls provided by the platform instead of our HTML-based window controls. Changes require a full restart to apply."),
 				'included': isWindows
 			},
+			'window.experimental.nativeContextMenuLocation': { // TODO@bpasero remove me eventually
+				'type': 'boolean',
+				'default': true,
+				'scope': ConfigurationScope.APPLICATION,
+				'description': localize('nativeContextMenuLocation', "Let the OS handle positioning of the context menu in cases where it should appear under the mouse.")
+			},
 			'window.dialogStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom'],
@@ -345,6 +351,10 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 			'log-level': {
 				type: ['string', 'array'],
 				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
+			},
+			'disable-chromium-sandbox': {
+				type: 'boolean',
+				description: localize('argv.disableChromiumSandbox', "Disables the Chromium sandbox. This is useful when running VS Code as elevated on Linux and running under Applocker on Windows.")
 			}
 		}
 	};

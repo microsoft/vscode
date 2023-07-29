@@ -236,6 +236,7 @@ export class SuggestEnabledInput extends Widget {
 		this.setValue(options.value || '');
 
 		this._register(languageFeaturesService.completionProvider.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
+			_debugDisplayName: `suggestEnabledInput/${id}`,
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
 			provideCompletionItems: (model: ITextModel, position: Position, _context: languages.CompletionContext) => {
 				const query = model.getValue();

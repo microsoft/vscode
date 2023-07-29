@@ -7,7 +7,6 @@ import { DisposableStore, Disposable, IDisposable, MutableDisposable } from 'vs/
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier, TerminalQuickFix } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
-import { StopWatch } from 'vs/base/common/stopwatch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProcessProperty, IProcessReadyWindowsPty, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalOutputMatch, ITerminalOutputMatcher, ProcessPropertyType, TerminalExitReason, TerminalLocation } from 'vs/platform/terminal/common/terminal';
@@ -86,6 +85,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._store.add(_terminalService.onDidChangeActiveInstance(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
 		this._store.add(_terminalService.onDidChangeInstanceTitle(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
 		this._store.add(_terminalService.onDidInputInstanceData(instance => this._proxy.$acceptTerminalInteraction(instance.instanceId)));
+		this._store.add(_terminalService.onDidChangeSelection(instance => this._proxy.$acceptTerminalSelection(instance.instanceId, instance.selection)));
 
 		// Set initial ext host state
 		for (const instance of this._terminalService.instances) {
@@ -368,7 +368,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.instanceId, immediate));
 		proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.instanceId));
 		proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(proxy.instanceId));
-		proxy.onRequestLatency(() => this._onRequestLatency(proxy.instanceId));
 	}
 
 	public $sendProcessData(terminalId: number, data: string): void {
@@ -385,27 +384,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			instance?.rename(property.value);
 		}
 		this._terminalProcessProxies.get(terminalId)?.emitProcessProperty(property);
-	}
-
-	private async _onRequestLatency(terminalId: number): Promise<void> {
-		const COUNT = 2;
-		let sum = 0;
-		for (let i = 0; i < COUNT; i++) {
-			const sw = StopWatch.create();
-			await this._proxy.$acceptProcessRequestLatency(terminalId);
-			sw.stop();
-			sum += sw.elapsed();
-		}
-		this._getTerminalProcess(terminalId)?.emitLatency(sum / COUNT);
-	}
-
-	private _getTerminalProcess(terminalId: number): ITerminalProcessExtHostProxy | undefined {
-		const terminal = this._terminalProcessProxies.get(terminalId);
-		if (!terminal) {
-			this._logService.error(`Unknown terminal: ${terminalId}`);
-			return undefined;
-		}
-		return terminal;
 	}
 
 	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined, descriptionMap: ISerializableEnvironmentDescriptionMap): void {

@@ -35,7 +35,7 @@ export namespace TestingContextKeys {
 	export const viewMode = new RawContextKey<TestExplorerViewMode>('testing.explorerViewMode', TestExplorerViewMode.List);
 	export const viewSorting = new RawContextKey<TestExplorerViewSorting>('testing.explorerViewSorting', TestExplorerViewSorting.ByLocation);
 	export const isRunning = new RawContextKey<boolean>('testing.isRunning', false);
-	export const isInPeek = new RawContextKey<boolean>('testing.isInPeek', true);
+	export const isInPeek = new RawContextKey<boolean>('testing.isInPeek', false);
 	export const isPeekVisible = new RawContextKey<boolean>('testing.isPeekVisible', false);
 
 	export const peekItemType = new RawContextKey<string | undefined>('peekItemType', undefined, {

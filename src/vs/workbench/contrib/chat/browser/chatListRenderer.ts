@@ -50,6 +50,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILogService } from 'vs/platform/log/common/log';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IChatCodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
 import { ChatTreeItem, IChatCodeBlockInfo } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
@@ -88,6 +89,7 @@ export interface IChatRendererDelegate {
 }
 
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
+	static readonly cursorCharacter = '\u258c';
 	static readonly ID = 'item';
 
 	private readonly codeBlocksByResponseId = new Map<string, IChatCodeBlockInfo[]>();
@@ -304,6 +306,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					return this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
 				}));
 		}
+
+		element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
 	}
 
 	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate) {
@@ -328,6 +332,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				templateData.elementDisposables.add(result);
 			}
 		}
+
+		element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
 	}
 
 	/**
@@ -349,15 +355,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else {
 			const renderValue = this.getWordsForProgressiveRender(element);
 			isFullyRendered = !!element.renderData?.isFullyRendered;
-			if (isFullyRendered) {
-				// We've reached the end of the available content, so do a normal render
-				this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
-				if (element.isComplete) {
-					this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
-					element.renderData = undefined;
-				} else {
-					this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
-				}
+			if (isFullyRendered && element.isComplete) {
+				// Response is done and content is rendered, so do a normal render
+				this.traceLayout('runProgressiveRender', `end progressive render, index=${index} and clearing renderData, response is complete, index=${index}`);
+				element.renderData = undefined;
 				disposables.clear();
 				this.basicRenderElement(element.response.value, element, index, templateData);
 			} else if (renderValue) {
@@ -367,7 +368,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					isFullyRendered: renderValue.isFullString
 				};
 
-				const result = this.renderMarkdown(new MarkdownString(renderValue.value), element, disposables, templateData, true);
+				const plusCursor = (renderValue.value.match(/```\s*$/) ?
+					renderValue.value + '\n\n' :
+					renderValue.value) + ` ${ChatListItemRenderer.cursorCharacter}`;
+				const result = this.renderMarkdown(new MarkdownString(plusCursor), element, disposables, templateData, true);
 				// Doing the progressive render
 				dom.clearNode(templateData.value);
 				templateData.value.appendChild(result.element);
@@ -514,6 +518,12 @@ export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 }
 
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
+
+	constructor(
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
+	) {
+
+	}
 	getWidgetRole(): AriaRole {
 		return 'list';
 	}
@@ -543,15 +553,21 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 	}
 
 	private _getLabelWithCodeBlockCount(element: IChatResponseViewModel): string {
+		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.Chat);
+		let label: string = '';
 		const codeBlockCount = marked.lexer(element.response.value).filter(token => token.type === 'code')?.length ?? 0;
 		switch (codeBlockCount) {
 			case 0:
-				return element.response.value;
+				label = accessibleViewHint ? localize('noCodeBlocksHint', "{0} {1}", element.response.value, accessibleViewHint) : localize('noCodeBlocks', "{0}", element.response.value);
+				break;
 			case 1:
-				return localize('singleCodeBlock', "1 code block: {0}", element.response.value);
+				label = accessibleViewHint ? localize('singleCodeBlockHint', "1 code block: {0} {1}", element.response.value, accessibleViewHint) : localize('singleCodeBlock', "1 code block: {0}", element.response.value);
+				break;
 			default:
-				return localize('multiCodeBlock', "{0} code blocks: {1}", codeBlockCount, element.response.value);
+				label = accessibleViewHint ? localize('multiCodeBlockHint', "{0} code blocks: {1}", codeBlockCount, element.response.value, accessibleViewHint) : localize('multiCodeBlock', "{0} code blocks", codeBlockCount, element.response.value);
+				break;
 		}
+		return label;
 	}
 }
 
@@ -752,16 +768,28 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 	}
 
 	private setText(newText: string): void {
-		const currentText = this.textModel.getLinesContent().join('\n');
+		let currentText = this.textModel.getLinesContent().join('\n');
 		if (newText === currentText) {
 			return;
+		}
+
+		let removedChars = 0;
+		if (currentText.endsWith(` ${ChatListItemRenderer.cursorCharacter}`)) {
+			removedChars = 2;
+		} else if (currentText.endsWith(ChatListItemRenderer.cursorCharacter)) {
+			removedChars = 1;
+		}
+
+		if (removedChars > 0) {
+			currentText = currentText.slice(0, currentText.length - removedChars);
 		}
 
 		if (newText.startsWith(currentText)) {
 			const text = newText.slice(currentText.length);
 			const lastLine = this.textModel.getLineCount();
 			const lastCol = this.textModel.getLineMaxColumn(lastLine);
-			this.textModel.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
+			const insertAtCol = lastCol - removedChars;
+			this.textModel.applyEdits([{ range: new Range(lastLine, insertAtCol, lastLine, lastCol), text }]);
 		} else {
 			// console.log(`Failed to optimize setText`);
 			this.textModel.setValue(newText);

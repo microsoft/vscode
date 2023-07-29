@@ -17,7 +17,7 @@ import { NotSupportedError } from 'vs/base/common/errors';
 import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IEnvironmentDescriptionMutator, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeColor } from 'vs/base/common/themables';
@@ -75,6 +75,7 @@ export class ExtHostTerminal {
 	private _rows: number | undefined;
 	private _exitStatus: vscode.TerminalExitStatus | undefined;
 	private _state: vscode.TerminalState = { isInteractedWith: false };
+	private _selection: string | undefined;
 
 	public isOpen: boolean = false;
 
@@ -105,6 +106,9 @@ export class ExtHostTerminal {
 			},
 			get state(): vscode.TerminalState {
 				return that._state;
+			},
+			get selection(): string | undefined {
+				return that._selection;
 			},
 			sendText(text: string, addNewLine: boolean = true): void {
 				that._checkDisposed();
@@ -233,6 +237,10 @@ export class ExtHostTerminal {
 		return false;
 	}
 
+	public setSelection(selection: string | undefined): void {
+		this._selection = selection;
+	}
+
 	public _setProcessId(processId: number | undefined): void {
 		// The event may fire 2 times when the panel is restored
 		if (this._pidPromiseComplete) {
@@ -311,10 +319,6 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 
 	getCwd(): Promise<string> {
 		return Promise.resolve('');
-	}
-
-	getLatency(): Promise<number> {
-		return Promise.resolve(0);
 	}
 
 	startSendingEvents(initialDimensions: ITerminalDimensionsDto | undefined): void {
@@ -619,6 +623,10 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 	}
 
+	public $acceptTerminalSelection(id: number, selection: string | undefined): void {
+		this._getTerminalById(id)?.setSelection(selection);
+	}
+
 	public $acceptProcessResize(id: number, cols: number, rows: number): void {
 		try {
 			this._terminalProcesses.get(id)?.resize(cols, rows);
@@ -875,7 +883,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 class UnifiedEnvironmentVariableCollection {
 	readonly map: Map<string, IEnvironmentVariableMutator> = new Map();
 	private readonly scopedCollections: Map<string, ScopedEnvironmentVariableCollection> = new Map();
-	readonly descriptionMap: Map<string, IEnvironmentDescriptionMutator> = new Map();
+	readonly descriptionMap: Map<string, IEnvironmentVariableCollectionDescription> = new Map();
 	private _persistent: boolean = true;
 
 	public get persistent(): boolean { return this._persistent; }
@@ -984,9 +992,9 @@ class UnifiedEnvironmentVariableCollection {
 
 	public getVariableMap(scope: vscode.EnvironmentVariableScope | undefined): Map<string, vscode.EnvironmentVariableMutator> {
 		const map = new Map<string, vscode.EnvironmentVariableMutator>();
-		for (const [key, value] of this.map) {
+		for (const [_, value] of this.map) {
 			if (this.getScopeKey(value.scope) === this.getScopeKey(scope)) {
-				map.set(key, convertMutator(value));
+				map.set(value.variable, convertMutator(value));
 			}
 		}
 		return map;
@@ -1024,7 +1032,7 @@ class UnifiedEnvironmentVariableCollection {
 				// Only take the description before the first `\n\n`, so that the description doesn't mess up the UI
 				descriptionStr = description?.value.split('\n\n')[0];
 			}
-			const value: IEnvironmentDescriptionMutator = { description: descriptionStr, scope };
+			const value: IEnvironmentVariableCollectionDescription = { description: descriptionStr, scope };
 			this.descriptionMap.set(key, value);
 			this._onDidChangeCollection.fire();
 		}

@@ -66,6 +66,7 @@ export type ToWebviewMessage = {
 		location: string | undefined;
 	};
 	'set-confirm-before-close': string;
+	'set-context-menu-visible': { visible: boolean };
 	'initial-scroll-position': number;
 	'content': UpdateContentEvent;
 	'set-title': string | undefined;

@@ -27,6 +27,7 @@ import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./list';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
 import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListView } from './listView';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -991,12 +992,13 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly scrollByPage?: boolean;
-	readonly additionalScrollHeight?: number;
 	readonly transformOptimization?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly scrollableElementChangeOptions?: ScrollableElementChangeOptions;
 	readonly alwaysConsumeMouseWheel?: boolean;
 	readonly initialSize?: Dimension;
+	readonly paddingTop?: number;
+	readonly paddingBottom?: number;
 }
 
 export interface IListStyles {
@@ -1353,7 +1355,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		const fromMouse = this.disposables.add(Event.chain(this.view.onContextMenu))
 			.filter(_ => !didJustPressContextMenuKey)
-			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.pageX + 1, y: browserEvent.pageY }, browserEvent }))
+			.map(({ element, index, browserEvent }) => ({ element, index, anchor: new StandardMouseEvent(browserEvent), browserEvent }))
 			.event;
 
 		return Event.any<IListContextMenuEvent<T>>(fromKeyDown, fromKeyUp, fromMouse);

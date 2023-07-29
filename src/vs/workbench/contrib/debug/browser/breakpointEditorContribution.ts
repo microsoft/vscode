@@ -475,7 +475,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		if (decorations) {
 			for (const { options } of decorations) {
 				const clz = options.glyphMarginClassName;
-				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-') || clz.includes('codicon-loading'))) {
+				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-') || clz.includes('codicon-loading') || clz.includes('codicon-fold'))) {
 					return false;
 				}
 			}
@@ -728,10 +728,9 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => {
 			const event = new StandardMouseEvent(e);
-			const anchor = { x: event.posx, y: event.posy };
 			const actions = this.getContextMenuActions();
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				getAnchor: () => event,
 				getActions: () => actions,
 				getActionsContext: () => this.breakpoint,
 				onHide: () => disposeIfDisposable(actions)

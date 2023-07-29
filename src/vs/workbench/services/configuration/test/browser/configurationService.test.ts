@@ -28,7 +28,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
+import { APPLY_ALL_PROFILES_SETTING, IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -1529,6 +1529,11 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 			'id': '_test',
 			'type': 'object',
 			'properties': {
+				[APPLY_ALL_PROFILES_SETTING]: {
+					'type': 'array',
+					'default': [],
+					'scope': ConfigurationScope.APPLICATION,
+				},
 				'configurationService.profiles.applicationSetting': {
 					'type': 'string',
 					'default': 'isSet',
@@ -1682,13 +1687,70 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting3'), 'defaultProfile');
 	}));
 
+	test('initialize with custom all profiles settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
+
+		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
+
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting2'), 'applicationValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'userValue');
+	}));
+
+	test('update all profiles settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
+
+		const changeEvent = await promise;
+		assert.deepStrictEqual([...changeEvent.affectedKeys], [APPLY_ALL_PROFILES_SETTING, 'configurationService.profiles.testSetting2']);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'userValue');
+	}));
+
+	test('setting applied to all profiles is registered later', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.testSetting4": "userValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.testSetting4": "profileValue" }'));
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting4'], ConfigurationTarget.USER_LOCAL);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting4'), 'userValue');
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.profiles.testSetting4': {
+					'type': 'string',
+					'default': 'isSet',
+				}
+			}
+		});
+
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting4'), 'userValue');
+	}));
+
+	test('update setting that is applied to all profiles', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await testObject.updateValue('configurationService.profiles.testSetting2', 'updatedValue', ConfigurationTarget.USER_LOCAL);
+
+		const changeEvent = await promise;
+		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.testSetting2']);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'updatedValue');
+	}));
+
+	test('test isSettingAppliedToAllProfiles', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		assert.strictEqual(testObject.isSettingAppliedForAllProfiles('configurationService.profiles.applicationSetting2'), true);
+		assert.strictEqual(testObject.isSettingAppliedForAllProfiles('configurationService.profiles.testSetting2'), false);
+
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
+		assert.strictEqual(testObject.isSettingAppliedForAllProfiles('configurationService.profiles.testSetting2'), true);
+	}));
+
 	test('switch to default profile', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "applicationValue", "configurationService.profiles.testSetting": "userValue" }'));
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "profileValue", "configurationService.profiles.testSetting": "profileValue" }'));
 		await testObject.reloadConfiguration();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		await userDataProfileService.updateCurrentProfile(instantiationService.get(IUserDataProfilesService).defaultProfile, false);
+		await userDataProfileService.updateCurrentProfile(instantiationService.get(IUserDataProfilesService).defaultProfile);
 
 		const changeEvent = await promise;
 		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.testSetting']);
@@ -1704,7 +1766,7 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		const profile = toUserDataProfile('custom2', 'custom2', joinPath(environmentService.userRoamingDataHome, 'profiles', 'custom2'), joinPath(environmentService.cacheHome, 'profilesCache'));
 		await fileService.writeFile(profile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "profileValue2", "configurationService.profiles.testSetting": "profileValue2" }'));
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		await userDataProfileService.updateCurrentProfile(profile, false);
+		await userDataProfileService.updateCurrentProfile(profile);
 
 		const changeEvent = await promise;
 		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.testSetting']);
@@ -1723,6 +1785,46 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.applicationSetting']);
 		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting'), 'applicationValue');
 		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'isSet');
+	}));
+
+	test('switch to default profile with settings applied to all profiles', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
+
+		await userDataProfileService.updateCurrentProfile(instantiationService.get(IUserDataProfilesService).defaultProfile);
+
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting2'), 'applicationValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'userValue');
+	}));
+
+	test('switch to non default profile with settings applied to all profiles', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
+
+		const profile = toUserDataProfile('custom2', 'custom2', joinPath(environmentService.userRoamingDataHome, 'profiles', 'custom2'), joinPath(environmentService.cacheHome, 'profilesCache'));
+		await fileService.writeFile(profile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.testSetting": "profileValue", "configurationService.profiles.testSetting2": "profileValue2" }'));
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await userDataProfileService.updateCurrentProfile(profile);
+
+		const changeEvent = await promise;
+		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.testSetting']);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting2'), 'applicationValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'userValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'profileValue');
+	}));
+
+	test('switch to non default from default profile with settings applied to all profiles', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
+		await userDataProfileService.updateCurrentProfile(instantiationService.get(IUserDataProfilesService).defaultProfile);
+
+		const profile = toUserDataProfile('custom2', 'custom2', joinPath(environmentService.userRoamingDataHome, 'profiles', 'custom2'), joinPath(environmentService.cacheHome, 'profilesCache'));
+		await fileService.writeFile(profile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.testSetting": "profileValue", "configurationService.profiles.testSetting2": "profileValue2" }'));
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await userDataProfileService.updateCurrentProfile(profile);
+
+		const changeEvent = await promise;
+		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.testSetting']);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting2'), 'applicationValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'userValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'profileValue');
 	}));
 
 });

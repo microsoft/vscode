@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-native-private */
+
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as performance from 'vs/base/common/performance';
@@ -62,8 +64,8 @@ export interface IHostUtils {
 	readonly _serviceBrand: undefined;
 	readonly pid: number | undefined;
 	exit(code: number): void;
-	exists(path: string): Promise<boolean>;
-	realpath(path: string): Promise<string>;
+	fsExists?(path: string): Promise<boolean>;
+	fsRealpath?(path: string): Promise<string>;
 }
 
 type TelemetryActivationEventFragment = {
@@ -325,11 +327,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	 * Applies realpath to file-uris and returns all others uris unmodified
 	 */
 	private async _realPathExtensionUri(uri: URI): Promise<URI> {
-		if (uri.scheme !== Schemas.file) {
-			return uri;
+		if (uri.scheme === Schemas.file && this._hostUtils.fsRealpath) {
+			const realpathValue = await this._hostUtils.fsRealpath(uri.fsPath);
+			return URI.file(realpathValue);
 		}
-		const realpathValue = await this._hostUtils.realpath(uri.fsPath);
-		return URI.file(realpathValue);
+		return uri;
 	}
 
 	// create trie to enable fast 'filename -> extension id' look up
@@ -683,8 +685,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const host: IExtensionActivationHost = {
 			logService: this._logService,
 			folders: folders.map(folder => folder.uri),
-			forceUsingSearch: localWithRemote,
-			exists: (uri) => this._hostUtils.exists(uri.fsPath),
+			forceUsingSearch: localWithRemote || !this._hostUtils.fsExists,
+			exists: (uri) => this._hostUtils.fsExists!(uri.fsPath),
 			checkExists: (folders, includes, token) => this._mainThreadWorkspaceProxy.$checkExists(folders, includes, token)
 		};
 
@@ -793,7 +795,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private async _activateAndGetResolver(remoteAuthority: string): Promise<{ authorityPrefix: string; resolver: vscode.RemoteAuthorityResolver | undefined }> {
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
-			throw new Error(`Not an authority that can be resolved!`);
+			throw new RemoteAuthorityResolverError(`Not an authority that can be resolved!`, RemoteAuthorityResolverErrorCode.InvalidAuthority);
 		}
 		const authorityPrefix = remoteAuthority.substr(0, authorityPlusIndex);
 
@@ -807,6 +809,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const sw = StopWatch.create(false);
 		const prefix = () => `[resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthorityChain)},${resolveAttempt})][${sw.elapsed()}ms] `;
 		const logInfo = (msg: string) => this._logService.info(`${prefix()}${msg}`);
+		const logWarning = (msg: string) => this._logService.warn(`${prefix()}${msg}`);
 		const logError = (msg: string, err: any = undefined) => this._logService.error(`${prefix()}${msg}`, err);
 		const normalizeError = (err: unknown) => {
 			if (err instanceof RemoteAuthorityResolverError) {
@@ -822,20 +825,26 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			throw err;
 		};
 
+		const getResolver = async (remoteAuthority: string) => {
+			logInfo(`activating resolver for ${remoteAuthority}...`);
+			const { resolver, authorityPrefix } = await this._activateAndGetResolver(remoteAuthority);
+			if (!resolver) {
+				logError(`no resolver for ${authorityPrefix}`);
+				throw new RemoteAuthorityResolverError(`No remote extension installed to resolve ${authorityPrefix}.`, RemoteAuthorityResolverErrorCode.NoResolverFound);
+			}
+			return { resolver, authorityPrefix, remoteAuthority };
+		};
+
 		const chain = remoteAuthorityChain.split(/@|%40/g).reverse();
 		logInfo(`activating remote resolvers ${chain.join(' -> ')}`);
 
 		let resolvers;
 		try {
-			resolvers = await Promise.all(chain.map(async remoteAuthority => {
-				logInfo(`activating resolver...`);
-				const { resolver, authorityPrefix } = await this._activateAndGetResolver(remoteAuthority);
-				if (!resolver) {
-					logError(`no resolver`);
-					throw new RemoteAuthorityResolverError(`No remote extension installed to resolve ${authorityPrefix}.`, RemoteAuthorityResolverErrorCode.NoResolverFound);
-				}
-				return { resolver, authorityPrefix, remoteAuthority };
-			}));
+			resolvers = await Promise.all(chain.map(getResolver)).catch(async (e: Error) => {
+				if (!(e instanceof RemoteAuthorityResolverError) || e._code !== RemoteAuthorityResolverErrorCode.InvalidAuthority) { throw e; }
+				logWarning(`resolving nested authorities failed: ${e.message}`);
+				return [await getResolver(remoteAuthorityChain)];
+			});
 		} catch (e) {
 			return normalizeError(e);
 		}
@@ -957,7 +966,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	public $activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
 		if (activationKind === ActivationKind.Immediate) {
-			return this._activateByEvent(activationEvent, false);
+			return this._almostReadyToRunExtensions.wait()
+				.then(_ => this._activateByEvent(activationEvent, false));
 		}
 
 		return (

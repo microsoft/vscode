@@ -17,8 +17,7 @@ import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/go
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { ContentHoverWidget, ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHover';
-import * as nls from 'vs/nls';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -30,7 +29,15 @@ import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHo
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import * as nls from 'vs/nls';
 import 'vs/css!./hover';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { status } from 'vs/base/browser/ui/aria/aria';
+
+// sticky hover widget which doesn't disappear on focus out and such
+const _sticky = false
+	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
+	;
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -40,6 +47,9 @@ export class ModesHoverController implements IEditorContribution {
 	private readonly _didChangeConfigurationHandler: IDisposable;
 
 	private _contentWidget: ContentHoverController | null;
+
+	getWidgetContent(): string | undefined { return this._contentWidget?.getWidgetContent(); }
+
 	private _glyphWidget: MarginHoverWidget | null;
 
 	private _isMouseDown: boolean;
@@ -123,8 +133,9 @@ export class ModesHoverController implements IEditorContribution {
 		if (target.type !== MouseTargetType.OVERLAY_WIDGET) {
 			this._hoverClicked = false;
 		}
-
-		this._hideWidgets();
+		if (!this._contentWidget?.widget.isResizing) {
+			this._hideWidgets();
+		}
 	}
 
 	private _onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
@@ -133,15 +144,22 @@ export class ModesHoverController implements IEditorContribution {
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
 		const targetEm = (mouseEvent.event.browserEvent.relatedTarget) as HTMLElement;
-		if (this._contentWidget?.containsNode(targetEm)) {
+		if (this._contentWidget?.widget.isResizing || this._contentWidget?.containsNode(targetEm)) {
+			// When the content widget is resizing
 			// when the mouse is inside hover widget
 			return;
 		}
-		this._hideWidgets();
+		if (!_sticky) {
+			this._hideWidgets();
+		}
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 		const target = mouseEvent.target;
+
+		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
+			return;
+		}
 
 		if (this._isMouseDown && this._hoverClicked) {
 			return;
@@ -159,7 +177,7 @@ export class ModesHoverController implements IEditorContribution {
 
 		if (
 			!this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID
-			&& this._contentWidget?.isColorPickerVisible()
+			&& this._contentWidget?.isColorPickerVisible
 		) {
 			// though the hover is not sticky, the color picker needs to.
 			return;
@@ -170,7 +188,7 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (this._isHoverSticky && this._contentWidget?.isVisibleFromKeyboard()) {
+		if (this._isHoverSticky && this._contentWidget?.isVisibleFromKeyboard) {
 			// Sticky mode is on and the hover has been shown via keyboard
 			// so moving the mouse has no effect
 			return;
@@ -181,7 +199,7 @@ export class ModesHoverController implements IEditorContribution {
 
 		if ((mouseOnDecorator && (
 			(decoratorActivatedOn === 'click' && !this._hoverActivatedByColorDecoratorClick) ||
-			(decoratorActivatedOn === 'hover' && !this._isHoverEnabled) ||
+			(decoratorActivatedOn === 'hover' && !this._isHoverEnabled && !_sticky) ||
 			(decoratorActivatedOn === 'clickAndHover' && !this._isHoverEnabled && !this._hoverActivatedByColorDecoratorClick)))
 			|| !mouseOnDecorator && !this._isHoverEnabled && !this._hoverActivatedByColorDecoratorClick
 		) {
@@ -204,7 +222,9 @@ export class ModesHoverController implements IEditorContribution {
 			this._glyphWidget.startShowingAt(target.position.lineNumber);
 			return;
 		}
-
+		if (_sticky) {
+			return;
+		}
 		this._hideWidgets();
 	}
 
@@ -215,7 +235,7 @@ export class ModesHoverController implements IEditorContribution {
 
 		const resolvedKeyboardEvent = this._keybindingService.softDispatch(e, this._editor.getDomNode());
 		// If the beginning of a multi-chord keybinding is pressed, or the command aims to focus the hover, set the variable to true, otherwise false
-		const mightTriggerFocus = (resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded || (resolvedKeyboardEvent.kind === ResultKind.KbFound && resolvedKeyboardEvent.commandId === 'editor.action.showHover' && this._contentWidget?.isVisible()));
+		const mightTriggerFocus = (resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded || (resolvedKeyboardEvent.kind === ResultKind.KbFound && resolvedKeyboardEvent.commandId === 'editor.action.showHover' && this._contentWidget?.isVisible));
 
 		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift
 			&& !mightTriggerFocus) {
@@ -225,7 +245,10 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
-		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible()) || InlineSuggestionHintsContentWidget.dropDownVisible) {
+		if (_sticky) {
+			return;
+		}
+		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
 		this._hoverActivatedByColorDecoratorClick = false;
@@ -239,10 +262,6 @@ export class ModesHoverController implements IEditorContribution {
 			this._contentWidget = this._instantiationService.createInstance(ContentHoverController, this._editor);
 		}
 		return this._contentWidget;
-	}
-
-	public isColorPickerVisible(): boolean {
-		return this._contentWidget?.isColorPickerVisible() || false;
 	}
 
 	public showContentHover(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean, activatedByColorDecoratorClick: boolean = false): void {
@@ -286,12 +305,12 @@ export class ModesHoverController implements IEditorContribution {
 		this._contentWidget?.goToBottom();
 	}
 
-	public escape(): void {
-		this._contentWidget?.escape();
+	public get isColorPickerVisible(): boolean | undefined {
+		return this._contentWidget?.isColorPickerVisible;
 	}
 
-	public isHoverVisible(): boolean | undefined {
-		return this._contentWidget?.isVisible();
+	public get isHoverVisible(): boolean | undefined {
+		return this._contentWidget?.isVisible;
 	}
 
 	public dispose(): void {
@@ -344,6 +363,9 @@ class ShowOrFocusHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		const configurationService = accessor.get(IConfigurationService);
+		const accessibilityService = accessor.get(IAccessibilityService);
+		const keybindingService = accessor.get(IKeybindingService);
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -355,10 +377,15 @@ class ShowOrFocusHoverAction extends EditorAction {
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		const focus = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled || !!args?.focus;
 
-		if (controller.isHoverVisible()) {
+		if (controller.isHoverVisible) {
 			controller.focus();
 		} else {
 			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
+		}
+		if (configurationService.getValue('accessibility.verbosity.hover') && accessibilityService.isScreenReaderOptimized()) {
+			const keybinding = keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel();
+			const hint = keybinding ? nls.localize('chatAccessibleViewHint', "Inspect this in the accessible view with {0}", keybinding) : nls.localize('chatAccessibleViewHintNoKb', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
+			status(hint);
 		}
 	}
 }
@@ -649,36 +676,6 @@ class GoToBottomHoverAction extends EditorAction {
 	}
 }
 
-class EscapeFocusHoverAction extends EditorAction {
-
-	constructor() {
-		super({
-			id: 'editor.action.escapeFocusHover',
-			label: nls.localize({
-				key: 'escapeFocusHover',
-				comment: [
-					'Action that allows to escape from the hover widget with the escape command when the hover widget is focused.'
-				]
-			}, "Escape Focus Hover"),
-			alias: 'Escape Focus Hover',
-			precondition: EditorContextKeys.hoverFocused,
-			kbOpts: {
-				kbExpr: EditorContextKeys.hoverFocused,
-				primary: KeyCode.Escape,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = ModesHoverController.get(editor);
-		if (!controller) {
-			return;
-		}
-		controller.escape();
-	}
-}
-
 registerEditorContribution(ModesHoverController.ID, ModesHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowOrFocusHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
@@ -690,7 +687,6 @@ registerEditorAction(PageUpHoverAction);
 registerEditorAction(PageDownHoverAction);
 registerEditorAction(GoToTopHoverAction);
 registerEditorAction(GoToBottomHoverAction);
-registerEditorAction(EscapeFocusHoverAction);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);
 HoverParticipantRegistry.register(MarkerHoverParticipant);
 

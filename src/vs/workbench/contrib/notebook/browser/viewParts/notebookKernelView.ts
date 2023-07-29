@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./notebookKernelActionViewItem';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
@@ -48,6 +47,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
 			icon: selectKernelIcon,
 			f1: true,
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			menu: [{
 				id: MenuId.EditorTitle,
 				when: ContextKeyExpr.and(
