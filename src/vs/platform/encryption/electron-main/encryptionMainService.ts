@@ -47,17 +47,11 @@ export class EncryptionMainService implements IEncryptionMainService {
 		try {
 			parsedValue = JSON.parse(value);
 			if (!parsedValue.data) {
-				this.logService.trace('[EncryptionMainService] Unable to parse encrypted value. Attempting old decryption.');
-				return this.oldDecrypt(value);
+				throw new Error(`[EncryptionMainService] Invalid encrypted valu: ${value}`);
 			}
-		} catch (e) {
-			this.logService.trace('[EncryptionMainService] Unable to parse encrypted value. Attempting old decryption.', e);
-			return this.oldDecrypt(value);
-		}
-		const bufferToDecrypt = Buffer.from(parsedValue.data);
+			const bufferToDecrypt = Buffer.from(parsedValue.data);
 
-		this.logService.trace('[EncryptionMainService] Decrypting value.');
-		try {
+			this.logService.trace('[EncryptionMainService] Decrypting value.');
 			const result = safeStorage.decryptString(bufferToDecrypt);
 			this.logService.trace('[EncryptionMainService] Decrypted value.');
 			return result;
@@ -103,22 +97,5 @@ export class EncryptionMainService implements IEncryptionMainService {
 		}
 
 		safeStorage.setUsePlainTextEncryption(true);
-	}
-
-	// TODO: Remove this after a few releases
-	private async oldDecrypt(value: string): Promise<string> {
-		let encryption: { decrypt(salt: string, value: string): Promise<string> };
-		try {
-			encryption = await new Promise((resolve, reject) => require(['vscode-encrypt'], resolve, reject));
-		} catch (e) {
-			return value;
-		}
-
-		try {
-			return encryption.decrypt(this.machineId, value);
-		} catch (e) {
-			this.logService.error(e);
-			return value;
-		}
 	}
 }

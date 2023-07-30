@@ -114,14 +114,6 @@ vsda/SECURITY.md
 vsda/targets
 !vsda/build/Release/vsda.node
 
-vscode-encrypt/build/**
-vscode-encrypt/src/**
-vscode-encrypt/vendor/**
-vscode-encrypt/.gitignore
-vscode-encrypt/binding.gyp
-vscode-encrypt/README.md
-!vscode-encrypt/build/Release/vscode-encrypt-native.node
-
 @vscode/policy-watcher/build/**
 @vscode/policy-watcher/.husky/**
 @vscode/policy-watcher/src/**
