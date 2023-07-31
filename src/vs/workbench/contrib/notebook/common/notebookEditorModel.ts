@@ -46,7 +46,6 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	private _workingCopy?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>;
 	private readonly _workingCopyListeners = this._register(new DisposableStore());
 	private readonly scratchPad: boolean;
-	private _hasErrorState: boolean = false;
 
 	constructor(
 		readonly resource: URI,
@@ -110,7 +109,19 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	get hasErrorState(): boolean {
-		return this._hasErrorState;
+		if (this._workingCopy && 'hasState' in this._workingCopy) {
+			return this._workingCopy.hasState(StoredFileWorkingCopyState.ERROR);
+		}
+
+		return false;
+	}
+
+	get hasConflictState(): boolean {
+		if (this._workingCopy && 'hasState' in this._workingCopy) {
+			return this._workingCopy.hasState(StoredFileWorkingCopyState.CONFLICT);
+		}
+
+		return false;
 	}
 
 	revert(options?: IRevertOptions): Promise<void> {
@@ -121,13 +132,6 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	save(options?: ISaveOptions): Promise<boolean> {
 		assertType(this.isResolved());
 		return this._workingCopy!.save(options);
-	}
-
-	private onDidChangeDirtyHandler() {
-		if (!this._workingCopy?.isDirty()) {
-			this._hasErrorState = false;
-		}
-		this._onDidChangeDirty.fire();
 	}
 
 	async load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel> {
@@ -144,9 +148,8 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				this._workingCopyListeners.add(this._workingCopy.onDidSave(e => this._onDidSave.fire(e)));
 				this._workingCopyListeners.add(this._workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
 				this._workingCopyListeners.add(this._workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
-				this._workingCopyListeners.add(this._workingCopy.onDidSaveError(() => { this._hasErrorState = true; }));
 			}
-			this._workingCopyListeners.add(this._workingCopy.onDidChangeDirty(this.onDidChangeDirtyHandler.bind(this), undefined, this._workingCopyListeners));
+			this._workingCopyListeners.add(this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), undefined, this._workingCopyListeners));
 
 			this._workingCopyListeners.add(this._workingCopy.onWillDispose(() => {
 				this._workingCopyListeners.clear();

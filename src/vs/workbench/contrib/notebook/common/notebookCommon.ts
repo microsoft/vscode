@@ -797,6 +797,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly viewType: string;
 	readonly notebook: INotebookTextModel | undefined;
 	readonly hasErrorState: boolean;
+	readonly hasConflictState: boolean;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
 	isModified(): boolean;
