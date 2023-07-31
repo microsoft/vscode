@@ -33,6 +33,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private _lineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
+	private _hoverOnIndex: number = -1;
 	private _hoverOnLine: number = -1;
 	private _hoverOnColumn: number = -1;
 
@@ -45,6 +46,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.className = 'sticky-widget';
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
+	}
+
+	get hoverOnIndex(): number {
+		return this._hoverOnIndex;
 	}
 
 	get hoverOnLine(): number {
@@ -202,7 +207,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				const text = mouseOverEvent.target.innerText;
 
 				// Line and column number of the hover needed for the control clicking feature
+				this._hoverOnIndex = index;
 				this._hoverOnLine = line;
+
 				// TODO: workaround to find the column index, perhaps need a more solid solution
 				this._hoverOnColumn = this._editor.getModel().getLineContent(line).indexOf(text) + 1 || -1;
 			}
