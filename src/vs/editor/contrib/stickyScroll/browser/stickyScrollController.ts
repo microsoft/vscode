@@ -210,6 +210,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _navigationDisposables(): IDisposable {
 
 		let shiftPressed = false;
+		let baseStartHoverOnLine: number | undefined;
 		const store = new DisposableStore();
 		const sessionStore = new DisposableStore();
 		store.add(sessionStore);
@@ -270,6 +271,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 						sessionStore.clear();
 					}
 				}));
+				baseStartHoverOnLine = undefined;
 			} else if (e.shiftKey) {
 				console.log('entered into the second if statement');
 				console.log('this._startLineNumbers : ', this._startLineNumbers);
@@ -281,8 +283,16 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				console.log('startHoverOnLine : ', startHoverOnLine);
 				shiftPressed = true;
 				console.log('mouse move and shift key');
-				this._renderStickyScroll(startHoverOnLine);
+				console.log('baseStartHoverOnLine : ', baseStartHoverOnLine);
+				console.log('startHoverOnLine : ', startHoverOnLine);
+				if (baseStartHoverOnLine === undefined || baseStartHoverOnLine !== startHoverOnLine) {
+					console.log('before render');
+					this._renderStickyScroll(startHoverOnLine);
+					baseStartHoverOnLine = startHoverOnLine;
+				}
+
 			} else {
+				baseStartHoverOnLine = undefined;
 				if (shiftPressed) {
 					console.log('mouse move and shift pressed');
 					this._renderStickyScroll();
@@ -308,6 +318,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				console.log('inside of sticky scroll');
 				this._stickyScrollWidget.getDomNode().style.cursor = 'default';
 				this._renderStickyScroll();
+				baseStartHoverOnLine = undefined;
 			}
 		}));
 		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_UP, (e) => {
