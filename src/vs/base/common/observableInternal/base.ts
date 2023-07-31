@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import type { derived } from 'vs/base/common/observableImpl/derived';
-import { getLogger } from 'vs/base/common/observableImpl/logging';
+import type { derived } from 'vs/base/common/observableInternal/derived';
+import { getLogger } from 'vs/base/common/observableInternal/logging';
 
 /**
  * Represents an observable value.
@@ -162,11 +162,11 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 	/** @sealed */
 	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew> {
 		return _derived(
+			(reader) => fn(this.read(reader), reader),
 			() => {
 				const name = getFunctionName(fn);
 				return name !== undefined ? name : `${this.debugName} (mapped)`;
 			},
-			(reader) => fn(this.read(reader), reader)
 		);
 	}
 
