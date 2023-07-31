@@ -315,7 +315,7 @@ export class InlineChatWidget {
 
 		// slash command content widget
 
-		this._slashCommandContentWidget = new SlashCommandContentWidget(this._inputEditor, this._accessibilityService);
+		this._slashCommandContentWidget = new SlashCommandContentWidget(this._inputEditor);
 		this._store.add(this._slashCommandContentWidget);
 
 		// toolbars

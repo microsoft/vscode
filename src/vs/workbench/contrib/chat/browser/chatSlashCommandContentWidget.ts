@@ -10,13 +10,13 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget } from 'vs/editor/browser/editorBrowser';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 
 export class SlashCommandContentWidget extends Disposable implements IContentWidget {
 	private _domNode = document.createElement('div');
 	private _lastSlashCommandText: string | undefined;
 
-	constructor(private _editor: ICodeEditor, private _accessibilityService: IAccessibilityService) {
+	constructor(private _editor: ICodeEditor) {
 		super();
 
 		this._domNode.toggleAttribute('hidden', true);
@@ -69,6 +69,6 @@ export class SlashCommandContentWidget extends Disposable implements IContentWid
 		}]);
 
 		// Announce the deletion
-		this._accessibilityService.alert(localize('exited slash command mode', 'Exited {0} mode', this._lastSlashCommandText));
+		aria.alert(localize('exited slash command mode', 'Exited {0} mode', this._lastSlashCommandText));
 	}
 }
