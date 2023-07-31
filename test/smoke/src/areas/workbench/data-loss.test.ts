@@ -133,10 +133,10 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		}
 	});
 
-	describe('Data Loss (stable -> insiders)', function () {
+	describe.only('Data Loss (stable -> insiders)', function () {
 
 		// Double the timeout since these tests involve 2 startups
-		this.timeout(8 * 60 * 1000);
+		this.timeout(4 * 60 * 1000);
 
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;
@@ -174,6 +174,15 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			stableApp = new Application(stableOptions);
 			await stableApp.start();
 
+			const interval = setInterval(async () => {
+				try {
+					const info = await stableApp?.code.getLocaleInfo();
+					logger.log(`heartbeet: `, info);
+				} catch (error) {
+					logger.log(`heartbeet error: `, error);
+				}
+			}, 1000);
+
 			// Open 3 editors
 			await stableApp.workbench.quickaccess.openFile(join(stableApp.workspacePathOrFolder, 'bin', 'www'));
 			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
@@ -196,6 +205,8 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			await insidersApp.workbench.editors.selectTab('Untitled-1');
 			await insidersApp.workbench.editors.selectTab('app.js');
 			await insidersApp.workbench.editors.selectTab('www');
+
+			clearInterval(interval);
 
 			await insidersApp.stop();
 			insidersApp = undefined;

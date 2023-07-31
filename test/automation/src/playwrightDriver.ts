@@ -55,6 +55,8 @@ export class PlaywrightDriver {
 	}
 
 	async stopTracing(name: string, persist: boolean): Promise<void> {
+		persist = true;
+
 		if (!this.options.tracing) {
 			return; // tracing disabled
 		}

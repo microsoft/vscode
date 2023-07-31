@@ -271,7 +271,7 @@ async function ensureStableCode(): Promise<void> {
 		}
 
 		const versions: string[] = await measureAndLog(() => versionsReq.json(), 'versionReq.json()', logger);
-		const stableVersion = versions.find(raw => {
+		let stableVersion = versions.find(raw => {
 			const version = parseVersion(raw);
 			return version.major < current.major || (version.major === current.major && version.minor < current.minor);
 		});
@@ -279,6 +279,8 @@ async function ensureStableCode(): Promise<void> {
 		if (!stableVersion) {
 			throw new Error(`Could not find suitable stable version for ${version}`);
 		}
+
+		stableVersion = `1.80.1`;
 
 		logger.log(`Found VS Code v${version}, downloading previous VS Code version ${stableVersion}...`);
 
