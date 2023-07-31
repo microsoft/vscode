@@ -83,7 +83,8 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			controllerId: this.controllerId,
 		});
 
-		this._register(autorun('update maxTokenizationLineLength', reader => {
+		this._register(autorun(reader => {
+			/** @description update maxTokenizationLineLength */
 			const maxTokenizationLineLength = this._maxTokenizationLineLength.read(reader);
 			this._worker.acceptMaxTokenizationLineLength(this.controllerId, maxTokenizationLineLength);
 		}));
