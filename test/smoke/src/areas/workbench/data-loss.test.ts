@@ -176,12 +176,13 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 
 			const interval = setInterval(async () => {
 				try {
-					const info = await stableApp?.code.getLocaleInfo();
-					logger.log(`heartbeet: `, info);
+					await stableApp?.code.takeScreenshot('stable-test');
+					// const info = await stableApp?.code.getLocaleInfo();
+					// logger.log(`heartbeet: `, info);
 				} catch (error) {
-					logger.log(`heartbeet error: `, error);
+					logger.log(`screenshot error: `, error);
 				}
-			}, 1000);
+			}, 300);
 
 			// Open 3 editors
 			await stableApp.workbench.quickaccess.openFile(join(stableApp.workspacePathOrFolder, 'bin', 'www'));

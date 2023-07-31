@@ -125,6 +125,10 @@ export class Code {
 		return await this.driver.stopTracing(name, persist);
 	}
 
+	async takeScreenshot(name: string): Promise<void> {
+		return this.driver.takeScreenshot(name);
+	}
+
 	async dispatchKeybinding(keybinding: string): Promise<void> {
 		await this.driver.dispatchKeybinding(keybinding);
 	}
