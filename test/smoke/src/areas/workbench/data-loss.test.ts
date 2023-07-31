@@ -174,24 +174,22 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			stableApp = new Application(stableOptions);
 			await stableApp.start();
 
-			const interval = setInterval(async () => {
-				try {
-					await stableApp?.code.takeScreenshot('stable-test');
-					// const info = await stableApp?.code.getLocaleInfo();
-					// logger.log(`heartbeet: `, info);
-				} catch (error) {
-					logger.log(`screenshot error: `, error);
-				}
-			}, 300);
+			logger.log('??? 0');
 
 			// Open 3 editors
 			await stableApp.workbench.quickaccess.openFile(join(stableApp.workspacePathOrFolder, 'bin', 'www'));
+			logger.log('??? 1');
 			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
+			logger.log('??? 2');
 			await stableApp.workbench.quickaccess.openFile(join(stableApp.workspacePathOrFolder, 'app.js'));
+			logger.log('??? 3');
 			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
+			logger.log('??? 4');
 			await stableApp.workbench.editors.newUntitledFile();
+			logger.log('??? 5');
 
 			await stableApp.stop();
+			logger.log('??? 6');
 			stableApp = undefined;
 
 			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
@@ -201,15 +199,18 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 
 			insidersApp = new Application(insiderOptions);
 			await insidersApp.start();
+			logger.log('??? 7');
 
 			// Verify 3 editors are open
 			await insidersApp.workbench.editors.selectTab('Untitled-1');
+			logger.log('??? 8');
 			await insidersApp.workbench.editors.selectTab('app.js');
+			logger.log('??? 9');
 			await insidersApp.workbench.editors.selectTab('www');
-
-			clearInterval(interval);
+			logger.log('??? 10');
 
 			await insidersApp.stop();
+			logger.log('??? 11');
 			insidersApp = undefined;
 		});
 

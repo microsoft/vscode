@@ -29,7 +29,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		'--disable-telemetry',
 		'--no-cached-data',
 		'--disable-updates',
-		// '--disable-keytar',
+		'--disable-keytar',
 		`--crash-reporter-directory=${crashesPath}`,
 		'--disable-workspace-trust',
 		`--extensions-dir=${extensionsPath}`,
@@ -38,7 +38,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 	];
 
 	if (options.verbose) {
-		// args.push('--verbose');
+		args.push('--verbose');
 	}
 
 	if (process.platform === 'linux') {

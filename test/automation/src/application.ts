@@ -103,10 +103,6 @@ export class Application {
 		await this._code?.stopTracing(name, persist);
 	}
 
-	async takeScreenshot(name: string): Promise<void> {
-		await this._code?.takeScreenshot(name);
-	}
-
 	private async startApplication(extraArgs: string[] = []): Promise<Code> {
 		const code = this._code = await launch({
 			...this.options,
