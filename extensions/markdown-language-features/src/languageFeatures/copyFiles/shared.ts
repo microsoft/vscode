@@ -86,11 +86,6 @@ export interface SmartPaste {
 	 */
 	pasteAsMarkdownLink: boolean;
 
-	/**
-	 * `true` if the link is being pasted over a markdown link.
-	 */
-	updateTitle: boolean;
-
 }
 
 export enum PasteUrlAsFormattedLink {
@@ -118,26 +113,24 @@ export async function createEditAddingLinksForUriList(
 	const edits: vscode.SnippetTextEdit[] = [];
 	let placeHolderValue: number = ranges.length;
 	let label: string = '';
-	let smartPaste = { pasteAsMarkdownLink: true, updateTitle: false };
+	let pasteAsMarkdownLink: boolean = true;
 
 	for (const range of ranges) {
-		let title = document.getText(range);
 		const selectedRange: vscode.Range = new vscode.Range(
 			new vscode.Position(range.start.line, document.offsetAt(range.start)),
 			new vscode.Position(range.end.line, document.offsetAt(range.end))
 		);
 
 		if (useSmartPaste) {
-			smartPaste = checkSmartPaste(document, selectedRange);
-			title = smartPaste.updateTitle ? '' : document.getText(range);
+			pasteAsMarkdownLink = checkSmartPaste(document, selectedRange);
 		}
 
-		const snippet = await tryGetUriListSnippet(document, urlList, token, title, placeHolderValue, smartPaste.pasteAsMarkdownLink, isExternalLink);
+		const snippet = await tryGetUriListSnippet(document, urlList, token, document.getText(range), placeHolderValue, pasteAsMarkdownLink, isExternalLink);
 		if (!snippet) {
 			return;
 		}
 
-		smartPaste.pasteAsMarkdownLink = true;
+		pasteAsMarkdownLink = true;
 		placeHolderValue--;
 		edits.push(new vscode.SnippetTextEdit(range, snippet.snippet));
 		label = snippet.label;
@@ -149,25 +142,23 @@ export async function createEditAddingLinksForUriList(
 	return { additionalEdits, label };
 }
 
-export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range): SmartPaste {
-	const SmartPaste: SmartPaste = { pasteAsMarkdownLink: true, updateTitle: false };
+export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range): boolean {
 	if (selectedRange.isEmpty || /^[\s\n]*$/.test(document.getText(selectedRange))) {
-		return { pasteAsMarkdownLink: false, updateTitle: false };
+		return false;
 	}
 	for (const regex of smartPasteRegexes) {
 		const matches = [...document.getText().matchAll(regex.regex)];
 		for (const match of matches) {
 			if (match.index !== undefined) {
-				const useDefaultPaste = selectedRange.start.character > match.index && selectedRange.end.character < match.index + match[0].length;
-				SmartPaste.pasteAsMarkdownLink = !useDefaultPaste;
-				SmartPaste.updateTitle = regex.isMarkdownLink && selectedRange.start.character === match.index && selectedRange.end.character === match.index + match[0].length;
-				if (!SmartPaste.pasteAsMarkdownLink || SmartPaste.updateTitle) {
-					return SmartPaste;
+				const inLink = selectedRange.start.character > match.index && selectedRange.end.character < match.index + match[0].length;
+				const overLink = regex.isMarkdownLink && selectedRange.start.character === match.index && selectedRange.end.character === match.index + match[0].length;
+				if (inLink || overLink) {
+					return false;
 				}
 			}
 		}
 	}
-	return SmartPaste;
+	return true;
 }
 
 export async function tryGetUriListSnippet(document: SkinnyTextDocument, urlList: String, token: vscode.CancellationToken, title = '', placeHolderValue = 0, pasteAsMarkdownLink = true, isExternalLink = false): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
