@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/redhat-developer/vscode-java/commit/7a770ab6750b4b09173d98de14eb9792e3432b36",
+	"version": "https://github.com/redhat-developer/vscode-java/commit/5fb57e8e1c5d776b21be13cd7227b25b87edf4a6",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -1378,6 +1378,17 @@
 		},
 		"properties": {
 			"patterns": [
+				{
+					"match": "(\\.)\\s*(new)",
+					"captures": {
+						"1": {
+							"name": "punctuation.separator.period.java"
+						},
+						"2": {
+							"name": "keyword.control.new.java"
+						}
+					}
+				},
 				{
 					"match": "(\\.)\\s*([a-zA-Z_$][\\w$]*)(?=\\s*\\.\\s*[a-zA-Z_$][\\w$]*)",
 					"captures": {

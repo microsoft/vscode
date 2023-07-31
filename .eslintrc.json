@@ -120,6 +120,7 @@
 			],
 			"rules": {
 				"local/code-no-test-only": "error",
+				"local/code-no-test-async-suite": "warn",
 				"local/code-no-unexternalized-strings": "off"
 			}
 		},
