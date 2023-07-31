@@ -24,7 +24,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -154,6 +154,15 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			return this._defaultDirtyState;
 		}
 		return this._editorModelReference.object.isDirty();
+	}
+
+	override isSaving(): boolean {
+		if (!this._editorModelReference || !this._editorModelReference.object.isDirty() || this._editorModelReference.object.hasErrorState) {
+			return false; // require the model to be dirty and not in error state
+		}
+
+		// if a short auto save is configured, treat this as being saved
+		return this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY;
 	}
 
 	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
