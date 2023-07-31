@@ -293,12 +293,17 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				sessionStore.clear();
 			}
 		}));
+		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_OVER, (e) => {
+			console.log('mouse over');
+			this._stickyScrollWidget.getDomNode().style.cursor = 'pointer';
+		}));
 		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_OUT, (e) => {
 			console.log('mouse out');
 			console.log('e : ', e);
 			if (endLineChanged) {
 				endLineChanged = false;
 			} else {
+				this._stickyScrollWidget.getDomNode().style.cursor = 'default';
 				this._renderStickyScroll();
 			}
 		}));
