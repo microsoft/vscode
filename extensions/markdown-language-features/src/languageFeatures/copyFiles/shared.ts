@@ -151,6 +151,9 @@ export async function createEditAddingLinksForUriList(
 
 export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range): SmartPaste {
 	const SmartPaste: SmartPaste = { pasteAsMarkdownLink: true, updateTitle: false };
+	if (selectedRange.isEmpty || /^[\s\n]*$/.test(document.getText(selectedRange))) {
+		return { pasteAsMarkdownLink: false, updateTitle: false };
+	}
 	for (const regex of smartPasteRegexes) {
 		const matches = [...document.getText().matchAll(regex.regex)];
 		for (const match of matches) {
