@@ -169,7 +169,8 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			oldValue,
 			newValue: this.value,
 			change: undefined,
-			didChange
+			didChange,
+			hadValue,
 		});
 
 		if (didChange) {

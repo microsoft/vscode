@@ -102,6 +102,7 @@ export class ObservableElementSizeObserver extends Disposable {
 		this._height = observableValue('height', this.elementSizeObserver.getHeight());
 
 		this._register(this.elementSizeObserver.onDidChange(e => transaction(tx => {
+			/** @description Set width/height from elementSizeObserver */
 			this._width.set(this.elementSizeObserver.getWidth(), tx);
 			this._height.set(this.elementSizeObserver.getHeight(), tx);
 		})));

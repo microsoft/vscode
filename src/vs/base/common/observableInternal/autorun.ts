@@ -144,6 +144,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 				this.runFn(this, changeSummary);
 			}
 		} finally {
+			getLogger()?.handleAutorunFinished(this);
 			// We don't want our observed observables to think that they are (not even temporarily) not being observed.
 			// Thus, we only unsubscribe from observables that are definitely not read anymore.
 			for (const o of this.dependenciesToBeRemoved) {

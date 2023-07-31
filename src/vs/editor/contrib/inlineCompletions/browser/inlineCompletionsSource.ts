@@ -90,6 +90,7 @@ export class InlineCompletionsSource extends Disposable {
 
 			this._updateOperation.clear();
 			transaction(tx => {
+				/** @description Update completions with provider result */
 				target.set(completions, tx);
 			});
 
