@@ -209,11 +209,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _navigationDisposables(): IDisposable {
 
+		let shiftPressed = false;
 		const store = new DisposableStore();
 		const sessionStore = new DisposableStore();
 		store.add(sessionStore);
-		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_OVER, (e) => {
-			console.log('inside of mouse over');
+		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_MOVE, (e) => {
+			console.log('inside of mouse move');
+			console.log('e : ', e);
 			if (!this._editor.hasModel() || !e.metaKey && !e.shiftKey) {
 				sessionStore.clear();
 				return;
@@ -221,7 +223,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			console.log('after first if check');
 			const targetMouseEvent = e.target;
 			if (e.ctrlKey && targetMouseEvent && targetMouseEvent instanceof HTMLElement && targetMouseEvent.innerText === targetMouseEvent.innerHTML) {
-
+				console.log('entered into the first if statement');
 				const text = targetMouseEvent.innerText;
 				if (this._stickyScrollWidget.hoverOnColumn === -1) {
 					return;
@@ -267,21 +269,42 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					}
 				}));
 			} else if (e.shiftKey) {
-				console.log('entered into the case when shift key is pressed on mouse over');
-				// When the shift key is pressed we want to render the corresponding end line
-				this._renderStickyScroll(this._stickyScrollWidget.hoverOnLine);
+				console.log('entered into the second if statement');
+				console.log('this._startLineNumbers : ', this._startLineNumbers);
+				console.log('this._endLineNumbers : ', this._endLineNumbers);
+				console.log('this._stickyScrollWidget.hoverOnLine : ', this._stickyScrollWidget.hoverOnLine);
+				const indexHoverOnLine = this._endLineNumbers.indexOf(this._stickyScrollWidget.hoverOnLine);
+				console.log('indexHoverOnLine : ', indexHoverOnLine);
+				const startHoverOnLine = indexHoverOnLine > -1 ? this._startLineNumbers[indexHoverOnLine] : this._stickyScrollWidget.hoverOnLine;
+				console.log('startHoverOnLine : ', startHoverOnLine);
+				shiftPressed = true;
+				this._renderStickyScroll(startHoverOnLine);
 			} else {
-				sessionStore.clear();
-			}
-		})
-		);
-		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_UP, (e) => {
-			if (e.metaKey) {
+				if (shiftPressed) {
+					this._renderStickyScroll();
+					shiftPressed = false;
+				}
 				sessionStore.clear();
 			}
 		}));
-		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_DOWN, (e) => {
+		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_OUT, (e) => {
+			this._renderStickyScroll();
+		}));
+		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_UP, (e) => {
+			console.log('inside of mouse up');
 			if (e.metaKey) {
+				console.log('when meta key is pressed');
+				sessionStore.clear();
+			}
+			if (e.shiftKey) {
+				console.log('when shift key is pressed');
+				this._renderStickyScroll();
+			}
+		}));
+		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_DOWN, (e) => {
+			console.log('inside of mouse down');
+			if (e.metaKey) {
+				console.log('when meta key is pressed');
 				// Control click
 				if (this._candidateDefinitionsLength > 1) {
 					if (this._focused) {
@@ -292,6 +315,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
 
 			} else if (e.shiftKey) {
+				console.log('when shift key is pressed');
 				// Shift key
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
@@ -301,6 +325,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					this._revealLineInCenterIfOutsideViewport({ lineNumber: this._endLineNumbers[index] + 1, column: this._stickyScrollWidget.hoverOnColumn });
 				}
 			} else {
+				console.log('when normal click');
 				// Normal click
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
@@ -439,13 +464,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 					if (topOfElementAtDepth > topOfEndLine && topOfElementAtDepth <= bottomOfEndLine) {
 						startLineNumbers.push(start);
-						endLineNumbers.push(end);
+						endLineNumbers.push(end + 1);
 						lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
 						break;
 					}
 					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth <= bottomOfEndLine) {
 						startLineNumbers.push(start);
-						endLineNumbers.push(end);
+						endLineNumbers.push(end + 1);
 					}
 					if (startLineNumbers.length === maxNumberStickyLines) {
 						break;
@@ -455,11 +480,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}
 		this._startLineNumbers = startLineNumbers;
 		this._endLineNumbers = endLineNumbers;
-		const widgetStateLines = startLineNumbers;
+		const widgetStateLines = [...startLineNumbers];
 		if (showEndForLine) {
 			const index = startLineNumbers.indexOf(showEndForLine);
 			if (index !== -1) {
-				widgetStateLines[index] = endLineNumbers[index] + 1;
+				widgetStateLines[index] = endLineNumbers[index];
 			}
 		}
 		return new StickyScrollWidgetState(widgetStateLines, lastLineRelativePosition);
