@@ -148,9 +148,22 @@ suite('createEditAddingLinksForUriList', () => {
 		};
 
 		test('Should evaluate pasteAsMarkdownLink as true for selected plain text', () => {
-			const range = new vscode.Range(0, 5, 0, 5);
+			const range = new vscode.Range(0, 0, 0, 12);
 			const smartPaste = checkSmartPaste(skinnyDocument, range);
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, true);
+		});
+
+		test('Should evaluate pasteAsMarkdownLink as false for no selection', () => {
+			const range = new vscode.Range(0, 0, 0, 0);
+			const smartPaste = checkSmartPaste(skinnyDocument, range);
+			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
+		});
+
+		test('Should evaluate pasteAsMarkdownLink as false for selected whitespace and new lines', () => {
+			skinnyDocument.getText = function () { return '   \r\n\r\n'; };
+			const range = new vscode.Range(0, 0, 0, 7);
+			const smartPaste = checkSmartPaste(skinnyDocument, range);
+			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a backtick code block', () => {
