@@ -296,7 +296,11 @@ export class ContextView extends Disposable {
 			around = {
 				top: anchor.posy,
 				left: anchor.posx,
-				width: 1,
+				// We are about to position the context view where the mouse
+				// cursor is. To prevent the view being exactly under the mouse
+				// when showing and thus potentially triggering an action within,
+				// we treat the mouse location like a small sized block element.
+				width: 2,
 				height: 2
 			};
 		}
