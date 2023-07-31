@@ -198,6 +198,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(ILogService, logService);
 		if (isCI) {
 			logService.info('workbench#open()'); // marking workbench open helps to diagnose flaky integration/smoke tests
+			setInterval(() => logService.info('workbench#interval(): ' + Date.now()), 1000);
 		}
 		if (logService.getLevel() === LogLevel.Trace) {
 			logService.trace('workbench#open(): with configuration', safeStringify(this.configuration));
