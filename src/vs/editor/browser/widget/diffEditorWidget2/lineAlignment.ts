@@ -405,7 +405,7 @@ export class ViewZoneManager extends Disposable {
 
 
 		this._register(autorun(reader => {
-			/** @description update */
+			/** @description update editor top offsets */
 			const m = this._diffModel.read(reader)?.syncedMovedTexts.read(reader);
 
 			let deltaOrigToMod = 0;

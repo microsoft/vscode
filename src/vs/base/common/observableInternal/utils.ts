@@ -112,7 +112,7 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 
 		const didChange = !this.hasValue || this.value !== newValue;
 
-		getLogger()?.handleFromEventObservableTriggered(this, { oldValue: this.value, newValue, change: undefined, didChange });
+		getLogger()?.handleFromEventObservableTriggered(this, { oldValue: this.value, newValue, change: undefined, didChange, hadValue: this.hasValue });
 
 		if (didChange) {
 			this.value = newValue;

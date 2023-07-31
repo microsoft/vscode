@@ -230,9 +230,9 @@ export function appendToLinkSnippet(
 	if (pasteAsMarkdownLink) {
 		snippet.appendText('[');
 		snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
-		snippet.appendText(isExternalLink ? `](${uriString})` : `](${escapeMarkdownLinkPath(mdPath)})`);
+		snippet.appendText(`](${escapeMarkdownLinkPath(isExternalLink ? uriString : mdPath, isExternalLink)})`);
 	} else {
-		snippet.appendText(isExternalLink ? uriString : escapeMarkdownLinkPath(mdPath));
+		snippet.appendText((escapeMarkdownLinkPath(isExternalLink ? uriString : mdPath, isExternalLink)));
 	}
 	return snippet;
 }
@@ -284,9 +284,9 @@ export function createUriListSnippet(
 					const placeholderText = escapeBrackets(title) || options?.placeholderText || 'Alt text';
 					const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (placeholderValue === 0 ? undefined : placeholderValue);
 					snippet.appendPlaceholder(placeholderText, placeholderIndex);
-					snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
+					snippet.appendText(`](${escapeMarkdownLinkPath(mdPath, isExternalLink)})`);
 				} else {
-					snippet.appendText(escapeMarkdownLinkPath(mdPath));
+					snippet.appendText(escapeMarkdownLinkPath(mdPath, isExternalLink));
 				}
 			}
 		} else {
@@ -413,12 +413,12 @@ function escapeHtmlAttribute(attr: string): string {
 	return encodeURI(attr).replaceAll('"', '&quot;');
 }
 
-function escapeMarkdownLinkPath(mdPath: string): string {
+function escapeMarkdownLinkPath(mdPath: string, isExternalLink: boolean): string {
 	if (needsBracketLink(mdPath)) {
 		return '<' + mdPath.replaceAll('<', '\\<').replaceAll('>', '\\>') + '>';
 	}
 
-	return encodeURI(mdPath);
+	return isExternalLink ? mdPath : encodeURI(mdPath);
 }
 
 function escapeBrackets(value: string): string {
