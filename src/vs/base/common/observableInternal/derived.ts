@@ -110,13 +110,11 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			return result;
 		} else {
 			do {
+				// We might not get a notification for a dependency that changed while it is updating,
+				// thus we also have to ask all our depedencies if they changed in this case.
 				if (this.state === DerivedState.dependenciesMightHaveChanged) {
-					// We might not get a notification for a dependency that changed while it is updating,
-					// thus we also have to ask all our depedencies if they changed in this case.
-					this.state = DerivedState.upToDate;
-
 					for (const d of this.dependencies) {
-						/** might call {@link handleChange} indirectly, which could invalidate us */
+						/** might call {@link handleChange} indirectly, which could make us stale */
 						d.reportChanges();
 
 						if (this.state as DerivedState === DerivedState.stale) {
@@ -124,6 +122,12 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 							break;
 						}
 					}
+				}
+
+				// We called report changes of all dependencies.
+				// If we are still not stale, we can assume to be up to date again.
+				if (this.state === DerivedState.dependenciesMightHaveChanged) {
+					this.state = DerivedState.upToDate;
 				}
 
 				this._recomputeIfNeeded();
