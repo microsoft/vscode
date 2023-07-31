@@ -71,8 +71,10 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilitySettingId.UnfocusedViewOpacity]: {
-			description: localize('unfocusedViewOpacity', 'The opacity percentage (0.0 to 1.0) to use for unfocused editors and terminals.'),
+			description: localize('unfocusedViewOpacity', 'The opacity percentage (0.2 to 1.0) to use for unfocused editors and terminals.'),
 			type: 'number',
+			minimum: 0.2,
+			maximum: 1,
 			default: 1,
 			tags: ['accessibility']
 		}

@@ -5,6 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { clamp } from 'vs/base/common/numbers';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { AccessibilitySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
@@ -25,9 +26,12 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 				return;
 			}
 
-			let opacity = configurationService.getValue(AccessibilitySettingId.UnfocusedViewOpacity);
-			if (typeof opacity !== 'number') {
+			let opacity: number;
+			const opacityConfig = configurationService.getValue(AccessibilitySettingId.UnfocusedViewOpacity);
+			if (typeof opacityConfig !== 'number') {
 				opacity = 1;
+			} else {
+				opacity = clamp(opacityConfig, 0.2, 1);
 			}
 
 			const rules = new Set<string>();
