@@ -71,9 +71,7 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 	window.on('crash', () => logger.log('Playwright (Electron) ERROR: page crash'));
 	window.on('close', () => logger.log('Playwright (Electron): page close'));
 	window.on('response', async (response) => {
-		if (response.status() >= 400) {
-			logger.log(`Playwright (Electron) ERROR: HTTP status ${response.status()} for ${response.url()}`);
-		}
+		logger.log(`Playwright (Electron) HTTP status ${response.status()} for ${response.url()}`);
 	});
 
 	return { electron, context, page: window };

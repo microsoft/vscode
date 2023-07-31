@@ -19,7 +19,7 @@ export interface IElectronConfiguration {
 }
 
 export async function resolveElectronConfiguration(options: LaunchOptions): Promise<IElectronConfiguration> {
-	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, crashesPath, extraArgs } = options;
+	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, extraArgs } = options;
 	const env = { ...process.env };
 
 	const args = [
@@ -30,7 +30,9 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		'--no-cached-data',
 		'--disable-updates',
 		'--disable-keytar',
-		`--crash-reporter-directory=${crashesPath}`,
+		'--no-sandbox',
+		'--disable-gpu',
+		// `--crash-reporter-directory=${crashesPath}`,
 		'--disable-workspace-trust',
 		`--extensions-dir=${extensionsPath}`,
 		`--user-data-dir=${userDataDir}`,
@@ -55,7 +57,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		// that there are new displays available in the CI hardware and
 		// the relevant drivers couldn't be loaded via the GPU sandbox.
 		// TODO(deepak1556): remove this switch with Electron update.
-		args.push('--use-gl=swiftshader');
+		//args.push('--use-gl=swiftshader');
 	}
 
 	if (remote) {
