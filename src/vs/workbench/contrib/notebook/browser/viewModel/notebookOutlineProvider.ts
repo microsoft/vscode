@@ -184,7 +184,8 @@ export class NotebookCellOutlineProvider {
 	}
 
 	dispose(): void {
-		// selectionListener.clear();
+		this._entries.length = 0;
+		this._activeEntry = undefined;
 		this._entriesDisposables.dispose();
 		this._dispoables.dispose();
 	}

@@ -263,22 +263,20 @@ export class SearchView extends ViewPane {
 			this._saveSearchHistoryService();
 		}));
 
-		this._register(this.storageService.onDidChangeValue((v) => {
-			if (v.key === SearchHistoryService.SEARCH_HISTORY_KEY) {
-				const restoredHistory = this.searchHistoryService.load();
+		this._register(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, SearchHistoryService.SEARCH_HISTORY_KEY, this._register(new DisposableStore()))(() => {
+			const restoredHistory = this.searchHistoryService.load();
 
-				if (restoredHistory.include) {
-					this.inputPatternIncludes.prependHistory(restoredHistory.include);
-				}
-				if (restoredHistory.exclude) {
-					this.inputPatternExcludes.prependHistory(restoredHistory.exclude);
-				}
-				if (restoredHistory.search) {
-					this.searchWidget.prependSearchHistory(restoredHistory.search);
-				}
-				if (restoredHistory.replace) {
-					this.searchWidget.prependReplaceHistory(restoredHistory.replace);
-				}
+			if (restoredHistory.include) {
+				this.inputPatternIncludes.prependHistory(restoredHistory.include);
+			}
+			if (restoredHistory.exclude) {
+				this.inputPatternExcludes.prependHistory(restoredHistory.exclude);
+			}
+			if (restoredHistory.search) {
+				this.searchWidget.prependSearchHistory(restoredHistory.search);
+			}
+			if (restoredHistory.replace) {
+				this.searchWidget.prependReplaceHistory(restoredHistory.replace);
 			}
 		}));
 	}

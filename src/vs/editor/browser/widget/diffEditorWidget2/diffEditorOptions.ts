@@ -14,13 +14,20 @@ export class DiffEditorOptions {
 
 	public get editorOptions(): IObservable<IEditorOptions, { changedOptions: IEditorOptions }> { return this._options; }
 
-	constructor(options: Readonly<IDiffEditorConstructionOptions>) {
+	constructor(options: Readonly<IDiffEditorConstructionOptions>, private readonly diffEditorWidth: IObservable<number>) {
 		const optionsCopy = { ...options, ...validateDiffEditorOptions(options, diffEditorDefaultOptions) };
 		this._options = observableValue('options', optionsCopy);
 	}
 
+	public readonly couldShowInlineViewBecauseOfSize = derived('couldShowInlineViewBecauseOfSize', reader =>
+		this._options.read(reader).renderSideBySide && this.diffEditorWidth.read(reader) <= this._options.read(reader).renderSideBySideInlineBreakpoint
+	);
+
 	public readonly renderOverviewRuler = derived('renderOverviewRuler', reader => this._options.read(reader).renderOverviewRuler);
-	public readonly renderSideBySide = derived('renderSideBySide', reader => this._options.read(reader).renderSideBySide);
+	public readonly renderSideBySide = derived('renderSideBySide', reader =>
+		this._options.read(reader).renderSideBySide
+		&& !(this._options.read(reader).useInlineViewWhenSpaceIsLimited && this.couldShowInlineViewBecauseOfSize.read(reader))
+	);
 	public readonly readOnly = derived('readOnly', reader => this._options.read(reader).readOnly);
 
 	public readonly shouldRenderRevertArrows = derived('shouldRenderRevertArrows', (reader) => {
@@ -77,6 +84,8 @@ const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
 	},
 	isInEmbeddedEditor: false,
 	onlyShowAccessibleDiffViewer: false,
+	renderSideBySideInlineBreakpoint: 900,
+	useInlineViewWhenSpaceIsLimited: true,
 };
 
 function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaults: ValidDiffEditorBaseOptions): ValidDiffEditorBaseOptions {
@@ -102,5 +111,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		},
 		isInEmbeddedEditor: validateBooleanOption(options.isInEmbeddedEditor, defaults.isInEmbeddedEditor),
 		onlyShowAccessibleDiffViewer: validateBooleanOption(options.onlyShowAccessibleDiffViewer, defaults.onlyShowAccessibleDiffViewer),
+		renderSideBySideInlineBreakpoint: clampedInt(options.renderSideBySideInlineBreakpoint, defaults.renderSideBySideInlineBreakpoint, 0, Constants.MAX_SAFE_SMALL_INTEGER),
+		useInlineViewWhenSpaceIsLimited: validateBooleanOption(options.useInlineViewWhenSpaceIsLimited, defaults.useInlineViewWhenSpaceIsLimited),
 	};
 }

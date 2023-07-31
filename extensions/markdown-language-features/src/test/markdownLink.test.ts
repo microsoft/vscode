@@ -94,25 +94,42 @@ suite('createEditAddingLinksForUriList', () => {
 			const isLink = validateLink('https://www.microsoft.com/    \r\nhttps://www.microsoft.com/\r\nhttps://www.microsoft.com/\r\n hello \r\nhttps://www.microsoft.com/').isValid;
 			assert.strictEqual(isLink, false);
 		});
+
+		test('Markdown pasting should not occur for just a valid uri scheme', () => {
+			const isLink = validateLink('https://').isValid;
+			assert.strictEqual(isLink, false);
+		});
 	});
 
 	suite('appendToLinkSnippet', () => {
 		test('Should not create Markdown link snippet when pasteAsMarkdownLink is false', () => {
-			const uri = vscode.Uri.parse('https://www.microsoft.com/');
-			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), false, 'https:/www.microsoft.com', '', uri, 0, true);
-			assert.strictEqual(snippet?.value, 'https://www.microsoft.com/');
+			const uriString = 'https://www.microsoft.com';
+			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), false, 'https:/www.microsoft.com', '', uriString, 0, true);
+			assert.strictEqual(snippet?.value, 'https://www.microsoft.com');
 		});
 
 		test('Should create Markdown link snippet when pasteAsMarkdownLink is true', () => {
-			const uri = vscode.Uri.parse('https://www.microsoft.com/');
-			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uri, 0, true);
-			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com/)');
+			const uriString = 'https://www.microsoft.com';
+			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uriString, 0, true);
+			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com)');
 		});
 
 		test('Should use an unencoded URI string in Markdown link when passing in an external browser link', () => {
-			const uri = vscode.Uri.parse('https://www.microsoft.com/');
-			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uri, 0, true);
-			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com/)');
+			const uriString = 'https://www.microsoft.com';
+			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uriString, 0, true);
+			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com)');
+		});
+
+		test('Should not decode an encoded URI string when passing in an external browser link', () => {
+			const uriString = 'https://www.microsoft.com/%20';
+			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uriString, 0, true);
+			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com/%20)');
+		});
+
+		test('Should not encode an unencoded URI string when passing in an external browser link', () => {
+			const uriString = 'https://www.example.com/path?query=value&another=value#fragment';
+			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', '', uriString, 0, true);
+			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.example.com/path?query=value&another=value#fragment)');
 		});
 	});
 
@@ -136,9 +153,22 @@ suite('createEditAddingLinksForUriList', () => {
 		};
 
 		test('Should evaluate pasteAsMarkdownLink as true for selected plain text', () => {
-			const range = new vscode.Range(0, 5, 0, 5);
+			const range = new vscode.Range(0, 0, 0, 12);
 			const smartPaste = checkSmartPaste(skinnyDocument, range);
 			assert.strictEqual(smartPaste.pasteAsMarkdownLink, true);
+		});
+
+		test('Should evaluate pasteAsMarkdownLink as false for no selection', () => {
+			const range = new vscode.Range(0, 0, 0, 0);
+			const smartPaste = checkSmartPaste(skinnyDocument, range);
+			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
+		});
+
+		test('Should evaluate pasteAsMarkdownLink as false for selected whitespace and new lines', () => {
+			skinnyDocument.getText = function () { return '   \r\n\r\n'; };
+			const range = new vscode.Range(0, 0, 0, 7);
+			const smartPaste = checkSmartPaste(skinnyDocument, range);
+			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a backtick code block', () => {

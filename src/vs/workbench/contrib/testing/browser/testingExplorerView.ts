@@ -69,7 +69,7 @@ import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingC
 import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { IActivityService, IconBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
@@ -111,6 +111,7 @@ export class TestingExplorerView extends ViewPane {
 		@ITestingProgressUiService private readonly testProgressService: ITestingProgressUiService,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -127,7 +128,8 @@ export class TestingExplorerView extends ViewPane {
 
 		this._register(testProfileService.onDidChange(() => this.updateActions()));
 		const onDidChangeTestingCountBadge = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('testing.countBadge'));
-		this._register(onDidChangeTestingCountBadge(this.renderActivityCount, this));
+		this._register(onDidChangeTestingCountBadge(this.renderActivityBadge, this));
+		this._register(crService.onDidChange(this.renderActivityBadge, this));
 	}
 
 	public override shouldShowWelcome() {
@@ -288,7 +290,7 @@ export class TestingExplorerView extends ViewPane {
 		}));
 		this._register(this.testProgressService.onCountChange((text: CountSummary) => {
 			this.countSummary = text;
-			this.renderActivityCount();
+			this.renderActivityBadge();
 		}));
 		this.testProgressService.update();
 
@@ -439,13 +441,16 @@ export class TestingExplorerView extends ViewPane {
 		}
 	}
 
-	private renderActivityCount() {
+	private renderActivityBadge() {
 		const countBadgeType = this.configurationService.getValue<TestingCountBadge>(TestingConfigKeys.CountBadge);
-		if (!this.countSummary || countBadgeType === TestingCountBadge.Off || this.countSummary[countBadgeType] === 0) {
-			this.badgeDisposable.value = undefined;
-		} else {
+		if (this.countSummary && countBadgeType !== TestingCountBadge.Off && this.countSummary[countBadgeType] !== 0) {
 			const badge = new NumberBadge(this.countSummary[countBadgeType], num => this.getLocalizedBadgeString(countBadgeType, num));
 			this.badgeDisposable.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge });
+		} else if (this.crService.isEnabled()) {
+			const badge = new IconBadge(icons.testingContinuousIsOn, () => localize('testingContinuousBadge', 'Tests are being watched for changes'));
+			this.badgeDisposable.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge });
+		} else {
+			this.badgeDisposable.value = undefined;
 		}
 	}
 
@@ -489,11 +494,11 @@ class TestingExplorerViewModel extends Disposable {
 	private readonly _viewSorting = TestingContextKeys.viewSorting.bindTo(this.contextKeyService);
 	private readonly welcomeVisibilityEmitter = new Emitter<WelcomeExperience>();
 	private readonly actionRunner = new TestExplorerActionRunner(() => this.tree.getSelection().filter(isDefined));
-	private readonly lastViewState = new StoredValue<ISerializedTestTreeCollapseState>({
+	private readonly lastViewState = this._register(new StoredValue<ISerializedTestTreeCollapseState>({
 		key: 'testing.treeState',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.MACHINE,
-	}, this.storageService);
+	}, this.storageService));
 	private readonly noTestForDocumentWidget: NoTestsForDocumentWidget;
 
 	/**
@@ -1074,17 +1079,11 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 	constructor(
 		private readonly viewModel: TestingExplorerViewModel,
-		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
 	) { }
 
 	public compare(a: TestExplorerTreeElement, b: TestExplorerTreeElement): number {
 		if (a instanceof TestTreeErrorMessage || b instanceof TestTreeErrorMessage) {
 			return (a instanceof TestTreeErrorMessage ? -1 : 0) + (b instanceof TestTreeErrorMessage ? 1 : 0);
-		}
-
-		const crDelta = +this.crService.isSpecificallyEnabledFor(b.test.item.extId) - +this.crService.isSpecificallyEnabledFor(a.test.item.extId);
-		if (crDelta !== 0) {
-			return crDelta;
 		}
 
 		const durationDelta = (b.duration || 0) - (a.duration || 0);
@@ -1303,8 +1302,9 @@ class TestItemRenderer extends Disposable
 		}));
 
 		disposable.add(this.crService.onDidChange(changed => {
-			if (templateData.current && (!changed || changed === templateData.current.test.item.extId)) {
-				this.fillActionBar(templateData.current, templateData);
+			const id = templateData.current?.test.item.extId;
+			if (id && (!changed || changed === id || TestId.isChild(id, changed))) {
+				this.fillActionBar(templateData.current!, templateData);
 			}
 		}));
 
@@ -1328,7 +1328,9 @@ class TestItemRenderer extends Disposable
 
 	private fillActionBar(element: TestItemTreeElement, data: ITestElementTemplateData) {
 		const { actions, contextOverlay } = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.crService, this.profiles, element);
-		data.actionBar.domNode.classList.toggle('testing-is-continuous-run', !!contextOverlay.getContextKeyValue(TestingContextKeys.isContinuousModeOn.key));
+		const crSelf = !!contextOverlay.getContextKeyValue(TestingContextKeys.isContinuousModeOn.key);
+		const crChild = !crSelf && this.crService.isEnabledForAChildOf(element.test.item.extId);
+		data.actionBar.domNode.classList.toggle('testing-is-continuous-run', crSelf || crChild);
 		data.actionBar.clear();
 		data.actionBar.context = element;
 		data.actionBar.push(actions.primary, { icon: true, label: false });
