@@ -3118,6 +3118,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		const activeTasks = await this.getActiveTasks();
 
+		if (activeTasks.length === 1) {
+			this._restart(activeTasks[0]);
+			return;
+		}
+
 		if (this.inTerminal()) {
 			// try dispatching using task identifier
 			const identifier = this._getTaskIdentifier(arg);
