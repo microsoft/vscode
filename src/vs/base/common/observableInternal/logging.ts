@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AutorunObserver } from 'vs/base/common/observableImpl/autorun';
-import { IObservable, ObservableValue, TransactionImpl } from 'vs/base/common/observableImpl/base';
-import { Derived } from 'vs/base/common/observableImpl/derived';
-import { FromEventObservable } from 'vs/base/common/observableImpl/utils';
+import { AutorunObserver } from 'vs/base/common/observableInternal/autorun';
+import { IObservable, ObservableValue, TransactionImpl } from 'vs/base/common/observableInternal/base';
+import { Derived } from 'vs/base/common/observableInternal/derived';
+import { FromEventObservable } from 'vs/base/common/observableInternal/utils';
 
 let globalObservableLogger: IObservableLogger | undefined;
 

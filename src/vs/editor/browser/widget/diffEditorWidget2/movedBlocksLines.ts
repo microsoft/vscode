@@ -27,7 +27,8 @@ export class MovedBlocksLinesPart extends Disposable {
 		element.setAttribute('class', 'moved-blocks-lines');
 		this._rootElement.appendChild(element);
 
-		this._register(autorun('update', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update */
 			const info = this._originalEditorLayoutInfo.read(reader);
 			const info2 = this._modifiedEditorLayoutInfo.read(reader);
 			if (!info || !info2) {
@@ -43,7 +44,8 @@ export class MovedBlocksLinesPart extends Disposable {
 		const modifiedScrollTop = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
 		const viewZonesChanged = observableSignalFromEvent('onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
 
-		this._register(autorun('update', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update */
 			element.replaceChildren();
 			viewZonesChanged.read(reader);
 

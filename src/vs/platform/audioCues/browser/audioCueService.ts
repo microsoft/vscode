@@ -119,7 +119,8 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			),
 			() => this.configurationService.getValue<'on' | 'off' | 'auto'>(cue.settingsKey)
 		);
-		return derived('audio cue enabled', reader => {
+		return derived(reader => {
+			/** @description audio cue enabled */
 			const setting = settingObservable.read(reader);
 			if (
 				setting === 'on' ||
