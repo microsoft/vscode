@@ -151,7 +151,7 @@ export async function createEditAddingLinksForUriList(
 
 export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range): SmartPaste {
 	const SmartPaste: SmartPaste = { pasteAsMarkdownLink: true, updateTitle: false };
-	if (selectedRange.isEmpty || /^[\s\n]*$/.test(document.getText(selectedRange))) {
+	if (selectedRange.isEmpty || /^[\s\n]*$/.test(document.getText(selectedRange)) || validateLink(document.getText(selectedRange)).isValid) {
 		return { pasteAsMarkdownLink: false, updateTitle: false };
 	}
 	for (const regex of smartPasteRegexes) {
@@ -168,6 +168,22 @@ export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vsc
 		}
 	}
 	return SmartPaste;
+}
+
+export function validateLink(urlList: string): { isValid: boolean; cleanedUrlList: string } {
+	let isValid = false;
+	let uri = undefined;
+	const trimmedUrlList = urlList?.trim(); //remove leading and trailing whitespace and new lines
+	try {
+		uri = vscode.Uri.parse(trimmedUrlList);
+	} catch (error) {
+		return { isValid: false, cleanedUrlList: urlList };
+	}
+	const splitUrlList = trimmedUrlList.split(' ').filter(item => item !== ''); //split on spaces and remove empty strings
+	if (uri) {
+		isValid = splitUrlList.length === 1 && !splitUrlList[0].includes('\n') && externalUriSchemes.includes(vscode.Uri.parse(splitUrlList[0]).scheme);
+	}
+	return { isValid, cleanedUrlList: splitUrlList[0] };
 }
 
 export async function tryGetUriListSnippet(document: SkinnyTextDocument, urlList: String, token: vscode.CancellationToken, title = '', placeHolderValue = 0, pasteAsMarkdownLink = true, isExternalLink = false): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
