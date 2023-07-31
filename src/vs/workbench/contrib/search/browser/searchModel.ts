@@ -2024,7 +2024,13 @@ export class SearchModel extends Disposable {
 		tokenSource.dispose();
 		const searchLength = Date.now() - searchStart;
 		this.logService.trace(`whole search time | ${searchLength}ms`);
-		return notebookResult ? { ...currentResult, ...notebookResult.completeData } : currentResult;
+		return {
+			results: currentResult.results.concat(notebookResult.completeData.results),
+			messages: currentResult.messages.concat(notebookResult.completeData.messages),
+			limitHit: currentResult.limitHit || notebookResult.completeData.limitHit,
+			exit: currentResult.exit,
+			stats: currentResult.stats,
+		};
 	}
 
 	async search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
