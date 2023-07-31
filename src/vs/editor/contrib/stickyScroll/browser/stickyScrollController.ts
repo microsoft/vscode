@@ -222,7 +222,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 			console.log('after first if check');
 			const targetMouseEvent = e.target;
-			if (e.ctrlKey && targetMouseEvent && targetMouseEvent instanceof HTMLElement && targetMouseEvent.innerText === targetMouseEvent.innerHTML) {
+			console.log('e.metaKey : ', e.metaKey);
+			console.log('targetMouseEvent : ', targetMouseEvent);
+			if (e.metaKey && targetMouseEvent && targetMouseEvent instanceof HTMLElement && targetMouseEvent.innerText === targetMouseEvent.innerHTML) {
 				console.log('entered into the first if statement');
 				const text = targetMouseEvent.innerText;
 				if (this._stickyScrollWidget.hoverOnColumn === -1) {
