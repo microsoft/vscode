@@ -210,7 +210,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _navigationDisposables(): IDisposable {
 
 		let shiftPressed = false;
-		let endLineChanged = false;
 		const store = new DisposableStore();
 		const sessionStore = new DisposableStore();
 		store.add(sessionStore);
@@ -281,7 +280,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				const startHoverOnLine = indexHoverOnLine > -1 ? this._startLineNumbers[indexHoverOnLine] : this._stickyScrollWidget.hoverOnLine;
 				console.log('startHoverOnLine : ', startHoverOnLine);
 				shiftPressed = true;
-				endLineChanged = true;
 				console.log('mouse move and shift key');
 				this._renderStickyScroll(startHoverOnLine);
 			} else {
@@ -300,9 +298,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_OUT, (e) => {
 			console.log('mouse out');
 			console.log('e : ', e);
-			if (endLineChanged) {
-				endLineChanged = false;
-			} else {
+
+			const stickyScrollWidgetDom = this._stickyScrollWidget.getDomNode();
+			const domRect = stickyScrollWidgetDom.getBoundingClientRect();
+			const clientX = e.clientX;
+			const clientY = e.clientY;
+
+			if (clientX <= domRect.left || clientX >= domRect.right || clientY <= domRect.top || clientY >= domRect.bottom) {
+				console.log('inside of sticky scroll');
 				this._stickyScrollWidget.getDomNode().style.cursor = 'default';
 				this._renderStickyScroll();
 			}
