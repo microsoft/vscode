@@ -26,7 +26,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getNotificationFromContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
-import { IAccessibleViewService, AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IAccessibleViewService, AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 
@@ -245,12 +245,12 @@ class AccessibleViewNavigatorContribution extends Disposable {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			accessibleViewService.next();
 			return true;
-		}, accessibleViewIsShown));
+		}));
 		this._register(AccessibleViewPreviousAction.addImplementation(95, 'previous', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			accessibleViewService.previous();
 			return true;
-		}, accessibleViewIsShown));
+		}));
 	}
 }
 
