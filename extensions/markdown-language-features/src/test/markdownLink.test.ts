@@ -94,6 +94,11 @@ suite('createEditAddingLinksForUriList', () => {
 			const isLink = validateLink('https://www.microsoft.com/    \r\nhttps://www.microsoft.com/\r\nhttps://www.microsoft.com/\r\n hello \r\nhttps://www.microsoft.com/').isValid;
 			assert.strictEqual(isLink, false);
 		});
+
+		test('Markdown pasting should not occur for just a valid uri scheme', () => {
+			const isLink = validateLink('https://').isValid;
+			assert.strictEqual(isLink, false);
+		});
 	});
 
 	suite('appendToLinkSnippet', () => {

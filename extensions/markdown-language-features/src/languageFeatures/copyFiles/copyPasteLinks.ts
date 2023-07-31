@@ -57,7 +57,7 @@ export function validateLink(urlList: string): { isValid: boolean; cleanedUrlLis
 	}
 	const splitUrlList = trimmedUrlList.split(' ').filter(item => item !== ''); //split on spaces and remove empty strings
 	if (uri) {
-		isValid = splitUrlList.length === 1 && !splitUrlList[0].includes('\n') && externalUriSchemes.includes(vscode.Uri.parse(splitUrlList[0]).scheme);
+		isValid = splitUrlList.length === 1 && !splitUrlList[0].includes('\n') && externalUriSchemes.includes(vscode.Uri.parse(splitUrlList[0]).scheme) && !!vscode.Uri.parse(splitUrlList[0]).authority;
 	}
 	return { isValid, cleanedUrlList: splitUrlList[0] };
 }
