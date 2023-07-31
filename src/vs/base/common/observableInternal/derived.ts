@@ -5,11 +5,15 @@
 
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IReader, IObservable, BaseObservable, IObserver, _setDerived, IChangeContext } from 'vs/base/common/observableImpl/base';
-import { getLogger } from 'vs/base/common/observableImpl/logging';
+import { IReader, IObservable, BaseObservable, IObserver, _setDerived, IChangeContext, getFunctionName } from 'vs/base/common/observableInternal/base';
+import { getLogger } from 'vs/base/common/observableInternal/logging';
 
-export function derived<T>(debugName: string | (() => string), computeFn: (reader: IReader) => T): IObservable<T> {
+export function derived<T>(computeFn: (reader: IReader) => T, debugName?: string | (() => string)): IObservable<T> {
 	return new Derived(debugName, computeFn, undefined, undefined, undefined);
+}
+
+export function derivedOpts<T>(options: { debugName?: string | (() => string) }, computeFn: (reader: IReader) => T): IObservable<T> {
+	return new Derived(options.debugName, computeFn, undefined, undefined, undefined);
 }
 
 export function derivedHandleChanges<T, TChangeSummary>(
@@ -63,11 +67,14 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	private changeSummary: TChangeSummary | undefined = undefined;
 
 	public override get debugName(): string {
+		if (!this._debugName) {
+			return getFunctionName(this.computeFn) || '(anonymous)';
+		}
 		return typeof this._debugName === 'function' ? this._debugName() : this._debugName;
 	}
 
 	constructor(
-		private readonly _debugName: string | (() => string),
+		private readonly _debugName: string | (() => string) | undefined,
 		private readonly computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
 		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
 		private readonly _handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
