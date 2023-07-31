@@ -205,8 +205,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private _createInteractionListeners(): IDisposable {
-
-		let shiftKeyPressed = false;
 		const stickyScrollWidgetDomNode = this._stickyScrollWidget.getDomNode();
 		const store = new DisposableStore();
 		const sessionStore = new DisposableStore();
@@ -264,7 +262,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					}
 				}));
 			} else if (e.shiftKey) {
-				shiftKeyPressed = true;
 				const shiftIndex = this._stickyScrollWidget.hoverOnIndex;
 				if (this._shiftIndex === undefined || this._shiftIndex !== shiftIndex) {
 					this._shiftIndex = shiftIndex;
@@ -272,14 +269,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				}
 			} else {
 				this._shiftIndex = undefined;
-				if (shiftKeyPressed) {
-					this._renderStickyScroll();
-					shiftKeyPressed = false;
-				}
 				sessionStore.clear();
 			}
 		}));
-		store.add(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_OVER, (e) => {
+		store.add(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_OVER, () => {
 			stickyScrollWidgetDomNode.style.cursor = 'pointer';
 		}));
 		store.add(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_OUT, (e) => {
@@ -295,9 +288,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		store.add(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_UP, (e) => {
 			if (e.metaKey) {
 				sessionStore.clear();
-			}
-			if (e.shiftKey) {
-				this._renderStickyScroll();
 			}
 		}));
 		store.add(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_DOWN, (e) => {
