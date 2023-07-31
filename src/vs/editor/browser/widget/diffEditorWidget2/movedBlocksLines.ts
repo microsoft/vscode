@@ -28,7 +28,7 @@ export class MovedBlocksLinesPart extends Disposable {
 		this._rootElement.appendChild(element);
 
 		this._register(autorun(reader => {
-			/** @description update */
+			/** @description update moved blocks lines positioning */
 			const info = this._originalEditorLayoutInfo.read(reader);
 			const info2 = this._modifiedEditorLayoutInfo.read(reader);
 			if (!info || !info2) {
@@ -45,8 +45,14 @@ export class MovedBlocksLinesPart extends Disposable {
 		const viewZonesChanged = observableSignalFromEvent('onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
 
 		this._register(autorun(reader => {
-			/** @description update */
 			element.replaceChildren();
+
+			/** @description update moved blocks lines */
+			const moves = this._diffModel.read(reader)?.diff.read(reader)?.movedTexts;
+			if (!moves) {
+				return;
+			}
+
 			viewZonesChanged.read(reader);
 
 			const info = this._originalEditorLayoutInfo.read(reader);
@@ -55,11 +61,6 @@ export class MovedBlocksLinesPart extends Disposable {
 				return;
 			}
 			const width = info.verticalScrollbarWidth + info.contentLeft - MovedBlocksLinesPart.movedCodeBlockPadding;
-
-			const moves = this._diffModel.read(reader)?.diff.read(reader)?.movedTexts;
-			if (!moves) {
-				return;
-			}
 
 			let idx = 0;
 			for (const m of moves) {
