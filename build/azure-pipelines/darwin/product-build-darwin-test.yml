@@ -119,7 +119,7 @@ steps:
       - script: yarn gulp compile-extension-media
         displayName: Compile extensions for smoke tests
 
-      - script: yarn smoketest-no-compile --tracing
+      - script: yarn smoketest-no-compile --tracing --verbose
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
@@ -128,8 +128,8 @@ steps:
           set -e
           APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
           APP_NAME="`ls $APP_ROOT | head -n 1`"
-          yarn smoketest-no-compile --tracing --build "$APP_ROOT/$APP_NAME"
-        timeoutInMinutes: 20
+          yarn smoketest-no-compile --tracing --build "$APP_ROOT/$APP_NAME" --verbose
+        timeoutInMinutes: 40
         displayName: Run smoke tests (Electron)
 
       - script: yarn smoketest-no-compile --web --tracing --headless

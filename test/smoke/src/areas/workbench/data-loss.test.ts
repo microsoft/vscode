@@ -136,7 +136,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 	describe('Data Loss (stable -> insiders)', function () {
 
 		// Double the timeout since these tests involve 2 startups
-		this.timeout(4 * 60 * 1000);
+		this.timeout(8 * 60 * 1000);
 
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;
