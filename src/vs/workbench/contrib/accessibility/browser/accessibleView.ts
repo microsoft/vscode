@@ -71,7 +71,6 @@ export interface IAccessibleViewOptions {
 	type: AccessibleViewType;
 }
 
-
 class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
 	private _accessiblityHelpIsShown: IContextKey<boolean>;
