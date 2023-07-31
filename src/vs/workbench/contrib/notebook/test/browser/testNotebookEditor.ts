@@ -135,6 +135,14 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		return this._dirty;
 	}
 
+	get hasErrorState() {
+		return false;
+	}
+
+	get hasConflictState() {
+		return false;
+	}
+
 	isModified(): boolean {
 		return this._dirty;
 	}
