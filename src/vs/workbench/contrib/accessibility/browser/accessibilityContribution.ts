@@ -10,7 +10,10 @@ import { Command, MultiCommand } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
+export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
@@ -48,7 +51,7 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.InlineChat]: {
-			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints which describe how to use the feature when the input is focused'),
+			description: localize('verbosity.interactiveEditor.description', 'Provide information /Users/meganrogge/Repos/vscode/vscode/src/vs/workbench/contrib/codeEditor/browser/accessibility/accessibility.tsabout how to access the inline editor chat accessibility help menu and alert with hints which describe how to use the feature when the input is focused'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
