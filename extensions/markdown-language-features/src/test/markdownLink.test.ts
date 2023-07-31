@@ -102,6 +102,18 @@ suite('createEditAddingLinksForUriList', () => {
 	});
 
 	suite('appendToLinkSnippet', () => {
+		test('Should create auto link when pasted link has an mismatched parentheses', () => {
+			const uriString = 'https://www.mic(rosoft.com';
+			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), false, 'https:/www.microsoft.com', '', uriString, 0, true);
+			assert.strictEqual(snippet?.value, '<https://www.mic(rosoft.com>');
+		});
+
+		test('Should create snippet with < > when pasted link has an mismatched parentheses', () => {
+			const uriString = 'https://www.mic(rosoft.com';
+			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), true, 'https:/www.microsoft.com', 'abc', uriString, 0, true);
+			assert.strictEqual(snippet?.value, '[${0:abc}](<https://www.mic(rosoft.com>)');
+		});
+
 		test('Should not create Markdown link snippet when pasteAsMarkdownLink is false', () => {
 			const uriString = 'https://www.microsoft.com';
 			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), false, 'https:/www.microsoft.com', '', uriString, 0, true);
