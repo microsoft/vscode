@@ -210,13 +210,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _navigationDisposables(): IDisposable {
 
 		let shiftPressed = false;
+		let endLineChanged = false;
 		const store = new DisposableStore();
 		const sessionStore = new DisposableStore();
 		store.add(sessionStore);
 		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_MOVE, (e) => {
 			console.log('inside of mouse move');
 			console.log('e : ', e);
-			if (!this._editor.hasModel() || !e.metaKey && !e.shiftKey) {
+			if (!this._editor.hasModel()) {
 				sessionStore.clear();
 				return;
 			}
@@ -280,9 +281,12 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				const startHoverOnLine = indexHoverOnLine > -1 ? this._startLineNumbers[indexHoverOnLine] : this._stickyScrollWidget.hoverOnLine;
 				console.log('startHoverOnLine : ', startHoverOnLine);
 				shiftPressed = true;
+				endLineChanged = true;
+				console.log('mouse move and shift key');
 				this._renderStickyScroll(startHoverOnLine);
 			} else {
 				if (shiftPressed) {
+					console.log('mouse move and shift pressed');
 					this._renderStickyScroll();
 					shiftPressed = false;
 				}
@@ -290,7 +294,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 		}));
 		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_OUT, (e) => {
-			this._renderStickyScroll();
+			console.log('mouse out');
+			console.log('e : ', e);
+			if (endLineChanged) {
+				endLineChanged = false;
+			} else {
+				this._renderStickyScroll();
+			}
 		}));
 		store.add(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_UP, (e) => {
 			console.log('inside of mouse up');
@@ -299,7 +309,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				sessionStore.clear();
 			}
 			if (e.shiftKey) {
-				console.log('when shift key is pressed');
+				console.log('mouse up when shift key is pressed');
 				this._renderStickyScroll();
 			}
 		}));
@@ -322,10 +332,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
 				}
-				const index = this._startLineNumbers.indexOf(this._stickyScrollWidget.hoverOnLine);
-				if (index !== -1) {
-					this._revealLineInCenterIfOutsideViewport({ lineNumber: this._endLineNumbers[index] + 1, column: this._stickyScrollWidget.hoverOnColumn });
-				}
+				const indexHoverOnLine = this._startLineNumbers.indexOf(this._stickyScrollWidget.hoverOnLine);
+				const endHoverOnLine = indexHoverOnLine > -1 ? this._endLineNumbers[indexHoverOnLine] : this._stickyScrollWidget.hoverOnLine;
+				this._revealLineInCenterIfOutsideViewport({ lineNumber: endHoverOnLine, column: 0 });
 			} else {
 				console.log('when normal click');
 				// Normal click
@@ -358,16 +367,25 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		} else if (options.enabled && !this._enabled) {
 			// When sticky scroll was just enabled, add the listeners on the sticky scroll
 			this._editor.addOverlayWidget(this._stickyScrollWidget);
-			this._sessionStore.add(this._editor.onDidScrollChange(() => this._renderStickyScroll()));
+			this._sessionStore.add(this._editor.onDidScrollChange(() => {
+				console.log('on scroll change');
+				this._renderStickyScroll();
+			}));
 			this._sessionStore.add(this._editor.onDidLayoutChange(() => this._onDidResize()));
 			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this._onTokensChange(e)));
-			this._sessionStore.add(this._stickyLineCandidateProvider.onDidChangeStickyScroll(() => this._renderStickyScroll()));
+			this._sessionStore.add(this._stickyLineCandidateProvider.onDidChangeStickyScroll(() => {
+				console.log('on did change sticky scroll');
+				this._renderStickyScroll();
+			}));
 			this._enabled = true;
 		}
 
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 		if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
-			this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => this._renderStickyScroll()));
+			this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => {
+				console.log('on did change cursor position');
+				this._renderStickyScroll();
+			}));
 		}
 	}
 
@@ -385,6 +403,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _onTokensChange(event: IModelTokensChangedEvent) {
 		if (this._needsUpdate(event)) {
+			console.log('on tokens change');
 			this._renderStickyScroll();
 		}
 	}
@@ -399,6 +418,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private _renderStickyScroll(showEndForLine?: number) {
+		console.log('inside of _renderStickScroll');
 		console.log('showEndForLine : ', showEndForLine);
 		if (!(this._editor.hasModel())) {
 			return;
