@@ -133,7 +133,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		}
 	});
 
-	describe.only('Data Loss (stable -> insiders)', function () {
+	describe('Data Loss (stable -> insiders)', function () {
 
 		// Double the timeout since these tests involve 2 startups
 		this.timeout(4 * 60 * 1000);
@@ -145,7 +145,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		installDiagnosticsHandler(logger, () => insidersApp ?? stableApp);
 		installAppAfterHandler(() => insidersApp ?? stableApp, async () => stableApp?.stop());
 
-		it('verifies opened editors are restored', async function () {
+		it.only('verifies opened editors are restored', async function () {
 			const stableCodePath = ensureStableCode();
 			if (!stableCodePath) {
 				this.skip();
@@ -156,9 +156,9 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			// so it can take a very long time. as such we install
 			// a retry handler to make sure we do not fail as a
 			// consequence.
-			if (process.platform === 'darwin') {
-				this.retries(2);
-			}
+			// if (process.platform === 'darwin') {
+			// 	this.retries(2);
+			// }
 
 			const userDataDir = getRandomUserDataDir(this.defaultOptions);
 			const logsPath = suiteLogsPath(this.defaultOptions, 'test_verifies_opened_editors_are_restored_from_stable');

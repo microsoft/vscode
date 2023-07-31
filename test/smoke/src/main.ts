@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+process.env.DEBUG = 'pw:api';
+
 import * as fs from 'fs';
 import { gracefulify } from 'graceful-fs';
 import * as cp from 'child_process';
