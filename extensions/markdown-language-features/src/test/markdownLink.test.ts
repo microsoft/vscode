@@ -170,6 +170,12 @@ suite('createEditAddingLinksForUriList', () => {
 			assert.strictEqual(pasteAsMarkdownLink, false);
 		});
 
+		test('Should evaluate pasteAsMarkdownLink as true for a link pasted in square brackets', () => {
+			skinnyDocument.getText = function () { return '[abc]'; };
+			const pasteAsMarkdownLink = checkSmartPaste(skinnyDocument, new vscode.Range(0, 1, 0, 4), new vscode.Range(0, 1, 0, 4));
+			assert.strictEqual(pasteAsMarkdownLink, true);
+		});
+
 		test('Should evaluate pasteAsMarkdownLink as false for no selection', () => {
 			const pasteAsMarkdownLink = checkSmartPaste(skinnyDocument, new vscode.Range(0, 0, 0, 0), new vscode.Range(0, 0, 0, 0));
 			assert.strictEqual(pasteAsMarkdownLink, false);
