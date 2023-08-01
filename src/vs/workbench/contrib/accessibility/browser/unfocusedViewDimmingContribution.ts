@@ -34,9 +34,15 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 				opacity = clamp(opacityConfig, 0.2, 1);
 			}
 
+			const filterRule = `filter: opacity(${opacity});`;
 			const rules = new Set<string>();
-			rules.add(`.monaco-workbench .terminal.xterm:not(.focus) { filter: opacity(${opacity}); }`);
-			rules.add(`.monaco-workbench .editor-instance .monaco-editor:not(.focused) { filter: opacity(${opacity}); }`);
+
+			// Terminal tabs
+			rules.add(`.monaco-workbench .pane-body.integrated-terminal:not(:focus-within) .tabs-container { ${filterRule} }`);
+			// Terminals
+			rules.add(`.monaco-workbench .pane-body.integrated-terminal .xterm:not(.focus) { ${filterRule} }`);
+			// Editors
+			rules.add(`.monaco-workbench .editor-instance .monaco-editor:not(.focused) { ${filterRule} }`);
 
 			elStyle.textContent = [...rules].join('\n');
 		}));
