@@ -63,9 +63,7 @@ export const mediaMimes = new Set([
 ]);
 
 const smartPasteRegexes = [
-	{ regex: /\[.*\]\(.*\)/g, isMarkdownLink: true, isInline: true }, // Is a Markdown Link
-	{ regex: /!\[.*\]\(.*\)/g, isMarkdownLink: true, isInline: true }, // Is a Markdown Image Link
-	{ regex: /\[([^\]]*)\]\(([^)]*)\)/g, isMarkdownLink: false, isInline: true }, // In a Markdown link
+	{ regex: /(\[[^\[\]]*](?:\([^\(\)]*\)|\[[^\[\]]*]))/g, isMarkdownLink: false, isInline: true }, // In a Markdown link
 	{ regex: /^```[\s\S]*?```$/gm, isMarkdownLink: false, isInline: false }, // In a backtick fenced code block
 	{ regex: /^~~~[\s\S]*?~~~$/gm, isMarkdownLink: false, isInline: false }, // In a tildefenced code block
 	{ regex: /^\$\$[\s\S]*?\$\$$/gm, isMarkdownLink: false, isInline: false }, // In a fenced math block
@@ -77,15 +75,6 @@ export interface SkinnyTextDocument {
 	offsetAt(position: vscode.Position): number;
 	getText(range?: vscode.Range): string;
 	readonly uri: vscode.Uri;
-}
-
-export interface SmartPaste {
-
-	/**
-	 * `true` if the link is not being pasted within a markdown link, code, or math.
-	 */
-	pasteAsMarkdownLink: boolean;
-
 }
 
 export enum PasteUrlAsFormattedLink {
@@ -146,6 +135,9 @@ export async function createEditAddingLinksForUriList(
 
 export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range, range: vscode.Range): boolean {
 	if (selectedRange.isEmpty || /^[\s\n]*$/.test(document.getText(range)) || validateLink(document.getText(range)).isValid) {
+		return false;
+	}
+	if (/\[.*\]\(.*\)/.test(document.getText(range)) || /!\[.*\]\(.*\)/.test(document.getText(range))) {
 		return false;
 	}
 	for (const regex of smartPasteRegexes) {
