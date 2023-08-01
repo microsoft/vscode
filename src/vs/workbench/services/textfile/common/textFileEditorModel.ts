@@ -1157,7 +1157,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	//#endregion
 
 	private trace(msg: string): void {
-		this.logService.trace(`[text file model] ${msg}`, this.resource.toString());
+		this.logService.info(`[text file model] ${msg}`, this.resource.toString());
 	}
 
 	override isResolved(): this is IResolvedTextFileEditorModel {

@@ -126,6 +126,8 @@ export class NativeWindow extends Disposable {
 	) {
 		super();
 
+		logService.info('workbench#Window');
+
 		this.registerListeners();
 		this.create();
 	}

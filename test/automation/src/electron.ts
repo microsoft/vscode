@@ -32,6 +32,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		'--disable-keytar',
 		`--crash-reporter-directory=${crashesPath}`,
 		'--disable-background-timer-throttling',
+		`--disable-backgrounding-occluded-windows`,
 		'--disable-workspace-trust',
 		`--extensions-dir=${extensionsPath}`,
 		`--user-data-dir=${userDataDir}`,

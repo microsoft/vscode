@@ -154,6 +154,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	) {
 		super(themeService);
 
+		logService.info('workbench#EditorGroupView');
+
 		if (from instanceof EditorGroupView) {
 			this.model = this._register(from.model.clone());
 		} else if (isSerializedEditorGroupModel(from)) {
