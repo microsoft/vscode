@@ -160,12 +160,13 @@ var AMDLoader;
 			return /^((http:\/\/)|(https:\/\/)|(file:\/\/)|(\/))/.test(url);
 		}
 		static forEachProperty(obj, callback) {
-			if (obj) {
-				let key;
-				for (key in obj) {
-					if (obj.hasOwnProperty(key)) {
-						callback(key, obj[key]);
-					}
+			if (!obj) {
+				return;
+			}
+
+			for (let key in obj) {
+				if (Object.prototype.hasOwnProperty.call(obj, key)) {
+					callback(key, obj[key]);
 				}
 			}
 		}
