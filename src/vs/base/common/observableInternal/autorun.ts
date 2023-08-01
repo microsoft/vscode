@@ -100,7 +100,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 			const name = this._debugName();
 			if (name !== undefined) { return name; }
 		}
-		const name = getFunctionName(this.runFn);
+		const name = getFunctionName(this._runFn);
 		if (name !== undefined) { return name; }
 
 		return '(anonymous)';
@@ -108,7 +108,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 
 	constructor(
 		private readonly _debugName: string | (() => string | undefined) | undefined,
-		private readonly runFn: (reader: IReader, changeSummary: TChangeSummary) => void,
+		public readonly _runFn: (reader: IReader, changeSummary: TChangeSummary) => void,
 		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
 		private readonly _handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
 	) {
@@ -141,7 +141,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 				getLogger()?.handleAutorunTriggered(this);
 				const changeSummary = this.changeSummary!;
 				this.changeSummary = this.createChangeSummary?.();
-				this.runFn(this, changeSummary);
+				this._runFn(this, changeSummary);
 			}
 		} finally {
 			getLogger()?.handleAutorunFinished(this);
