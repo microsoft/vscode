@@ -106,7 +106,7 @@ registerAction2(class extends Action2 {
 				editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
 					options: <GettingStartedEditorOptions>{ selectedCategory: selectedCategory, selectedStep: selectedStep, preserveFocus: toSide ?? false }
-				}, toSide ? SIDE_GROUP : undefined);
+				});
 			}
 		} else {
 			editorService.openEditor({ resource: GettingStartedInput.RESOURCE });
