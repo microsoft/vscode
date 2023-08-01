@@ -46,7 +46,7 @@ export class EncryptionMainService implements IEncryptionMainService {
 		try {
 			parsedValue = JSON.parse(value);
 			if (!parsedValue.data) {
-				throw new Error(`[EncryptionMainService] Invalid encrypted valu: ${value}`);
+				throw new Error(`[EncryptionMainService] Invalid encrypted value: ${value}`);
 			}
 			const bufferToDecrypt = Buffer.from(parsedValue.data);
 
