@@ -29,6 +29,7 @@ import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { IAccessibleViewService, AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { UnfocusedViewDimmingContribution } from 'vs/workbench/contrib/accessibility/browser/unfocusedViewDimmingContribution';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
@@ -101,6 +102,7 @@ class EditorAccessibilityHelpContribution extends Disposable {
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(EditorAccessibilityHelpContribution, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(UnfocusedViewDimmingContribution, LifecyclePhase.Restored);
 
 
 
