@@ -31,6 +31,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		'--disable-updates',
 		'--disable-keytar',
 		'--no-sandbox',
+		'--disable-background-timer-throttling',
 		'--disable-gpu',
 		// `--crash-reporter-directory=${crashesPath}`,
 		'--disable-workspace-trust',
@@ -57,7 +58,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		// that there are new displays available in the CI hardware and
 		// the relevant drivers couldn't be loaded via the GPU sandbox.
 		// TODO(deepak1556): remove this switch with Electron update.
-		//args.push('--use-gl=swiftshader');
+		args.push('--use-gl=swiftshader');
 	}
 
 	if (remote) {

@@ -212,7 +212,6 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			await insidersApp.stop();
 			logger.log('??? 11');
 
-
 			insidersApp = undefined;
 		});
 
