@@ -89,7 +89,7 @@ export class ChatRequestModel implements IChatRequestModel {
 }
 
 
-type ResponsePart = { string: IMarkdownString; resolving?: boolean } | { treeData: IChatResponseProgressFileTreeData; resolving?: undefined };
+type ResponsePart = { string: IMarkdownString; resolving?: boolean } | { treeData: IChatResponseProgressFileTreeData; resolving?: boolean };
 export class Response implements IResponse {
 	private _onDidChangeValue = new Emitter<void>();
 	public get onDidChangeValue() {
@@ -138,16 +138,16 @@ export class Response implements IResponse {
 			this._updateRepr(quiet);
 		} else if ('placeholder' in responsePart) {
 			// Add a new resolving part
-			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), resolving: true });
+			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), resolving: true }) - 1;
 			this._updateRepr(quiet);
 
 			responsePart.resolvedContent?.then((content) => {
 				// Replace the resolving part's content with the resolved response
 				if (typeof content === 'string') {
-					this._responseParts[responsePosition] = { string: new MarkdownString(content) };
+					this._responseParts[responsePosition] = { string: new MarkdownString(content), resolving: true };
 					this._updateRepr(quiet);
 				} else if (content.treeData) {
-					this._responseParts[responsePosition] = { treeData: content.treeData };
+					this._responseParts[responsePosition] = { treeData: content.treeData, resolving: true };
 					this._updateRepr(quiet);
 				}
 			});
@@ -167,7 +167,7 @@ export class Response implements IResponse {
 				return '';
 			}
 			return part.string.value;
-		}).join('\n');
+		}).join('\n\n');
 
 		if (!quiet) {
 			this._onDidChangeValue.fire();
@@ -466,7 +466,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (obj.welcomeMessage) {
 			const content = obj.welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item);
-			this._welcomeMessage = new ChatWelcomeMessageModel(content, obj.responderUsername, obj.responderAvatarIconUri && URI.revive(obj.responderAvatarIconUri));
+			this._welcomeMessage = new ChatWelcomeMessageModel(this, content);
 		}
 
 		return requests.map((raw: ISerializableChatRequestData) => {
@@ -677,7 +677,18 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 		return this._id;
 	}
 
-	constructor(public readonly content: IChatWelcomeMessageContent[], public readonly username: string, public readonly avatarIconUri?: URI) {
+	constructor(
+		private readonly session: ChatModel,
+		public readonly content: IChatWelcomeMessageContent[],
+	) {
 		this._id = 'welcome_' + ChatWelcomeMessageModel.nextId++;
+	}
+
+	public get username(): string {
+		return this.session.responderUsername;
+	}
+
+	public get avatarIconUri(): URI | undefined {
+		return this.session.responderAvatarIconUri;
 	}
 }

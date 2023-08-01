@@ -6,9 +6,7 @@
 import { mapFind } from 'vs/base/common/arrays';
 import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, derived, keepAlive, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
-import { subtransaction } from 'vs/base/common/observableImpl/base';
-import { derivedHandleChanges } from 'vs/base/common/observableImpl/derived';
+import { IObservable, ITransaction, autorun, derived, derivedHandleChanges, keepAlive, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -63,7 +61,8 @@ export class InlineCompletionsModel extends Disposable {
 		this._register(keepAlive(this._fetchInlineCompletions, true));
 
 		let lastItem: InlineCompletionWithUpdatedRange | undefined = undefined;
-		this._register(autorun('call handleItemDidShow', reader => {
+		this._register(autorun(reader => {
+			/** @description call handleItemDidShow */
 			const item = this.state.read(reader);
 			const completion = item?.inlineCompletion;
 			if (completion?.semanticId !== lastItem?.semanticId) {
@@ -150,7 +149,8 @@ export class InlineCompletionsModel extends Disposable {
 		});
 	}
 
-	private readonly _filteredInlineCompletionItems = derived('filteredInlineCompletionItems', (reader) => {
+	private readonly _filteredInlineCompletionItems = derived(reader => {
+		/** @description _filteredInlineCompletionItems */
 		const c = this._source.inlineCompletions.read(reader);
 		if (!c) { return []; }
 		const cursorPosition = this.cursorPosition.read(reader);
@@ -158,7 +158,8 @@ export class InlineCompletionsModel extends Disposable {
 		return filteredCompletions;
 	});
 
-	public readonly selectedInlineCompletionIndex = derived<number>('selectedCachedCompletionIndex', (reader) => {
+	public readonly selectedInlineCompletionIndex = derived<number>((reader) => {
+		/** @description selectedInlineCompletionIndex */
 		const selectedInlineCompletionId = this._selectedInlineCompletionId.read(reader);
 		const filteredCompletions = this._filteredInlineCompletionItems.read(reader);
 		const idx = this._selectedInlineCompletionId === undefined ? -1
@@ -171,7 +172,8 @@ export class InlineCompletionsModel extends Disposable {
 		return idx;
 	});
 
-	public readonly selectedInlineCompletion = derived<InlineCompletionWithUpdatedRange | undefined>('selectedCachedCompletion', (reader) => {
+	public readonly selectedInlineCompletion = derived<InlineCompletionWithUpdatedRange | undefined>((reader) => {
+		/** @description selectedCachedCompletion */
 		const filteredCompletions = this._filteredInlineCompletionItems.read(reader);
 		const idx = this.selectedInlineCompletionIndex.read(reader);
 		return filteredCompletions[idx];
@@ -181,7 +183,8 @@ export class InlineCompletionsModel extends Disposable {
 		v => /** @description lastTriggerKind */ v?.request.context.triggerKind
 	);
 
-	public readonly inlineCompletionsCount = derived<number | undefined>('selectedInlineCompletionsCount', reader => {
+	public readonly inlineCompletionsCount = derived<number | undefined>(reader => {
+		/** @description inlineCompletionsCount */
 		if (this.lastTriggerKind.read(reader) === InlineCompletionTriggerKind.Explicit) {
 			return this._filteredInlineCompletionItems.read(reader).length;
 		} else {
@@ -193,7 +196,8 @@ export class InlineCompletionsModel extends Disposable {
 		suggestItem: SuggestItemInfo | undefined;
 		inlineCompletion: InlineCompletionWithUpdatedRange | undefined;
 		ghostText: GhostTextOrReplacement;
-	} | undefined>('ghostTextAndCompletion', (reader) => {
+	} | undefined>((reader) => {
+		/** @description ghostTextAndCompletion */
 		const model = this.textModel;
 
 		const suggestItem = this.selectedSuggestItem.read(reader);
@@ -239,7 +243,8 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	});
 
-	public readonly ghostText = derived('ghostText', (reader) => {
+	public readonly ghostText = derived(reader => {
+		/** @description ghostText */
 		const v = this.state.read(reader);
 		if (!v) { return undefined; }
 		return v.ghostText;

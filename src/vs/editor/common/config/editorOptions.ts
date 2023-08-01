@@ -756,6 +756,16 @@ export interface IDiffEditorBaseOptions {
 	 */
 	renderSideBySide?: boolean;
 	/**
+	 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+	 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+	 */
+	renderSideBySideInlineBreakpoint?: number | undefined;
+	/**
+	 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+	 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+	 */
+	useInlineViewWhenSpaceIsLimited?: boolean;
+	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * Defaults to 5000.
 	 */

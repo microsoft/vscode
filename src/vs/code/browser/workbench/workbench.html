@@ -43,7 +43,9 @@
 
 		// Set up nls if the user is not using the default language (English)
 		const nlsConfig = {};
-		const locale = window.localStorage.getItem('vscode.nls.locale') || navigator.language;
+		// Normalize locale to lowercase because translationServiceUrl is case-sensitive.
+		// ref: https://github.com/microsoft/vscode/issues/187795
+		const locale = window.localStorage.getItem('vscode.nls.locale') || navigator.language.toLowerCase();
 		if (!locale.startsWith('en')) {
 			nlsConfig['vs/nls'] = {
 				availableLanguages: {

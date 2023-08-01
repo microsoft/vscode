@@ -8,8 +8,7 @@ import { ArrayQueue } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { autorun, autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
+import { IObservable, autorun, autorunWithStore, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { assertIsDefined } from 'vs/base/common/types';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
@@ -80,7 +79,8 @@ export class ViewZoneManager extends Disposable {
 		const alignmentViewZoneIdsOrig = new Set<string>();
 		const alignmentViewZoneIdsMod = new Set<string>();
 
-		const alignments = derived<ILineRangeAlignment[] | null>('alignments', (reader) => {
+		const alignments = derived<ILineRangeAlignment[] | null>((reader) => {
+			/** @description alignments */
 			const diffModel = this._diffModel.read(reader);
 			const diff = diffModel?.diff.read(reader);
 			if (!diffModel || !diff) { return null; }
@@ -90,7 +90,8 @@ export class ViewZoneManager extends Disposable {
 			return computeRangeAlignment(this._editors.original, this._editors.modified, diff.mappings, alignmentViewZoneIdsOrig, alignmentViewZoneIdsMod, innerHunkAlignment);
 		});
 
-		const alignmentsSyncedMovedText = derived<ILineRangeAlignment[] | null>('alignments', (reader) => {
+		const alignmentsSyncedMovedText = derived<ILineRangeAlignment[] | null>((reader) => {
+			/** @description alignments */
 			const syncedMovedText = this._diffModel.read(reader)?.syncedMovedTexts.read(reader);
 			if (!syncedMovedText) { return null; }
 			state.read(reader);
@@ -106,7 +107,8 @@ export class ViewZoneManager extends Disposable {
 		}
 
 		const alignmentViewZonesDisposables = this._register(new DisposableStore());
-		const alignmentViewZones = derived<{ orig: IViewZoneWithZoneId[]; mod: IViewZoneWithZoneId[] }>('alignment viewzones', (reader) => {
+		const alignmentViewZones = derived<{ orig: IViewZoneWithZoneId[]; mod: IViewZoneWithZoneId[] }>((reader) => {
+			/** @description alignment viewzones */
 			alignmentViewZonesDisposables.clear();
 
 			const alignmentsVal = alignments.read(reader) || [];
@@ -310,7 +312,8 @@ export class ViewZoneManager extends Disposable {
 			return { orig: origViewZones, mod: modViewZones };
 		});
 
-		this._register(autorunWithStore2('alignment viewzones', (reader) => {
+		this._register(autorunWithStore((reader) => {
+			/** @description alignment viewzones */
 			const scrollState = StableEditorScrollState.capture(this._editors.modified);
 
 			const alignmentViewZones_ = alignmentViewZones.read(reader);
@@ -380,7 +383,8 @@ export class ViewZoneManager extends Disposable {
 		// origOffset - modOffset = heightOfLines(1..Y) - heightOfLines(1..X)
 		// origScrollTop >= 0, modScrollTop >= 0
 
-		this._register(autorun('update scroll modified', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update scroll modified */
 			const newScrollTopModified = this._originalScrollTop.read(reader)
 				- (this._originalScrollOffsetAnimated.get() - this._modifiedScrollOffsetAnimated.read(reader))
 				- (this._originalTopPadding.get() - this._modifiedTopPadding.read(reader));
@@ -389,7 +393,8 @@ export class ViewZoneManager extends Disposable {
 			}
 		}));
 
-		this._register(autorun('update scroll original', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update scroll original */
 			const newScrollTopOriginal = this._modifiedScrollTop.read(reader)
 				- (this._modifiedScrollOffsetAnimated.get() - this._originalScrollOffsetAnimated.read(reader))
 				- (this._modifiedTopPadding.get() - this._originalTopPadding.read(reader));
@@ -399,7 +404,8 @@ export class ViewZoneManager extends Disposable {
 		}));
 
 
-		this._register(autorun('update', reader => {
+		this._register(autorun(reader => {
+			/** @description update editor top offsets */
 			const m = this._diffModel.read(reader)?.syncedMovedTexts.read(reader);
 
 			let deltaOrigToMod = 0;

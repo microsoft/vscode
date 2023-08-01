@@ -86,7 +86,7 @@ class BaseChatQuickQuestionMode implements IQuickQuestionMode {
 			clearButton,
 			{
 				iconClass: ThemeIcon.asClassName(Codicon.commentDiscussion),
-				tooltip: localize('openInChat', "Open in chat view"),
+				tooltip: localize('openInChat', "Open In Chat View"),
 			}
 		];
 		this._input.title = providerInfo.displayName;

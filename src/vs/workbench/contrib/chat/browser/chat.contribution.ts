@@ -44,6 +44,7 @@ import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatCo
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
+import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -149,16 +150,13 @@ class ChatAccessibleViewContribution extends Disposable {
 			const codeEditorService = accessor.get(ICodeEditorService);
 			return renderAccessibleView(accessibleViewService, widgetService, codeEditorService, true);
 			function renderAccessibleView(accessibleViewService: IAccessibleViewService, widgetService: IChatWidgetService, codeEditorService: ICodeEditorService, initialRender?: boolean): boolean {
-				let widget = widgetService.lastFocusedWidget;
+				const widget = widgetService.lastFocusedWidget;
 				if (!widget) {
 					return false;
 				}
-
-				const chatInputFocused = initialRender && !!(codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor());
-
-				if (chatInputFocused) {
+				const chatInputFocused = initialRender && !!codeEditorService.getFocusedCodeEditor();
+				if (initialRender && chatInputFocused) {
 					widget.focusLastMessage();
-					widget = widgetService.lastFocusedWidget;
 				}
 
 				if (!widget) {
@@ -178,24 +176,29 @@ class ChatAccessibleViewContribution extends Disposable {
 				if (!responseContent) {
 					return false;
 				}
+				const responses = verifiedWidget.viewModel?.getItems().filter(i => isResponseVM(i));
+				const length = responses?.length;
+				const responseIndex = responses?.findIndex(i => i === focusedItem);
 
 				accessibleViewService.show({
 					verbositySettingKey: AccessibilityVerbositySettingId.Chat,
 					provideContent(): string { return responseContent; },
 					onClose() {
+						verifiedWidget.reveal(focusedItem);
 						if (chatInputFocused) {
 							verifiedWidget.focusInput();
 						} else {
-							verifiedWidget.reveal(focusedItem);
 							verifiedWidget.focus(focusedItem);
 						}
 					},
 					next() {
 						verifiedWidget.moveFocus(focusedItem, 'next');
+						alertFocusChange(responseIndex, length, 'next');
 						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
 					},
 					previous() {
 						verifiedWidget.moveFocus(focusedItem, 'previous');
+						alertFocusChange(responseIndex, length, 'previous');
 						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
 					},
 					options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), type: AccessibleViewType.View }

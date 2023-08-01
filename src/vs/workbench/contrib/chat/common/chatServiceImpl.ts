@@ -22,7 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatService, IChatUserActionEvent, ISlashCommand, ISlashCommandProvider, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, ISlashCommandProvider, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedChatKey = 'interactive.sessions';
@@ -32,6 +32,7 @@ interface IChatTransfer {
 	toWorkspace: UriComponents;
 	timestampInMilliseconds: number;
 	chat: ISerializableChatData;
+	inputValue: string;
 }
 const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
 
@@ -127,9 +128,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _persistedSessions: ISerializableChatsData;
 	private readonly _hasProvider: IContextKey<boolean>;
 
-	private _transferred: ISerializableChatData | undefined;
-	public get transferredSessionId(): string | undefined {
-		return this._transferred?.sessionId;
+	private _transferredSessionData: IChatTransferredSessionData | undefined;
+	public get transferredSessionData(): IChatTransferredSessionData | undefined {
+		return this._transferredSessionData;
 	}
 
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
@@ -162,10 +163,12 @@ export class ChatService extends Disposable implements IChatService {
 			this._persistedSessions = {};
 		}
 
-		this._transferred = this.getTransferredSession();
-		if (this._transferred) {
-			this.trace('constructor', `Transferred session ${this._transferred.sessionId}`);
-			this._persistedSessions[this._transferred.sessionId] = this._transferred;
+		const transferredData = this.getTransferredSessionData();
+		const transferredChat = transferredData?.chat;
+		if (transferredChat) {
+			this.trace('constructor', `Transferred session ${transferredChat.sessionId}`);
+			this._persistedSessions[transferredChat.sessionId] = transferredChat;
+			this._transferredSessionData = { sessionId: transferredChat.sessionId, inputValue: transferredData.inputValue };
 		}
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
@@ -252,7 +255,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
-	private getTransferredSession(): ISerializableChatData | undefined {
+	private getTransferredSessionData(): IChatTransfer | undefined {
 		const data: IChatTransfer[] = this.storageService.getObject(globalChatKey, StorageScope.PROFILE, []);
 		const workspaceUri = this.workspaceContextService.getWorkspace().folders[0]?.uri;
 		if (!workspaceUri) {
@@ -266,7 +269,7 @@ export class ChatService extends Disposable implements IChatService {
 		// Keep data that isn't for the current workspace and that hasn't expired yet
 		const filtered = data.filter(item => URI.revive(item.toWorkspace).toString() !== thisWorkspace && (currentTime - item.timestampInMilliseconds < SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS));
 		this.storageService.store(globalChatKey, JSON.stringify(filtered), StorageScope.PROFILE, StorageTarget.MACHINE);
-		return transferred?.chat;
+		return transferred;
 	}
 
 	getHistory(): IChatDetail[] {
@@ -346,13 +349,17 @@ export class ChatService extends Disposable implements IChatService {
 
 		const welcomeMessage = model.welcomeMessage ? undefined : withNullAsUndefined(await provider.provideWelcomeMessage?.(token));
 		const welcomeModel = welcomeMessage && new ChatWelcomeMessageModel(
-			welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item as IChatReplyFollowup[]), session.responderUsername, session.responderAvatarIconUri);
+			model, welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item as IChatReplyFollowup[]));
 
 		model.initialize(session, welcomeModel);
 	}
 
 	getSession(sessionId: string): IChatModel | undefined {
 		return this._sessionModels.get(sessionId);
+	}
+
+	getSessionId(sessionProviderId: number): string | undefined {
+		return Iterable.find(this._sessionModels.values(), model => model.session?.id === sessionProviderId)?.sessionId;
 	}
 
 	getOrRestoreSession(sessionId: string): ChatModel | undefined {
@@ -366,8 +373,8 @@ export class ChatService extends Disposable implements IChatService {
 			return undefined;
 		}
 
-		if (sessionId === this.transferredSessionId) {
-			this._transferred = undefined;
+		if (sessionId === this.transferredSessionData?.sessionId) {
+			this._transferredSessionData = undefined;
 		}
 
 		return this._startSession(sessionData.providerId, sessionData, CancellationToken.None);
@@ -671,17 +678,18 @@ export class ChatService extends Disposable implements IChatService {
 		});
 	}
 
-	transferChatSession(sessionProviderId: number, toWorkspace: URI): void {
-		const model = Iterable.find(this._sessionModels.values(), model => model.session?.id === sessionProviderId);
+	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {
+		const model = Iterable.find(this._sessionModels.values(), model => model.sessionId === transferredSessionData.sessionId);
 		if (!model) {
-			throw new Error(`Failed to transfer session. Unknown session provider ID: ${sessionProviderId}`);
+			throw new Error(`Failed to transfer session. Unknown session ID: ${transferredSessionData.sessionId}`);
 		}
 
 		const existingRaw: IChatTransfer[] = this.storageService.getObject(globalChatKey, StorageScope.PROFILE, []);
 		existingRaw.push({
 			chat: model.toJSON(),
 			timestampInMilliseconds: Date.now(),
-			toWorkspace: toWorkspace
+			toWorkspace: toWorkspace,
+			inputValue: transferredSessionData.inputValue,
 		});
 
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
