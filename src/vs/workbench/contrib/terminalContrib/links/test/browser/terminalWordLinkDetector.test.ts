@@ -72,6 +72,14 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 		});
 	});
 
+	suite('should ignore powerline symbols', () => {
+		for (let i = 0xe0b0; i <= 0xe0bf; i++) {
+			test(`\\u${i.toString(16)}`, async () => {
+				await assertLink(`${String.fromCharCode(i)}foo${String.fromCharCode(i)}`, [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
+			});
+		}
+	});
+
 	// These are failing - the link's start x is 1 px too far to the right bc it starts
 	// with a wide character, which the terminalLinkHelper currently doesn't account for
 	test.skip('should support wide characters', async () => {

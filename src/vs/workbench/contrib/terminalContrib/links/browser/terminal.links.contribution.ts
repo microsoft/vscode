@@ -78,18 +78,15 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 				this.showLinkQuickpick(true);
 			});
 		}
-		const links = await this._getLinks(extended);
-		if (!links) {
-			return;
-		}
+		const links = await this._getLinks();
 		return await this._terminalLinkQuickpick.show(links);
 	}
 
-	private async _getLinks(extended?: boolean): Promise<IDetectedLinks | undefined> {
+	private async _getLinks(): Promise<{ viewport: IDetectedLinks; all: Promise<IDetectedLinks> }> {
 		if (!this._linkManager) {
 			throw new Error('terminal links are not ready, cannot generate link quick pick');
 		}
-		return this._linkManager.getLinks(extended);
+		return this._linkManager.getLinks();
 	}
 
 	async openRecentLink(type: 'localFile' | 'url'): Promise<void> {

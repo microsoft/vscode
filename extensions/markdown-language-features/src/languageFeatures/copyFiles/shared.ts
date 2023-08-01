@@ -151,6 +151,9 @@ export async function createEditAddingLinksForUriList(
 
 export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range): SmartPaste {
 	const SmartPaste: SmartPaste = { pasteAsMarkdownLink: true, updateTitle: false };
+	if (selectedRange.isEmpty || /^[\s\n]*$/.test(document.getText(selectedRange)) || validateLink(document.getText(selectedRange)).isValid) {
+		return { pasteAsMarkdownLink: false, updateTitle: false };
+	}
 	for (const regex of smartPasteRegexes) {
 		const matches = [...document.getText().matchAll(regex.regex)];
 		for (const match of matches) {
@@ -165,6 +168,22 @@ export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vsc
 		}
 	}
 	return SmartPaste;
+}
+
+export function validateLink(urlList: string): { isValid: boolean; cleanedUrlList: string } {
+	let isValid = false;
+	let uri = undefined;
+	const trimmedUrlList = urlList?.trim(); //remove leading and trailing whitespace and new lines
+	try {
+		uri = vscode.Uri.parse(trimmedUrlList);
+	} catch (error) {
+		return { isValid: false, cleanedUrlList: urlList };
+	}
+	const splitUrlList = trimmedUrlList.split(' ').filter(item => item !== ''); //split on spaces and remove empty strings
+	if (uri) {
+		isValid = splitUrlList.length === 1 && !splitUrlList[0].includes('\n') && externalUriSchemes.includes(vscode.Uri.parse(splitUrlList[0]).scheme) && !!vscode.Uri.parse(splitUrlList[0]).authority;
+	}
+	return { isValid, cleanedUrlList: splitUrlList[0] };
 }
 
 export async function tryGetUriListSnippet(document: SkinnyTextDocument, urlList: String, token: vscode.CancellationToken, title = '', placeHolderValue = 0, pasteAsMarkdownLink = true, isExternalLink = false): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
@@ -211,9 +230,9 @@ export function appendToLinkSnippet(
 	if (pasteAsMarkdownLink) {
 		snippet.appendText('[');
 		snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
-		snippet.appendText(isExternalLink ? `](${uriString})` : `](${escapeMarkdownLinkPath(mdPath)})`);
+		snippet.appendText(`](${escapeMarkdownLinkPath(isExternalLink ? uriString : mdPath, isExternalLink)})`);
 	} else {
-		snippet.appendText(isExternalLink ? uriString : escapeMarkdownLinkPath(mdPath));
+		snippet.appendText((escapeMarkdownLinkPath(isExternalLink ? uriString : mdPath, isExternalLink)));
 	}
 	return snippet;
 }
@@ -265,9 +284,9 @@ export function createUriListSnippet(
 					const placeholderText = escapeBrackets(title) || options?.placeholderText || 'Alt text';
 					const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (placeholderValue === 0 ? undefined : placeholderValue);
 					snippet.appendPlaceholder(placeholderText, placeholderIndex);
-					snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
+					snippet.appendText(`](${escapeMarkdownLinkPath(mdPath, isExternalLink)})`);
 				} else {
-					snippet.appendText(escapeMarkdownLinkPath(mdPath));
+					snippet.appendText(escapeMarkdownLinkPath(mdPath, isExternalLink));
 				}
 			}
 		} else {
@@ -394,12 +413,12 @@ function escapeHtmlAttribute(attr: string): string {
 	return encodeURI(attr).replaceAll('"', '&quot;');
 }
 
-function escapeMarkdownLinkPath(mdPath: string): string {
+function escapeMarkdownLinkPath(mdPath: string, isExternalLink: boolean): string {
 	if (needsBracketLink(mdPath)) {
 		return '<' + mdPath.replaceAll('<', '\\<').replaceAll('>', '\\>') + '>';
 	}
 
-	return encodeURI(mdPath);
+	return isExternalLink ? mdPath : encodeURI(mdPath);
 }
 
 function escapeBrackets(value: string): string {
