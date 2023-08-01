@@ -418,9 +418,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			new ChatListTreeDataSource(),
 			{
 				autoExpandSingleChildren: true,
+				collapseByDefault: () => false,
+				additionalScrollHeight: ChatListTreeDelegate.ITEM_HEIGHT,
 				accessibilityProvider: {
-					getAriaLabel(node: ITreeNode<IChatResponseProgressFileTreeData>): string {
-						return node.element.label;
+					getAriaLabel(element: IChatResponseProgressFileTreeData): string {
+						return element.label;
 					},
 					getWidgetAriaLabel(): string {
 						return localize('treeAriaLabel', "File Tree");
@@ -941,7 +943,7 @@ interface IChatListTreeRendererTemplate {
 }
 
 class ChatListTreeRenderer implements ICompressibleTreeRenderer<IChatResponseProgressFileTreeData, void, IChatListTreeRendererTemplate> {
-	templateId: string = 'chatListTreeItemTemplate';
+	templateId: string = 'chatListTreeTemplate';
 
 	constructor(private labels: ResourceLabels) { }
 

@@ -10,7 +10,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostChatShape, ExtHostContext, IChatRequestDto, IChatResponseProgressDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { IChat, IChatDynamicRequest, IChatProgress, IChatRequest, IChatResponse, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatDynamicRequest, IChatProgress, IChatRequest, IChatResponse, IChatResponseProgressFileTreeData, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChat)
@@ -23,7 +23,7 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 	private readonly _proxy: ExtHostChatShape;
 
 	private _responsePartHandlePool = 0;
-	private readonly _activeResponsePartPromises = new Map<string, DeferredPromise<string>>();
+	private readonly _activeResponsePartPromises = new Map<string, DeferredPromise<string | { treeData: IChatResponseProgressFileTreeData }>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -149,7 +149,7 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 		if ('placeholder' in progress) {
 			const responsePartId = `${id}_${++this._responsePartHandlePool}`;
-			const deferredContentPromise = new DeferredPromise<string>();
+			const deferredContentPromise = new DeferredPromise<string | { treeData: IChatResponseProgressFileTreeData }>();
 			this._activeResponsePartPromises.set(responsePartId, deferredContentPromise);
 			this._activeRequestProgressCallbacks.get(id)?.({ ...progress, resolvedContent: deferredContentPromise.p });
 			return this._responsePartHandlePool;
@@ -157,10 +157,14 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			// Complete an existing deferred promise with resolved content
 			const responsePartId = `${id}_${responsePartHandle}`;
 			const deferredContentPromise = this._activeResponsePartPromises.get(responsePartId);
-			if (deferredContentPromise && 'content' in progress) {
+			if (deferredContentPromise && 'treeData' in progress) {
+				deferredContentPromise.complete(progress);
+				this._activeResponsePartPromises.delete(responsePartId);
+			} else if (deferredContentPromise && 'content' in progress) {
 				deferredContentPromise.complete(progress.content);
 				this._activeResponsePartPromises.delete(responsePartId);
 			}
+			return;
 		}
 
 		if ('treeData' in progress) {
