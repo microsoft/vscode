@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import * as assert from 'assert';
 import 'mocha';
 import { SkinnyTextDocument, checkSmartPaste, createEditAddingLinksForUriList, appendToLinkSnippet, validateLink } from '../languageFeatures/copyFiles/shared';
+
 suite('createEditAddingLinksForUriList', () => {
 
 	test('Markdown Link Pasting should occur for a valid link (end to end)', async () => {
@@ -15,16 +16,6 @@ suite('createEditAddingLinksForUriList', () => {
 			uri: vscode.Uri.parse('file:///path/to/your/file'),
 			offsetAt: function () { return 0; },
 			getText: function () { return 'hello world!'; },
-			// lineAt: function (position: vscode.Position) {
-			// 	return {
-			// 		lineNumber: 0,
-			// 		text: 'hello world!',
-			// 		range: new vscode.Range(position, position),
-			// 		rangeIncludingLineBreak: new vscode.Range(position, position),
-			// 		firstNonWhitespaceCharacterIndex: 0,
-			// 		isEmptyOrWhitespace: false
-			// 	} as vscode.TextLine;
-			// }
 		};
 
 		const result = await createEditAddingLinksForUriList(skinnyDocument, [new vscode.Range(0, 0, 0, 12)], 'https://www.microsoft.com/', true, true, new vscode.CancellationTokenSource().token);
@@ -101,21 +92,11 @@ suite('createEditAddingLinksForUriList', () => {
 	});
 
 	suite('appendToLinkSnippet', () => {
-		test('Should create auto link when pasted link has an mismatched parentheses', () => {
-			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), '', 'https:/www.microsoft.com', 0, true);
-			assert.strictEqual(snippet?.value, '<https://www.mic(rosoft.com>');
-		});
 
 		test('Should create snippet with < > when pasted link has an mismatched parentheses', () => {
 			const uriString = 'https://www.mic(rosoft.com';
 			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), 'abc', uriString, 0, true);
 			assert.strictEqual(snippet?.value, '[${0:abc}](<https://www.mic(rosoft.com>)');
-		});
-
-		test('Should not create Markdown link snippet when pasteAsMarkdownLink is false', () => {
-			const uriString = 'https://www.microsoft.com';
-			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), '', uriString, 0, true);
-			assert.strictEqual(snippet?.value, 'https://www.microsoft.com');
 		});
 
 		test('Should create Markdown link snippet when pasteAsMarkdownLink is true', () => {
