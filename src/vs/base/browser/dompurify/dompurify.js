@@ -1626,5 +1626,15 @@ define(function () { return purify; });
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// export { purify as default };
+// export default purify;
+// export const version = purify.version;
+// export const isSupported = purify.isSupported;
+// export const sanitize = purify.sanitize;
+// export const setConfig = purify.setConfig;
+// export const clearConfig = purify.clearConfig;
+// export const isValidAttribute = purify.isValidAttribute;
+// export const addHook = purify.addHook;
+// export const removeHook = purify.removeHook;
+// export const removeHooks = purify.removeHooks;
+// export const removeAllHooks = purify.removeAllHooks;
 // ESM-uncomment-end
