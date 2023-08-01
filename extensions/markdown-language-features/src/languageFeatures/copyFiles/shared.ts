@@ -105,7 +105,7 @@ export async function createEditAddingLinksForUriList(
 	isExternalLink: boolean,
 	useSmartPaste: boolean,
 	token: vscode.CancellationToken,
-): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string; pasteAsMarkdownLink: boolean } | undefined> {
+): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string; markdownLink: boolean } | undefined> {
 
 	if (ranges.length === 0) {
 		return;
@@ -114,6 +114,7 @@ export async function createEditAddingLinksForUriList(
 	let placeHolderValue: number = ranges.length;
 	let label: string = '';
 	let pasteAsMarkdownLink: boolean = true;
+	let markdownLink: boolean = true;
 
 	for (const range of ranges) {
 		const selectedRange: vscode.Range = new vscode.Range(
@@ -122,9 +123,8 @@ export async function createEditAddingLinksForUriList(
 		);
 
 		if (useSmartPaste) {
-			smartPaste = checkSmartPaste(document, selectedRange);
-			title = smartPaste.updateTitle ? '' : document.getText(range);
-			pasteAsMarkdownLink = smartPaste.pasteAsMarkdownLink; // FIX: this will only match the last range
+			pasteAsMarkdownLink = checkSmartPaste(document, selectedRange, range);
+			markdownLink = pasteAsMarkdownLink; // FIX: this will only match the last range
 		}
 
 		const snippet = await tryGetUriListSnippet(document, urlList, token, document.getText(range), placeHolderValue, pasteAsMarkdownLink, isExternalLink);
@@ -141,7 +141,7 @@ export async function createEditAddingLinksForUriList(
 	const additionalEdits = new vscode.WorkspaceEdit();
 	additionalEdits.set(document.uri, edits);
 
-	return { additionalEdits, label, pasteAsMarkdownLink };
+	return { additionalEdits, label, markdownLink };
 }
 
 export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range, range: vscode.Range): boolean {
