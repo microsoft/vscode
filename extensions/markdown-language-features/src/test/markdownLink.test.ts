@@ -102,7 +102,6 @@ suite('createEditAddingLinksForUriList', () => {
 
 	suite('appendToLinkSnippet', () => {
 		test('Should create auto link when pasted link has an mismatched parentheses', () => {
-			const uriString = 'https://www.mic(rosoft.com';
 			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), '', 'https:/www.microsoft.com', 0, true);
 			assert.strictEqual(snippet?.value, '<https://www.mic(rosoft.com>');
 		});
