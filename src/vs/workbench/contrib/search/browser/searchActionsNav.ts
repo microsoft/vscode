@@ -45,7 +45,7 @@ registerAction2(class ToggleQueryDetailsAction extends Action2 {
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const contextService = accessor.get(IContextKeyService).getContext(document.activeElement);
 		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
-			(accessor.get(IEditorService).activeEditorPane as SearchEditor).toggleQueryDetails();
+			(accessor.get(IEditorService).activeEditorPane as SearchEditor).toggleQueryDetails(args.length > 0 ? args[0].show : undefined);
 		} else if (contextService.getValue(Constants.SearchViewFocusedKey.serialize())) {
 			const searchView = getSearchView(accessor.get(IViewsService));
 			assertIsDefined(searchView).toggleQueryDetails(undefined, args.length > 0 ? args[0].show : undefined);
