@@ -193,7 +193,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			stableApp = undefined;
 
 			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
-			// insiderOptions.userDataDir = userDataDir;
+			insiderOptions.userDataDir = userDataDir;
 			insiderOptions.logsPath = logsPath;
 			insiderOptions.crashesPath = crashesPath;
 
