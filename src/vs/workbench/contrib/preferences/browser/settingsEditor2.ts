@@ -1284,7 +1284,6 @@ export class SettingsEditor2 extends EditorPane {
 					type: 'null',
 					displayExtensionId: extensionId,
 					stableExtensionId: key,
-					prereleaseExtensionId: typeof prerelease === 'string' ? prerelease : key,
 					extensionGroupTitle: groupTitle ?? extensionName
 				};
 				const additionalGroup = this.addOrRemoveManageExtensionSetting(setting, extension, groups);
