@@ -165,7 +165,7 @@ var AMDLoader;
 			}
 
 			for (let key in obj) {
-				if (Object.hasOwnProperty.call(obj, key)) {
+				if (Object.prototype.hasOwnProperty.call(obj, key)) {
 					callback(key, obj[key]);
 				}
 			}
