@@ -225,7 +225,7 @@ export function subtransaction(tx: ITransaction | undefined, fn: (tx: ITransacti
 export class TransactionImpl implements ITransaction {
 	private updatingObservers: { observer: IObserver; observable: IObservable<any> }[] | null = [];
 
-	constructor(private readonly fn: Function, private readonly _getDebugName?: () => string) {
+	constructor(public readonly _fn: Function, private readonly _getDebugName?: () => string) {
 		getLogger()?.handleBeginTransaction(this);
 	}
 
@@ -233,7 +233,7 @@ export class TransactionImpl implements ITransaction {
 		if (this._getDebugName) {
 			return this._getDebugName();
 		}
-		return getFunctionName(this.fn);
+		return getFunctionName(this._fn);
 	}
 
 	public updateObserver(observer: IObserver, observable: IObservable<any>): void {

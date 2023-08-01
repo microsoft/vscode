@@ -68,14 +68,14 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 	public override get debugName(): string {
 		if (!this._debugName) {
-			return getFunctionName(this.computeFn) || '(anonymous)';
+			return getFunctionName(this._computeFn) || '(anonymous)';
 		}
 		return typeof this._debugName === 'function' ? this._debugName() : this._debugName;
 	}
 
 	constructor(
 		private readonly _debugName: string | (() => string) | undefined,
-		private readonly computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
+		public readonly _computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
 		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
 		private readonly _handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
 		private readonly _handleLastObserverRemoved: (() => void) | undefined = undefined
@@ -104,7 +104,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		if (this.observers.size === 0) {
 			// Without observers, we don't know when to clean up stuff.
 			// Thus, we don't cache anything to prevent memory leaks.
-			const result = this.computeFn(this, this.createChangeSummary?.()!);
+			const result = this._computeFn(this, this.createChangeSummary?.()!);
 			// Clear new dependencies
 			this.onLastObserverRemoved();
 			return result;
@@ -153,7 +153,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		this.changeSummary = this.createChangeSummary?.();
 		try {
 			/** might call {@link handleChange} indirectly, which could invalidate us */
-			this.value = this.computeFn(this, changeSummary);
+			this.value = this._computeFn(this, changeSummary);
 		} finally {
 			// We don't want our observed observables to think that they are (not even temporarily) not being observed.
 			// Thus, we only unsubscribe from observables that are definitely not read anymore.
