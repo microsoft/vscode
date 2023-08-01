@@ -9,3 +9,11 @@
 	background-color: var(--vscode-textCodeBlock-background);
 	color: var(--vscode-textLink-foreground);
 }
+
+.interactive-session .interactive-input-and-toolbar .chat-slash-command-content-widget {
+	top: 7px !important;
+}
+
+.inline-chat .chat-slash-command-content-widget {
+	top: 2px !important;
+}

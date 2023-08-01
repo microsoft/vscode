@@ -15,6 +15,10 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
 
+export const enum AccessibilitySettingId {
+	UnfocusedViewOpacity = 'accessibility.unfocusedViewOpacity'
+}
+
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
@@ -69,6 +73,14 @@ const configuration: IConfigurationNode = {
 		[AccessibilityVerbositySettingId.Notification]: {
 			description: localize('verbosity.notification', 'Provide information about how to open the notification in an accessible view.'),
 			...baseProperty
+		},
+		[AccessibilitySettingId.UnfocusedViewOpacity]: {
+			description: localize('unfocusedViewOpacity', 'The opacity percentage (0.2 to 1.0) to use for unfocused editors and terminals.'),
+			type: 'number',
+			minimum: 0.2,
+			maximum: 1,
+			default: 1,
+			tags: ['accessibility']
 		}
 	}
 };
