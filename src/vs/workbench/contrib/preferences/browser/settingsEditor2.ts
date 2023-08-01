@@ -1283,6 +1283,7 @@ export class SettingsEditor2 extends EditorPane {
 					scope: ConfigurationScope.WINDOW,
 					type: 'null',
 					displayExtensionId: extensionId,
+					prereleaseExtensionId: key,
 					stableExtensionId: key,
 					extensionGroupTitle: groupTitle ?? extensionName
 				};
