@@ -77,15 +77,6 @@ export interface SkinnyTextDocument {
 	readonly uri: vscode.Uri;
 }
 
-export interface SmartPaste {
-
-	/**
-	 * `true` if the link is not being pasted within a markdown link, code, or math.
-	 */
-	pasteAsMarkdownLink: boolean;
-
-}
-
 export enum PasteUrlAsFormattedLink {
 	Always = 'always',
 	Smart = 'smart',
@@ -120,8 +111,7 @@ export async function createEditAddingLinksForUriList(
 		);
 
 		if (useSmartPaste) {
-			smartPaste = checkSmartPaste(document, selectedRange, range);
-			title = smartPaste.updateTitle ? '' : document.getText(range);
+			pasteAsMarkdownLink = checkSmartPaste(document, selectedRange, range);
 		}
 
 		const snippet = await tryGetUriListSnippet(document, urlList, token, document.getText(range), placeHolderValue, pasteAsMarkdownLink, isExternalLink);
@@ -141,13 +131,12 @@ export async function createEditAddingLinksForUriList(
 	return { additionalEdits, label };
 }
 
-export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range, range: vscode.Range): SmartPaste {
-	const SmartPaste: SmartPaste = { pasteAsMarkdownLink: true, updateTitle: false };
+export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range, range: vscode.Range): boolean {
 	if (selectedRange.isEmpty || /^[\s\n]*$/.test(document.getText(range)) || validateLink(document.getText(range)).isValid) {
-		return { pasteAsMarkdownLink: false, updateTitle: false };
+		return false;
 	}
 	if (/\[.*\]\(.*\)/.test(document.getText(range)) || /!\[.*\]\(.*\)/.test(document.getText(range))) {
-		return { pasteAsMarkdownLink: false, updateTitle: false };
+		return false;
 	}
 	for (const regex of smartPasteRegexes) {
 		const matches = [...document.getText().matchAll(regex.regex)];
