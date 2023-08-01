@@ -5,8 +5,7 @@
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import 'mocha';
-import { SkinnyTextDocument, checkSmartPaste, createEditAddingLinksForUriList, appendToLinkSnippet } from '../languageFeatures/copyFiles/shared';
-import { validateLink } from '../languageFeatures/copyFiles/copyPasteLinks';
+import { SkinnyTextDocument, checkSmartPaste, createEditAddingLinksForUriList, appendToLinkSnippet, validateLink } from '../languageFeatures/copyFiles/shared';
 suite('createEditAddingLinksForUriList', () => {
 
 	test('Markdown Link Pasting should occur for a valid link (end to end)', async () => {
@@ -157,6 +156,20 @@ suite('createEditAddingLinksForUriList', () => {
 		test('Should evaluate pasteAsMarkdownLink as true for selected plain text', () => {
 			const pasteAsMarkdownLink = checkSmartPaste(skinnyDocument, new vscode.Range(0, 0, 0, 12), new vscode.Range(0, 0, 0, 12));
 			assert.strictEqual(pasteAsMarkdownLink, true);
+		});
+
+		test('Should evaluate pasteAsMarkdownLink as false for a valid selected link', () => {
+			skinnyDocument.getText = function () { return 'https://www.microsoft.com'; };
+			const range = new vscode.Range(0, 0, 0, 25);
+			const smartPaste = checkSmartPaste(skinnyDocument, range);
+			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
+		});
+
+		test('Should evaluate pasteAsMarkdownLink as false for a valid selected link with trailing whitespace', () => {
+			skinnyDocument.getText = function () { return '   https://www.microsoft.com  '; };
+			const range = new vscode.Range(0, 0, 0, 30);
+			const smartPaste = checkSmartPaste(skinnyDocument, range);
+			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for no selection', () => {
