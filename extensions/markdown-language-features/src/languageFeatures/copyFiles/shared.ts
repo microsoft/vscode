@@ -110,7 +110,7 @@ export async function createEditAddingLinksForUriList(
 	isExternalLink: boolean,
 	useSmartPaste: boolean,
 	token: vscode.CancellationToken,
-): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string } | undefined> {
+): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string; pasteAsMarkdownLink: boolean } | undefined> {
 
 	if (ranges.length === 0) {
 		return;
@@ -119,6 +119,7 @@ export async function createEditAddingLinksForUriList(
 	let placeHolderValue: number = ranges.length;
 	let label: string = '';
 	let smartPaste = { pasteAsMarkdownLink: true, updateTitle: false };
+	let pasteAsMarkdownLink = true;
 
 	for (const range of ranges) {
 		let title = document.getText(range);
@@ -130,6 +131,7 @@ export async function createEditAddingLinksForUriList(
 		if (useSmartPaste) {
 			smartPaste = checkSmartPaste(document, selectedRange);
 			title = smartPaste.updateTitle ? '' : document.getText(range);
+			pasteAsMarkdownLink = smartPaste.pasteAsMarkdownLink; // FIX: this will only match the last range
 		}
 
 		const snippet = await tryGetUriListSnippet(document, urlList, token, title, placeHolderValue, smartPaste.pasteAsMarkdownLink, isExternalLink);
@@ -146,7 +148,7 @@ export async function createEditAddingLinksForUriList(
 	const additionalEdits = new vscode.WorkspaceEdit();
 	additionalEdits.set(document.uri, edits);
 
-	return { additionalEdits, label };
+	return { additionalEdits, label, pasteAsMarkdownLink };
 }
 
 export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range): SmartPaste {
@@ -220,20 +222,14 @@ interface UriListSnippetOptions {
 
 export function appendToLinkSnippet(
 	snippet: vscode.SnippetString,
-	pasteAsMarkdownLink: boolean,
-	mdPath: string,
 	title: string,
 	uriString: string,
 	placeholderValue: number,
 	isExternalLink: boolean,
 ): vscode.SnippetString {
-	if (pasteAsMarkdownLink) {
-		snippet.appendText('[');
-		snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
-		snippet.appendText(`](${escapeMarkdownLinkPath(isExternalLink ? uriString : mdPath, isExternalLink)})`);
-	} else {
-		snippet.appendText((escapeMarkdownLinkPath(isExternalLink ? uriString : mdPath, isExternalLink)));
-	}
+	snippet.appendText('[');
+	snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
+	snippet.appendText(`](${escapeMarkdownLinkPath(uriString, isExternalLink)})`);
 	return snippet;
 }
 
@@ -291,8 +287,10 @@ export function createUriListSnippet(
 			}
 		} else {
 			insertedLinkCount++;
-			if (uriStrings) {
-				snippet = appendToLinkSnippet(snippet, pasteAsMarkdownLink, mdPath, title, uriStrings[i], placeholderValue, isExternalLink);
+			if (uriStrings && isExternalLink) {
+				snippet = appendToLinkSnippet(snippet, title, uriStrings[i], placeholderValue, isExternalLink);
+			} else {
+				snippet.appendText(escapeMarkdownLinkPath(mdPath, false));
 			}
 		}
 
