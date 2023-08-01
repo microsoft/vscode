@@ -160,16 +160,14 @@ suite('createEditAddingLinksForUriList', () => {
 
 		test('Should evaluate pasteAsMarkdownLink as false for a valid selected link', () => {
 			skinnyDocument.getText = function () { return 'https://www.microsoft.com'; };
-			const range = new vscode.Range(0, 0, 0, 25);
-			const smartPaste = checkSmartPaste(skinnyDocument, range);
-			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
+			const pasteAsMarkdownLink = checkSmartPaste(skinnyDocument, new vscode.Range(0, 0, 0, 25), new vscode.Range(0, 0, 0, 25));
+			assert.strictEqual(pasteAsMarkdownLink, false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for a valid selected link with trailing whitespace', () => {
 			skinnyDocument.getText = function () { return '   https://www.microsoft.com  '; };
-			const range = new vscode.Range(0, 0, 0, 30);
-			const smartPaste = checkSmartPaste(skinnyDocument, range);
-			assert.strictEqual(smartPaste.pasteAsMarkdownLink, false);
+			const pasteAsMarkdownLink = checkSmartPaste(skinnyDocument, new vscode.Range(0, 0, 0, 30), new vscode.Range(0, 0, 0, 30));
+			assert.strictEqual(pasteAsMarkdownLink, false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for no selection', () => {
