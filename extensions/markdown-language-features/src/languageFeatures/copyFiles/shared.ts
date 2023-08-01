@@ -63,9 +63,7 @@ export const mediaMimes = new Set([
 ]);
 
 const smartPasteRegexes = [
-	{ regex: /\[.*\]\(.*\)/g, isMarkdownLink: true, isInline: true }, // Is a Markdown Link
-	{ regex: /!\[.*\]\(.*\)/g, isMarkdownLink: true, isInline: true }, // Is a Markdown Image Link
-	{ regex: /\[([^\]]*)\]\(([^)]*)\)/g, isMarkdownLink: false, isInline: true }, // In a Markdown link
+	{ regex: /(\[[^\[\]]*](?:\([^\(\)]*\)|\[[^\[\]]*]))/g, isMarkdownLink: false, isInline: true }, // In a Markdown link
 	{ regex: /^```[\s\S]*?```$/gm, isMarkdownLink: false, isInline: false }, // In a backtick fenced code block
 	{ regex: /^~~~[\s\S]*?~~~$/gm, isMarkdownLink: false, isInline: false }, // In a tildefenced code block
 	{ regex: /^\$\$[\s\S]*?\$\$$/gm, isMarkdownLink: false, isInline: false }, // In a fenced math block
@@ -128,7 +126,7 @@ export async function createEditAddingLinksForUriList(
 		);
 
 		if (useSmartPaste) {
-			smartPaste = checkSmartPaste(document, selectedRange);
+			smartPaste = checkSmartPaste(document, selectedRange, range);
 			title = smartPaste.updateTitle ? '' : document.getText(range);
 		}
 
@@ -149,9 +147,12 @@ export async function createEditAddingLinksForUriList(
 	return { additionalEdits, label };
 }
 
-export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range): SmartPaste {
+export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range, range: vscode.Range): SmartPaste {
 	const SmartPaste: SmartPaste = { pasteAsMarkdownLink: true, updateTitle: false };
-	if (selectedRange.isEmpty || /^[\s\n]*$/.test(document.getText(selectedRange)) || validateLink(document.getText(selectedRange)).isValid) {
+	if (selectedRange.isEmpty || /^[\s\n]*$/.test(document.getText(range)) || validateLink(document.getText(range)).isValid) {
+		return { pasteAsMarkdownLink: false, updateTitle: false };
+	}
+	if (/\[.*\]\(.*\)/.test(document.getText(range)) || /!\[.*\]\(.*\)/.test(document.getText(range))) {
 		return { pasteAsMarkdownLink: false, updateTitle: false };
 	}
 	for (const regex of smartPasteRegexes) {
