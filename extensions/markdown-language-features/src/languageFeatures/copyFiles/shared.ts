@@ -122,7 +122,7 @@ export async function createEditAddingLinksForUriList(
 		);
 
 		if (useSmartPaste) {
-			pasteAsMarkdownLink = checkSmartPaste(document, selectedRange);
+			pasteAsMarkdownLink = checkSmartPaste(document, selectedRange, range);
 		}
 
 		const snippet = await tryGetUriListSnippet(document, urlList, token, document.getText(range), placeHolderValue, pasteAsMarkdownLink, isExternalLink);
@@ -142,8 +142,8 @@ export async function createEditAddingLinksForUriList(
 	return { additionalEdits, label };
 }
 
-export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range): boolean {
-	if (selectedRange.isEmpty || /^[\s\n]*$/.test(document.getText(selectedRange))) {
+export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range, range: vscode.Range): boolean {
+	if (selectedRange.isEmpty || /^[\s\n]*$/.test(document.getText(range))) {
 		return false;
 	}
 	for (const regex of smartPasteRegexes) {
