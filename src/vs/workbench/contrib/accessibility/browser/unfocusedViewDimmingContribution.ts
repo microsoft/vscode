@@ -42,7 +42,8 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 			// Terminals
 			rules.add(`.monaco-workbench .pane-body.integrated-terminal .xterm:not(.focus) { ${filterRule} }`);
 			// Editors
-			rules.add(`.monaco-workbench .editor-instance .monaco-editor:not(.focused) { ${filterRule} }`);
+			// TODO@Tyriar: the following CSS rule breaks the color picker
+			// rules.add(`.monaco-workbench .editor-instance .monaco-editor:not(.focused) { ${filterRule} }`);
 
 			elStyle.textContent = [...rules].join('\n');
 		}));
