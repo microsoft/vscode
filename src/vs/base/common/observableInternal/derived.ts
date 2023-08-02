@@ -8,12 +8,15 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IReader, IObservable, BaseObservable, IObserver, _setDerived, IChangeContext, getFunctionName } from 'vs/base/common/observableInternal/base';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
+export type EqualityComparer<T> = (a: T, b: T) => boolean;
+const defaultEqualityComparer: EqualityComparer<any> = (a, b) => a === b;
+
 export function derived<T>(computeFn: (reader: IReader) => T, debugName?: string | (() => string)): IObservable<T> {
-	return new Derived(debugName, computeFn, undefined, undefined, undefined);
+	return new Derived(debugName, computeFn, undefined, undefined, undefined, defaultEqualityComparer);
 }
 
-export function derivedOpts<T>(options: { debugName?: string | (() => string) }, computeFn: (reader: IReader) => T): IObservable<T> {
-	return new Derived(options.debugName, computeFn, undefined, undefined, undefined);
+export function derivedOpts<T>(options: { debugName?: string | (() => string); equalityComparer?: EqualityComparer<T> }, computeFn: (reader: IReader) => T): IObservable<T> {
+	return new Derived(options.debugName, computeFn, undefined, undefined, undefined, options.equalityComparer ?? defaultEqualityComparer);
 }
 
 export function derivedHandleChanges<T, TChangeSummary>(
@@ -23,7 +26,7 @@ export function derivedHandleChanges<T, TChangeSummary>(
 		handleChange: (context: IChangeContext, changeSummary: TChangeSummary) => boolean;
 	},
 	computeFn: (reader: IReader, changeSummary: TChangeSummary) => T): IObservable<T> {
-	return new Derived(debugName, computeFn, options.createEmptyChangeSummary, options.handleChange, undefined);
+	return new Derived(debugName, computeFn, options.createEmptyChangeSummary, options.handleChange, undefined, defaultEqualityComparer);
 }
 
 export function derivedWithStore<T>(name: string, computeFn: (reader: IReader, store: DisposableStore) => T): IObservable<T> {
@@ -31,7 +34,7 @@ export function derivedWithStore<T>(name: string, computeFn: (reader: IReader, s
 	return new Derived(name, r => {
 		store.clear();
 		return computeFn(r, store);
-	}, undefined, undefined, () => store.dispose());
+	}, undefined, undefined, () => store.dispose(), defaultEqualityComparer);
 }
 
 _setDerived(derived);
@@ -78,7 +81,8 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		public readonly _computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
 		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
 		private readonly _handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
-		private readonly _handleLastObserverRemoved: (() => void) | undefined = undefined
+		private readonly _handleLastObserverRemoved: (() => void) | undefined = undefined,
+		private readonly _equalityComparator: EqualityComparer<T>,
 	) {
 		super();
 		this.changeSummary = this.createChangeSummary?.();
@@ -163,7 +167,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			this.dependenciesToBeRemoved.clear();
 		}
 
-		const didChange = hadValue && oldValue !== this.value;
+		const didChange = hadValue && !(this._equalityComparator(oldValue!, this.value));
 
 		getLogger()?.handleDerivedRecomputed(this, {
 			oldValue,

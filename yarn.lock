@@ -10764,10 +10764,10 @@ xterm-addon-canvas@0.5.0-beta.7:
   resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.5.0-beta.7.tgz#27a6753a0d8551248bffb15c29d5d88bf6b2a071"
   integrity sha512-33a8kSR/uirSrtPkNiCO5MnRwuvR0hTvm1K+541XDsa9QS0VF0xPZoC4MEWHHXfSMzrTFgx1edpXqYOKc2yWtw==
 
-xterm-addon-image@0.4.3:
-  version "0.4.3"
-  resolved "https://registry.yarnpkg.com/xterm-addon-image/-/xterm-addon-image-0.4.3.tgz#b9e563d908c6aa82458852eb5b8a7ea931c19dd3"
-  integrity sha512-OyNs5qpW884CXJGRdqOnaiH2L9HLNyfO4oCHOH9mCVFjp099Aqc4u/DBs4nyTPcBgdeKrlE8xzI1i6y8H94aCw==
+xterm-addon-image@0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/xterm-addon-image/-/xterm-addon-image-0.5.0.tgz#3c9bb332a3de55ab200dbefd3411e3b0d985314f"
+  integrity sha512-bWXUBeDzhisYh0clVKx4JgQrZjpn+/QRMRwNsfnRpjCMhgmZ+SL3Bivktd7q03O4uKMMcAOe6bSmppwP9/um0Q==
 
 xterm-addon-search@0.13.0-beta.4:
   version "0.13.0-beta.4"
@@ -10789,15 +10789,15 @@ xterm-addon-webgl@0.16.0-beta.6:
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.16.0-beta.6.tgz#5f8a598081a117dec15b4ead8160bf8e972fbfd0"
   integrity sha512-bRFahQyVuiRmeakLzTrs3V3KSWBDOcePfT/Q7dwWfh8NPpilg6/Zm04ijq99Nsg1AYbfNWh+P05Myppa8uimCA==
 
-xterm-headless@5.3.0-beta.21:
-  version "5.3.0-beta.21"
-  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-5.3.0-beta.21.tgz#3d41388c25c07530ecaeb081546e3e660d707f5d"
-  integrity sha512-hCwZHS13NU9bNZAE8BK5FDERjkLGXwDUh1M/Zz46S8WB/AtSRN2kt0lIES3IzZdEOzUjPdfiI4UNGXiLIpLZ/w==
+xterm-headless@5.3.0-beta.24:
+  version "5.3.0-beta.24"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-5.3.0-beta.24.tgz#53fd4cb1074df32b8380f8648e27b30402afbf52"
+  integrity sha512-POltAlizoSkgbjxloTkmn0Rzwh0viOdM6kpRir8yorSOMctOWXe94tNL2vgdEJxXRvMLFo8wXNjFz0g7N4wZ8w==
 
-xterm@5.3.0-beta.21:
-  version "5.3.0-beta.21"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.3.0-beta.21.tgz#6b19160e8442bdc0a505213a4aa1c6a231af9deb"
-  integrity sha512-AtkHnXSRbQ+uKgpYyQ4fkQRMur7rzM7kLY5hKcYZ8R8OpQmsbQxahStRNVBPP32rk+uKOmuZIQ61eQR7y44tGQ==
+xterm@5.3.0-beta.24:
+  version "5.3.0-beta.24"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.3.0-beta.24.tgz#ba8762b66cba543de13c70eaa2e5e2687060c6b3"
+  integrity sha512-XMk54jwvWJKJVVBm0wh2SCUB9vnXzg872yAytEKlspEWim62nM1lMfYMI/yNjr5RhL3YtBNOR4ewE4ubfhUINA==
 
 y18n@^3.2.1:
   version "3.2.2"

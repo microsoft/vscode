@@ -67,6 +67,11 @@ export class ColumnRange {
 	toRange(lineNumber: number): Range {
 		return new Range(lineNumber, this.startColumn, lineNumber, this.endColumnExclusive);
 	}
+
+	equals(other: ColumnRange): boolean {
+		return this.startColumn === other.startColumn
+			&& this.endColumnExclusive === other.endColumnExclusive;
+	}
 }
 
 export function applyObservableDecorations(editor: ICodeEditor, decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
