@@ -67,7 +67,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _positionRevealed = false;
 	private _onMouseDown = false;
 	private _endLineNumbers: number[] = [];
-	private _shiftIndex: number | undefined;
+	private _altIndex: number | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -198,7 +198,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _revealLineInCenterIfOutsideViewport(position: IPosition): void {
 		this._positionRevealed = true;
-		this._shiftIndex = undefined;
+		this._altIndex = undefined;
 		this._editor.revealLineInCenterIfOutsideViewport(position.lineNumber, ScrollType.Smooth);
 		this._editor.setSelection(Range.fromPositions(position));
 		this._editor.focus();
@@ -216,7 +216,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 			const eventTarget = e.target;
 			if (e.metaKey && eventTarget && eventTarget instanceof HTMLElement && eventTarget.innerText === eventTarget.innerHTML) {
-				this._shiftIndex = undefined;
+				this._altIndex = undefined;
 				const text = eventTarget.innerText;
 				if (this._stickyScrollWidget.hoverOnColumn === -1) {
 					return;
@@ -261,27 +261,26 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 						sessionStore.clear();
 					}
 				}));
-			} else if (e.shiftKey) {
-				const shiftIndex = this._stickyScrollWidget.hoverOnIndex;
-				if (this._shiftIndex === undefined || this._shiftIndex !== shiftIndex) {
-					this._shiftIndex = shiftIndex;
+			} else if (e.altKey) {
+				const altIndex = this._stickyScrollWidget.hoverOnIndex;
+				if (this._altIndex === undefined || this._altIndex !== altIndex) {
+					this._altIndex = altIndex;
 					this._renderStickyScroll();
 				}
 			} else {
-				this._shiftIndex = undefined;
+				if (this._altIndex !== undefined) {
+					this._altIndex = undefined;
+					this._renderStickyScroll();
+				}
 				sessionStore.clear();
 			}
-		}));
-		store.add(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_OVER, () => {
-			stickyScrollWidgetDomNode.style.cursor = 'pointer';
 		}));
 		store.add(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_OUT, (e) => {
 			const clientX = e.clientX;
 			const clientY = e.clientY;
 			const domRect = stickyScrollWidgetDomNode.getBoundingClientRect();
 			if (clientX <= domRect.left || clientX >= domRect.right || clientY <= domRect.top || clientY >= domRect.bottom) {
-				stickyScrollWidgetDomNode.style.cursor = 'default';
-				this._shiftIndex = undefined;
+				this._altIndex = undefined;
 				this._renderStickyScroll();
 			}
 		}));
@@ -292,7 +291,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}));
 		store.add(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_DOWN, (e) => {
 			if (e.metaKey) {
-				// Control click
+				// Meta click
 				if (this._candidateDefinitionsLength > 1) {
 					if (this._focused) {
 						this._disposeFocusStickyScrollStore();
@@ -301,8 +300,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				}
 				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
 
-			} else if (e.shiftKey) {
-				// Shift key
+			} else if (e.altKey) {
+				// Alt click
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
 				}
@@ -461,8 +460,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 		}
 		this._endLineNumbers = endLineNumbers;
-		if (this._shiftIndex !== undefined) {
-			startLineNumbers[this._shiftIndex] = endLineNumbers[this._shiftIndex];
+		if (this._altIndex !== undefined) {
+			startLineNumbers[this._altIndex] = endLineNumbers[this._altIndex];
 		}
 		return new StickyScrollWidgetState(startLineNumbers, lastLineRelativePosition);
 	}
