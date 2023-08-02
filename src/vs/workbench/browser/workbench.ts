@@ -61,14 +61,14 @@ export class Workbench extends Layout {
 		parent: HTMLElement,
 		private readonly options: IWorkbenchOptions | undefined,
 		private readonly serviceCollection: ServiceCollection,
-		logService: ILogService
+		private readonly logService2: ILogService
 	) {
 		super(parent);
 
 		// Perf: measure workbench startup time
 		mark('code/willStartWorkbench');
 
-		this.registerErrorHandler(logService);
+		this.registerErrorHandler(logService2);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {
@@ -135,11 +135,17 @@ export class Workbench extends Layout {
 	startup(): IInstantiationService {
 		try {
 
+			this.logService2.info('workbench#1');
+
 			// Configure emitter leak warning threshold
 			setGlobalLeakWarningThreshold(175);
 
+			this.logService2.info('workbench#2');
+
 			// Services
 			const instantiationService = this.initServices(this.serviceCollection);
+
+			this.logService2.info('workbench#3');
 
 			instantiationService.invokeFunction(accessor => {
 				const lifecycleService = accessor.get(ILifecycleService);
@@ -149,12 +155,18 @@ export class Workbench extends Layout {
 				const dialogService = accessor.get(IDialogService);
 				const notificationService = accessor.get(INotificationService) as NotificationService;
 
+				this.logService2.info('workbench#4');
+
 				// Layout
 				this.initLayout(accessor);
+
+				this.logService2.info('workbench#5');
 
 				// Registries
 				Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
 				Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor);
+
+				this.logService2.info('workbench#6');
 
 				// Context Keys
 				this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
@@ -164,6 +176,8 @@ export class Workbench extends Layout {
 
 				// Render Workbench
 				this.renderWorkbench(instantiationService, notificationService, storageService, configurationService);
+
+				this.logService2.info('workbench#7');
 
 				// Workbench Layout
 				this.createWorkbenchLayout();

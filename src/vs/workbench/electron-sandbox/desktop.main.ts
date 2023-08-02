@@ -111,6 +111,8 @@ export class DesktopMain extends Disposable {
 		// Init services and wait for DOM to be ready in parallel
 		const [services] = await Promise.all([this.initServices(), domContentLoaded()]);
 
+		services.logService.info('desktop.main.ts#1');
+
 		// Apply zoom level early once we have a configuration service
 		// and before the workbench is created to prevent flickering.
 		// We also need to respect that zoom level can be configured per
@@ -118,17 +120,27 @@ export class DesktopMain extends Disposable {
 		// (fixes https://github.com/microsoft/vscode/issues/187982)
 		this.applyConfiguredWindowZoomLevel(services.configurationService);
 
+		services.logService.info('desktop.main.ts#2');
+
 		// Create Workbench
 		const workbench = new Workbench(document.body, { extraClasses: this.getExtraClasses() }, services.serviceCollection, services.logService);
+
+		services.logService.info('desktop.main.ts#3');
 
 		// Listeners
 		this.registerListeners(workbench, services.storageService);
 
+		services.logService.info('desktop.main.ts#4');
+
 		// Startup
 		const instantiationService = workbench.startup();
 
+		services.logService.info('desktop.main.ts#5');
+
 		// Window
 		this._register(instantiationService.createInstance(NativeWindow));
+
+		services.logService.info('desktop.main.ts#6');
 	}
 
 	private applyConfiguredWindowZoomLevel(configurationService: IConfigurationService) {
@@ -197,10 +209,10 @@ export class DesktopMain extends Disposable {
 		const logService = this._register(new NativeLogService(loggerService, environmentService));
 		serviceCollection.set(ILogService, logService);
 		if (isCI) {
-			logService.info('workbench#open()'); // marking workbench open helps to diagnose flaky integration/smoke tests
+			logService.info('desktop.main.ts#open()'); // marking workbench open helps to diagnose flaky integration/smoke tests
 		}
 		if (logService.getLevel() === LogLevel.Trace) {
-			logService.trace('workbench#open(): with configuration', safeStringify(this.configuration));
+			logService.trace('desktop.main.ts#open(): with configuration', safeStringify(this.configuration));
 		}
 
 		// Shared Process
