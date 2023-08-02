@@ -41,16 +41,12 @@ export class ScrollbarVisibilityController extends Disposable {
 
 	// ----------------- Hide / Reveal
 
-	public setShouldBeVisible(rawShouldBeVisible: boolean, isStickyLine?: boolean): void {
+	public setShouldBeVisible(rawShouldBeVisible: boolean): void {
 		this._rawShouldBeVisible = rawShouldBeVisible;
-		this._updateShouldBeVisible(isStickyLine);
+		this._updateShouldBeVisible();
 	}
 
-	private _applyVisibilitySetting(isStickyLine?: boolean): boolean {
-		if (isStickyLine) {
-			console.log('this._visibility : ', this._visibility);
-		}
-
+	private _applyVisibilitySetting(): boolean {
 		if (this._visibility === ScrollbarVisibility.Hidden) {
 			return false;
 		}
@@ -60,17 +56,12 @@ export class ScrollbarVisibilityController extends Disposable {
 		return this._rawShouldBeVisible;
 	}
 
-	private _updateShouldBeVisible(isStickyLine?: boolean): void {
-		let shouldBeVisible = this._applyVisibilitySetting(isStickyLine);
+	private _updateShouldBeVisible(): void {
+		const shouldBeVisible = this._applyVisibilitySetting();
 
-		if (isStickyLine) {
-			console.log('this._shouldBeVisible : ', this._shouldBeVisible);
-			console.log('shouldBeVisible : ', shouldBeVisible);
-			shouldBeVisible = true;
-		}
 		if (this._shouldBeVisible !== shouldBeVisible) {
 			this._shouldBeVisible = shouldBeVisible;
-			this.ensureVisibility(isStickyLine);
+			this.ensureVisibility();
 		}
 	}
 
@@ -89,51 +80,34 @@ export class ScrollbarVisibilityController extends Disposable {
 		this.setShouldBeVisible(false);
 	}
 
-	public ensureVisibility(isStickyLine?: boolean): void {
+	public ensureVisibility(): void {
 
-		if (isStickyLine) {
-			console.log('this._isNeeded : ', this._isNeeded);
-			console.log('this._shouldBeVisible : ', this._shouldBeVisible);
-		}
-
-		if (!isStickyLine && !this._isNeeded) {
+		if (!this._isNeeded) {
 			// Nothing to be rendered
-			this._hide(false, isStickyLine);
+			this._hide(false);
 			return;
 		}
 
 		if (this._shouldBeVisible) {
-			this._reveal(isStickyLine);
+			this._reveal();
 		} else {
-			this._hide(true, isStickyLine);
+			this._hide(true);
 		}
 	}
 
-	private _reveal(isStickyLine?: boolean): void {
-		if (isStickyLine) {
-			console.log('inside or _reveal');
-			console.log('this._isVisible : ', this._isVisible);
-		}
+	private _reveal(): void {
 		if (this._isVisible) {
 			return;
 		}
 		this._isVisible = true;
-		if (isStickyLine) {
-			console.log('this._isVisible : ', this._isVisible);
-			console.log('this._visibleClassName : ', this._visibleClassName);
-		}
 
 		// The CSS animation doesn't play otherwise
 		this._revealTimer.setIfNotSet(() => {
-			this._domNode?.setClassName(this._visibleClassName, isStickyLine);
+			this._domNode?.setClassName(this._visibleClassName);
 		}, 0);
 	}
 
-	private _hide(withFadeAway: boolean, isStickyLine?: boolean): void {
-		if (isStickyLine) {
-			console.log('inside of _hide');
-			console.log('this._isVisible : ', this._isVisible);
-		}
+	private _hide(withFadeAway: boolean): void {
 		this._revealTimer.cancel();
 		if (!this._isVisible) {
 			return;
