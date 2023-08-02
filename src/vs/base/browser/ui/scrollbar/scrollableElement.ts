@@ -544,20 +544,13 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	private _onMouseOver(e: IMouseEvent): void {
-		const isStickyLine = e.target.classList.contains('sticky-line');
-		if (isStickyLine) {
-			console.log('on mouse over : ', e);
-		}
 		this._mouseIsOver = true;
-		this._reveal(isStickyLine);
+		this._reveal();
 	}
 
-	private _reveal(isStickyLine?: boolean): void {
-		if (isStickyLine) {
-			console.log('inside of _reveal');
-		}
+	private _reveal(): void {
 		this._verticalScrollbar.beginReveal();
-		this._horizontalScrollbar.beginReveal(isStickyLine);
+		this._horizontalScrollbar.beginReveal();
 		this._scheduleHide();
 	}
 
