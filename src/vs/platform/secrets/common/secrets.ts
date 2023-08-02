@@ -10,6 +10,7 @@ import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } 
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Lazy } from 'vs/base/common/lazy';
 
 export const ISecretStorageService = createDecorator<ISecretStorageService>('secretStorageService');
 
@@ -34,7 +35,6 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 	onDidChangeSecret: Event<string> = this._onDidChangeSecret.event;
 
 	protected readonly _sequencer = new SequencerByKey<string>();
-	protected resolvedStorageService = this.initialize();
 
 	private _type: 'in-memory' | 'persisted' | 'unknown' = 'unknown';
 
@@ -48,6 +48,11 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 
 	get type() {
 		return this._type;
+	}
+
+	private lazyStorageService: Lazy<Promise<IStorageService>> = new Lazy(() => this.initialize());
+	protected get resolvedStorageService() {
+		return this.lazyStorageService.value;
 	}
 
 	private onDidChangeValue(key: string): void {
@@ -135,7 +140,7 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 	}
 
 	protected reinitialize(): void {
-		this.resolvedStorageService = this.initialize();
+		this.lazyStorageService = new Lazy(() => this.initialize());
 	}
 
 	private getKey(key: string): string {
