@@ -32,7 +32,7 @@ import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { FindMatchDecorationModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findMatchDecorationModel';
-import { CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -222,11 +222,21 @@ export class CellMatch {
 		}
 	}
 
+	clearAllMatches() {
+		this._contentMatches.clear();
+		this._webviewMatches.clear();
+	}
+
 	addContentMatches(textSearchMatches: ITextSearchMatch[]) {
 		const contentMatches = textSearchMatchesToNotebookMatches(textSearchMatches, this);
 		contentMatches.forEach((match) => {
 			this._contentMatches.set(match.id(), match);
 		});
+		// if (!(this.cell instanceof CellSearchModel) && this.cell.cellKind === CellKind.Markup) {
+		// 	if (this._webviewMatches.has(this.cell.id)) {
+		// 		this._webviewMatches.delete(this.cell.id);
+		// 	}
+		// }
 		this.addContext(textSearchMatches);
 	}
 
@@ -248,6 +258,11 @@ export class CellMatch {
 		webviewMatches.forEach((match) => {
 			this._webviewMatches.set(match.id(), match);
 		});
+		// if (!(this.cell instanceof CellSearchModel) && this.cell.cellKind === CellKind.Markup) {
+		// 	if (this._contentMatches.has(this.cell.id)) {
+		// 		this._contentMatches.delete(this.cell.id);
+		// 	}
+		// }
 		// TODO: add webview results to context
 	}
 
@@ -795,14 +810,13 @@ export class FileMatch extends Disposable implements IFileMatch {
 			this._lastEditorWidgetIdForUpdate = this._notebookEditorWidget.getId();
 		}
 		matches.forEach(match => {
-
-
 			let existingCell = this._cellMatches.get(match.cell.id);
 			if (this._notebookEditorWidget && !existingCell) {
 				const index = this._notebookEditorWidget.getCellIndex(match.cell);
 				const existingRawCell = oldCellMatches.get(`${rawCellPrefix}${index}`);
 				if (existingRawCell) {
 					existingRawCell.setCellModel(match.cell);
+					existingRawCell.clearAllMatches();
 					existingCell = existingRawCell;
 				}
 			}
@@ -898,7 +912,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 				this._notebookEditorWidget.revealCellOffsetInCenterAsync(match.cell, outputOffset ?? 0);
 			}
 		} else {
-			match.cell.updateEditState(CellEditState.Editing, 'focusNotebookCell');
+			match.cell.updateEditState(match.cell.getEditState(), 'focusNotebookCell');
 			this._notebookEditorWidget.setCellEditorSelection(match.cell, match.range());
 			this._notebookEditorWidget.revealRangeInCenterIfOutsideViewportAsync(match.cell, match.range());
 		}
@@ -1152,7 +1166,7 @@ export class FolderMatch extends Disposable {
 						const existingCellMatch = existingFileMatch.getCellMatch(rawCellMatch.cell.id);
 						if (existingCellMatch) {
 							existingCellMatch.addContentMatches(rawCellMatch.contentResults);
-							existingCellMatch.addContentMatches(rawCellMatch.webviewResults);
+							existingCellMatch.addWebviewMatches(rawCellMatch.webviewResults);
 						} else {
 							existingFileMatch.addCellMatch(rawCellMatch);
 						}
