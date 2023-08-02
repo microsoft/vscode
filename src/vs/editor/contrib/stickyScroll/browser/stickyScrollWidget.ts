@@ -209,7 +209,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				// Line and column number of the hover needed for the control clicking feature
 				this._hoverOnIndex = index;
 				this._hoverOnLine = line;
-
 				// TODO: workaround to find the column index, perhaps need a more solid solution
 				this._hoverOnColumn = this._editor.getModel().getLineContent(line).indexOf(text) + 1 || -1;
 			}
