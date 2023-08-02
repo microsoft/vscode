@@ -8,7 +8,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { AccessibilitySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilitySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export class UnfocusedViewDimmingContribution extends Disposable implements IWorkbenchContribution {
 	constructor(

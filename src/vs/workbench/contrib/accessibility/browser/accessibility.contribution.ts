@@ -12,7 +12,7 @@ import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/b
 import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityHelpAction, AccessibilityVerbositySettingId, AccessibleViewAction, AccessibleViewNextAction, AccessibleViewPreviousAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import * as strings from 'vs/base/common/strings';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -30,6 +30,7 @@ import { IAccessibleViewService, AccessibleViewService, IAccessibleContentProvid
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { UnfocusedViewDimmingContribution } from 'vs/workbench/contrib/accessibility/browser/unfocusedViewDimmingContribution';
+import { AccessibilityHelpAction, AccessibleViewAction, AccessibleViewNextAction, AccessibleViewPreviousAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityMultiCommands';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);

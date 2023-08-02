@@ -37,7 +37,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import '../common/chatColors';
 import { registerMoveActions } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { registerClearActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
-import { AccessibilityVerbositySettingId, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
@@ -45,6 +45,7 @@ import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
 import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
+import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityMultiCommands';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
