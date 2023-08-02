@@ -234,7 +234,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			wordSeparator: config.wordSeparators,
 			overviewRulerWidth: 10,
-			smoothScrollDuration: config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0
+			smoothScrollDuration: config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0,
+			ignoreBracketedPasteMode: config.ignoreBracketedPasteMode
 		}));
 		this._core = (this.raw as any)._core as IXtermCore;
 
@@ -393,6 +394,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.customGlyphs = config.customGlyphs;
 		this.raw.options.smoothScrollDuration = config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0;
+		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		if (this._attached?.options.enableGpu) {
 			if (this._shouldLoadWebgl()) {
 				this._enableWebglRenderer();
