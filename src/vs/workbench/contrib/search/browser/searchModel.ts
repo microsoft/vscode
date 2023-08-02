@@ -232,11 +232,6 @@ export class CellMatch {
 		contentMatches.forEach((match) => {
 			this._contentMatches.set(match.id(), match);
 		});
-		// if (!(this.cell instanceof CellSearchModel) && this.cell.cellKind === CellKind.Markup) {
-		// 	if (this._webviewMatches.has(this.cell.id)) {
-		// 		this._webviewMatches.delete(this.cell.id);
-		// 	}
-		// }
 		this.addContext(textSearchMatches);
 	}
 
@@ -258,11 +253,6 @@ export class CellMatch {
 		webviewMatches.forEach((match) => {
 			this._webviewMatches.set(match.id(), match);
 		});
-		// if (!(this.cell instanceof CellSearchModel) && this.cell.cellKind === CellKind.Markup) {
-		// 	if (this._contentMatches.has(this.cell.id)) {
-		// 		this._contentMatches.delete(this.cell.id);
-		// 	}
-		// }
 		// TODO: add webview results to context
 	}
 
