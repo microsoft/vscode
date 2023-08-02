@@ -5,7 +5,6 @@
 
 .monaco-editor .sticky-line {
 	color: var(--vscode-editorLineNumber-foreground);
-	overflow: hidden;
 	white-space: nowrap;
 	display: inline-block;
 }
@@ -17,7 +16,6 @@
 
 .monaco-editor .sticky-line-root {
 	background-color: inherit;
-	overflow: hidden;
 	white-space: nowrap;
 	width: 100%;
 }
