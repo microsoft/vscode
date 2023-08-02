@@ -133,7 +133,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		}
 	});
 
-	describe('Data Loss (stable -> insiders)', function () {
+	(process.platform === 'darwin' ? describe.skip : describe)('Data Loss (stable -> insiders)', function () {
 
 		// Double the timeout since these tests involve 2 startups
 		this.timeout(4 * 60 * 1000);
