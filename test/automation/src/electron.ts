@@ -24,6 +24,8 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, crashesPath, extraArgs } = options;
 	const env = { ...process.env };
 
+	await mkdirp(logsPath);
+
 	const args = [
 		workspacePath,
 		'--skip-release-notes',
