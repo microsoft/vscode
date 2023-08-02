@@ -163,8 +163,8 @@ export abstract class AbstractScrollbar extends Widget {
 
 	// ----------------- rendering
 
-	public beginReveal(): void {
-		this._visibilityController.setShouldBeVisible(true);
+	public beginReveal(isStickyLine?: boolean): void {
+		this._visibilityController.setShouldBeVisible(true, isStickyLine);
 	}
 
 	public beginHide(): void {

@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { DomScrollableElement, ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./stickyScroll';
@@ -30,7 +30,8 @@ const _ttPolicy = createTrustedTypesPolicy('stickyScrollViewLayer', { createHTML
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private readonly _layoutInfo: EditorLayoutInfo;
-	private readonly _scrollableElement: ScrollableElement;
+	// private readonly _scrollableElement: ScrollableElement;
+	private readonly _scrollbar: DomScrollableElement;
 	private readonly _wrapperDomNode: HTMLElement = document.createElement('div');
 	private readonly _rootDomNode: HTMLElement = document.createElement('div');
 	private readonly _disposableStore = this._register(new DisposableStore());
@@ -50,17 +51,27 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
 
-		this._scrollableElement = new ScrollableElement(this._rootDomNode, {
-			horizontal: ScrollbarVisibility.Auto,
-			vertical: ScrollbarVisibility.Auto,
-			useShadows: false,
-			horizontalScrollbarSize: 6,
-			verticalScrollbarSize: 6
-		});
-		const scrollableElementDom = this._scrollableElement.getDomNode();
-		this._wrapperDomNode.appendChild(scrollableElementDom);
-		// this._wrapperDomNode.classList.add('sticky-widget');
-		// scrollableElementDom.classList.add('sticky-widget');
+		// this._scrollableElement = new ScrollableElement(this._rootDomNode, {
+		// 	horizontal: ScrollbarVisibility.Visible,
+		// 	vertical: ScrollbarVisibility.Visible,
+		// 	useShadows: false,
+		// 	horizontalScrollbarSize: 6,
+		// 	verticalScrollbarSize: 6
+		// });
+
+		this._scrollbar = this._register(new DomScrollableElement(this._rootDomNode, {
+			consumeMouseWheelIfScrollbarIsNeeded: true
+		}));
+		this._wrapperDomNode.appendChild(this._scrollbar.getDomNode());
+		this._scrollbar.scanDomNode();
+
+		// const scrollableElementDom = this._scrollableElement.getDomNode();
+		// this._wrapperDomNode.appendChild(scrollableElementDom);
+		// // this._wrapperDomNode.classList.add('sticky-widget');
+		// // scrollableElementDom.classList.add('sticky-widget');
+		// this._register(dom.addDisposableListener(this._rootDomNode, dom.EventType.MOUSE_OVER, () => {
+		// 	console.log('this._wrapperDomNode : ', this._wrapperDomNode);
+		// }));
 	}
 
 	get hoverOnLine(): number {
@@ -120,6 +131,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (minimapSide === 'left') {
 			this._rootDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
 		}
+
+		this._scrollbar.scanDomNode();
 	}
 
 	private _renderChildNode(index: number, line: number): HTMLDivElement {
@@ -206,9 +219,26 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 		// Special case for the last line of sticky scroll
 		if (index === this._lineNumbers.length - 1) {
-			child.style.position = 'relative';
+			// will need to use the absolute position in order for the sticky lines to appear correctly
+
+			//child.style.position = 'relative';
+
 			child.style.zIndex = '-1';
+			// const editorTop = this._editor.getDomNode()?.clientTop;
+			// const stickyScrollAbove = (this._lineNumbers.length - 1) * lineHeight;
+			// console.log('this._lastLineRelativePosition : ', this._lastLineRelativePosition);
+			// console.log('editorTop : ', editorTop);
+			// if (editorTop !== undefined) {
+			// 	console.log('child.clientTop : ', child.clientTop);
+			// 	console.log('child.offsetTop : ', child.offsetTop);
+			// 	console.log('child.scrollTop : ', child.scrollTop);
+			// 	console.log('(editorTop + stickyScrollAbove + this._lastLineRelativePosition) : ', (editorTop + stickyScrollAbove + this._lastLineRelativePosition));
 			child.style.top = this._lastLineRelativePosition + 'px';
+			// 	console.log('child.clientTop : ', child.clientTop);
+			// 	console.log('child.offsetTop : ', child.offsetTop);
+			// 	console.log('child.scrollTop : ', child.scrollTop);
+			// }
+			// child.style.top = this._lastLineRelativePosition + 'px';
 		}
 
 		// Each child has a listener which fires when the mouse hovers over the child

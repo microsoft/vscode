@@ -5,6 +5,7 @@
 
 .monaco-editor .sticky-line {
 	color: var(--vscode-editorLineNumber-foreground);
+	overflow: hidden;
 	white-space: nowrap;
 	display: inline-block;
 }

@@ -213,12 +213,20 @@ export class FastDomNode<T extends HTMLElement> {
 		this.domNode.style.letterSpacing = this._letterSpacing;
 	}
 
-	public setClassName(className: string): void {
+	public setClassName(className: string, isStickyLine?: boolean): void {
+		if (isStickyLine) {
+			console.log('className : ', className);
+			console.log('this._className : ', this._className);
+		}
 		if (this._className === className) {
 			return;
 		}
 		this._className = className;
 		this.domNode.className = this._className;
+		if (isStickyLine) {
+			console.log('this.domNode.className : ', this.domNode.className);
+			console.log('this.domNode : ', this.domNode);
+		}
 	}
 
 	public toggleClassName(className: string, shouldHaveIt?: boolean): void {
