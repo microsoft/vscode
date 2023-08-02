@@ -25,6 +25,8 @@ export class StickyScrollWidgetState {
 	) { }
 }
 
+// TODO: resolve z index error
+// can not hover over last relative positioned line, how to solve this?
 const _ttPolicy = createTrustedTypesPolicy('stickyScrollViewLayer', { createHTML: value => value });
 
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
@@ -48,9 +50,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode = document.createElement('div');
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
+		this._rootDomNode.className = 'sticky-widget-root';
 		this._scrollbar = this._register(new DomScrollableElement(this._rootDomNode, { consumeMouseWheelIfScrollbarIsNeeded: true, vertical: ScrollbarVisibility.Hidden }));
 		this._scrollableDomNode.appendChild(this._scrollbar.getDomNode());
-		this._scrollableDomNode.className = 'sticky-widget';
+		this._scrollableDomNode.className = 'sticky-widget-scroll';
 		dom.addDisposableListener(this._scrollbar.getDomNode(), dom.EventType.MOUSE_OVER, () => { this._scrollbar.scanDomNode(); });
 		this._scrollbar.scanDomNode();
 	}
@@ -194,13 +197,17 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		child.style.lineHeight = `${lineHeight}px`;
 		child.style.width = `${width}px`;
 		child.style.height = `${lineHeight}px`;
-		child.style.zIndex = '0';
+		// child.style.position = 'absolute';
+		// child.style.zIndex = '1';
+		// child.style.top = `${index * lineHeight}px`;
 
 		// Special case for the last line of sticky scroll
 		if (index === this._lineNumbers.length - 1) {
 			child.style.position = 'relative';
 			child.style.zIndex = '-1';
 			child.style.top = this._lastLineRelativePosition + 'px';
+			// child.style.zIndex = '0';
+			// child.style.top = index * lineHeight + this._lastLineRelativePosition + 'px';
 		}
 
 		// Each child has a listener which fires when the mouse hovers over the child
