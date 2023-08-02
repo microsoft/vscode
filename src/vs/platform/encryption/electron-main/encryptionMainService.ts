@@ -31,10 +31,10 @@ export class EncryptionMainService implements IEncryptionMainService {
 	}
 
 	async encrypt(value: string): Promise<string> {
-		this.logService.trace('[EncryptionMainService] Encrypting value.');
+		this.logService.info('[EncryptionMainService] Encrypting value.');
 		try {
 			const result = JSON.stringify(safeStorage.encryptString(value));
-			this.logService.trace('[EncryptionMainService] Encrypted value.');
+			this.logService.info('[EncryptionMainService] Encrypted value.');
 			return result;
 		} catch (e) {
 			this.logService.error(e);
@@ -43,20 +43,21 @@ export class EncryptionMainService implements IEncryptionMainService {
 	}
 
 	async decrypt(value: string): Promise<string> {
+		this.logService.info('[EncryptionMainService] Decrypting value.');
 		let parsedValue: { data: string };
 		try {
 			parsedValue = JSON.parse(value);
 			if (!parsedValue.data) {
-				this.logService.trace('[EncryptionMainService] Unable to parse encrypted value. Attempting old decryption.');
+				this.logService.info('[EncryptionMainService] Unable to parse encrypted value. Attempting old decryption.');
 				return this.oldDecrypt(value);
 			}
 		} catch (e) {
-			this.logService.trace('[EncryptionMainService] Unable to parse encrypted value. Attempting old decryption.', e);
+			this.logService.info('[EncryptionMainService] Unable to parse encrypted value. Attempting old decryption.', e);
 			return this.oldDecrypt(value);
 		}
 		const bufferToDecrypt = Buffer.from(parsedValue.data);
 
-		this.logService.trace('[EncryptionMainService] Decrypting value.');
+		this.logService.info('[EncryptionMainService] Decrypting value.');
 		try {
 			const result = safeStorage.decryptString(bufferToDecrypt);
 			this.logService.trace('[EncryptionMainService] Decrypted value.');
@@ -68,10 +69,12 @@ export class EncryptionMainService implements IEncryptionMainService {
 	}
 
 	isEncryptionAvailable(): Promise<boolean> {
+		this.logService.info('[EncryptionMainService] isEncryptionAvailable');
 		return Promise.resolve(safeStorage.isEncryptionAvailable());
 	}
 
 	getKeyStorageProvider(): Promise<KnownStorageProvider> {
+		this.logService.info('[EncryptionMainService] getKeyStorageProvider');
 		if (isWindows) {
 			return Promise.resolve(KnownStorageProvider.dplib);
 		}
@@ -90,6 +93,7 @@ export class EncryptionMainService implements IEncryptionMainService {
 	}
 
 	async setUsePlainTextEncryption(): Promise<void> {
+		this.logService.info('[EncryptionMainService] setUsePlainTextEncryption');
 		if (isWindows) {
 			throw new Error('Setting plain text encryption is not supported on Windows.');
 		}
@@ -107,6 +111,7 @@ export class EncryptionMainService implements IEncryptionMainService {
 
 	// TODO: Remove this after a few releases
 	private async oldDecrypt(value: string): Promise<string> {
+		this.logService.info('[EncryptionMainService] oldDecrypt');
 		let encryption: { decrypt(salt: string, value: string): Promise<string> };
 		try {
 			encryption = await new Promise((resolve, reject) => require(['vscode-encrypt'], resolve, reject));

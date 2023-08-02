@@ -22,18 +22,14 @@ export class DialogService extends Disposable implements IDialogService {
 	readonly onDidShowDialog = this.model.onDidShowDialog;
 
 	constructor(
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
 
 	private skipDialogs(): boolean {
-		if (this.environmentService.isExtensionDevelopment && this.environmentService.extensionTestsLocationURI) {
-			return true; // integration tests
-		}
-
-		return !!this.environmentService.enableSmokeTestDriver; // smoke tests
+		return true;
 	}
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
