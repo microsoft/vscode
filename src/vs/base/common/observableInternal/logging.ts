@@ -114,7 +114,7 @@ export class ConsoleObservableLogger implements IObservableLogger {
 			styled(derived.debugName, { color: 'BlueViolet' }),
 			...this.formatInfo(info),
 			this.formatChanges(changedObservables),
-			{ data: [{ fn: derived['computeFn'] }] }
+			{ data: [{ fn: derived._computeFn }] }
 		]));
 		changedObservables.clear();
 	}
@@ -124,7 +124,7 @@ export class ConsoleObservableLogger implements IObservableLogger {
 			formatKind('observable from event triggered'),
 			styled(observable.debugName, { color: 'BlueViolet' }),
 			...this.formatInfo(info),
-			{ data: [{ fn: observable['getValue'] }] }
+			{ data: [{ fn: observable._getValue }] }
 		]));
 	}
 
@@ -143,7 +143,7 @@ export class ConsoleObservableLogger implements IObservableLogger {
 			formatKind('autorun'),
 			styled(autorun.debugName, { color: 'BlueViolet' }),
 			this.formatChanges(changedObservables),
-			{ data: [{ fn: autorun['runFn'] }] }
+			{ data: [{ fn: autorun._runFn }] }
 		]));
 		changedObservables.clear();
 		this.indentation++;
@@ -161,7 +161,7 @@ export class ConsoleObservableLogger implements IObservableLogger {
 		console.log(...this.textToConsoleArgs([
 			formatKind('transaction'),
 			styled(transactionName, { color: 'BlueViolet' }),
-			{ data: [{ fn: transaction['fn'] }] }
+			{ data: [{ fn: transaction._fn }] }
 		]));
 		this.indentation++;
 	}
