@@ -6,6 +6,7 @@
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostChatShape, ExtHostContext, IChatRequestDto, IChatResponseProgressDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -158,7 +159,8 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			const responsePartId = `${id}_${responsePartHandle}`;
 			const deferredContentPromise = this._activeResponsePartPromises.get(responsePartId);
 			if (deferredContentPromise && 'treeData' in progress) {
-				deferredContentPromise.complete(progress);
+				const withRevivedUris = revive<{ treeData: IChatResponseProgressFileTreeData }>(progress);
+				deferredContentPromise.complete(withRevivedUris);
 				this._activeResponsePartPromises.delete(responsePartId);
 			} else if (deferredContentPromise && 'content' in progress) {
 				deferredContentPromise.complete(progress.content);

@@ -8,7 +8,7 @@
 	margin: auto;
 }
 
-.interactive-list .monaco-list-row .monaco-tl-twistie {
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
 	/* Hide twisties from tree rows */
 	display: none !important;
 }
