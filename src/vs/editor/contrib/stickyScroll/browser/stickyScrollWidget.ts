@@ -46,12 +46,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		super();
 		this._layoutInfo = this._editor.getLayoutInfo();
 		this._rootDomNode = document.createElement('div');
-		this._rootDomNode.className = 'sticky-widget';
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
 		this._scrollbar = this._register(new DomScrollableElement(this._rootDomNode, { consumeMouseWheelIfScrollbarIsNeeded: true, vertical: ScrollbarVisibility.Hidden }));
 		this._scrollableDomNode.appendChild(this._scrollbar.getDomNode());
-		this._scrollableDomNode.className = 'sticky-widget-wrapper';
+		this._scrollableDomNode.className = 'sticky-widget';
+		dom.addDisposableListener(this._scrollbar.getDomNode(), dom.EventType.MOUSE_OVER, () => { this._scrollbar.scanDomNode(); });
 		this._scrollbar.scanDomNode();
 	}
 
@@ -112,7 +112,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (minimapSide === 'left') {
 			this._rootDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
 		}
-		this._scrollbar.scanDomNode();
 	}
 
 	private _renderChildNode(index: number, line: number): HTMLDivElement {

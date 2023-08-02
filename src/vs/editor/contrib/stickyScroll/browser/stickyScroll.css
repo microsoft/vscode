@@ -16,7 +16,7 @@
 }
 
 .monaco-editor .sticky-line-root {
-	background-color: inherit;
+	background-color: var(--vscode-editorStickyScroll-background);
 	white-space: nowrap;
 	width: 100%;
 }
@@ -32,13 +32,9 @@
 }
 
 .monaco-editor .sticky-widget {
-}
-
-.monaco-editor .sticky-widget-wrapper {
 	width: 100%;
 	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
 	z-index: 4;
-	background-color: var(--vscode-editorStickyScroll-background);
 }
 
 .monaco-editor .sticky-widget.peek {
