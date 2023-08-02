@@ -54,6 +54,8 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
@@ -68,6 +70,8 @@ import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/ch
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
+import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 
 const $ = dom.$;
 
@@ -123,6 +127,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ILogService private readonly logService: ILogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IThemeService private readonly themeService: IThemeService,
 		@IChatService private readonly chatService: IChatService
 	) {
 		super();
@@ -408,17 +413,28 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderTreeData(data: IChatResponseProgressFileTreeData, element: ChatTreeItem, disposables: DisposableStore, templateData: IChatListItemTemplate): { element: HTMLElement; dispose: () => void } {
 		const resourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
 
+		const container = dom.append(templateData.value, $('.interactive-response-progress-tree'));
+		container.style.margin = '5px 3px';
+		container.style.backgroundColor = editorBackground;
+
+		createFileIconThemableTreeContainerScope(templateData.value, this.themeService);
 		const tree = <WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData>>this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
 			'ChatListRenderer',
-			templateData.value,
+			container,
 			new ChatListTreeDelegate(),
 			new ChatListTreeCompressionDelegate(),
-			[new ChatListTreeRenderer(resourceLabels)],
+			[new ChatListTreeRenderer(resourceLabels, this.configService.getValue('explorer.decorations'))],
 			new ChatListTreeDataSource(),
 			{
 				autoExpandSingleChildren: true,
 				collapseByDefault: () => false,
+				expandOnlyOnTwistieClick: (e) => {
+					if ('children' in e) {
+						return true;
+					}
+					return false;
+				},
 				additionalScrollHeight: ChatListTreeDelegate.ITEM_HEIGHT,
 				accessibilityProvider: {
 					getAriaLabel(element: IChatResponseProgressFileTreeData): string {
@@ -430,9 +446,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			});
 
-		tree.setInput(data);
+		tree.setInput(data).then(() => tree.expand(data, true)).then(() => {
+			tree.layout();
+			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight + tree.contentHeight });
+		});
 
-		return { element: tree.getHTMLElement(), dispose: () => tree.dispose() };
+		return { element: container, dispose: () => tree.dispose() };
 	}
 
 	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, disposables: DisposableStore, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
@@ -945,10 +964,16 @@ interface IChatListTreeRendererTemplate {
 class ChatListTreeRenderer implements ICompressibleTreeRenderer<IChatResponseProgressFileTreeData, void, IChatListTreeRendererTemplate> {
 	templateId: string = 'chatListTreeTemplate';
 
-	constructor(private labels: ResourceLabels) { }
+	constructor(private labels: ResourceLabels, private decorations: IFilesConfiguration['explorer']['decorations']) { }
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IChatResponseProgressFileTreeData>, void>, index: number, templateData: IChatListTreeRendererTemplate, height: number | undefined): void {
-		// TODO@joyceerhl
+	renderCompressedElements(element: ITreeNode<ICompressedTreeNode<IChatResponseProgressFileTreeData>, void>, index: number, templateData: IChatListTreeRendererTemplate, height: number | undefined): void {
+		templateData.label.element.style.display = 'flex';
+		templateData.label.setResource({ resource: element.element.elements[0].uri, name: element.element.elements[0].label }, {
+			title: element.element.elements[0].label,
+			fileKind: element.children ? FileKind.FOLDER : FileKind.FILE,
+			extraClasses: ['explorer-item'],
+			fileDecorations: this.decorations
+		});
 	}
 	renderTemplate(container: HTMLElement): IChatListTreeRendererTemplate {
 		const templateDisposables = new DisposableStore();
@@ -961,6 +986,7 @@ class ChatListTreeRenderer implements ICompressibleTreeRenderer<IChatResponsePro
 			title: element.element.label,
 			fileKind: element.children ? FileKind.FOLDER : FileKind.FILE,
 			extraClasses: ['explorer-item'],
+			fileDecorations: this.decorations
 		});
 	}
 	disposeTemplate(templateData: IChatListTreeRendererTemplate): void {
