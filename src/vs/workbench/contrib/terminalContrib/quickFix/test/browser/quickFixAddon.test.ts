@@ -73,7 +73,7 @@ suite('QuickFixAddon', () => {
 		instantiationService.dispose();
 	});
 	suite('registerCommandFinishedListener & getMatchActions', () => {
-		suite('gitSimilarCommand', async () => {
+		suite('gitSimilarCommand', () => {
 			const expectedMap = new Map();
 			const command = `git sttatus`;
 			let output = `git: 'sttatus' is not a git command. See 'git --help'.
@@ -149,7 +149,7 @@ suite('QuickFixAddon', () => {
 				});
 			});
 		});
-		suite('gitTwoDashes', async () => {
+		suite('gitTwoDashes', () => {
 			const expectedMap = new Map();
 			const command = `git add . -all`;
 			const output = 'error: did you mean `--all` (with two dashes)?';
