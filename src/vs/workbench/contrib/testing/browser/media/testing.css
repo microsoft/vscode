@@ -128,9 +128,21 @@
 	opacity: 0.8;
 }
 
-.test-explorer .test-explorer-messages {
+.test-explorer .result-summary-container {
 	padding: 0 12px 8px;
 	font-variant-numeric: tabular-nums;
+	height: 27px;
+	box-sizing: border-box;
+}
+
+.test-explorer .result-summary {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.test-explorer .result-summary > span {
+	flex-grow: 1;
 }
 
 .monaco-workbench
