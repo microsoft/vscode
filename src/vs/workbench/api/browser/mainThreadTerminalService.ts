@@ -21,12 +21,10 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { TerminalEditorLocationOptions } from 'vscode';
 import { Promises } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalQuickFixType } from 'vs/workbench/api/common/extHostTypes';
 import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { ITerminalQuickFixService, ITerminalQuickFixOptions, ITerminalQuickFix } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { ITerminalQuickFixService, ITerminalQuickFix } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
@@ -261,42 +259,40 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public async $registerQuickFixProvider(id: string, extensionId: string): Promise<void> {
-		this._quickFixProviders.set(id, this._terminalQuickFixService.registerQuickFixProvider(id,
-			{
-				provideTerminalQuickFixes: async (terminalCommand: ITerminalCommand, lines: string[], option: ITerminalQuickFixOptions, token: CancellationToken) => {
-					if (token.isCancellationRequested) {
-						return;
-					}
-					if (option.outputMatcher?.length && option.outputMatcher.length > 40) {
-						option.outputMatcher.length = 40;
-						this._logService.warn('Cannot exceed output matcher length of 40');
-					}
-					const commandLineMatch = terminalCommand.command.match(option.commandLineMatcher);
-					if (!commandLineMatch) {
-						return;
-					}
-					const outputMatcher = option.outputMatcher;
-					let outputMatch;
-					if (outputMatcher) {
-						outputMatch = getOutputMatchForLines(lines, outputMatcher);
-					}
-					if (!outputMatch) {
-						return;
-					}
-					const matchResult = { commandLineMatch, outputMatch, commandLine: terminalCommand.command };
-
-					if (matchResult) {
-						const result = await this._proxy.$provideTerminalQuickFixes(id, matchResult, token);
-						if (result && Array.isArray(result)) {
-							return result.map(r => parseQuickFix(id, extensionId, r));
-						} else if (result) {
-							return parseQuickFix(id, extensionId, result);
-						}
-					}
+		this._quickFixProviders.set(id, this._terminalQuickFixService.registerQuickFixProvider(id, {
+			provideTerminalQuickFixes: async (terminalCommand, lines, options, token) => {
+				if (token.isCancellationRequested) {
 					return;
 				}
-			})
-		);
+				if (options.outputMatcher?.length && options.outputMatcher.length > 40) {
+					options.outputMatcher.length = 40;
+					this._logService.warn('Cannot exceed output matcher length of 40');
+				}
+				const commandLineMatch = terminalCommand.command.match(options.commandLineMatcher);
+				if (!commandLineMatch || !lines) {
+					return;
+				}
+				const outputMatcher = options.outputMatcher;
+				let outputMatch;
+				if (outputMatcher) {
+					outputMatch = getOutputMatchForLines(lines, outputMatcher);
+				}
+				if (!outputMatch) {
+					return;
+				}
+				const matchResult = { commandLineMatch, outputMatch, commandLine: terminalCommand.command };
+
+				if (matchResult) {
+					const result = await this._proxy.$provideTerminalQuickFixes(id, matchResult, token);
+					if (result && Array.isArray(result)) {
+						return result.map(r => parseQuickFix(id, extensionId, r));
+					} else if (result) {
+						return parseQuickFix(id, extensionId, result);
+					}
+				}
+				return;
+			}
+		}));
 	}
 
 	public $unregisterQuickFixProvider(id: string): void {

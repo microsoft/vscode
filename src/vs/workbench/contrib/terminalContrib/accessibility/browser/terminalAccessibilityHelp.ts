@@ -31,7 +31,7 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 		this.dispose();
 	}
 	options: IAccessibleViewOptions = {
-		type: AccessibleViewType.HelpMenu,
+		type: AccessibleViewType.Help,
 		ariaLabel: localize('terminal-help-label', "terminal accessibility help"),
 		readMoreUrl: 'https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility'
 	};

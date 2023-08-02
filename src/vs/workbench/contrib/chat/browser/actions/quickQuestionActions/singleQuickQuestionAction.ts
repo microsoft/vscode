@@ -61,7 +61,7 @@ class AskSingleQuickQuestionMode implements IQuickQuestionMode {
 
 		// Setup toggle that will be used to open the chat view
 		const openInChat = new Toggle({
-			title: 'Open in chat view',
+			title: 'Open In Chat View',
 			icon: Codicon.commentDiscussion,
 			isChecked: false,
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),

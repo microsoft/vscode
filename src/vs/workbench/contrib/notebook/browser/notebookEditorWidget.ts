@@ -94,7 +94,7 @@ import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/no
 import { Schemas } from 'vs/base/common/network';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
-import { NotebookEditorStickyScroll } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll';
+import { NotebookStickyScroll } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll';
 import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -179,6 +179,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _notebookTopToolbarContainer!: HTMLElement;
 	private _notebookTopToolbar!: NotebookEditorWorkbenchToolbar;
 	private _notebookStickyScrollContainer!: HTMLElement;
+	private _notebookStickyScroll!: NotebookStickyScroll;
 	private _notebookOverviewRulerContainer!: HTMLElement;
 	private _notebookOverviewRuler!: NotebookOverviewRuler;
 	private _body!: HTMLElement;
@@ -324,7 +325,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._register(this.instantiationService.createInstance(NotebookEditorContextKeys, this));
 
-		this._notebookOutline = this.instantiationService.createInstance(NotebookCellOutlineProvider, this, OutlineTarget.QuickPick);
+		this._notebookOutline = this._register(this.instantiationService.createInstance(NotebookCellOutlineProvider, this, OutlineTarget.QuickPick));
 
 		this._register(notebookKernelService.onDidChangeSelectedNotebooks(e => {
 			if (isEqual(e.notebook, this.viewModel?.uri)) {
@@ -1046,7 +1047,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private _registerNotebookStickyScroll() {
-		this._register(this.instantiationService.createInstance(NotebookEditorStickyScroll, this._notebookStickyScrollContainer, this, this._notebookOutline, this._list));
+		this._notebookStickyScroll = this._register(this.instantiationService.createInstance(NotebookStickyScroll, this._notebookStickyScrollContainer, this, this._notebookOutline, this._list));
 	}
 
 	private _updateOutputRenderers() {
@@ -2038,11 +2039,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	getAbsoluteTopOfElement(cell: ICellViewModel) {
-		return this._list.getAbsoluteTopOfElement(cell);
+		return this._list.getCellViewScrollTop(cell);
 	}
 
 	scrollToBottom() {
 		this._list.scrollToBottom();
+	}
+
+	setScrollTop(scrollTop: number): void {
+		this._list.scrollTop = scrollTop;
 	}
 
 	revealCellRangeInView(range: ICellRange) {
@@ -2597,7 +2602,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			width: this._dimension?.width ?? 0,
 			height: this._dimension?.height ?? 0,
 			scrollHeight: this._list?.getScrollHeight() ?? 0,
-			fontInfo: this._fontInfo!
+			fontInfo: this._fontInfo!,
+			stickyHeight: this._notebookStickyScroll?.getCurrentStickyHeight() ?? 0
 		};
 	}
 
@@ -2629,7 +2635,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const webviewTop = parseInt(this._list.webviewElement.domNode.style.top, 10);
 		const top = !!webviewTop ? (0 - webviewTop) : 0;
 
-		const cellTop = this._list.getAbsoluteTopOfElement(cell);
+		const cellTop = this._list.getCellViewScrollTop(cell);
 		await this._webview.showMarkupPreview({
 			mime: cell.mime,
 			cellHandle: cell.handle,
@@ -2723,7 +2729,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			const webviewTop = parseInt(this._list.webviewElement.domNode.style.top, 10);
 			const top = !!webviewTop ? (0 - webviewTop) : 0;
 
-			const cellTop = this._list.getAbsoluteTopOfElement(cell) + top;
+			const cellTop = this._list.getCellViewScrollTop(cell) + top;
 
 			const existingOutput = this._webview.insetMapping.get(output.source);
 			if (!existingOutput
@@ -2781,7 +2787,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			const webviewTop = parseInt(this._list.webviewElement.domNode.style.top, 10);
 			const top = !!webviewTop ? (0 - webviewTop) : 0;
 
-			const cellTop = this._list.getAbsoluteTopOfElement(cell) + top;
+			const cellTop = this._list.getCellViewScrollTop(cell) + top;
 			this._webview.updateOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
 		});
 	}
@@ -2889,7 +2895,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				removedItems.push(key);
 			}
 
-			const cellTop = this._list.getAbsoluteTopOfElement(cell);
+			const cellTop = this._list.getCellViewScrollTop(cell);
 			const outputIndex = cell.outputsViewModels.indexOf(key);
 			const outputOffset = cell.getOutputOffset(outputIndex);
 			updateItems.push({
@@ -2907,7 +2913,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		for (const cellId of this._webview.markupPreviewMapping.keys()) {
 			const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId);
 			if (cell) {
-				const cellTop = this._list.getAbsoluteTopOfElement(cell);
+				const cellTop = this._list.getCellViewScrollTop(cell);
 				// markdownUpdateItems.push({ id: cellId, top: cellTop });
 				markdownUpdateItems.push({ id: cellId, top: cellTop + top });
 			}

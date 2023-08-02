@@ -118,5 +118,8 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		};
 	}
 
+	bumpVersion() {
+		this._versionId = this._versionId + 1;
+	}
 
 }

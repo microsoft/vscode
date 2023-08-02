@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
-import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -20,7 +20,7 @@ const accessibleDiffViewerCategory: ILocalizedString = {
 	original: 'Accessible Diff Viewer',
 };
 
-export class AccessibleDiffViewerNext extends EditorAction2 {
+export class AccessibleDiffViewerNext extends Action2 {
 	public static id = 'editor.action.accessibleDiffViewer.next';
 
 	constructor() {
@@ -37,7 +37,7 @@ export class AccessibleDiffViewerNext extends EditorAction2 {
 		});
 	}
 
-	public override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public override run(accessor: ServicesAccessor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
 		diffEditor?.accessibleDiffViewerNext();
 	}
@@ -50,10 +50,13 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	order: 10,
 	group: '2_diff',
-	when: EditorContextKeys.accessibleDiffViewerVisible.negate(),
+	when: ContextKeyExpr.and(
+		EditorContextKeys.accessibleDiffViewerVisible.negate(),
+		ContextKeyExpr.has('isInDiffEditor'),
+	),
 });
 
-export class AccessibleDiffViewerPrev extends EditorAction2 {
+export class AccessibleDiffViewerPrev extends Action2 {
 	public static id = 'editor.action.accessibleDiffViewer.prev';
 
 	constructor() {
@@ -70,7 +73,7 @@ export class AccessibleDiffViewerPrev extends EditorAction2 {
 		});
 	}
 
-	public override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public override run(accessor: ServicesAccessor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
 		diffEditor?.accessibleDiffViewerPrev();
 	}
@@ -90,7 +93,28 @@ export function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor |
 			return diffEditor;
 		}
 	}
+
+	if (document.activeElement) {
+		for (const d of diffEditors) {
+			const container = d.getContainerDomNode();
+			if (isElementOrParentOf(container, document.activeElement)) {
+				return d;
+			}
+		}
+	}
+
 	return null;
+}
+
+function isElementOrParentOf(elementOrParent: Element, element: Element): boolean {
+	let e: Element | null = element;
+	while (e) {
+		if (e === elementOrParent) {
+			return true;
+		}
+		e = e.parentElement;
+	}
+	return false;
 }
 
 CommandsRegistry.registerCommandAlias('editor.action.diffReview.next', AccessibleDiffViewerNext.id);

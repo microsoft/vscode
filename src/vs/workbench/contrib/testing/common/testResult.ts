@@ -239,6 +239,7 @@ export class LiveTestResult implements ITestResult {
 	private testMarkerCounter = 0;
 	private _completedAt?: number;
 
+	public readonly startedAt = Date.now();
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
 	public readonly onNewTask = this.newTaskEmitter.event;

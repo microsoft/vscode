@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -14,7 +15,7 @@ import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/exte
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostChatShape, IChatRequestDto, IChatResponseDto, IChatDto, IMainContext, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { IChatFollowup, IChatProgress, IChatReplyFollowup, IChatUserActionEvent, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatReplyFollowup, IChatUserActionEvent, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import type * as vscode from 'vscode';
 
 class ChatProviderWrapper<T> {
@@ -214,8 +215,20 @@ export class ExtHostChat implements ExtHostChatShape {
 					firstProgress = stopWatch.elapsed();
 				}
 
-				const vscodeProgress: IChatProgress = 'responseId' in progress ? { requestId: progress.responseId } : progress;
-				this._proxy.$acceptResponseProgress(handle, sessionId, vscodeProgress);
+				if ('responseId' in progress) {
+					this._proxy.$acceptResponseProgress(handle, sessionId, { requestId: progress.responseId });
+				} else if ('placeholder' in progress && 'resolvedContent' in progress) {
+					const resolvedContent = Promise.all([this._proxy.$acceptResponseProgress(handle, sessionId, { placeholder: progress.placeholder }), progress.resolvedContent]);
+					raceCancellation(resolvedContent, token).then((res) => {
+						if (!res) {
+							return; /* Cancelled */
+						}
+						const [progressHandle, progressContent] = res;
+						this._proxy.$acceptResponseProgress(handle, sessionId, progressContent, progressHandle ?? undefined);
+					});
+				} else {
+					this._proxy.$acceptResponseProgress(handle, sessionId, progress);
+				}
 			}
 		};
 		let result: vscode.InteractiveResponseForProgress | undefined | null;

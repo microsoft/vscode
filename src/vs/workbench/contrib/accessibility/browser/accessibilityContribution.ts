@@ -10,6 +10,14 @@ import { Command, MultiCommand } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
+export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
+
+export const enum AccessibilitySettingId {
+	UnfocusedViewOpacity = 'accessibility.unfocusedViewOpacity'
+}
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
@@ -65,6 +73,14 @@ const configuration: IConfigurationNode = {
 		[AccessibilityVerbositySettingId.Notification]: {
 			description: localize('verbosity.notification', 'Provide information about how to open the notification in an accessible view.'),
 			...baseProperty
+		},
+		[AccessibilitySettingId.UnfocusedViewOpacity]: {
+			description: localize('unfocusedViewOpacity', 'The opacity percentage (0.2 to 1.0) to use for unfocused editors and terminals.'),
+			type: 'number',
+			minimum: 0.2,
+			maximum: 1,
+			default: 1,
+			tags: ['accessibility']
 		}
 	}
 };
@@ -121,7 +137,7 @@ export const AccessibleViewAction = registerCommand(new MultiCommand({
 
 export const AccessibleViewNextAction = registerCommand(new MultiCommand({
 	id: 'editor.action.accessibleViewNext',
-	precondition: undefined,
+	precondition: accessibleViewIsShown,
 	kbOpts: {
 		primary: KeyMod.Alt | KeyCode.BracketRight,
 		weight: KeybindingWeight.WorkbenchContrib
@@ -136,7 +152,7 @@ export const AccessibleViewNextAction = registerCommand(new MultiCommand({
 
 export const AccessibleViewPreviousAction = registerCommand(new MultiCommand({
 	id: 'editor.action.accessibleViewPrevious',
-	precondition: undefined,
+	precondition: accessibleViewIsShown,
 	kbOpts: {
 		primary: KeyMod.Alt | KeyCode.BracketLeft,
 		weight: KeybindingWeight.WorkbenchContrib

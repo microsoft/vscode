@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { autorunHandleChanges } from 'vs/base/common/observableImpl/autorun';
+import { IReader, autorunHandleChanges } from 'vs/base/common/observable';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -14,9 +14,8 @@ import { EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOpt
 import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DiffEditorOptions } from './diffEditorOptions';
-import { IReader } from 'vs/base/common/observable';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { DiffEditorOptions } from './diffEditorOptions';
 
 export class DiffEditorEditors extends Disposable {
 	public readonly modified: CodeEditorWidget;
@@ -39,7 +38,7 @@ export class DiffEditorEditors extends Disposable {
 		this.original = this._createLeftHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.originalEditor || {});
 		this.modified = this._createRightHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.modifiedEditor || {});
 
-		this._register(autorunHandleChanges('update editor options', {
+		this._register(autorunHandleChanges({
 			createEmptyChangeSummary: () => ({} as IDiffEditorConstructionOptions),
 			handleChange: (ctx, changeSummary) => {
 				if (ctx.didChange(_options.editorOptions)) {
@@ -48,6 +47,7 @@ export class DiffEditorEditors extends Disposable {
 				return true;
 			}
 		}, (reader, changeSummary) => {
+			/** @description update editor options */
 			_options.editorOptions.read(reader);
 
 			this.modified.updateOptions(this._adjustOptionsForRightHandSide(reader, changeSummary));
