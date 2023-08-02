@@ -377,13 +377,17 @@ export class Workbench extends Layout {
 			{ id: Parts.AUXILIARYBAR_PART, role: 'none', classes: ['auxiliarybar', 'basepanel', this.getSideBarPosition() === Position.LEFT ? 'right' : 'left'] },
 			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] }
 		]) {
+			this.logService2.info('before createPart workbench#6g-' + id);
+
 			const partContainer = this.createPart(id, role, classes);
 
-			this.logService2.info('workbench#6g-' + id);
+			this.logService2.info('after createPart workbench#6g-' + id);
 
 			mark(`code/willCreatePart/${id}`);
 			this.getPart(id).create(partContainer, options);
 			mark(`code/didCreatePart/${id}`);
+
+			this.logService2.info('after create workbench#6g-' + id);
 		}
 
 		this.logService2.info('workbench#6h');

@@ -31,6 +31,7 @@ import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/comm
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCompositePart {
 
@@ -91,7 +92,8 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(
 			notificationService,
@@ -152,11 +154,17 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 	override create(parent: HTMLElement): void {
 		this.element = parent;
 
+		this.logService.info('Side Bar create - 1');
+
 		super.create(parent);
+
+		this.logService.info('Side Bar create - 2');
 
 		const focusTracker = this._register(trackFocus(parent));
 		this._register(focusTracker.onDidFocus(() => this.sideBarFocusContextKey.set(true)));
 		this._register(focusTracker.onDidBlur(() => this.sideBarFocusContextKey.set(false)));
+
+		this.logService.info('Side Bar create - 3');
 	}
 
 	protected override createTitleArea(parent: HTMLElement): HTMLElement {
