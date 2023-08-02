@@ -357,8 +357,8 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		this.queryEditorWidget.modifyContextLines(increase);
 	}
 
-	toggleQueryDetails() {
-		this.toggleIncludesExcludes();
+	toggleQueryDetails(shouldShow?: boolean) {
+		this.toggleIncludesExcludes(shouldShow);
 	}
 
 	deleteResultBlock() {
