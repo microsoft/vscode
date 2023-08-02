@@ -32,6 +32,9 @@
 }
 
 .monaco-editor .sticky-widget {
+}
+
+.monaco-editor .sticky-widget-wrapper {
 	width: 100%;
 	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
 	z-index: 4;
