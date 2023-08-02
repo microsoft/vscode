@@ -509,7 +509,7 @@ class ResultSummaryView extends Disposable {
 			const last = results[0];
 			const dominantState = mapFind(statesInOrder, s => last.counts[s] > 0 ? s : undefined);
 			status.className = ThemeIcon.asClassName(icons.testingStatesToIcons.get(dominantState ?? TestResultState.Unset)!);
-			counts = collectTestStateCounts(true, [last]);
+			counts = collectTestStateCounts(false, [last]);
 			duration.textContent = last instanceof LiveTestResult ? formatDuration(last.completedAt! - last.startedAt) : '';
 			rerun.style.display = 'block';
 		}
