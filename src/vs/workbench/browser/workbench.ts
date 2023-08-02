@@ -327,8 +327,12 @@ export class Workbench extends Layout {
 
 	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
 
+		this.logService2.info('workbench#6a');
+
 		// ARIA
 		setARIAContainer(this.container);
+
+		this.logService2.info('workbench#6b');
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -341,6 +345,8 @@ export class Workbench extends Layout {
 			...(this.options?.extraClasses ? this.options.extraClasses : [])
 		]);
 
+		this.logService2.info('workbench#6c');
+
 		this.container.classList.add(...workbenchClasses);
 		document.body.classList.add(platformClass); // used by our fonts
 
@@ -348,11 +354,17 @@ export class Workbench extends Layout {
 			document.body.classList.add('web');
 		}
 
+		this.logService2.info('workbench#6d');
+
 		// Apply font aliasing
 		this.updateFontAliasing(undefined, configurationService);
 
+		this.logService2.info('workbench#6e');
+
 		// Warm up font cache information before building up too many dom elements
 		this.restoreFontInfo(storageService, configurationService);
+
+		this.logService2.info('workbench#6f');
 
 		// Create Parts
 		for (const { id, role, classes, options } of [
@@ -367,13 +379,19 @@ export class Workbench extends Layout {
 		]) {
 			const partContainer = this.createPart(id, role, classes);
 
+			this.logService2.info('workbench#6g-' + id);
+
 			mark(`code/willCreatePart/${id}`);
 			this.getPart(id).create(partContainer, options);
 			mark(`code/didCreatePart/${id}`);
 		}
 
+		this.logService2.info('workbench#6h');
+
 		// Notification Handlers
 		this.createNotificationsHandlers(instantiationService, notificationService);
+
+		this.logService2.info('workbench#6i');
 
 		// Add Workbench to DOM
 		this.parent.appendChild(this.container);
