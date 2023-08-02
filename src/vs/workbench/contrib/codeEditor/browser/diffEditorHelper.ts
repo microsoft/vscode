@@ -20,8 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityMultiCommands';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityHelpAction, AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
