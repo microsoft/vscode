@@ -69,8 +69,11 @@ export class EncryptionMainService implements IEncryptionMainService {
 	}
 
 	isEncryptionAvailable(): Promise<boolean> {
-		this.logService.info('[EncryptionMainService] isEncryptionAvailable');
-		return Promise.resolve(safeStorage.isEncryptionAvailable());
+		this.logService.info('[EncryptionMainService] isEncryptionAvailable - before');
+		const res = Promise.resolve(safeStorage.isEncryptionAvailable());
+		this.logService.info('[EncryptionMainService] isEncryptionAvailable - after');
+
+		return res;
 	}
 
 	getKeyStorageProvider(): Promise<KnownStorageProvider> {
