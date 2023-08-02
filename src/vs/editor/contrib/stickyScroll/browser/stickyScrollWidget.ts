@@ -8,6 +8,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./stickyScroll';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -30,7 +31,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private readonly _layoutInfo: EditorLayoutInfo;
 	private readonly _scrollbar: DomScrollableElement;
-	private readonly _wrapperDomNode: HTMLElement = document.createElement('div');
+	private readonly _scrollableDomNode: HTMLElement = document.createElement('div');
 	private readonly _rootDomNode: HTMLElement = document.createElement('div');
 	private readonly _disposableStore = this._register(new DisposableStore());
 
@@ -48,9 +49,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.className = 'sticky-widget';
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
-		this._scrollbar = this._register(new DomScrollableElement(this._rootDomNode, { consumeMouseWheelIfScrollbarIsNeeded: true }));
-		this._wrapperDomNode.appendChild(this._scrollbar.getDomNode());
-		this._wrapperDomNode.className = 'sticky-widget-wrapper';
+		this._scrollbar = this._register(new DomScrollableElement(this._rootDomNode, { consumeMouseWheelIfScrollbarIsNeeded: true, vertical: ScrollbarVisibility.Hidden }));
+		this._scrollableDomNode.appendChild(this._scrollbar.getDomNode());
+		this._scrollableDomNode.className = 'sticky-widget-wrapper';
 		this._scrollbar.scanDomNode();
 	}
 
@@ -224,7 +225,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	getDomNode(): HTMLElement {
-		return this._wrapperDomNode;
+		return this._scrollableDomNode;
 	}
 
 	getPosition(): IOverlayWidgetPosition | null {
