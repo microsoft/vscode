@@ -63,12 +63,12 @@ export const mediaMimes = new Set([
 ]);
 
 const smartPasteRegexes = [
-	{ regex: /(\[[^\[\]]*](?:\([^\(\)]*\)|\[[^\[\]]*]))/g, isMarkdownLink: false, isInline: true }, // In a Markdown link
-	{ regex: /^```[\s\S]*?```$/gm, isMarkdownLink: false, isInline: false }, // In a backtick fenced code block
-	{ regex: /^~~~[\s\S]*?~~~$/gm, isMarkdownLink: false, isInline: false }, // In a tildefenced code block
-	{ regex: /^\$\$[\s\S]*?\$\$$/gm, isMarkdownLink: false, isInline: false }, // In a fenced math block
-	{ regex: /`[^`]*`/g, isMarkdownLink: false, isInline: true }, // In inline code
-	{ regex: /\$[^$]*\$/g, isMarkdownLink: false, isInline: true }, // In inline math
+	{ regex: /(\[[^\[\]]*](?:\([^\(\)]*\)|\[[^\[\]]*]))/g }, // In a Markdown link
+	{ regex: /^```[\s\S]*?```$/gm }, // In a backtick fenced code block
+	{ regex: /^~~~[\s\S]*?~~~$/gm }, // In a tildefenced code block
+	{ regex: /^\$\$[\s\S]*?\$\$$/gm }, // In a fenced math block
+	{ regex: /`[^`]*`/g }, // In inline code
+	{ regex: /\$[^$]*\$/g }, // In inline math
 ];
 
 export interface SkinnyTextDocument {
@@ -144,9 +144,8 @@ export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vsc
 		const matches = [...document.getText().matchAll(regex.regex)];
 		for (const match of matches) {
 			if (match.index !== undefined) {
-				const inLink = selectedRange.start.character > match.index && selectedRange.end.character < match.index + match[0].length;
-				const overLink = regex.isMarkdownLink && selectedRange.start.character === match.index && selectedRange.end.character === match.index + match[0].length;
-				if (inLink || overLink) {
+				const useDefaultPaste = selectedRange.start.character > match.index && selectedRange.end.character < match.index + match[0].length;
+				if (useDefaultPaste) {
 					return false;
 				}
 			}
@@ -273,7 +272,7 @@ export function createUriListSnippet(
 			if (uriStrings && isExternalLink) {
 				snippet = appendToLinkSnippet(snippet, title, uriStrings[i], placeholderValue, isExternalLink);
 			} else {
-				snippet.appendText(escapeMarkdownLinkPath(mdPath, false));
+				snippet.appendText(escapeMarkdownLinkPath(mdPath, isExternalLink));
 			}
 		}
 
