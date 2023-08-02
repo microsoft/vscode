@@ -63,12 +63,12 @@ export const mediaMimes = new Set([
 ]);
 
 const smartPasteRegexes = [
-	{ regex: /(\[[^\[\]]*](?:\([^\(\)]*\)|\[[^\[\]]*]))/g, isMarkdownLink: false, isInline: true }, // In a Markdown link
-	{ regex: /^```[\s\S]*?```$/gm, isMarkdownLink: false, isInline: false }, // In a backtick fenced code block
-	{ regex: /^~~~[\s\S]*?~~~$/gm, isMarkdownLink: false, isInline: false }, // In a tildefenced code block
-	{ regex: /^\$\$[\s\S]*?\$\$$/gm, isMarkdownLink: false, isInline: false }, // In a fenced math block
-	{ regex: /`[^`]*`/g, isMarkdownLink: false, isInline: true }, // In inline code
-	{ regex: /\$[^$]*\$/g, isMarkdownLink: false, isInline: true }, // In inline math
+	{ regex: /(\[[^\[\]]*](?:\([^\(\)]*\)|\[[^\[\]]*]))/g }, // In a Markdown link
+	{ regex: /^```[\s\S]*?```$/gm }, // In a backtick fenced code block
+	{ regex: /^~~~[\s\S]*?~~~$/gm }, // In a tildefenced code block
+	{ regex: /^\$\$[\s\S]*?\$\$$/gm }, // In a fenced math block
+	{ regex: /`[^`]*`/g }, // In inline code
+	{ regex: /\$[^$]*\$/g }, // In inline math
 ];
 
 export interface SkinnyTextDocument {
@@ -94,7 +94,7 @@ export async function createEditAddingLinksForUriList(
 	isExternalLink: boolean,
 	useSmartPaste: boolean,
 	token: vscode.CancellationToken,
-): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string } | undefined> {
+): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string; markdownLink: boolean } | undefined> {
 
 	if (ranges.length === 0) {
 		return;
@@ -103,6 +103,7 @@ export async function createEditAddingLinksForUriList(
 	let placeHolderValue: number = ranges.length;
 	let label: string = '';
 	let pasteAsMarkdownLink: boolean = true;
+	let markdownLink: boolean = true;
 
 	for (const range of ranges) {
 		const selectedRange: vscode.Range = new vscode.Range(
@@ -112,6 +113,7 @@ export async function createEditAddingLinksForUriList(
 
 		if (useSmartPaste) {
 			pasteAsMarkdownLink = checkSmartPaste(document, selectedRange, range);
+			markdownLink = pasteAsMarkdownLink; // FIX: this will only match the last range
 		}
 
 		const snippet = await tryGetUriListSnippet(document, urlList, token, document.getText(range), placeHolderValue, pasteAsMarkdownLink, isExternalLink);
@@ -128,7 +130,7 @@ export async function createEditAddingLinksForUriList(
 	const additionalEdits = new vscode.WorkspaceEdit();
 	additionalEdits.set(document.uri, edits);
 
-	return { additionalEdits, label };
+	return { additionalEdits, label, markdownLink };
 }
 
 export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range, range: vscode.Range): boolean {
@@ -142,9 +144,8 @@ export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vsc
 		const matches = [...document.getText().matchAll(regex.regex)];
 		for (const match of matches) {
 			if (match.index !== undefined) {
-				const inLink = selectedRange.start.character > match.index && selectedRange.end.character < match.index + match[0].length;
-				const overLink = regex.isMarkdownLink && selectedRange.start.character === match.index && selectedRange.end.character === match.index + match[0].length;
-				if (inLink || overLink) {
+				const useDefaultPaste = selectedRange.start.character > match.index && selectedRange.end.character < match.index + match[0].length;
+				if (useDefaultPaste) {
 					return false;
 				}
 			}
@@ -203,20 +204,14 @@ interface UriListSnippetOptions {
 
 export function appendToLinkSnippet(
 	snippet: vscode.SnippetString,
-	pasteAsMarkdownLink: boolean,
-	mdPath: string,
 	title: string,
 	uriString: string,
 	placeholderValue: number,
 	isExternalLink: boolean,
 ): vscode.SnippetString {
-	if (pasteAsMarkdownLink) {
-		snippet.appendText('[');
-		snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
-		snippet.appendText(`](${escapeMarkdownLinkPath(isExternalLink ? uriString : mdPath, isExternalLink)})`);
-	} else {
-		snippet.appendText((escapeMarkdownLinkPath(isExternalLink ? uriString : mdPath, isExternalLink)));
-	}
+	snippet.appendText('[');
+	snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
+	snippet.appendText(`](${escapeMarkdownLinkPath(uriString, isExternalLink)})`);
 	return snippet;
 }
 
@@ -274,8 +269,10 @@ export function createUriListSnippet(
 			}
 		} else {
 			insertedLinkCount++;
-			if (uriStrings) {
-				snippet = appendToLinkSnippet(snippet, pasteAsMarkdownLink, mdPath, title, uriStrings[i], placeholderValue, isExternalLink);
+			if (uriStrings && isExternalLink) {
+				snippet = appendToLinkSnippet(snippet, title, uriStrings[i], placeholderValue, isExternalLink);
+			} else {
+				snippet.appendText(escapeMarkdownLinkPath(mdPath, isExternalLink));
 			}
 		}
 
