@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EventType } from 'vs/base/browser/dom';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { QuickPickItem, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IDetectedLinks } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
@@ -23,47 +23,95 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		super();
 	}
 
-	async show(links: IDetectedLinks): Promise<void> {
-		const wordPicks = links.wordLinks ? await this._generatePicks(links.wordLinks) : undefined;
-		const filePicks = links.fileLinks ? await this._generatePicks(links.fileLinks) : undefined;
-		const webPicks = links.webLinks ? await this._generatePicks(links.webLinks) : undefined;
-		const options = {
-			placeHolder: localize('terminal.integrated.openDetectedLink', "Select the link to open"),
-			canPickMany: false,
+	async show(links: { viewport: IDetectedLinks; all: Promise<IDetectedLinks> }): Promise<void> {
+		// Get raw link picks
+		const wordPicks = links.viewport.wordLinks ? await this._generatePicks(links.viewport.wordLinks) : undefined;
+		const filePicks = links.viewport.fileLinks ? await this._generatePicks(links.viewport.fileLinks) : undefined;
+		const folderPicks = links.viewport.folderLinks ? await this._generatePicks(links.viewport.folderLinks) : undefined;
+		const webPicks = links.viewport.webLinks ? await this._generatePicks(links.viewport.webLinks) : undefined;
 
-		};
 		const picks: LinkQuickPickItem[] = [];
 		if (webPicks) {
 			picks.push({ type: 'separator', label: localize('terminal.integrated.urlLinks', "Url") });
 			picks.push(...webPicks);
 		}
 		if (filePicks) {
-			picks.push({ type: 'separator', label: localize('terminal.integrated.localFileLinks', "Local File") });
+			picks.push({ type: 'separator', label: localize('terminal.integrated.localFileLinks', "File") });
 			picks.push(...filePicks);
+		}
+		if (folderPicks) {
+			picks.push({ type: 'separator', label: localize('terminal.integrated.localFolderLinks', "Folder") });
+			picks.push(...folderPicks);
 		}
 		if (wordPicks) {
 			picks.push({ type: 'separator', label: localize('terminal.integrated.searchLinks', "Workspace Search") });
 			picks.push(...wordPicks);
 		}
-		picks.push({ type: 'separator' });
-		if (!links.noMoreResults) {
-			const showMoreItem = { label: localize('terminal.integrated.showMoreLinks', "Show more links") };
-			picks.push(showMoreItem);
-		}
-		const pick = await this._quickInputService.pick(picks, options);
-		if (!pick) {
-			return;
-		}
-		const event = new TerminalLinkQuickPickEvent(EventType.CLICK);
-		if ('link' in pick) {
-			pick.link.activate(event, pick.label);
-		} else {
-			this._onDidRequestMoreLinks.fire();
-		}
-		return;
+
+		// Create and show quick pick
+		const pick = this._quickInputService.createQuickPick<IQuickPickItem | ITerminalLinkQuickPickItem>();
+		pick.items = picks;
+		pick.placeholder = localize('terminal.integrated.openDetectedLink', "Select the link to open, type to filter all links");
+		pick.sortByLabel = false;
+		pick.show();
+
+		// Show all results only when filtering begins, this is done so the quick pick will show up
+		// ASAP with only the viewport entries.
+		let accepted = false;
+		const disposables = new DisposableStore();
+		disposables.add(Event.once(pick.onDidChangeValue)(async () => {
+			const allLinks = await links.all;
+			if (accepted) {
+				return;
+			}
+			const wordIgnoreLinks = [...(allLinks.fileLinks ?? []), ...(allLinks.folderLinks ?? []), ...(allLinks.webLinks ?? [])];
+
+			const wordPicks = allLinks.wordLinks ? await this._generatePicks(allLinks.wordLinks, wordIgnoreLinks) : undefined;
+			const filePicks = allLinks.fileLinks ? await this._generatePicks(allLinks.fileLinks) : undefined;
+			const folderPicks = allLinks.folderLinks ? await this._generatePicks(allLinks.folderLinks) : undefined;
+			const webPicks = allLinks.webLinks ? await this._generatePicks(allLinks.webLinks) : undefined;
+			const picks: LinkQuickPickItem[] = [];
+			if (webPicks) {
+				picks.push({ type: 'separator', label: localize('terminal.integrated.urlLinks', "Url") });
+				picks.push(...webPicks);
+			}
+			if (filePicks) {
+				picks.push({ type: 'separator', label: localize('terminal.integrated.localFileLinks', "File") });
+				picks.push(...filePicks);
+			}
+			if (folderPicks) {
+				picks.push({ type: 'separator', label: localize('terminal.integrated.localFolderLinks', "Folder") });
+				picks.push(...folderPicks);
+			}
+			if (wordPicks) {
+				picks.push({ type: 'separator', label: localize('terminal.integrated.searchLinks', "Workspace Search") });
+				picks.push(...wordPicks);
+			}
+			pick.items = picks;
+		}));
+
+		return new Promise(r => {
+			disposables.add(pick.onDidHide(() => {
+				disposables.dispose();
+				r();
+			}));
+			disposables.add(Event.once(pick.onDidAccept)(() => {
+				accepted = true;
+				const event = new TerminalLinkQuickPickEvent(EventType.CLICK);
+				const activeItem = pick.activeItems?.[0];
+				if (activeItem && 'link' in activeItem) {
+					activeItem.link.activate(event, activeItem.label);
+				}
+				disposables.dispose();
+				r();
+			}));
+		});
 	}
 
-	private async _generatePicks(links: ILink[]): Promise<ITerminalLinkQuickPickItem[] | undefined> {
+	/**
+	 * @param ignoreLinks Links with labels to not include in the picks.
+	 */
+	private async _generatePicks(links: ILink[], ignoreLinks?: ILink[]): Promise<ITerminalLinkQuickPickItem[] | undefined> {
 		if (!links) {
 			return;
 		}
@@ -71,7 +119,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		const picks: ITerminalLinkQuickPickItem[] = [];
 		for (const link of links) {
 			const label = link.text;
-			if (!linkKeys.has(label)) {
+			if (!linkKeys.has(label) && (!ignoreLinks || !ignoreLinks.some(e => e.text === label))) {
 				linkKeys.add(label);
 				picks.push({ label, link });
 			}

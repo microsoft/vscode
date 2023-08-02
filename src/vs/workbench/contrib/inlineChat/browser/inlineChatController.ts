@@ -38,6 +38,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
+import { ISelection } from 'vs/editor/common/core/selection';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -63,6 +64,7 @@ const enum Message {
 }
 
 export interface InlineChatRunOptions {
+	initialSelection?: ISelection;
 	initialRange?: IRange;
 	message?: string;
 	autoSend?: boolean;
@@ -188,6 +190,9 @@ export class InlineChatController implements IEditorContribution {
 			await this._currentRun;
 		}
 		this._stashedSession.clear();
+		if (options.initialSelection) {
+			this._editor.setSelection(options.initialSelection);
+		}
 		this._currentRun = this._nextState(State.CREATE_SESSION, options);
 		await this._currentRun;
 		this._currentRun = undefined;

@@ -237,9 +237,9 @@ export class SuggestWidget implements IDisposable {
 					if (typeof item.completion.label !== 'string') {
 						const { detail, description } = item.completion.label;
 						if (detail && description) {
-							label = nls.localize('label.full', '{0}{1}, {2}', label, detail, description);
+							label = nls.localize('label.full', '{0} {1}, {2}', label, detail, description);
 						} else if (detail) {
-							label = nls.localize('label.detail', '{0}{1}', label, detail);
+							label = nls.localize('label.detail', '{0} {1}', label, detail);
 						} else if (description) {
 							label = nls.localize('label.desc', '{0}, {1}', label, description);
 						}

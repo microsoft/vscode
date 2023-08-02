@@ -697,6 +697,7 @@
 		"--background-light",
 		"--dropdown-padding-bottom",
 		"--dropdown-padding-top",
+		"--hover-maxWidth",
 		"--insert-border-color",
 		"--last-tab-margin-right",
 		"--monaco-monospace-font",

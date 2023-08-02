@@ -9,4 +9,7 @@
 	color: var(--vscode-editorWidget-foreground);
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	border: 2px solid var(--vscode-focusBorder);
+	border-radius: 6px;
+	margin-top: -1px;
+	z-index: 2550;
 }
