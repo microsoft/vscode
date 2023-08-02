@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { DateTimeout, ISequence, ITimeout, InfiniteTimeout, SequenceDiff } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/algorithms/dynamicProgrammingDiffing';
-import { optimizeSequenceDiffs, removeRandomMatches, smoothenSequenceDiffs } from 'vs/editor/common/diff/algorithms/joinSequenceDiffs';
+import { optimizeSequenceDiffs, removeRandomLineMatches, removeRandomMatches, smoothenSequenceDiffs } from 'vs/editor/common/diff/algorithms/joinSequenceDiffs';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/algorithms/myersDiffAlgorithm';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping, LinesDiff, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
@@ -59,7 +59,7 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		const sequence2 = new LineSequence(tgtDocLines, modifiedLines);
 
 		const lineAlignmentResult = (() => {
-			if (sequence1.length + sequence2.length < 1500) {
+			if (sequence1.length + sequence2.length < 1700) {
 				// Use the improved algorithm for small files
 				return this.dynamicProgrammingDiffing.compute(
 					sequence1,
@@ -83,6 +83,7 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		let lineAlignments = lineAlignmentResult.diffs;
 		let hitTimeout = lineAlignmentResult.hitTimeout;
 		lineAlignments = optimizeSequenceDiffs(sequence1, sequence2, lineAlignments);
+		lineAlignments = removeRandomLineMatches(sequence1, sequence2, lineAlignments);
 
 		const alignments: RangeMapping[] = [];
 
@@ -436,6 +437,10 @@ export class LineSequence implements ISequence {
 		const indentationBefore = length === 0 ? 0 : getIndentation(this.lines[length - 1]);
 		const indentationAfter = length === this.lines.length ? 0 : getIndentation(this.lines[length]);
 		return 1000 - (indentationBefore + indentationAfter);
+	}
+
+	getText(range: OffsetRange): string {
+		return this.lines.slice(range.start, range.endExclusive).join('\n');
 	}
 }
 
