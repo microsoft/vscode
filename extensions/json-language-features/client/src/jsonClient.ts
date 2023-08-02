@@ -51,7 +51,14 @@ interface DocumentSortingParams {
 }
 
 namespace DocumentSortingRequest {
-	export const type: RequestType<DocumentSortingParams, TextEdit[], any> = new RequestType('json/sort');
+	export interface ITextEdit {
+		range: {
+			start: { line: number; character: number };
+			end: { line: number; character: number };
+		};
+		newText: string;
+	}
+	export const type: RequestType<DocumentSortingParams, ITextEdit[], any> = new RequestType('json/sort');
 }
 
 export interface ISchemaAssociations {
@@ -483,7 +490,14 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			uri: document.uri.toString(),
 			options
 		};
-		return client.sendRequest(DocumentSortingRequest.type, params);
+		const edits = await client.sendRequest(DocumentSortingRequest.type, params);
+		// Here we convert the JSON objects to real TextEdit objects
+		return edits.map((edit) => {
+			return new TextEdit(
+				new Range(edit.range.start.line, edit.range.start.character, edit.range.end.line, edit.range.end.character),
+				edit.newText
+			);
+		});
 	}
 
 	return client;

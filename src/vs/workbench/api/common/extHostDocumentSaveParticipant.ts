@@ -18,15 +18,6 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 
 type Listener = [Function, any, IExtensionDescription];
 
-function isITextEdit(e: any): e is TextEdit {
-	return 'range' in e && 'start' in e.range && 'end' in e.range
-		&& 'line' in e.range.start && typeof e.range.start.line === 'number'
-		&& 'character' in e.range.start && typeof e.range.start.character === 'number'
-		&& 'line' in e.range.end && typeof e.range.end.line === 'number'
-		&& 'character' in e.range.end && typeof e.range.end.character === 'number'
-		&& 'newText' in e && typeof e.newText === 'string';
-}
-
 export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSaveParticipantShape {
 
 	private readonly _callbacks = new LinkedList<Listener>();
@@ -152,13 +143,13 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		}).then(values => {
 			const dto: IWorkspaceEditDto = { edits: [] };
 			for (const value of values) {
-				if (Array.isArray(value) && value.every(e => isITextEdit(e))) {
+				if (Array.isArray(value) && (<vscode.TextEdit[]>value).every(e => e instanceof TextEdit)) {
 					for (const { newText, newEol, range } of value) {
 						dto.edits.push({
 							resource: document.uri,
 							versionId: undefined,
 							textEdit: {
-								range: Range.from(range),
+								range: range && Range.from(range),
 								text: newText,
 								eol: newEol && EndOfLine.from(newEol),
 							}
