@@ -595,6 +595,11 @@ export class CodeApplication extends Disposable {
 			this._register(runWhenIdle(() => this.lifecycleMainService.phase = LifecycleMainPhase.Eventually, 2500));
 		}, 2500));
 		eventuallyPhaseScheduler.schedule();
+
+		const eventuallyPhaseScheduler2 = this._register(new RunOnceScheduler(() => {
+			this.logService.info(`app.ts: late message works!`);
+		}, 10000));
+		eventuallyPhaseScheduler2.schedule();
 	}
 
 	private setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): IInitialProtocolUrls | undefined {
