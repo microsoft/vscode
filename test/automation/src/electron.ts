@@ -18,6 +18,8 @@ export interface IElectronConfiguration {
 	readonly env?: NodeJS.ProcessEnv;
 }
 
+let traceCount = 1;
+
 export async function resolveElectronConfiguration(options: LaunchOptions): Promise<IElectronConfiguration> {
 	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, crashesPath, extraArgs } = options;
 	const env = { ...process.env };
@@ -32,7 +34,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		'--disable-keytar',
 		`--crash-reporter-directory=${crashesPath}`,
 		`--enable-tracing="benchmark,base,browser,loading,navigation,renderer_host,startup,disabled-by-default-base,disabled-by-default-loading,disabled-by-default-network,disabled-by-default-v8.compile,disabled-by-default-v8.cpu_profiler,v8"`,
-		`--trace-startup-file="${join(logsPath, 'chrometrace.log')}"`,
+		`--trace-startup-file="${join(logsPath, 'chrometrace-' + traceCount++ + '.log')}"`,
 		'--disable-workspace-trust',
 		`--extensions-dir=${extensionsPath}`,
 		`--user-data-dir=${userDataDir}`,
