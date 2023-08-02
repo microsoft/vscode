@@ -447,22 +447,29 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			});
 
-		tree.onDidOpen((e) => {
+		const didOpenListener = tree.onDidOpen((e) => {
 			if (e.element && !('children' in e.element)) {
 				this.commandService.executeCommand('vscode.open', e.element.uri);
 			}
 		});
 
-		tree.onDidChangeCollapseState((e) => {
-			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
-		});
+		const didChangeCollapseStateListener =
+			tree.onDidChangeCollapseState((e) => {
+				this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+			});
 
-		tree.setInput(data).then(() => tree.expand(data, true)).then(() => {
+		tree.setInput(data).then(() => {
 			tree.layout();
 			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
 		});
 
-		return { element: container, dispose: () => tree.dispose() };
+		return {
+			element: container, dispose: () => {
+				didOpenListener.dispose();
+				didChangeCollapseStateListener.dispose();
+				tree.dispose();
+			}
+		};
 	}
 
 	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, disposables: DisposableStore, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
