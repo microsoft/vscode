@@ -27,13 +27,13 @@ export class CredentialsWebMainService extends BaseCredentialsMainService {
 	public override async getSecretStoragePrefix() { return Promise.resolve(`${this.productService.urlProtocol}-server`); }
 
 	protected async withKeytar(): Promise<KeytarModule> {
-		if (this.environmentMainService.disableKeytar) {
-			this.logService.info('Keytar is disabled. Using in-memory credential store instead.');
-			this._keytarCache = new InMemoryCredentialsProvider();
+		if (this._keytarCache) {
 			return this._keytarCache;
 		}
 
-		if (this._keytarCache) {
+		if (this.environmentMainService.disableKeytar) {
+			this.logService.info('Keytar is disabled. Using in-memory credential store instead.');
+			this._keytarCache = new InMemoryCredentialsProvider();
 			return this._keytarCache;
 		}
 

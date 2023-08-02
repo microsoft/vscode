@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
 import { createApp, timeout, installDiagnosticsHandler, installAppAfterHandler, getRandomUserDataDir, suiteLogsPath, suiteCrashPath } from '../../utils';
 
@@ -193,7 +193,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			stableApp = undefined;
 
 			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
-			insiderOptions.userDataDir = join(dirname(userDataDir), 'insiders-data222');
+			insiderOptions.userDataDir = userDataDir;
 			insiderOptions.logsPath = logsPath;
 			insiderOptions.crashesPath = crashesPath;
 

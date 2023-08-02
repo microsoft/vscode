@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-process.env.DEBUG = 'pw:browser*';
+process.env.DEBUG = 'pw:*';
 
 import * as fs from 'fs';
 import { gracefulify } from 'graceful-fs';

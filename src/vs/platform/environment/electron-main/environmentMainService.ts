@@ -60,7 +60,7 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get disableUpdates(): boolean { return !!this.args['disable-updates']; }
 
 	@memoize
-	get disableKeytar(): boolean { return true; }
+	get disableKeytar(): boolean { return !!this.args['disable-keytar']; }
 
 	@memoize
 	get crossOriginIsolated(): boolean { return !!this.args['enable-coi']; }
