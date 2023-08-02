@@ -12,7 +12,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleDiffViewerNext } from 'vs/editor/browser/widget/diffEditor.contribution';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'panelChat' | 'inlineChat'): string {

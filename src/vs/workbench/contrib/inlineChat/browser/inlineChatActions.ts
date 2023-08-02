@@ -27,11 +27,11 @@ import { fromNow } from 'vs/base/common/date';
 import { IInlineChatSessionService, Recording } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Position } from 'vs/editor/common/core/position';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityMultiCommands';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 

@@ -25,8 +25,9 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId, AccessibleViewAction, AccessibleViewNextAction, AccessibleViewPreviousAction, accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { AccessibleViewAction, AccessibleViewNextAction, AccessibleViewPreviousAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityMultiCommands';
 
 const enum DIMENSIONS {
 	MAX_WIDTH = 600
