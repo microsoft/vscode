@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -29,8 +30,8 @@ import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument'
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
-import { basename } from 'vs/base/common/resources';
 import { filter } from 'vs/base/common/objects';
+import { Schemas } from 'vs/base/common/network';
 
 
 
@@ -322,6 +323,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			throw new Error('Document version mismatch');
 		}
 
+		if (!this._extHostFileSystem.value.isWritableFileSystem(uri.scheme)) {
+			throw new files.FileOperationError(localize('err.readonly', "Unable to modify read-only file '{0}'", this._resourceForError(uri)), files.FileOperationResult.FILE_PERMISSION_DENIED);
+		}
+
+		// validate write
+		await this._validateWriteFile(uri, options);
+
 		const data: vscode.NotebookData = {
 			metadata: filter(document.apiNotebook.metadata, key => !(serializer.options?.transientDocumentMetadata ?? {})[key]),
 			cells: [],
@@ -344,10 +352,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		const bytes = await serializer.serializer.serializeNotebook(data, token);
 		await this._extHostFileSystem.value.writeFile(uri, bytes);
+		const providerExtUri = this._extHostFileSystem.getFileSystemProviderExtUri(uri.scheme);
 		const stat = await this._extHostFileSystem.value.stat(uri);
 
 		const fileStats = {
-			name: basename(uri), // providerExtUri.basename(resource)
+			name: providerExtUri.basename(uri),
 			isFile: (stat.type & files.FileType.File) !== 0,
 			isDirectory: (stat.type & files.FileType.Directory) !== 0,
 			isSymbolicLink: (stat.type & files.FileType.SymbolicLink) !== 0,
@@ -361,6 +370,24 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		};
 
 		return fileStats;
+	}
+
+	private async _validateWriteFile(uri: URI, options: files.IWriteFileOptions) {
+		const stat = await this._extHostFileSystem.value.stat(uri);
+		// Dirty write prevention
+		if (
+			typeof options?.mtime === 'number' && typeof options.etag === 'string' && options.etag !== files.ETAG_DISABLED &&
+			typeof stat.mtime === 'number' && typeof stat.size === 'number' &&
+			options.mtime < stat.mtime && options.etag !== files.etag({ mtime: options.mtime /* not using stat.mtime for a reason, see above */, size: stat.size })
+		) {
+			throw new files.FileOperationError(localize('fileModifiedError', "File Modified Since"), files.FileOperationResult.FILE_MODIFIED_SINCE, options);
+		}
+
+		return;
+	}
+
+	private _resourceForError(uri: URI): string {
+		return uri.scheme === Schemas.file ? uri.fsPath : uri.toString();
 	}
 
 	// --- open, save, saveAs, backup

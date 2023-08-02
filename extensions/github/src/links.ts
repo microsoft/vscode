@@ -191,11 +191,13 @@ export function getVscodeDevHost(): string {
 }
 
 export async function ensurePublished(repository: Repository, file: vscode.Uri) {
+	await repository.status();
+
 	if ((repository.state.HEAD?.type === RefType.Head || repository.state.HEAD?.type === RefType.Tag)
 		// If HEAD is not published, make sure it is
 		&& !repository?.state.HEAD?.upstream
 	) {
-		const publishBranch = vscode.l10n.t('Publish Branch');
+		const publishBranch = vscode.l10n.t('Publish Branch & Copy Link');
 		const selection = await vscode.window.showInformationMessage(
 			vscode.l10n.t('The current branch is not published to the remote. Would you like to publish your branch before copying a link?'),
 			{ modal: true },
@@ -209,7 +211,7 @@ export async function ensurePublished(repository: Repository, file: vscode.Uri) 
 	}
 
 	const uncommittedChanges = [...repository.state.workingTreeChanges, ...repository.state.indexChanges];
-	if (uncommittedChanges.find((c) => c.uri.toString() === file.toString())) {
+	if (uncommittedChanges.find((c) => c.uri.toString() === file.toString()) && !repository.state.HEAD?.ahead && !repository.state.HEAD?.behind) {
 		const commitChanges = vscode.l10n.t('Commit Changes');
 		const copyAnyway = vscode.l10n.t('Copy Anyway');
 		const selection = await vscode.window.showWarningMessage(
@@ -225,7 +227,7 @@ export async function ensurePublished(repository: Repository, file: vscode.Uri) 
 			throw new vscode.CancellationError();
 		}
 	} else if (repository.state.HEAD?.ahead) {
-		const pushCommits = vscode.l10n.t('Push Commits');
+		const pushCommits = vscode.l10n.t('Push Commits & Copy Link');
 		const selection = await vscode.window.showInformationMessage(
 			vscode.l10n.t('The current branch has unpublished commits. Would you like to push your commits before copying a link?'),
 			{ modal: true },
@@ -236,6 +238,18 @@ export async function ensurePublished(repository: Repository, file: vscode.Uri) 
 		}
 
 		await repository.push();
+	} else if (repository.state.HEAD?.behind) {
+		const pull = vscode.l10n.t('Pull Changes & Copy Link');
+		const selection = await vscode.window.showInformationMessage(
+			vscode.l10n.t('The current branch is not up to date. Would you like to pull before copying a link?'),
+			{ modal: true },
+			pull
+		);
+		if (selection !== pull) {
+			throw new vscode.CancellationError();
+		}
+
+		await repository.pull();
 	}
 
 	await repository.status();

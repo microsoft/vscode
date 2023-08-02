@@ -6,6 +6,7 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -21,7 +22,7 @@ import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/termin
 import { TerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkProviderService';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkQuickpick';
 import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
-import { Terminal as RawXtermTerminal } from 'xterm';
+import type { Terminal as RawXtermTerminal } from 'xterm';
 
 registerSingleton(ITerminalLinkProviderService, TerminalLinkProviderService, InstantiationType.Delayed);
 
@@ -54,7 +55,7 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 		this._processManager.onProcessReady(() => {
 			linkManager.setWidgetManager(this._widgetManager);
 		});
-		this._linkManager = linkManager;
+		this._linkManager = this.add(linkManager);
 
 		// Attach the link provider(s) to the instance and listen for changes
 		for (const linkProvider of this._terminalLinkProviderService.linkProviders) {
@@ -77,18 +78,15 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 				this.showLinkQuickpick(true);
 			});
 		}
-		const links = await this._getLinks(extended);
-		if (!links) {
-			return;
-		}
+		const links = await this._getLinks();
 		return await this._terminalLinkQuickpick.show(links);
 	}
 
-	private async _getLinks(extended?: boolean): Promise<IDetectedLinks | undefined> {
+	private async _getLinks(): Promise<{ viewport: IDetectedLinks; all: Promise<IDetectedLinks> }> {
 		if (!this._linkManager) {
 			throw new Error('terminal links are not ready, cannot generate link quick pick');
 		}
-		return this._linkManager.getLinks(extended);
+		return this._linkManager.getLinks();
 	}
 
 	async openRecentLink(type: 'localFile' | 'url'): Promise<void> {
@@ -112,7 +110,7 @@ registerActiveInstanceAction({
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: TerminalContextKeys.focus,
+		when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.accessibleBufferFocus)
 	},
 	run: (activeInstance) => TerminalLinkContribution.get(activeInstance)?.showLinkQuickpick()
 });

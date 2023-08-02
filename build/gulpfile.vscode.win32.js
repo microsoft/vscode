@@ -10,7 +10,6 @@ const path = require('path');
 const fs = require('fs');
 const assert = require('assert');
 const cp = require('child_process');
-const _7z = require('7zip')['7z'];
 const util = require('./lib/util');
 const task = require('./lib/task');
 const pkg = require('../package.json');
@@ -21,8 +20,6 @@ const mkdirp = require('mkdirp');
 
 const repoPath = path.dirname(__dirname);
 const buildPath = (/** @type {string} */ arch) => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
-const zipDir = (/** @type {string} */ arch) => path.join(repoPath, '.build', `win32-${arch}`, 'archive');
-const zipPath = (/** @type {string} */ arch) => path.join(zipDir(arch), `VSCode-win32-${arch}.zip`);
 const setupDir = (/** @type {string} */ arch, /** @type {string} */ target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
 const issPath = path.join(__dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup'))), 'bin', 'ISCC.exe');
@@ -101,6 +98,7 @@ function buildWin32Setup(arch, target) {
 			AppMutex: product.win32MutexName,
 			TunnelMutex: product.win32TunnelMutex,
 			TunnelServiceMutex: product.win32TunnelServiceMutex,
+			TunnelApplicationName: product.tunnelApplicationName,
 			ApplicationName: product.applicationName,
 			Arch: arch,
 			AppId: { 'ia32': ia32AppId, 'x64': x64AppId, 'arm64': arm64AppId }[arch],
@@ -141,23 +139,6 @@ defineWin32SetupTasks('arm64', 'system');
 defineWin32SetupTasks('ia32', 'user');
 defineWin32SetupTasks('x64', 'user');
 defineWin32SetupTasks('arm64', 'user');
-
-/**
- * @param {string} arch
- */
-function archiveWin32Setup(arch) {
-	return cb => {
-		const args = ['a', '-tzip', zipPath(arch), '-x!CodeSignSummary*.md', '.', '-r'];
-
-		cp.spawn(_7z, args, { stdio: 'inherit', cwd: buildPath(arch) })
-			.on('error', cb)
-			.on('exit', () => cb(null));
-	};
-}
-
-gulp.task(task.define('vscode-win32-ia32-archive', task.series(util.rimraf(zipDir('ia32')), archiveWin32Setup('ia32'))));
-gulp.task(task.define('vscode-win32-x64-archive', task.series(util.rimraf(zipDir('x64')), archiveWin32Setup('x64'))));
-gulp.task(task.define('vscode-win32-arm64-archive', task.series(util.rimraf(zipDir('arm64')), archiveWin32Setup('arm64'))));
 
 /**
  * @param {string} arch

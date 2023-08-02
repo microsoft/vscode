@@ -493,8 +493,9 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	@sequentialize
 	async openRepository(repoPath: string, openIfClosed = false): Promise<void> {
 		this.logger.trace(`Opening repository: ${repoPath}`);
-		if (this.getRepositoryExact(repoPath)) {
-			this.logger.trace(`Repository for path ${repoPath} already exists`);
+		const existingRepository = await this.getRepositoryExact(repoPath);
+		if (existingRepository) {
+			this.logger.trace(`Repository for path ${repoPath} already exists: ${existingRepository.root})`);
 			return;
 		}
 
@@ -524,8 +525,9 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			const { repositoryRoot, unsafeRepositoryMatch } = await this.getRepositoryRoot(repoPath);
 			this.logger.trace(`Repository root for path ${repoPath} is: ${repositoryRoot}`);
 
-			if (this.getRepositoryExact(repositoryRoot)) {
-				this.logger.trace(`Repository for path ${repositoryRoot} already exists`);
+			const existingRepository = await this.getRepositoryExact(repositoryRoot);
+			if (existingRepository) {
+				this.logger.trace(`Repository for path ${repositoryRoot} already exists: ${existingRepository.root}`);
 				return;
 			}
 
@@ -763,10 +765,16 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		return liveRepository && liveRepository.repository;
 	}
 
-	private getRepositoryExact(repoPath: string): Repository | undefined {
-		const openRepository = this.openRepositories
-			.find(r => pathEquals(r.repository.root, repoPath));
-		return openRepository?.repository;
+	private async getRepositoryExact(repoPath: string): Promise<Repository | undefined> {
+		const repoPathCanonical = await fs.promises.realpath(repoPath, { encoding: 'utf8' });
+
+		for (const openRepository of this.openRepositories) {
+			const rootPathCanonical = await fs.promises.realpath(openRepository.repository.root, { encoding: 'utf8' });
+			if (pathEquals(rootPathCanonical, repoPathCanonical)) {
+				return openRepository.repository;
+			}
+		}
+		return undefined;
 	}
 
 	private getOpenRepository(repository: Repository): OpenRepository | undefined;
@@ -931,12 +939,14 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			return true;
 		}
 
-		const result = await Promise.all(workspaceFolders.map(async folder => {
-			const workspaceFolderRealPath = await this.getWorkspaceFolderRealPath(folder);
-			return workspaceFolderRealPath ? pathEquals(workspaceFolderRealPath, repositoryPath) || isDescendant(workspaceFolderRealPath, repositoryPath) : undefined;
-		}));
+		// The repository path may be a canonical path or it may contain a symbolic link so we have
+		// to match it against the workspace folders and the canonical paths of the workspace folders
+		const workspaceFolderPaths = new Set<string | undefined>([
+			...workspaceFolders.map(folder => folder.uri.fsPath),
+			...await Promise.all(workspaceFolders.map(folder => this.getWorkspaceFolderRealPath(folder)))
+		]);
 
-		return !result.some(r => r);
+		return !Array.from(workspaceFolderPaths).some(folder => folder && (pathEquals(folder, repositoryPath) || isDescendant(folder, repositoryPath)));
 	}
 
 	private async getWorkspaceFolderRealPath(workspaceFolder: WorkspaceFolder): Promise<string | undefined> {

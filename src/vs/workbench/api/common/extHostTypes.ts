@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-native-private */
+
 import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
@@ -4090,7 +4092,8 @@ export enum InteractiveSessionCopyKind {
 export enum InteractiveEditorResponseFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
-	Undone = 2
+	Undone = 2,
+	Accepted = 3
 }
 
 //#endregion

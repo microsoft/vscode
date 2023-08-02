@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
-import { promises as fs } from 'fs';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -13,7 +12,7 @@ import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/co
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
@@ -213,9 +212,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}
 				if (injection.filesToCopy) {
 					for (const f of injection.filesToCopy) {
-						await fs.mkdir(path.dirname(f.dest), { recursive: true });
+						await Promises.mkdir(path.dirname(f.dest), { recursive: true });
 						try {
-							await fs.copyFile(f.source, f.dest);
+							await Promises.copyFile(f.source, f.dest);
 						} catch {
 							// Swallow error, this should only happen when multiple users are on the same
 							// machine. Since the shell integration scripts rarely change, plus the other user
@@ -353,6 +352,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	// Allow any trailing data events to be sent before the exit event is sent.
 	// See https://github.com/Tyriar/node-pty/issues/72
 	private _queueProcessExit() {
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			this._logService.trace('TerminalProcess#_queueProcessExit', new Error().stack?.replace(/^Error/, ''));
+		}
 		if (this._closeTimeout) {
 			clearTimeout(this._closeTimeout);
 		}
@@ -417,6 +419,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	shutdown(immediate: boolean): void {
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			this._logService.trace('TerminalProcess#shutdown', new Error().stack?.replace(/^Error/, ''));
+		}
 		// don't force immediate disposal of the terminal processes on Windows as an additional
 		// mitigation for https://github.com/microsoft/vscode/issues/71966 which causes the pty host
 		// to become unresponsive, disconnecting all terminals across all windows.
@@ -619,10 +624,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 
 		return this._initialCwd;
-	}
-
-	getLatency(): Promise<number> {
-		return Promise.resolve(0);
 	}
 
 	getWindowsPty(): IProcessReadyWindowsPty | undefined {

@@ -17,6 +17,7 @@ import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IRange } from 'vs/editor/common/core/range';
+import { IPosition } from 'vs/editor/common/core/position';
 
 class ProviderWrapper {
 
@@ -57,14 +58,18 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 		type EditorChatApiArg = {
 			initialRange?: vscode.Range;
+			initialSelection?: vscode.Selection;
 			message?: string;
 			autoSend?: boolean;
+			position?: vscode.Position;
 		};
 
 		type InteractiveEditorRunOptions = {
 			initialRange?: IRange;
+			initialSelection?: ISelection;
 			message?: string;
 			autoSend?: boolean;
+			position?: IPosition;
 		};
 
 		extHostCommands.registerApiCommand(new ApiCommand(
@@ -77,8 +82,10 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 				return {
 					initialRange: v.initialRange ? typeConvert.Range.from(v.initialRange) : undefined,
+					initialSelection: v.initialSelection ? typeConvert.Selection.from(v.initialSelection) : undefined,
 					message: v.message,
-					autoSend: v.autoSend
+					autoSend: v.autoSend,
+					position: v.position ? typeConvert.Position.from(v.position) : undefined,
 				};
 			})],
 			ApiCommandResult.Void
@@ -119,7 +126,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		return {
 			id,
 			placeholder: session.placeholder,
-			slashCommands: session.slashCommands?.map(c => ({ command: c.command, detail: c.detail, refer: c.refer })),
+			slashCommands: session.slashCommands?.map(c => ({ command: c.command, detail: c.detail, refer: c.refer, executeImmediately: c.executeImmediately })),
 			wholeRange: typeConvert.Range.from(session.wholeRange),
 			message: session.message
 		};
@@ -135,13 +142,42 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			return;
 		}
 
-		const res = await entry.provider.provideInteractiveEditorResponse({
+		const apiRequest: vscode.InteractiveEditorRequest = {
 			session: sessionData.session,
 			prompt: request.prompt,
 			selection: typeConvert.Selection.to(request.selection),
 			wholeRange: typeConvert.Range.to(request.wholeRange),
 			attempt: request.attempt,
-		}, token);
+			live: request.live,
+		};
+
+
+		let done = false;
+		const progress: vscode.Progress<{ message?: string; edits?: vscode.TextEdit[] }> = {
+			report: value => {
+				if (!request.live) {
+					throw new Error('Progress reporting is only supported for live sessions');
+				}
+				if (done || token.isCancellationRequested) {
+					return;
+				}
+				if (!value.message && !value.edits) {
+					return;
+				}
+				this._proxy.$handleProgressChunk(request.requestId, {
+					message: value.message,
+					edits: value.edits?.map(typeConvert.TextEdit.from)
+				});
+			}
+		};
+
+		const task = typeof entry.provider.provideInteractiveEditorResponse2 === 'function'
+			? entry.provider.provideInteractiveEditorResponse2(apiRequest, progress, token)
+			: entry.provider.provideInteractiveEditorResponse(apiRequest, token);
+
+		Promise.resolve(task).finally(() => done = true);
+
+		const res = await task;
 
 		if (res) {
 
@@ -200,6 +236,9 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 					break;
 				case InlineChatResponseFeedbackKind.Undone:
 					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Undone;
+					break;
+				case InlineChatResponseFeedbackKind.Accepted:
+					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Accepted;
 					break;
 			}
 

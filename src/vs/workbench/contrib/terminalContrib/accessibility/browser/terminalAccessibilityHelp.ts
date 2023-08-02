@@ -10,10 +10,11 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShellIntegrationStatus, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 
 export const enum ClassName {
 	AccessibleBuffer = 'terminal-accessibility-help',
@@ -30,11 +31,11 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 		this.dispose();
 	}
 	options: IAccessibleViewOptions = {
-		type: AccessibleViewType.HelpMenu,
+		type: AccessibleViewType.Help,
 		ariaLabel: localize('terminal-help-label', "terminal accessibility help"),
 		readMoreUrl: 'https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility'
 	};
-	id: string = 'terminal';
+	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
 
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'focus'>,

@@ -59,7 +59,6 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IRequestAddInstanceToGroupEvent, ITerminalContribution, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -85,6 +84,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { importAMDNodeModule } from 'vs/amdX';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import type { IMarker, Terminal as XTermTerminal } from 'xterm';
 
@@ -316,6 +316,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidBlur = this._onDidBlur.event;
 	private readonly _onDidInputData = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidInputData = this._onDidInputData.event;
+	private readonly _onDidChangeSelection = this._register(new Emitter<ITerminalInstance>());
+	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 	private readonly _onRequestAddInstanceToGroup = this._register(new Emitter<IRequestAddInstanceToGroupEvent>());
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
@@ -676,7 +678,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId; }
-	get shouldPersist(): boolean { return this._processManager.shouldPersist && !this.shellLaunchConfig.isTransient && (!this.reconnectionProperties || this._configurationService.getValue(TaskSettingId.Reconnection) === true); }
+	get shouldPersist(): boolean { return this._processManager.shouldPersist && !this.shellLaunchConfig.isTransient && (!this.reconnectionProperties || this._configurationService.getValue('task.reconnection') === true); }
 
 	public static getXtermConstructor(keybindingService: IKeybindingService, contextKeyService: IContextKeyService) {
 		const keybinding = keybindingService.lookupKeybinding(TerminalCommandId.FocusAccessibleBuffer, contextKeyService);
@@ -684,7 +686,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return xtermConstructor;
 		}
 		xtermConstructor = Promises.withAsyncBody<typeof XTermTerminal>(async (resolve) => {
-			const Terminal = (await import('xterm')).Terminal;
+			const Terminal = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
 			// Localize strings
 			Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
 			Terminal.strings.tooMuchOutput = keybinding ? nls.localize('terminal.integrated.useAccessibleBuffer', 'Use the accessible buffer {0} to manually review output', keybinding.getLabel()) : nls.localize('terminal.integrated.useAccessibleBufferNoKb', 'Use the Terminal: Focus Accessible Buffer command to manually review output');
@@ -758,7 +760,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						icon: Codicon.bell,
 						tooltip: nls.localize('bellStatus', "Bell")
 					}, this._configHelper.config.bellDuration);
-					this._audioCueService.playSound(AudioCue.terminalBell.sound);
+					this._audioCueService.playSound(AudioCue.terminalBell.sound.getSound());
 				}
 			});
 		}, 1000);
@@ -1722,6 +1724,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _onSelectionChange(): Promise<void> {
+		this._onDidChangeSelection.fire(this);
 		if (this._configurationService.getValue(TerminalSettingId.CopyOnSelection)) {
 			if (this.hasSelection()) {
 				await this.copySelection();
@@ -2079,7 +2082,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._refreshEnvironmentVariableInfoWidgetState(info);
 	}
 
-	private _refreshEnvironmentVariableInfoWidgetState(info?: IEnvironmentVariableInfo): void {
+	private async _refreshEnvironmentVariableInfoWidgetState(info?: IEnvironmentVariableInfo): Promise<void> {
 		// Check if the status should exist
 		if (!info) {
 			this.statusList.remove(TerminalStatus.RelaunchNeeded);
@@ -2087,16 +2090,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		// Recreate the process if the terminal has not yet been interacted with and it's not a
-		// special terminal (eg. extension terminal)
+		// Recreate the process seamlessly without informing the use if the following conditions are
+		// met.
 		if (
+			// The change requires a relaunch
 			info.requiresAction &&
+			// The feature is enabled
 			this._configHelper.config.environmentChangesRelaunch &&
+			// Has not been interacted with
 			!this._processManager.hasWrittenData &&
-			(!this._shellLaunchConfig.isFeatureTerminal || (this.reconnectionProperties && this._configurationService.getValue(TaskSettingId.Reconnection) === true)) &&
-			!this._shellLaunchConfig.customPtyImplementation
-			&& !this._shellLaunchConfig.isExtensionOwnedTerminal &&
-			!this._shellLaunchConfig.attachPersistentProcess
+			// Not a feature terminal or is a reconnecting task terminal (TODO: Need to explain the latter case)
+			(!this._shellLaunchConfig.isFeatureTerminal || (this.reconnectionProperties && this._configurationService.getValue('task.reconnection') === true)) &&
+			// Not a custom pty
+			!this._shellLaunchConfig.customPtyImplementation &&
+			// Not an extension owned terminal
+			!this._shellLaunchConfig.isExtensionOwnedTerminal &&
+			// Not a reconnected or revived terminal
+			!this._shellLaunchConfig.attachPersistentProcess &&
+			// Not a Windows remote using ConPTY (#187084)
+			!(this._processManager.remoteAuthority && this._configHelper.config.windowsEnableConpty && (await this._processManager.getBackendOS()) === OperatingSystem.Windows)
 		) {
 			this.relaunch();
 			return;

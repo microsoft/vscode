@@ -6,15 +6,15 @@
 import { EventType, addDisposableListener, addStandardDisposableListener, h } from 'vs/base/browser/dom';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { Color } from 'vs/base/common/color';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, derived, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
-import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
+import { IObservable, autorun, autorunWithStore, derived, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { appendRemoveOnDispose } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
-import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
+import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
@@ -40,7 +40,8 @@ export class OverviewRulerPart extends Disposable {
 
 		const currentColorTheme = observableFromEvent(this._themeService.onDidColorThemeChange, () => this._themeService.getColorTheme());
 
-		const currentColors = derived('colors', reader => {
+		const currentColors = derived(reader => {
+			/** @description colors */
 			const theme = currentColorTheme.read(reader);
 			const insertColor = theme.getColor(diffOverviewRulerInserted) || (theme.getColor(diffInserted) || defaultInsertColor).transparent(2);
 			const removeColor = theme.getColor(diffOverviewRulerRemoved) || (theme.getColor(diffRemoved) || defaultRemoveColor).transparent(2);
@@ -50,8 +51,8 @@ export class OverviewRulerPart extends Disposable {
 		const scrollTopObservable = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
 		const scrollHeightObservable = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollHeight());
 
-		// overview ruler
-		this._register(autorunWithStore2('create diff editor overview ruler if enabled', (reader, store) => {
+		this._register(autorunWithStore((reader, store) => {
+			/** @description create diff editor overview ruler if enabled */
 			if (!this._options.renderOverviewRuler.read(reader)) {
 				return;
 			}
@@ -72,7 +73,8 @@ export class OverviewRulerPart extends Disposable {
 			}, { passive: false }));
 			store.add(appendRemoveOnDispose(this._rootElement, diffOverviewRoot));
 
-			store.add(autorunWithStore2('recreate overview rules when model changes', (reader, store) => {
+			store.add(autorunWithStore((reader, store) => {
+				/** @description recreate overview rules when model changes */
 				const m = this._diffModel.read(reader);
 
 				const originalOverviewRuler = this._editors.original.createOverviewRuler('original diffOverviewRuler');
@@ -97,7 +99,8 @@ export class OverviewRulerPart extends Disposable {
 				const origHiddenRangesChanged = observableSignalFromEvent('hiddenRangesChanged', this._editors.original.onDidChangeHiddenAreas);
 				const modHiddenRangesChanged = observableSignalFromEvent('hiddenRangesChanged', this._editors.modified.onDidChangeHiddenAreas);
 
-				store.add(autorun('set overview ruler zones', (reader) => {
+				store.add(autorun(reader => {
+					/** @description set overview ruler zones */
 					origViewZonesChanged.read(reader);
 					modViewZonesChanged.read(reader);
 					origHiddenRangesChanged.read(reader);
@@ -125,7 +128,8 @@ export class OverviewRulerPart extends Disposable {
 					modifiedOverviewRuler?.setZones(createZones((diff || []).map(d => d.lineRangeMapping.modifiedRange), colors.insertColor, this._editors.modified));
 				}));
 
-				store.add(autorun('layout overview ruler', (reader) => {
+				store.add(autorun(reader => {
+					/** @description layout overview ruler */
 					const height = this._rootHeight.read(reader);
 					const width = this._rootWidth.read(reader);
 					const layoutInfo = this._modifiedEditorLayoutInfo.read(reader);
@@ -146,15 +150,18 @@ export class OverviewRulerPart extends Disposable {
 						const scrollTop = scrollTopObservable.read(reader);
 						const scrollHeight = scrollHeightObservable.read(reader);
 
-						const computedAvailableSize = Math.max(0, layoutInfo.height);
-						const computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * 0);
-						const computedRatio = scrollHeight > 0 ? (computedRepresentableSize / scrollHeight) : 0;
+						const scrollBarOptions = this._editors.modified.getOption(EditorOption.scrollbar);
+						const state = new ScrollbarState(
+							scrollBarOptions.verticalHasArrows ? scrollBarOptions.arrowSize : 0,
+							scrollBarOptions.verticalScrollbarSize,
+							0,
+							layoutInfo.height,
+							scrollHeight,
+							scrollTop
+						);
 
-						const computedSliderSize = Math.max(0, Math.floor(layoutInfo.height * computedRatio));
-						const computedSliderPosition = Math.floor(scrollTop * computedRatio);
-
-						viewportDomElement.setTop(computedSliderPosition);
-						viewportDomElement.setHeight(computedSliderSize);
+						viewportDomElement.setTop(state.getSliderPosition());
+						viewportDomElement.setHeight(state.getSliderSize());
 					} else {
 						viewportDomElement.setTop(0);
 						viewportDomElement.setHeight(0);

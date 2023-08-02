@@ -14,38 +14,46 @@ export class DiffEditorOptions {
 
 	public get editorOptions(): IObservable<IEditorOptions, { changedOptions: IEditorOptions }> { return this._options; }
 
-	constructor(options: Readonly<IDiffEditorConstructionOptions>) {
+	constructor(options: Readonly<IDiffEditorConstructionOptions>, private readonly diffEditorWidth: IObservable<number>) {
 		const optionsCopy = { ...options, ...validateDiffEditorOptions(options, diffEditorDefaultOptions) };
 		this._options = observableValue('options', optionsCopy);
 	}
 
-	public readonly renderOverviewRuler = derived('renderOverviewRuler', reader => this._options.read(reader).renderOverviewRuler);
-	public readonly renderSideBySide = derived('renderSideBySide', reader => this._options.read(reader).renderSideBySide);
-	public readonly readOnly = derived('readOnly', reader => this._options.read(reader).readOnly);
+	public readonly couldShowInlineViewBecauseOfSize = derived(reader => /** @description couldShowInlineViewBecauseOfSize */ this._options.read(reader).renderSideBySide && this.diffEditorWidth.read(reader) <= this._options.read(reader).renderSideBySideInlineBreakpoint
+	);
 
-	public readonly shouldRenderRevertArrows = derived('shouldRenderRevertArrows', (reader) => {
+	public readonly renderOverviewRuler = derived(reader => /** @description renderOverviewRuler */ this._options.read(reader).renderOverviewRuler);
+	public readonly renderSideBySide = derived(reader => /** @description renderSideBySide */ this._options.read(reader).renderSideBySide
+		&& !(this._options.read(reader).useInlineViewWhenSpaceIsLimited && this.couldShowInlineViewBecauseOfSize.read(reader))
+	);
+	public readonly readOnly = derived(reader => /** @description readOnly */ this._options.read(reader).readOnly);
+
+	public readonly shouldRenderRevertArrows = derived(reader => {
+		/** @description shouldRenderRevertArrows */
 		if (!this._options.read(reader).renderMarginRevertIcon) { return false; }
 		if (!this.renderSideBySide.read(reader)) { return false; }
 		if (this.readOnly.read(reader)) { return false; }
 		return true;
 	});
-	public readonly renderIndicators = derived('renderIndicators', reader => this._options.read(reader).renderIndicators);
-	public readonly enableSplitViewResizing = derived('enableSplitViewResizing', reader => this._options.read(reader).enableSplitViewResizing);
-	public readonly collapseUnchangedRegions = derived('hideUnchangedRegions', reader => this._options.read(reader).experimental.collapseUnchangedRegions!);
-	public readonly splitViewDefaultRatio = derived('splitViewDefaultRatio', reader => this._options.read(reader).splitViewDefaultRatio);
-	public readonly ignoreTrimWhitespace = derived('ignoreTrimWhitespace', reader => this._options.read(reader).ignoreTrimWhitespace);
-	public readonly maxComputationTimeMs = derived('maxComputationTime', reader => this._options.read(reader).maxComputationTime);
-	public readonly showMoves = derived('showMoves', reader => {
+	public readonly renderIndicators = derived(reader => /** @description renderIndicators */ this._options.read(reader).renderIndicators);
+	public readonly enableSplitViewResizing = derived(reader => /** @description enableSplitViewResizing */ this._options.read(reader).enableSplitViewResizing);
+	public readonly collapseUnchangedRegions = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).experimental.collapseUnchangedRegions!);
+	public readonly splitViewDefaultRatio = derived(reader => /** @description splitViewDefaultRatio */ this._options.read(reader).splitViewDefaultRatio);
+	public readonly ignoreTrimWhitespace = derived(reader => /** @description ignoreTrimWhitespace */ this._options.read(reader).ignoreTrimWhitespace);
+	public readonly maxComputationTimeMs = derived(reader => /** @description maxComputationTime */ this._options.read(reader).maxComputationTime);
+	public readonly showMoves = derived(reader => {
+		/** @description showMoves */
 		const o = this._options.read(reader);
 		return o.experimental.showMoves! && o.renderSideBySide;
 	});
-	public readonly isInEmbeddedEditor = derived('isInEmbeddedEditor', reader => this._options.read(reader).isInEmbeddedEditor);
-	public readonly diffWordWrap = derived('diffWordWrap', reader => this._options.read(reader).diffWordWrap);
-	public readonly originalEditable = derived('originalEditable', reader => this._options.read(reader).originalEditable);
-	public readonly diffCodeLens = derived('diffCodeLens', reader => this._options.read(reader).diffCodeLens);
-	public readonly accessibilityVerbose = derived('accessibilityVerbose', reader => this._options.read(reader).accessibilityVerbose);
-	public readonly diffAlgorithm = derived('diffAlgorithm', reader => this._options.read(reader).diffAlgorithm);
-	public readonly showEmptyDecorations = derived('showEmptyDecorations', reader => this._options.read(reader).experimental.showEmptyDecorations!);
+	public readonly isInEmbeddedEditor = derived(reader => /** @description isInEmbeddedEditor */ this._options.read(reader).isInEmbeddedEditor);
+	public readonly diffWordWrap = derived(reader => /** @description diffWordWrap */ this._options.read(reader).diffWordWrap);
+	public readonly originalEditable = derived(reader => /** @description originalEditable */ this._options.read(reader).originalEditable);
+	public readonly diffCodeLens = derived(reader => /** @description diffCodeLens */ this._options.read(reader).diffCodeLens);
+	public readonly accessibilityVerbose = derived(reader => /** @description accessibilityVerbose */ this._options.read(reader).accessibilityVerbose);
+	public readonly diffAlgorithm = derived(reader => /** @description diffAlgorithm */ this._options.read(reader).diffAlgorithm);
+	public readonly showEmptyDecorations = derived(reader => /** @description showEmptyDecorations */ this._options.read(reader).experimental.showEmptyDecorations!);
+	public readonly onlyShowAccessibleDiffViewer = derived(reader => /** @description onlyShowAccessibleDiffViewer */ this._options.read(reader).onlyShowAccessibleDiffViewer);
 
 	public updateOptions(changedOptions: IDiffEditorOptions): void {
 		const newDiffEditorOptions = validateDiffEditorOptions(changedOptions, this._options.get());
@@ -75,6 +83,9 @@ const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
 		showEmptyDecorations: true,
 	},
 	isInEmbeddedEditor: false,
+	onlyShowAccessibleDiffViewer: false,
+	renderSideBySideInlineBreakpoint: 900,
+	useInlineViewWhenSpaceIsLimited: true,
 };
 
 function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaults: ValidDiffEditorBaseOptions): ValidDiffEditorBaseOptions {
@@ -99,5 +110,8 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 			showEmptyDecorations: validateBooleanOption(options.experimental?.showEmptyDecorations, defaults.experimental.showEmptyDecorations!),
 		},
 		isInEmbeddedEditor: validateBooleanOption(options.isInEmbeddedEditor, defaults.isInEmbeddedEditor),
+		onlyShowAccessibleDiffViewer: validateBooleanOption(options.onlyShowAccessibleDiffViewer, defaults.onlyShowAccessibleDiffViewer),
+		renderSideBySideInlineBreakpoint: clampedInt(options.renderSideBySideInlineBreakpoint, defaults.renderSideBySideInlineBreakpoint, 0, Constants.MAX_SAFE_SMALL_INTEGER),
+		useInlineViewWhenSpaceIsLimited: validateBooleanOption(options.useInlineViewWhenSpaceIsLimited, defaults.useInlineViewWhenSpaceIsLimited),
 	};
 }

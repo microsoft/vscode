@@ -54,6 +54,7 @@ import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { WhitespaceOverlay } from 'vs/editor/browser/viewParts/whitespace/whitespace';
 import { GlyphMarginWidgets } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 import { GlyphMarginLane } from 'vs/editor/common/model';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 
 export interface IContentWidgetData {
@@ -106,7 +107,8 @@ export class View extends ViewEventHandler {
 		colorTheme: IColorTheme,
 		model: IViewModel,
 		userInputEvents: ViewUserInputEvents,
-		overflowWidgetsDomNode: HTMLElement | undefined
+		overflowWidgetsDomNode: HTMLElement | undefined,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -123,7 +125,7 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		this._textAreaHandler = new TextAreaHandler(this._context, viewController, this._createTextAreaHandlerHelper());
+		this._textAreaHandler = this._instantiationService.createInstance(TextAreaHandler, this._context, viewController, this._createTextAreaHandlerHelper());
 		this._viewParts.push(this._textAreaHandler);
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)

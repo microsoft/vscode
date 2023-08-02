@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Schemes } from '../../util/schemes';
-import { createEditForMediaFiles, getMarkdownLink, mediaMimes } from './shared';
+import { createEditForMediaFiles, createEditAddingLinksForUriList, mediaMimes, getPasteUrlAsFormattedLinkSetting, PasteUrlAsFormattedLink } from './shared';
 
 class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
@@ -27,17 +27,18 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return createEdit;
 		}
 
-		const label = vscode.l10n.t('Insert Markdown Media');
-		const uriEdit = new vscode.DocumentPasteEdit('', this._id, label);
+		const uriEdit = new vscode.DocumentPasteEdit('', this._id, '');
 		const urlList = await dataTransfer.get('text/uri-list')?.asString();
 		if (!urlList) {
 			return;
 		}
-		const pasteEdit = await getMarkdownLink(document, ranges, urlList, token);
+		const pasteUrlSetting = await getPasteUrlAsFormattedLinkSetting(document);
+		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, urlList, false, pasteUrlSetting === PasteUrlAsFormattedLink.Smart, token);
 		if (!pasteEdit) {
 			return;
 		}
 
+		uriEdit.label = pasteEdit.label;
 		uriEdit.additionalEdit = pasteEdit.additionalEdits;
 		uriEdit.priority = this._getPriority(dataTransfer);
 		return uriEdit;

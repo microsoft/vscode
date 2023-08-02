@@ -152,6 +152,8 @@ export class TerminalService implements ITerminalService {
 	get onDidChangeInstancePrimaryStatus(): Event<ITerminalInstance> { return this._onDidChangeInstancePrimaryStatus.event; }
 	private readonly _onDidInputInstanceData = new Emitter<ITerminalInstance>();
 	get onDidInputInstanceData(): Event<ITerminalInstance> { return this._onDidInputInstanceData.event; }
+	private readonly _onDidChangeSelection = new Emitter<ITerminalInstance>();
+	get onDidChangeSelection(): Event<ITerminalInstance> { return this._onDidChangeSelection.event; }
 	private readonly _onDidDisposeGroup = new Emitter<ITerminalGroup>();
 	get onDidDisposeGroup(): Event<ITerminalGroup> { return this._onDidDisposeGroup.event; }
 	private readonly _onDidChangeGroups = new Emitter<void>();
@@ -282,31 +284,6 @@ export class TerminalService implements ITerminalService {
 
 		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
 
-		mark('code/terminal/willReconnect');
-		let reconnectedPromise: Promise<any>;
-		if (isPersistentRemote) {
-			reconnectedPromise = this._reconnectToRemoteTerminals();
-		} else if (enableTerminalReconnection) {
-			reconnectedPromise = this._reconnectToLocalTerminals();
-		} else {
-			reconnectedPromise = Promise.resolve();
-		}
-		reconnectedPromise.then(async () => {
-			this._setConnected();
-			mark('code/terminal/didReconnect');
-			mark('code/terminal/willReplay');
-			const instances = await this._reconnectedTerminalGroups?.then(groups => groups.map(e => e.terminalInstances).flat()) ?? [];
-			await Promise.all(instances.map(e => new Promise<void>(r => Event.once(e.onProcessReplayComplete)(r))));
-			mark('code/terminal/didReplay');
-			for (const backend of this._terminalInstanceService.getRegisteredBackends()) {
-				mark('code/terminal/willGetPerformanceMarks');
-				this._timerService.setPerformanceMarks(backend.remoteAuthority === undefined ? 'localPtyHost' : 'remotePtyHost', await backend.getPerformanceMarks());
-				mark('code/terminal/didGetPerformanceMarks');
-				backend.setConnected();
-			}
-			this._whenConnected.complete();
-		});
-
 		this._primaryBackend?.onDidRequestDetach(async (e) => {
 			const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
 			if (instanceToDetach) {
@@ -324,6 +301,31 @@ export class TerminalService implements ITerminalService {
 					await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, undefined);
 				}
 			}
+		});
+
+		mark('code/terminal/willReconnect');
+		let reconnectedPromise: Promise<any>;
+		if (isPersistentRemote) {
+			reconnectedPromise = this._reconnectToRemoteTerminals();
+		} else if (enableTerminalReconnection) {
+			reconnectedPromise = this._reconnectToLocalTerminals();
+		} else {
+			reconnectedPromise = Promise.resolve();
+		}
+		reconnectedPromise.then(async () => {
+			this._setConnected();
+			mark('code/terminal/didReconnect');
+			mark('code/terminal/willReplay');
+			const instances = await this._reconnectedTerminalGroups?.then(groups => groups.map(e => e.terminalInstances).flat()) ?? [];
+			await Promise.all(instances.map(e => new Promise<void>(r => Event.once(e.onProcessReplayComplete)(r))));
+			mark('code/terminal/didReplay');
+			mark('code/terminal/willGetPerformanceMarks');
+			await Promise.all(Array.from(this._terminalInstanceService.getRegisteredBackends()).map(async backend => {
+				this._timerService.setPerformanceMarks(backend.remoteAuthority === undefined ? 'localPtyHost' : 'remotePtyHost', await backend.getPerformanceMarks());
+				backend.setReady();
+			}));
+			mark('code/terminal/didGetPerformanceMarks');
+			this._whenConnected.complete();
 		});
 	}
 
@@ -422,7 +424,7 @@ export class TerminalService implements ITerminalService {
 	private _setConnected() {
 		this._connectionState = TerminalConnectionState.Connected;
 		this._onDidChangeConnectionState.fire();
-		this._logService.trace('Reconnected to terminals');
+		this._logService.trace('Pty host ready');
 	}
 
 	private async _reconnectToRemoteTerminals(): Promise<void> {
@@ -444,6 +446,8 @@ export class TerminalService implements ITerminalService {
 		// now that terminals have been restored,
 		// attach listeners to update remote when terminals are changed
 		this._attachProcessLayoutListeners();
+
+		this._logService.trace('Reconnected to remote terminals');
 	}
 
 	private async _reconnectToLocalTerminals(): Promise<void> {
@@ -462,6 +466,8 @@ export class TerminalService implements ITerminalService {
 		// now that terminals have been restored,
 		// attach listeners to update local state when terminals are changed
 		this._attachProcessLayoutListeners();
+
+		this._logService.trace('Reconnected to local terminals');
 	}
 
 	private _recreateTerminalGroups(layoutInfo?: ITerminalsLayoutInfo): Promise<ITerminalGroup[]> {
@@ -832,7 +838,8 @@ export class TerminalService implements ITerminalService {
 			instance.onMaximumDimensionsChanged(() => this._onDidMaxiumumDimensionsChange.fire(instance)),
 			instance.onDidInputData(this._onDidInputInstanceData.fire, this._onDidInputInstanceData),
 			instance.onDidFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance),
-			instance.onRequestAddInstanceToGroup(async e => await this._addInstanceToGroup(instance, e))
+			instance.onRequestAddInstanceToGroup(async e => await this._addInstanceToGroup(instance, e)),
+			instance.onDidChangeSelection(this._onDidChangeSelection.fire, this._onDidChangeSelection)
 		];
 		instance.onDisposed(() => dispose(instanceDisposables));
 	}

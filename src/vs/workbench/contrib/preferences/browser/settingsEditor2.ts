@@ -707,17 +707,12 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	switchToApplicationSettingsFile(): Promise<IEditorPane | undefined> {
-		const query = parseQuery(this.searchWidget.getValue()).query;
-		return this.openSettingsFile({ query }, true);
-	}
-
 	switchToSettingsFile(): Promise<IEditorPane | undefined> {
 		const query = parseQuery(this.searchWidget.getValue()).query;
 		return this.openSettingsFile({ query });
 	}
 
-	private async openSettingsFile(options?: ISettingsEditorOptions, forceOpenApplicationSettings?: boolean): Promise<IEditorPane | undefined> {
+	private async openSettingsFile(options?: ISettingsEditorOptions): Promise<IEditorPane | undefined> {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
 		const openOptions: IOpenSettingsOptions = { jsonEditor: true, ...options };
@@ -728,9 +723,6 @@ export class SettingsEditor2 extends EditorPane {
 				if (configurationScope === ConfigurationScope.APPLICATION) {
 					return this.preferencesService.openApplicationSettings(openOptions);
 				}
-			}
-			if (forceOpenApplicationSettings) {
-				return this.preferencesService.openApplicationSettings(openOptions);
 			}
 			return this.preferencesService.openUserSettings(openOptions);
 		} else if (currentSettingsTarget === ConfigurationTarget.USER_REMOTE) {
@@ -1260,10 +1252,9 @@ export class SettingsEditor2 extends EditorPane {
 		const toggleData = await getExperimentalExtensionToggleData(this.workbenchAssignmentService, this.environmentService, this.productService);
 		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
-				const prerelease = toggleData.settingsEditorRecommendedExtensions[key].onSettingsEditorOpen!.prerelease;
-
-				const extensionId = (typeof prerelease === 'string' && this.productService.quality !== 'stable') ? prerelease : key;
-				const [extension] = await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None);
+				const extensionId = key;
+				// Always recommend prerelease for now.
+				const [extension] = await this.extensionGalleryService.getExtensions([{ id: extensionId, preRelease: true }], CancellationToken.None);
 				if (!extension) {
 					continue;
 				}
@@ -1292,8 +1283,8 @@ export class SettingsEditor2 extends EditorPane {
 					scope: ConfigurationScope.WINDOW,
 					type: 'null',
 					displayExtensionId: extensionId,
+					prereleaseExtensionId: key,
 					stableExtensionId: key,
-					prereleaseExtensionId: typeof prerelease === 'string' ? prerelease : key,
 					extensionGroupTitle: groupTitle ?? extensionName
 				};
 				const additionalGroup = this.addOrRemoveManageExtensionSetting(setting, extension, groups);
@@ -1364,9 +1355,11 @@ export class SettingsEditor2 extends EditorPane {
 				keys.forEach(key => this.settingsTreeModel.updateElementsByName(key));
 			}
 
-			keys.forEach(key => this.renderTree(key));
+			// Attempt to render the tree once rather than
+			// once for each key to avoid redundant calls to this.refreshTree()
+			this.renderTree();
 		} else {
-			return this.renderTree();
+			this.renderTree();
 		}
 	}
 

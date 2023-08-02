@@ -30,7 +30,7 @@ suite('ViewDescriptorService', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		disposables.add(instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables));
 		instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
 	});
 
