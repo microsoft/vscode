@@ -43,6 +43,7 @@ import { StringSHA1 } from 'vs/base/common/hash';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { GestureEvent } from 'vs/base/browser/touch';
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -130,6 +131,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -443,6 +445,8 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
+		this.logService.info('activity bar part 1');
+
 		this.content = document.createElement('div');
 		this.content.classList.add('content');
 		parent.appendChild(this.content);
@@ -452,6 +456,8 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			this.installMenubar();
 		}
 
+		this.logService.info('activity bar part 2');
+
 		// View Containers action bar
 		this.compositeBarContainer = this.compositeBar.create(this.content);
 
@@ -459,10 +465,14 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		this.globalActivitiesContainer = document.createElement('div');
 		this.content.appendChild(this.globalActivitiesContainer);
 
+		this.logService.info('activity bar part 3');
+
 		this.createGlobalActivityActionBar(this.globalActivitiesContainer);
 
 		// Keyboard Navigation
 		this.registerKeyboardNavigationListeners();
+
+		this.logService.info('activity bar part 4');
 
 		return this.content;
 	}
