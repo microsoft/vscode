@@ -190,6 +190,9 @@ export class InlineChatController implements IEditorContribution {
 			await this._currentRun;
 		}
 		this._stashedSession.clear();
+		if (options.initialSelection) {
+			this._editor.setSelection(options.initialSelection);
+		}
 		this._currentRun = this._nextState(State.CREATE_SESSION, options);
 		await this._currentRun;
 		this._currentRun = undefined;
@@ -463,7 +466,7 @@ export class InlineChatController implements IEditorContribution {
 		return State.MAKE_REQUEST;
 	}
 
-	private async [State.MAKE_REQUEST](options: InlineChatRunOptions): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL | State.ACCEPT> {
+	private async [State.MAKE_REQUEST](): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL | State.ACCEPT> {
 		assertType(this._editor.hasModel());
 		assertType(this._activeSession);
 		assertType(this._activeSession.lastInput);
@@ -486,7 +489,7 @@ export class InlineChatController implements IEditorContribution {
 			requestId: generateUuid(),
 			prompt: this._activeSession.lastInput.value,
 			attempt: this._activeSession.lastInput.attempt,
-			selection: options.initialSelection ?? this._editor.getSelection(),
+			selection: this._editor.getSelection(),
 			wholeRange: this._activeSession.wholeRange.value,
 			live: this._activeSession.editMode !== EditMode.Preview // TODO@jrieken let extension know what document is used for previewing
 		};
