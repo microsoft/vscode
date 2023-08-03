@@ -34,6 +34,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		'--no-cached-data',
 		'--disable-updates',
 		'--disable-keytar',
+		'--use-mock-keychain',
 		`--crash-reporter-directory=${crashesPath}`,
 		`--enable-tracing="benchmark,base,browser,loading,navigation,renderer_host,startup,disabled-by-default-base,disabled-by-default-loading,disabled-by-default-network,disabled-by-default-v8.compile,disabled-by-default-v8.cpu_profiler,v8"`,
 		`--trace-startup-file="${join(logsPath, 'chrometrace-' + traceCount++ + '.log')}"`,
