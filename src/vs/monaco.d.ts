@@ -6241,7 +6241,7 @@ declare namespace monaco.languages {
 
 	/**
 	 * An event emitted when a language is associated for the first time with a text model or
-	 * when a language is encountered during the tokenization of another language.
+	 * whena language is encountered during the tokenization of another language.
 	 * @event
 	 */
 	export function onLanguageEncountered(languageId: string, callback: () => void): IDisposable;
