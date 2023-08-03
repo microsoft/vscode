@@ -72,6 +72,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const $ = dom.$;
 
@@ -127,6 +128,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService
 	) {
@@ -417,8 +419,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const didOpenListener = tree.onDidOpen((e) => {
 			if (e.element && !('children' in e.element)) {
-				this.commandService.executeCommand('vscode.open', e.element.uri);
+				this.openerService.open(e.element.uri);
 			}
+		});
+
+		const didToggleListener = tree.onDidChangeCollapseState(() => {
+			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
 		});
 
 		tree.setInput(data).then(() => {
@@ -430,6 +436,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element: tree.getHTMLElement().parentElement!,
 			dispose: () => {
 				didOpenListener.dispose();
+				didToggleListener.dispose();
 				ref.dispose();
 			}
 		};
