@@ -300,6 +300,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			},
 			isInEmbeddedEditor: false,
 			onlyShowAccessibleDiffViewer: false,
+			renderSideBySideInlineBreakpoint: 0,
+			useInlineViewWhenSpaceIsLimited: false,
 		});
 
 		this.isEmbeddedDiffEditorKey = EditorContextKeys.isEmbeddedDiffEditor.bindTo(this._contextKeyService);
@@ -445,11 +447,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return dom.isAncestor(document.activeElement, this._domElement);
 	}
 
-	public diffReviewNext(): void {
+	public accessibleDiffViewerNext(): void {
 		this._reviewPane.next();
 	}
 
-	public diffReviewPrev(): void {
+	public accessibleDiffViewerPrev(): void {
 		this._reviewPane.prev();
 	}
 
@@ -2745,6 +2747,8 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		},
 		isInEmbeddedEditor: validateBooleanOption(options.isInEmbeddedEditor, defaults.isInEmbeddedEditor),
 		onlyShowAccessibleDiffViewer: false,
+		renderSideBySideInlineBreakpoint: 0,
+		useInlineViewWhenSpaceIsLimited: false,
 	};
 }
 

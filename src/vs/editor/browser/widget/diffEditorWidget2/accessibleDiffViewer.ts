@@ -10,10 +10,7 @@ import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, derived, keepAlive, observableValue, transaction } from 'vs/base/common/observable';
-import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
-import { subtransaction } from 'vs/base/common/observableImpl/base';
-import { derivedWithStore } from 'vs/base/common/observableImpl/derived';
+import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, keepAlive, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
@@ -35,9 +32,9 @@ import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioC
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-const diffReviewInsertIcon = registerIcon('diff-review-insert', Codicon.add, localize('diffReviewInsertIcon', 'Icon for \'Insert\' in diff review.'));
-const diffReviewRemoveIcon = registerIcon('diff-review-remove', Codicon.remove, localize('diffReviewRemoveIcon', 'Icon for \'Remove\' in diff review.'));
-const diffReviewCloseIcon = registerIcon('diff-review-close', Codicon.close, localize('diffReviewCloseIcon', 'Icon for \'Close\' in diff review.'));
+const accessibleDiffViewerInsertIcon = registerIcon('diff-review-insert', Codicon.add, localize('accessibleDiffViewerInsertIcon', 'Icon for \'Insert\' in accessible diff viewer.'));
+const accessibleDiffViewerRemoveIcon = registerIcon('diff-review-remove', Codicon.remove, localize('accessibleDiffViewerRemoveIcon', 'Icon for \'Remove\' in accessible diff viewer.'));
+const accessibleDiffViewerCloseIcon = registerIcon('diff-review-close', Codicon.close, localize('accessibleDiffViewerCloseIcon', 'Icon for \'Close\' in accessible diff viewer.'));
 
 export class AccessibleDiffViewer extends Disposable {
 	constructor(
@@ -115,7 +112,8 @@ class ViewModel extends Disposable {
 	) {
 		super();
 
-		this._register(autorun('update groups', reader => {
+		this._register(autorun(reader => {
+			/** @description update groups */
 			const diffs = this._diffs.read(reader);
 			if (!diffs) {
 				this._groups.set([], undefined);
@@ -140,7 +138,8 @@ class ViewModel extends Disposable {
 			});
 		}));
 
-		this._register(autorun('play audio-cue for diff', reader => {
+		this._register(autorun(reader => {
+			/** @description play audio-cue for diff */
 			const currentViewItem = this.currentElement.read(reader);
 			if (currentViewItem?.type === LineType.Deleted) {
 				this._audioCueService.playAudioCue(AudioCue.diffLineDeleted);
@@ -149,7 +148,8 @@ class ViewModel extends Disposable {
 			}
 		}));
 
-		this._register(autorun('select lines in editor', reader => {
+		this._register(autorun(reader => {
+			/** @description select lines in editor */
 			// This ensures editor commands (like revert/stage) work
 			const currentViewItem = this.currentElement.read(reader);
 			if (currentViewItem && currentViewItem.type !== LineType.Header) {
@@ -339,13 +339,14 @@ class View extends Disposable {
 		this._actionBar = this._register(new ActionBar(
 			actionBarContainer
 		));
-		this._register(autorun('update actions', reader => {
+		this._register(autorun(reader => {
+			/** @description update actions */
 			this._actionBar.clear();
 			if (this._model.canClose.read(reader)) {
 				this._actionBar.push(new Action(
 					'diffreview.close',
 					localize('label.close', "Close"),
-					'close-diff-review ' + ThemeIcon.asClassName(diffReviewCloseIcon),
+					'close-diff-review ' + ThemeIcon.asClassName(accessibleDiffViewerCloseIcon),
 					true,
 					async () => _model.close()
 				), { label: false, icon: true });
@@ -363,7 +364,8 @@ class View extends Disposable {
 		this._register(applyStyle(this.domNode, { width: this._width, height: this._height }));
 		this._register(applyStyle(this._content, { width: this._width, height: this._height }));
 
-		this._register(autorunWithStore2('render', (reader, store) => {
+		this._register(autorunWithStore((reader, store) => {
+			/** @description render */
 			this._model.currentGroup.read(reader);
 			this._render(store);
 		}));
@@ -487,9 +489,10 @@ class View extends Disposable {
 
 			container.appendChild(row);
 
-			const isSelectedObs = derived('isSelected', reader => this._model.currentElement.read(reader) === viewItem);
+			const isSelectedObs = derived(reader => /** @description isSelected */ this._model.currentElement.read(reader) === viewItem);
 
-			store.add(autorun('update tab index', reader => {
+			store.add(autorun(reader => {
+				/** @description update tab index */
 				const isSelected = isSelectedObs.read(reader);
 				row.tabIndex = isSelected ? 0 : -1;
 				if (isSelected) {
@@ -526,12 +529,12 @@ class View extends Disposable {
 			case LineType.Added:
 				rowClassName = 'diff-review-row line-insert';
 				lineNumbersExtraClassName = ' char-insert';
-				spacerIcon = diffReviewInsertIcon;
+				spacerIcon = accessibleDiffViewerInsertIcon;
 				break;
 			case LineType.Deleted:
 				rowClassName = 'diff-review-row line-delete';
 				lineNumbersExtraClassName = ' char-delete';
-				spacerIcon = diffReviewRemoveIcon;
+				spacerIcon = accessibleDiffViewerRemoveIcon;
 				break;
 		}
 

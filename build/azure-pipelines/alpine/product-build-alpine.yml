@@ -3,10 +3,6 @@ steps:
     inputs:
       versionSpec: "16.x"
 
-  - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-    displayName: "Register Docker QEMU"
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
-
   - template: ../distro/download-distro.yml
 
   - task: AzureKeyVault@1
@@ -67,9 +63,8 @@ steps:
     displayName: "Pull image"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - script: |
-      sudo apt-get update && sudo apt-get install -y libkrb5-dev
-    displayName: Install libkrb5-dev
+  - script: sudo apt-get update && sudo apt-get install -y libkrb5-dev
+    displayName: Install build dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
@@ -83,10 +78,12 @@ steps:
         echo "Yarn failed $i, trying again..."
       done
     env:
+      npm_config_arch: $(NPM_ARCH)
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
       VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH)
+      VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
     displayName: Install build dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 

@@ -6,8 +6,7 @@
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, constObservable, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { ITransaction, disposableObservableValue, transaction } from 'vs/base/common/observableImpl/base';
+import { ITransaction, autorun, constObservable, disposableObservableValue, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -154,7 +153,8 @@ export class InlineCompletionsController extends Disposable {
 			});
 		}));
 
-		this._register(autorun('forceRenderingAbove', reader => {
+		this._register(autorun(reader => {
+			/** @description forceRenderingAbove */
 			const state = this.model.read(reader)?.state.read(reader);
 			if (state?.suggestItem) {
 				if (state.ghostText.lineCount >= 2) {
@@ -169,19 +169,20 @@ export class InlineCompletionsController extends Disposable {
 		}));
 
 		let lastInlineCompletionId: string | undefined = undefined;
-		this._register(autorun('play audio cue & read suggestion', reader => {
+		this._register(autorun(reader => {
+			/** @description play audio cue & read suggestion */
 			const model = this.model.read(reader);
 			const state = model?.state.read(reader);
-			if (!model || !state || !state.completion) {
+			if (!model || !state || !state.inlineCompletion) {
 				lastInlineCompletionId = undefined;
 				return;
 			}
 
-			if (state.completion.semanticId !== lastInlineCompletionId) {
-				lastInlineCompletionId = state.completion.semanticId;
+			if (state.inlineCompletion.semanticId !== lastInlineCompletionId) {
+				lastInlineCompletionId = state.inlineCompletion.semanticId;
+				const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
 				this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-						const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
 						alert(state.ghostText.renderForScreenReader(lineText));
 					}
 				});

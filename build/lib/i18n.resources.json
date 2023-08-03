@@ -87,10 +87,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/feedback",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/files",
 			"project": "vscode-workbench"
 		},

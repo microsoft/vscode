@@ -25,7 +25,7 @@ fn apply_build_environment_variables() {
 	}
 
 	let pkg_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-	let mut cmd = Command::new("node");
+	let mut cmd = Command::new(env::var("NODE_PATH").unwrap_or_else(|_| "node".to_string()));
 	cmd.arg("../build/azure-pipelines/cli/prepare.js");
 	cmd.current_dir(&pkg_dir);
 	cmd.env("VSCODE_CLI_PREPARE_OUTPUT", "json");

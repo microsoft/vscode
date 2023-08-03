@@ -12,7 +12,7 @@ import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/b
 import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityHelpAction, AccessibleViewAction, AccessibleViewNextAction, AccessibleViewPreviousAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import * as strings from 'vs/base/common/strings';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -26,7 +26,10 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getNotificationFromContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
-import { IAccessibleViewService, AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IAccessibleViewService, AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType, AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { alert } from 'vs/base/browser/ui/aria/aria';
+import { UnfocusedViewDimmingContribution } from 'vs/workbench/contrib/accessibility/browser/unfocusedViewDimmingContribution';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
@@ -35,8 +38,8 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 	onClose() {
 		this._editor.focus();
 	}
-	options: IAccessibleViewOptions = { type: AccessibleViewType.HelpMenu, ariaLabel: localize('editor-help', "editor accessibility help"), readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
-	verbositySettingKey: string = 'editor';
+	options: IAccessibleViewOptions = { type: AccessibleViewType.Help, ariaLabel: localize('editor-help', "editor accessibility help"), readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
+	verbositySettingKey = AccessibilityVerbositySettingId.Editor;
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
@@ -99,6 +102,7 @@ class EditorAccessibilityHelpContribution extends Disposable {
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(EditorAccessibilityHelpContribution, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(UnfocusedViewDimmingContribution, LifecyclePhase.Restored);
 
 
 
@@ -114,13 +118,16 @@ class HoverAccessibleViewContribution extends Disposable {
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 			const editorHoverContent = editor ? ModesHoverController.get(editor)?.getWidgetContent() ?? undefined : undefined;
-			if (!editorHoverContent) {
+			if (!editor || !editorHoverContent) {
 				return false;
 			}
+			this._options.language = editor?.getModel()?.getLanguageId() ?? undefined;
 			accessibleViewService.show({
-				verbositySettingKey: 'hover',
+				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
 				provideContent() { return editorHoverContent; },
-				onClose() { },
+				onClose() {
+					ModesHoverController.get(editor)?.focus();
+				},
 				options: this._options
 			});
 			return true;
@@ -130,14 +137,18 @@ class HoverAccessibleViewContribution extends Disposable {
 			const contextViewService = accessor.get(IContextViewService);
 			const contextViewElement = contextViewService.getContextViewElement();
 			const extensionHoverContent = contextViewElement?.textContent ?? undefined;
+			const hoverService = accessor.get(IHoverService);
+
 			if (contextViewElement.classList.contains('accessible-view-container') || !extensionHoverContent) {
 				// The accessible view, itself, uses the context view service to display the text. We don't want to read that.
 				return false;
 			}
 			accessibleViewService.show({
-				verbositySettingKey: 'hover',
+				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
 				provideContent() { return extensionHoverContent; },
-				onClose() { },
+				onClose() {
+					hoverService.showAndFocusLastHover();
+				},
 				options: this._options
 			});
 			return true;
@@ -165,13 +176,16 @@ class NotificationAccessibleViewContribution extends Disposable {
 				}
 				commandService.executeCommand('notifications.showList');
 				let notificationIndex: number | undefined;
+				let length: number | undefined;
 				const list = listService.lastFocusedList;
 				if (list instanceof WorkbenchList) {
 					notificationIndex = list.indexOf(notification);
+					length = list.length;
 				}
 				if (notificationIndex === undefined) {
 					return false;
 				}
+
 				function focusList(): void {
 					commandService.executeCommand('notifications.showList');
 					if (list && notificationIndex !== undefined) {
@@ -198,6 +212,7 @@ class NotificationAccessibleViewContribution extends Disposable {
 						}
 						focusList();
 						list.focusNext();
+						alertFocusChange(notificationIndex, length, 'next');
 						renderAccessibleView();
 					},
 					previous(): void {
@@ -206,9 +221,10 @@ class NotificationAccessibleViewContribution extends Disposable {
 						}
 						focusList();
 						list.focusPrevious();
+						alertFocusChange(notificationIndex, length, 'previous');
 						renderAccessibleView();
 					},
-					verbositySettingKey: 'notifications',
+					verbositySettingKey: AccessibilityVerbositySettingId.Notification,
 					options: {
 						ariaLabel: localize('notification', "Notification Accessible View"),
 						type: AccessibleViewType.View
@@ -223,21 +239,16 @@ class NotificationAccessibleViewContribution extends Disposable {
 
 workbenchContributionsRegistry.registerWorkbenchContribution(NotificationAccessibleViewContribution, LifecyclePhase.Eventually);
 
-class AccessibleViewNavigatorContribution extends Disposable {
-	static ID: 'AccessibleViewNavigatorContribution';
-	constructor() {
-		super();
-		this._register(AccessibleViewNextAction.addImplementation(95, 'next', accessor => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			accessibleViewService.next();
-			return true;
-		}, accessibleViewIsShown));
-		this._register(AccessibleViewPreviousAction.addImplementation(95, 'previous', accessor => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			accessibleViewService.previous();
-			return true;
-		}, accessibleViewIsShown));
+export function alertFocusChange(index: number | undefined, length: number | undefined, type: 'next' | 'previous'): void {
+	if (index === undefined || length === undefined) {
+		return;
 	}
-}
+	const number = index + 1;
 
-workbenchContributionsRegistry.registerWorkbenchContribution(AccessibleViewNavigatorContribution, LifecyclePhase.Eventually);
+	if (type === 'next' && number + 1 <= length) {
+		alert(`Focused ${number + 1} of ${length}`);
+	} else if (type === 'previous' && number - 1 > 0) {
+		alert(`Focused ${number - 1} of ${length}`);
+	}
+	return;
+}

@@ -21,7 +21,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { Schemas } from 'vs/base/common/network';
@@ -72,6 +72,7 @@ import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
+import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 
 export class TreeViewPane extends ViewPane {
 
@@ -182,6 +183,10 @@ function isTreeCommandEnabled(treeCommand: TreeCommand, contextKeyService: ICont
 	return true;
 }
 
+function isRenderedMessageValue(messageValue: string | IMarkdownRenderResult | undefined): messageValue is IMarkdownRenderResult {
+	return !!messageValue && typeof messageValue !== 'string' && 'element' in messageValue && 'dispose' in messageValue;
+}
+
 const noDataProviderMessage = localize('no-dataprovider', "There is no data provider registered that can provide view data.");
 
 export const RawCustomTreeViewContextKey = new RawContextKey<boolean>('customTreeView', false);
@@ -204,7 +209,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private focused: boolean = false;
 	private domNode!: HTMLElement;
 	private treeContainer: HTMLElement | undefined;
-	private _messageValue: string | undefined;
+	private _messageValue: string | { element: HTMLElement; dispose: () => void } | undefined;
 	private _canSelectMany: boolean = false;
 	private _manuallyManageCheckboxes: boolean = false;
 	private messageElement: HTMLElement | undefined;
@@ -214,6 +219,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private _container: HTMLElement | undefined;
 
 	private root: ITreeItem;
+	private markdownRenderer: MarkdownRenderer | undefined;
 	private elementsToRefresh: ITreeItem[] = [];
 	private lastSelection: readonly ITreeItem[] = [];
 	private lastActive: ITreeItem;
@@ -388,12 +394,12 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this._onDidChangeWelcomeState.fire();
 	}
 
-	private _message: string | undefined;
-	get message(): string | undefined {
+	private _message: string | IMarkdownString | undefined;
+	get message(): string | IMarkdownString | undefined {
 		return this._message;
 	}
 
-	set message(message: string | undefined) {
+	set message(message: string | IMarkdownString | undefined) {
 		this._message = message;
 		this.updateMessage();
 		this._onDidChangeWelcomeState.fire();
@@ -825,15 +831,23 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this.updateContentAreas();
 	}
 
-	private showMessage(message: string): void {
-		this._messageValue = message;
+	private showMessage(message: string | IMarkdownString): void {
+		if (isRenderedMessageValue(this._messageValue)) {
+			this._messageValue.dispose();
+		}
+		if (isMarkdownString(message) && !this.markdownRenderer) {
+			this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+		}
+		this._messageValue = isMarkdownString(message) ? this.markdownRenderer!.render(message) : message;
 		if (!this.messageElement) {
 			return;
 		}
 		this.messageElement.classList.remove('hide');
 		this.resetMessageElement();
-		if (!isFalsyOrWhitespace(this._message)) {
+		if (typeof this._messageValue === 'string' && !isFalsyOrWhitespace(this._messageValue)) {
 			this.messageElement.textContent = this._messageValue;
+		} else if (isRenderedMessageValue(this._messageValue)) {
+			this.messageElement.appendChild(this._messageValue.element);
 		}
 		this.layout(this._height, this._width);
 	}

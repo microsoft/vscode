@@ -6,7 +6,7 @@
 import 'vs/css!./media/tabstitlecontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -454,10 +454,9 @@ export class TabsTitleControl extends TitleControl {
 			EventHelper.stop(e);
 
 			// Find target anchor
-			let anchor: HTMLElement | { x: number; y: number } = tabsContainer;
+			let anchor: HTMLElement | StandardMouseEvent = tabsContainer;
 			if (e instanceof MouseEvent) {
-				const event = new StandardMouseEvent(e);
-				anchor = { x: event.posx, y: event.posy };
+				anchor = new StandardMouseEvent(e);
 			}
 
 			// Show it
@@ -848,10 +847,10 @@ export class TabsTitleControl extends TitleControl {
 			}
 
 			// Open tabs editor
-			const input = this.group.getEditorByIndex(index);
-			if (input) {
+			const editor = this.group.getEditorByIndex(index);
+			if (editor) {
 				// Even if focus is preserved make sure to activate the group.
-				this.group.openEditor(input, { preserveFocus, activation: EditorActivation.ACTIVATE });
+				this.group.openEditor(editor, { preserveFocus, activation: EditorActivation.ACTIVATE });
 			}
 
 			return undefined;
@@ -860,9 +859,9 @@ export class TabsTitleControl extends TitleControl {
 		const showContextMenu = (e: Event) => {
 			EventHelper.stop(e);
 
-			const input = this.group.getEditorByIndex(index);
-			if (input) {
-				this.onContextMenu(input, e, tab);
+			const editor = this.group.getEditorByIndex(index);
+			if (editor) {
+				this.onContextMenu(editor, e, tab);
 			}
 		};
 
@@ -886,6 +885,11 @@ export class TabsTitleControl extends TitleControl {
 		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, e => {
 			if (e.button === 1 /* Middle Button*/) {
 				EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
+
+				const editor = this.group.getEditorByIndex(index);
+				if (editor && preventEditorClose(this.group, editor, EditorCloseMethod.MOUSE, this.accessor.partOptions)) {
+					return;
+				}
 
 				this.blockRevealActiveTabOnce();
 				this.closeEditorAction.run({ groupId: this.group.id, editorIndex: index });
@@ -913,9 +917,9 @@ export class TabsTitleControl extends TitleControl {
 			// Run action on Enter/Space
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				handled = true;
-				const input = this.group.getEditorByIndex(index);
-				if (input) {
-					this.group.openEditor(input);
+				const editor = this.group.getEditorByIndex(index);
+				if (editor) {
+					this.group.openEditor(editor);
 				}
 			}
 
@@ -974,9 +978,9 @@ export class TabsTitleControl extends TitleControl {
 		disposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, e => {
 			EventHelper.stop(e, true);
 
-			const input = this.group.getEditorByIndex(index);
-			if (input) {
-				this.onContextMenu(input, e, tab);
+			const editor = this.group.getEditorByIndex(index);
+			if (editor) {
+				this.onContextMenu(editor, e, tab);
 			}
 		}, true /* use capture to fix https://github.com/microsoft/vscode/issues/19145 */));
 

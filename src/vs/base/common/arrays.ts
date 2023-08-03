@@ -398,14 +398,14 @@ export function uniqueFilter<T, R>(keyFn: (t: T) => R): (t: T) => boolean {
 }
 
 export function findLast<T>(arr: readonly T[], predicate: (item: T) => boolean): T | undefined {
-	const idx = lastIndex(arr, predicate);
+	const idx = findLastIndex(arr, predicate);
 	if (idx === -1) {
 		return undefined;
 	}
 	return arr[idx];
 }
 
-export function lastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
+export function findLastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
 	for (let i = array.length - 1; i >= 0; i--) {
 		const element = array[i];
 

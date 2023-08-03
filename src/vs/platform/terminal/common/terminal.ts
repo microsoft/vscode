@@ -98,6 +98,7 @@ export const enum TerminalSettingId {
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
 	PersistentSessionReviveProcess = 'terminal.integrated.persistentSessionReviveProcess',
+	HideOnStartup = 'terminal.integrated.hideOnStartup',
 	CustomGlyphs = 'terminal.integrated.customGlyphs',
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
 	InheritEnv = 'terminal.integrated.inheritEnv',
@@ -111,6 +112,7 @@ export const enum TerminalSettingId {
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
 	EnableImages = 'terminal.integrated.enableImages',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
+	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
 
 	// Debug settings that are hidden from user
 

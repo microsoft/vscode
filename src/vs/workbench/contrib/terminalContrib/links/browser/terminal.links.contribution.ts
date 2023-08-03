@@ -6,6 +6,7 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -77,18 +78,15 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 				this.showLinkQuickpick(true);
 			});
 		}
-		const links = await this._getLinks(extended);
-		if (!links) {
-			return;
-		}
+		const links = await this._getLinks();
 		return await this._terminalLinkQuickpick.show(links);
 	}
 
-	private async _getLinks(extended?: boolean): Promise<IDetectedLinks | undefined> {
+	private async _getLinks(): Promise<{ viewport: IDetectedLinks; all: Promise<IDetectedLinks> }> {
 		if (!this._linkManager) {
 			throw new Error('terminal links are not ready, cannot generate link quick pick');
 		}
-		return this._linkManager.getLinks(extended);
+		return this._linkManager.getLinks();
 	}
 
 	async openRecentLink(type: 'localFile' | 'url'): Promise<void> {
@@ -112,7 +110,7 @@ registerActiveInstanceAction({
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: TerminalContextKeys.focus,
+		when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.accessibleBufferFocus)
 	},
 	run: (activeInstance) => TerminalLinkContribution.get(activeInstance)?.showLinkQuickpick()
 });

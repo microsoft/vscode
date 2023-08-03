@@ -156,6 +156,16 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return this._editorModelReference.object.isDirty();
 	}
 
+	override isSaving(): boolean {
+		const model = this._editorModelReference?.object;
+		if (!model || !model.isDirty() || model.hasErrorState) {
+			return false; // require the model to be dirty and not in an error state
+		}
+
+		// if a short auto save is configured, treat this as being saved
+		return this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY;
+	}
+
 	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
 		if (this._editorModelReference) {
 
@@ -214,14 +224,6 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		return await this._editorModelReference.object.saveAs(target);
-	}
-
-	override isSaving(): boolean {
-		if (this.isDirty() && !this.hasCapability(EditorInputCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return true; // will be saved soon
-		}
-
-		return super.isSaving();
 	}
 
 	private async _suggestName(provider: NotebookProviderInfo, suggestedFilename: string) {
