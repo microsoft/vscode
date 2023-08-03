@@ -70,7 +70,17 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._scrollbar.scanDomNode();
 			this._scrollbar.setScrollPosition({ scrollLeft: e.scrollLeft });
 		}));
-		this._register(this._editor.onDidLayoutChange(() => { this._scrollbar.scanDomNode(); }));
+		this._register(this._editor.onDidLayoutChange((e) => {
+			const minimapSide = this._editor.getOption(EditorOption.minimap).side;
+			let lineNumbersWidth = 0;
+			if (minimapSide === 'left') {
+				lineNumbersWidth = e.contentLeft - e.minimap.minimapCanvasOuterWidth;
+			} else if (minimapSide === 'right') {
+				lineNumbersWidth = e.contentLeft;
+			}
+			this._linesDomNode.style.width = `${e.width - e.minimap.minimapCanvasOuterWidth - e.verticalScrollbarWidth - lineNumbersWidth}px`;
+			this._scrollbar.scanDomNode();
+		}));
 		this._scrollbar.scanDomNode();
 	}
 
