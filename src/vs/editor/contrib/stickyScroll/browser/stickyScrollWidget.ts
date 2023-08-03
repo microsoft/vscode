@@ -256,7 +256,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
 		lineHTMLNode.style.height = `${lineHeight}px`;
 		lineHTMLNode.style.position = 'absolute';
-		lineHTMLNode.style.width = 'auto';
+		lineHTMLNode.style.width = '100%';
 
 		// if (lineHTMLNode.clientWidth > this._minWidthInPixels) {
 		// 	this._minWidthInPixels = lineHTMLNode.clientWidth;
