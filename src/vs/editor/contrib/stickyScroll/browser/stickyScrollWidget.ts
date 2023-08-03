@@ -71,6 +71,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._scrollbar.setScrollPosition({ scrollLeft: e.scrollLeft });
 		}));
 		this._register(this._editor.onDidLayoutChange((e) => {
+			console.log('inside of on did layout change');
 			const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 			let lineNumbersWidth = 0;
 			if (minimapSide === 'left') {
@@ -78,6 +79,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			} else if (minimapSide === 'right') {
 				lineNumbersWidth = e.contentLeft;
 			}
+			console.log('lineNumbersWidth : ', lineNumbersWidth);
+			console.log('e.width - e.minimap.minimapCanvasOuterWidth - e.verticalScrollbarWidth - lineNumbersWidth : ', e.width - e.minimap.minimapCanvasOuterWidth - e.verticalScrollbarWidth - lineNumbersWidth);
 			this._linesDomNode.style.width = `${e.width - e.minimap.minimapCanvasOuterWidth - e.verticalScrollbarWidth - lineNumbersWidth}px`;
 			this._scrollbar.scanDomNode();
 		}));
@@ -124,6 +127,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private _renderRootNode(): void {
 
+		console.log('inside of _renderRootNode');
 		const viewModel = this._editor._getViewModel();
 		if (!viewModel) {
 			return;
@@ -214,9 +218,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			lineNumbersWidth = layoutInfo.contentLeft;
 		}
 
+		console.log('inside of render child node');
 		this._lineNumbersDomNode.style.width = `${lineNumbersWidth}px`;
 		lineNumberHTMLNode.style.width = `${lineNumbersWidth}px`;
-		this._linesDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth - lineNumbersWidth}px`;
+		console.log('lineNumbersWidth : ', lineNumbersWidth);
+		console.log('layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth - lineNumbersWidth : ', layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth - lineNumbersWidth);
+		this._linesDomNode.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth - lineNumbersWidth}px`;
 
 		const innerLineNumberHTML = document.createElement('span');
 		if (lineNumberOption.renderType === RenderLineNumbersType.On || lineNumberOption.renderType === RenderLineNumbersType.Interval && line % 10 === 0) {
