@@ -913,18 +913,14 @@ class TreePool extends Disposable {
 			[new ChatListTreeRenderer(resourceLabels, this.configService.getValue('explorer.decorations'))],
 			new ChatListTreeDataSource(),
 			{
-				identityProvider: {
-					getId(e: IChatResponseProgressFileTreeData) { return e.uri.toString(); }
-				},
 				collapseByDefault: () => false,
-				expandOnlyOnTwistieClick: (e) => { return true; },
+				expandOnlyOnTwistieClick: () => true,
+				identityProvider: {
+					getId: (e: IChatResponseProgressFileTreeData) => e.uri.toString()
+				},
 				accessibilityProvider: {
-					getAriaLabel(element: IChatResponseProgressFileTreeData): string {
-						return element.label;
-					},
-					getWidgetAriaLabel(): string {
-						return localize('treeAriaLabel', "File Tree");
-					}
+					getAriaLabel: (element: IChatResponseProgressFileTreeData) => element.label,
+					getWidgetAriaLabel: () => localize('treeAriaLabel', "File Tree")
 				}
 			});
 
