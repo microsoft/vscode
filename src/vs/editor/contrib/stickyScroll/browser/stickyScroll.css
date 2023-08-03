@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .sticky-line-number {
+	background-color: var(--vscode-editorStickyScroll-background);
 	color: var(--vscode-editorLineNumber-foreground);
 	overflow: hidden;
 	white-space: nowrap;
