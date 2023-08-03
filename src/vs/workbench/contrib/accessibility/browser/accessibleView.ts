@@ -33,7 +33,6 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { marked } from 'vs/base/common/marked/marked';
 
-
 const enum DIMENSIONS {
 	MAX_WIDTH = 600
 }
@@ -164,8 +163,8 @@ class AccessibleView extends Disposable {
 		} else {
 			this._accessibleViewIsShown.set(true);
 		}
-		if (symbol) {
-			this.showSymbol(this._currentProvider!, symbol);
+		if (symbol && this._currentProvider) {
+			this.showSymbol(this._currentProvider, symbol);
 		}
 		this._currentProvider = provider;
 	}
