@@ -32,7 +32,8 @@
 }
 
 .monaco-editor .sticky-widget-root {
-
+	width: 100%;
+	position: relative;
 }
 
 .monaco-editor .sticky-widget-scroll {
