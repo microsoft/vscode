@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./chatListRenderer';
 import * as dom from 'vs/base/browser/dom';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
