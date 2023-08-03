@@ -39,6 +39,7 @@
 .monaco-editor .sticky-widget-line-numbers {
 	width: 200px;
 	position: relative;
+	float: left;
 }
 
 .monaco-editor .sticky-widget {

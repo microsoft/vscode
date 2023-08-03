@@ -48,22 +48,20 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._layoutInfo = this._editor.getLayoutInfo();
 
 		this._lineNumbersDomNode.className = 'sticky-widget-line-numbers';
-		// const editorLayoutInfo = this._editor.getLayoutInfo();
-		// console.log(editorLayoutInfo.lineNumbersWidth);
-		// console.log(editorLayoutInfo.decorationsWidth);
-		// 	this._lineNumbersDomNode.style.width = editorLayoutInfo.glyphMarginWidth + 'px';
 		const layoutInfo = this._editor.getOption(EditorOption.layoutInfo);
-		const contentLeft = layoutInfo.contentLeft;
-		this._lineNumbersDomNode.style.width = contentLeft + 'px';
-		this._lineNumbersDomNode.style.float = 'left';
+		this._lineNumbersDomNode.style.width = layoutInfo.contentLeft + 'px';
 
+		this._linesDomNode.className = 'sticky-widget-lines';
 		this._linesDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._linesDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
-		this._linesDomNode.className = 'sticky-widget-lines';
-		this._scrollbar = this._register(new DomScrollableElement(this._linesDomNode, { vertical: ScrollbarVisibility.Hidden, horizontal: ScrollbarVisibility.Hidden, handleMouseWheel: false }));
+
+		// TODO: place later, horizontal: ScrollbarVisibility.Hidden,
+		this._scrollbar = this._register(new DomScrollableElement(this._linesDomNode, { vertical: ScrollbarVisibility.Hidden, handleMouseWheel: false }));
+
+		this._rootDomNode.className = 'sticky-widget';
 		this._rootDomNode.appendChild(this._lineNumbersDomNode);
 		this._rootDomNode.appendChild(this._scrollbar.getDomNode());
-		this._rootDomNode.className = 'sticky-widget';
+
 		this._register(this._editor.onDidScrollChange((e) => { this._scrollbar.setScrollPosition({ scrollLeft: e.scrollLeft }); }));
 		this._register(this._editor.onDidLayoutChange(() => { this._scrollbar.scanDomNode(); }));
 		this._scrollbar.scanDomNode();
@@ -121,22 +119,26 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
 
-		this._lineNumbersDomNode.style.display = widgetHeight > 0 ? 'block' : 'none';
-		this._lineNumbersDomNode.style.height = widgetHeight.toString() + 'px';
+		const display = widgetHeight > 0 ? 'block' : 'none';
+		this._lineNumbersDomNode.style.display = display;
+		this._linesDomNode.style.display = display;
 
-		this._linesDomNode.style.display = widgetHeight > 0 ? 'block' : 'none';
-		this._linesDomNode.style.height = widgetHeight.toString() + 'px';
+		const height = widgetHeight.toString() + 'px';
+		this._lineNumbersDomNode.style.height = height;
+		this._linesDomNode.style.height = height;
+
+		this._lineNumbersDomNode.setAttribute('role', 'list');
 		this._linesDomNode.setAttribute('role', 'list');
 		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 
 		if (minimapSide === 'left') {
+			this._lineNumbersDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
 			this._linesDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
 		}
 	}
 
 	private _renderChildNode(index: number, line: number): { lineNumberHTMLNode: HTMLSpanElement; lineHTMLNode: HTMLSpanElement } {
 
-		// const child = document.createElement('div');
 		const viewModel = this._editor._getViewModel();
 		const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
 		const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
@@ -178,7 +180,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.innerHTML = newLine as string;
 
 		const lineNumberHTMLNode = document.createElement('span');
-		// lineNumberHTMLNode.className = 'sticky-line';
 		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
 		if (minimapSide === 'left') {
 			lineNumberHTMLNode.style.width = `${layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth}px`;
@@ -205,14 +206,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.applyFontInfo(lineHTMLNode);
 		this._editor.applyFontInfo(innerLineNumberHTML);
 
-		// child.appendChild(lineNumberHTMLNode);
-		// child.appendChild(lineHTMLNode);
-
-		// lineNumberHTMLNode.className = 'sticky-line-root';
 		lineNumberHTMLNode.setAttribute('role', 'listitem');
 		lineNumberHTMLNode.tabIndex = 0;
 		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
-		// lineNumberHTMLNode.style.width = `${width}px`;
 		lineNumberHTMLNode.style.height = `${lineHeight}px`;
 		lineNumberHTMLNode.style.position = 'absolute';
 
@@ -244,7 +240,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			if (this._editor.hasModel()) {
 				const mouseOverEvent = new StandardMouseEvent(e);
 				const text = mouseOverEvent.target.innerText;
-
 				// Line and column number of the hover needed for the control clicking feature
 				this._hoverOnLine = line;
 				// TODO: workaround to find the column index, perhaps need a more solid solution
@@ -255,7 +250,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			if (this._editor.hasModel()) {
 				const mouseOverEvent = new StandardMouseEvent(e);
 				const text = mouseOverEvent.target.innerText;
-
 				// Line and column number of the hover needed for the control clicking feature
 				this._hoverOnLine = line;
 				// TODO: workaround to find the column index, perhaps need a more solid solution
