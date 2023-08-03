@@ -45,7 +45,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
 import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { ChatWelcomeMessageModel, IChatWelcomeMessageContent } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 // Register configuration
