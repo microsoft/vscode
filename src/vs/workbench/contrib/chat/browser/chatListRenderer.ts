@@ -291,7 +291,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		if (isResponseVM(element) && element.commandFollowups?.length) {
 			const followupsContainer = dom.append(templateData.value, $('.interactive-response-followups'));
-			console.log(element.commandFollowups);
 			templateData.elementDisposables.add(new ChatFollowups(
 				followupsContainer,
 				element.commandFollowups,
