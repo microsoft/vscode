@@ -138,7 +138,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const array = [];
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const { lineNumberHTMLNode, lineHTMLNode } = this._renderChildNode(index, line);
-			lineNumberHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 			this._lineNumbersDomNode.appendChild(lineNumberHTMLNode);
 			this._linesDomNode.appendChild(lineHTMLNode);
 			array.push(lineHTMLNode);
