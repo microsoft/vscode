@@ -10,10 +10,11 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { NullLogService } from 'vs/platform/log/common/log';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { HydratedTestResult, LiveTestResult, makeEmptyCounts, resultItemParents, TaskRawOutput, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { HydratedTestResult, LiveTestResult, resultItemParents, TaskRawOutput, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { makeEmptyCounts } from 'vs/workbench/contrib/testing/common/testingStates';
 import { getInitializedMainTestCollection, testStubs, TestTestCollection } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -93,27 +94,24 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('initializes with valid counts', () => {
-			assert.deepStrictEqual(r.counts, {
-				...makeEmptyCounts(),
-				[TestResultState.Unset]: 4,
-			});
+			const c = makeEmptyCounts();
+			c[TestResultState.Unset] = 4;
+			assert.deepStrictEqual(r.counts, c);
 		});
 
 		test('setAllToState', () => {
 			changed.clear();
 			r.setAllToStatePublic(TestResultState.Queued, 't', (_, t) => t.item.label !== 'root');
-			assert.deepStrictEqual(r.counts, {
-				...makeEmptyCounts(),
-				[TestResultState.Unset]: 1,
-				[TestResultState.Queued]: 3,
-			});
+			const c = makeEmptyCounts();
+			c[TestResultState.Unset] = 1;
+			c[TestResultState.Queued] = 3;
+			assert.deepStrictEqual(r.counts, c);
 
 			r.setAllToStatePublic(TestResultState.Failed, 't', (_, t) => t.item.label !== 'root');
-			assert.deepStrictEqual(r.counts, {
-				...makeEmptyCounts(),
-				[TestResultState.Unset]: 1,
-				[TestResultState.Failed]: 3,
-			});
+			const c2 = makeEmptyCounts();
+			c2[TestResultState.Unset] = 1;
+			c2[TestResultState.Failed] = 3;
+			assert.deepStrictEqual(r.counts, c2);
 
 			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-a']).toString())?.ownComputedState, TestResultState.Failed);
 			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-a']).toString())?.tasks[0].state, TestResultState.Failed);
@@ -134,11 +132,10 @@ suite('Workbench - Test Results Service', () => {
 			changed.clear();
 			const testId = new TestId(['ctrlId', 'id-a', 'id-aa']).toString();
 			r.updateState(testId, 't', TestResultState.Running);
-			assert.deepStrictEqual(r.counts, {
-				...makeEmptyCounts(),
-				[TestResultState.Unset]: 3,
-				[TestResultState.Running]: 1,
-			});
+			const c = makeEmptyCounts();
+			c[TestResultState.Running] = 1;
+			c[TestResultState.Unset] = 3;
+			assert.deepStrictEqual(r.counts, c);
 			assert.deepStrictEqual(r.getStateById(testId)?.ownComputedState, TestResultState.Running);
 			// update computed state:
 			assert.deepStrictEqual(r.getStateById(tests.root.id)?.computedState, TestResultState.Running);
@@ -161,10 +158,9 @@ suite('Workbench - Test Results Service', () => {
 		test('ignores outside run', () => {
 			changed.clear();
 			r.updateState(new TestId(['ctrlId', 'id-b']).toString(), 't', TestResultState.Running);
-			assert.deepStrictEqual(r.counts, {
-				...makeEmptyCounts(),
-				[TestResultState.Unset]: 4,
-			});
+			const c = makeEmptyCounts();
+			c[TestResultState.Unset] = 4;
+			assert.deepStrictEqual(r.counts, c);
 			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-b']).toString()), undefined);
 		});
 
@@ -175,11 +171,10 @@ suite('Workbench - Test Results Service', () => {
 
 			r.markComplete();
 
-			assert.deepStrictEqual(r.counts, {
-				...makeEmptyCounts(),
-				[TestResultState.Passed]: 1,
-				[TestResultState.Unset]: 3,
-			});
+			const c = makeEmptyCounts();
+			c[TestResultState.Unset] = 3;
+			c[TestResultState.Passed] = 1;
+			assert.deepStrictEqual(r.counts, c);
 
 			assert.deepStrictEqual(r.getStateById(tests.root.id)?.ownComputedState, TestResultState.Unset);
 			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString())?.ownComputedState, TestResultState.Passed);

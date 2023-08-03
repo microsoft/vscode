@@ -122,7 +122,6 @@ function __preserve_fish_prompt --on-event fish_prompt
 		end
 	end
 end
-__preserve_fish_prompt
 
 # Sent whenever a new fish prompt is about to be displayed.
 # Updates the current working directory.
@@ -164,11 +163,11 @@ function __init_vscode_shell_integration
 		function fish_mode_prompt
 			__vsc_fish_prompt_start
 			__vsc_fish_mode_prompt
+			__vsc_fish_cmd_start
 		end
 
 		function fish_prompt
 			__vsc_fish_prompt
-			__vsc_fish_cmd_start
 		end
 	else
 		# No fish_mode_prompt, so put everything in fish_prompt.
@@ -179,3 +178,4 @@ function __init_vscode_shell_integration
 		end
 	end
 end
+__preserve_fish_prompt

@@ -18,7 +18,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
@@ -30,6 +29,7 @@ import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chat
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 export const CHAT_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
 
@@ -111,7 +111,7 @@ export function registerChatActions() {
 					return;
 				}
 				runAccessibilityHelpAction(accessor, codeEditor, 'panelChat');
-			}, CONTEXT_IN_CHAT_INPUT));
+			}, CONTEXT_IN_CHAT_SESSION));
 		}
 	}
 

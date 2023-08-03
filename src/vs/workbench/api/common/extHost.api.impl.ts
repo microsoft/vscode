@@ -170,7 +170,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadBulkEdits)));
-	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments));
+	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem));
 	const extHostNotebookDocuments = rpcProtocol.set(ExtHostContext.ExtHostNotebookDocuments, new ExtHostNotebookDocuments(extHostNotebook));
 	const extHostNotebookEditors = rpcProtocol.set(ExtHostContext.ExtHostNotebookEditors, new ExtHostNotebookEditors(extHostLogService, extHostNotebook));
 	const extHostNotebookKernels = rpcProtocol.set(ExtHostContext.ExtHostNotebookKernels, new ExtHostNotebookKernels(rpcProtocol, initData, extHostNotebook, extHostCommands, extHostLogService));
@@ -578,14 +578,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, ...triggerCharacters: string[]): vscode.Disposable {
 				return extHostLanguageFeatures.registerCompletionItemProvider(extension, checkSelector(selector), provider, triggerCharacters);
 			},
-			registerInlineCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider): vscode.Disposable {
+			registerInlineCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider, metadata?: vscode.InlineCompletionItemProviderMetadata): vscode.Disposable {
 				if (provider.handleDidShowCompletionItem) {
 					checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
 				}
 				if (provider.handleDidPartiallyAcceptCompletionItem) {
 					checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
 				}
-				return extHostLanguageFeatures.registerInlineCompletionsProvider(extension, checkSelector(selector), provider);
+				if (metadata) {
+					checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
+				}
+				return extHostLanguageFeatures.registerInlineCompletionsProvider(extension, checkSelector(selector), provider, metadata);
 			},
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentLinkProvider(extension, checkSelector(selector), provider);
@@ -1020,7 +1023,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerFileSystemProvider(scheme, provider, options) {
 				return combinedDisposable(
 					extHostFileSystem.registerFileSystemProvider(extension, scheme, provider, options),
-					extHostConsumerFileSystem.addFileSystemProvider(scheme, provider)
+					extHostConsumerFileSystem.addFileSystemProvider(scheme, provider, options)
 				);
 			},
 			get fs() {
@@ -1084,6 +1087,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerPortAttributesProvider: (portSelector: vscode.PortAttributesSelector, provider: vscode.PortAttributesProvider) => {
 				checkProposedApiEnabled(extension, 'portsAttributes');
 				return extHostTunnelService.registerPortsAttributesProvider(portSelector, provider);
+			},
+			registerTunnelProvider: (tunnelProvider: vscode.TunnelProvider, information: vscode.TunnelInformation) => {
+				checkProposedApiEnabled(extension, 'tunnelFactory');
+				return extHostTunnelService.registerTunnelProvider(tunnelProvider, information);
 			},
 			registerTimelineProvider: (scheme: string | string[], provider: vscode.TimelineProvider) => {
 				checkProposedApiEnabled(extension, 'timeline');
@@ -1462,7 +1469,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ThemeColor: extHostTypes.ThemeColor,
 			ThemeIcon: extHostTypes.ThemeIcon,
 			TreeItem: extHostTypes.TreeItem,
-			TreeItem2: extHostTypes.TreeItem,
 			TreeItemCheckboxState: extHostTypes.TreeItemCheckboxState,
 			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
 			TypeHierarchyItem: extHostTypes.TypeHierarchyItem,

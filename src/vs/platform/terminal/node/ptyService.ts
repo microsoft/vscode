@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { getSystemShell } from 'vs/base/node/shell';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { Terminal as XtermTerminal } from 'xterm-headless';
@@ -46,7 +46,13 @@ export function traceRpc(_target: any, key: string, descriptor: any) {
 		if (this.traceRpcArgs.simulatedLatency) {
 			await timeout(this.traceRpcArgs.simulatedLatency);
 		}
-		const result = await fn.apply(this, args);
+		let result: any;
+		try {
+			result = await fn.apply(this, args);
+		} catch (e) {
+			this.traceRpcArgs.logService.error(`[RPC Response] PtyService#${fn.name}`, e);
+			throw e;
+		}
 		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
 			this.traceRpcArgs.logService.trace(`[RPC Response] PtyService#${fn.name}`, result);
 		}
@@ -65,8 +71,10 @@ export class PtyService extends Disposable implements IPtyService {
 	private readonly _ptys: Map<number, PersistentTerminalProcess> = new Map();
 	private readonly _workspaceLayoutInfos = new Map<WorkspaceId, ISetTerminalLayoutInfoArgs>();
 	private readonly _detachInstanceRequestStore: RequestStore<IProcessDetails | undefined, { workspaceId: string; instanceId: number }>;
-	private readonly _revivedPtyIdMap: Map<number, { newId: number; state: ISerializedTerminalState }> = new Map();
+	private readonly _revivedPtyIdMap: Map<string, { newId: number; state: ISerializedTerminalState }> = new Map();
 	private readonly _autoReplies: Map<string, string> = new Map();
+
+	private _lastPtyId: number = 0;
 
 	private readonly _onHeartbeat = this._register(new Emitter<void>());
 	readonly onHeartbeat = this._traceEvent('_onHeartbeat', this._onHeartbeat.event);
@@ -104,7 +112,6 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	constructor(
-		private _lastPtyId: number,
 		private readonly _logService: ILogService,
 		private readonly _productService: IProductService,
 		private readonly _reconnectConstants: IReconnectConstants,
@@ -128,12 +135,6 @@ export class PtyService extends Disposable implements IPtyService {
 		ignoreProcessNames.length = 0;
 		ignoreProcessNames.push(...names);
 	}
-
-	onPtyHostExit?: Event<number> | undefined;
-	onPtyHostStart?: Event<void> | undefined;
-	onPtyHostUnresponsive?: Event<void> | undefined;
-	onPtyHostResponsive?: Event<void> | undefined;
-	onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent> | undefined;
 
 	@traceRpc
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
@@ -203,37 +204,45 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	@traceRpc
-	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocale: string) {
+	async reviveTerminalProcesses(workspaceId: string, state: ISerializedTerminalState[], dateTimeFormatLocale: string) {
+		const promises: Promise<void>[] = [];
 		for (const terminal of state) {
-			const restoreMessage = localize('terminal-history-restored', "History restored");
-			// TODO: We may at some point want to show date information in a hover via a custom sequence:
-			//   new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocale)
-			//   new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocale)
-			const newId = await this.createProcess(
-				{
-					...terminal.shellLaunchConfig,
-					cwd: terminal.processDetails.cwd,
-					color: terminal.processDetails.color,
-					icon: terminal.processDetails.icon,
-					name: terminal.processDetails.titleSource === TitleEventSource.Api ? terminal.processDetails.title : undefined,
-					initialText: terminal.replayEvent.events[0].data + formatMessageForTerminal(restoreMessage, { loudFormatting: true })
-				},
-				terminal.processDetails.cwd,
-				terminal.replayEvent.events[0].cols,
-				terminal.replayEvent.events[0].rows,
-				terminal.unicodeVersion,
-				terminal.processLaunchConfig.env,
-				terminal.processLaunchConfig.executableEnv,
-				terminal.processLaunchConfig.options,
-				true,
-				terminal.processDetails.workspaceId,
-				terminal.processDetails.workspaceName,
-				true,
-				terminal.replayEvent.events[0].data
-			);
-			// Don't start the process here as there's no terminal to answer CPR
-			this._revivedPtyIdMap.set(terminal.id, { newId, state: terminal });
+			promises.push(this._reviveTerminalProcess(workspaceId, terminal));
 		}
+		await Promise.all(promises);
+	}
+
+	private async _reviveTerminalProcess(workspaceId: string, terminal: ISerializedTerminalState): Promise<void> {
+		const restoreMessage = localize('terminal-history-restored', "History restored");
+		// TODO: We may at some point want to show date information in a hover via a custom sequence:
+		//   new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocale)
+		//   new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocale)
+		const newId = await this.createProcess(
+			{
+				...terminal.shellLaunchConfig,
+				cwd: terminal.processDetails.cwd,
+				color: terminal.processDetails.color,
+				icon: terminal.processDetails.icon,
+				name: terminal.processDetails.titleSource === TitleEventSource.Api ? terminal.processDetails.title : undefined,
+				initialText: terminal.replayEvent.events[0].data + formatMessageForTerminal(restoreMessage, { loudFormatting: true })
+			},
+			terminal.processDetails.cwd,
+			terminal.replayEvent.events[0].cols,
+			terminal.replayEvent.events[0].rows,
+			terminal.unicodeVersion,
+			terminal.processLaunchConfig.env,
+			terminal.processLaunchConfig.executableEnv,
+			terminal.processLaunchConfig.options,
+			true,
+			terminal.processDetails.workspaceId,
+			terminal.processDetails.workspaceName,
+			true,
+			terminal.replayEvent.events[0].data
+		);
+		// Don't start the process here as there's no terminal to answer CPR
+		const oldId = this._getRevivingProcessId(workspaceId, terminal.id);
+		this._revivedPtyIdMap.set(oldId, { newId, state: terminal });
+		this._logService.info(`Revived process, old id ${oldId} -> new id ${newId}`);
 	}
 
 	@traceRpc
@@ -262,7 +271,6 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 		const id = ++this._lastPtyId;
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, options, this._logService, this._productService);
-		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		const processLaunchOptions: IPersistentTerminalProcessLaunchConfig = {
 			env,
 			executableEnv,
@@ -274,6 +282,7 @@ export class PtyService extends Disposable implements IPtyService {
 			this._ptys.delete(id);
 			this._onProcessExit.fire({ id, event });
 		});
+		persistentProcess.onProcessData(event => this._onProcessData.fire({ id, event }));
 		persistentProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
 		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
 		persistentProcess.onProcessOrphanQuestion(() => this._onProcessOrphanQuestion.fire({ id }));
@@ -390,8 +399,8 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).setUnicodeVersion(version);
 	}
 	@traceRpc
-	async getLatency(id: number): Promise<number> {
-		return 0;
+	async getLatency(): Promise<IPtyHostLatencyMeasurement[]> {
+		return [];
 	}
 	@traceRpc
 	async orphanQuestionReply(id: number): Promise<void> {
@@ -485,11 +494,11 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	@traceRpc
-	async getRevivedPtyNewId(id: number): Promise<number | undefined> {
+	async getRevivedPtyNewId(workspaceId: string, id: number): Promise<number | undefined> {
 		try {
-			return this._revivedPtyIdMap.get(id)?.newId;
+			return this._revivedPtyIdMap.get(this._getRevivingProcessId(workspaceId, id))?.newId;
 		} catch (e) {
-			this._logService.warn(`Couldn't find terminal ID ${id}`, e.message);
+			this._logService.warn(`Couldn't find terminal ID ${workspaceId}-${id}`, e.message);
 		}
 		return undefined;
 	}
@@ -504,9 +513,9 @@ export class PtyService extends Disposable implements IPtyService {
 		performance.mark('code/willGetTerminalLayoutInfo');
 		const layout = this._workspaceLayoutInfos.get(args.workspaceId);
 		if (layout) {
-			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
+			const doneSet: Set<number> = new Set();
+			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(args.workspaceId, tab, doneSet)));
 			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
-			this._logService.trace('PtyService.getTerminalLayoutInfo result', tabs);
 			performance.mark('code/didGetTerminalLayoutInfo');
 			return { tabs };
 		}
@@ -514,8 +523,8 @@ export class PtyService extends Disposable implements IPtyService {
 		return undefined;
 	}
 
-	private async _expandTerminalTab(tab: ITerminalTabLayoutInfoById): Promise<ITerminalTabLayoutInfoDto> {
-		const expandedTerminals = (await Promise.all(tab.terminals.map(t => this._expandTerminalInstance(t))));
+	private async _expandTerminalTab(workspaceId: string, tab: ITerminalTabLayoutInfoById, doneSet: Set<number>): Promise<ITerminalTabLayoutInfoDto> {
+		const expandedTerminals = (await Promise.all(tab.terminals.map(t => this._expandTerminalInstance(workspaceId, t, doneSet))));
 		const filtered = expandedTerminals.filter(term => term.terminal !== null) as IRawTerminalInstanceLayoutInfo<IProcessDetails>[];
 		return {
 			isActive: tab.isActive,
@@ -524,11 +533,17 @@ export class PtyService extends Disposable implements IPtyService {
 		};
 	}
 
-	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
+	private async _expandTerminalInstance(workspaceId: string, t: ITerminalInstanceLayoutInfoById, doneSet: Set<number>): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
 		try {
-			const revivedPtyId = this._revivedPtyIdMap.get(t.terminal)?.newId;
-			this._revivedPtyIdMap.delete(t.terminal);
+			const oldId = this._getRevivingProcessId(workspaceId, t.terminal);
+			const revivedPtyId = this._revivedPtyIdMap.get(oldId)?.newId;
+			this._logService.info(`Expanding terminal instance, old id ${oldId} -> new id ${revivedPtyId}`);
+			this._revivedPtyIdMap.delete(oldId);
 			const persistentProcessId = revivedPtyId ?? t.terminal;
+			if (doneSet.has(persistentProcessId)) {
+				throw new Error(`Terminal ${persistentProcessId} has already been expanded`);
+			}
+			doneSet.add(persistentProcessId);
 			const persistentProcess = this._throwIfNoPty(persistentProcessId);
 			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess, revivedPtyId !== undefined);
 			return {
@@ -537,12 +552,19 @@ export class PtyService extends Disposable implements IPtyService {
 			};
 		} catch (e) {
 			this._logService.warn(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
+			this._logService.debug('Reattach to wrong terminal debug info - layout info by id', t);
+			this._logService.debug('Reattach to wrong terminal debug info - _revivePtyIdMap', Array.from(this._revivedPtyIdMap.values()));
+			this._logService.debug('Reattach to wrong terminal debug info - _ptys ids', Array.from(this._ptys.keys()));
 			// this will be filtered out and not reconnected
 			return {
 				terminal: null,
 				relativeSize: t.relativeSize
 			};
 		}
+	}
+
+	private _getRevivingProcessId(workspaceId: string, ptyId: number): string {
+		return `${workspaceId}-${ptyId}`;
 	}
 
 	private async _buildProcessDetails(id: number, persistentProcess: PersistentTerminalProcess, wasRevived: boolean = false): Promise<IProcessDetails> {
@@ -742,11 +764,6 @@ class PersistentTerminalProcess extends Disposable {
 	}
 
 	async attach(): Promise<void> {
-		// Something wrong happened if the disconnect runner is not canceled, this likely means
-		// multiple windows attempted to attach.
-		if (!await this._isOrphaned()) {
-			throw new Error(`Cannot attach to persistent process "${this._persistentProcessId}", it is already adopted`);
-		}
 		if (!this._disconnectRunner1.isScheduled() && !this._disconnectRunner2.isScheduled()) {
 			this._logService.warn(`Persistent process "${this._persistentProcessId}": Process had no disconnect runners but was an orphan`);
 		}
@@ -857,9 +874,6 @@ class PersistentTerminalProcess extends Disposable {
 	}
 	getCwd(): Promise<string> {
 		return this._terminalProcess.getCwd();
-	}
-	getLatency(): Promise<number> {
-		return this._terminalProcess.getLatency();
 	}
 
 	async triggerReplay(): Promise<void> {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { mixin } from 'vs/base/common/objects';
+import { equals, mixin } from 'vs/base/common/objects';
 import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem, CodeActionTriggerKind } from 'vs/workbench/api/common/extHostTypes';
@@ -1033,33 +1033,44 @@ class CompletionsAdapter {
 			return undefined;
 		}
 
+		const dto1 = this._convertCompletionItem(item, id);
+
 		const resolvedItem = await this._provider.resolveCompletionItem!(item, token);
 
 		if (!resolvedItem) {
 			return undefined;
 		}
 
-		const enforcedResolvedItem = {
-			...item,
-			documentation: resolvedItem.documentation,
-			detail: resolvedItem.detail,
-			additionalTextEdits: resolvedItem.additionalTextEdits
-		};
+		const dto2 = this._convertCompletionItem(resolvedItem, id);
 
-		if (CompletionsAdapter._insertTextIdent(item.insertText) !== CompletionsAdapter._insertTextIdent(resolvedItem.insertText)) {
+		if (dto1[extHostProtocol.ISuggestDataDtoField.insertText] !== dto2[extHostProtocol.ISuggestDataDtoField.insertText]
+			|| dto1[extHostProtocol.ISuggestDataDtoField.insertTextRules] !== dto2[extHostProtocol.ISuggestDataDtoField.insertTextRules]
+		) {
 			this._apiDeprecation.report('CompletionItem.insertText', this._extension, 'extension MAY NOT change \'insertText\' of a CompletionItem during resolve');
-			enforcedResolvedItem.insertText = resolvedItem.insertText;
 		}
 
-		return this._convertCompletionItem(enforcedResolvedItem, id);
-	}
-
-	private static _insertTextIdent(insertText: string | vscode.SnippetString | undefined) {
-		switch (typeof insertText) {
-			case 'string': return insertText;
-			case 'undefined': return undefined;
-			case 'object': return insertText.value;
+		if (dto1[extHostProtocol.ISuggestDataDtoField.commandIdent] !== dto2[extHostProtocol.ISuggestDataDtoField.commandIdent]
+			|| dto1[extHostProtocol.ISuggestDataDtoField.commandId] !== dto2[extHostProtocol.ISuggestDataDtoField.commandId]
+			|| !equals(dto1[extHostProtocol.ISuggestDataDtoField.commandArguments], dto2[extHostProtocol.ISuggestDataDtoField.commandArguments])
+		) {
+			this._apiDeprecation.report('CompletionItem.command', this._extension, 'extension MAY NOT change \'command\' of a CompletionItem during resolve');
 		}
+
+		return {
+			...dto1,
+			[extHostProtocol.ISuggestDataDtoField.documentation]: dto2[extHostProtocol.ISuggestDataDtoField.documentation],
+			[extHostProtocol.ISuggestDataDtoField.detail]: dto2[extHostProtocol.ISuggestDataDtoField.detail],
+			[extHostProtocol.ISuggestDataDtoField.additionalTextEdits]: dto2[extHostProtocol.ISuggestDataDtoField.additionalTextEdits],
+
+			// (fishy) async insertText
+			[extHostProtocol.ISuggestDataDtoField.insertText]: dto2[extHostProtocol.ISuggestDataDtoField.insertText],
+			[extHostProtocol.ISuggestDataDtoField.insertTextRules]: dto2[extHostProtocol.ISuggestDataDtoField.insertTextRules],
+
+			// (fishy) async command
+			[extHostProtocol.ISuggestDataDtoField.commandIdent]: dto2[extHostProtocol.ISuggestDataDtoField.commandIdent],
+			[extHostProtocol.ISuggestDataDtoField.commandId]: dto2[extHostProtocol.ISuggestDataDtoField.commandId],
+			[extHostProtocol.ISuggestDataDtoField.commandArguments]: dto2[extHostProtocol.ISuggestDataDtoField.commandArguments],
+		};
 	}
 
 	releaseCompletionItems(id: number): any {
@@ -2238,10 +2249,11 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- ghost test
 
-	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider): vscode.Disposable {
+	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider, metadata: vscode.InlineCompletionItemProviderMetadata | undefined): vscode.Disposable {
 		const adapter = new InlineCompletionAdapter(extension, this._documents, provider, this._commands.converter);
 		const handle = this._addNewAdapter(adapter, extension);
-		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector, extension), adapter.supportsHandleEvents);
+		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector, extension), adapter.supportsHandleEvents,
+			ExtensionIdentifier.toKey(extension.identifier.value), metadata?.yieldTo?.map(extId => ExtensionIdentifier.toKey(extId)) || []);
 		return this._createDisposable(handle);
 	}
 
@@ -2521,6 +2533,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 				`Do not use.`);
 		}
 
+		if (configuration.autoClosingPairs) {
+			checkProposedApiEnabled(extension, 'languageConfigurationAutoClosingPairs');
+		}
+
 		const handle = this._nextHandle();
 		const serializedConfiguration: extHostProtocol.ILanguageConfigurationDto = {
 			comments: configuration.comments,
@@ -2530,7 +2546,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			onEnterRules: configuration.onEnterRules ? ExtHostLanguageFeatures._serializeOnEnterRules(configuration.onEnterRules) : undefined,
 			__electricCharacterSupport: configuration.__electricCharacterSupport,
 			__characterPairSupport: configuration.__characterPairSupport,
+			autoClosingPairs: configuration.autoClosingPairs
 		};
+
 		this._proxy.$setLanguageConfiguration(handle, languageId, serializedConfiguration);
 		return this._createDisposable(handle);
 	}

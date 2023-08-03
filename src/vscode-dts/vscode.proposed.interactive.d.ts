@@ -9,6 +9,11 @@ declare module 'vscode' {
 		command: string;
 		detail?: string;
 		refer?: boolean;
+		/**
+		 * Whether the command should execute as soon
+		 * as it is entered. Defaults to `false`.
+		 */
+		executeImmediately?: boolean;
 		// kind: CompletionItemKind;
 	}
 
@@ -28,6 +33,7 @@ declare module 'vscode' {
 		selection: Selection;
 		wholeRange: Range;
 		attempt: number;
+		live: boolean;
 	}
 
 	// todo@API make classes
@@ -47,7 +53,8 @@ declare module 'vscode' {
 	export enum InteractiveEditorResponseFeedbackKind {
 		Unhelpful = 0,
 		Helpful = 1,
-		Undone = 2
+		Undone = 2,
+		Accepted = 3
 	}
 
 	export interface TextDocumentContext {
@@ -61,6 +68,7 @@ declare module 'vscode' {
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
 
 		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<R>;
+		provideInteractiveEditorResponse2?(request: InteractiveEditorRequest, progress: Progress<{ message: string; edits: TextEdit[] }>, token: CancellationToken): ProviderResult<R>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		releaseInteractiveEditorSession?(session: S): any;
@@ -118,7 +126,12 @@ declare module 'vscode' {
 		responseId: string;
 	}
 
-	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId;
+	export interface InteractiveProgressTask {
+		placeholder: string;
+		resolvedContent: Thenable<InteractiveProgressContent>;
+	}
+
+	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId | InteractiveProgressTask;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
@@ -130,6 +143,9 @@ declare module 'vscode' {
 		command: string;
 		kind: CompletionItemKind;
 		detail?: string;
+		shouldRepopulate?: boolean;
+		followupPlaceholder?: string;
+		executeImmediately?: boolean;
 	}
 
 	export interface InteractiveSessionReplyFollowup {

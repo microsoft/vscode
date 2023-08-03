@@ -25,8 +25,12 @@ import { mock } from 'vs/base/test/common/mock';
 import { Emitter, Event } from 'vs/base/common/event';
 import { equals } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
+import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
-suite('InteractiveChatontroller', function () {
+suite('InteractiveChatController', function () {
 
 	class TestController extends InlineChatController {
 
@@ -98,6 +102,15 @@ suite('InteractiveChatontroller', function () {
 						done() { },
 					};
 				}
+			}],
+			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
+				override acceptResponse(response?: IChatResponseViewModel): void { }
+				override acceptRequest(): void { }
+			}],
+			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
+				override getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {
+					return null;
+				}
 			}]
 		);
 
@@ -142,9 +155,9 @@ suite('InteractiveChatontroller', function () {
 
 	test('run (show/hide)', async function () {
 		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
 		const run = ctrl.run({ message: 'Hello', autoSend: true });
-
-		await ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
+		await p;
 		assert.ok(ctrl.getWidgetPosition() !== undefined);
 		ctrl.cancelSession();
 
@@ -212,9 +225,10 @@ suite('InteractiveChatontroller', function () {
 
 	test('typing outside of wholeRange finishes session', async function () {
 		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
 		ctrl.run({ message: 'Hello', autoSend: true });
 
-		await ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
+		await p;
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
@@ -251,9 +265,10 @@ suite('InteractiveChatontroller', function () {
 		});
 		store.add(d);
 		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor(TestController.INIT_SEQUENCE);
 		ctrl.run({ message: 'Hello', autoSend: false });
 
-		await ctrl.waitFor(TestController.INIT_SEQUENCE);
+		await p;
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
@@ -292,12 +307,13 @@ suite('InteractiveChatontroller', function () {
 		});
 		store.add(d);
 		ctrl = instaService.createInstance(TestController, editor);
-		const p = ctrl.run({ message: 'Hello', autoSend: true });
-
-		await ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST]);
-		ctrl.acceptSession();
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST]);
+		const r = ctrl.run({ message: 'Hello', autoSend: true });
 
 		await p;
+		ctrl.acceptSession();
+
+		await r;
 		assert.strictEqual(ctrl.getWidgetPosition(), undefined);
 	});
 });

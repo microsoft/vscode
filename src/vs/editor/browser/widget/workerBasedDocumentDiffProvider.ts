@@ -44,8 +44,8 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 			return {
 				changes: [
 					new LineRangeMapping(
-						new LineRange(1, 1),
-						new LineRange(1, modified.getLineCount()),
+						new LineRange(1, 2),
+						new LineRange(1, modified.getLineCount() + 1),
 						[
 							new RangeMapping(
 								original.getFullModelRange(),

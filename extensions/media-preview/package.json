@@ -31,12 +31,12 @@
       "type": "object",
       "title": "Media Previewer",
       "properties": {
-        "previewer.videos.autoPlay": {
+        "mediaPreview.video.autoPlay": {
           "type": "boolean",
           "default": false,
           "markdownDescription": "%videoPreviewerAutoPlay%"
         },
-        "previewer.videos.loop": {
+        "mediaPreview.video.loop": {
           "type": "boolean",
           "default": false,
           "markdownDescription": "%videoPreviewerLoop%"

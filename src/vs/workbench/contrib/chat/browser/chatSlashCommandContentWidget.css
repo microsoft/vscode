@@ -1,0 +1,19 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-slash-command-content-widget {
+	padding: 0.1em 0.3em;
+	border-radius: 2px;
+	background-color: var(--vscode-textCodeBlock-background);
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .interactive-input-and-toolbar .chat-slash-command-content-widget {
+	top: 7px !important;
+}
+
+.inline-chat .chat-slash-command-content-widget {
+	top: 2px !important;
+}

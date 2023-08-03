@@ -10,7 +10,9 @@ export const additionalDeps = [
 	'libgtk-3-0 (>= 3.9.10) | libgtk-4-1',
 	'libnss3 (>= 3.26)',
 	'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3', // For Breakpad crash reports.
-	'xdg-utils (>= 1.0.2)' // OS integration
+	'xdg-utils (>= 1.0.2)', // OS integration
+	'libgssapi-krb5-2',
+	'libkrb5-3',
 ];
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/debian/manual_recommends
@@ -38,8 +40,10 @@ export const referenceGeneratedDepsByArch = {
 		'libgbm1 (>= 17.1.0~rc2)',
 		'libglib2.0-0 (>= 2.16.0)',
 		'libglib2.0-0 (>= 2.39.4)',
+		'libgssapi-krb5-2',
 		'libgtk-3-0 (>= 3.9.10)',
 		'libgtk-3-0 (>= 3.9.10) | libgtk-4-1',
+		'libkrb5-3',
 		'libnspr4 (>= 2:4.9-2~)',
 		'libnss3 (>= 2:3.22)',
 		'libnss3 (>= 3.26)',
@@ -76,8 +80,10 @@ export const referenceGeneratedDepsByArch = {
 		'libgbm1 (>= 17.1.0~rc2)',
 		'libglib2.0-0 (>= 2.12.0)',
 		'libglib2.0-0 (>= 2.39.4)',
+		'libgssapi-krb5-2',
 		'libgtk-3-0 (>= 3.9.10)',
 		'libgtk-3-0 (>= 3.9.10) | libgtk-4-1',
+		'libkrb5-3',
 		'libnspr4 (>= 2:4.9-2~)',
 		'libnss3 (>= 2:3.22)',
 		'libnss3 (>= 3.26)',
@@ -113,8 +119,10 @@ export const referenceGeneratedDepsByArch = {
 		'libgbm1 (>= 17.1.0~rc2)',
 		'libglib2.0-0 (>= 2.12.0)',
 		'libglib2.0-0 (>= 2.39.4)',
+		'libgssapi-krb5-2',
 		'libgtk-3-0 (>= 3.9.10)',
 		'libgtk-3-0 (>= 3.9.10) | libgtk-4-1',
+		'libkrb5-3',
 		'libnspr4 (>= 2:4.9-2~)',
 		'libnss3 (>= 2:3.22)',
 		'libnss3 (>= 3.26)',

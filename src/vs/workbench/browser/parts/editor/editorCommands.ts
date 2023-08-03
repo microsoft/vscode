@@ -783,15 +783,17 @@ function registerCloseEditorCommands() {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const editorService = accessor.get(IEditorService);
 
-		let keepStickyEditors = true;
+		let keepStickyEditors: boolean | undefined = undefined;
 		if (forceCloseStickyEditors) {
 			keepStickyEditors = false; // explicitly close sticky editors
 		} else if (resourceOrContext || context) {
 			keepStickyEditors = false; // we have a context, as such this command was used e.g. from the tab context menu
+		} else {
+			keepStickyEditors = editorGroupsService.partOptions.preventPinnedEditorClose === 'keyboard' || editorGroupsService.partOptions.preventPinnedEditorClose === 'keyboardAndMouse'; // respect setting otherwise
 		}
 
-		// Without context: skip over sticky editor and select next if active editor is sticky
-		if (keepStickyEditors && !resourceOrContext && !context) {
+		// Skip over sticky editor and select next if we are configured to do so
+		if (keepStickyEditors) {
 			const activeGroup = editorGroupsService.activeGroup;
 			const activeEditor = activeGroup.activeEditor;
 

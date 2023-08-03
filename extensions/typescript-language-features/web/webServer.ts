@@ -46,23 +46,42 @@ function fromResource(extensionUri: URI, uri: URI) {
 	}
 	return `/${uri.scheme}/${uri.authority}${uri.path}`;
 }
+
 function updateWatch(event: 'create' | 'change' | 'delete', uri: URI, extensionUri: URI) {
-	const kind = event === 'create' ? ts.FileWatcherEventKind.Created
-		: event === 'change' ? ts.FileWatcherEventKind.Changed
-			: event === 'delete' ? ts.FileWatcherEventKind.Deleted
-				: ts.FileWatcherEventKind.Changed;
+	const kind = toTsWatcherKind(event);
 	const path = fromResource(extensionUri, uri);
-	if (watchFiles.has(path)) {
-		watchFiles.get(path)!.callback(path, kind);
+
+	const fileWatcher = watchFiles.get(path);
+	if (fileWatcher) {
+		fileWatcher.callback(path, kind);
 		return;
 	}
-	let found = false;
+
 	for (const watch of Array.from(watchDirectories.keys()).filter(dir => path.startsWith(dir))) {
 		watchDirectories.get(watch)!.callback(path);
-		found = true;
+		return;
 	}
-	if (!found) {
-		console.error(`no watcher found for ${path}`);
+
+	console.error(`no watcher found for ${path}`);
+}
+
+function toTsWatcherKind(event: 'create' | 'change' | 'delete') {
+	if (event === 'create') {
+		return ts.FileWatcherEventKind.Created;
+	} else if (event === 'change') {
+		return ts.FileWatcherEventKind.Changed;
+	} else if (event === 'delete') {
+		return ts.FileWatcherEventKind.Deleted;
+	}
+	throw new Error(`Unknown event: ${event}`);
+}
+
+class AccessOutsideOfRootError extends Error {
+	constructor(
+		public readonly filepath: string,
+		public readonly projectRootPaths: readonly string[]
+	) {
+		super(`Could not read file outside of project root ${filepath}`);
 	}
 }
 
@@ -445,7 +464,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		}
 
 		if (allowRead === 'block') {
-			throw new Error(`Could not read file outside of project root ${filepath}`);
+			throw new AccessOutsideOfRootError(filepath, Array.from(projectRootPaths.keys()));
 		}
 
 		return uri;

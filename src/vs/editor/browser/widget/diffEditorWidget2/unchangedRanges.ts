@@ -5,36 +5,41 @@
 
 import { $, addDisposableListener, h, reset } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { Codicon } from 'vs/base/common/codicons';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, observableFromEvent, transaction } from 'vs/base/common/observable';
-import { autorun, autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
-import { derived, derivedWithStore } from 'vs/base/common/observableImpl/derived';
+import { IObservable, autorun, derived, derivedWithStore, observableFromEvent, transaction } from 'vs/base/common/observable';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffModel, UnchangedRegion } from 'vs/editor/browser/widget/diffEditorWidget2/diffModel';
+import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
+import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorOptions';
+import { DiffEditorViewModel, UnchangedRegion } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { PlaceholderViewZone, ViewZoneOverlayWidget, applyObservableDecorations, applyStyle, applyViewZones } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { LineRange } from 'vs/editor/common/core/lineRange';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { localize } from 'vs/nls';
 
 export class UnchangedRangesFeature extends Disposable {
 	private _isUpdatingViewZones = false;
 	public get isUpdatingViewZones(): boolean { return this._isUpdatingViewZones; }
 
 	constructor(
-		private readonly _originalEditor: CodeEditorWidget,
-		private readonly _modifiedEditor: CodeEditorWidget,
-		private readonly _diffModel: IObservable<DiffModel | undefined>,
-		private readonly _sideBySide: IObservable<boolean>,
+		private readonly _editors: DiffEditorEditors,
+		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
+		private readonly _options: DiffEditorOptions,
 	) {
 		super();
 
-		this._register(this._originalEditor.onDidChangeCursorPosition(e => {
+		this._register(this._editors.original.onDidChangeCursorPosition(e => {
 			if (e.reason === CursorChangeReason.Explicit) {
 				const m = this._diffModel.get();
 				transaction(tx => {
-					for (const s of this._originalEditor.getSelections() || []) {
+					for (const s of this._editors.original.getSelections() || []) {
 						m?.ensureOriginalLineIsVisible(s.getStartPosition().lineNumber, tx);
 						m?.ensureOriginalLineIsVisible(s.getEndPosition().lineNumber, tx);
 					}
@@ -42,11 +47,11 @@ export class UnchangedRangesFeature extends Disposable {
 			}
 		}));
 
-		this._register(this._modifiedEditor.onDidChangeCursorPosition(e => {
+		this._register(this._editors.modified.onDidChangeCursorPosition(e => {
 			if (e.reason === CursorChangeReason.Explicit) {
 				const m = this._diffModel.get();
 				transaction(tx => {
-					for (const s of this._modifiedEditor.getSelections() || []) {
+					for (const s of this._editors.modified.getSelections() || []) {
 						m?.ensureModifiedLineIsVisible(s.getStartPosition().lineNumber, tx);
 						m?.ensureModifiedLineIsVisible(s.getEndPosition().lineNumber, tx);
 					}
@@ -59,7 +64,7 @@ export class UnchangedRangesFeature extends Disposable {
 		const viewZones = derivedWithStore('view zones', (reader, store) => {
 			const origViewZones: IViewZone[] = [];
 			const modViewZones: IViewZone[] = [];
-			const sideBySide = this._sideBySide.read(reader);
+			const sideBySide = this._options.renderSideBySide.read(reader);
 
 			const curUnchangedRegions = unchangedRegions.read(reader);
 			for (const r of curUnchangedRegions) {
@@ -68,16 +73,16 @@ export class UnchangedRangesFeature extends Disposable {
 				}
 
 				{
-					const d = derived('hiddenOriginalRangeStart', reader => r.getHiddenOriginalRange(reader).startLineNumber - 1);
+					const d = derived(reader => /** @description hiddenOriginalRangeStart */ r.getHiddenOriginalRange(reader).startLineNumber - 1);
 					const origVz = new PlaceholderViewZone(d, 24);
 					origViewZones.push(origVz);
-					store.add(new CollapsedCodeOverlayWidget(this._originalEditor, origVz, r, !sideBySide));
+					store.add(new CollapsedCodeOverlayWidget(this._editors.original, origVz, r, !sideBySide));
 				}
 				{
-					const d = derived('hiddenModifiedRangeStart', reader => r.getHiddenModifiedRange(reader).startLineNumber - 1);
+					const d = derived(reader => /** @description hiddenModifiedRangeStart */ r.getHiddenModifiedRange(reader).startLineNumber - 1);
 					const modViewZone = new PlaceholderViewZone(d, 24);
 					modViewZones.push(modViewZone);
-					store.add(new CollapsedCodeOverlayWidget(this._modifiedEditor, modViewZone, r, false));
+					store.add(new CollapsedCodeOverlayWidget(this._editors.modified, modViewZone, r, false));
 				}
 			}
 
@@ -90,44 +95,98 @@ export class UnchangedRangesFeature extends Disposable {
 			className: 'diff-unchanged-lines',
 			isWholeLine: true,
 		};
+		const unchangedLinesDecorationShow: IModelDecorationOptions = {
+			description: 'Fold Unchanged',
+			glyphMarginHoverMessage: new MarkdownString(undefined, { isTrusted: true, supportThemeIcons: true })
+				.appendMarkdown(localize('foldUnchanged', 'Fold Unchanged Region')),
+			glyphMarginClassName: 'fold-unchanged ' + ThemeIcon.asClassName(Codicon.fold),
+			zIndex: 10001,
+		};
 
-		this._register(applyObservableDecorations(this._originalEditor, derived('decorations', (reader) => {
+		this._register(applyObservableDecorations(this._editors.original, derived(reader => {
+			/** @description decorations */
 			const curUnchangedRegions = unchangedRegions.read(reader);
-			return curUnchangedRegions.map<IModelDeltaDecoration>(r => ({
+			const result = curUnchangedRegions.map<IModelDeltaDecoration>(r => ({
 				range: r.originalRange.toInclusiveRange()!,
 				options: unchangedLinesDecoration,
 			}));
+			for (const r of curUnchangedRegions) {
+				if (r.shouldHideControls(reader)) {
+					result.push({
+						range: Range.fromPositions(new Position(r.originalLineNumber, 1)),
+						options: unchangedLinesDecorationShow
+					});
+				}
+			}
+			return result;
 		})));
 
-		this._register(applyObservableDecorations(this._modifiedEditor, derived('decorations', (reader) => {
+		this._register(applyObservableDecorations(this._editors.modified, derived(reader => {
+			/** @description decorations */
 			const curUnchangedRegions = unchangedRegions.read(reader);
-			return curUnchangedRegions.map<IModelDeltaDecoration>(r => ({
+			const result = curUnchangedRegions.map<IModelDeltaDecoration>(r => ({
 				range: r.modifiedRange.toInclusiveRange()!,
 				options: unchangedLinesDecoration,
 			}));
+			for (const r of curUnchangedRegions) {
+				if (r.shouldHideControls(reader)) {
+					result.push({
+						range: LineRange.ofLength(r.modifiedLineNumber, 1).toInclusiveRange()!,
+						options: unchangedLinesDecorationShow
+					});
+				}
+			}
+			return result;
 		})));
 
-		this._register(applyViewZones(this._originalEditor, viewZones.map(v => v.origViewZones), v => this._isUpdatingViewZones = v));
-		this._register(applyViewZones(this._modifiedEditor, viewZones.map(v => v.modViewZones), v => this._isUpdatingViewZones = v));
+		this._register(applyViewZones(this._editors.original, viewZones.map(v => v.origViewZones), v => this._isUpdatingViewZones = v));
+		this._register(applyViewZones(this._editors.modified, viewZones.map(v => v.modViewZones), v => this._isUpdatingViewZones = v));
 
-		this._register(autorunWithStore2('update folded unchanged regions', (reader, store) => {
+		this._register(autorun((reader) => {
+			/** @description update folded unchanged regions */
 			const curUnchangedRegions = unchangedRegions.read(reader);
-			this._originalEditor.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenOriginalRange(reader).toInclusiveRange()).filter(isDefined));
-			this._modifiedEditor.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenModifiedRange(reader).toInclusiveRange()).filter(isDefined));
+			this._editors.original.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenOriginalRange(reader).toInclusiveRange()).filter(isDefined));
+			this._editors.modified.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenModifiedRange(reader).toInclusiveRange()).filter(isDefined));
+		}));
+
+		this._register(this._editors.modified.onMouseUp(event => {
+			if (!event.event.rightButton && event.target.position && event.target.element?.className.includes('fold-unchanged')) {
+				const lineNumber = event.target.position.lineNumber;
+				const model = this._diffModel.get();
+				if (!model) { return; }
+				const region = model.unchangedRegions.get().find(r => r.modifiedRange.includes(lineNumber));
+				if (!region) { return; }
+				region.setState(0, 0, undefined);
+				event.event.stopPropagation();
+				event.event.preventDefault();
+			}
+		}));
+
+		this._register(this._editors.original.onMouseUp(event => {
+			if (!event.event.rightButton && event.target.position && event.target.element?.className.includes('fold-unchanged')) {
+				const lineNumber = event.target.position.lineNumber;
+				const model = this._diffModel.get();
+				if (!model) { return; }
+				const region = model.unchangedRegions.get().find(r => r.originalRange.includes(lineNumber));
+				if (!region) { return; }
+				region.setState(0, 0, undefined);
+				event.event.stopPropagation();
+				event.event.preventDefault();
+			}
 		}));
 	}
 }
 
 class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 	private readonly _nodes = h('div.diff-hidden-lines', [
-		h('div.top@top', { title: 'Click or drag to show more above' }),
+		h('div.top@top', { title: localize('diff.hiddenLines.top', 'Click or drag to show more above') }),
 		h('div.center@content', { style: { display: 'flex' } }, [
 			h('div@first', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center' } },
-				[$('a', { title: 'Show all', role: 'button', onclick: () => { this._unchangedRegion.showAll(undefined); } }, ...renderLabelWithIcons('$(unfold)'))]
+				[$('a', { title: localize('showAll', 'Show all'), role: 'button', onclick: () => { this._unchangedRegion.showAll(undefined); } }, ...renderLabelWithIcons('$(unfold)'))]
 			),
 			h('div@others', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center' } }),
 		]),
-		h('div.bottom@bottom', { title: 'Click or drag to show more below', role: 'button' }),
+		h('div.bottom@bottom', { title: localize('diff.bottom', 'Click or drag to show more below'), role: 'button' }),
 	]);
 
 	constructor(
@@ -165,7 +224,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			this._unchangedRegion.isDragged.set(true, undefined);
 
 
-			const mouseMoveListener = addDisposableListener(document.body, 'mousemove', e => {
+			const mouseMoveListener = addDisposableListener(window, 'mousemove', e => {
 				const currentTop = e.clientY;
 				const delta = currentTop - startTop;
 				didMove = didMove || Math.abs(delta) > 2;
@@ -174,7 +233,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 				this._unchangedRegion.visibleLineCountTop.set(newVal, undefined);
 			});
 
-			const mouseUpListener = addDisposableListener(document.body, 'mouseup', e => {
+			const mouseUpListener = addDisposableListener(window, 'mouseup', e => {
 				if (!didMove) {
 					this._unchangedRegion.showMoreAbove(20, undefined);
 				}
@@ -198,26 +257,26 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			const cur = this._unchangedRegion.visibleLineCountBottom.get();
 			this._unchangedRegion.isDragged.set(true, undefined);
 
-			const mouseMoveListener = addDisposableListener(document.body, 'mousemove', e => {
+			const mouseMoveListener = addDisposableListener(window, 'mousemove', e => {
 				const currentTop = e.clientY;
 				const delta = currentTop - startTop;
 				didMove = didMove || Math.abs(delta) > 2;
 				const lineDelta = Math.round(delta / editor.getOption(EditorOption.lineHeight));
 				const newVal = Math.max(0, Math.min(cur - lineDelta, this._unchangedRegion.getMaxVisibleLineCountBottom()));
-				const top = editor.getTopForLineNumber(this._unchangedRegion.modifiedRange.endLineNumberExclusive);
+				const top = editor.getTopForLineNumber(this._unchangedRegion.originalRange.endLineNumberExclusive);
 				this._unchangedRegion.visibleLineCountBottom.set(newVal, undefined);
-				const top2 = editor.getTopForLineNumber(this._unchangedRegion.modifiedRange.endLineNumberExclusive);
+				const top2 = editor.getTopForLineNumber(this._unchangedRegion.originalRange.endLineNumberExclusive);
 				editor.setScrollTop(editor.getScrollTop() + (top2 - top));
 			});
 
-			const mouseUpListener = addDisposableListener(document.body, 'mouseup', e => {
+			const mouseUpListener = addDisposableListener(window, 'mouseup', e => {
 				this._unchangedRegion.isDragged.set(false, undefined);
 
 				if (!didMove) {
-					const top = editor.getTopForLineNumber(this._unchangedRegion.modifiedRange.endLineNumberExclusive);
+					const top = editor.getTopForLineNumber(this._unchangedRegion.originalRange.endLineNumberExclusive);
 
 					this._unchangedRegion.showMoreBelow(20, undefined);
-					const top2 = editor.getTopForLineNumber(this._unchangedRegion.modifiedRange.endLineNumberExclusive);
+					const top2 = editor.getTopForLineNumber(this._unchangedRegion.originalRange.endLineNumberExclusive);
 					editor.setScrollTop(editor.getScrollTop() + (top2 - top));
 				}
 				this._nodes.bottom.classList.toggle('dragging', false);
@@ -227,12 +286,13 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			});
 		}));
 
-		this._register(autorun('update labels', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update labels */
 
 			const children: HTMLElement[] = [];
 			if (!this.hide && true) {
 				const lineCount = _unchangedRegion.getHiddenModifiedRange(reader).length;
-				const linesHiddenText = `${lineCount} Hidden Lines`;
+				const linesHiddenText = localize('hiddenLines', '{0} Hidden Lines', lineCount);
 				children.push($('span', { title: linesHiddenText }, linesHiddenText));
 			}
 

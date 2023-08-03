@@ -22,11 +22,11 @@ import { registerChatExecuteActions } from 'vs/workbench/contrib/chat/browser/ac
 import { registerChatQuickQuestionActions } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { registerChatTitleActions } from 'vs/workbench/contrib/chat/browser/actions/chatTitleActions';
 import { registerChatExportActions } from 'vs/workbench/contrib/chat/browser/actions/chatImportExport';
-import { ChatTreeItem, IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatContributionService } from 'vs/workbench/contrib/chat/browser/chatContributionServiceImpl';
 import { ChatEditor, IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput, ChatEditorInputSerializer } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { ChatAccessibilityService, ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorContrib';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -37,11 +37,14 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import '../common/chatColors';
 import { registerMoveActions } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { registerClearActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
-import { AccessibilityViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { AccessibleViewAction, AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
+import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -75,6 +78,25 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in chat codeblocks. Use 0 to compute the line height from the font size."),
 			default: 0
+		},
+		'chat.experimental.defaultMode': {
+			type: 'string',
+			tags: ['experimental'],
+			enum: ['chatView', 'quickQuestion', 'both'],
+			enumDescriptions: [
+				nls.localize('interactiveSession.defaultMode.chatView', "Use the chat view as the default mode. Displays the chat icon in the Activity Bar."),
+				nls.localize('interactiveSession.defaultMode.quickQuestion', "Use the quick question as the default mode. Displays the chat icon in the Title Bar."),
+				nls.localize('interactiveSession.defaultMode.both', "Displays the chat icon in the Activity Bar and the Title Bar which open their respective chat modes.")
+			],
+			description: nls.localize('interactiveSession.defaultMode', "Controls the default mode of the chat experience."),
+			default: 'chatView'
+		},
+		'chat.experimental.quickQuestion.mode': {
+			type: 'string',
+			tags: ['experimental'],
+			enum: [QuickQuestionMode.SingleQuestion, QuickQuestionMode.InputOnTopChat, QuickQuestionMode.InputOnBottomChat],
+			description: nls.localize('interactiveSession.quickQuestion.mode', "Controls the mode of quick question chat experience."),
+			default: QuickQuestionMode.InputOnTopChat,
 		}
 	}
 });
@@ -122,42 +144,67 @@ class ChatAccessibleViewContribution extends Disposable {
 	static ID: 'chatAccessibleViewContribution';
 	constructor() {
 		super();
-		this._register(AccessibilityViewAction.addImplementation(100, 'panelChat', accessor => {
+		this._register(AccessibleViewAction.addImplementation(100, 'panelChat', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
-			const codeEditorService = accessor.get(ICodeEditorService);
-			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 			const widgetService = accessor.get(IChatWidgetService);
-			const editorUri = editor?.getModel()?.uri;
-			const widget: IChatWidget | undefined = widgetService.lastFocusedWidget;
-			const focusedItem: ChatTreeItem | undefined = widget?.getFocus();
-			if (!widget || !focusedItem) {
-				return false;
+			const codeEditorService = accessor.get(ICodeEditorService);
+			return renderAccessibleView(accessibleViewService, widgetService, codeEditorService, true);
+			function renderAccessibleView(accessibleViewService: IAccessibleViewService, widgetService: IChatWidgetService, codeEditorService: ICodeEditorService, initialRender?: boolean): boolean {
+				const widget = widgetService.lastFocusedWidget;
+				if (!widget) {
+					return false;
+				}
+				const chatInputFocused = initialRender && !!codeEditorService.getFocusedCodeEditor();
+				if (initialRender && chatInputFocused) {
+					widget.focusLastMessage();
+				}
+
+				if (!widget) {
+					return false;
+				}
+
+				const verifiedWidget: IChatWidget = widget;
+				const focusedItem = verifiedWidget.getFocus();
+
+				if (!focusedItem) {
+					return false;
+				}
+
+				widget.focus(focusedItem);
+
+				const responseContent = isResponseVM(focusedItem) ? focusedItem.response.value : undefined;
+				if (!responseContent) {
+					return false;
+				}
+				const responses = verifiedWidget.viewModel?.getItems().filter(i => isResponseVM(i));
+				const length = responses?.length;
+				const responseIndex = responses?.findIndex(i => i === focusedItem);
+
+				accessibleViewService.show({
+					verbositySettingKey: AccessibilityVerbositySettingId.Chat,
+					provideContent(): string { return responseContent; },
+					onClose() {
+						verifiedWidget.reveal(focusedItem);
+						if (chatInputFocused) {
+							verifiedWidget.focusInput();
+						} else {
+							verifiedWidget.focus(focusedItem);
+						}
+					},
+					next() {
+						verifiedWidget.moveFocus(focusedItem, 'next');
+						alertFocusChange(responseIndex, length, 'next');
+						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
+					},
+					previous() {
+						verifiedWidget.moveFocus(focusedItem, 'previous');
+						alertFocusChange(responseIndex, length, 'previous');
+						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
+					},
+					options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), type: AccessibleViewType.View }
+				});
+				return true;
 			}
-			const codeBlockInfo = editorUri ? widget!.getCodeBlockInfoForEditor(editorUri) : undefined;
-			let responseItem: ChatTreeItem | undefined;
-			if (codeBlockInfo) {
-				responseItem = codeBlockInfo.element;
-			} else {
-				responseItem = widget!.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item));
-			}
-			if (!isResponseVM(responseItem)) {
-				return false;
-			}
-			const responseContent = responseItem?.response.value;
-			if (!responseContent) {
-				return false;
-			}
-			const provider = accessibleViewService.registerProvider({
-				id: 'panelChat',
-				provideContent(): string { return responseContent; },
-				onClose() {
-					widget.focus(focusedItem);
-					provider.dispose();
-				},
-				options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript', type: AccessibleViewType.View }
-			});
-			accessibleViewService.show('panelChat');
-			return true;
 		}, CONTEXT_IN_CHAT_SESSION));
 	}
 }

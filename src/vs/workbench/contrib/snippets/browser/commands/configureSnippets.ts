@@ -221,8 +221,7 @@ async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileS
 	await textFileService.write(pick.filepath, contents);
 }
 
-export class ConfigureSnippets extends SnippetsAction {
-
+export class ConfigureSnippetsAction extends SnippetsAction {
 	constructor() {
 		super({
 			id: 'workbench.action.openSnippets',

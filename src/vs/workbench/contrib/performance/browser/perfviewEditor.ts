@@ -17,7 +17,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
-import { LoaderStats } from 'vs/base/common/amd';
+import { LoaderStats, isESM } from 'vs/base/common/amd';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -132,10 +132,14 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 				this._addPerfMarksTable('Terminal Stats', md, this._timerService.getPerformanceMarks().find(e => e[0] === 'renderer')?.[1].filter(e => e.name.startsWith('code/terminal/')));
 				md.blank();
 				this._addRawPerfMarks(md);
+				if (!isESM) {
+					md.blank();
+					this._addLoaderStats(md, stats);
+					md.blank();
+					this._addCachedDataStats(md);
+				}
 				md.blank();
-				this._addLoaderStats(md, stats);
-				md.blank();
-				this._addCachedDataStats(md);
+				this._addResourceTimingStats(md);
 
 				this._model.setValue(md.value);
 			}
@@ -310,6 +314,17 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		printLists(map.get(LoaderEventType.CachedDataRejected));
 		md.heading(3, 'cached data created (lazy, might need refreshes)');
 		printLists(map.get(LoaderEventType.CachedDataCreated));
+	}
+
+	private _addResourceTimingStats(md: MarkdownBuilder) {
+		const stats = performance.getEntriesByType('resource').map(entry => {
+			return [entry.name, entry.duration];
+		});
+		if (!stats.length) {
+			return;
+		}
+		md.heading(2, 'Resource Timing Stats');
+		md.table(['Name', 'Duration'], stats);
 	}
 }
 

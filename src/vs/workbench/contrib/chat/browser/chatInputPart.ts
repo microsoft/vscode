@@ -30,7 +30,7 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { isMacintosh } from 'vs/base/common/platform';
 
@@ -77,6 +77,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
+		private readonly options: { renderFollowups: boolean },
 		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -100,8 +101,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _getAriaLabel(): string {
 		const verbose = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat);
 		if (verbose) {
-			const kbLabel = this.keybindingService.lookupKeybinding('chat.action.accessibilityHelp')?.getLabel();
-			return kbLabel ? localize('actions.chat.accessibiltyHelp', "Chat Input,  Type code here and press enter to run. Use {0} for Chat Accessibility Help.", kbLabel) : localize('chatInput.accessibilityHelpNoKb', "Chat Input,  Type code here and press Enter to run. Use the Chat Accessibility Help command for more information.");
+			const kbLabel = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
+			return kbLabel ? localize('actions.chat.accessibiltyHelp', "Chat Input,  Type to ask questions or type / for topics, press enter to send out the request. Use {0} for Chat Accessibility Help.", kbLabel) : localize('chatInput.accessibilityHelpNoKb', "Chat Input,  Type code here and press Enter to run. Use the Chat Accessibility Help command for more information.");
 		}
 		return localize('chatInput', "Chat Input");
 	}
@@ -176,8 +177,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this.container = dom.append(container, $('.interactive-input-part'));
-		this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
 
+		this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
 		const inputContainer = dom.append(this.container, $('.interactive-input-and-toolbar'));
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
@@ -249,6 +250,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	async renderFollowups(items?: IChatReplyFollowup[]): Promise<void> {
+		if (!this.options.renderFollowups) {
+			return;
+		}
 		this.followupsDisposables.clear();
 		dom.clearNode(this.followupsContainer);
 

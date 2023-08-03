@@ -25,7 +25,7 @@ import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xterm
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-import { IMarker, Terminal as RawXtermTerminal } from 'xterm';
+import type { IMarker, Terminal as RawXtermTerminal } from 'xterm';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -155,26 +155,30 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly instances: readonly ITerminalInstance[];
 	/** Gets detached terminal instances created via {@link createDetachedXterm}. */
 	readonly detachedXterms: Iterable<IXtermTerminal>;
-	configHelper: ITerminalConfigHelper;
-	isProcessSupportRegistered: boolean;
-	readonly connectionState: TerminalConnectionState;
-	readonly whenConnected: Promise<void>;
+	readonly configHelper: ITerminalConfigHelper;
 	readonly defaultLocation: TerminalLocation;
 
-	onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
-	onDidDisposeGroup: Event<ITerminalGroup>;
-	onDidCreateInstance: Event<ITerminalInstance>;
-	onDidReceiveProcessId: Event<ITerminalInstance>;
-	onDidChangeInstanceDimensions: Event<ITerminalInstance>;
-	onDidMaximumDimensionsChange: Event<ITerminalInstance>;
-	onDidRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
-	onDidChangeInstanceTitle: Event<ITerminalInstance | undefined>;
-	onDidChangeInstanceIcon: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
-	onDidChangeInstanceColor: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
-	onDidChangeInstancePrimaryStatus: Event<ITerminalInstance>;
-	onDidInputInstanceData: Event<ITerminalInstance>;
-	onDidRegisterProcessSupport: Event<void>;
-	onDidChangeConnectionState: Event<void>;
+	readonly isProcessSupportRegistered: boolean;
+	readonly connectionState: TerminalConnectionState;
+	readonly whenConnected: Promise<void>;
+	/** The number of restored terminal groups on startup. */
+	readonly restoredGroupCount: number;
+
+	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
+	readonly onDidDisposeGroup: Event<ITerminalGroup>;
+	readonly onDidCreateInstance: Event<ITerminalInstance>;
+	readonly onDidReceiveProcessId: Event<ITerminalInstance>;
+	readonly onDidChangeInstanceDimensions: Event<ITerminalInstance>;
+	readonly onDidMaximumDimensionsChange: Event<ITerminalInstance>;
+	readonly onDidRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
+	readonly onDidChangeInstanceTitle: Event<ITerminalInstance | undefined>;
+	readonly onDidChangeInstanceIcon: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
+	readonly onDidChangeInstanceColor: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
+	readonly onDidChangeInstancePrimaryStatus: Event<ITerminalInstance>;
+	readonly onDidInputInstanceData: Event<ITerminalInstance>;
+	readonly onDidChangeSelection: Event<ITerminalInstance>;
+	readonly onDidRegisterProcessSupport: Event<void>;
+	readonly onDidChangeConnectionState: Event<void>;
 
 	/**
 	 * Creates a terminal.
@@ -228,9 +232,9 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
 
 	getDefaultInstanceHost(): ITerminalInstanceHost;
-	getInstanceHost(target: ITerminalLocationOptions | undefined): ITerminalInstanceHost;
+	getInstanceHost(target: ITerminalLocationOptions | undefined): Promise<ITerminalInstanceHost>;
 
-	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined;
+	resolveLocation(location?: ITerminalLocationOptions): Promise<TerminalLocation | undefined>;
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
 
 	getEditingTerminal(): ITerminalInstance | undefined;
@@ -286,7 +290,7 @@ export interface ISerializedTerminalEditorInput extends ITerminalEditorInputObje
 export interface IDeserializedTerminalEditorInput extends ITerminalEditorInputObject {
 }
 
-export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean };
+export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: Promise<ITerminalInstance> | ITerminalInstance } | { splitActiveTerminal: boolean };
 
 export interface ICreateTerminalOptions {
 	/**
@@ -533,6 +537,7 @@ export interface ITerminalInstance {
 	onDisposed: Event<ITerminalInstance>;
 
 	onProcessIdReady: Event<ITerminalInstance>;
+	onProcessReplayComplete: Event<void>;
 	onRequestExtHostProcess: Event<ITerminalInstance>;
 	onDimensionsChanged: Event<void>;
 	onMaximumDimensionsChanged: Event<void>;
@@ -542,6 +547,7 @@ export interface ITerminalInstance {
 	onDidRequestFocus: Event<void>;
 	onDidBlur: Event<ITerminalInstance>;
 	onDidInputData: Event<ITerminalInstance>;
+	onDidChangeSelection: Event<ITerminalInstance>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.

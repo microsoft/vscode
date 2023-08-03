@@ -12,10 +12,12 @@ export namespace AccessibilityHelpNLS {
 	export const editableDiffEditor = nls.localize("editableDiffEditor", "You are in a pane of a diff editor.");
 	export const readonlyEditor = nls.localize("readonlyEditor", "You are in a read-only code editor");
 	export const editableEditor = nls.localize("editableEditor", "You are in a code editor");
-	export const changeConfigToOnMac = nls.localize("changeConfigToOnMac", "To configure the editor to be optimized for usage with a Screen Reader press Command+E now.");
-	export const changeConfigToOnWinLinux = nls.localize("changeConfigToOnWinLinux", "To configure the editor to be optimized for usage with a Screen Reader press Control+E now.");
-	export const auto_on = nls.localize("auto_on", "The editor is configured to be optimized for usage with a Screen Reader.");
-	export const auto_off = nls.localize("auto_off", "The editor is configured to never be optimized for usage with a Screen Reader");
+	export const changeConfigToOnMac = nls.localize("changeConfigToOnMac", "To configure the application to be optimized for usage with a Screen Reader press Command+E now.");
+	export const changeConfigToOnWinLinux = nls.localize("changeConfigToOnWinLinux", "To configure the application to be optimized for usage with a Screen Reader press Control+E now.");
+	export const auto_on = nls.localize("auto_on", "The application is configured to be optimized for usage with a Screen Reader.");
+	export const auto_off = nls.localize("auto_off", "The application is configured to never be optimized for usage with a Screen Reader");
+	export const screenReaderModeEnabled = nls.localize("screenReaderModeEnabled", "Screen Reader Optimized Mode enabled.");
+	export const screenReaderModeDisabled = nls.localize("screenReaderModeDisabled", "Screen Reader Optimized Mode disabled.");
 	export const tabFocusModeOnMsg = nls.localize("tabFocusModeOnMsg", "Pressing Tab in the current editor will move focus to the next focusable element. Toggle this behavior by pressing {0}.");
 	export const tabFocusModeOnMsgNoKb = nls.localize("tabFocusModeOnMsgNoKb", "Pressing Tab in the current editor will move focus to the next focusable element. The command {0} is currently not triggerable by a keybinding.");
 	export const tabFocusModeOffMsg = nls.localize("tabFocusModeOffMsg", "Pressing Tab in the current editor will insert the tab character. Toggle this behavior by pressing {0}.");

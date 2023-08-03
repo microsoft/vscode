@@ -175,7 +175,7 @@ let DIFF_EDITOR_ID = 0;
 
 const diffInsertIcon = registerIcon('diff-insert', Codicon.add, nls.localize('diffInsertIcon', 'Line decoration for inserts in the diff editor.'));
 const diffRemoveIcon = registerIcon('diff-remove', Codicon.remove, nls.localize('diffRemoveIcon', 'Line decoration for removals in the diff editor.'));
-const ttPolicy = createTrustedTypesPolicy('diffEditorWidget', { createHTML: value => value });
+export const diffEditorWidgetTtPolicy = createTrustedTypesPolicy('diffEditorWidget', { createHTML: value => value });
 
 const ariaNavigationTip = nls.localize('diff-aria-navigation-tip', ' use Shift + F7 to navigate changes');
 
@@ -298,6 +298,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			experimental: {
 				collapseUnchangedRegions: false,
 			},
+			isInEmbeddedEditor: false,
+			onlyShowAccessibleDiffViewer: false,
+			renderSideBySideInlineBreakpoint: 0,
+			useInlineViewWhenSpaceIsLimited: false,
 		});
 
 		this.isEmbeddedDiffEditorKey = EditorContextKeys.isEmbeddedDiffEditor.bindTo(this._contextKeyService);
@@ -443,11 +447,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return dom.isAncestor(document.activeElement, this._domElement);
 	}
 
-	public diffReviewNext(): void {
+	public accessibleDiffViewerNext(): void {
 		this._reviewPane.next();
 	}
 
-	public diffReviewPrev(): void {
+	public accessibleDiffViewerPrev(): void {
 		this._reviewPane.prev();
 	}
 
@@ -1030,7 +1034,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const modifiedViewState = this._modifiedEditor.saveViewState();
 		return {
 			original: originalViewState,
-			modified: modifiedViewState
+			modified: modifiedViewState,
 		};
 	}
 
@@ -1367,7 +1371,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._originalDomNode.style.width = splitPoint + 'px';
 		this._originalDomNode.style.left = '0px';
 
-		this._modifiedDomNode.style.width = (width - splitPoint) + 'px';
+		this._modifiedDomNode.style.width = (width - splitPoint - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH) + 'px';
 		this._modifiedDomNode.style.left = splitPoint + 'px';
 
 		this._overviewDomElement.style.top = '0px';
@@ -2588,7 +2592,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			maxCharsPerLine += scrollBeyondLastColumn;
 
 			const html = sb.build();
-			const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
+			const trustedhtml = diffEditorWidgetTtPolicy ? diffEditorWidgetTtPolicy.createHTML(html) : html;
 			domNode.innerHTML = trustedhtml as string;
 			viewZone.minWidthInPx = (maxCharsPerLine * typicalHalfwidthCharacterWidth);
 
@@ -2741,6 +2745,10 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		experimental: {
 			collapseUnchangedRegions: false,
 		},
+		isInEmbeddedEditor: validateBooleanOption(options.isInEmbeddedEditor, defaults.isInEmbeddedEditor),
+		onlyShowAccessibleDiffViewer: false,
+		renderSideBySideInlineBreakpoint: 0,
+		useInlineViewWhenSpaceIsLimited: false,
 	};
 }
 

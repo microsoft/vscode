@@ -18,6 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 export type IButtonConfigProvider = (action: IAction) => {
 	showIcon?: boolean;
 	showLabel?: boolean;
+	isSecondary?: boolean;
 } | undefined;
 
 export interface IMenuWorkbenchButtonBarOptions {
@@ -68,6 +69,7 @@ export class MenuWorkbenchButtonBar extends ButtonBar {
 				.flatMap(entry => entry[1]);
 
 			for (let i = 0; i < actions.length; i++) {
+
 				const secondary = i > 0;
 				const actionOrSubmenu = actions[i];
 				let action: MenuItemAction | SubmenuItemAction;
@@ -77,14 +79,16 @@ export class MenuWorkbenchButtonBar extends ButtonBar {
 					const [first, ...rest] = actionOrSubmenu.actions;
 					action = <MenuItemAction>first;
 					btn = this.addButtonWithDropdown({
-						secondary,
+						secondary: conifgProvider(action)?.isSecondary ?? secondary,
 						actionRunner,
 						actions: rest,
 						contextMenuProvider: contextMenuService,
 					});
 				} else {
 					action = actionOrSubmenu;
-					btn = this.addButton({ secondary });
+					btn = this.addButton({
+						secondary: conifgProvider(action)?.isSecondary ?? secondary,
+					});
 				}
 
 				btn.enabled = action.enabled;

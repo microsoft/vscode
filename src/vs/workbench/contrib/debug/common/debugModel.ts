@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, lastIndex } from 'vs/base/common/arrays';
+import { distinct, findLastIndex } from 'vs/base/common/arrays';
 import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
 import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -1242,7 +1242,7 @@ export class DebugModel implements IDebugModel {
 		let index = -1;
 		if (session.parentSession) {
 			// Make sure that child sessions are placed after the parent session
-			index = lastIndex(this.sessions, s => s.parentSession === session.parentSession || s === session.parentSession);
+			index = findLastIndex(this.sessions, s => s.parentSession === session.parentSession || s === session.parentSession);
 		}
 		if (index >= 0) {
 			this.sessions.splice(index + 1, 0, session);

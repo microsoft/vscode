@@ -209,7 +209,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		private _nonce: string,
 		private readonly _disableTelemetry: boolean | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
-		@ILogService private readonly _logService: ILogService
+		private readonly _logService: ILogService
 	) {
 		super();
 		this._register(toDisposable(() => {
