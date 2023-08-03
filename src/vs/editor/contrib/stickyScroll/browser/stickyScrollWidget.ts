@@ -133,11 +133,25 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return;
 		}
 		// this._minWidthInPixels = 0;
+		let maximumLength = 0;
+
+		const array = [];
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const { lineNumberHTMLNode, lineHTMLNode } = this._renderChildNode(index, line);
 			this._lineNumbersDomNode.appendChild(lineNumberHTMLNode);
 			this._linesDomNode.appendChild(lineHTMLNode);
+			array.push(lineHTMLNode);
+
+			if (lineHTMLNode.scrollWidth > maximumLength) {
+				maximumLength = lineHTMLNode.scrollWidth;
+			}
 		}
+
+		console.log('maximumLength : ', maximumLength);
+		array.forEach(node => {
+			node.style.width = maximumLength + 'px';
+		});
+
 		/* scrollbar issue, todo discuss with Alex
 		console.log('this._minWidthInPixels : ', this._minWidthInPixels);
 		viewModel.changeWhitespace((whitespaceAccessor) => {
