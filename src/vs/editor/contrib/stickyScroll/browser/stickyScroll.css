@@ -3,16 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .sticky-line {
+.monaco-editor .sticky-line-number {
 	color: var(--vscode-editorLineNumber-foreground);
 	overflow: hidden;
 	white-space: nowrap;
 	display: inline-block;
-}
-
-.monaco-editor .sticky-line-number {
 	text-align: right;
-	float: left;
 }
 
 .monaco-editor .sticky-line-root {
