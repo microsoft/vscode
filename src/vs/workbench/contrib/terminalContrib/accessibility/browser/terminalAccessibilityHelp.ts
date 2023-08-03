@@ -7,6 +7,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { format } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShellIntegrationStatus, WindowsShellType } from 'vs/platform/terminal/common/terminal';
@@ -14,6 +16,7 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import type { Terminal } from 'xterm';
 
 export const enum ClassName {
@@ -27,7 +30,11 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 	private readonly _hasShellIntegration: boolean = false;
 
 	onClose() {
-		this._instance.focus();
+		if (this._contextKeyService.getContextKeyValue<boolean>(TerminalContextKeys.accessibleBufferFocus.key) === true) {
+			this._commandService.executeCommand(TerminalCommandId.FocusAccessibleBuffer);
+		} else {
+			this._instance.focus();
+		}
 		this.dispose();
 	}
 	options: IAccessibleViewOptions = {
@@ -42,7 +49,9 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 		_xterm: Pick<IXtermTerminal, 'getFont' | 'shellIntegration'> & { raw: Terminal },
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
 		this._hasShellIntegration = _xterm.shellIntegration.status === ShellIntegrationStatus.VSCode;
