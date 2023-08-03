@@ -32,13 +32,15 @@
 }
 
 .monaco-editor .sticky-widget-lines {
-	width: 100%;
 	position: relative;
 }
 
 .monaco-editor .sticky-widget-line-numbers {
-	width: 200px;
 	position: relative;
+	float: left;
+}
+
+.monaco-editor .sticky-widget-scrollable {
 	float: left;
 }
 
@@ -47,6 +49,7 @@
 	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
 	z-index: 4;
 	background-color: var(--vscode-editorStickyScroll-background);
+	/* display: flex; */
 }
 
 .monaco-editor .sticky-widget.peek {
