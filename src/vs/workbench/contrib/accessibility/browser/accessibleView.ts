@@ -29,6 +29,9 @@ import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleVi
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { marked } from 'vs/base/common/marked/marked';
 
 
 const enum DIMENSIONS {
@@ -52,6 +55,7 @@ export interface IAccessibleViewService {
 	show(provider: IAccessibleContentProvider): void;
 	next(): void;
 	previous(): void;
+	goToSymbol(): void;
 	/**
 	 * If the setting is enabled, provides the open accessible view hint as a localized string.
 	 * @param verbositySettingKey The setting key for the verbosity of the feature
@@ -128,15 +132,21 @@ class AccessibleView extends Disposable {
 		}));
 	}
 
-	show(provider: IAccessibleContentProvider): void {
+	show(provider?: IAccessibleContentProvider, symbol?: IAccessibleViewSymbol): void {
+		if (!provider) {
+			provider = this._currentProvider;
+		}
+		if (!provider) {
+			return;
+		}
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
 			render: (container) => {
 				container.classList.add('accessible-view-container');
-				return this._render(provider, container);
+				return this._render(provider!, container);
 			},
 			onHide: () => {
-				if (provider.options.type === AccessibleViewType.Help) {
+				if (provider!.options.type === AccessibleViewType.Help) {
 					this._accessiblityHelpIsShown.reset();
 				} else {
 					this._accessibleViewIsShown.reset();
@@ -149,6 +159,9 @@ class AccessibleView extends Disposable {
 			this._accessiblityHelpIsShown.set(true);
 		} else {
 			this._accessibleViewIsShown.set(true);
+		}
+		if (symbol) {
+			this.showSymbol(this._currentProvider!, symbol);
 		}
 		this._currentProvider = provider;
 	}
@@ -165,6 +178,43 @@ class AccessibleView extends Disposable {
 			return;
 		}
 		this._currentProvider.next?.();
+	}
+
+	goToSymbol(): void {
+		this._instantiationService.createInstance(AccessibleViewSymbolQuickPick, this).show(this._currentProvider!);
+	}
+
+	getSymbols(): IAccessibleViewSymbol[] {
+		const symbols: IAccessibleViewSymbol[] = [];
+		if (!this._currentProvider) {
+			return symbols;
+		}
+		const tokens = marked.lexer(this._currentProvider.provideContent());
+		for (const token of tokens) {
+			let label: string | undefined = undefined;
+			switch (token.type) {
+				case 'heading':
+				case 'paragraph':
+				case 'code':
+					label = token.text;
+					break;
+				case 'list':
+					label = token.items?.map(i => i.text).join(', ');
+			}
+			if (label) {
+				symbols.push({ label, ariaLabel: localize('symbolLabel', "{0} {1}", token.type, label), iconClass: token.type });
+			}
+		}
+		return symbols;
+	}
+
+	showSymbol(provider: IAccessibleContentProvider, symbol: IAccessibleViewSymbol): void {
+		const index = provider.provideContent().split('\n').findIndex(line => line.includes(symbol.label.split('\n')[0]));
+		if (index >= 0) {
+			this.show(provider);
+			this._editorWidget.revealLine(index + 1);
+			this._editorWidget.setSelection({ startLineNumber: index + 1, startColumn: 1, endLineNumber: index + 1, endColumn: 1 });
+		}
 	}
 
 	private _render(provider: IAccessibleContentProvider, container: HTMLElement): IDisposable {
@@ -286,6 +336,9 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	previous(): void {
 		this._accessibleView?.previous();
 	}
+	goToSymbol(): void {
+		this._accessibleView?.goToSymbol();
+	}
 	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {
 		if (!this._configurationService.getValue(verbositySettingKey)) {
 			return null;
@@ -320,6 +373,30 @@ class AccessibleViewNextAction extends Action2 {
 }
 registerAction2(AccessibleViewNextAction);
 
+
+class AccessibleViewGoToSymbolAction extends Action2 {
+	static id: 'editor.action.accessibleViewGoToSymbol';
+	constructor() {
+		super({
+			id: 'editor.action.accessibleViewGoToSymbol',
+			precondition: accessibleViewIsShown,
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
+				weight: KeybindingWeight.WorkbenchContrib + 10
+			},
+			menu: [{
+				id: MenuId.CommandPalette,
+				group: '',
+				order: 1
+			}],
+			title: localize('editor.action.accessibleViewGoToSymbol', "Go To Symbol in Accessible View")
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		accessor.get(IAccessibleViewService).goToSymbol();
+	}
+}
+registerAction2(AccessibleViewGoToSymbolAction);
 
 class AccessibleViewPreviousAction extends Action2 {
 	static id: 'editor.action.accessibleViewPrevious';
@@ -389,3 +466,30 @@ export const AccessibleViewAction = registerCommand(new MultiCommand({
 	}],
 }));
 
+
+class AccessibleViewSymbolQuickPick {
+	constructor(private _accessibleView: AccessibleView, @IQuickInputService private readonly _quickInputService: IQuickInputService) {
+
+	}
+	show(provider: IAccessibleContentProvider): void {
+		const quickPick = this._quickInputService.createQuickPick<IAccessibleViewSymbol>();
+		const picks = [];
+		const symbols = this._accessibleView.getSymbols();
+		for (const symbol of symbols) {
+			picks.push({
+				label: symbol.label,
+				ariaLabel: symbol.ariaLabel
+			});
+		}
+		quickPick.canSelectMany = false;
+		quickPick.items = symbols;
+		quickPick.show();
+		quickPick.onDidAccept(() => {
+			quickPick.hide();
+			this._accessibleView.showSymbol(provider, quickPick.selectedItems[0]);
+		});
+	}
+}
+
+interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
+}
