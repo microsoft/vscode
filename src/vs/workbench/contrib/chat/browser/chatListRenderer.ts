@@ -428,8 +428,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		});
 
 		tree.setInput(data).then(() => {
-			tree.layout();
-			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+			if (!ref.isStale()) {
+				tree.layout();
+				this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+			}
 		});
 
 		return {
@@ -853,6 +855,7 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 
 interface IDisposableReference<T> extends IDisposable {
 	object: T;
+	isStale: () => boolean;
 }
 
 class EditorPool extends Disposable {
@@ -878,9 +881,14 @@ class EditorPool extends Disposable {
 
 	get(): IDisposableReference<IChatResultCodeBlockPart> {
 		const object = this._pool.get();
+		let stale = false;
 		return {
 			object,
-			dispose: () => this._pool.release(object)
+			isStale: () => stale,
+			dispose: () => {
+				stale = true;
+				this._pool.release(object);
+			}
 		};
 	}
 }
@@ -936,9 +944,14 @@ class TreePool extends Disposable {
 
 	get(): IDisposableReference<WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void>> {
 		const object = this._pool.get();
+		let stale = false;
 		return {
 			object,
-			dispose: () => this._pool.release(object)
+			isStale: () => stale,
+			dispose: () => {
+				stale = true;
+				this._pool.release(object);
+			}
 		};
 	}
 }
