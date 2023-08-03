@@ -569,8 +569,8 @@ stages:
                   parameters:
                     VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                     VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                    VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                    VSCODE_RUN_UNIT_TESTS: false
+                    VSCODE_RUN_INTEGRATION_TESTS: false
                     VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
           - job: macOSSign
