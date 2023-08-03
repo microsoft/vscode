@@ -340,7 +340,7 @@ class AccessibleViewPreviousAction extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
-		accessor.get(IAccessibleViewService).next();
+		accessor.get(IAccessibleViewService).previous();
 	}
 }
 registerAction2(AccessibleViewPreviousAction);
