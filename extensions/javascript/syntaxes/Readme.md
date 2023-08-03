@@ -8,4 +8,3 @@ The script does the following changes:
 - fileTypes .tsx -> .js & .jsx
 - scopeName scope.tsx -> scope.js
 - update all rule names .tsx -> .js
-

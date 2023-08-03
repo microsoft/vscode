@@ -200,6 +200,7 @@ class AccessibleView extends Disposable {
 					break;
 				case 'list':
 					label = token.items?.map(i => i.text).join(', ');
+					break;
 			}
 			if (label) {
 				symbols.push({ label, ariaLabel: localize('symbolLabel', "{0} {1}", token.type, label), iconClass: token.type });
@@ -209,8 +210,8 @@ class AccessibleView extends Disposable {
 	}
 
 	showSymbol(provider: IAccessibleContentProvider, symbol: IAccessibleViewSymbol): void {
-		const index = provider.provideContent().split('\n').findIndex(line => line.includes(symbol.label.split('\n')[0]));
-		if (index >= 0) {
+		const index = provider.provideContent().split('\n').findIndex(line => line.includes(symbol.label.split('\n')[0])) ?? -1;
+		if (index) {
 			this.show(provider);
 			this._editorWidget.revealLine(index + 1);
 			this._editorWidget.setSelection({ startLineNumber: index + 1, startColumn: 1, endLineNumber: index + 1, endColumn: 1 });
@@ -472,6 +473,9 @@ class AccessibleViewSymbolQuickPick {
 
 	}
 	show(provider: IAccessibleContentProvider): void {
+		if (provider.options.language !== 'markdown') {
+			return;
+		}
 		const quickPick = this._quickInputService.createQuickPick<IAccessibleViewSymbol>();
 		const picks = [];
 		const symbols = this._accessibleView.getSymbols();
