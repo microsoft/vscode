@@ -489,9 +489,11 @@ class ResultSummaryView extends Disposable {
 		const { results } = this.resultService;
 		const { count, root, status, duration, rerun } = this.elements;
 		if (!results.length) {
-			this.container.removeChild(root);
 			this.container.innerText = localize('noResults', 'No test results yet.');
-			this.elementsWereAttached = false;
+			if (this.elementsWereAttached) {
+				this.container.removeChild(root);
+				this.elementsWereAttached = false;
+			}
 			return;
 		}
 
