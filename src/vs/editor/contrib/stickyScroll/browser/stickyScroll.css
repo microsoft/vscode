@@ -31,18 +31,23 @@
 	cursor: pointer;
 }
 
-.monaco-editor .sticky-widget-root {
+.monaco-editor .sticky-widget-lines {
 	width: 100%;
 	position: relative;
 }
 
-.monaco-editor .sticky-widget-scroll {
+.monaco-editor .sticky-widget-line-numbers {
+	width: 200px;
+	position: relative;
+}
+
+.monaco-editor .sticky-widget {
 	width: 100%;
 	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
 	z-index: 4;
 	background-color: var(--vscode-editorStickyScroll-background);
 }
 
-.monaco-editor .sticky-widget-scroll.peek {
+.monaco-editor .sticky-widget.peek {
 	background-color: var(--vscode-peekViewEditorStickyScroll-background);
 }
