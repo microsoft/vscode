@@ -58,6 +58,7 @@
 		"list.activeSelectionForeground": "#000000",
 		"list.activeSelectionIconForeground": "#000000",
 		"list.hoverBackground": "#F2F2F2",
+		"list.focusAndSelectionOutline": "#005FB8",
 		"menu.border": "#CECECE",
 		"notebook.cellBorderColor": "#E5E5E5",
 		"notebook.selectedCellBackground": "#C8DDF150",
