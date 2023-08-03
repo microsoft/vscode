@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AutorunObserver } from 'vs/base/common/observableImpl/autorun';
-import { IObservable, ObservableValue, TransactionImpl } from 'vs/base/common/observableImpl/base';
-import { Derived } from 'vs/base/common/observableImpl/derived';
-import { FromEventObservable } from 'vs/base/common/observableImpl/utils';
+import { AutorunObserver } from 'vs/base/common/observableInternal/autorun';
+import { IObservable, ObservableValue, TransactionImpl } from 'vs/base/common/observableInternal/base';
+import { Derived } from 'vs/base/common/observableInternal/derived';
+import { FromEventObservable } from 'vs/base/common/observableInternal/utils';
 
 let globalObservableLogger: IObservableLogger | undefined;
 
@@ -23,17 +23,19 @@ interface IChangeInformation {
 	newValue: unknown;
 	change: unknown;
 	didChange: boolean;
+	hadValue: boolean;
 }
 
 export interface IObservableLogger {
-	handleObservableChanged(observable: ObservableValue<unknown, unknown>, info: IChangeInformation): void;
+	handleObservableChanged(observable: ObservableValue<any, any>, info: IChangeInformation): void;
 	handleFromEventObservableTriggered(observable: FromEventObservable<any, any>, info: IChangeInformation): void;
 
 	handleAutorunCreated(autorun: AutorunObserver): void;
 	handleAutorunTriggered(autorun: AutorunObserver): void;
+	handleAutorunFinished(autorun: AutorunObserver): void;
 
-	handleDerivedCreated(observable: Derived<unknown>): void;
-	handleDerivedRecomputed(observable: Derived<unknown>, info: IChangeInformation): void;
+	handleDerivedCreated(observable: Derived<any>): void;
+	handleDerivedRecomputed(observable: Derived<any>, info: IChangeInformation): void;
 
 	handleBeginTransaction(transaction: TransactionImpl): void;
 	handleEndTransaction(): void;
@@ -50,6 +52,15 @@ export class ConsoleObservableLogger implements IObservableLogger {
 	}
 
 	private formatInfo(info: IChangeInformation): ConsoleText[] {
+		if (!info.hadValue) {
+			return [
+				normalText(` `),
+				styled(formatValue(info.newValue, 60), {
+					color: 'green',
+				}),
+				normalText(` (initial)`),
+			];
+		}
 		return info.didChange
 			? [
 				normalText(` `),
@@ -102,7 +113,8 @@ export class ConsoleObservableLogger implements IObservableLogger {
 			formatKind('derived recomputed'),
 			styled(derived.debugName, { color: 'BlueViolet' }),
 			...this.formatInfo(info),
-			this.formatChanges(changedObservables)
+			this.formatChanges(changedObservables),
+			{ data: [{ fn: derived._computeFn }] }
 		]));
 		changedObservables.clear();
 	}
@@ -112,6 +124,7 @@ export class ConsoleObservableLogger implements IObservableLogger {
 			formatKind('observable from event triggered'),
 			styled(observable.debugName, { color: 'BlueViolet' }),
 			...this.formatInfo(info),
+			{ data: [{ fn: observable._getValue }] }
 		]));
 	}
 
@@ -129,9 +142,15 @@ export class ConsoleObservableLogger implements IObservableLogger {
 		console.log(...this.textToConsoleArgs([
 			formatKind('autorun'),
 			styled(autorun.debugName, { color: 'BlueViolet' }),
-			this.formatChanges(changedObservables)
+			this.formatChanges(changedObservables),
+			{ data: [{ fn: autorun._runFn }] }
 		]));
 		changedObservables.clear();
+		this.indentation++;
+	}
+
+	handleAutorunFinished(autorun: AutorunObserver): void {
+		this.indentation--;
 	}
 
 	handleBeginTransaction(transaction: TransactionImpl): void {
@@ -142,6 +161,7 @@ export class ConsoleObservableLogger implements IObservableLogger {
 		console.log(...this.textToConsoleArgs([
 			formatKind('transaction'),
 			styled(transactionName, { color: 'BlueViolet' }),
+			{ data: [{ fn: transaction._fn }] }
 		]));
 		this.indentation++;
 	}
@@ -153,13 +173,12 @@ export class ConsoleObservableLogger implements IObservableLogger {
 
 type ConsoleText =
 	| (ConsoleText | undefined)[]
-	| { text: string; style: string; data?: Record<string, unknown> }
-	| { data: Record<string, unknown> };
+	| { text: string; style: string; data?: unknown[] }
+	| { data: unknown[] };
 
 function consoleTextToArgs(text: ConsoleText): unknown[] {
 	const styles = new Array<any>();
-	const initial = {};
-	const data = initial;
+	const data: unknown[] = [];
 	let firstArg = '';
 
 	function process(t: ConsoleText): void {
@@ -173,20 +192,17 @@ function consoleTextToArgs(text: ConsoleText): unknown[] {
 			firstArg += `%c${t.text}`;
 			styles.push(t.style);
 			if (t.data) {
-				Object.assign(data, t.data);
+				data.push(...t.data);
 			}
 		} else if ('data' in t) {
-			Object.assign(data, t.data);
+			data.push(...t.data);
 		}
 	}
 
 	process(text);
 
 	const result = [firstArg, ...styles];
-	if (Object.keys(data).length > 0) {
-		result.push(data);
-	}
-
+	result.push(...data);
 	return result;
 }
 

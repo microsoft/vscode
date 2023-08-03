@@ -5,35 +5,31 @@
 
 import { assertFn } from 'vs/base/common/assert';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IReader, IObservable, IObserver, IChangeContext } from 'vs/base/common/observableImpl/base';
-import { getLogger } from 'vs/base/common/observableImpl/logging';
+import { IReader, IObservable, IObserver, IChangeContext, getFunctionName } from 'vs/base/common/observableInternal/base';
+import { getLogger } from 'vs/base/common/observableInternal/logging';
 
-export function autorun(debugName: string, fn: (reader: IReader) => void): IDisposable {
-	return new AutorunObserver(debugName, fn, undefined, undefined);
+export function autorunOpts(options: { debugName: string | (() => string | undefined) }, fn: (reader: IReader) => void): IDisposable {
+	return new AutorunObserver(options.debugName, fn, undefined, undefined);
+}
+
+export function autorun(fn: (reader: IReader) => void): IDisposable {
+	return new AutorunObserver(undefined, fn, undefined, undefined);
 }
 
 export function autorunHandleChanges<TChangeSummary>(
-	debugName: string,
 	options: {
+		debugName?: string | (() => string | undefined);
 		createEmptyChangeSummary?: () => TChangeSummary;
 		handleChange: (context: IChangeContext, changeSummary: TChangeSummary) => boolean;
 	},
 	fn: (reader: IReader, changeSummary: TChangeSummary) => void
 ): IDisposable {
-	return new AutorunObserver(debugName, fn, options.createEmptyChangeSummary, options.handleChange);
-}
-
-// TODO@hediet rename to autorunWithStore
-export function autorunWithStore2(
-	debugName: string,
-	fn: (reader: IReader, store: DisposableStore) => void,
-): IDisposable {
-	return autorunWithStore(fn, debugName);
+	return new AutorunObserver(options.debugName, fn, options.createEmptyChangeSummary, options.handleChange);
 }
 
 export function autorunWithStoreHandleChanges<TChangeSummary>(
-	debugName: string,
 	options: {
+		debugName?: string | (() => string | undefined);
 		createEmptyChangeSummary?: () => TChangeSummary;
 		handleChange: (context: IChangeContext, changeSummary: TChangeSummary) => boolean;
 	},
@@ -41,8 +37,8 @@ export function autorunWithStoreHandleChanges<TChangeSummary>(
 ): IDisposable {
 	const store = new DisposableStore();
 	const disposable = autorunHandleChanges(
-		debugName,
 		{
+			debugName: options.debugName ?? (() => getFunctionName(fn)),
 			createEmptyChangeSummary: options.createEmptyChangeSummary,
 			handleChange: options.handleChange,
 		},
@@ -57,14 +53,12 @@ export function autorunWithStoreHandleChanges<TChangeSummary>(
 	});
 }
 
-// TODO@hediet deprecate, rename to autorunWithStoreEx
-export function autorunWithStore(
-	fn: (reader: IReader, store: DisposableStore) => void,
-	debugName: string
-): IDisposable {
+export function autorunWithStore(fn: (reader: IReader, store: DisposableStore) => void): IDisposable {
 	const store = new DisposableStore();
-	const disposable = autorun(
-		debugName,
+	const disposable = autorunOpts(
+		{
+			debugName: () => getFunctionName(fn) || '(anonymous)',
+		},
 		reader => {
 			store.clear();
 			fn(reader, store);
@@ -98,9 +92,23 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	private dependenciesToBeRemoved = new Set<IObservable<any>>();
 	private changeSummary: TChangeSummary | undefined;
 
+	public get debugName(): string {
+		if (typeof this._debugName === 'string') {
+			return this._debugName;
+		}
+		if (typeof this._debugName === 'function') {
+			const name = this._debugName();
+			if (name !== undefined) { return name; }
+		}
+		const name = getFunctionName(this._runFn);
+		if (name !== undefined) { return name; }
+
+		return '(anonymous)';
+	}
+
 	constructor(
-		public readonly debugName: string,
-		private readonly runFn: (reader: IReader, changeSummary: TChangeSummary) => void,
+		private readonly _debugName: string | (() => string | undefined) | undefined,
+		public readonly _runFn: (reader: IReader, changeSummary: TChangeSummary) => void,
 		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
 		private readonly _handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
 	) {
@@ -133,9 +141,10 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 				getLogger()?.handleAutorunTriggered(this);
 				const changeSummary = this.changeSummary!;
 				this.changeSummary = this.createChangeSummary?.();
-				this.runFn(this, changeSummary);
+				this._runFn(this, changeSummary);
 			}
 		} finally {
+			getLogger()?.handleAutorunFinished(this);
 			// We don't want our observed observables to think that they are (not even temporarily) not being observed.
 			// Thus, we only unsubscribe from observables that are definitely not read anymore.
 			for (const o of this.dependenciesToBeRemoved) {
@@ -216,13 +225,13 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 export namespace autorun {
 	export const Observer = AutorunObserver;
 }
+
 export function autorunDelta<T>(
-	name: string,
 	observable: IObservable<T>,
 	handler: (args: { lastValue: T | undefined; newValue: T }) => void
 ): IDisposable {
 	let _lastValue: T | undefined;
-	return autorun(name, (reader) => {
+	return autorunOpts({ debugName: () => getFunctionName(handler) }, (reader) => {
 		const newValue = observable.read(reader);
 		const lastValue = _lastValue;
 		_lastValue = newValue;

@@ -132,6 +132,12 @@ class TaskSubject {
 
 type InspectSubject = MessageSubject | TaskSubject;
 
+const equalsSubject = (a: InspectSubject, b: InspectSubject) =>
+	a.resultId === b.resultId && a.taskIndex === b.taskIndex && (
+		(a instanceof MessageSubject && b instanceof MessageSubject && a.messageIndex === b.messageIndex) ||
+		(a instanceof TaskSubject && b instanceof TaskSubject)
+	);
+
 /** Iterates through every message in every result */
 function* allMessages(results: readonly ITestResult[]) {
 	for (const result of results) {
@@ -785,7 +791,11 @@ class TestResultsViewContent extends Disposable {
 	 */
 	public async reveal(opts: { subject: InspectSubject; preserveFocus: boolean }) {
 		this.didReveal.fire(opts);
-		await Promise.all(this.contentProviders.map(p => p.update(opts.subject)));
+
+		if (!this.current || !equalsSubject(this.current, opts.subject)) {
+			this.current = opts.subject;
+			await Promise.all(this.contentProviders.map(p => p.update(opts.subject)));
+		}
 	}
 
 	public onLayoutBody(height: number, width: number) {

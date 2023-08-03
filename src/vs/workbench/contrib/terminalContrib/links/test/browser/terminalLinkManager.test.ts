@@ -103,9 +103,9 @@ suite('TerminalLinkManager', () => {
 	suite('getLinks and open recent link', () => {
 		test('should return no links', async () => {
 			const links = await linkManager.getLinks();
-			equals(links.webLinks, []);
-			equals(links.wordLinks, []);
-			equals(links.fileLinks, []);
+			equals(links.viewport.webLinks, []);
+			equals(links.viewport.wordLinks, []);
+			equals(links.viewport.fileLinks, []);
 			const webLink = await linkManager.openRecentLink('url');
 			strictEqual(webLink, undefined);
 			const fileLink = await linkManager.openRecentLink('localFile');
@@ -128,8 +128,8 @@ suite('TerminalLinkManager', () => {
 			};
 			linkManager.setLinks({ wordLinks: [link1, link2] });
 			const links = await linkManager.getLinks();
-			deepStrictEqual(links.wordLinks?.[0].text, link2.text);
-			deepStrictEqual(links.wordLinks?.[1].text, link1.text);
+			deepStrictEqual(links.viewport.wordLinks?.[0].text, link2.text);
+			deepStrictEqual(links.viewport.wordLinks?.[1].text, link1.text);
 			const webLink = await linkManager.openRecentLink('url');
 			strictEqual(webLink, undefined);
 			const fileLink = await linkManager.openRecentLink('localFile');
@@ -148,8 +148,8 @@ suite('TerminalLinkManager', () => {
 			};
 			linkManager.setLinks({ webLinks: [link1, link2] });
 			const links = await linkManager.getLinks();
-			deepStrictEqual(links.webLinks?.[0].text, link2.text);
-			deepStrictEqual(links.webLinks?.[1].text, link1.text);
+			deepStrictEqual(links.viewport.webLinks?.[0].text, link2.text);
+			deepStrictEqual(links.viewport.webLinks?.[1].text, link1.text);
 			const webLink = await linkManager.openRecentLink('url');
 			strictEqual(webLink, link2);
 			const fileLink = await linkManager.openRecentLink('localFile');
@@ -168,8 +168,8 @@ suite('TerminalLinkManager', () => {
 			};
 			linkManager.setLinks({ fileLinks: [link1, link2] });
 			const links = await linkManager.getLinks();
-			deepStrictEqual(links.fileLinks?.[0].text, link2.text);
-			deepStrictEqual(links.fileLinks?.[1].text, link1.text);
+			deepStrictEqual(links.viewport.fileLinks?.[0].text, link2.text);
+			deepStrictEqual(links.viewport.fileLinks?.[1].text, link1.text);
 			const webLink = await linkManager.openRecentLink('url');
 			strictEqual(webLink, undefined);
 			linkManager.setLinks({ fileLinks: [link2] });

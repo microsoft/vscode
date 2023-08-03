@@ -189,11 +189,33 @@ steps:
         yarn gulp vscode-linux-$(VSCODE_ARCH)-min-ci
         ARCHIVE_PATH=".build/linux/client/code-${{ parameters.VSCODE_QUALITY }}-$(VSCODE_ARCH)-$(date +%s).tar.gz"
         mkdir -p $(dirname $ARCHIVE_PATH)
-        tar -czf $ARCHIVE_PATH -C .. VSCode-linux-$(VSCODE_ARCH)
         echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build client
+
+    - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          artifact: $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+          patterns: "**"
+          path: $(Build.ArtifactStagingDirectory)/cli
+        displayName: Download VS Code CLI
+
+      - script: |
+          set -e
+          tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
+          CLI_APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
+          APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").applicationName")
+          mv $(Build.ArtifactStagingDirectory)/cli/$APP_NAME $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
+        displayName: Mix in CLI
+
+    - script: |
+        set -e
+        tar -czf $CLIENT_PATH -C .. VSCode-linux-$(VSCODE_ARCH)
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Archive client
 
     - script: |
         set -e
@@ -234,21 +256,6 @@ steps:
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        artifact: $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
-        patterns: "**"
-        path: $(Build.ArtifactStagingDirectory)/cli
-      displayName: Download VS Code CLI
-
-    - script: |
-        set -e
-        tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
-        CLI_APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
-        APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").applicationName")
-        mv $(Build.ArtifactStagingDirectory)/cli/$APP_NAME $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
-      displayName: Make CLI executable
-
     - script:  |
         set -e
         docker run -v /mnt/vss/_work/1/s:/home/builduser/vscode \

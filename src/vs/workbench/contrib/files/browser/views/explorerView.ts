@@ -333,6 +333,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	isItemVisible(item: ExplorerItem): boolean {
+		// If filter is undefined it means the tree hasn't been rendered yet, so nothing is visible
+		if (!this.filter) {
+			return false;
+		}
 		return this.filter.filter(item, TreeVisibility.Visible);
 	}
 
