@@ -428,7 +428,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			[new ChatListTreeRenderer(resourceLabels, this.configService.getValue('explorer.decorations'), () => tree.layout())],
 			new ChatListTreeDataSource(),
 			{
-				autoExpandSingleChildren: true,
 				compressionEnabled: true,
 				collapseByDefault: () => false,
 				expandOnlyOnTwistieClick: (e) => {
@@ -437,7 +436,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 					return false;
 				},
-				additionalScrollHeight: ChatListTreeDelegate.ITEM_HEIGHT,
 				accessibilityProvider: {
 					getAriaLabel(element: IChatResponseProgressFileTreeData): string {
 						return element.label;
@@ -454,11 +452,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		});
 
-		const didChangeCollapseStateListener =
-			tree.onDidChangeCollapseState((e) => {
-				this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
-			});
-
 		tree.setInput(data).then(() => {
 			tree.layout();
 			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
@@ -467,7 +460,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return {
 			element: container, dispose: () => {
 				didOpenListener.dispose();
-				didChangeCollapseStateListener.dispose();
 				tree.dispose();
 			}
 		};
