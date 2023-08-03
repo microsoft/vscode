@@ -169,6 +169,7 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			return;
 		}
 
+		// No need to support standalone tree data that's not attached to a placeholder
 		if ('treeData' in progress) {
 			return;
 		}
