@@ -27,7 +27,7 @@ import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeA
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 
@@ -318,6 +318,7 @@ class AccessibleViewNextAction extends Action2 {
 		accessor.get(IAccessibleViewService).next();
 	}
 }
+registerAction2(AccessibleViewNextAction);
 
 
 class AccessibleViewPreviousAction extends Action2 {
@@ -342,7 +343,7 @@ class AccessibleViewPreviousAction extends Action2 {
 		accessor.get(IAccessibleViewService).next();
 	}
 }
-
+registerAction2(AccessibleViewPreviousAction);
 
 function registerCommand<T extends Command>(command: T): T {
 	command.register();
