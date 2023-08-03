@@ -129,7 +129,7 @@
 		"terminal.tab.activeBorder": "#005FB8",
 		"textBlockQuote.background": "#F8F8F8",
 		"textBlockQuote.border": "#E5E5E5",
-		"textCodeBlock.background": "#F2F2F2",
+		"textCodeBlock.background": "#F8F8F8",
 		"textLink.activeForeground": "#005FB8",
 		"textLink.foreground": "#005FB8",
 		"textSeparator.foreground": "#21262D",

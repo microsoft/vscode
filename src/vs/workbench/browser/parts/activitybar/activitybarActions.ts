@@ -41,6 +41,8 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { runWhenIdle } from 'vs/base/common/async';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -239,6 +241,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		activityHoverOptions: IActivityHoverOptions,
 		@IThemeService themeService: IThemeService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IHoverService hoverService: IHoverService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService menuService: IMenuService,
@@ -285,6 +288,16 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 	// This function exists to ensure that the accounts are added for auth providers that had already been registered
 	// before the menu was created.
 	private async initialize(): Promise<void> {
+		// Resolving the menu doesn't need to happen immediately, so we can wait until after the workbench has been restored
+		// and only run this when the system is idle.
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+		const disposable = this._register(runWhenIdle(async () => {
+			await this.doInitialize();
+			disposable.dispose();
+		}));
+	}
+
+	private async doInitialize(): Promise<void> {
 		const providerIds = this.authenticationService.getProviderIds();
 		const results = await Promise.allSettled(providerIds.map(providerId => this.addAccountsFromProvider(providerId)));
 

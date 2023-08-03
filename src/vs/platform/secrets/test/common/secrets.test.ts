@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { timeout } from 'vs/base/common/async';
 import { IEncryptionService, KnownStorageProvider } from 'vs/platform/encryption/common/encryptionService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { BaseSecretStorageService } from 'vs/platform/secrets/common/secrets';
@@ -67,8 +66,10 @@ suite('secrets', () => {
 		});
 
 		test('type', async () => {
-			// allow initialization to complete
-			await timeout(0);
+			assert.strictEqual(service.type, 'unknown');
+			// trigger lazy initialization
+			await service.set('my-secret', 'my-secret-value');
+
 			assert.strictEqual(service.type, 'in-memory');
 		});
 
@@ -122,8 +123,10 @@ suite('secrets', () => {
 		});
 
 		test('type', async () => {
-			// allow initialization to complete
-			await timeout(0);
+			assert.strictEqual(service.type, 'unknown');
+			// trigger lazy initialization
+			await service.set('my-secret', 'my-secret-value');
+
 			assert.strictEqual(service.type, 'persisted');
 		});
 
@@ -177,8 +180,10 @@ suite('secrets', () => {
 		});
 
 		test('type', async () => {
-			// allow initialization to complete
-			await timeout(0);
+			assert.strictEqual(service.type, 'unknown');
+			// trigger lazy initialization
+			await service.set('my-secret', 'my-secret-value');
+
 			assert.strictEqual(service.type, 'in-memory');
 		});
 
