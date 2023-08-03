@@ -300,7 +300,7 @@ class AccessibleViewNextAction extends Action2 {
 	static id: 'editor.action.accessibleViewNext';
 	constructor() {
 		super({
-			id: AccessibleViewNextAction.id,
+			id: 'editor.action.accessibleViewNext',
 			precondition: accessibleViewIsShown,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.BracketRight,
@@ -325,7 +325,7 @@ class AccessibleViewPreviousAction extends Action2 {
 	static id: 'editor.action.accessibleViewPrevious';
 	constructor() {
 		super({
-			id: AccessibleViewPreviousAction.id,
+			id: 'editor.action.accessibleViewPrevious',
 			precondition: accessibleViewIsShown,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.BracketLeft,
