@@ -72,7 +72,9 @@ steps:
 
   # Ref https://github.com/microsoft/vscode/issues/189019
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: cd node_modules/native-keymap && node-gyp rebuild --debug && ./.github/workflows/check-clean-git-state.sh
+    - script: |
+        cd node_modules/native-keymap && node-gyp rebuild --debug
+        cd ../.. && ./.github/workflows/check-clean-git-state.sh
       displayName: Compile debug version of native-keymap
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
