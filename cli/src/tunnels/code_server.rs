@@ -548,8 +548,8 @@ impl<'a> ServerBuilder<'a> {
 		// Original issue: https://github.com/microsoft/vscode/issues/184058
 		// Partial fix: https://github.com/microsoft/vscode/pull/184621
 		#[cfg(target_os = "windows")]
-		let cmd = cmd.creation_flags(0x08000000); // 0x08000000 == CREATE_NO_WINDOW see https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags
-		
+		let cmd = cmd.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
+
 		let child = cmd
 			.stderr(std::process::Stdio::piped())
 			.stdout(std::process::Stdio::piped())
