@@ -311,7 +311,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		} else if (options.enabled && !this._enabled) {
 			// When sticky scroll was just enabled, add the listeners on the sticky scroll
 			this._editor.addOverlayWidget(this._stickyScrollWidget);
-			this._sessionStore.add(this._editor.onDidScrollChange(() => this._renderStickyScroll()));
+			this._sessionStore.add(this._editor.onDidScrollChange((e) => {
+				if (e.scrollTopChanged) {
+					this._renderStickyScroll();
+				}
+			}));
 			this._sessionStore.add(this._editor.onDidLayoutChange(() => this._onDidResize()));
 			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this._onTokensChange(e)));
 			this._sessionStore.add(this._stickyLineCandidateProvider.onDidChangeStickyScroll(() => this._renderStickyScroll()));
