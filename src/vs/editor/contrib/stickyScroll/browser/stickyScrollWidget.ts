@@ -49,7 +49,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
 		this._rootDomNode.className = 'sticky-widget-root';
-		this._scrollbar = this._register(new DomScrollableElement(this._rootDomNode, { consumeMouseWheelIfScrollbarIsNeeded: true, vertical: ScrollbarVisibility.Hidden }));
+		this._scrollbar = this._register(new DomScrollableElement(this._rootDomNode, { consumeMouseWheelIfScrollbarIsNeeded: true, vertical: ScrollbarVisibility.Hidden, handleMouseWheel: false }));
 		this._scrollableDomNode.appendChild(this._scrollbar.getDomNode());
 		this._scrollableDomNode.className = 'sticky-widget-scroll';
 		this._register(dom.addDisposableListener(this._scrollbar.getDomNode(), dom.EventType.MOUSE_OVER, () => { this._scrollbar.scanDomNode(); }));
