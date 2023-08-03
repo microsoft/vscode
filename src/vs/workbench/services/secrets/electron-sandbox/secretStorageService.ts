@@ -9,7 +9,7 @@ import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEncryptionService, KnownStorageProvider, PasswordStoreCLIOption, isGnome, isKwallet } from 'vs/platform/encryption/common/encryptionService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
@@ -25,12 +25,18 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IJSONEditingService private readonly _jsonEditingService: IJSONEditingService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IStorageService storageService: IStorageService,
 		@IEncryptionService encryptionService: IEncryptionService,
 		@ILogService logService: ILogService
 	) {
-		super(storageService, encryptionService, logService);
+		super(
+			// TODO: rename disableKeytar to disableSecretStorage or similar
+			!!_environmentService.disableKeytar,
+			storageService,
+			encryptionService,
+			logService
+		);
 	}
 
 	override set(key: string, value: string): Promise<void> {

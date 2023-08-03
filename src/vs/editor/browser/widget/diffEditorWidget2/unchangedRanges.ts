@@ -8,7 +8,7 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Codicon } from 'vs/base/common/codicons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunWithStore, derived, derivedWithStore, observableFromEvent, transaction } from 'vs/base/common/observable';
+import { IObservable, autorun, derived, derivedWithStore, observableFromEvent, transaction } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
@@ -97,7 +97,8 @@ export class UnchangedRangesFeature extends Disposable {
 		};
 		const unchangedLinesDecorationShow: IModelDecorationOptions = {
 			description: 'Fold Unchanged',
-			glyphMarginHoverMessage: new MarkdownString(undefined, { isTrusted: true, supportThemeIcons: true }).appendMarkdown(localize('foldUnchanged', 'Fold Unchanged Region')),
+			glyphMarginHoverMessage: new MarkdownString(undefined, { isTrusted: true, supportThemeIcons: true })
+				.appendMarkdown(localize('foldUnchanged', 'Fold Unchanged Region')),
 			glyphMarginClassName: 'fold-unchanged ' + ThemeIcon.asClassName(Codicon.fold),
 			zIndex: 10001,
 		};
@@ -141,7 +142,7 @@ export class UnchangedRangesFeature extends Disposable {
 		this._register(applyViewZones(this._editors.original, viewZones.map(v => v.origViewZones), v => this._isUpdatingViewZones = v));
 		this._register(applyViewZones(this._editors.modified, viewZones.map(v => v.modViewZones), v => this._isUpdatingViewZones = v));
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			/** @description update folded unchanged regions */
 			const curUnchangedRegions = unchangedRegions.read(reader);
 			this._editors.original.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenOriginalRange(reader).toInclusiveRange()).filter(isDefined));
@@ -178,14 +179,14 @@ export class UnchangedRangesFeature extends Disposable {
 
 class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 	private readonly _nodes = h('div.diff-hidden-lines', [
-		h('div.top@top', { title: 'Click or drag to show more above' }),
+		h('div.top@top', { title: localize('diff.hiddenLines.top', 'Click or drag to show more above') }),
 		h('div.center@content', { style: { display: 'flex' } }, [
 			h('div@first', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center' } },
-				[$('a', { title: 'Show all', role: 'button', onclick: () => { this._unchangedRegion.showAll(undefined); } }, ...renderLabelWithIcons('$(unfold)'))]
+				[$('a', { title: localize('showAll', 'Show all'), role: 'button', onclick: () => { this._unchangedRegion.showAll(undefined); } }, ...renderLabelWithIcons('$(unfold)'))]
 			),
 			h('div@others', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center' } }),
 		]),
-		h('div.bottom@bottom', { title: 'Click or drag to show more below', role: 'button' }),
+		h('div.bottom@bottom', { title: localize('diff.bottom', 'Click or drag to show more below'), role: 'button' }),
 	]);
 
 	constructor(
@@ -291,7 +292,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			const children: HTMLElement[] = [];
 			if (!this.hide && true) {
 				const lineCount = _unchangedRegion.getHiddenModifiedRange(reader).length;
-				const linesHiddenText = `${lineCount} Hidden Lines`;
+				const linesHiddenText = localize('hiddenLines', '{0} Hidden Lines', lineCount);
 				children.push($('span', { title: linesHiddenText }, linesHiddenText));
 			}
 

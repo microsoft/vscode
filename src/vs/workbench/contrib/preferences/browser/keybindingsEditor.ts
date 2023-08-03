@@ -55,7 +55,7 @@ import { SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/sug
 import { CompletionItemKind } from 'vs/editor/common/languages';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 const $ = DOM.$;

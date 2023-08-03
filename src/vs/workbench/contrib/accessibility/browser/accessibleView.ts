@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isMacintosh } from 'vs/base/common/platform';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { Command, EditorExtensionsRegistry, MultiCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -25,8 +25,11 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId, AccessibleViewAction, AccessibleViewNextAction, AccessibleViewPreviousAction, accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+
 
 const enum DIMENSIONS {
 	MAX_WIDTH = 600
@@ -291,3 +294,97 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		return keybinding ? localize('chatAccessibleViewHint', "Inspect this in the accessible view with {0}", keybinding) : localize('chatAccessibleViewHintNoKb', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
 	}
 }
+
+
+class AccessibleViewNextAction extends Action2 {
+	static id: 'editor.action.accessibleViewNext';
+	constructor() {
+		super({
+			id: AccessibleViewNextAction.id,
+			precondition: accessibleViewIsShown,
+			keybinding: {
+				primary: KeyMod.Alt | KeyCode.BracketRight,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			menu: [{
+				id: MenuId.CommandPalette,
+				group: '',
+				order: 1
+			}],
+			title: localize('editor.action.accessibleViewNext', "Show Next in Accessible View")
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		accessor.get(IAccessibleViewService).next();
+	}
+}
+
+
+class AccessibleViewPreviousAction extends Action2 {
+	static id: 'editor.action.accessibleViewPrevious';
+	constructor() {
+		super({
+			id: AccessibleViewPreviousAction.id,
+			precondition: accessibleViewIsShown,
+			keybinding: {
+				primary: KeyMod.Alt | KeyCode.BracketLeft,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			menu: [{
+				id: MenuId.CommandPalette,
+				group: '',
+				order: 1
+			}],
+			title: localize('editor.action.accessibleViewPrevious', "Show Previous in Accessible View")
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		accessor.get(IAccessibleViewService).next();
+	}
+}
+
+
+function registerCommand<T extends Command>(command: T): T {
+	command.register();
+	return command;
+}
+
+export const AccessibilityHelpAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibilityHelp',
+	precondition: undefined,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.F1,
+		weight: KeybindingWeight.WorkbenchContrib,
+		linux: {
+			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
+			secondary: [KeyMod.Alt | KeyCode.F1]
+		}
+	},
+	menuOpts: [{
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: localize('editor.action.accessibilityHelp', "Open Accessibility Help"),
+		order: 1
+	}],
+}));
+
+
+export const AccessibleViewAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibleView',
+	precondition: undefined,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.F2,
+		weight: KeybindingWeight.WorkbenchContrib,
+		linux: {
+			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F2,
+			secondary: [KeyMod.Alt | KeyCode.F2]
+		}
+	},
+	menuOpts: [{
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: localize('editor.action.accessibleView', "Open Accessible View"),
+		order: 1
+	}],
+}));
+

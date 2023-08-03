@@ -1499,15 +1499,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 		if (focus) {
 			const selection: Array<IEditorIdentifier | IEditorGroup> = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
 
-			// Only respect selection if it contains focused element
-			if (selection?.some(s => {
-				if (isEditorGroup(s)) {
-					return s.id === focus.groupId;
-				}
-
-				const group = editorGroupService.getGroup(s.groupId);
-				return s.groupId === focus.groupId && (group ? group.getIndexOfEditor(s.editor) : -1) === focus.editorIndex;
-			})) {
+			if (selection.length > 0) {
 				return selection.map(elementToContext);
 			}
 

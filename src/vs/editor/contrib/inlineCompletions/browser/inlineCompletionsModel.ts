@@ -6,7 +6,7 @@
 import { mapFind } from 'vs/base/common/arrays';
 import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, derived, derivedHandleChanges, keepAlive, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
+import { IObservable, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, keepAlive, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -16,7 +16,7 @@ import { InlineCompletionContext, InlineCompletionTriggerKind } from 'vs/editor/
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
-import { GhostText, GhostTextOrReplacement } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
+import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
 import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
 import { addPositions, lengthOfText } from 'vs/editor/contrib/inlineCompletions/browser/utils';
@@ -192,11 +192,18 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	});
 
-	public readonly state = derived<{
+	public readonly state = derivedOpts<{
 		suggestItem: SuggestItemInfo | undefined;
 		inlineCompletion: InlineCompletionWithUpdatedRange | undefined;
 		ghostText: GhostTextOrReplacement;
-	} | undefined>((reader) => {
+	} | undefined>({
+		equalityComparer: (a, b) => {
+			if (!a || !b) { return a === b; }
+			return ghostTextOrReplacementEquals(a.ghostText, b.ghostText)
+				&& a.inlineCompletion === b.inlineCompletion
+				&& a.suggestItem === b.suggestItem;
+		}
+	}, (reader) => {
 		/** @description ghostTextAndCompletion */
 		const model = this.textModel;
 
@@ -243,7 +250,9 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	});
 
-	public readonly ghostText = derived(reader => {
+	public readonly ghostText = derivedOpts({
+		equalityComparer: ghostTextOrReplacementEquals
+	}, reader => {
 		/** @description ghostText */
 		const v = this.state.read(reader);
 		if (!v) { return undefined; }

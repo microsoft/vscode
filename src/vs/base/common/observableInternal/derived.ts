@@ -8,12 +8,15 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IReader, IObservable, BaseObservable, IObserver, _setDerived, IChangeContext, getFunctionName } from 'vs/base/common/observableInternal/base';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
+export type EqualityComparer<T> = (a: T, b: T) => boolean;
+const defaultEqualityComparer: EqualityComparer<any> = (a, b) => a === b;
+
 export function derived<T>(computeFn: (reader: IReader) => T, debugName?: string | (() => string)): IObservable<T> {
-	return new Derived(debugName, computeFn, undefined, undefined, undefined);
+	return new Derived(debugName, computeFn, undefined, undefined, undefined, defaultEqualityComparer);
 }
 
-export function derivedOpts<T>(options: { debugName?: string | (() => string) }, computeFn: (reader: IReader) => T): IObservable<T> {
-	return new Derived(options.debugName, computeFn, undefined, undefined, undefined);
+export function derivedOpts<T>(options: { debugName?: string | (() => string); equalityComparer?: EqualityComparer<T> }, computeFn: (reader: IReader) => T): IObservable<T> {
+	return new Derived(options.debugName, computeFn, undefined, undefined, undefined, options.equalityComparer ?? defaultEqualityComparer);
 }
 
 export function derivedHandleChanges<T, TChangeSummary>(
@@ -23,7 +26,7 @@ export function derivedHandleChanges<T, TChangeSummary>(
 		handleChange: (context: IChangeContext, changeSummary: TChangeSummary) => boolean;
 	},
 	computeFn: (reader: IReader, changeSummary: TChangeSummary) => T): IObservable<T> {
-	return new Derived(debugName, computeFn, options.createEmptyChangeSummary, options.handleChange, undefined);
+	return new Derived(debugName, computeFn, options.createEmptyChangeSummary, options.handleChange, undefined, defaultEqualityComparer);
 }
 
 export function derivedWithStore<T>(name: string, computeFn: (reader: IReader, store: DisposableStore) => T): IObservable<T> {
@@ -31,7 +34,7 @@ export function derivedWithStore<T>(name: string, computeFn: (reader: IReader, s
 	return new Derived(name, r => {
 		store.clear();
 		return computeFn(r, store);
-	}, undefined, undefined, () => store.dispose());
+	}, undefined, undefined, () => store.dispose(), defaultEqualityComparer);
 }
 
 _setDerived(derived);
@@ -68,17 +71,18 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 	public override get debugName(): string {
 		if (!this._debugName) {
-			return getFunctionName(this.computeFn) || '(anonymous)';
+			return getFunctionName(this._computeFn) || '(anonymous)';
 		}
 		return typeof this._debugName === 'function' ? this._debugName() : this._debugName;
 	}
 
 	constructor(
 		private readonly _debugName: string | (() => string) | undefined,
-		private readonly computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
+		public readonly _computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
 		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
 		private readonly _handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
-		private readonly _handleLastObserverRemoved: (() => void) | undefined = undefined
+		private readonly _handleLastObserverRemoved: (() => void) | undefined = undefined,
+		private readonly _equalityComparator: EqualityComparer<T>,
 	) {
 		super();
 		this.changeSummary = this.createChangeSummary?.();
@@ -104,7 +108,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		if (this.observers.size === 0) {
 			// Without observers, we don't know when to clean up stuff.
 			// Thus, we don't cache anything to prevent memory leaks.
-			const result = this.computeFn(this, this.createChangeSummary?.()!);
+			const result = this._computeFn(this, this.createChangeSummary?.()!);
 			// Clear new dependencies
 			this.onLastObserverRemoved();
 			return result;
@@ -153,7 +157,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		this.changeSummary = this.createChangeSummary?.();
 		try {
 			/** might call {@link handleChange} indirectly, which could invalidate us */
-			this.value = this.computeFn(this, changeSummary);
+			this.value = this._computeFn(this, changeSummary);
 		} finally {
 			// We don't want our observed observables to think that they are (not even temporarily) not being observed.
 			// Thus, we only unsubscribe from observables that are definitely not read anymore.
@@ -163,7 +167,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			this.dependenciesToBeRemoved.clear();
 		}
 
-		const didChange = hadValue && oldValue !== this.value;
+		const didChange = hadValue && !(this._equalityComparator(oldValue!, this.value));
 
 		getLogger()?.handleDerivedRecomputed(this, {
 			oldValue,

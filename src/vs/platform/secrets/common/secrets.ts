@@ -25,22 +25,24 @@ export interface ISecretStorageService extends ISecretStorageProvider {
 	onDidChangeSecret: Event<string>;
 }
 
-export abstract class BaseSecretStorageService implements ISecretStorageService {
+export class BaseSecretStorageService implements ISecretStorageService {
 	declare readonly _serviceBrand: undefined;
 
-	private _storagePrefix = 'secret://';
+	private readonly _storagePrefix = 'secret://';
 
-	private readonly _onDidChangeSecret = new Emitter<string>();
-	onDidChangeSecret: Event<string> = this._onDidChangeSecret.event;
+	protected readonly onDidChangeSecretEmitter = new Emitter<string>();
+	onDidChangeSecret: Event<string> = this.onDidChangeSecretEmitter.event;
 
 	protected readonly _sequencer = new SequencerByKey<string>();
-	protected resolvedStorageService = this.initialize();
 
 	private _type: 'in-memory' | 'persisted' | 'unknown' = 'unknown';
 
 	private readonly _onDidChangeValueDisposable = new DisposableStore();
 
+	protected resolvedStorageService = this.initialize();
+
 	constructor(
+		private readonly _useInMemoryStorage: boolean,
 		@IStorageService private _storageService: IStorageService,
 		@IEncryptionService protected _encryptionService: IEncryptionService,
 		@ILogService protected readonly _logService: ILogService
@@ -58,7 +60,7 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 		const secretKey = key.slice(this._storagePrefix.length);
 
 		this._logService.trace(`[SecretStorageService] Notifying change in value for secret: ${secretKey}`);
-		this._onDidChangeSecret.fire(secretKey);
+		this.onDidChangeSecretEmitter.fire(secretKey);
 	}
 
 	get(key: string): Promise<string | undefined> {
@@ -75,7 +77,10 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 
 			try {
 				this._logService.trace('[secrets] decrypting gotten secret for key:', fullKey);
-				const result = await this._encryptionService.decrypt(encrypted);
+				// If the storage service is in-memory, we don't need to decrypt
+				const result = this._type === 'in-memory'
+					? encrypted
+					: await this._encryptionService.decrypt(encrypted);
 				this._logService.trace('[secrets] decrypted secret for key:', fullKey);
 				return result;
 			} catch (e) {
@@ -93,7 +98,10 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 			this._logService.trace('[secrets] encrypting secret for key:', key);
 			let encrypted;
 			try {
-				encrypted = await this._encryptionService.encrypt(value);
+				// If the storage service is in-memory, we don't need to encrypt
+				encrypted = this._type === 'in-memory'
+					? value
+					: await this._encryptionService.encrypt(value);
 			} catch (e) {
 				this._logService.error(e);
 				throw e;
@@ -118,10 +126,14 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 
 	private async initialize(): Promise<IStorageService> {
 		let storageService;
-		if (await this._encryptionService.isEncryptionAvailable()) {
+		if (!this._useInMemoryStorage && await this._encryptionService.isEncryptionAvailable()) {
 			this._type = 'persisted';
 			storageService = this._storageService;
 		} else {
+			// If we already have an in-memory storage service, we don't need to recreate it
+			if (this._type === 'in-memory') {
+				return this._storageService;
+			}
 			this._logService.trace('[SecretStorageService] Encryption is not available, falling back to in-memory storage');
 			this._type = 'in-memory';
 			storageService = new InMemoryStorageService();

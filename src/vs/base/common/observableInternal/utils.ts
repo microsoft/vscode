@@ -89,13 +89,13 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 
 	constructor(
 		private readonly event: Event<TArgs>,
-		private readonly getValue: (args: TArgs | undefined) => T
+		public readonly _getValue: (args: TArgs | undefined) => T
 	) {
 		super();
 	}
 
 	private getDebugName(): string | undefined {
-		return getFunctionName(this.getValue);
+		return getFunctionName(this._getValue);
 	}
 
 	public get debugName(): string {
@@ -108,7 +108,7 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 	}
 
 	private readonly handleEvent = (args: TArgs | undefined) => {
-		const newValue = this.getValue(args);
+		const newValue = this._getValue(args);
 
 		const didChange = !this.hasValue || this.value !== newValue;
 
@@ -150,7 +150,7 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 			return this.value!;
 		} else {
 			// no cache, as there are no subscribers to keep it updated
-			return this.getValue(undefined);
+			return this._getValue(undefined);
 		}
 	}
 }
