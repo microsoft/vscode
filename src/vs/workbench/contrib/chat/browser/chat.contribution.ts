@@ -42,7 +42,6 @@ import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
 import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -92,13 +91,6 @@ configurationRegistry.registerConfiguration({
 			],
 			description: nls.localize('interactiveSession.defaultMode', "Controls the default mode of the chat experience."),
 			default: 'chatView'
-		},
-		'chat.experimental.quickQuestion.mode': {
-			type: 'string',
-			tags: ['experimental'],
-			enum: [QuickQuestionMode.SingleQuestion, QuickQuestionMode.InputOnTopChat, QuickQuestionMode.InputOnBottomChat],
-			description: nls.localize('interactiveSession.quickQuestion.mode', "Controls the mode of quick question chat experience."),
-			default: QuickQuestionMode.InputOnTopChat,
 		}
 	}
 });
