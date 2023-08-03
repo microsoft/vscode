@@ -54,6 +54,7 @@
 		"inputOption.activeBorder": "#005FB8",
 		"inputOption.activeForeground": "#000000",
 		"keybindingLabel.foreground": "#3b3b3b",
+		"list.focusAndSelectionOutline": "#005FB8",
 		"menu.border": "#D4D4D4",
 		"notebook.cellBorderColor": "#E8E8E8",
 		"notebook.selectedCellBackground": "#c8ddf150",
