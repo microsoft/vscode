@@ -707,6 +707,10 @@ export function tieBreakComparators<TItem>(...comparators: Comparator<TItem>[]):
 */
 export const numberComparator: Comparator<number> = (a, b) => a - b;
 
+export function reverseOrder<TItem>(comparator: Comparator<TItem>): Comparator<TItem> {
+	return (a, b) => -comparator(a, b);
+}
+
 /**
  * Returns the first item that is equal to or greater than every other item.
 */
