@@ -45,6 +45,10 @@ export interface IAccessibleContentProvider {
 	onKeyDown?(e: IKeyboardEvent): void;
 	previous?(): void;
 	next?(): void;
+	/**
+	 * When the language is markdown, this is provided by default.
+	 */
+	getSymbols?(): IAccessibleViewSymbol[];
 	options: IAccessibleViewOptions;
 }
 
@@ -184,34 +188,41 @@ class AccessibleView extends Disposable {
 		this._instantiationService.createInstance(AccessibleViewSymbolQuickPick, this).show(this._currentProvider!);
 	}
 
-	getSymbols(): IAccessibleViewSymbol[] {
-		const symbols: IAccessibleViewSymbol[] = [];
+	getSymbols(): IAccessibleViewSymbol[] | undefined {
 		if (!this._currentProvider) {
-			return symbols;
+			return;
 		}
-		const tokens = marked.lexer(this._currentProvider.provideContent());
+		const tokens = this._currentProvider.options.language && this._currentProvider.options.language !== 'markdown' ? this._currentProvider.getSymbols?.() : marked.lexer(this._currentProvider.provideContent());
+		if (!tokens) {
+			return;
+		}
+		const symbols: IAccessibleViewSymbol[] = [];
 		for (const token of tokens) {
 			let label: string | undefined = undefined;
-			switch (token.type) {
-				case 'heading':
-				case 'paragraph':
-				case 'code':
-					label = token.text;
-					break;
-				case 'list':
-					label = token.items?.map(i => i.text).join(', ');
-					break;
+			if ('type' in token) {
+				switch (token.type) {
+					case 'heading':
+					case 'paragraph':
+					case 'code':
+						label = token.text;
+						break;
+					case 'list':
+						label = token.items?.map(i => i.text).join(', ');
+						break;
+				}
+			} else {
+				label = token.label;
 			}
 			if (label) {
-				symbols.push({ label, ariaLabel: localize('symbolLabel', "{0} {1}", token.type, label), iconClass: token.type });
+				symbols.push({ info: label, label: localize('symbolLabel', "({0}) {1}", token.type, label), ariaLabel: localize('symbolLabelAria', "({0}) {1}", token.type, label) });
 			}
 		}
 		return symbols;
 	}
 
 	showSymbol(provider: IAccessibleContentProvider, symbol: IAccessibleViewSymbol): void {
-		const index = provider.provideContent().split('\n').findIndex(line => line.includes(symbol.label.split('\n')[0])) ?? -1;
-		if (index) {
+		const index = provider.provideContent().split('\n').findIndex(line => line.includes(symbol.info.split('\n')[0])) ?? -1;
+		if (index >= 0) {
 			this.show(provider);
 			this._editorWidget.revealLine(index + 1);
 			this._editorWidget.setSelection({ startLineNumber: index + 1, startColumn: 1, endLineNumber: index + 1, endColumn: 1 });
@@ -473,12 +484,12 @@ class AccessibleViewSymbolQuickPick {
 
 	}
 	show(provider: IAccessibleContentProvider): void {
-		if (provider.options.language !== 'markdown') {
-			return;
-		}
 		const quickPick = this._quickInputService.createQuickPick<IAccessibleViewSymbol>();
 		const picks = [];
 		const symbols = this._accessibleView.getSymbols();
+		if (!symbols) {
+			return;
+		}
 		for (const symbol of symbols) {
 			picks.push({
 				label: symbol.label,
@@ -489,11 +500,11 @@ class AccessibleViewSymbolQuickPick {
 		quickPick.items = symbols;
 		quickPick.show();
 		quickPick.onDidAccept(() => {
-			quickPick.hide();
 			this._accessibleView.showSymbol(provider, quickPick.selectedItems[0]);
 		});
 	}
 }
 
 interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
+	info: string;
 }
