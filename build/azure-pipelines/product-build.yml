@@ -496,9 +496,7 @@ stages:
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
     - stage: macOS
-      dependsOn:
-        - Compile
-        - CompileCLI
+      dependsOn: []
       pool:
         vmImage: macOS-11
       variables:
@@ -546,18 +544,18 @@ stages:
                   VSCODE_RUN_SMOKE_TESTS: true
 
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS, true)) }}:
-          - job: macOS
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: darwin/product-build-darwin.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: false
-                  VSCODE_RUN_INTEGRATION_TESTS: false
-                  VSCODE_RUN_SMOKE_TESTS: false
+          #- job: macOS
+          #  timeoutInMinutes: 90
+          #  variables:
+          #    VSCODE_ARCH: x64
+          #  steps:
+          #    - template: darwin/product-build-darwin.yml
+          #      parameters:
+          #        VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+          #        VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+          #        VSCODE_RUN_UNIT_TESTS: false
+          #        VSCODE_RUN_INTEGRATION_TESTS: false
+          #        VSCODE_RUN_SMOKE_TESTS: false
 
           - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
             - job: macOSTest
@@ -565,30 +563,30 @@ stages:
               variables:
                 VSCODE_ARCH: x64
               steps:
-                - template: darwin/product-build-darwin.yml
+                - template: darwin/product-build-darwin-test.yml
                   parameters:
                     VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                    #VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                     VSCODE_RUN_UNIT_TESTS: false
                     VSCODE_RUN_INTEGRATION_TESTS: false
-                    VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                    VSCODE_RUN_SMOKE_TESTS: false
 
-          - job: macOSSign
-            dependsOn:
-              - macOS
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: darwin/product-build-darwin-sign.yml
+          #- job: macOSSign
+          #  dependsOn:
+          #    - macOS
+          #  timeoutInMinutes: 90
+          #  variables:
+          #    VSCODE_ARCH: x64
+          #  steps:
+          #    - template: darwin/product-build-darwin-sign.yml
 
-          - job: macOSCLISign
-            timeoutInMinutes: 90
-            steps:
-              - template: darwin/product-build-darwin-cli-sign.yml
-                parameters:
-                  VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
-                  VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
+          #- job: macOSCLISign
+          #  timeoutInMinutes: 90
+          #  steps:
+          #    - template: darwin/product-build-darwin-cli-sign.yml
+          #      parameters:
+          #        VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
+          #        VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
 
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
           - job: macOSARM64

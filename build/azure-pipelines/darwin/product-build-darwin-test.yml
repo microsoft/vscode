@@ -9,11 +9,44 @@ parameters:
     type: boolean
 
 steps:
-  - script: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
-    env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Download Electron and Playwright
-    retryCountOnTaskFailure: 3
+  #- script: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+  #  env:
+  #    GITHUB_TOKEN: "$(github-distro-mixin-password)"
+  #  displayName: Download Electron and Playwright
+  #  retryCountOnTaskFailure: 3
+
+  - script: |
+      set -e
+      security default-keychain
+      security show-keychain-info ~/Library/Keychains/login.keychain-db
+      security dump-keychain ~/Library/Keychains/login.keychain-db
+    displayName: Show keychain information
+
+  - script: |
+      set -e
+      curl -LO https://az764295.vo.msecnd.net/insider/660393deaaa6d1996740ff4880f1bad43768c814/VSCode-darwin.zip
+      unzip -d /tmp VSCode-darwin.zip
+      rm -rf VSCode-darwin.zip
+      echo "Launching fist instance.."
+      /tmp/Visual\ Studio\ Code\ -\ Insiders.app/Contents/Resources/app/bin/code /Users/runner/work/1/s/package.json
+      sleep 60
+      /tmp/Visual\ Studio\ Code\ -\ Insiders.app/Contents/Resources/app/bin/code --status
+      echo "Exiting fist instance.."
+      killall Electron
+      rm -rf /tmp/Visual\ Studio\ Code\ -\ Insiders.app/
+      echo "Downloading Second version..."
+      curl -LO https://az764295.vo.msecnd.net/insider/6445d93c81ebe42c4cbd7a60712e0b17d9463e97/VSCode-darwin.zip
+      unzip -d /tmp VSCode-darwin.zip
+      rm -rf VSCode-darwin.zip
+      echo "Launching second instance.."
+      /tmp/Visual\ Studio\ Code\ -\ Insiders.app/Contents/Resources/app/bin/code /Users/runner/work/1/s/package.json
+      sleep 60
+      /tmp/Visual\ Studio\ Code\ -\ Insiders.app/Contents/Resources/app/bin/code --status
+      echo "Exiting second instance.."
+      killall Electron
+      rm -rf /tmp/Visual\ Studio\ Code\ -\ Insiders.app/
+    timeoutInMinutes: 20
+    displayName: Test different version launches
 
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -124,12 +157,6 @@ steps:
         displayName: Run smoke tests (Electron)
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          set -e
-          security default-keychain
-          security show-keychain-info ~/Library/Keychains/login.keychain-db
-        displayName: Show keychain information
-
       - script: |
           set -e
           APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
