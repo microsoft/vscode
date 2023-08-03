@@ -423,7 +423,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		tree.setInput(data).then(() => {
 			tree.layout();
-			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight + tree.contentHeight });
+			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
 		});
 
 		return {
