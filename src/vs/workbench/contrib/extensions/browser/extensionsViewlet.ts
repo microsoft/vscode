@@ -13,7 +13,6 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { Action } from 'vs/base/common/actions';
 import { append, $, Dimension, hide, show, DragAndDropObserver, trackFocus } from 'vs/base/browser/dom';
-import { PaneView } from 'vs/base/browser/ui/splitview/paneview';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
