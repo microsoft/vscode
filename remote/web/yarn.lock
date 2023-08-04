@@ -53,10 +53,10 @@ jschardet@3.0.0:
   resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-3.0.0.tgz#898d2332e45ebabbdb6bf2feece9feea9a99e882"
   integrity sha512-lJH6tJ77V8Nzd5QWRkFYCLc13a3vADkh3r/Fi8HupZGWk2OVVDfnZP8V/VgQgZ+lzW0kG2UGb5hFgt3V3ndotQ==
 
-tas-client-umd@0.1.6:
-  version "0.1.6"
-  resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.6.tgz#a0cf70a68f50d406773457630666224f0eb545a6"
-  integrity sha512-eOz5IK4cuNmSZI9QlqlT0FdvgfnnHDB6rjqleFaYAbzYE4RdJzYNiM28zFIXgmOVEgESvfabMFxG8WX5M4z3HA==
+tas-client-umd@0.1.8:
+  version "0.1.8"
+  resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.8.tgz#38bd32d49545417a0ea67fb618e646298e1b67cc"
+  integrity sha512-0jAAujLmjjGXf9PzrNpjOrr/6CTpSOp8jX80NOHK5nlOTWWpwaZ16EOyrPdHnm2bVfPHvT0/RAD0xyiQHGQvCQ==
 
 vscode-oniguruma@1.7.0:
   version "1.7.0"
@@ -68,27 +68,32 @@ vscode-textmate@9.0.0:
   resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-9.0.0.tgz#313c6c8792b0507aef35aeb81b6b370b37c44d6c"
   integrity sha512-Cl65diFGxz7gpwbav10HqiY/eVYTO1sjQpmRmV991Bj7wAoOAjGQ97PpQcXorDE2Uc4hnGWLY17xme+5t6MlSg==
 
-xterm-addon-canvas@0.4.0-beta.9:
-  version "0.4.0-beta.9"
-  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.4.0-beta.9.tgz#e570fa4592890f92cc86706f2bba0dd128a8641d"
-  integrity sha512-BWRVWyUW7NY2g4BBMm3ecPQvbdyKXFgABnpmh4m0TVHqFJMNeXdNuTc94KiDbE+cvw8jtAY9NC/OIM4HcgjAIQ==
+xterm-addon-canvas@0.5.0-beta.7:
+  version "0.5.0-beta.7"
+  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.5.0-beta.7.tgz#27a6753a0d8551248bffb15c29d5d88bf6b2a071"
+  integrity sha512-33a8kSR/uirSrtPkNiCO5MnRwuvR0hTvm1K+541XDsa9QS0VF0xPZoC4MEWHHXfSMzrTFgx1edpXqYOKc2yWtw==
 
-xterm-addon-search@0.11.0:
-  version "0.11.0"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.11.0.tgz#2a00ff7f9848f6140e7c4d1782486b0b18b06e0d"
-  integrity sha512-6U4uHXcQ7G5igsdaGqrJ9ehm7vep24bXqWxuy3AnIosXF2Z5uy2MvmYRyTGNembIqPV/x1YhBQ7uShtuqBHhOQ==
+xterm-addon-image@0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/xterm-addon-image/-/xterm-addon-image-0.5.0.tgz#3c9bb332a3de55ab200dbefd3411e3b0d985314f"
+  integrity sha512-bWXUBeDzhisYh0clVKx4JgQrZjpn+/QRMRwNsfnRpjCMhgmZ+SL3Bivktd7q03O4uKMMcAOe6bSmppwP9/um0Q==
+
+xterm-addon-search@0.13.0-beta.4:
+  version "0.13.0-beta.4"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.13.0-beta.4.tgz#a9817600cc0a71dee524d0f025e88e013f87f14a"
+  integrity sha512-A9Ps7iqGVUSphLCVrGYrfua1ADjtm9ff5CLs8cpiZnMK45X1FTIrXxEWvFccoiwtmZINEDJPGvbfIIqu8ZkXyg==
 
 xterm-addon-unicode11@0.5.0:
   version "0.5.0"
   resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.5.0.tgz#41c0d96acc1e3bb6c6596eee64e163b6bca74be7"
   integrity sha512-Jm4/g4QiTxiKiTbYICQgC791ubhIZyoIwxAIgOW8z8HWFNY+lwk+dwaKEaEeGBfM48Vk8fklsUW9u/PlenYEBg==
 
-xterm-addon-webgl@0.15.0-beta.8:
-  version "0.15.0-beta.8"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.15.0-beta.8.tgz#2005198582f6f1f4a9b2612b9354c0bcc9f148d8"
-  integrity sha512-HjTr9bi3FvdOIPaaIpih6qdHX2z+H7sQPluLj5KzwCqRiEVUVRi19dl8SdHjf6dCmN3GahMhjV7D+zxHi2pLTw==
+xterm-addon-webgl@0.16.0-beta.6:
+  version "0.16.0-beta.6"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.16.0-beta.6.tgz#5f8a598081a117dec15b4ead8160bf8e972fbfd0"
+  integrity sha512-bRFahQyVuiRmeakLzTrs3V3KSWBDOcePfT/Q7dwWfh8NPpilg6/Zm04ijq99Nsg1AYbfNWh+P05Myppa8uimCA==
 
-xterm@5.2.0-beta.35:
-  version "5.2.0-beta.35"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.2.0-beta.35.tgz#4a0c0aa81c89c42167c22d023648cced44fa3c25"
-  integrity sha512-6x6i61lucRrLWRKFeMO/ZOx5anvYR6FHpReLO2g0y1bp5zYWyZFzM6DepMV50729gubzxSLB8mvbmb9EpeIugQ==
+xterm@5.3.0-beta.24:
+  version "5.3.0-beta.24"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.3.0-beta.24.tgz#ba8762b66cba543de13c70eaa2e5e2687060c6b3"
+  integrity sha512-XMk54jwvWJKJVVBm0wh2SCUB9vnXzg872yAytEKlspEWim62nM1lMfYMI/yNjr5RhL3YtBNOR4ewE4ubfhUINA==

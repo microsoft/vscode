@@ -10,15 +10,15 @@ import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator } from 'vs/
 suite('EnvironmentVariable - deserializeEnvironmentVariableCollection', () => {
 	test('should construct correctly with 3 arguments', () => {
 		const c = deserializeEnvironmentVariableCollection([
-			['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace }],
-			['B', { value: 'b', type: EnvironmentVariableMutatorType.Append }],
-			['C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend }]
+			['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, variable: 'A' }],
+			['B', { value: 'b', type: EnvironmentVariableMutatorType.Append, variable: 'B' }],
+			['C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, variable: 'C' }]
 		]);
 		const keys = [...c.keys()];
 		deepStrictEqual(keys, ['A', 'B', 'C']);
-		deepStrictEqual(c.get('A'), { value: 'a', type: EnvironmentVariableMutatorType.Replace });
-		deepStrictEqual(c.get('B'), { value: 'b', type: EnvironmentVariableMutatorType.Append });
-		deepStrictEqual(c.get('C'), { value: 'c', type: EnvironmentVariableMutatorType.Prepend });
+		deepStrictEqual(c.get('A'), { value: 'a', type: EnvironmentVariableMutatorType.Replace, variable: 'A' });
+		deepStrictEqual(c.get('B'), { value: 'b', type: EnvironmentVariableMutatorType.Append, variable: 'B' });
+		deepStrictEqual(c.get('C'), { value: 'c', type: EnvironmentVariableMutatorType.Prepend, variable: 'C' });
 	});
 });
 
@@ -26,13 +26,13 @@ suite('EnvironmentVariable - serializeEnvironmentVariableCollection', () => {
 	test('should correctly serialize the object', () => {
 		const collection = new Map<string, IEnvironmentVariableMutator>();
 		deepStrictEqual(serializeEnvironmentVariableCollection(collection), []);
-		collection.set('A', { value: 'a', type: EnvironmentVariableMutatorType.Replace });
-		collection.set('B', { value: 'b', type: EnvironmentVariableMutatorType.Append });
-		collection.set('C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend });
+		collection.set('A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, variable: 'A' });
+		collection.set('B', { value: 'b', type: EnvironmentVariableMutatorType.Append, variable: 'B' });
+		collection.set('C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, variable: 'C' });
 		deepStrictEqual(serializeEnvironmentVariableCollection(collection), [
-			['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace }],
-			['B', { value: 'b', type: EnvironmentVariableMutatorType.Append }],
-			['C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend }]
+			['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, variable: 'A' }],
+			['B', { value: 'b', type: EnvironmentVariableMutatorType.Append, variable: 'B' }],
+			['C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, variable: 'C' }]
 		]);
 	});
 });

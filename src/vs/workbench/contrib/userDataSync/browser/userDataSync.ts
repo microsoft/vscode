@@ -504,6 +504,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						});
 						return;
 					case UserDataSyncErrorCode.Unauthorized:
+					case UserDataSyncErrorCode.Forbidden:
 						this.notificationService.error(localize('auth failed', "Error while turning on Settings Sync: Authentication failed."));
 						return;
 				}

@@ -22,7 +22,7 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILoggerService loggerService: ILoggerService
 	) {
-		super(false, loggerService);
+		super(loggerService);
 	}
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {

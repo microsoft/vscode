@@ -18,7 +18,7 @@ enum SpdLogLevel {
 }
 
 async function createSpdLogLogger(name: string, logfilePath: string, filesize: number, filecount: number, donotUseFormatters: boolean): Promise<spdlog.Logger | null> {
-	// Do not crash if @vscode/spdlog cannot be loaded
+	// Do not crash if spdlog cannot be loaded
 	try {
 		const _spdlog = await import('@vscode/spdlog');
 		_spdlog.setFlushOn(SpdLogLevel.Trace);

@@ -22,6 +22,12 @@ pub enum SocketSignal {
 	CloseWith(CloseReason),
 }
 
+impl From<Vec<u8>> for SocketSignal {
+	fn from(v: Vec<u8>) -> Self {
+		SocketSignal::Send(v)
+	}
+}
+
 impl SocketSignal {
 	pub fn from_message<T>(msg: &T) -> Self
 	where
@@ -32,6 +38,7 @@ impl SocketSignal {
 }
 
 /// todo@connor4312: cleanup once everything is moved to rpc standard interfaces
+#[allow(dead_code)]
 pub enum ServerMessageDestination {
 	Channel(mpsc::Sender<SocketSignal>),
 	Rpc(MsgPackCaller),

@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { IBoundarySashes, ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 import * as assert from 'vs/base/common/assert';
@@ -14,7 +15,9 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/diffEditor';
@@ -26,10 +29,11 @@ import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 import { IDiffLinesChange, InlineDiffMargin } from 'vs/editor/browser/widget/inlineDiffMargin';
 import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
-import { boolean as validateBooleanOption, clampedInt, EditorFontLigatures, EditorLayoutInfo, EditorOption, EditorOptions, IDiffEditorOptions, stringSet as validateStringSetOption, ValidDiffEditorBaseOptions } from 'vs/editor/common/config/editorOptions';
+import { clampedFloat, clampedInt, EditorFontLigatures, EditorLayoutInfo, EditorOption, EditorOptions, IDiffEditorOptions, boolean as validateBooleanOption, stringSet as validateStringSetOption, ValidDiffEditorBaseOptions } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -38,6 +42,7 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IChange, ICharChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ILineBreaksComputer } from 'vs/editor/common/modelLineProjectionData';
@@ -48,7 +53,7 @@ import { IEditorWhitespace, InlineDecoration, InlineDecorationType, IViewModel, 
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -57,7 +62,6 @@ import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/co
 import { defaultInsertColor, defaultRemoveColor, diffDiagonalFill, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { getThemeTypeSelector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
 
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
@@ -139,6 +143,7 @@ class VisualEditorState {
 			for (let i = 0, length = newDecorations.zones.length; i < length; i++) {
 				const viewZone = <editorBrowser.IViewZone>newDecorations.zones[i];
 				viewZone.suppressMouseDown = true;
+				viewZone.showInHiddenAreas = true;
 				const zoneId = viewChangeAccessor.addZone(viewZone);
 				this._zones.push(zoneId);
 				this._zonesMap[String(zoneId)] = true;
@@ -170,7 +175,7 @@ let DIFF_EDITOR_ID = 0;
 
 const diffInsertIcon = registerIcon('diff-insert', Codicon.add, nls.localize('diffInsertIcon', 'Line decoration for inserts in the diff editor.'));
 const diffRemoveIcon = registerIcon('diff-remove', Codicon.remove, nls.localize('diffRemoveIcon', 'Line decoration for removals in the diff editor.'));
-const ttPolicy = window.trustedTypes?.createPolicy('diffEditorWidget', { createHTML: value => value });
+export const diffEditorWidgetTtPolicy = createTrustedTypesPolicy('diffEditorWidget', { createHTML: value => value });
 
 const ariaNavigationTip = nls.localize('diff-aria-navigation-tip', ' use Shift + F7 to navigate changes');
 
@@ -238,6 +243,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private readonly _reviewPane: DiffReview;
 
+	private isEmbeddedDiffEditorKey: IContextKey<boolean>;
+
+	private _diffNavigator: DiffNavigator | undefined;
+
 	constructor(
 		domElement: HTMLElement,
 		options: Readonly<editorBrowser.IDiffEditorConstructionOptions>,
@@ -273,6 +282,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this._options = validateDiffEditorOptions(options, {
 			enableSplitViewResizing: true,
+			splitViewDefaultRatio: 0.5,
 			renderSideBySide: true,
 			renderMarginRevertIcon: true,
 			maxComputationTime: 5000,
@@ -283,15 +293,19 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			diffCodeLens: false,
 			renderOverviewRuler: true,
 			diffWordWrap: 'inherit',
-			diffAlgorithm: 'smart',
+			diffAlgorithm: 'advanced',
+			accessibilityVerbose: false,
+			experimental: {
+				collapseUnchangedRegions: false,
+			},
+			isInEmbeddedEditor: false,
+			onlyShowAccessibleDiffViewer: false,
+			renderSideBySideInlineBreakpoint: 0,
+			useInlineViewWhenSpaceIsLimited: false,
 		});
 
-		if (typeof options.isInEmbeddedEditor !== 'undefined') {
-			this._contextKeyService.createKey('isInEmbeddedDiffEditor', options.isInEmbeddedEditor);
-		} else {
-			this._contextKeyService.createKey('isInEmbeddedDiffEditor', false);
-		}
-
+		this.isEmbeddedDiffEditorKey = EditorContextKeys.isEmbeddedDiffEditor.bindTo(this._contextKeyService);
+		this.isEmbeddedDiffEditorKey.set(typeof options.isInEmbeddedEditor !== 'undefined' ? options.isInEmbeddedEditor : false);
 		this._updateDecorationsRunner = this._register(new RunOnceScheduler(() => this._updateDecorations(), 0));
 
 		this._containerDomElement = document.createElement('div');
@@ -364,7 +378,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._containerDomElement.appendChild(this._reviewPane.actionBarContainer.domNode);
 
 		if (this._options.renderSideBySide) {
-			this._setStrategy(new DiffEditorWidgetSideBySide(this._createDataSource(), this._options.enableSplitViewResizing));
+			this._setStrategy(new DiffEditorWidgetSideBySide(this._createDataSource(), this._options.enableSplitViewResizing, this._options.splitViewDefaultRatio));
 		} else {
 			this._setStrategy(new DiffEditorWidgetInline(this._createDataSource(), this._options.enableSplitViewResizing));
 		}
@@ -433,11 +447,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return dom.isAncestor(document.activeElement, this._domElement);
 	}
 
-	public diffReviewNext(): void {
+	public accessibleDiffViewerNext(): void {
 		this._reviewPane.next();
 	}
 
-	public diffReviewPrev(): void {
+	public accessibleDiffViewerPrev(): void {
 		this._reviewPane.prev();
 	}
 
@@ -774,6 +788,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const changed = changedDiffEditorOptions(this._options, newOptions);
 		this._options = newOptions;
 
+		this.isEmbeddedDiffEditorKey.set(typeof _newOptions.isInEmbeddedEditor !== 'undefined' ? _newOptions.isInEmbeddedEditor : false);
+
 		const beginUpdateDecorations = (changed.ignoreTrimWhitespace || changed.renderIndicators || changed.renderMarginRevertIcon);
 		const beginUpdateDecorationsSoon = (this._isVisible && (changed.maxComputationTime || changed.maxFileSize));
 		this._documentDiffProvider.setOptions(newOptions);
@@ -788,12 +804,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._originalEditor.updateOptions(this._adjustOptionsForLeftHandSide(_newOptions));
 
 		// enableSplitViewResizing
-		this._strategy.setEnableSplitViewResizing(this._options.enableSplitViewResizing);
+		this._strategy.setEnableSplitViewResizing(this._options.enableSplitViewResizing, this._options.splitViewDefaultRatio);
 
 		// renderSideBySide
 		if (changed.renderSideBySide) {
 			if (this._options.renderSideBySide) {
-				this._setStrategy(new DiffEditorWidgetSideBySide(this._createDataSource(), this._options.enableSplitViewResizing));
+				this._setStrategy(new DiffEditorWidgetSideBySide(this._createDataSource(), this._options.enableSplitViewResizing, this._options.splitViewDefaultRatio));
 			} else {
 				this._setStrategy(new DiffEditorWidgetInline(this._createDataSource(), this._options.enableSplitViewResizing));
 			}
@@ -818,7 +834,20 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		};
 	}
 
-	public setModel(model: editorCommon.IDiffEditorModel | null): void {
+	public createViewModel(model: editorCommon.IDiffEditorModel): editorCommon.IDiffEditorViewModel {
+		return {
+			model,
+			async waitForDiff() {
+				// noop
+			},
+		};
+	}
+
+	public setModel(model: editorCommon.IDiffEditorModel | editorCommon.IDiffEditorViewModel | null): void {
+		if (model && 'model' in model) {
+			model = model.model;
+		}
+
 		// Guard us against partial null model
 		if (model && (!model.original || !model.modified)) {
 			throw new Error(!model.original ? 'DiffEditorWidget.setModel: Original model is null' : 'DiffEditorWidget.setModel: Modified model is null');
@@ -856,11 +885,19 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._layoutOverviewViewport();
 
 		this._onDidChangeModel.fire();
+
+		// Diff navigator
+		this._diffNavigator = this._register(this._instantiationService.createInstance(DiffNavigator, this, {
+			alwaysRevealFirst: false,
+			findResultLoop: this.getModifiedEditor().getOption(EditorOption.find).loop
+		}));
 	}
 
 	public getContainerDomNode(): HTMLElement {
 		return this._domElement;
 	}
+
+	// #region editorBrowser.IDiffEditor: Delegating to modified Editor
 
 	public getVisibleColumnFromPosition(position: IPosition): number {
 		return this._modifiedEditor.getVisibleColumnFromPosition(position);
@@ -974,12 +1011,30 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._modifiedEditor.getSupportedActions();
 	}
 
+	public focus(): void {
+		this._modifiedEditor.focus();
+	}
+
+	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
+		this._modifiedEditor.trigger(source, handlerId, payload);
+	}
+
+	public createDecorationsCollection(decorations?: IModelDeltaDecoration[]): editorCommon.IEditorDecorationsCollection {
+		return this._modifiedEditor.createDecorationsCollection(decorations);
+	}
+
+	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
+		return this._modifiedEditor.changeDecorations(callback);
+	}
+
+	// #endregion
+
 	public saveViewState(): editorCommon.IDiffEditorViewState {
 		const originalViewState = this._originalEditor.saveViewState();
 		const modifiedViewState = this._modifiedEditor.saveViewState();
 		return {
 			original: originalViewState,
-			modified: modifiedViewState
+			modified: modifiedViewState,
 		};
 	}
 
@@ -995,9 +1050,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._elementSizeObserver.observe(dimension);
 	}
 
-	public focus(): void {
-		this._modifiedEditor.focus();
-	}
 
 	public hasTextFocus(): boolean {
 		return this._originalEditor.hasTextFocus() || this._modifiedEditor.hasTextFocus();
@@ -1017,18 +1069,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._modifiedEditor.onHide();
 		// Remove all view zones & decorations
 		this._cleanViewZonesAndDecorations();
-	}
-
-	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
-		this._modifiedEditor.trigger(source, handlerId, payload);
-	}
-
-	public createDecorationsCollection(decorations?: IModelDeltaDecoration[]): editorCommon.IEditorDecorationsCollection {
-		return this._modifiedEditor.createDecorationsCollection(decorations);
-	}
-
-	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
-		return this._modifiedEditor.changeDecorations(callback);
 	}
 
 	//------------ end IDiffEditor methods
@@ -1145,6 +1185,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._documentDiffProvider.computeDiff(currentOriginalModel, currentModifiedModel, {
 			ignoreTrimWhitespace: this._options.ignoreTrimWhitespace,
 			maxComputationTimeMs: this._options.maxComputationTime,
+			computeMoves: false,
 		}).then(result => {
 			if (currentToken === this._diffComputationToken
 				&& currentOriginalModel === this._originalEditor.getModel()
@@ -1154,6 +1195,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				this._diffComputationResult = {
 					identical: result.identical,
 					quitEarly: result.quitEarly,
+					changes2: result.changes,
 					changes: result.changes.map(m => {
 						// TODO don't do this translation, but use the diff result directly
 						let originalStartLineNumber: number;
@@ -1265,13 +1307,14 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			// never wrap hidden editor
 			result.wordWrapOverride1 = 'off';
 			result.wordWrapOverride2 = 'off';
+			result.stickyScroll = { enabled: false };
 		} else {
 			result.wordWrapOverride1 = this._options.diffWordWrap;
 		}
 		if (options.originalAriaLabel) {
 			result.ariaLabel = options.originalAriaLabel;
 		}
-		result.ariaLabel += ariaNavigationTip;
+		this._updateAriaLabel(result);
 		result.readOnly = !this._options.originalEditable;
 		result.dropIntoEditor = { enabled: !result.readOnly };
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
@@ -1284,12 +1327,22 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		};
 	}
 
+	private _updateAriaLabel(options: IEditorConstructionOptions): void {
+		let ariaLabel = options.ariaLabel ?? '';
+		if (this._options.accessibilityVerbose) {
+			ariaLabel += ariaNavigationTip;
+		} else if (ariaLabel) {
+			ariaLabel = ariaLabel.replaceAll(ariaNavigationTip, '');
+		}
+		options.ariaLabel = ariaLabel;
+	}
+
 	private _adjustOptionsForRightHandSide(options: Readonly<editorBrowser.IDiffEditorConstructionOptions>): IEditorConstructionOptions {
 		const result = this._adjustOptionsForSubEditor(options);
 		if (options.modifiedAriaLabel) {
 			result.ariaLabel = options.modifiedAriaLabel;
 		}
-		result.ariaLabel += ariaNavigationTip;
+		this._updateAriaLabel(result);
 		result.wordWrapOverride1 = this._options.diffWordWrap;
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
@@ -1318,7 +1371,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._originalDomNode.style.width = splitPoint + 'px';
 		this._originalDomNode.style.left = '0px';
 
-		this._modifiedDomNode.style.width = (width - splitPoint) + 'px';
+		this._modifiedDomNode.style.width = (width - splitPoint - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH) + 'px';
 		this._modifiedDomNode.style.left = splitPoint + 'px';
 
 		this._overviewDomElement.style.top = '0px';
@@ -1426,95 +1479,19 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._doLayout();
 	}
 
-	private _getLineChangeAtOrBeforeLineNumber(lineNumber: number, startLineNumberExtractor: (lineChange: ILineChange) => number): ILineChange | null {
-		const lineChanges = (this._diffComputationResult ? this._diffComputationResult.changes : []);
-		if (lineChanges.length === 0 || lineNumber < startLineNumberExtractor(lineChanges[0])) {
-			// There are no changes or `lineNumber` is before the first change
-			return null;
+	public goToDiff(target: 'previous' | 'next'): void {
+		if (target === 'next') {
+			this._diffNavigator?.next();
+		} else {
+			this._diffNavigator?.previous();
 		}
-
-		let min = 0;
-		let max = lineChanges.length - 1;
-		while (min < max) {
-			const mid = Math.floor((min + max) / 2);
-			const midStart = startLineNumberExtractor(lineChanges[mid]);
-			const midEnd = (mid + 1 <= max ? startLineNumberExtractor(lineChanges[mid + 1]) : Constants.MAX_SAFE_SMALL_INTEGER);
-
-			if (lineNumber < midStart) {
-				max = mid - 1;
-			} else if (lineNumber >= midEnd) {
-				min = mid + 1;
-			} else {
-				// HIT!
-				min = mid;
-				max = mid;
-			}
-		}
-		return lineChanges[min];
 	}
 
-	private _getEquivalentLineForOriginalLineNumber(lineNumber: number): number {
-		const lineChange = this._getLineChangeAtOrBeforeLineNumber(lineNumber, (lineChange) => lineChange.originalStartLineNumber);
-
-		if (!lineChange) {
-			return lineNumber;
+	public revealFirstDiff(): void {
+		// This is a hack, but it works.
+		if (this._diffNavigator) {
+			this._diffNavigator.revealFirst = true;
 		}
-
-		const originalEquivalentLineNumber = lineChange.originalStartLineNumber + (lineChange.originalEndLineNumber > 0 ? -1 : 0);
-		const modifiedEquivalentLineNumber = lineChange.modifiedStartLineNumber + (lineChange.modifiedEndLineNumber > 0 ? -1 : 0);
-		const lineChangeOriginalLength = (lineChange.originalEndLineNumber > 0 ? (lineChange.originalEndLineNumber - lineChange.originalStartLineNumber + 1) : 0);
-		const lineChangeModifiedLength = (lineChange.modifiedEndLineNumber > 0 ? (lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1) : 0);
-
-
-		const delta = lineNumber - originalEquivalentLineNumber;
-
-		if (delta <= lineChangeOriginalLength) {
-			return modifiedEquivalentLineNumber + Math.min(delta, lineChangeModifiedLength);
-		}
-
-		return modifiedEquivalentLineNumber + lineChangeModifiedLength - lineChangeOriginalLength + delta;
-	}
-
-	private _getEquivalentLineForModifiedLineNumber(lineNumber: number): number {
-		const lineChange = this._getLineChangeAtOrBeforeLineNumber(lineNumber, (lineChange) => lineChange.modifiedStartLineNumber);
-
-		if (!lineChange) {
-			return lineNumber;
-		}
-
-		const originalEquivalentLineNumber = lineChange.originalStartLineNumber + (lineChange.originalEndLineNumber > 0 ? -1 : 0);
-		const modifiedEquivalentLineNumber = lineChange.modifiedStartLineNumber + (lineChange.modifiedEndLineNumber > 0 ? -1 : 0);
-		const lineChangeOriginalLength = (lineChange.originalEndLineNumber > 0 ? (lineChange.originalEndLineNumber - lineChange.originalStartLineNumber + 1) : 0);
-		const lineChangeModifiedLength = (lineChange.modifiedEndLineNumber > 0 ? (lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1) : 0);
-
-
-		const delta = lineNumber - modifiedEquivalentLineNumber;
-
-		if (delta <= lineChangeModifiedLength) {
-			return originalEquivalentLineNumber + Math.min(delta, lineChangeOriginalLength);
-		}
-
-		return originalEquivalentLineNumber + lineChangeOriginalLength - lineChangeModifiedLength + delta;
-	}
-
-	public getDiffLineInformationForOriginal(lineNumber: number): editorBrowser.IDiffLineInformation | null {
-		if (!this._diffComputationResult) {
-			// Cannot answer that which I don't know
-			return null;
-		}
-		return {
-			equivalentLineNumber: this._getEquivalentLineForOriginalLineNumber(lineNumber)
-		};
-	}
-
-	public getDiffLineInformationForModified(lineNumber: number): editorBrowser.IDiffLineInformation | null {
-		if (!this._diffComputationResult) {
-			// Cannot answer that which I don't know
-			return null;
-		}
-		return {
-			equivalentLineNumber: this._getEquivalentLineForModifiedLineNumber(lineNumber)
-		};
 	}
 }
 
@@ -1583,7 +1560,7 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 	protected abstract _getOriginalEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations;
 	protected abstract _getModifiedEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, renderMarginRevertIcon: boolean): IEditorDiffDecorations;
 
-	public abstract setEnableSplitViewResizing(enableSplitViewResizing: boolean): void;
+	public abstract setEnableSplitViewResizing(enableSplitViewResizing: boolean, defaultRatio: number): void;
 	public abstract layout(): number;
 
 	setBoundarySashes(_sashes: IBoundarySashes): void {
@@ -1908,7 +1885,9 @@ const DECORATIONS = {
 
 	arrowRevertChange: ModelDecorationOptions.register({
 		description: 'diff-editor-arrow-revert-change',
+		glyphMarginHoverMessage: new MarkdownString(undefined, { isTrusted: true, supportThemeIcons: true }).appendMarkdown(nls.localize('revertChangeHoverMessage', 'Click to revert change')),
 		glyphMarginClassName: 'arrow-revert-change ' + ThemeIcon.asClassName(Codicon.arrowRight),
+		zIndex: 10001,
 	}),
 
 	charDelete: ModelDecorationOptions.register({
@@ -1972,14 +1951,16 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 
 	private _disableSash: boolean;
 	private readonly _sash: Sash;
+	private _defaultRatio: number;
 	private _sashRatio: number | null;
 	private _sashPosition: number | null;
 	private _startSashPosition: number | null;
 
-	constructor(dataSource: IDataSource, enableSplitViewResizing: boolean) {
+	constructor(dataSource: IDataSource, enableSplitViewResizing: boolean, defaultSashRatio: number) {
 		super(dataSource);
 
 		this._disableSash = (enableSplitViewResizing === false);
+		this._defaultRatio = defaultSashRatio;
 		this._sashRatio = null;
 		this._sashPosition = null;
 		this._startSashPosition = null;
@@ -1995,7 +1976,8 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 		this._sash.onDidReset(() => this._onSashReset());
 	}
 
-	public setEnableSplitViewResizing(enableSplitViewResizing: boolean): void {
+	public setEnableSplitViewResizing(enableSplitViewResizing: boolean, defaultRatio: number): void {
+		this._defaultRatio = defaultRatio;
 		const newDisableSash = (enableSplitViewResizing === false);
 		if (this._disableSash !== newDisableSash) {
 			this._disableSash = newDisableSash;
@@ -2003,12 +1985,12 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 		}
 	}
 
-	public layout(sashRatio: number | null = this._sashRatio): number {
+	public layout(sashRatio: number | null = this._sashRatio || this._defaultRatio): number {
 		const w = this._dataSource.getWidth();
 		const contentWidth = w - (this._dataSource.getOptions().renderOverviewRuler ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0);
 
-		let sashPosition = Math.floor((sashRatio || 0.5) * contentWidth);
-		const midPoint = Math.floor(0.5 * contentWidth);
+		let sashPosition = Math.floor((sashRatio || this._defaultRatio) * contentWidth);
+		const midPoint = Math.floor(this._defaultRatio * contentWidth);
 
 		sashPosition = this._disableSash ? midPoint : sashPosition || midPoint;
 
@@ -2051,7 +2033,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 	}
 
 	private _onSashReset(): void {
-		this._sashRatio = 0.5;
+		this._sashRatio = this._defaultRatio;
 		this._dataSource.relayoutEditors();
 		this._sash.layout();
 	}
@@ -2610,7 +2592,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			maxCharsPerLine += scrollBeyondLastColumn;
 
 			const html = sb.build();
-			const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
+			const trustedhtml = diffEditorWidgetTtPolicy ? diffEditorWidgetTtPolicy.createHTML(html) : html;
 			domNode.innerHTML = trustedhtml as string;
 			viewZone.minWidthInPx = (maxCharsPerLine * typicalHalfwidthCharacterWidth);
 
@@ -2747,6 +2729,7 @@ function getViewRange(model: ITextModel, viewModel: IViewModel, startLineNumber:
 function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaults: ValidDiffEditorBaseOptions): ValidDiffEditorBaseOptions {
 	return {
 		enableSplitViewResizing: validateBooleanOption(options.enableSplitViewResizing, defaults.enableSplitViewResizing),
+		splitViewDefaultRatio: clampedFloat(options.splitViewDefaultRatio, 0.5, 0.1, 0.9),
 		renderSideBySide: validateBooleanOption(options.renderSideBySide, defaults.renderSideBySide),
 		renderMarginRevertIcon: validateBooleanOption(options.renderMarginRevertIcon, defaults.renderMarginRevertIcon),
 		maxComputationTime: clampedInt(options.maxComputationTime, defaults.maxComputationTime, 0, Constants.MAX_SAFE_SMALL_INTEGER),
@@ -2757,7 +2740,15 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		diffCodeLens: validateBooleanOption(options.diffCodeLens, defaults.diffCodeLens),
 		renderOverviewRuler: validateBooleanOption(options.renderOverviewRuler, defaults.renderOverviewRuler),
 		diffWordWrap: validateDiffWordWrap(options.diffWordWrap, defaults.diffWordWrap),
-		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['smart', 'experimental']),
+		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced'], { 'smart': 'legacy', 'experimental': 'advanced' }),
+		accessibilityVerbose: validateBooleanOption(options.accessibilityVerbose, defaults.accessibilityVerbose),
+		experimental: {
+			collapseUnchangedRegions: false,
+		},
+		isInEmbeddedEditor: validateBooleanOption(options.isInEmbeddedEditor, defaults.isInEmbeddedEditor),
+		onlyShowAccessibleDiffViewer: false,
+		renderSideBySideInlineBreakpoint: 0,
+		useInlineViewWhenSpaceIsLimited: false,
 	};
 }
 
@@ -2775,6 +2766,7 @@ function changedDiffEditorOptions(a: ValidDiffEditorBaseOptions, b: ValidDiffEdi
 		renderOverviewRuler: (a.renderOverviewRuler !== b.renderOverviewRuler),
 		diffWordWrap: (a.diffWordWrap !== b.diffWordWrap),
 		diffAlgorithm: (a.diffAlgorithm !== b.diffAlgorithm),
+		accessibilityVerbose: (a.accessibilityVerbose !== b.accessibilityVerbose),
 	};
 }
 

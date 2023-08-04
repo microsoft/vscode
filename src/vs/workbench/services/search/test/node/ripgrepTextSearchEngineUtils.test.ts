@@ -317,6 +317,7 @@ suite('RipgrepTextSearchEngine', () => {
 				};
 				const expected = [
 					'--hidden',
+					'--no-require-git',
 					'--ignore-case',
 					...expectedFromIncludes,
 					'--no-ignore',

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::collections::HashMap;
+use std::{collections::HashMap, io::IsTerminal};
 
 use const_format::concatcp;
 use lazy_static::lazy_static;
@@ -18,7 +18,8 @@ pub const CONTROL_PORT: u16 = 31545;
 ///  2 - Addition of `serve.compressed` property to control whether servermsg's
 ///      are compressed bidirectionally.
 ///  3 - The server's connection token is set to a SHA256 hash of the tunnel ID
-pub const PROTOCOL_VERSION: u32 = 3;
+///  4 - The server's msgpack messages are no longer length-prefixed
+pub const PROTOCOL_VERSION: u32 = 4;
 
 /// Prefix for the tunnel tag that includes the version.
 pub const PROTOCOL_VERSION_TAG_PREFIX: &str = "protocolv";
@@ -33,6 +34,15 @@ pub const DOCUMENTATION_URL: Option<&'static str> = option_env!("VSCODE_CLI_DOCU
 pub const VSCODE_CLI_COMMIT: Option<&'static str> = option_env!("VSCODE_CLI_COMMIT");
 pub const VSCODE_CLI_UPDATE_ENDPOINT: Option<&'static str> =
 	option_env!("VSCODE_CLI_UPDATE_ENDPOINT");
+
+/// Windows lock name for the running tunnel service. Used by the setup script
+/// to detect a tunnel process. See #179265.
+pub const TUNNEL_SERVICE_LOCK_NAME: Option<&'static str> =
+	option_env!("VSCODE_CLI_TUNNEL_SERVICE_MUTEX");
+
+/// Windows lock name for the running tunnel without a service. Used by the setup
+/// script to detect a tunnel process. See #179265.
+pub const TUNNEL_CLI_LOCK_NAME: Option<&'static str> = option_env!("VSCODE_CLI_TUNNEL_CLI_MUTEX");
 
 pub const TUNNEL_SERVICE_USER_AGENT_ENV_VAR: &str = "TUNNEL_SERVICE_USER_AGENT";
 
@@ -65,6 +75,12 @@ pub const EDITOR_WEB_URL: Option<&'static str> = option_env!("VSCODE_CLI_EDITOR_
 pub const TUNNEL_ACTIVITY_NAME: &str = concatcp!(PRODUCT_NAME_LONG, " Tunnel");
 
 const NONINTERACTIVE_VAR: &str = "VSCODE_CLI_NONINTERACTIVE";
+
+/// Default data CLI data directory.
+pub const DEFAULT_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_DEFAULT_PARENT_DATA_DIR") {
+	Some(n) => n,
+	None => ".vscode-oss",
+};
 
 pub fn get_default_user_agent() -> String {
 	format!(
@@ -103,7 +119,7 @@ lazy_static! {
 		option_env!("VSCODE_CLI_SERVER_NAME_MAP").and_then(|s| serde_json::from_str(s).unwrap());
 
 	/// Whether i/o interactions are allowed in the current CLI.
-	pub static ref IS_A_TTY: bool = atty::is(atty::Stream::Stdin);
+	pub static ref IS_A_TTY: bool = std::io::stdin().is_terminal();
 
 	/// Whether i/o interactions are allowed in the current CLI.
 	pub static ref COLORS_ENABLED: bool = *IS_A_TTY && std::env::var(NO_COLOR_ENV).is_err();

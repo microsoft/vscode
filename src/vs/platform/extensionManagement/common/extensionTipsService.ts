@@ -17,7 +17,6 @@ import { Event } from 'vs/base/common/event';
 import { join } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { env } from 'vs/base/common/process';
-import { localize } from 'vs/nls';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
@@ -305,11 +304,10 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 
 	private async promptExeRecommendations(tips: IExecutableBasedExtensionTip[]): Promise<RecommendationsNotificationResult> {
 		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		const extensionIds = tips
+		const extensions = tips
 			.filter(tip => !tip.whenNotInstalled || tip.whenNotInstalled.every(id => installed.every(local => !areSameExtensions(local.identifier, { id }))))
 			.map(({ extensionId }) => extensionId.toLowerCase());
-		const message = localize({ key: 'exeRecommended', comment: ['Placeholder string is the name of the software that is installed.'] }, "You have {0} installed on your system. Do you want to install the recommended extensions for it?", tips[0].exeFriendlyName);
-		return this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`, RecommendationSource.EXE);
+		return this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification({ extensions, source: RecommendationSource.EXE, name: tips[0].exeFriendlyName, searchValue: `@exe:"${tips[0].exeName}"` });
 	}
 
 	private getLastPromptedMediumExeTime(): number {

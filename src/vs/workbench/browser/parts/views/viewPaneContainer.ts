@@ -577,9 +577,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		event.stopPropagation();
 		event.preventDefault();
 
-		const anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+			getAnchor: () => event,
 			getActions: () => this.menuActions?.getContextMenuActions() ?? []
 		});
 	}
@@ -734,7 +733,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	protected override saveState(): void {
 		this.panes.forEach((view) => view.saveState());
-		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private onContextMenu(event: StandardMouseEvent, viewPane: ViewPane): void {
@@ -743,9 +742,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		const actions: IAction[] = viewPane.menuActions.getContextMenuActions();
 
-		const anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+			getAnchor: () => event,
 			getActions: () => actions
 		});
 	}

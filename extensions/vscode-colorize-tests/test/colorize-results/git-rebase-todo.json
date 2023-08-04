@@ -8,9 +8,9 @@
 			"dark_vs": "support.function.git-rebase: #9CDCFE",
 			"light_vs": "support.function.git-rebase: #0451A5",
 			"hc_black": "support.function.git-rebase: #D4D4D4",
-			"dark_plus_experimental": "support.function.git-rebase: #9CDCFE",
+			"dark_modern": "support.function.git-rebase: #9CDCFE",
 			"hc_light": "support.function.git-rebase: #0451A5",
-			"light_plus_experimental": "support.function.git-rebase: #0451A5"
+			"light_modern": "support.function.git-rebase: #0451A5"
 		}
 	},
 	{
@@ -22,9 +22,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -36,9 +36,9 @@
 			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
 			"light_vs": "constant.sha.git-rebase: #098658",
 			"hc_black": "constant.sha.git-rebase: #B5CEA8",
-			"dark_plus_experimental": "constant.sha.git-rebase: #B5CEA8",
+			"dark_modern": "constant.sha.git-rebase: #B5CEA8",
 			"hc_light": "constant.sha.git-rebase: #096D48",
-			"light_plus_experimental": "constant.sha.git-rebase: #098658"
+			"light_modern": "constant.sha.git-rebase: #098658"
 		}
 	},
 	{
@@ -50,9 +50,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -64,9 +64,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -78,9 +78,9 @@
 			"dark_vs": "support.function.git-rebase: #9CDCFE",
 			"light_vs": "support.function.git-rebase: #0451A5",
 			"hc_black": "support.function.git-rebase: #D4D4D4",
-			"dark_plus_experimental": "support.function.git-rebase: #9CDCFE",
+			"dark_modern": "support.function.git-rebase: #9CDCFE",
 			"hc_light": "support.function.git-rebase: #0451A5",
-			"light_plus_experimental": "support.function.git-rebase: #0451A5"
+			"light_modern": "support.function.git-rebase: #0451A5"
 		}
 	},
 	{
@@ -92,9 +92,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -106,9 +106,9 @@
 			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
 			"light_vs": "constant.sha.git-rebase: #098658",
 			"hc_black": "constant.sha.git-rebase: #B5CEA8",
-			"dark_plus_experimental": "constant.sha.git-rebase: #B5CEA8",
+			"dark_modern": "constant.sha.git-rebase: #B5CEA8",
 			"hc_light": "constant.sha.git-rebase: #096D48",
-			"light_plus_experimental": "constant.sha.git-rebase: #098658"
+			"light_modern": "constant.sha.git-rebase: #098658"
 		}
 	},
 	{
@@ -120,9 +120,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -134,9 +134,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -148,9 +148,9 @@
 			"dark_vs": "support.function.git-rebase: #9CDCFE",
 			"light_vs": "support.function.git-rebase: #0451A5",
 			"hc_black": "support.function.git-rebase: #D4D4D4",
-			"dark_plus_experimental": "support.function.git-rebase: #9CDCFE",
+			"dark_modern": "support.function.git-rebase: #9CDCFE",
 			"hc_light": "support.function.git-rebase: #0451A5",
-			"light_plus_experimental": "support.function.git-rebase: #0451A5"
+			"light_modern": "support.function.git-rebase: #0451A5"
 		}
 	},
 	{
@@ -162,9 +162,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -176,9 +176,9 @@
 			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
 			"light_vs": "constant.sha.git-rebase: #098658",
 			"hc_black": "constant.sha.git-rebase: #B5CEA8",
-			"dark_plus_experimental": "constant.sha.git-rebase: #B5CEA8",
+			"dark_modern": "constant.sha.git-rebase: #B5CEA8",
 			"hc_light": "constant.sha.git-rebase: #096D48",
-			"light_plus_experimental": "constant.sha.git-rebase: #098658"
+			"light_modern": "constant.sha.git-rebase: #098658"
 		}
 	},
 	{
@@ -190,9 +190,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -204,9 +204,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -218,9 +218,9 @@
 			"dark_vs": "support.function.git-rebase: #9CDCFE",
 			"light_vs": "support.function.git-rebase: #0451A5",
 			"hc_black": "support.function.git-rebase: #D4D4D4",
-			"dark_plus_experimental": "support.function.git-rebase: #9CDCFE",
+			"dark_modern": "support.function.git-rebase: #9CDCFE",
 			"hc_light": "support.function.git-rebase: #0451A5",
-			"light_plus_experimental": "support.function.git-rebase: #0451A5"
+			"light_modern": "support.function.git-rebase: #0451A5"
 		}
 	},
 	{
@@ -232,9 +232,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -246,9 +246,9 @@
 			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
 			"light_vs": "constant.sha.git-rebase: #098658",
 			"hc_black": "constant.sha.git-rebase: #B5CEA8",
-			"dark_plus_experimental": "constant.sha.git-rebase: #B5CEA8",
+			"dark_modern": "constant.sha.git-rebase: #B5CEA8",
 			"hc_light": "constant.sha.git-rebase: #096D48",
-			"light_plus_experimental": "constant.sha.git-rebase: #098658"
+			"light_modern": "constant.sha.git-rebase: #098658"
 		}
 	},
 	{
@@ -260,9 +260,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -274,9 +274,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -288,9 +288,9 @@
 			"dark_vs": "support.function.git-rebase: #9CDCFE",
 			"light_vs": "support.function.git-rebase: #0451A5",
 			"hc_black": "support.function.git-rebase: #D4D4D4",
-			"dark_plus_experimental": "support.function.git-rebase: #9CDCFE",
+			"dark_modern": "support.function.git-rebase: #9CDCFE",
 			"hc_light": "support.function.git-rebase: #0451A5",
-			"light_plus_experimental": "support.function.git-rebase: #0451A5"
+			"light_modern": "support.function.git-rebase: #0451A5"
 		}
 	},
 	{
@@ -302,9 +302,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -316,9 +316,9 @@
 			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
 			"light_vs": "constant.sha.git-rebase: #098658",
 			"hc_black": "constant.sha.git-rebase: #B5CEA8",
-			"dark_plus_experimental": "constant.sha.git-rebase: #B5CEA8",
+			"dark_modern": "constant.sha.git-rebase: #B5CEA8",
 			"hc_light": "constant.sha.git-rebase: #096D48",
-			"light_plus_experimental": "constant.sha.git-rebase: #098658"
+			"light_modern": "constant.sha.git-rebase: #098658"
 		}
 	},
 	{
@@ -330,9 +330,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -344,9 +344,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -358,9 +358,9 @@
 			"dark_vs": "support.function.git-rebase: #9CDCFE",
 			"light_vs": "support.function.git-rebase: #0451A5",
 			"hc_black": "support.function.git-rebase: #D4D4D4",
-			"dark_plus_experimental": "support.function.git-rebase: #9CDCFE",
+			"dark_modern": "support.function.git-rebase: #9CDCFE",
 			"hc_light": "support.function.git-rebase: #0451A5",
-			"light_plus_experimental": "support.function.git-rebase: #0451A5"
+			"light_modern": "support.function.git-rebase: #0451A5"
 		}
 	},
 	{
@@ -372,9 +372,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -386,9 +386,9 @@
 			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
 			"light_vs": "constant.sha.git-rebase: #098658",
 			"hc_black": "constant.sha.git-rebase: #B5CEA8",
-			"dark_plus_experimental": "constant.sha.git-rebase: #B5CEA8",
+			"dark_modern": "constant.sha.git-rebase: #B5CEA8",
 			"hc_light": "constant.sha.git-rebase: #096D48",
-			"light_plus_experimental": "constant.sha.git-rebase: #098658"
+			"light_modern": "constant.sha.git-rebase: #098658"
 		}
 	},
 	{
@@ -400,9 +400,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -414,9 +414,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -428,9 +428,9 @@
 			"dark_vs": "support.function.git-rebase: #9CDCFE",
 			"light_vs": "support.function.git-rebase: #0451A5",
 			"hc_black": "support.function.git-rebase: #D4D4D4",
-			"dark_plus_experimental": "support.function.git-rebase: #9CDCFE",
+			"dark_modern": "support.function.git-rebase: #9CDCFE",
 			"hc_light": "support.function.git-rebase: #0451A5",
-			"light_plus_experimental": "support.function.git-rebase: #0451A5"
+			"light_modern": "support.function.git-rebase: #0451A5"
 		}
 	},
 	{
@@ -442,9 +442,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -456,9 +456,9 @@
 			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
 			"light_vs": "constant.sha.git-rebase: #098658",
 			"hc_black": "constant.sha.git-rebase: #B5CEA8",
-			"dark_plus_experimental": "constant.sha.git-rebase: #B5CEA8",
+			"dark_modern": "constant.sha.git-rebase: #B5CEA8",
 			"hc_light": "constant.sha.git-rebase: #096D48",
-			"light_plus_experimental": "constant.sha.git-rebase: #098658"
+			"light_modern": "constant.sha.git-rebase: #098658"
 		}
 	},
 	{
@@ -470,9 +470,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -484,9 +484,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -498,9 +498,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -512,9 +512,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -526,9 +526,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -540,9 +540,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -554,9 +554,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -568,9 +568,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -582,9 +582,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -596,9 +596,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -610,9 +610,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -624,9 +624,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -638,9 +638,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -652,9 +652,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -666,9 +666,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -680,9 +680,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	}
 ]

@@ -7,37 +7,23 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/158776
 
-	/**
-	 * Metadata about a registered {@linkcode DocumentRangeFormattingEditProvider}.
-	 */
-	export interface DocumentRangeFormattingEditProviderMetadata {
-		/**
-		 * `true` if the range formatting provider supports formatting multiple ranges at once.
-		 */
-		readonly canFormatMultipleRanges?: boolean;
-	}
-
-	export interface FormattingOptions2 {
-
-		/**
-		 * The list of multiple ranges to format at once, if the provider supports it.
-		 */
-		// TODO@API should this all ranges or all except for the first range?
-		// TODO@API needs a name that is more descriptive
-		ranges?: Range[];
-
-		[key: string]: boolean | number | string | undefined | object;
-	}
 
 	export interface DocumentRangeFormattingEditProvider {
-		provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions & FormattingOptions2, token: CancellationToken): ProviderResult<TextEdit[]>;
-	}
 
-	export namespace languages {
 		/**
+		 * Provide formatting edits for multiple ranges in a document.
 		 *
-		 * @param metadata Metadata about the provider.
+		 * The given ranges are hints and providers can decide to format a smaller
+		 * or larger range. Often this is done by adjusting the start and end
+		 * of the range to full syntax nodes.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param ranges The ranges which should be formatted.
+		 * @param options Options controlling formatting.
+		 * @param token A cancellation token.
+		 * @return A set of text edits or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		export function registerDocumentRangeFormattingEditProvider(selector: DocumentSelector, provider: DocumentRangeFormattingEditProvider, metadata?: DocumentRangeFormattingEditProviderMetadata): Disposable;
+		provideDocumentRangesFormattingEdits?(document: TextDocument, ranges: Range[], options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
 	}
 }

@@ -28,7 +28,6 @@ export interface IQuickPickItem {
 	type?: 'item';
 	id?: string;
 	label: string;
-	meta?: string;
 	ariaLabel?: string;
 	description?: string;
 	detail?: string;
@@ -40,6 +39,8 @@ export interface IQuickPickItem {
 	 */
 	keybinding?: ResolvedKeybinding;
 	iconClasses?: readonly string[];
+	iconPath?: { dark: URI; light?: URI };
+	iconClass?: string;
 	italic?: boolean;
 	strikethrough?: boolean;
 	highlights?: IQuickPickItemHighlights;
@@ -212,6 +213,11 @@ export interface IQuickInput extends IDisposable {
 
 	description: string | undefined;
 
+	/**
+	 * Should be an HTMLElement (TODO: move this entire file into browser)
+	 */
+	widget: any | undefined;
+
 	step: number | undefined;
 
 	totalSteps: number | undefined;
@@ -345,6 +351,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	validationMessage: string | undefined;
 
+	severity: Severity;
+
 	inputHasFocus(): boolean;
 
 	focusOnInput(): void;
@@ -355,6 +363,11 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 * be presented.
 	 */
 	hideInput: boolean;
+
+	/**
+	 * Allows to control if the count for the items should be shown
+	 */
+	hideCountBadge: boolean;
 
 	hideCheckAll: boolean;
 

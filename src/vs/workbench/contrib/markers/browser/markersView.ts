@@ -54,6 +54,7 @@ import { ResourceListDnDHandler } from 'vs/workbench/browser/dnd';
 import { ITableContextMenuEvent, ITableEvent } from 'vs/base/browser/ui/table/table';
 import { MarkersTable } from 'vs/workbench/contrib/markers/browser/markersTable';
 import { Markers, MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -138,7 +139,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 	) {
-		const panelState = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
+		const panelState = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		super({
 			...options,
 			filterOptions: {
@@ -177,6 +178,23 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.filters.excludedFiles && e.affectsConfiguration('files.exclude')) {
 				this.updateFilter();
+			}
+		}));
+	}
+
+	override render(): void {
+		super.render();
+		this._register(registerNavigableContainer({
+			focusNotifiers: [this, this.filterWidget],
+			focusNextWidget: () => {
+				if (this.filterWidget.hasFocus()) {
+					this.focus();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (!this.filterWidget.hasFocus()) {
+					this.focusFilter();
+				}
 			}
 		}));
 	}

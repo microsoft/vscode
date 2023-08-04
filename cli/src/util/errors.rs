@@ -259,18 +259,6 @@ impl std::fmt::Display for RefreshTokenNotAvailableError {
 }
 
 #[derive(Debug)]
-pub struct UnsupportedPlatformError();
-
-impl std::fmt::Display for UnsupportedPlatformError {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(
-			f,
-			"This operation is not supported on your current platform"
-		)
-	}
-}
-
-#[derive(Debug)]
 pub struct NoInstallInUserProvidedPath(pub String);
 
 impl std::fmt::Display for NoInstallInUserProvidedPath {
@@ -419,28 +407,6 @@ impl std::fmt::Display for OAuthError {
 	}
 }
 
-#[derive(Debug)]
-pub struct CommandFailed {
-	pub output: std::process::Output,
-	pub command: String,
-}
-
-impl std::fmt::Display for CommandFailed {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(
-			f,
-			"Failed to run command \"{}\" (code {}): {}",
-			self.command,
-			self.output.status,
-			String::from_utf8_lossy(if self.output.stderr.is_empty() {
-				&self.output.stdout
-			} else {
-				&self.output.stderr
-			})
-		)
-	}
-}
-
 // Makes an "AnyError" enum that contains any of the given errors, in the form
 // `enum AnyError { FooError(FooError) }` (when given `makeAnyError!(FooError)`).
 // Useful to easily deal with application error types without making tons of "From"
@@ -476,6 +442,26 @@ macro_rules! makeAnyError {
     };
 }
 
+#[derive(Debug)]
+pub struct DbusConnectFailedError(pub String);
+
+impl Display for DbusConnectFailedError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		let mut str = String::new();
+		str.push_str("Error creating dbus session. This command uses systemd for managing services, you should check that systemd is installed and under your user.");
+
+		if std::env::var("WSL_DISTRO_NAME").is_ok() {
+			str.push_str("\n\nTo enable systemd on WSL, check out: https://devblogs.microsoft.com/commandline/systemd-support-is-now-available-in-wsl/.\n\n");
+		}
+
+		str.push_str("If running `systemctl status` works, systemd is ok, but your session dbus may not be. You might need to:\n\n- Install the `dbus-user-session` package, and reboot if it was not installed\n- Start the user dbus session with `systemctl --user enable dbus --now`.\n\nThe error encountered was: ");
+		str.push_str(&self.0);
+		str.push('\n');
+
+		write!(f, "{}", str)
+	}
+}
+
 /// Internal errors in the VS Code CLI.
 /// Note: other error should be migrated to this type gradually
 #[derive(Error, Debug)]
@@ -494,6 +480,43 @@ pub enum CodeError {
 	NoRunningTunnel,
 	#[error("rpc call failed: {0:?}")]
 	TunnelRpcCallFailed(ResponseError),
+	#[cfg(windows)]
+	#[error("the windows app lock {0} already exists")]
+	AppAlreadyLocked(String),
+	#[cfg(windows)]
+	#[error("could not get windows app lock: {0:?}")]
+	AppLockFailed(std::io::Error),
+	#[error("failed to run command \"{command}\" (code {code}): {output}")]
+	CommandFailed {
+		command: String,
+		code: i32,
+		output: String,
+	},
+
+	#[error("platform not currently supported: {0}")]
+	UnsupportedPlatform(String),
+	#[error("This machine not meet {name}'s prerequisites, expected either...: {bullets}")]
+	PrerequisitesFailed { name: &'static str, bullets: String },
+	#[error("failed to spawn process: {0:?}")]
+	ProcessSpawnFailed(std::io::Error),
+	#[error("failed to handshake spawned process: {0:?}")]
+	ProcessSpawnHandshakeFailed(std::io::Error),
+	#[error("download appears corrupted, please retry ({0})")]
+	CorruptDownload(&'static str),
+	#[error("port forwarding is not available in this context")]
+	PortForwardingNotAvailable,
+	#[error("'auth' call required")]
+	ServerAuthRequired,
+	#[error("challenge not yet issued")]
+	AuthChallengeNotIssued,
+	#[error("challenge token is invalid")]
+	AuthChallengeBadToken,
+	#[error("unauthorized client refused")]
+	AuthMismatch,
+	#[error("keyring communication timed out after 5s")]
+	KeyringTimeout,
+	#[error("no host is connected to the tunnel relay")]
+	NoTunnelEndpoint,
 }
 
 makeAnyError!(
@@ -512,7 +535,6 @@ makeAnyError!(
 	ExtensionInstallFailed,
 	MismatchedLaunchModeError,
 	NoAttachedServerError,
-	UnsupportedPlatformError,
 	RefreshTokenNotAvailableError,
 	NoInstallInUserProvidedPath,
 	UserCancelledInstallation,
@@ -524,10 +546,10 @@ makeAnyError!(
 	UpdatesNotConfigured,
 	CorruptDownload,
 	MissingHomeDirectory,
-	CommandFailed,
 	OAuthError,
 	InvalidRpcDataError,
-	CodeError
+	CodeError,
+	DbusConnectFailedError
 );
 
 impl From<reqwest::Error> for AnyError {

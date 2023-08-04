@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { LineRangeMapping, MovedText } from 'vs/editor/common/diff/linesDiffComputer';
 import { ITextModel } from 'vs/editor/common/model';
 
 /**
@@ -28,7 +28,7 @@ export interface IDocumentDiffProvider {
  */
 export interface IDocumentDiffProviderOptions {
 	/**
-	 * When set to true, the diff should ignore whitespace changes.i
+	 * When set to true, the diff should ignore whitespace changes.
 	 */
 	ignoreTrimWhitespace: boolean;
 
@@ -36,6 +36,11 @@ export interface IDocumentDiffProviderOptions {
 	 * A diff computation should throw if it takes longer than this value.
 	 */
 	maxComputationTimeMs: number;
+
+	/**
+	 * If set, the diff computation should compute moves in addition to insertions and deletions.
+	 */
+	computeMoves: boolean;
 }
 
 /**
@@ -55,5 +60,11 @@ export interface IDocumentDiff {
 	/**
 	 * Maps all modified line ranges in the original to the corresponding line ranges in the modified text model.
 	 */
-	readonly changes: LineRangeMapping[];
+	readonly changes: readonly LineRangeMapping[];
+
+	/**
+	 * Sorted by original line ranges.
+	 * The original line ranges and the modified line ranges must be disjoint (but can be touching).
+	 */
+	readonly moves: readonly MovedText[];
 }

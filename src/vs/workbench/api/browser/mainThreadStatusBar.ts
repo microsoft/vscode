@@ -3,90 +3,67 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry, StatusbarAlignment, IStatusbarEntryPriority } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { MainThreadStatusBarShape, MainContext } from '../common/extHost.protocol';
+import { MainThreadStatusBarShape, MainContext, ExtHostContext, StatusBarItemDto } from '../common/extHost.protocol';
 import { ThemeColor } from 'vs/base/common/themables';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/languages';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { getCodiconAriaLabel } from 'vs/base/common/iconLabels';
-import { hash } from 'vs/base/common/hash';
+import { IExtensionStatusBarItemService, StatusBarUpdateKind } from 'vs/workbench/api/browser/statusBarExtensionPoint';
+import { IStatusbarEntry, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
-	private readonly entries: Map<number, { accessor: IStatusbarEntryAccessor; alignment: MainThreadStatusBarAlignment; priority: number }> = new Map();
+	private readonly _store = new DisposableStore();
 
 	constructor(
-		_extHostContext: IExtHostContext,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
-	) { }
+		extHostContext: IExtHostContext,
+		@IExtensionStatusBarItemService private readonly statusbarService: IExtensionStatusBarItemService
+	) {
+		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostStatusBar);
+
+		// once, at startup read existing items and send them over
+		const entries: StatusBarItemDto[] = [];
+		for (const [entryId, item] of statusbarService.getEntries()) {
+			entries.push(asDto(entryId, item));
+		}
+
+		proxy.$acceptStaticEntries(entries);
+
+		this._store.add(statusbarService.onDidChange(e => {
+			if (e.added) {
+				proxy.$acceptStaticEntries([asDto(e.added[0], e.added[1])]);
+			}
+		}));
+
+		function asDto(entryId: string, item: { entry: IStatusbarEntry; alignment: StatusbarAlignment; priority: number }): StatusBarItemDto {
+			return {
+				entryId,
+				name: item.entry.name,
+				text: item.entry.text,
+				tooltip: item.entry.tooltip as string | undefined,
+				command: typeof item.entry.command === 'string' ? item.entry.command : typeof item.entry.command === 'object' ? item.entry.command.id : undefined,
+				priority: item.priority,
+				alignLeft: item.alignment === StatusbarAlignment.LEFT,
+				accessibilityInformation: item.entry.ariaLabel ? { label: item.entry.ariaLabel, role: item.entry.role } : undefined
+			};
+		}
+	}
 
 	dispose(): void {
-		this.entries.forEach(entry => entry.accessor.dispose());
-		this.entries.clear();
+		this._store.dispose();
 	}
 
-	$setEntry(entryId: number, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation): void {
-		// if there are icons in the text use the tooltip for the aria label
-		let ariaLabel: string;
-		let role: string | undefined = undefined;
-		if (accessibilityInformation) {
-			ariaLabel = accessibilityInformation.label;
-			role = accessibilityInformation.role;
-		} else {
-			ariaLabel = getCodiconAriaLabel(text);
-			if (tooltip) {
-				const tooltipString = typeof tooltip === 'string' ? tooltip : tooltip.value;
-				ariaLabel += `, ${tooltipString}`;
-			}
-		}
-		const entry: IStatusbarEntry = { name, text, tooltip, command, color, backgroundColor, ariaLabel, role };
-
-		if (typeof priority === 'undefined') {
-			priority = 0;
-		}
-
-		const alignment = alignLeft ? StatusbarAlignment.LEFT : StatusbarAlignment.RIGHT;
-
-		// Reset existing entry if alignment or priority changed
-		let existingEntry = this.entries.get(entryId);
-		if (existingEntry && (existingEntry.alignment !== alignment || existingEntry.priority !== priority)) {
-			dispose(existingEntry.accessor);
-			this.entries.delete(entryId);
-			existingEntry = undefined;
-		}
-
-		// Create new entry if not existing
-		if (!existingEntry) {
-			let entryPriority: number | IStatusbarEntryPriority;
-			if (typeof extensionId === 'string') {
-				// We cannot enforce unique priorities across all extensions, so we
-				// use the extension identifier as a secondary sort key to reduce
-				// the likelyhood of collisions.
-				// See https://github.com/microsoft/vscode/issues/177835
-				// See https://github.com/microsoft/vscode/issues/123827
-				entryPriority = { primary: priority, secondary: hash(extensionId) };
-			} else {
-				entryPriority = priority;
-			}
-
-			this.entries.set(entryId, { accessor: this.statusbarService.addEntry(entry, id, alignment, entryPriority), alignment, priority });
-		}
-
-		// Otherwise update
-		else {
-			existingEntry.accessor.update(entry);
+	$setEntry(entryId: string, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void {
+		const kind = this.statusbarService.setOrUpdateEntry(entryId, id, extensionId, name, text, tooltip, command, color, backgroundColor, alignLeft, priority, accessibilityInformation);
+		if (kind === StatusBarUpdateKind.DidDefine) {
+			this._store.add(toDisposable(() => this.statusbarService.unsetEntry(entryId)));
 		}
 	}
 
-	$dispose(id: number) {
-		const entry = this.entries.get(id);
-		if (entry) {
-			dispose(entry.accessor);
-			this.entries.delete(id);
-		}
+	$disposeEntry(entryId: string) {
+		this.statusbarService.unsetEntry(entryId);
 	}
 }

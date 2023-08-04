@@ -210,6 +210,14 @@
 		"comment": "Thanks for creating this issue! We figured it's missing some basic information, such as a version number, or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
 	},
 	{
+		"type": "label",
+		"name": "~confirmation-needed",
+		"action": "updateLabels",
+		"addLabel": "info-needed",
+		"removeLabel": "~confirmation-needed",
+		"comment": "Please diagnose the root cause of the issue by running the command `F1 > Help: Troubleshoot Issue` and following the instructions. Once you have done that, please update the issue with the results.\n\nHappy Coding!"
+	},
+	{
 		"type": "comment",
 		"name": "a11ymas",
 		"allowUsers": [
@@ -466,6 +474,19 @@
 		"action": "comment",
 		"addLabel": "info-needed",
 		"comment": "Thanks for reporting this issue! Unfortunately, it's hard for us to understand what issue you're seeing. Please help us out by providing a screen recording showing exactly what isn't working as expected. While we can work with most standard formats, `.gif` files are preferred as they are displayed inline on GitHub. You may find https://gifcap.dev helpful as a browser-based gif recording tool.\n\nIf the issue depends on keyboard input, you can help us by enabling screencast mode for the recording (`Developer: Toggle Screencast Mode` in the command palette). Lastly, please attach this file via the GitHub web interface as emailed responses will strip files out from the issue.\n\nHappy coding!"
+	},
+	{
+		"type": "comment",
+		"name": "confirmPlease",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "comment",
+		"addLabel": "info-needed",
+		"comment": "Please perform the following **three tasks** to diagnose the root cause of the issue:\n\n* [ ] **1.) Disable Extensions**\n  * Select `View` and pick `Command Palette...`\n  * Run `Developer: Reload With Extensions Disabled`\n  * 👉 See if the issue reproduces\n\n* [ ] **2.) Disable Configuration**\n  * Select `View` and pick `Command Palette...`\n  * Run `Profiles: Create a Temporary Profile`\n  * 👉 See if the issue reproduces\n\n* [ ] **3.) Try VS Code Insiders**\n  * Download [VS Code Insiders](https://code.visualstudio.com/insiders/)\n  * Install and Run it\n  * 👉 See if the issue reproduces\n \nThen pick one of the three resolutions depending on which step has helped:\n\n<details>\n  <summary>Disabling my Extensions helped</summary>\n\nPlease run the command `Start Extension Bisect` and follow the instructions to find the extension that is causing this issue.\n\n<img width='631' alt='image' src='https://user-images.githubusercontent.com/900690/228760008-d5790ad1-74da-46a2-917f-e1bd26281ca8.png'>\n\nPlease report the issue to the extension causing this.\n</details>\n\n<details>\n  <summary>Disabling my configuration helped</summary>\nPlease report back more details about your configuration, including settings.\n</details>\n\n<details>\n  <summary>Using VS Code Insiders has helped</summary>\n✅ This likely means that the issue has been addressed already and will be available in an upcoming release. You can safely use VS Code Insiders until the new stable version is available.\n</details>"
 	},
 	{
 		"__comment__": "Allows folks on the team to label issues by commenting: `\\label My-Label` ",

@@ -7,7 +7,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
-import { ConfigurationMigrationWorkbenchContribution, workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchConfigurationWorkbenchContribution, workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -19,6 +19,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 
 	// Migration support
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ConfigurationMigrationWorkbenchContribution, LifecyclePhase.Eventually);
+
+	// Dynamic Configuration
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicWorkbenchConfigurationWorkbenchContribution, LifecyclePhase.Ready);
 
 	// Workbench
 	registry.registerConfiguration({
@@ -141,13 +144,26 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.tabSizing': {
 				'type': 'string',
-				'enum': ['fit', 'shrink'],
+				'enum': ['fit', 'shrink', 'fixed'],
 				'default': 'fit',
 				'enumDescriptions': [
 					localize('workbench.editor.tabSizing.fit', "Always keep tabs large enough to show the full editor label."),
-					localize('workbench.editor.tabSizing.shrink', "Allow tabs to get smaller when the available space is not enough to show all tabs at once.")
+					localize('workbench.editor.tabSizing.shrink', "Allow tabs to get smaller when the available space is not enough to show all tabs at once."),
+					localize('workbench.editor.tabSizing.fixed', "Make all tabs the same size, while allowing them to get smaller when the available space is not enough to show all tabs at once.")
 				],
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the size of editor tabs. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+			},
+			'workbench.editor.tabSizingFixedMinWidth': {
+				'type': 'number',
+				'default': 50,
+				'minimum': 38,
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabSizingFixedMinWidth' }, "Controls the minimum width of tabs when `#workbench.editor.tabSizing#` size is set to `fixed`.")
+			},
+			'workbench.editor.tabSizingFixedMaxWidth': {
+				'type': 'number',
+				'default': 160,
+				'minimum': 38,
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabSizingFixedMaxWidth' }, "Controls the maximum width of tabs when `#workbench.editor.tabSizing#` size is set to `fixed`.")
 			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',
@@ -158,17 +174,30 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.editor.pinnedTabSizing.compact', "A pinned tab will show in a compact form with only icon or first letter of the editor name."),
 					localize('workbench.editor.pinnedTabSizing.shrink', "A pinned tab shrinks to a compact fixed size showing parts of the editor name.")
 				],
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the sizing of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the size of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+			},
+			'workbench.editor.preventPinnedEditorClose': {
+				'type': 'string',
+				'enum': ['keyboardAndMouse', 'keyboard', 'mouse', 'never'],
+				'default': 'keyboardAndMouse',
+				'enumDescriptions': [
+					localize('workbench.editor.preventPinnedEditorClose.always', "Always prevent closing the pinned editor when using mouse middle click or keyboard."),
+					localize('workbench.editor.preventPinnedEditorClose.onlyKeyboard', "Prevent closing the pinned editor when using the keyboard."),
+					localize('workbench.editor.preventPinnedEditorClose.onlyMouse', "Prevent closing the pinned editor when using mouse middle click."),
+					localize('workbench.editor.preventPinnedEditorClose.never', "Never prevent closing a pinned editor.")
+				],
+				description: localize('workbench.editor.preventPinnedEditorClose', "Controls whether pinned editors should close when keyboard or middle mouse click is used for closing."),
 			},
 			'workbench.editor.splitSizing': {
 				'type': 'string',
-				'enum': ['distribute', 'split'],
-				'default': 'distribute',
+				'enum': ['auto', 'distribute', 'split'],
+				'default': 'auto',
 				'enumDescriptions': [
+					localize('workbench.editor.splitSizingAuto', "Splits the active editor group to equal parts, unless all editor groups are already in equal parts. In that case, splits all the editor groups to equal parts."),
 					localize('workbench.editor.splitSizingDistribute', "Splits all the editor groups to equal parts."),
 					localize('workbench.editor.splitSizingSplit', "Splits the active editor group to equal parts.")
 				],
-				'description': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'splitSizing' }, "Controls the sizing of editor groups when splitting them.")
+				'description': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'splitSizing' }, "Controls the size of editor groups when splitting them.")
 			},
 			'workbench.editor.splitOnDragAndDrop': {
 				'type': 'boolean',
@@ -177,7 +206,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.focusRecentEditorAfterClose': {
 				'type': 'boolean',
-				'description': localize('focusRecentEditorAfterClose', "Controls whether tabs are closed in most recently used order or from left to right."),
+				'description': localize('focusRecentEditorAfterClose', "Controls whether editors are closed in most recently used order or from left to right."),
 				'default': true
 			},
 			'workbench.editor.showIcons': {
@@ -274,6 +303,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('centeredLayoutDynamicWidth', "Controls whether the centered layout tries to maintain constant width when the window is resized.")
 			},
+			'workbench.editor.doubleClickTabToToggleEditorGroupSizes': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'doubleClickTabToToggleEditorGroupSizes' }, "Controls whether to maximize/restore the editor group when double clicking on a tab. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+			},
 			'workbench.editor.limit.enabled': {
 				'type': 'boolean',
 				'default': false,
@@ -317,7 +351,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.localHistory.exclude': {
 				'type': 'object',
-				'markdownDescription': localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files from the local file history. Changing this setting has no effect on existing local file history entries."),
+				'patternProperties': {
+					'.*': { 'type': 'boolean' }
+				},
+				'markdownDescription': localize('exclude', "Configure paths or [glob patterns](https://aka.ms/vscode-glob-patterns) for excluding files from the local file history. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths. Changing this setting has no effect on existing local file history entries."),
 				'scope': ConfigurationScope.RESOURCE
 			},
 			'workbench.localHistory.mergeWindow': {
@@ -340,8 +377,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.commandPalette.experimental.suggestCommands': {
 				'type': 'boolean',
+				tags: ['experimental'],
 				'description': localize('suggestCommands', "Controls whether the command palette should have a list of commonly used commands."),
 				'default': false
+			},
+			'workbench.commandPalette.experimental.useSemanticSimilarity': {
+				'type': 'boolean',
+				tags: ['experimental'],
+				'description': localize('useSemanticSimilarity', "Controls whether the command palette should include similar commands. You must have an extension installed that provides Semantic Similarity."),
+				'default': true
 			},
 			'workbench.quickOpen.closeOnFocusLost': {
 				'type': 'boolean',

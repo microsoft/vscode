@@ -39,7 +39,7 @@ export const VIEW_ID = 'workbench.explorer.fileView';
 export const ExplorerViewletVisibleContext = new RawContextKey<boolean>('explorerViewletVisible', true, { type: 'boolean', description: localize('explorerViewletVisible', "True when the EXPLORER viewlet is visible.") });
 export const FoldersViewVisibleContext = new RawContextKey<boolean>('foldersViewVisible', true, { type: 'boolean', description: localize('foldersViewVisible', "True when the FOLDERS view (the file tree within the explorer view container) is visible.") });
 export const ExplorerFolderContext = new RawContextKey<boolean>('explorerResourceIsFolder', false, { type: 'boolean', description: localize('explorerResourceIsFolder', "True when the focused item in the EXPLORER is a folder.") });
-export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>('explorerResourceReadonly', false, { type: 'boolean', description: localize('explorerResourceReadonly', "True when the focused item in the EXPLORER is readonly.") });
+export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>('explorerResourceReadonly', false, { type: 'boolean', description: localize('explorerResourceReadonly', "True when the focused item in the EXPLORER is read-only.") });
 export const ExplorerResourceNotReadonlyContext = ExplorerResourceReadonlyContext.toNegated();
 /**
  * Comma separated list of editor ids that can be used for the selected explorer resource.
@@ -49,7 +49,6 @@ export const ExplorerRootContext = new RawContextKey<boolean>('explorerResourceI
 export const ExplorerResourceCut = new RawContextKey<boolean>('explorerResourceCut', false, { type: 'boolean', description: localize('explorerResourceCut', "True when an item in the EXPLORER has been cut for cut and paste.") });
 export const ExplorerResourceMoveableToTrash = new RawContextKey<boolean>('explorerResourceMoveableToTrash', false, { type: 'boolean', description: localize('explorerResourceMoveableToTrash', "True when the focused item in the EXPLORER can be moved to trash.") });
 export const FilesExplorerFocusedContext = new RawContextKey<boolean>('filesExplorerFocus', true, { type: 'boolean', description: localize('filesExplorerFocus', "True when the focus is inside the EXPLORER view.") });
-export const OpenEditorsVisibleContext = new RawContextKey<boolean>('openEditorsVisible', false, { type: 'boolean', description: localize('openEditorsVisible', "True when the OPEN EDITORS view is visible.") });
 export const OpenEditorsFocusedContext = new RawContextKey<boolean>('openEditorsFocus', true, { type: 'boolean', description: localize('openEditorsFocus', "True when the focus is inside the OPEN EDITORS view.") });
 export const ExplorerFocusedContext = new RawContextKey<boolean>('explorerViewletFocus', true, { type: 'boolean', description: localize('explorerViewletFocus', "True when the focus is inside the EXPLORER viewlet.") });
 

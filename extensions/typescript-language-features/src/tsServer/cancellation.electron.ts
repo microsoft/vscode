@@ -22,7 +22,7 @@ export class NodeRequestCanceller implements OngoingRequestCanceller {
 		if (!this.cancellationPipeName) {
 			return false;
 		}
-		this._tracer.logTrace(this._serverId, `TypeScript Server: trying to cancel ongoing request with sequence number ${seq}`);
+		this._tracer.trace(this._serverId, `TypeScript Server: trying to cancel ongoing request with sequence number ${seq}`);
 		try {
 			fs.writeFileSync(this.cancellationPipeName + seq, '');
 		} catch {

@@ -9,6 +9,7 @@ const path = require('path');
 const moduleNames = [
 	'xterm',
 	'xterm-addon-canvas',
+	'xterm-addon-image',
 	'xterm-addon-search',
 	'xterm-addon-unicode11',
 	'xterm-addon-webgl'

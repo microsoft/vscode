@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n } from 'vscode';
-import { Branch, Status } from './api/git';
+import { Branch, RefType, Status } from './api/git';
 import { OperationKind } from './operation';
 import { CommitCommandsCenter } from './postCommitCommands';
 import { Repository } from './repository';
@@ -51,6 +51,7 @@ export class ActionButtonCommand {
 		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
 
+		this.disposables.push(repository.onDidChangeBranchProtection(() => this._onDidChange.fire()));
 		this.disposables.push(postCommitCommandCenter.onDidChange(() => this._onDidChange.fire()));
 
 		const root = Uri.file(repository.root);
@@ -61,8 +62,7 @@ export class ActionButtonCommand {
 				this.onDidChangeSmartCommitSettings();
 			}
 
-			if (e.affectsConfiguration('git.branchProtection', root) ||
-				e.affectsConfiguration('git.branchProtectionPrompt', root) ||
+			if (e.affectsConfiguration('git.branchProtectionPrompt', root) ||
 				e.affectsConfiguration('git.postCommitCommand', root) ||
 				e.affectsConfiguration('git.rememberPostCommitCommand', root) ||
 				e.affectsConfiguration('git.showActionButton', root)) {
@@ -126,7 +126,7 @@ export class ActionButtonCommand {
 		const commandGroups: Command[][] = [];
 		for (const commands of this.postCommitCommandCenter.getSecondaryCommands()) {
 			commandGroups.push(commands.map(c => {
-				return { command: 'git.commit', title: c.title, tooltip: c.tooltip, arguments: c.arguments };
+				return { command: c.command, title: c.title, tooltip: c.tooltip, arguments: c.arguments };
 			}));
 		}
 
@@ -138,7 +138,7 @@ export class ActionButtonCommand {
 		const showActionButton = config.get<{ publish: boolean }>('showActionButton', { publish: true });
 
 		// Not a branch (tag, detached), branch does have an upstream, commit/merge/rebase is in progress, or the button is disabled
-		if (!this.state.HEAD?.name || this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
+		if (this.state.HEAD?.type === RefType.Tag || !this.state.HEAD?.name || this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
 
 		// Button icon
 		const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(cloud-upload)';

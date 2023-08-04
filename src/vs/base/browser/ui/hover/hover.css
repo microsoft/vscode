@@ -7,10 +7,9 @@
 	cursor: default;
 	position: absolute;
 	overflow: hidden;
-	z-index: 50;
 	user-select: text;
 	-webkit-user-select: text;
-	box-sizing: initial;
+	box-sizing: border-box;
 	animation: fadein 100ms linear;
 	line-height: 1.5em;
 }
@@ -28,7 +27,7 @@
 }
 
 .monaco-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
-	max-width: 500px;
+	max-width: var(--hover-maxWidth, 500px);
 	word-wrap: break-word;
 }
 

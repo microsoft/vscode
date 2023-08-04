@@ -34,7 +34,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
@@ -47,6 +46,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
 import { isWeb } from 'vs/base/common/platform';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { securityConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { basename, dirname as uriDirname } from 'vs/base/common/resources';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
@@ -313,7 +314,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			const isSingleFolderWorkspace = isSingleFolderWorkspaceIdentifier(workspaceIdentifier);
 			const isEmptyWindow = isEmptyWorkspaceIdentifier(workspaceIdentifier);
 			if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
-				const { name } = splitName(splitName((workspaceIdentifier as ISingleFolderWorkspaceIdentifier).uri.fsPath).parentPath);
+				const name = basename(uriDirname((workspaceIdentifier as ISingleFolderWorkspaceIdentifier).uri));
 				checkboxText = localize('checkboxString', "Trust the authors of all files in the parent folder '{0}'", name);
 			}
 
@@ -690,11 +691,7 @@ registerAction2(class extends Action2 {
  */
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
-		id: 'security',
-		scope: ConfigurationScope.APPLICATION,
-		title: localize('securityConfigurationTitle', "Security"),
-		type: 'object',
-		order: 7,
+		...securityConfigurationNodeBase,
 		properties: {
 			[WORKSPACE_TRUST_ENABLED]: {
 				type: 'boolean',

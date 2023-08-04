@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, isEditorReplacement, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent } from 'vs/workbench/services/editor/common/editorService';
+import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct } from 'vs/base/common/arrays';
@@ -894,7 +894,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region save/revert
 
-	async save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> {
+	async save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<ISaveEditorsResult> {
 
 		// Convert to array
 		if (!Array.isArray(editors)) {
@@ -973,11 +973,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
-		return saveResults.every(result => !!result);
+		return {
+			success: saveResults.every(result => !!result),
+			editors: coalesce(saveResults)
+		};
 	}
 
-	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean> {
-		return this.save(this.getAllDirtyEditors(options), options);
+	saveAll(options?: ISaveAllEditorsOptions): Promise<ISaveEditorsResult> {
+		return this.save(this.getAllModifiedEditors(options), options);
 	}
 
 	async revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> {
@@ -1003,15 +1006,20 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	async revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> {
-		return this.revert(this.getAllDirtyEditors(options), options);
+		return this.revert(this.getAllModifiedEditors(options), options);
 	}
 
-	private getAllDirtyEditors(options?: IBaseSaveRevertAllEditorOptions): IEditorIdentifier[] {
+	private getAllModifiedEditors(options?: IBaseSaveRevertAllEditorOptions): IEditorIdentifier[] {
 		const editors: IEditorIdentifier[] = [];
 
 		for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-				if (!editor.isDirty()) {
+				if (!editor.isModified()) {
+					continue;
+				}
+
+				if ((typeof options?.includeUntitled === 'boolean' || !options?.includeUntitled?.includeScratchpad)
+					&& editor.hasCapability(EditorInputCapabilities.Scratchpad)) {
 					continue;
 				}
 

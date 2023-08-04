@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/eed5b817b757aab3695af437409fcbfdd37bbc59",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/30d04562e592305b6f6d41a539b3ccf326888aaf",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -1064,7 +1064,7 @@
 			]
 		},
 		{
-			"begin": "((?:\\s*)\\\\begin\\{([a-zA-Z]*code(?:\\*)?)\\}(?:\\[.*\\])?(?:\\{.*\\})?)",
+			"begin": "((?:\\s*)\\\\begin\\{([a-zA-Z]*code|lstlisting|minted|pyglist)(?:\\*)?\\}(?:\\[.*\\])?(?:\\{.*\\})?)",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -1205,16 +1205,32 @@
 					"name": "punctuation.definition.function.latex"
 				},
 				"3": {
-					"name": "punctuation.definition.arguments.begin.latex"
+					"patterns": [
+						{
+							"include": "#optional-arg"
+						}
+					]
 				},
 				"4": {
-					"name": "markup.underline.link.latex"
+					"name": "punctuation.definition.arguments.begin.latex"
 				},
 				"5": {
+					"name": "markup.underline.link.latex"
+				},
+				"6": {
+					"name": "punctuation.definition.arguments.end.latex"
+				},
+				"7": {
+					"name": "punctuation.definition.arguments.begin.latex"
+				},
+				"8": {
+					"name": "entity.name.hyperlink.latex"
+				},
+				"9": {
 					"name": "punctuation.definition.arguments.end.latex"
 				}
 			},
-			"match": "(?:\\s*)((\\\\)(?:url|href))(\\{)([^}]*)(\\})",
+			"match": "(?:\\s*)((\\\\)(?:url|href|hyperref|hyperimage))(\\[[^\\[]*?\\])?(\\{)([^}]*)(\\})(?:\\{[^}]*\\}){2}?(?:(\\{)([^}]*)(\\}))?",
 			"name": "meta.function.link.url.latex"
 		},
 		{
@@ -1321,7 +1337,7 @@
 			]
 		},
 		{
-			"begin": "(\\s*\\\\begin\\{(tabular[xy*]?|xltabular|longtable|(?:long)?tabu|(?:long|tall)?tblr|NiceTabular[X*]?)\\}(\\s*\\n)?)",
+			"begin": "(\\s*\\\\begin\\{(tabular[xy*]?|xltabular|longtable|(?:long)?tabu|(?:long|tall)?tblr|NiceTabular[X*]?|booktabs)\\}(\\s*\\n)?)",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -1737,7 +1753,7 @@
 					"match": "((%).*)$"
 				},
 				{
-					"match": "[\\p{Alphabetic}:.-]+",
+					"match": "[\\p{Alphabetic}\\p{Number}:.-]+",
 					"name": "constant.other.reference.citation.latex"
 				}
 			]
@@ -1764,7 +1780,7 @@
 			"name": "meta.citation.latex",
 			"patterns": [
 				{
-					"match": "[\\p{Alphabetic}:.]+",
+					"match": "[\\p{Alphabetic}\\p{Number}:.]+",
 					"name": "constant.other.reference.citation.latex"
 				}
 			]
@@ -2055,6 +2071,21 @@
 			]
 		},
 		{
+			"begin": "(?<!\\\\)(\\`\\`)",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.definition.string.begin.latex"
+				}
+			},
+			"end": "(?<!\\\\)(\\'\\'|\")",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.string.end.latex"
+				}
+			},
+			"name": "string.quoted.double.latex"
+		},
+		{
 			"begin": "\\$\\$",
 			"beginCaptures": {
 				"0": {
@@ -2250,7 +2281,7 @@
 							]
 						}
 					},
-					"match": "(?:(\\()[^\\)]*(\\))){0,2}(?:(\\[)[^\\]]*(\\])){0,2}(\\{)([\\p{Alphabetic}:.]+)(\\})(.*)"
+					"match": "(?:(\\()[^\\)]*(\\))){0,2}(?:(\\[)[^\\]]*(\\])){0,2}(\\{)([\\p{Alphabetic}\\p{Number}:.]+)(\\})(.*)"
 				}
 			]
 		},

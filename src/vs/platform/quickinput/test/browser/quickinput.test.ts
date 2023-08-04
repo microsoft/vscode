@@ -15,6 +15,7 @@ import { unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLab
 import { unthemedProgressBarOptions } from 'vs/base/browser/ui/progressbar/progressbar';
 import { QuickInputController } from 'vs/platform/quickinput/browser/quickInput';
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -46,7 +47,6 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			container: fixture,
 			idPrefix: 'testQuickInput',
 			ignoreFocusOut() { return true; },
-			isScreenReaderOptimized() { return false; },
 			returnFocus() { },
 			backKeybindingLabel() { return undefined; },
 			setContextKey() { return undefined; },
@@ -83,6 +83,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 					pickerGroupBorder: undefined,
 					pickerGroupForeground: undefined,
 				},
+				colorScheme: ColorScheme.DARK
 			}
 		});
 

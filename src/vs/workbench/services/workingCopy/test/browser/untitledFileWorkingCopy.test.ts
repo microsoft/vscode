@@ -102,6 +102,7 @@ suite('UntitledFileWorkingCopy', () => {
 			uri,
 			basename(uri),
 			hasAssociatedFilePath,
+			false,
 			initialValue.length > 0 ? { value: bufferToStream(VSBuffer.fromString(initialValue)) } : undefined,
 			factory,
 			async workingCopy => { await workingCopy.revert(); return true; },

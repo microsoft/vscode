@@ -9,7 +9,7 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/perl.tmbundle Syntaxes/Perl.plist ./syntaxes/perl.tmLanguage.json Syntaxes/Perl%206.tmLanguage ./syntaxes/perl6.tmLanguage.json"
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/perl.tmbundle Syntaxes/Perl.plist ./syntaxes/perl.tmLanguage.json Syntaxes/Perl%%206.tmLanguage ./syntaxes/perl6.tmLanguage.json"
   },
   "contributes": {
     "languages": [
@@ -50,7 +50,10 @@
       {
         "language": "perl",
         "scopeName": "source.perl",
-        "path": "./syntaxes/perl.tmLanguage.json"
+        "path": "./syntaxes/perl.tmLanguage.json",
+        "unbalancedBracketScopes": [
+          "variable.other.predefined.perl"
+        ]
       },
       {
         "language": "perl6",

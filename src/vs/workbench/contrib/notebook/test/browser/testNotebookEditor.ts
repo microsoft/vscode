@@ -53,7 +53,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { CellKind, CellUri, ICellDto2, INotebookDiffEditorModel, INotebookEditorModel, INotebookSearchOptions, IOutputDto, IResolvedNotebookEditorModel, NotebookCellExecutionState, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
@@ -87,6 +87,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 
 	readonly onDidChangeOrphaned = Event.None;
 	readonly onDidChangeReadonly = Event.None;
+	readonly onDidRevertUntitled = Event.None;
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
@@ -134,6 +135,14 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		return this._dirty;
 	}
 
+	get hasErrorState() {
+		return false;
+	}
+
+	isModified(): boolean {
+		return this._dirty;
+	}
+
 	getNotebook(): NotebookTextModel {
 		return this._notebook;
 	}
@@ -164,7 +173,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 }
 
 export function setupInstantiationService(disposables = new DisposableStore()) {
-	const instantiationService = new TestInstantiationService();
+	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(ILanguageService, disposables.add(new LanguageService()));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -201,7 +210,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	}), {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false });
 
 	const model = new NotebookEditorTestModel(notebook);
-	const notebookOptions = new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService));
+	const notebookOptions = new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false);
 	const viewContext = new ViewContext(notebookOptions, new NotebookEventDispatcher(), () => ({} as IBaseCellEditorOptions));
 	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null, { isReadOnly: false });
 
@@ -216,7 +225,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override notebookOptions = notebookOptions;
 		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
 		override onDidChangeCellState: Event<NotebookCellStateChangedEvent> = new Emitter<NotebookCellStateChangedEvent>().event;
-		override _getViewModel(): NotebookViewModel {
+		override getViewModel(): NotebookViewModel {
 			return viewModel;
 		}
 		override textModel = viewModel.notebookDocument;
@@ -281,6 +290,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override deltaCellDecorations() { return []; }
 		override onDidChangeVisibleRanges = Event.None;
 		override visibleRanges: ICellRange[] = [{ start: 0, end: 100 }];
+		override getId(): string { return ''; }
 	};
 
 	return { editor: notebookEditor, viewModel };
@@ -374,7 +384,7 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 		NotebookCellList,
 		'NotebookCellList',
 		DOM.$('container'),
-		viewContext ?? new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService)), new NotebookEventDispatcher(), () => ({} as IBaseCellEditorOptions)),
+		viewContext ?? new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false), new NotebookEventDispatcher(), () => ({} as IBaseCellEditorOptions)),
 		delegate,
 		[renderer],
 		instantiationService.get<IContextKeyService>(IContextKeyService),
@@ -419,7 +429,7 @@ class TestNotebookExecutionStateService implements INotebookExecutionStateServic
 
 	private _executions = new ResourceMap<INotebookCellExecution>();
 
-	onDidChangeCellExecution = new Emitter<ICellExecutionStateChangedEvent>().event;
+	onDidChangeExecution = new Emitter<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent>().event;
 	onDidChangeLastRunFailState = new Emitter<INotebookFailStateChangedEvent>().event;
 
 	forceCancelNotebookExecutions(notebookUri: URI): void {
@@ -446,5 +456,11 @@ class TestNotebookExecutionStateService implements INotebookExecutionStateServic
 
 	getLastFailedCellForNotebook(notebook: URI): number | undefined {
 		return;
+	}
+	getExecution(notebook: URI): INotebookExecution | undefined {
+		return;
+	}
+	createExecution(notebook: URI): INotebookExecution {
+		throw new Error('Method not implemented.');
 	}
 }

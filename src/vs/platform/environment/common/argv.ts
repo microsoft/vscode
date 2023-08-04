@@ -88,12 +88,12 @@ export interface NativeParsedArgs {
 	'install-source'?: string;
 	'disable-updates'?: boolean;
 	'disable-keytar'?: boolean;
+	'password-store'?: string;
 	'disable-workspace-trust'?: boolean;
 	'disable-crash-reporter'?: boolean;
 	'crash-reporter-directory'?: string;
 	'crash-reporter-id'?: string;
 	'skip-add-to-recently-opened'?: boolean;
-	'max-memory'?: string;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
 	'enable-smoke-test-driver'?: boolean;
@@ -110,6 +110,7 @@ export interface NativeParsedArgs {
 	'locate-shell-integration-path'?: string;
 	'profile'?: string;
 	'profile-temp'?: boolean;
+	'disable-chromium-sandbox'?: boolean;
 
 	'enable-coi'?: boolean;
 

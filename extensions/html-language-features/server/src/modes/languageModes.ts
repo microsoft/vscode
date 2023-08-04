@@ -37,9 +37,10 @@ export { ClientCapabilities, DocumentContext, LanguageService, HTMLDocument, HTM
 export { TextDocument } from 'vscode-languageserver-textdocument';
 
 export interface Settings {
-	css?: any;
-	html?: any;
-	javascript?: any;
+	readonly css?: any;
+	readonly html?: any;
+	readonly javascript?: any;
+	readonly 'js/ts'?: any;
 }
 
 export interface Workspace {

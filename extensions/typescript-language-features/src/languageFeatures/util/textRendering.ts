@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { OpenJsDocLinkCommand, OpenJsDocLinkCommand_Args } from '../../commands/openJsDocLink';
 import type * as Proto from '../../tsServer/protocol/protocol';
+import * as typeConverters from '../../typeConverters';
 
 export interface IFilePathToResourceConverter {
 	/**
@@ -47,9 +49,13 @@ function getTagBodyText(
 		return '```\n' + text + '\n```';
 	}
 
-	const text = convertLinkTags(tag.text, filePathConverter);
+	let text = convertLinkTags(tag.text, filePathConverter);
 	switch (tag.name) {
 		case 'example': {
+			// Example text does not support `{@link}` as it is considered code.
+			// TODO: should we support it if it appears outside of an explicit code block?
+			text = asPlainText(tag.text);
+
 			// check for caption tags, fix for #79704
 			const captionTagMatches = text.match(/<caption>(.*?)<\/caption>\s*(\r\n|\n)/);
 			if (captionTagMatches && captionTagMatches.index === 0) {
@@ -130,6 +136,13 @@ function getTagBody(tag: Proto.JSDocTagInfo, filePathConverter: IFilePathToResou
 	return (convertLinkTags(tag.text, filePathConverter)).split(/^(\S+)\s*-?\s*/);
 }
 
+function asPlainText(parts: readonly Proto.SymbolDisplayPart[] | string): string {
+	if (typeof parts === 'string') {
+		return parts;
+	}
+	return parts.map(part => part.text).join('');
+}
+
 export function asPlainTextWithLinks(
 	parts: readonly Proto.SymbolDisplayPart[] | string,
 	filePathConverter: IFilePathToResourceConverter,
@@ -160,23 +173,25 @@ function convertLinkTags(
 			case 'link':
 				if (currentLink) {
 					if (currentLink.target) {
-						const link = filePathConverter.toResource(currentLink.target.file)
-							.with({
-								fragment: `L${currentLink.target.start.line},${currentLink.target.start.offset}`
-							});
+						const file = filePathConverter.toResource(currentLink.target.file);
+						const args: OpenJsDocLinkCommand_Args = {
+							file: { ...file.toJSON(), $mid: undefined }, // Prevent VS Code from trying to transform the uri,
+							position: typeConverters.Position.fromLocation(currentLink.target.start)
+						};
+						const command = `command:${OpenJsDocLinkCommand.id}?${encodeURIComponent(JSON.stringify([args]))}`;
 
 						const linkText = currentLink.text ? currentLink.text : escapeMarkdownSyntaxTokensForCode(currentLink.name ?? '');
-						out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${link.toString()})`);
+						out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${command})`);
 					} else {
 						const text = currentLink.text ?? currentLink.name;
 						if (text) {
 							if (/^https?:/.test(text)) {
 								const parts = text.split(' ');
 								if (parts.length === 1) {
-									out.push(parts[0]);
+									out.push(`<${parts[0]}>`);
 								} else if (parts.length > 1) {
-									const linkText = escapeMarkdownSyntaxTokensForCode(parts.slice(1).join(' '));
-									out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${parts[0]})`);
+									const linkText = parts.slice(1).join(' ');
+									out.push(`[${currentLink.linkcode ? '`' + escapeMarkdownSyntaxTokensForCode(linkText) + '`' : linkText}](${parts[0]})`);
 								}
 							} else {
 								out.push(escapeMarkdownSyntaxTokensForCode(text));
@@ -213,7 +228,7 @@ function convertLinkTags(
 }
 
 function escapeMarkdownSyntaxTokensForCode(text: string): string {
-	return text.replace(/`/g, '\\$&');
+	return text.replace(/`/g, '\\$&'); // CodeQL [SM02383] This is only meant to escape backticks. The Markdown is fully sanitized after being rendered.
 }
 
 export function tagsToMarkdown(
@@ -232,6 +247,7 @@ export function documentationToMarkdown(
 	const out = new vscode.MarkdownString();
 	appendDocumentationAsMarkdown(out, documentation, tags, filePathConverter);
 	out.baseUri = baseUri;
+	out.isTrusted = { enabledCommands: [OpenJsDocLinkCommand.id] };
 	return out;
 }
 
@@ -251,5 +267,8 @@ export function appendDocumentationAsMarkdown(
 			out.appendMarkdown('\n\n' + tagsPreview);
 		}
 	}
+
+	out.isTrusted = { enabledCommands: [OpenJsDocLinkCommand.id] };
+
 	return out;
 }

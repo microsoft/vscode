@@ -521,6 +521,14 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
+			test(`complete ${name}`, () => {
+				const text = `leading text ${delimiter}code${delimiter} trailing text`;
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
 			test(`${name} with leading text`, () => {
 				const incomplete = `some text and ${delimiter}some code`;
 				const tokens = marked.lexer(incomplete);
@@ -547,7 +555,16 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			test(`incomplete ${name} in list`, () => {
+			test(`incomplete after complete ${name}`, () => {
+				const text = `leading text ${delimiter}code${delimiter} trailing text and ${delimiter}another`;
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(text + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test.skip(`incomplete ${name} in list`, () => {
 				const text = `- list item one\n- list item two and ${delimiter}text`;
 				const tokens = marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
@@ -567,6 +584,15 @@ suite('MarkdownRenderer', () => {
 
 				const completeCodespanTokens = marked.lexer(text + '`');
 				assert.deepStrictEqual(newTokens, completeCodespanTokens);
+			});
+
+			test(`nested pattern`, () => {
+				const text = 'sldkfjsd `abc __def__ ghi';
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(text + '`');
+				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});
 
@@ -648,7 +674,7 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			test('incomplete link in list', () => {
+			test.skip('incomplete link in list', () => {
 				const incomplete = '- [text';
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);

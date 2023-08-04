@@ -150,6 +150,7 @@ export interface IPatternInfo {
 
 export interface INotebookPatternInfo {
 	isInNotebookMarkdownInput?: boolean;
+	isInNotebookMarkdownPreview?: boolean;
 	isInNotebookCellInput?: boolean;
 	isInNotebookCellOutput?: boolean;
 }
@@ -187,6 +188,7 @@ export interface ITextSearchMatch {
 	uri?: URI;
 	ranges: ISearchRange | ISearchRange[];
 	preview: ITextSearchResultPreview;
+	webviewIndex?: number;
 }
 
 export interface ITextSearchContext {
@@ -280,9 +282,11 @@ export class FileMatch implements IFileMatch {
 export class TextSearchMatch implements ITextSearchMatch {
 	ranges: ISearchRange | ISearchRange[];
 	preview: ITextSearchResultPreview;
+	webviewIndex?: number;
 
-	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions) {
+	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions, webviewIndex?: number) {
 		this.ranges = range;
+		this.webviewIndex = webviewIndex;
 
 		// Trim preview if this is one match and a single-line match with a preview requested.
 		// Otherwise send the full text, like for replace or for showing multiple previews.
@@ -407,7 +411,7 @@ export interface ISearchConfigurationProperties {
 	};
 	defaultViewMode: ViewMode;
 	experimental: {
-		notebookSearch: boolean;
+		closedNotebookRichContentResults: boolean;
 	};
 }
 

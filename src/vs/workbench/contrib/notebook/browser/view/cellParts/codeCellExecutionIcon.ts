@@ -11,7 +11,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 interface IExecutionItem {
 	text: string;
@@ -30,8 +30,8 @@ export class CollapsedCodeCellExecutionIcon extends Disposable {
 		super();
 
 		this._update();
-		this._register(this._executionStateService.onDidChangeCellExecution(e => {
-			if (e.affectsCell(this._cell.uri)) {
+		this._register(this._executionStateService.onDidChangeExecution(e => {
+			if (e.type === NotebookExecutionType.cell && e.affectsCell(this._cell.uri)) {
 				this._update();
 			}
 		}));
