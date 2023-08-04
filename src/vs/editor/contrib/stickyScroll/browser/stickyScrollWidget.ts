@@ -42,6 +42,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _hoverOnColumn: number = -1;
 	private _minWidthInPixels: number = 0;
 	private _viewZoneId: string | undefined;
+	private _scrollableDomNode: HTMLElement;
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -58,13 +59,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._linesDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth - layoutInfo.contentLeft}px`;
 
 		// TODO: place later, horizontal: ScrollbarVisibility.Hidden,
-		this._scrollbar = this._register(new DomScrollableElement(this._linesDomNode, { vertical: ScrollbarVisibility.Hidden, handleMouseWheel: false }));
-		const scrollableDomNode = this._scrollbar.getDomNode();
-		scrollableDomNode.className = 'sticky-widget-scrollable';
+		this._scrollbar = this._register(new DomScrollableElement(this._linesDomNode, { vertical: ScrollbarVisibility.Hidden, handleMouseWheel: false, horizontalScrollbarSize: 0, horizontalSliderSize: 0 }));
+		this._scrollableDomNode = this._scrollbar.getDomNode();
+		this._scrollableDomNode.className = 'sticky-widget-scrollable';
 
 		this._rootDomNode.className = 'sticky-widget';
 		this._rootDomNode.appendChild(this._lineNumbersDomNode);
-		this._rootDomNode.appendChild(scrollableDomNode);
+		this._rootDomNode.appendChild(this._scrollableDomNode);
 
 		this._register(this._editor.onDidScrollChange((e) => {
 			this._scrollbar.scanDomNode();
@@ -202,6 +203,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				});
 			}
 		});
+
+		this._scrollableDomNode.style.height = this._linesDomNode.clientHeight + 'px';
 	}
 
 	private _renderChildNode(index: number, line: number): { lineNumberHTMLNode: HTMLSpanElement; lineHTMLNode: HTMLSpanElement } {
