@@ -174,28 +174,34 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._linesDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
 		}
 
+		// Don't want it to be at the top of the editor, should be behind the sticky widget if it has
+		// Non-zero height, then it should have the same height as the sticky widget or less
+
 		console.log('this._minWidthInPixels : ', this._minWidthInPixels);
 		console.log('maximumLength : ', maximumLength);
 
-		if (this._minWidthInPixels !== maximumLength) {
-			this._minWidthInPixels = maximumLength;
+		/* Adding a view zone */
 
-			/* Adding a view zone */
-			this._editor.changeViewZones((changeAccessor) => {
+		this._editor.changeViewZones((changeAccessor) => {
+			const bottomMostLine = this._editor.getVisibleRangesPlusViewportAboveBelow().pop()?.endLineNumber;
+			console.log('bottomMostLine : ', bottomMostLine);
+
+			if (bottomMostLine !== undefined && this._minWidthInPixels !== maximumLength) {
 				if (this._viewZoneId) {
 					changeAccessor.removeZone(this._viewZoneId);
 					this._viewZoneId = undefined;
 				}
-
 				const domNode = document.createElement('div');
+				this._minWidthInPixels = maximumLength;
 				this._viewZoneId = changeAccessor.addZone({
-					afterLineNumber: 0,
+					afterLineNumber: bottomMostLine,
+					suppressMouseDown: true,
 					showInHiddenAreas: true,
 					minWidthInPx: this._minWidthInPixels,
 					domNode,
 				});
-			});
-		}
+			}
+		});
 	}
 
 	private _renderChildNode(index: number, line: number): { lineNumberHTMLNode: HTMLSpanElement; lineHTMLNode: HTMLSpanElement } {
