@@ -40,8 +40,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lastLineRelativePosition: number = 0;
 	private _hoverOnLine: number = -1;
 	private _hoverOnColumn: number = -1;
-	// private _minWidthInPixels: number = 0;
-	// private _whiteSpaceId: string = '';
+	private _minWidthInPixels: number = 0;
+	private _viewZoneId: string | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -128,13 +128,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _renderRootNode(): void {
 
 		console.log('inside of _renderRootNode');
+
 		const viewModel = this._editor._getViewModel();
 		if (!viewModel) {
 			return;
 		}
-		// this._minWidthInPixels = 0;
-		let maximumLength = 0;
 
+		let maximumLength = 0;
 		const array = [];
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const { lineNumberHTMLNode, lineHTMLNode } = this._renderChildNode(index, line);
@@ -152,17 +152,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			node.style.width = maximumLength + 'px';
 		});
 
-		/* scrollbar issue, todo discuss with Alex
-		console.log('this._minWidthInPixels : ', this._minWidthInPixels);
-		viewModel.changeWhitespace((whitespaceAccessor) => {
-			const topLineOfViewport = this._editor.getVisibleRanges()[0].startLineNumber;
-			whitespaceAccessor.removeWhitespace(this._whiteSpaceId);
-			this._whiteSpaceId = whitespaceAccessor.insertWhitespace(topLineOfViewport, 1000, this._editor.getOption(EditorOption.lineHeight), this._minWidthInPixels);
-		});
-		*/
-
 		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
+
+		console.log('widgetHeight : ', widgetHeight);
 
 		const display = widgetHeight > 0 ? 'inline-block' : 'none';
 		this._lineNumbersDomNode.style.display = display;
@@ -179,6 +172,29 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (minimapSide === 'left') {
 			this._lineNumbersDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
 			this._linesDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
+		}
+
+		console.log('this._minWidthInPixels : ', this._minWidthInPixels);
+		console.log('maximumLength : ', maximumLength);
+
+		if (this._minWidthInPixels !== maximumLength) {
+			this._minWidthInPixels = maximumLength;
+
+			/* Adding a view zone */
+			this._editor.changeViewZones((changeAccessor) => {
+				if (this._viewZoneId) {
+					changeAccessor.removeZone(this._viewZoneId);
+					this._viewZoneId = undefined;
+				}
+
+				const domNode = document.createElement('div');
+				this._viewZoneId = changeAccessor.addZone({
+					afterLineNumber: 0,
+					showInHiddenAreas: true,
+					minWidthInPx: this._minWidthInPixels,
+					domNode,
+				});
+			});
 		}
 	}
 
@@ -271,12 +287,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.style.height = `${lineHeight}px`;
 		lineHTMLNode.style.position = 'absolute';
 		lineHTMLNode.style.width = '100%';
-
-		// if (lineHTMLNode.clientWidth > this._minWidthInPixels) {
-		// 	this._minWidthInPixels = lineHTMLNode.clientWidth;
-		// }
-
-
 
 		// Special case for the last line of sticky scroll
 		if (index === this._lineNumbers.length - 1) {
