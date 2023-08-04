@@ -30,6 +30,7 @@ const _ttPolicy = createTrustedTypesPolicy('stickyScrollViewLayer', { createHTML
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private readonly _rootDomNode: HTMLElement = document.createElement('div');
+	private readonly _scrollableLinesDomNode: HTMLElement;
 	private readonly _lineNumbersDomNode: HTMLElement = document.createElement('div');
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
 	private readonly _disposableStore = this._register(new DisposableStore());
@@ -38,9 +39,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lastLineRelativePosition: number = 0;
 	private _hoverOnLine: number = -1;
 	private _hoverOnColumn: number = -1;
+
+	private _bottomMostLine: number | undefined;
 	private _minWidthInPixels: number | undefined;
 	private _viewZoneId: string | undefined;
-	private _scrollableLinesDomNode: HTMLElement;
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -51,8 +53,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 		this._lineNumbersDomNode.className = 'sticky-widget-line-numbers';
 		this._lineNumbersDomNode.style.width = `${layoutInfo.contentLeft}px`;
+		this._lineNumbersDomNode.setAttribute('role', 'list');
+
 		this._linesDomNode.className = 'sticky-widget-lines';
 		this._linesDomNode.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth - layoutInfo.contentLeft}px`;
+		this._linesDomNode.setAttribute('role', 'list');
 
 		const scrollbar = this._register(new DomScrollableElement(this._linesDomNode, { vertical: ScrollbarVisibility.Hidden, horizontal: ScrollbarVisibility.Hidden, handleMouseWheel: false }));
 		this._scrollableLinesDomNode = scrollbar.getDomNode();
@@ -114,74 +119,77 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._renderRootNode();
 	}
 
-	private _renderRootNode(): void {
-
-		if (!this._editor._getViewModel()) {
-			return;
-		}
-
-		let maximumLength = 0;
-		const array = [];
+	private _renderLinesAndFindMaximumLineLength(): number {
+		let maxLength = 0;
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const { lineNumberHTMLNode, lineHTMLNode } = this._renderChildNode(index, line);
 			this._lineNumbersDomNode.appendChild(lineNumberHTMLNode);
 			this._linesDomNode.appendChild(lineHTMLNode);
-			array.push(lineHTMLNode);
-
-			if (lineHTMLNode.scrollWidth > maximumLength) {
-				maximumLength = lineHTMLNode.scrollWidth;
+			if (lineHTMLNode.scrollWidth > maxLength) {
+				maxLength = lineHTMLNode.scrollWidth;
 			}
 		}
+		return maxLength;
+	}
 
-		array.forEach(node => {
-			node.style.width = `${maximumLength}px`;
-		});
-
-		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
-
-		const display = widgetHeight > 0 ? 'inline-block' : 'none';
-		this._lineNumbersDomNode.style.display = display;
-		this._linesDomNode.style.display = display;
-
-		const height = `${widgetHeight.toString()}px`;
-		this._lineNumbersDomNode.style.height = height;
-		this._linesDomNode.style.height = height;
-
-		this._lineNumbersDomNode.setAttribute('role', 'list');
-		this._linesDomNode.setAttribute('role', 'list');
-		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
-
-		if (minimapSide === 'left') {
-			this._lineNumbersDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
-			this._linesDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
+	private _updateWidthOfHTMLCollection(collection: HTMLCollection, width: number) {
+		for (const child of collection) {
+			if (child instanceof HTMLElement) {
+				child.style.width = `${width}px`;
+			}
 		}
+	}
 
+	private _updateWidgetHeight(height: number) {
+		const heightPx = `${height}px`;
+		this._lineNumbersDomNode.style.height = heightPx;
+		this._linesDomNode.style.height = heightPx;
+		this._scrollableLinesDomNode.style.height = heightPx;
+	}
+
+	private _updateViewZone(minWidthInPixels: number): void {
 		this._editor.changeViewZones((changeAccessor) => {
 			const bottomMostLine = this._editor.getVisibleRangesPlusViewportAboveBelow().pop()?.endLineNumber;
-
-			if (bottomMostLine !== undefined && this._minWidthInPixels !== maximumLength) {
+			if (bottomMostLine !== undefined && this._bottomMostLine !== bottomMostLine && this._minWidthInPixels !== minWidthInPixels) {
 				if (this._viewZoneId) {
 					changeAccessor.removeZone(this._viewZoneId);
 					this._viewZoneId = undefined;
 				}
 				const domNode = document.createElement('div');
-				this._minWidthInPixels = maximumLength;
+				this._bottomMostLine = bottomMostLine;
+				this._minWidthInPixels = minWidthInPixels;
 				this._viewZoneId = changeAccessor.addZone({
 					afterLineNumber: bottomMostLine,
 					suppressMouseDown: true,
 					showInHiddenAreas: true,
-					minWidthInPx: this._minWidthInPixels + 50,
+					minWidthInPx: this._minWidthInPixels + 30,
 					domNode,
 				});
 			}
 		});
+	}
 
-		this._scrollableLinesDomNode.style.height = `${this._linesDomNode.clientHeight}px`;
+	private _renderRootNode(): void {
+
+		if (!this._editor._getViewModel()) {
+			return;
+		}
+		const maxLineLength = this._renderLinesAndFindMaximumLineLength();
+		this._updateWidthOfHTMLCollection(this._lineNumbersDomNode.children, maxLineLength);
+
+		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
+		this._rootDomNode.style.display = widgetHeight > 0 ? 'block' : 'none';
+		this._updateWidgetHeight(widgetHeight);
+		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
+
+		if (minimapSide === 'left') {
+			this._rootDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
+		}
+		this._updateViewZone(maxLineLength);
 	}
 
 	private _renderChildNode(index: number, line: number): { lineNumberHTMLNode: HTMLSpanElement; lineHTMLNode: HTMLSpanElement } {
-
 		const viewModel = this._editor._getViewModel();
 		const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
 		const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
