@@ -10,6 +10,7 @@ import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } 
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Lazy } from 'vs/base/common/lazy';
 
 export const ISecretStorageService = createDecorator<ISecretStorageService>('secretStorageService');
 
@@ -39,28 +40,24 @@ export class BaseSecretStorageService implements ISecretStorageService {
 
 	private readonly _onDidChangeValueDisposable = new DisposableStore();
 
-	protected resolvedStorageService = this.initialize();
-
 	constructor(
 		private readonly _useInMemoryStorage: boolean,
 		@IStorageService private _storageService: IStorageService,
 		@IEncryptionService protected _encryptionService: IEncryptionService,
-		@ILogService protected readonly _logService: ILogService
+		@ILogService protected readonly _logService: ILogService,
 	) { }
 
+	/**
+	 * @Note initialize must be called first so that this can be resolved properly
+	 * otherwise it will return 'unknown'.
+	 */
 	get type() {
 		return this._type;
 	}
 
-	private onDidChangeValue(key: string): void {
-		if (!key.startsWith(this._storagePrefix)) {
-			return;
-		}
-
-		const secretKey = key.slice(this._storagePrefix.length);
-
-		this._logService.trace(`[SecretStorageService] Notifying change in value for secret: ${secretKey}`);
-		this.onDidChangeSecretEmitter.fire(secretKey);
+	private _lazyStorageService: Lazy<Promise<IStorageService>> = new Lazy(() => this.initialize());
+	protected get resolvedStorageService() {
+		return this._lazyStorageService.value;
 	}
 
 	get(key: string): Promise<string | undefined> {
@@ -127,6 +124,7 @@ export class BaseSecretStorageService implements ISecretStorageService {
 	private async initialize(): Promise<IStorageService> {
 		let storageService;
 		if (!this._useInMemoryStorage && await this._encryptionService.isEncryptionAvailable()) {
+			this._logService.trace(`[SecretStorageService] Encryption is available, using persisted storage`);
 			this._type = 'persisted';
 			storageService = this._storageService;
 		} else {
@@ -147,7 +145,18 @@ export class BaseSecretStorageService implements ISecretStorageService {
 	}
 
 	protected reinitialize(): void {
-		this.resolvedStorageService = this.initialize();
+		this._lazyStorageService = new Lazy(() => this.initialize());
+	}
+
+	private onDidChangeValue(key: string): void {
+		if (!key.startsWith(this._storagePrefix)) {
+			return;
+		}
+
+		const secretKey = key.slice(this._storagePrefix.length);
+
+		this._logService.trace(`[SecretStorageService] Notifying change in value for secret: ${secretKey}`);
+		this.onDidChangeSecretEmitter.fire(secretKey);
 	}
 
 	private getKey(key: string): string {

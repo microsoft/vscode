@@ -555,6 +555,17 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 	private _getLabelWithCodeBlockCount(element: IChatResponseViewModel): string {
 		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.Chat);
 		let label: string = '';
+		let commandFollowUpInfo;
+		const commandFollowupLength = element.commandFollowups?.length ?? 0;
+		switch (commandFollowupLength) {
+			case 0:
+				break;
+			case 1:
+				commandFollowUpInfo = localize('commandFollowUpInfo', "Command: {0}", element.commandFollowups![0].title);
+				break;
+			default:
+				commandFollowUpInfo = localize('commandFollowUpInfoMany', "Commands: {0}", element.commandFollowups!.map(followup => followup.title).join(', '));
+		}
 		const codeBlockCount = marked.lexer(element.response.value).filter(token => token.type === 'code')?.length ?? 0;
 		switch (codeBlockCount) {
 			case 0:
@@ -567,7 +578,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 				label = accessibleViewHint ? localize('multiCodeBlockHint', "{0} code blocks: {1}", codeBlockCount, element.response.value, accessibleViewHint) : localize('multiCodeBlock', "{0} code blocks", codeBlockCount, element.response.value);
 				break;
 		}
-		return label;
+		return commandFollowUpInfo ? commandFollowUpInfo + ', ' + label : label;
 	}
 }
 

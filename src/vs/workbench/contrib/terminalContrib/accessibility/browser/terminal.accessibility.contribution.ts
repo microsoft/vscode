@@ -78,7 +78,7 @@ export class TerminalAccessibilityHelpContribution extends Disposable {
 				return;
 			}
 			accessibleViewService.show(instantiationService.createInstance(TerminalAccessibleContentProvider, instance, terminal));
-		}, TerminalContextKeys.focus));
+		}, ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.accessibleBufferFocus)));
 	}
 }
 registerTerminalContribution(TerminalAccessibilityHelpContribution.ID, TerminalAccessibilityHelpContribution);
