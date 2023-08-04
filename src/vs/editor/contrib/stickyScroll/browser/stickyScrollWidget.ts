@@ -121,8 +121,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private _renderRootNode(): void {
 
-		const viewModel = this._editor._getViewModel();
-		if (!viewModel) {
+		if (!this._editor._getViewModel()) {
 			return;
 		}
 
