@@ -124,6 +124,7 @@ export class BaseSecretStorageService implements ISecretStorageService {
 	private async initialize(): Promise<IStorageService> {
 		let storageService;
 		if (!this._useInMemoryStorage && await this._encryptionService.isEncryptionAvailable()) {
+			this._logService.trace(`[SecretStorageService] Encryption is available, using persisted storage`);
 			this._type = 'persisted';
 			storageService = this._storageService;
 		} else {

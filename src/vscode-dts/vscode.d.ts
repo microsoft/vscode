@@ -15980,7 +15980,7 @@ declare module 'vscode' {
 		 * @param id The unique identifier of the provider.
 		 * @param label The human-readable name of the provider.
 		 * @param provider The authentication provider provider.
-		 * @params options Additional options for the provider.
+		 * @param options Additional options for the provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerAuthenticationProvider(id: string, label: string, provider: AuthenticationProvider, options?: AuthenticationProviderOptions): Disposable;

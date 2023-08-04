@@ -43,7 +43,7 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 		this._sequencer.queue(key, async () => {
 			await this.resolvedStorageService;
 
-			if (this.type !== 'persisted') {
+			if (this.type !== 'persisted' && !this._environmentService.disableKeytar) {
 				this._logService.trace('[NativeSecretStorageService] Notifying user that secrets are not being stored on disk.');
 				await this.notifyOfNoEncryptionOnce();
 			}
