@@ -12,7 +12,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./stickyScroll';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
@@ -194,7 +194,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					afterLineNumber: bottomMostLine,
 					suppressMouseDown: true,
 					showInHiddenAreas: true,
-					minWidthInPx: this._minWidthInPixels,
+					minWidthInPx: this._minWidthInPixels + 100,
 					domNode,
 				});
 			}
