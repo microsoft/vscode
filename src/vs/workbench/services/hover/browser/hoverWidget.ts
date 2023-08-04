@@ -122,7 +122,6 @@ export class HoverWidget extends Widget {
 			const keybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel();
 			const hint = keybinding ? localize('chatAccessibleViewHint', "Inspect this in the accessible view with {0}", keybinding) : localize('chatAccessibleViewHintNoKb', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
 			this._hover.containerDomNode.ariaLabel = hint;
-			this._hover.contentsDomNode.ariaLabel = hint;
 		}
 		this._hoverPosition = options.hoverPosition ?? HoverPosition.ABOVE;
 
