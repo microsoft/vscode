@@ -69,8 +69,12 @@ export class ViewZoneManager extends Disposable {
 
 		this._register(this._editors.original.onDidChangeViewZones((_args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
 		this._register(this._editors.modified.onDidChangeViewZones((_args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
-		this._register(this._editors.original.onDidChangeConfiguration((args) => { if (args.hasChanged(EditorOption.wrappingInfo)) { updateImmediately.schedule(); } }));
-		this._register(this._editors.modified.onDidChangeConfiguration((args) => { if (args.hasChanged(EditorOption.wrappingInfo)) { updateImmediately.schedule(); } }));
+		this._register(this._editors.original.onDidChangeConfiguration((args) => {
+			if (args.hasChanged(EditorOption.wrappingInfo) || args.hasChanged(EditorOption.lineHeight)) { updateImmediately.schedule(); }
+		}));
+		this._register(this._editors.modified.onDidChangeConfiguration((args) => {
+			if (args.hasChanged(EditorOption.wrappingInfo) || args.hasChanged(EditorOption.lineHeight)) { updateImmediately.schedule(); }
+		}));
 
 		const originalModelTokenizationCompleted = this._diffModel.map(m =>
 			m ? observableFromEvent(m.model.original.onDidChangeTokens, () => m.model.original.tokenization.backgroundTokenizationState === BackgroundTokenizationState.Completed) : undefined
@@ -87,7 +91,14 @@ export class ViewZoneManager extends Disposable {
 			state.read(reader);
 			const renderSideBySide = this._options.renderSideBySide.read(reader);
 			const innerHunkAlignment = renderSideBySide;
-			return computeRangeAlignment(this._editors.original, this._editors.modified, diff.mappings, alignmentViewZoneIdsOrig, alignmentViewZoneIdsMod, innerHunkAlignment);
+			return computeRangeAlignment(
+				this._editors.original,
+				this._editors.modified,
+				diff.mappings,
+				alignmentViewZoneIdsOrig,
+				alignmentViewZoneIdsMod,
+				innerHunkAlignment
+			);
 		});
 
 		const alignmentsSyncedMovedText = derived<ILineRangeAlignment[] | null>((reader) => {
@@ -97,7 +108,14 @@ export class ViewZoneManager extends Disposable {
 			state.read(reader);
 			const mappings = syncedMovedText.changes.map(c => new DiffMapping(c));
 			// TODO dont include alignments outside syncedMovedText
-			return computeRangeAlignment(this._editors.original, this._editors.modified, mappings, alignmentViewZoneIdsOrig, alignmentViewZoneIdsMod, true);
+			return computeRangeAlignment(
+				this._editors.original,
+				this._editors.modified,
+				mappings,
+				alignmentViewZoneIdsOrig,
+				alignmentViewZoneIdsMod,
+				true
+			);
 		});
 
 		function createFakeLinesDiv(): HTMLElement {
