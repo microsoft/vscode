@@ -284,7 +284,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				} else {
 					divToUnfold.className = ThemeIcon.asClassName(foldingExpandedIcon);
 				}
-				divToUnfold.style.transition = 'opacity 1s ease-out';
+				divToUnfold.style.transition = 'opacity 250ms linear';
 				divToUnfold.style.opacity = '0';
 				divToUnfold.style.height = '0px';
 
@@ -304,7 +304,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					divToUnfold.style.width = '18px';
 				}));
 				this._disposableStore.add(dom.addDisposableListener(lineNumberHTMLNode, dom.EventType.MOUSE_OUT, () => {
-					divToUnfold.style.transition = 'opacity 150ms ease-out';
+					divToUnfold.style.transition = 'opacity 250ms linear';
 					divToUnfold.style.opacity = '0';
 					divToUnfold.style.height = '0px';
 				}));
