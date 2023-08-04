@@ -40,28 +40,29 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _hoverOnColumn: number = -1;
 	private _minWidthInPixels: number | undefined;
 	private _viewZoneId: string | undefined;
-	private _scrollableDomNode: HTMLElement;
+	private _scrollableLinesDomNode: HTMLElement;
 
 	constructor(
 		private readonly _editor: ICodeEditor
 	) {
 		super();
 
-		this._lineNumbersDomNode.className = 'sticky-widget-line-numbers';
 		const layoutInfo = this._editor.getOption(EditorOption.layoutInfo);
-		this._lineNumbersDomNode.style.width = `${layoutInfo.contentLeft}px`;
 
+		this._lineNumbersDomNode.className = 'sticky-widget-line-numbers';
+		this._lineNumbersDomNode.style.width = `${layoutInfo.contentLeft}px`;
 		this._linesDomNode.className = 'sticky-widget-lines';
-		this._linesDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._linesDomNode.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth - layoutInfo.contentLeft}px`;
 
 		const scrollbar = this._register(new DomScrollableElement(this._linesDomNode, { vertical: ScrollbarVisibility.Hidden, horizontal: ScrollbarVisibility.Hidden, handleMouseWheel: false }));
-		this._scrollableDomNode = scrollbar.getDomNode();
-		this._scrollableDomNode.className = 'sticky-widget-scrollable';
+		this._scrollableLinesDomNode = scrollbar.getDomNode();
+		this._scrollableLinesDomNode.className = 'sticky-widget-scrollable';
 
 		this._rootDomNode.className = 'sticky-widget';
+		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
+
 		this._rootDomNode.appendChild(this._lineNumbersDomNode);
-		this._rootDomNode.appendChild(this._scrollableDomNode);
+		this._rootDomNode.appendChild(this._scrollableLinesDomNode);
 
 		this._register(this._editor.onDidScrollChange((e) => {
 			scrollbar.scanDomNode();
@@ -182,7 +183,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			}
 		});
 
-		this._scrollableDomNode.style.height = `${this._linesDomNode.clientHeight}px`;
+		this._scrollableLinesDomNode.style.height = `${this._linesDomNode.clientHeight}px`;
 	}
 
 	private _renderChildNode(index: number, line: number): { lineNumberHTMLNode: HTMLSpanElement; lineHTMLNode: HTMLSpanElement } {

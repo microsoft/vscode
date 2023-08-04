@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .sticky-line-number {
-	background-color: var(--vscode-editorStickyScroll-background);
+	background-color: inherit;
 	color: var(--vscode-editorLineNumber-foreground);
 	overflow: hidden;
 	white-space: nowrap;
@@ -13,7 +13,7 @@
 }
 
 .monaco-editor .sticky-line-root {
-	background-color: var(--vscode-editorStickyScroll-background);
+	background-color: inherit;
 	white-space: nowrap;
 	width: 100%;
 }
@@ -29,6 +29,7 @@
 }
 
 .monaco-editor .sticky-widget-lines {
+	background-color: inherit;
 	position: relative;
 }
 
@@ -38,6 +39,7 @@
 }
 
 .monaco-editor .sticky-widget-scrollable {
+	background-color: inherit;
 	float: left;
 }
 
