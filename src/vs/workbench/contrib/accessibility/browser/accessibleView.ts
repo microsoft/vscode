@@ -501,6 +501,12 @@ class AccessibleViewSymbolQuickPick {
 		quickPick.onDidAccept(() => {
 			this._accessibleView.showSymbol(provider, quickPick.selectedItems[0]);
 		});
+		quickPick.onDidHide(() => {
+			if (quickPick.selectedItems.length === 0) {
+				// this was escaped, so refocus the accessible view
+				this._accessibleView.show(provider);
+			}
+		});
 	}
 }
 
