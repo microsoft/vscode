@@ -3,17 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .sticky-line-number {
-	background-color: inherit;
-	position: absolute;
+
+.monaco-editor.hc-black .sticky-widget,
+.monaco-editor.hc-light .sticky-widget {
+	border-bottom: 1px solid var(--vscode-contrastBorder);
 }
 
-.monaco-editor .sticky-line-number-inner {
-	color: var(--vscode-editorLineNumber-foreground);
-	overflow: hidden;
-	white-space: nowrap;
-	display: inline-block;
-	text-align: right;
+.monaco-editor .sticky-widget {
+	width: 100%;
+	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
+	z-index: 4;
+	background-color: var(--vscode-editorStickyScroll-background);
+}
+
+.monaco-editor .sticky-widget.peek {
+	background-color: var(--vscode-peekViewEditorStickyScroll-background);
+}
+
+.monaco-editor .sticky-widget-scrollable {
+	background-color: inherit;
+}
+
+.monaco-editor .sticky-widget-lines {
+	background-color: inherit;
+	position: relative;
+}
+
+.monaco-editor .sticky-widget-line-numbers {
+	background-color: inherit;
+	position: relative;
+	float: left;
 }
 
 .monaco-editor .sticky-line {
@@ -28,33 +47,15 @@
 	cursor: pointer;
 }
 
-.monaco-editor.hc-black .sticky-widget,
-.monaco-editor.hc-light .sticky-widget {
-	border-bottom: 1px solid var(--vscode-contrastBorder);
-}
-
-.monaco-editor .sticky-widget-lines {
+.monaco-editor .sticky-line-number {
 	background-color: inherit;
-	position: relative;
+	position: absolute;
 }
 
-.monaco-editor .sticky-widget-line-numbers {
-	background-color: inherit;
-	position: relative;
-	float: left;
-}
-
-.monaco-editor .sticky-widget-scrollable {
-	background-color: inherit;
-}
-
-.monaco-editor .sticky-widget {
-	width: 100%;
-	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
-	z-index: 4;
-	background-color: var(--vscode-editorStickyScroll-background);
-}
-
-.monaco-editor .sticky-widget.peek {
-	background-color: var(--vscode-peekViewEditorStickyScroll-background);
+.monaco-editor .sticky-line-number-inner {
+	color: var(--vscode-editorLineNumber-foreground);
+	overflow: hidden;
+	white-space: nowrap;
+	display: inline-block;
+	text-align: right;
 }
