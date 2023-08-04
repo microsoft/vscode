@@ -30,7 +30,6 @@ const _ttPolicy = createTrustedTypesPolicy('stickyScrollViewLayer', { createHTML
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private readonly _layoutInfo: EditorLayoutInfo;
-	private readonly _scrollbar: DomScrollableElement;
 	private readonly _rootDomNode: HTMLElement = document.createElement('div');
 	private readonly _lineNumbersDomNode: HTMLElement = document.createElement('div');
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
@@ -40,7 +39,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lastLineRelativePosition: number = 0;
 	private _hoverOnLine: number = -1;
 	private _hoverOnColumn: number = -1;
-	private _minWidthInPixels: number = 0;
+	private _minWidthInPixels: number | undefined;
 	private _viewZoneId: string | undefined;
 	private _scrollableDomNode: HTMLElement;
 
@@ -59,8 +58,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._linesDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth - layoutInfo.contentLeft}px`;
 
 		// TODO: place later, horizontal: ScrollbarVisibility.Hidden,
-		this._scrollbar = this._register(new DomScrollableElement(this._linesDomNode, { vertical: ScrollbarVisibility.Hidden, handleMouseWheel: false, horizontalScrollbarSize: 0, horizontalSliderSize: 0 }));
-		this._scrollableDomNode = this._scrollbar.getDomNode();
+		const scrollbar = this._register(new DomScrollableElement(this._linesDomNode, { vertical: ScrollbarVisibility.Hidden, handleMouseWheel: false, horizontalScrollbarSize: 0, horizontalSliderSize: 0 }));
+		this._scrollableDomNode = scrollbar.getDomNode();
 		this._scrollableDomNode.className = 'sticky-widget-scrollable';
 
 		this._rootDomNode.className = 'sticky-widget';
@@ -68,8 +67,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.appendChild(this._scrollableDomNode);
 
 		this._register(this._editor.onDidScrollChange((e) => {
-			this._scrollbar.scanDomNode();
-			this._scrollbar.setScrollPosition({ scrollLeft: e.scrollLeft });
+			scrollbar.scanDomNode();
+			scrollbar.setScrollPosition({ scrollLeft: e.scrollLeft });
 		}));
 		this._register(this._editor.onDidLayoutChange((e) => {
 			console.log('inside of on did layout change');
@@ -83,9 +82,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			console.log('lineNumbersWidth : ', lineNumbersWidth);
 			console.log('e.width - e.minimap.minimapCanvasOuterWidth - e.verticalScrollbarWidth - lineNumbersWidth : ', e.width - e.minimap.minimapCanvasOuterWidth - e.verticalScrollbarWidth - lineNumbersWidth);
 			this._linesDomNode.style.width = `${e.width - e.minimap.minimapCanvasOuterWidth - e.verticalScrollbarWidth - lineNumbersWidth}px`;
-			this._scrollbar.scanDomNode();
+			scrollbar.scanDomNode();
 		}));
-		this._scrollbar.scanDomNode();
+		scrollbar.scanDomNode();
 	}
 
 	get hoverOnLine(): number {
