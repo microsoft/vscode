@@ -169,6 +169,13 @@ steps:
       displayName: Install dependencies
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+  # Ref https://github.com/microsoft/vscode/issues/189019
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        cd node_modules/native-keymap && node-gyp rebuild --debug
+        cd ../.. && ./.github/workflows/check-clean-git-state.sh
+      displayName: Compile debug version of native-keymap
+
   - script: |
       set -e
       node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
