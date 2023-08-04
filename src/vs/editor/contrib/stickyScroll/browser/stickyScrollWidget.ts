@@ -9,6 +9,7 @@ import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./stickyScroll';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -18,6 +19,7 @@ import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
+import { foldingCollapsedIcon } from 'vs/editor/contrib/folding/browser/foldingDecorations';
 import { FoldingModel, toggleCollapseState } from 'vs/editor/contrib/folding/browser/foldingModel';
 
 export class StickyScrollWidgetState {
@@ -270,23 +272,23 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (foldingModel) {
 			const foldingRegions = foldingModel.regions;
 			const indexOfLine = foldingRegions.findRange(line);
-			console.log('indexOfLine : ', indexOfLine);
 			const startLineNumber = foldingRegions.getStartLineNumber(indexOfLine);
-			console.log('startLineNumber : ', startLineNumber);
 			const isFoldingLine = line === startLineNumber;
-			console.log('isFoldingLine ; ', isFoldingLine);
 
 			if (isFoldingLine) {
 				const divToUnfold = document.createElement('div');
-				divToUnfold.style.backgroundColor = 'red';
 				divToUnfold.style.height = '18px';
 				divToUnfold.style.width = '18px';
 				divToUnfold.style.float = 'right';
-				divToUnfold.className = 'unfold-icon';
+				divToUnfold.className = ThemeIcon.asClassName(foldingCollapsedIcon);
+				divToUnfold.classList.add('unfold-icon');
 				lineNumberHTMLNode.append(divToUnfold);
 
-				this._disposableStore.add(dom.addDisposableListener(divToUnfold, 'click', (e) => {
+				this._disposableStore.add(dom.addDisposableListener(divToUnfold, 'click', () => {
+					const scrollTop = this._editor.getTopForLineNumber(line) + 1;
 					toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
+					// there appears to be an error here, doesn't behave exactly as expected
+					this._editor.setScrollTop(scrollTop);
 				}));
 			}
 		}
