@@ -640,6 +640,10 @@ export class LineSequence implements ISequence {
 	getText(range: OffsetRange): string {
 		return this.lines.slice(range.start, range.endExclusive).join('\n');
 	}
+
+	isStronglyEqual(offset1: number, offset2: number): boolean {
+		return this.lines[offset1] === this.lines[offset2];
+	}
 }
 
 function getIndentation(str: string): number {
@@ -799,6 +803,10 @@ export class LinesSliceCharSequence implements ISequence {
 
 	public countLinesIn(range: OffsetRange): number {
 		return this.translateOffset(range.endExclusive).lineNumber - this.translateOffset(range.start).lineNumber;
+	}
+
+	isStronglyEqual(offset1: number, offset2: number): boolean {
+		return this.elements[offset1] === this.elements[offset2];
 	}
 }
 
