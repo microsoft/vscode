@@ -56,7 +56,7 @@ export class SettingsEditor {
 
 	async openUserSettingsUI(): Promise<void> {
 		await this.quickaccess.runCommand('workbench.action.openSettings2');
-		await this.code.waitForElement('.settings-group-title-label');
+		await this.code.waitForElement('.settings-editor');
 	}
 
 	async searchSettingsUI(query: string): Promise<void> {
