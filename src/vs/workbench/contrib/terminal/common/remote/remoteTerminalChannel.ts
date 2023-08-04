@@ -308,8 +308,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		return this._channel.call<ITerminalsLayoutInfo>('$getTerminalLayoutInfo', args);
 	}
 
-	reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void> {
-		return this._channel.call(RemoteTerminalChannelRequest.ReviveTerminalProcesses, [state, dateTimeFormatLocate]);
+	reviveTerminalProcesses(workspaceId: string, state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.ReviveTerminalProcesses, [workspaceId, state, dateTimeFormatLocate]);
 	}
 
 	getRevivedPtyNewId(id: number): Promise<number | undefined> {

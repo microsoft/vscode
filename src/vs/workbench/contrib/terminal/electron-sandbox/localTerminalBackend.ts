@@ -378,10 +378,6 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return env;
 	}
 
-	private _getWorkspaceId(): string {
-		return this._workspaceContextService.getWorkspace().id;
-	}
-
 	private _getWorkspaceName(): string {
 		return this._labelService.getWorkspaceLabel(this._workspaceContextService.getWorkspace());
 	}
