@@ -39,13 +39,13 @@
 }
 
 .monaco-editor .sticky-widget-line-numbers {
+	background-color: inherit;
 	position: relative;
 	float: left;
 }
 
 .monaco-editor .sticky-widget-scrollable {
 	background-color: inherit;
-	float: left;
 }
 
 .monaco-editor .sticky-widget {
