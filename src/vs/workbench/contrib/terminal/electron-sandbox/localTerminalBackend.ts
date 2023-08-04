@@ -92,7 +92,11 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	) {
 		super(_localPtyService, logService, historyService, _configurationResolverService, statusBarService, workspaceContextService);
 
-		this.onPtyHostRestart(() => this._connectToDirectProxy());
+		this.onPtyHostRestart(() => {
+			this._directProxy = undefined;
+			this._directProxyClientEventually = undefined;
+			this._connectToDirectProxy();
+		});
 	}
 
 	/**
