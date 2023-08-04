@@ -304,7 +304,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					// TODO: Likely a more complicated mathematical equation that involves finding the position given the new number of lines in the sticky widget
 					// there appears to be an error here, doesn't behave exactly as expected
 					// TODO: continuous rerendering of the arrow, which need not be rerendered if already in the right collapsed state
-					const newHeight = scrollTop - (collapsed ? 0 : 18);
+					const newHeight = scrollTop; // - (collapsed ? 0 : 18);
 					console.log('newHeight : ', newHeight);
 					this._editor.setScrollTop(newHeight);
 				}));
