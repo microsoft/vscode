@@ -258,7 +258,7 @@
 			]
 		},
 		"class": {
-			"begin": "(?=\\w?[\\w\\s]*(?:class|(?:@)?interface|enum)\\s+\\w+)",
+			"begin": "(?=\\w?[\\w\\s]*(?:class|(?:@)?interface|enum|trait|record)\\s+\\w+)",
 			"end": "}",
 			"endCaptures": {
 				"0": {
@@ -1284,7 +1284,7 @@
 		"types": {
 			"patterns": [
 				{
-					"match": "\\b(def)\\b",
+					"match": "\\b(def|var)\\b",
 					"name": "storage.type.def.groovy"
 				},
 				{
