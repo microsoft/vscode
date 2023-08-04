@@ -12,6 +12,7 @@ import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService
 import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IEmbedderTerminalService } from 'vs/workbench/services/terminal/common/embedderTerminalService';
 
 /**
  * The main contribution for the terminal contrib. This contains calls to other components necessary
@@ -21,6 +22,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/s
 export class TerminalMainContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
+		@IEmbedderTerminalService embedderTerminalService: IEmbedderTerminalService,
 		@ILabelService labelService: ILabelService,
 		@ITerminalService terminalService: ITerminalService,
 		@ITerminalEditorService terminalEditorService: ITerminalEditorService,
@@ -87,6 +89,15 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 				label: '${path}',
 				separator: ''
 			}
+		});
+
+		embedderTerminalService.onDidCreateTerminal(async embedderTerminal => {
+			const terminal = await terminalService.createTerminal({
+				config: embedderTerminal,
+				location: TerminalLocation.Panel
+			});
+			terminalService.setActiveInstance(terminal);
+			await terminalService.revealActiveTerminal();
 		});
 	}
 }

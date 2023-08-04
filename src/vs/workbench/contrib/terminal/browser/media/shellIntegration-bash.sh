@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------------------------
 
 # Prevent the script recursing when setting up
-if [[ -n "$VSCODE_SHELL_INTEGRATION" ]]; then
+if [[ -n "${VSCODE_SHELL_INTEGRATION:-}" ]]; then
 	builtin return
 fi
 
@@ -33,7 +33,7 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 		builtin unset VSCODE_SHELL_LOGIN
 
 		# Apply any explicit path prefix (see #99878)
-		if [ -n "$VSCODE_PATH_PREFIX" ]; then
+		if [ -n "${VSCODE_PATH_PREFIX:-}" ]; then
 			export PATH=$VSCODE_PATH_PREFIX$PATH
 			builtin unset VSCODE_PATH_PREFIX
 		fi
@@ -46,7 +46,7 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 fi
 
 # Apply EnvironmentVariableCollections if needed
-if [ -n "$VSCODE_ENV_REPLACE" ]; then
+if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
@@ -55,7 +55,7 @@ if [ -n "$VSCODE_ENV_REPLACE" ]; then
 	done
 	builtin unset VSCODE_ENV_REPLACE
 fi
-if [ -n "$VSCODE_ENV_PREPEND" ]; then
+if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
@@ -64,7 +64,7 @@ if [ -n "$VSCODE_ENV_PREPEND" ]; then
 	done
 	builtin unset VSCODE_ENV_PREPEND
 fi
-if [ -n "$VSCODE_ENV_APPEND" ]; then
+if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_APPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
@@ -275,10 +275,10 @@ __vsc_prompt_cmd() {
 
 # PROMPT_COMMAND arrays and strings seem to be handled the same (handling only the first entry of
 # the array?)
-__vsc_original_prompt_command=$PROMPT_COMMAND
+__vsc_original_prompt_command=${PROMPT_COMMAND:-}
 
 if [[ -z "${bash_preexec_imported:-}" ]]; then
-	if [[ -n "$__vsc_original_prompt_command" && "$__vsc_original_prompt_command" != "__vsc_prompt_cmd" ]]; then
+	if [[ -n "${__vsc_original_prompt_command:-}" && "${__vsc_original_prompt_command:-}" != "__vsc_prompt_cmd" ]]; then
 		PROMPT_COMMAND=__vsc_prompt_cmd_original
 	else
 		PROMPT_COMMAND=__vsc_prompt_cmd

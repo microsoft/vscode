@@ -7,6 +7,7 @@
 	"command.cloneRecursive": "Clone (Recursive)",
 	"command.init": "Initialize Repository",
 	"command.openRepository": "Open Repository",
+	"command.reopenClosedRepositories": "Reopen Closed Repositories...",
 	"command.close": "Close Repository",
 	"command.refresh": "Refresh",
 	"command.openChange": "Open Changes",
@@ -32,6 +33,8 @@
 	"command.cleanAllUntracked": "Discard All Untracked Changes",
 	"command.closeAllDiffEditors": "Close All Diff Editors",
 	"command.commit": "Commit",
+	"command.commitAmend": "Commit (Amend)",
+	"command.commitSigned": "Commit (Signed Off)",
 	"command.commitStaged": "Commit Staged",
 	"command.commitEmpty": "Commit Empty",
 	"command.commitStagedSigned": "Commit Staged (Signed Off)",
@@ -43,6 +46,8 @@
 	"command.commitStagedNoVerify": "Commit Staged (No Verify)",
 	"command.commitEmptyNoVerify": "Commit Empty (No Verify)",
 	"command.commitStagedSignedNoVerify": "Commit Staged (Signed Off, No Verify)",
+	"command.commitAmendNoVerify": "Commit (Amend, No Verify)",
+	"command.commitSignedNoVerify": "Commit (Signed Off, No Verify)",
 	"command.commitStagedAmendNoVerify": "Commit Staged (Amend, No Verify)",
 	"command.commitAllNoVerify": "Commit All (No Verify)",
 	"command.commitAllSignedNoVerify": "Commit All (Signed Off, No Verify)",
@@ -131,7 +136,7 @@
 	"config.checkoutType.local": "Local branches",
 	"config.checkoutType.tags": "Tags",
 	"config.checkoutType.remote": "Remote branches",
-	"config.defaultBranchName": "The name of the default branch (ex: main, trunk, development) when initializing a new git repository. When set to empty, the default branch name configured in git will be used.",
+	"config.defaultBranchName": "The name of the default branch (ex: main, trunk, development) when initializing a new git repository. When set to empty, the default branch name configured in git will be used. **Note:** Requires git version `2.28.0` or later.",
 	"config.branchPrefix": "Prefix used when creating a new branch.",
 	"config.branchProtection": "List of protected branches. By default, a prompt is shown before changes are committed to a protected branch. The prompt can be controlled using the `#git.branchProtectionPrompt#`  setting.",
 	"config.branchProtectionPrompt": "Controls whether a prompt is being shown before changes are committed to a protected branch.",
@@ -252,7 +257,7 @@
 	"config.publishBeforeContinueOn.always": "Always publish unpublished git state when using Continue Working On from a git repository",
 	"config.publishBeforeContinueOn.never": "Never publish unpublished git state when using Continue Working On from a git repository",
 	"config.publishBeforeContinueOn.prompt": "Prompt to publish unpublished git state when using Continue Working On from a git repository",
-	"config.similarityThreshold": "Controls the threshold of the similarity index (i.e. amount of additions/deletions compared to the file's size) for changes in a pair of added/deleted files to be considered a rename.",
+	"config.similarityThreshold": "Controls the threshold of the similarity index (i.e. amount of additions/deletions compared to the file's size) for changes in a pair of added/deleted files to be considered a rename. **Note:** Requires git version `2.18.0` or later.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
@@ -374,6 +379,22 @@
 		"message": "The detected git repositories are potentially unsafe as the folders are owned by someone other than the current user.\n[Manage Unsafe Repositories](command:git.manageUnsafeRepositories)\nTo learn more about unsafe repositories [read our docs](https://aka.ms/vscode-git-unsafe-repository).",
 		"comment": [
 			"{Locked='](command:git.manageUnsafeRepositories'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.scm.closedRepository": {
+		"message": "A git repository was found that was previously closed.\n[Reopen Closed Repository](command:git.reopenClosedRepositories)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"comment": [
+			"{Locked='](command:git.reopenClosedRepositories'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.scm.closedRepositories": {
+		"message": "Git repositories were found that were previously closed.\n[Reopen Closed Repositories](command:git.reopenClosedRepositories)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"comment": [
+			"{Locked='](command:git.reopenClosedRepositories'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]

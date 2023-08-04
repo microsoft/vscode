@@ -113,6 +113,17 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "Kill VS Code - Build, Yarn, VS Code - Build",
+			"dependsOn": [
+				"Kill VS Code - Build",
+				"npm: install",
+				"VS Code - Build"
+			],
+			"group": "build",
+			"dependsOrder": "sequence",
+			"problemMatcher": []
+		},
+		{
 			"type": "npm",
 			"script": "watch-webd",
 			"label": "Web Ext - Build",

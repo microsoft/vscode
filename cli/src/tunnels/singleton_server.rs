@@ -217,7 +217,7 @@ impl BroadcastLogSink {
 		}
 	}
 
-	fn get_brocaster(&self) -> broadcast::Sender<Vec<u8>> {
+	pub fn get_brocaster(&self) -> broadcast::Sender<Vec<u8>> {
 		self.tx.clone()
 	}
 

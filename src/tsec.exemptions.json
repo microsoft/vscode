@@ -1,38 +1,42 @@
 {
+	"ban-document-execcommand": [
+		"vs/workbench/contrib/codeEditor/electron-sandbox/inputClipboardActions.ts",
+		"vs/editor/contrib/clipboard/browser/clipboard.ts"
+	],
 	"ban-eval-calls": [
 		"vs/workbench/api/worker/extHostExtensionService.ts",
-		"vs/base/worker/workerMain"
+		"vs/base/worker/workerMain.ts"
 	],
 	"ban-function-calls": [
 		"vs/workbench/api/worker/extHostExtensionService.ts",
-		"vs/base/worker/workerMain",
+		"vs/base/worker/workerMain.ts",
 		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts",
 		"vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils.ts"
 	],
 	"ban-trustedtypes-createpolicy": [
-		"vs/base/browser/dom.ts",
-		"vs/base/browser/markdownRenderer.ts",
-		"vs/base/browser/defaultWorkerFactory.ts",
+		"vs/amdX.ts",
+		"vs/base/browser/trustedTypes.ts",
 		"vs/base/worker/workerMain.ts",
-		"vs/editor/contrib/markdownRenderer/browser/markdownRenderer.ts",
-		"vs/editor/contrib/stickyScroll/browser/stickyScrollWidget.ts",
-		"vs/editor/browser/view/domLineBreaksComputer.ts",
-		"vs/editor/browser/view/viewLayer.ts",
-		"vs/editor/browser/widget/diffEditorWidget.ts",
-		"vs/editor/contrib/inlineCompletions/browser/ghostTextWidget.ts",
-		"vs/editor/browser/widget/diffReview.ts",
-		"vs/editor/standalone/browser/colorizer.ts",
-		"vs/workbench/api/worker/extHostExtensionService.ts",
-		"vs/workbench/contrib/notebook/browser/view/cellParts/cellDragRenderer.ts",
-		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts",
-		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
+		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts"
 	],
 	"ban-worker-calls": [
 		"vs/base/browser/defaultWorkerFactory.ts",
 		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
 	],
+	"ban-worker-importscripts": [
+		"vs/amdX.ts",
+		"vs/workbench/services/extensions/worker/polyfillNestedWorker.ts",
+		"vs/workbench/api/worker/extensionHostWorker.ts",
+		"vs/base/worker/workerMain.ts"
+	],
 	"ban-domparser-parsefromstring": [
 		"vs/base/browser/markdownRenderer.ts",
 		"vs/base/test/browser/markdownRenderer.test.ts"
+	],
+	"ban-element-setattribute": [
+		"**/*.ts"
+	],
+	"ban-element-insertadjacenthtml": [
+		"**/*.ts"
 	]
 }

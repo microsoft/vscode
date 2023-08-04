@@ -46,23 +46,42 @@ function fromResource(extensionUri: URI, uri: URI) {
 	}
 	return `/${uri.scheme}/${uri.authority}${uri.path}`;
 }
+
 function updateWatch(event: 'create' | 'change' | 'delete', uri: URI, extensionUri: URI) {
-	const kind = event === 'create' ? ts.FileWatcherEventKind.Created
-		: event === 'change' ? ts.FileWatcherEventKind.Changed
-			: event === 'delete' ? ts.FileWatcherEventKind.Deleted
-				: ts.FileWatcherEventKind.Changed;
+	const kind = toTsWatcherKind(event);
 	const path = fromResource(extensionUri, uri);
-	if (watchFiles.has(path)) {
-		watchFiles.get(path)!.callback(path, kind);
+
+	const fileWatcher = watchFiles.get(path);
+	if (fileWatcher) {
+		fileWatcher.callback(path, kind);
 		return;
 	}
-	let found = false;
+
 	for (const watch of Array.from(watchDirectories.keys()).filter(dir => path.startsWith(dir))) {
 		watchDirectories.get(watch)!.callback(path);
-		found = true;
+		return;
 	}
-	if (!found) {
-		console.error(`no watcher found for ${path}`);
+
+	console.error(`no watcher found for ${path}`);
+}
+
+function toTsWatcherKind(event: 'create' | 'change' | 'delete') {
+	if (event === 'create') {
+		return ts.FileWatcherEventKind.Created;
+	} else if (event === 'change') {
+		return ts.FileWatcherEventKind.Changed;
+	} else if (event === 'delete') {
+		return ts.FileWatcherEventKind.Deleted;
+	}
+	throw new Error(`Unknown event: ${event}`);
+}
+
+class AccessOutsideOfRootError extends Error {
+	constructor(
+		public readonly filepath: string,
+		public readonly projectRootPaths: readonly string[]
+	) {
+		super(`Could not read file outside of project root ${filepath}`);
 	}
 }
 
@@ -95,17 +114,26 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 	const logNormal = log.bind(null, ts.server.LogLevel.normal);
 	const logVerbose = log.bind(null, ts.server.LogLevel.verbose);
 
+	const noopWatcher: ts.FileWatcher = { close() { } };
 	return {
 		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
 			if (looksLikeLibDtsPath(path)) { // We don't support watching lib files on web since they are readonly
-				return { close() { } };
+				return noopWatcher;
 			}
 
 			logVerbose('fs.watchFile', { path });
 
+			let uri: URI;
+			try {
+				uri = toResource(path);
+			} catch (e) {
+				console.error(e);
+				return noopWatcher;
+			}
+
 			watchFiles.set(path, { path, callback, pollingInterval, options });
 			watchId++;
-			fsWatcher.postMessage({ type: 'watchFile', uri: toResource(path), id: watchId });
+			fsWatcher.postMessage({ type: 'watchFile', uri, id: watchId });
 			return {
 				close() {
 					logVerbose('fs.watchFile.close', { path });
@@ -118,9 +146,17 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		watchDirectory(path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions): ts.FileWatcher {
 			logVerbose('fs.watchDirectory', { path });
 
+			let uri: URI;
+			try {
+				uri = toResource(path);
+			} catch (e) {
+				console.error(e);
+				return noopWatcher;
+			}
+
 			watchDirectories.set(path, { path, callback, recursive, options });
 			watchId++;
-			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri: toResource(path), id: watchId });
+			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri, id: watchId });
 			return {
 				close() {
 					logVerbose('fs.watchDirectory.close', { path });
@@ -289,9 +325,13 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			return currentDirectory;
 		},
 		getDirectories(path: string): string[] {
+			logVerbose('fs.getDirectories', { path });
+
 			return getAccessibleFileSystemEntries(path).directories.slice();
 		},
 		readDirectory(path: string, extensions?: readonly string[], excludes?: readonly string[], includes?: readonly string[], depth?: number): string[] {
+			logVerbose('fs.readDirectory', { path });
+
 			return matchFiles(path, extensions, excludes, includes, /*useCaseSensitiveFileNames*/ true, currentDirectory, depth, getAccessibleFileSystemEntries, realpath);
 		},
 		getModifiedTime(path: string): Date | undefined {
@@ -424,7 +464,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		}
 
 		if (allowRead === 'block') {
-			throw new Error(`Could not read file outside of project root ${filepath}`);
+			throw new AccessOutsideOfRootError(filepath, Array.from(projectRootPaths.keys()));
 		}
 
 		return uri;

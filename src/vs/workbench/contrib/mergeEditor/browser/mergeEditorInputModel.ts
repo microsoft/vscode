@@ -134,8 +134,7 @@ class TempFileMergeEditorInputModel extends EditorModel implements IMergeEditorI
 	);
 
 	public readonly isDirty = derived(
-		'isDirty',
-		(reader) => this.altVersionId.read(reader) !== this.savedAltVersionId.read(reader)
+		(reader) => /** @description isDirty */ this.altVersionId.read(reader) !== this.savedAltVersionId.read(reader)
 	);
 
 	private finished = false;

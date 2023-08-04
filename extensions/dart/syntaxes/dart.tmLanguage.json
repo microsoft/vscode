@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/b6324bfae2058bc29bb01af6bd2011c3eb35545d",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/4670ad8a1f742ccfb122c2b01e588af78f3fc120",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -298,6 +298,9 @@
 				{
 					"name": "keyword.declaration.dart",
 					"match": "extends"
+				},
+				{
+					"include": "#comments"
 				}
 			]
 		},
@@ -329,7 +332,7 @@
 				},
 				{
 					"name": "keyword.declaration.dart",
-					"match": "(?<!\\$)\\b(abstract|sealed|base|interface|class|enum|extends|extension|external|factory|implements|get(?!\\()|mixin|native|operator|set(?!\\()|typedef|with|covariant)\\b(?!\\$)"
+					"match": "(?<!\\$)\\b(abstract|sealed|base|interface|inline class|class|enum|extends|extension|external|factory|implements|get(?!\\()|mixin|native|operator|set(?!\\()|typedef|with|covariant)\\b(?!\\$)"
 				},
 				{
 					"name": "storage.modifier.dart",

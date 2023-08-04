@@ -9,7 +9,6 @@ import { EventType, addDisposableListener, EventHelper, append, $, clearNode, hi
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenuService, MenuId, IMenu, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
@@ -41,6 +40,9 @@ import { ICredentialsService } from 'vs/platform/credentials/common/credentials'
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { runWhenIdle } from 'vs/base/common/async';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -149,13 +151,9 @@ abstract class AbstractGlobalActivityActionViewItem extends ActivityActionViewIt
 			const actions = await this.resolveContextMenuActions(disposables);
 
 			const event = new StandardMouseEvent(e);
-			const anchor = {
-				x: event.posx,
-				y: event.posy
-			};
 
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				getAnchor: () => event,
 				getActions: () => actions,
 				onHide: () => disposables.dispose()
 			});
@@ -235,7 +233,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 	private readonly problematicProviders: Set<string> = new Set();
 
 	private initialized = false;
-	private sessionFromEmbedder = getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
+	private sessionFromEmbedder = getCurrentAuthenticationSessionInfo(this.credentialsService, this.secretStorageService, this.productService);
 
 	constructor(
 		action: ActivityAction,
@@ -243,6 +241,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		activityHoverOptions: IActivityHoverOptions,
 		@IThemeService themeService: IThemeService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IHoverService hoverService: IHoverService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService menuService: IMenuService,
@@ -253,6 +252,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -288,6 +288,16 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 	// This function exists to ensure that the accounts are added for auth providers that had already been registered
 	// before the menu was created.
 	private async initialize(): Promise<void> {
+		// Resolving the menu doesn't need to happen immediately, so we can wait until after the workbench has been restored
+		// and only run this when the system is idle.
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+		const disposable = this._register(runWhenIdle(async () => {
+			await this.doInitialize();
+			disposable.dispose();
+		}));
+	}
+
+	private async doInitialize(): Promise<void> {
 		const providerIds = this.authenticationService.getProviderIds();
 		const results = await Promise.allSettled(providerIds.map(providerId => this.addAccountsFromProvider(providerId)));
 
@@ -483,7 +493,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, true, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
-		this._register(Event.any(this.userDataProfileService.onDidUpdateCurrentProfile, this.userDataProfileService.onDidChangeCurrentProfile)(() => this.updateProfileBadge()));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.updateProfileBadge()));
 	}
 
 	override render(container: HTMLElement): void {

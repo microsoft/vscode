@@ -5,33 +5,22 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/171173
+	// https://github.com/microsoft/vscode/issues/182069
 
-	export interface EnvironmentVariableMutator {
-		readonly type: EnvironmentVariableMutatorType;
-		readonly value: string;
-		readonly scope: EnvironmentVariableScope | undefined;
-	}
-
-	export interface EnvironmentVariableCollection extends Iterable<[variable: string, mutator: EnvironmentVariableMutator]> {
-		/**
-		 * Sets a description for the environment variable collection, this will be used to describe the changes in the UI.
-		 * @param description A description for the environment variable collection.
-		 * @param scope Specific scope to which this description applies to.
-		 */
-		setDescription(description: string | MarkdownString | undefined, scope?: EnvironmentVariableScope): void;
-		replace(variable: string, value: string, scope?: EnvironmentVariableScope): void;
-		append(variable: string, value: string, scope?: EnvironmentVariableScope): void;
-		prepend(variable: string, value: string, scope?: EnvironmentVariableScope): void;
-		get(variable: string, scope?: EnvironmentVariableScope): EnvironmentVariableMutator | undefined;
-		delete(variable: string, scope?: EnvironmentVariableScope): void;
-		clear(scope?: EnvironmentVariableScope): void;
-	}
+	// export interface ExtensionContext {
+	// 	/**
+	// 	 * Gets the extension's environment variable collection for this workspace, enabling changes
+	// 	 * to be applied to terminal environment variables.
+	// 	 *
+	// 	 * @param scope The scope to which the environment variable collection applies to.
+	// 	 */
+	// 	readonly environmentVariableCollection: EnvironmentVariableCollection & { getScopedEnvironmentVariableCollection(scope: EnvironmentVariableScope): EnvironmentVariableCollection };
+	// }
 
 	export type EnvironmentVariableScope = {
 		/**
-		 * The workspace folder to which this collection applies to. If unspecified, collection applies to all workspace folders.
-		 */
+		* Any specific workspace folder to get collection for. If unspecified, collection applicable to all workspace folders is returned.
+		*/
 		workspaceFolder?: WorkspaceFolder;
 	};
 }

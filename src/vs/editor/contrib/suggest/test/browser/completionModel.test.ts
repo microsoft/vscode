@@ -24,6 +24,7 @@ export function createSuggestItem(label: string | languages.CompletionItemLabel,
 		suggestions: [suggestion]
 	};
 	const provider: languages.CompletionItemProvider = {
+		_debugDisplayName: 'test',
 		provideCompletionItems(): any {
 			return;
 		}
@@ -35,6 +36,7 @@ suite('CompletionModel', function () {
 
 	const defaultOptions = <InternalSuggestOptions>{
 		insertMode: 'insert',
+		snippetsPreventQuickSuggestions: true,
 		filterGraceful: true,
 		localityBonus: false,
 		shareSuggestSelections: false,

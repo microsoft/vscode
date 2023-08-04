@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownRenderOptions, MarkedOptions, renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
@@ -33,7 +34,7 @@ export interface IMarkdownRendererOptions {
  */
 export class MarkdownRenderer {
 
-	private static _ttpTokenizer = window.trustedTypes?.createPolicy('tokenizeToString', {
+	private static _ttpTokenizer = createTrustedTypesPolicy('tokenizeToString', {
 		createHTML(html: string) {
 			return html;
 		}

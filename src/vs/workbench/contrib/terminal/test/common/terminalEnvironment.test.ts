@@ -5,9 +5,9 @@
 
 import { deepStrictEqual, strictEqual } from 'assert';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { isWindows, OperatingSystem, Platform } from 'vs/base/common/platform';
+import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { URI as Uri } from 'vs/base/common/uri';
-import { addTerminalEnvironmentKeys, createTerminalEnvironment, getCwd, getDefaultShell, getLangEnvVariable, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { addTerminalEnvironmentKeys, createTerminalEnvironment, getCwd, getLangEnvVariable, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { PosixShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 
 suite('Workbench - TerminalEnvironment', () => {
@@ -210,45 +210,6 @@ suite('Workbench - TerminalEnvironment', () => {
 		});
 	});
 
-	suite('getDefaultShell', () => {
-		test('should change Sysnative to System32 in non-WoW64 systems', async () => {
-			const shell = await getDefaultShell(key => {
-				return ({ 'terminal.integrated.shell.windows': 'C:\\Windows\\Sysnative\\cmd.exe' } as any)[key];
-			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, false, Platform.Windows);
-			strictEqual(shell, 'C:\\Windows\\System32\\cmd.exe');
-		});
-
-		test('should not change Sysnative to System32 in WoW64 systems', async () => {
-			const shell = await getDefaultShell(key => {
-				return ({ 'terminal.integrated.shell.windows': 'C:\\Windows\\Sysnative\\cmd.exe' } as any)[key];
-			}, 'DEFAULT', true, 'C:\\Windows', undefined, {} as any, false, Platform.Windows);
-			strictEqual(shell, 'C:\\Windows\\Sysnative\\cmd.exe');
-		});
-
-		test('should use automationShell when specified', async () => {
-			const shell1 = await getDefaultShell(key => {
-				return ({
-					'terminal.integrated.shell.windows': 'shell',
-					'terminal.integrated.automationShell.windows': undefined
-				} as any)[key];
-			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, false, Platform.Windows);
-			strictEqual(shell1, 'shell', 'automationShell was false');
-			const shell2 = await getDefaultShell(key => {
-				return ({
-					'terminal.integrated.shell.windows': 'shell',
-					'terminal.integrated.automationShell.windows': undefined
-				} as any)[key];
-			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, true, Platform.Windows);
-			strictEqual(shell2, 'shell', 'automationShell was true');
-			const shell3 = await getDefaultShell(key => {
-				return ({
-					'terminal.integrated.shell.windows': 'shell',
-					'terminal.integrated.automationShell.windows': 'automationShell'
-				} as any)[key];
-			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, true, Platform.Windows);
-			strictEqual(shell3, 'automationShell', 'automationShell was true and specified in settings');
-		});
-	});
 	suite('preparePathForShell', () => {
 		const wslPathBackend = {
 			getWslPath: async (original: string, direction: 'unix-to-win' | 'win-to-unix') => {

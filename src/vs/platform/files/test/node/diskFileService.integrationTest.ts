@@ -16,7 +16,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError } from 'vs/platform/files/common/files';
+import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError, IFileAtomicOptions } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -70,6 +70,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 				FileSystemProviderCapabilities.FileFolderCopy |
 				FileSystemProviderCapabilities.FileWriteUnlock |
 				FileSystemProviderCapabilities.FileAtomicRead |
+				FileSystemProviderCapabilities.FileAtomicWrite |
+				FileSystemProviderCapabilities.FileAtomicDelete |
 				FileSystemProviderCapabilities.FileClone;
 
 			if (isLinux) {
@@ -569,22 +571,26 @@ flakySuite('Disk File Service', function () {
 	});
 
 	test('deleteFolder (recursive)', async () => {
-		return testDeleteFolderRecursive(false);
+		return testDeleteFolderRecursive(false, false);
+	});
+
+	test('deleteFolder (recursive, atomic)', async () => {
+		return testDeleteFolderRecursive(false, { postfix: '.vsctmp' });
 	});
 
 	(isLinux /* trash is unreliable on Linux */ ? test.skip : test)('deleteFolder (recursive, useTrash)', async () => {
-		return testDeleteFolderRecursive(true);
+		return testDeleteFolderRecursive(true, false);
 	});
 
-	async function testDeleteFolderRecursive(useTrash: boolean): Promise<void> {
+	async function testDeleteFolderRecursive(useTrash: boolean, atomic: IFileAtomicOptions | false): Promise<void> {
 		let event: FileOperationEvent;
 		disposables.add(service.onDidRunOperation(e => event = e));
 
 		const resource = URI.file(join(testDir, 'deep'));
 		const source = await service.resolve(resource);
 
-		assert.strictEqual(await service.canDelete(source.resource, { recursive: true, useTrash }), true);
-		await service.del(source.resource, { recursive: true, useTrash });
+		assert.strictEqual(await service.canDelete(source.resource, { recursive: true, useTrash, atomic }), true);
+		await service.del(source.resource, { recursive: true, useTrash, atomic });
 
 		assert.strictEqual(existsSync(source.resource.fsPath), false);
 		assert.ok(event!);
@@ -1772,13 +1778,13 @@ flakySuite('Disk File Service', function () {
 	});
 
 	test('writeFile - default', async () => {
-		return testWriteFile();
+		return testWriteFile(false);
 	});
 
 	test('writeFile - flush on write', async () => {
 		DiskFileSystemProvider.configureFlushOnWrite(true);
 		try {
-			return await testWriteFile();
+			return await testWriteFile(false);
 		} finally {
 			DiskFileSystemProvider.configureFlushOnWrite(false);
 		}
@@ -1787,16 +1793,41 @@ flakySuite('Disk File Service', function () {
 	test('writeFile - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		return testWriteFile();
+		return testWriteFile(false);
 	});
 
 	test('writeFile - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
-		return testWriteFile();
+		return testWriteFile(false);
 	});
 
-	async function testWriteFile() {
+	test('writeFile - default (atomic)', async () => {
+		return testWriteFile(true);
+	});
+
+	test('writeFile - flush on write (atomic)', async () => {
+		DiskFileSystemProvider.configureFlushOnWrite(true);
+		try {
+			return await testWriteFile(true);
+		} finally {
+			DiskFileSystemProvider.configureFlushOnWrite(false);
+		}
+	});
+
+	test('writeFile - buffered (atomic)', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileAtomicWrite);
+
+		return testWriteFile(true);
+	});
+
+	test('writeFile - unbuffered (atomic)', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAtomicWrite);
+
+		return testWriteFile(true);
+	});
+
+	async function testWriteFile(atomic: boolean) {
 		let event: FileOperationEvent;
 		disposables.add(service.onDidRunOperation(e => event = e));
 
@@ -1806,7 +1837,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(content, 'Small File');
 
 		const newContent = 'Updates to the small file';
-		await service.writeFile(resource, VSBuffer.fromString(newContent));
+		await service.writeFile(resource, VSBuffer.fromString(newContent), { atomic: atomic ? { postfix: '.vsctmp' } : false });
 
 		assert.ok(event!);
 		assert.strictEqual(event!.resource.fsPath, resource.fsPath);
@@ -1816,28 +1847,44 @@ flakySuite('Disk File Service', function () {
 	}
 
 	test('writeFile (large file) - default', async () => {
-		return testWriteFileLarge();
+		return testWriteFileLarge(false);
 	});
 
 	test('writeFile (large file) - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		return testWriteFileLarge();
+		return testWriteFileLarge(false);
 	});
 
 	test('writeFile (large file) - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
-		return testWriteFileLarge();
+		return testWriteFileLarge(false);
 	});
 
-	async function testWriteFileLarge() {
+	test('writeFile (large file) - default (atomic)', async () => {
+		return testWriteFileLarge(true);
+	});
+
+	test('writeFile (large file) - buffered (atomic)', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileAtomicWrite);
+
+		return testWriteFileLarge(true);
+	});
+
+	test('writeFile (large file) - unbuffered (atomic)', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAtomicWrite);
+
+		return testWriteFileLarge(true);
+	});
+
+	async function testWriteFileLarge(atomic: boolean) {
 		const resource = URI.file(join(testDir, 'lorem.txt'));
 
 		const content = readFileSync(resource.fsPath);
 		const newContent = content.toString() + content.toString();
 
-		const fileStat = await service.writeFile(resource, VSBuffer.fromString(newContent));
+		const fileStat = await service.writeFile(resource, VSBuffer.fromString(newContent), { atomic: atomic ? { postfix: '.vsctmp' } : false });
 		assert.strictEqual(fileStat.name, 'lorem.txt');
 
 		assert.strictEqual(readFileSync(resource.fsPath).toString(), newContent);

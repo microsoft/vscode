@@ -49,6 +49,5 @@ xterm-addon-webgl/out/**
 !@microsoft/applicationinsights-core-js/browser/applicationinsights-core-js.min.js
 !@microsoft/applicationinsights-shims/dist/umd/applicationinsights-shims.min.js
 
-
-
-
+vsda/**
+!vsda/rust/web/**

@@ -17,6 +17,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 
 class FsLinkProvider {
 
@@ -128,7 +129,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._linkProviderRegistration?.dispose();
 	}
 
-	registerFileSystemProvider(extension: IExtensionDescription, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean; isReadonly?: boolean } = {}) {
+	registerFileSystemProvider(extension: IExtensionDescription, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean; isReadonly?: boolean | vscode.MarkdownString } = {}) {
 
 		// validate the given provider is complete
 		ExtHostFileSystem._validateFileSystemProvider(provider);
@@ -164,7 +165,20 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			capabilities += files.FileSystemProviderCapabilities.FileOpenReadWriteClose;
 		}
 
-		this._proxy.$registerFileSystemProvider(handle, scheme, capabilities).catch(err => {
+		let readOnlyMessage: IMarkdownString | undefined;
+		if (options.isReadonly && isMarkdownString(options.isReadonly)) {
+			checkProposedApiEnabled(extension, 'readonlyMessage');
+			readOnlyMessage = {
+				value: options.isReadonly.value,
+				isTrusted: options.isReadonly.isTrusted,
+				supportThemeIcons: options.isReadonly.supportThemeIcons,
+				supportHtml: options.isReadonly.supportHtml,
+				baseUri: options.isReadonly.baseUri,
+				uris: options.isReadonly.uris
+			};
+		}
+
+		this._proxy.$registerFileSystemProvider(handle, scheme, capabilities, readOnlyMessage).catch(err => {
 			console.error(`FAILED to register filesystem provider of ${extension.identifier.value}-extension for the scheme ${scheme}`);
 			console.error(err);
 		});
