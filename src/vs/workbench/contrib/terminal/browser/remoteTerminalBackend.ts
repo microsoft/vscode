@@ -140,6 +140,8 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 				}
 			}
 		}));
+
+		this._onPtyHostConnected.fire();
 	}
 
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
