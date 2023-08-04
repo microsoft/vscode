@@ -34,20 +34,26 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 				opacity = clamp(opacityConfig, 0.2, 1);
 			}
 
-			const rules = new Set<string>();
+			let cssTextContent = '';
 
 			// Only add the styles if the feature is used
 			if (opacity !== 1) {
-				const filterRule = `filter: opacity(${opacity});`;
-				// Terminal tabs
-				rules.add(`.monaco-workbench .pane-body.integrated-terminal:not(:focus-within) .tabs-container { ${filterRule} }`);
-				// Terminals
-				rules.add(`.monaco-workbench .pane-body.integrated-terminal .xterm:not(.focus) { ${filterRule} }`);
-				// Editors
-				rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .monaco-editor { ${filterRule} }`);
+				const rules = new Set<string>();
+				if (opacity !== 1) {
+					const filterRule = `filter: opacity(${opacity});`;
+					// Terminal tabs
+					rules.add(`.monaco-workbench .pane-body.integrated-terminal:not(:focus-within) .tabs-container { ${filterRule} }`);
+					// Terminals
+					rules.add(`.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper:not(:focus-within) { ${filterRule} }`);
+					// Text editors
+					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .monaco-editor { ${filterRule} }`);
+					// Terminal editors
+					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .terminal-wrapper { ${filterRule} }`);
+				}
+				cssTextContent = [...rules].join('\n');
 			}
 
-			elStyle.textContent = [...rules].join('\n');
+			elStyle.textContent = cssTextContent;
 		}));
 	}
 }
