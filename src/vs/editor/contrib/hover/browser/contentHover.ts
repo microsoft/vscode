@@ -24,9 +24,10 @@ import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ResizableContentWidget } from 'vs/editor/contrib/hover/browser/resizableContentWidget';
-import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { localize } from 'vs/nls';
+
 const $ = dom.$;
 
 export class ContentHoverController extends Disposable {
@@ -528,11 +529,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._setHoverData(undefined);
 		this._layout();
 		this._editor.addContentWidget(this);
-		if (this._configurationService.getValue('accessibility.verbosity.hover') && this._accessibilityService.isScreenReaderOptimized()) {
-			const keybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel();
-			const hint = keybinding ? localize('chatAccessibleViewHint', "Inspect this in the accessible view with {0}", keybinding) : localize('chatAccessibleViewHintNoKb', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
-			this._hover.containerDomNode.ariaLabel = hint;
-		}
+
+		this._hover.containerDomNode.ariaLabel = getHoverAriaLabel(this._configurationService, this._accessibilityService, this._keybindingService) ?? '';
 	}
 
 	public override dispose(): void {
@@ -998,4 +996,13 @@ function computeDistanceFromPointToRectangle(pointX: number, pointY: number, lef
 	const dx = Math.max(Math.abs(pointX - x) - width / 2, 0);
 	const dy = Math.max(Math.abs(pointY - y) - height / 2, 0);
 	return Math.sqrt(dx * dx + dy * dy);
+}
+
+export function getHoverAriaLabel(configurationService: IConfigurationService, accessibilityService: IAccessibilityService, keybindingService: IKeybindingService): string | undefined {
+	if (configurationService.getValue('accessibility.verbosity.hover') && accessibilityService.isScreenReaderOptimized()) {
+		const keybinding = keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel();
+		const hint = keybinding ? localize('hoverAccessibleViewHint', "Inspect this in the accessible view with {0}", keybinding) : localize('hoverAccessibleViewHintNoKb', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
+		return hint;
+	}
+	return;
 }
