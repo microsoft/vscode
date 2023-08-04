@@ -182,12 +182,14 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 		h('div.top@top', { title: localize('diff.hiddenLines.top', 'Click or drag to show more above') }),
 		h('div.center@content', { style: { display: 'flex' } }, [
 			h('div@first', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center' } },
-				[$('a', { title: localize('showAll', 'Show all'), role: 'button', onclick: () => { this._unchangedRegion.showAll(undefined); } }, ...renderLabelWithIcons('$(unfold)'))]
+				[$('a', { title: localize('showAll', 'Show all'), role: 'button', onclick: () => { this.showAll(); } }, ...renderLabelWithIcons('$(unfold)'))]
 			),
 			h('div@others', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center' } }),
 		]),
 		h('div.bottom@bottom', { title: localize('diff.bottom', 'Click or drag to show more below'), role: 'button' }),
 	]);
+
+	private showAll() { this._unchangedRegion.showAll(undefined); }
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -293,7 +295,15 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			if (!this.hide && true) {
 				const lineCount = _unchangedRegion.getHiddenModifiedRange(reader).length;
 				const linesHiddenText = localize('hiddenLines', '{0} Hidden Lines', lineCount);
-				children.push($('span', { title: linesHiddenText }, linesHiddenText));
+				const span = $('span', { title: localize('diff.hiddenLines.expandAll', 'Double click to show all unchanged region') }, linesHiddenText);
+				addDisposableListener(span, 'dblclick', e => {
+					if (e.button !== 0) {
+						return;
+					}
+					e.preventDefault();
+					this.showAll();
+				});
+				children.push(span);
 			}
 
 			// TODO@hediet implement breadcrumbs for collapsed regions
