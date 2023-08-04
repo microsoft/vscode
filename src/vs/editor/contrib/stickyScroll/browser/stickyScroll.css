@@ -5,6 +5,10 @@
 
 .monaco-editor .sticky-line-number {
 	background-color: inherit;
+	position: absolute;
+}
+
+.monaco-editor .sticky-line-number-inner {
 	color: var(--vscode-editorLineNumber-foreground);
 	overflow: hidden;
 	white-space: nowrap;
@@ -12,20 +16,21 @@
 	text-align: right;
 }
 
-.monaco-editor .sticky-line-root {
+.monaco-editor .sticky-line {
+	position: absolute;
 	background-color: inherit;
 	white-space: nowrap;
 	width: 100%;
 }
 
+.monaco-editor .sticky-line:hover {
+	background-color: var(--vscode-editorStickyScrollHover-background);
+	cursor: pointer;
+}
+
 .monaco-editor.hc-black .sticky-widget,
 .monaco-editor.hc-light .sticky-widget {
 	border-bottom: 1px solid var(--vscode-contrastBorder);
-}
-
-.monaco-editor .sticky-line-root:hover {
-	background-color: var(--vscode-editorStickyScrollHover-background);
-	cursor: pointer;
 }
 
 .monaco-editor .sticky-widget-lines {

@@ -164,12 +164,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _updateViewZone(minWidthInPixels: number): void {
 		this._editor.changeViewZones((changeAccessor) => {
 			const bottomMostLine = this._editor.getVisibleRangesPlusViewportAboveBelow().pop()?.endLineNumber;
-			console.log('bottomMostLine : ', bottomMostLine);
-			console.log('this._bottomMostLine : ', this._bottomMostLine);
-			console.log('this._minWidthPixels : ', this._minWidthInPixels);
-			console.log('minWidthPixels : ', minWidthInPixels);
 			if (bottomMostLine !== undefined && (this._bottomMostLine !== bottomMostLine || this._minWidthInPixels !== minWidthInPixels)) {
-				console.log('entered into the if loop');
 				if (this._viewZoneId) {
 					changeAccessor.removeZone(this._viewZoneId);
 					this._viewZoneId = undefined;
@@ -195,7 +190,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 		const layoutInfo = this._editor.getLayoutInfo();
 		const maxLineLength = this._renderLinesAndFindMaximumLineLength(layoutInfo);
-		this._updateWidthOfHTMLCollection(this._lineNumbersDomNode.children, maxLineLength);
+		this._updateWidthOfHTMLCollection(this._linesDomNode.children, maxLineLength);
 
 		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
@@ -240,11 +235,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 
 		const lineHTMLNode = document.createElement('span');
+		lineHTMLNode.className = 'sticky-line';
 		lineHTMLNode.classList.add(`stickyLine${line}`);
 		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
 		lineHTMLNode.innerHTML = newLine as string;
 
 		const lineNumberHTMLNode = document.createElement('span');
+		lineNumberHTMLNode.className = 'sticky-line-number';
 		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
 		const lineNumbersWidth = minimapSide === 'left' ? layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth : layoutInfo.contentLeft;
 		lineNumberHTMLNode.style.width = `${lineNumbersWidth}px`;
@@ -255,7 +252,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		} else if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 			innerLineNumberHTML.innerText = Math.abs(line - this._editor.getPosition()!.lineNumber).toString();
 		}
-		innerLineNumberHTML.className = 'sticky-line-number';
+		innerLineNumberHTML.className = 'sticky-line-number-inner';
 		innerLineNumberHTML.style.lineHeight = `${lineHeight}px`;
 		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
 		if (minimapSide === 'left') {
@@ -268,55 +265,32 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.applyFontInfo(lineHTMLNode);
 		this._editor.applyFontInfo(innerLineNumberHTML);
 
-		lineNumberHTMLNode.setAttribute('role', 'listitem');
-		lineNumberHTMLNode.tabIndex = 0;
-		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
-		lineNumberHTMLNode.style.height = `${lineHeight}px`;
-		lineNumberHTMLNode.style.position = 'absolute';
-
-		lineHTMLNode.className = 'sticky-line-root';
 		lineHTMLNode.setAttribute('role', 'listitem');
-		lineHTMLNode.tabIndex = 0;
-		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
+		lineNumberHTMLNode.setAttribute('role', 'listitem');
 		lineHTMLNode.style.height = `${lineHeight}px`;
-		lineHTMLNode.style.position = 'absolute';
-		lineHTMLNode.style.width = '100%';
+		lineNumberHTMLNode.style.height = `${lineHeight}px`;
 
 		// Special case for the last line of sticky scroll
-		if (index === this._lineNumbers.length - 1) {
-			lineNumberHTMLNode.style.zIndex = '0';
-			lineNumberHTMLNode.style.top = index * lineHeight + this._lastLineRelativePosition + 'px';
-
-			lineHTMLNode.style.zIndex = '0';
-			lineHTMLNode.style.top = index * lineHeight + this._lastLineRelativePosition + 'px';
-		} else {
-			lineNumberHTMLNode.style.zIndex = '1';
-			lineNumberHTMLNode.style.top = `${index * lineHeight}px`;
-
-			lineHTMLNode.style.zIndex = '1';
-			lineHTMLNode.style.top = `${index * lineHeight}px`;
-		}
+		const isLastLine = index === this._lineNumbers.length - 1;
+		lineHTMLNode.style.zIndex = isLastLine ? '0' : '1';
+		lineNumberHTMLNode.style.zIndex = isLastLine ? '0' : '1';
+		lineHTMLNode.style.top = isLastLine ? `${index * lineHeight + this._lastLineRelativePosition}px` : `${index * lineHeight}px`;
+		lineNumberHTMLNode.style.top = isLastLine ? `${index * lineHeight + this._lastLineRelativePosition}px` : `${index * lineHeight}px`;
 
 		// Each child has a listener which fires when the mouse hovers over the child
-		this._disposableStore.add(dom.addDisposableListener(lineNumberHTMLNode, 'mouseover', (e) => {
-			this._onMouseOver(e, line);
-		}));
 		this._disposableStore.add(dom.addDisposableListener(lineHTMLNode, 'mouseover', (e) => {
-			this._onMouseOver(e, line);
+			if (this._editor.hasModel()) {
+				const mouseOverEvent = new StandardMouseEvent(e);
+				const text = mouseOverEvent.target.innerText;
+
+				// Line and column number of the hover needed for the control clicking feature
+				this._hoverOnLine = line;
+				// TODO: workaround to find the column index, perhaps need a more solid solution
+				this._hoverOnColumn = this._editor.getModel().getLineContent(line).indexOf(text) + 1 || -1;
+			}
 		}));
 
 		return { lineNumberHTMLNode, lineHTMLNode };
-	}
-
-	_onMouseOver(e: MouseEvent, line: number) {
-		if (this._editor.hasModel()) {
-			const mouseOverEvent = new StandardMouseEvent(e);
-			const text = mouseOverEvent.target.innerText;
-			// Line and column number of the hover needed for the control clicking feature
-			this._hoverOnLine = line;
-			// TODO: workaround to find the column index, perhaps need a more solid solution
-			this._hoverOnColumn = this._editor.getModel().getLineContent(line).indexOf(text) + 1 || -1;
-		}
 	}
 
 	getId(): string {
