@@ -287,26 +287,38 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				divToUnfold.style.transition = 'opacity 250ms linear';
 				divToUnfold.style.opacity = '0';
 				divToUnfold.style.height = '0px';
+				divToUnfold.style.cursor = 'default';
 
 				divToUnfold.classList.add('unfold-icon');
 				lineNumberHTMLNode.append(divToUnfold);
 
+				let collapsed = isCollapsed;
+
 				this._disposableStore.add(dom.addDisposableListener(divToUnfold, dom.EventType.CLICK, () => {
+					console.log('line : ', line);
+
 					const scrollTop = this._editor.getTopForLineNumber(line) + 1;
+					console.log('scrollTop : ', scrollTop);
 					toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
+					collapsed = !collapsed;
+					// TODO: Likely a more complicated mathematical equation that involves finding the position given the new number of lines in the sticky widget
 					// there appears to be an error here, doesn't behave exactly as expected
-					this._editor.setScrollTop(scrollTop);
+					const newHeight = scrollTop - (collapsed ? 0 : 18);
+					console.log('newHeight : ', newHeight);
+					this._editor.setScrollTop(newHeight);
 				}));
 
 				this._disposableStore.add(dom.addDisposableListener(lineNumberHTMLNode, dom.EventType.MOUSE_OVER, () => {
 					divToUnfold.style.opacity = '1';
 					divToUnfold.style.height = '18px';
 					divToUnfold.style.width = '18px';
+					divToUnfold.style.cursor = 'pointer';
 				}));
 				this._disposableStore.add(dom.addDisposableListener(lineNumberHTMLNode, dom.EventType.MOUSE_OUT, () => {
 					divToUnfold.style.transition = 'opacity 250ms linear';
 					divToUnfold.style.opacity = '0';
 					divToUnfold.style.height = '0px';
+					divToUnfold.style.cursor = 'default';
 				}));
 			}
 		}
