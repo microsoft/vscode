@@ -19,7 +19,7 @@ import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { foldingCollapsedIcon } from 'vs/editor/contrib/folding/browser/foldingDecorations';
+import { foldingCollapsedIcon, foldingExpandedIcon } from 'vs/editor/contrib/folding/browser/foldingDecorations';
 import { FoldingModel, toggleCollapseState } from 'vs/editor/contrib/folding/browser/foldingModel';
 
 export class StickyScrollWidgetState {
@@ -272,23 +272,41 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (foldingModel) {
 			const foldingRegions = foldingModel.regions;
 			const indexOfLine = foldingRegions.findRange(line);
+			const isCollapsed = foldingRegions.isCollapsed(indexOfLine);
 			const startLineNumber = foldingRegions.getStartLineNumber(indexOfLine);
 			const isFoldingLine = line === startLineNumber;
 
 			if (isFoldingLine) {
 				const divToUnfold = document.createElement('div');
-				divToUnfold.style.height = '18px';
-				divToUnfold.style.width = '18px';
 				divToUnfold.style.float = 'right';
-				divToUnfold.className = ThemeIcon.asClassName(foldingCollapsedIcon);
+				if (isCollapsed) {
+					divToUnfold.className = ThemeIcon.asClassName(foldingCollapsedIcon);
+				} else {
+					divToUnfold.className = ThemeIcon.asClassName(foldingExpandedIcon);
+				}
+				divToUnfold.style.transition = 'opacity 1s ease-out';
+				divToUnfold.style.opacity = '0';
+				divToUnfold.style.height = '0px';
+
 				divToUnfold.classList.add('unfold-icon');
 				lineNumberHTMLNode.append(divToUnfold);
 
-				this._disposableStore.add(dom.addDisposableListener(divToUnfold, 'click', () => {
+				this._disposableStore.add(dom.addDisposableListener(divToUnfold, dom.EventType.CLICK, () => {
 					const scrollTop = this._editor.getTopForLineNumber(line) + 1;
 					toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
 					// there appears to be an error here, doesn't behave exactly as expected
 					this._editor.setScrollTop(scrollTop);
+				}));
+
+				this._disposableStore.add(dom.addDisposableListener(lineNumberHTMLNode, dom.EventType.MOUSE_OVER, () => {
+					divToUnfold.style.opacity = '1';
+					divToUnfold.style.height = '18px';
+					divToUnfold.style.width = '18px';
+				}));
+				this._disposableStore.add(dom.addDisposableListener(lineNumberHTMLNode, dom.EventType.MOUSE_OUT, () => {
+					divToUnfold.style.transition = 'opacity 150ms ease-out';
+					divToUnfold.style.opacity = '0';
+					divToUnfold.style.height = '0px';
 				}));
 			}
 		}
