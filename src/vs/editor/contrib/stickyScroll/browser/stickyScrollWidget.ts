@@ -47,7 +47,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		private readonly _editor: ICodeEditor
 	) {
 		super();
-		this._layoutInfo = this._editor.getLayoutInfo();
 
 		this._lineNumbersDomNode.className = 'sticky-widget-line-numbers';
 		const layoutInfo = this._editor.getOption(EditorOption.layoutInfo);
@@ -55,10 +54,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 		this._linesDomNode.className = 'sticky-widget-lines';
 		this._linesDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
-		this._linesDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth - layoutInfo.contentLeft}px`;
+		this._linesDomNode.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth - layoutInfo.contentLeft}px`;
 
-		// TODO: place later, horizontal: ScrollbarVisibility.Hidden,
-		const scrollbar = this._register(new DomScrollableElement(this._linesDomNode, { vertical: ScrollbarVisibility.Hidden, handleMouseWheel: false, horizontalScrollbarSize: 0, horizontalSliderSize: 0 }));
+		const scrollbar = this._register(new DomScrollableElement(this._linesDomNode, { vertical: ScrollbarVisibility.Hidden, horizontal: ScrollbarVisibility.Hidden, handleMouseWheel: false }));
 		this._scrollableDomNode = scrollbar.getDomNode();
 		this._scrollableDomNode.className = 'sticky-widget-scrollable';
 
