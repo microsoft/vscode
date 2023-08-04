@@ -20,6 +20,7 @@ import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdo
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { localize } from 'vs/nls';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const $ = dom.$;
 type TargetRect = {
@@ -89,6 +90,7 @@ export class HoverWidget extends Widget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 
@@ -116,7 +118,12 @@ export class HoverWidget extends Widget {
 		if (options.trapFocus) {
 			this._enableFocusTraps = true;
 		}
-
+		if (this._configurationService.getValue('accessibility.verbosity.hover') && this._accessibilityService.isScreenReaderOptimized()) {
+			const keybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel();
+			const hint = keybinding ? localize('chatAccessibleViewHint', "Inspect this in the accessible view with {0}", keybinding) : localize('chatAccessibleViewHintNoKb', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
+			this._hover.containerDomNode.ariaLabel = hint;
+			this._hover.contentsDomNode.ariaLabel = hint;
+		}
 		this._hoverPosition = options.hoverPosition ?? HoverPosition.ABOVE;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
