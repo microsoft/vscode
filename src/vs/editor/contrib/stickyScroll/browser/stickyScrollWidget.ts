@@ -60,7 +60,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 		this._rootDomNode.className = 'sticky-widget';
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
-
 		this._rootDomNode.appendChild(this._lineNumbersDomNode);
 		this._rootDomNode.appendChild(this._scrollableLinesDomNode);
 
@@ -70,12 +69,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}));
 		this._register(this._editor.onDidLayoutChange((e) => {
 			const minimapSide = this._editor.getOption(EditorOption.minimap).side;
-			let lineNumbersWidth = 0;
-			if (minimapSide === 'left') {
-				lineNumbersWidth = e.contentLeft - e.minimap.minimapCanvasOuterWidth;
-			} else if (minimapSide === 'right') {
-				lineNumbersWidth = e.contentLeft;
-			}
+			const lineNumbersWidth = minimapSide === 'left' ? e.contentLeft - e.minimap.minimapCanvasOuterWidth : e.contentLeft;
 			this._linesDomNode.style.width = `${e.width - e.minimap.minimapCanvasOuterWidth - e.verticalScrollbarWidth - lineNumbersWidth}px`;
 			scrollbar.scanDomNode();
 		}));
