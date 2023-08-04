@@ -48,6 +48,7 @@ export class FoldingModel {
 		this._editorDecorationIds = [];
 	}
 
+	// TODO: perhaps use this?
 	public toggleCollapseState(toggledRegions: FoldingRegion[]) {
 		if (!toggledRegions.length) {
 			return;
@@ -314,6 +315,8 @@ type RegionFilterWithLevel = (r: FoldingRegion, level: number) => boolean;
  * @param levels The number of levels. Use 1 to only impact the regions at the location, use Number.MAX_VALUE for all levels.
  * @param lineNumbers the location of the regions to collapse or expand, or if not set, all regions in the model.
  */
+
+// TODO: I should probably be using this
 export function toggleCollapseState(foldingModel: FoldingModel, levels: number, lineNumbers: number[]) {
 	const toToggle: FoldingRegion[] = [];
 	for (const lineNumber of lineNumbers) {

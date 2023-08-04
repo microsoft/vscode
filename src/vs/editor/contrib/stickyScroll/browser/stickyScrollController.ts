@@ -267,7 +267,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			sessionStore.clear();
 		}));
 		linkGestureStore.add(gesture.onExecute(async e => {
-			if ((e.target as unknown as CustomMouseEvent).detail !== this._stickyScrollWidget.getId()) {
+			console.log('e ; ', e);
+
+			if ((e.target as unknown as CustomMouseEvent).detail !== this._stickyScrollWidget.getId() || e.target.element?.className === 'unfold-icon') {
 				return;
 			}
 			if (e.hasTriggerModifier) {

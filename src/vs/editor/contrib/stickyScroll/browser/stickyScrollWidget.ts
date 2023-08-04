@@ -17,6 +17,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
+import { FoldingModel, toggleCollapseState } from 'vs/editor/contrib/folding/browser/foldingModel';
 
 export class StickyScrollWidgetState {
 	constructor(
@@ -116,10 +118,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._renderRootNode();
 	}
 
-	private _renderLinesAndFindMaximumLineLength(layoutInfo: EditorLayoutInfo): number {
+	private _renderLinesAndFindMaximumLineLength(layoutInfo: EditorLayoutInfo, foldingModel: FoldingModel | null): number {
 		let maxLength = 0;
 		for (const [index, line] of this._lineNumbers.entries()) {
-			const { lineNumberHTMLNode, lineHTMLNode } = this._renderChildNode(index, line, layoutInfo);
+			const { lineNumberHTMLNode, lineHTMLNode } = this._renderChildNode(index, line, layoutInfo, foldingModel);
 			this._lineNumbersDomNode.appendChild(lineNumberHTMLNode);
 			this._linesDomNode.appendChild(lineHTMLNode);
 			if (lineHTMLNode.scrollWidth > maxLength) {
@@ -177,13 +179,22 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		});
 	}
 
-	private _renderRootNode(): void {
+	private async _renderRootNode(): Promise<void> {
 
 		if (!this._editor._getViewModel()) {
 			return;
 		}
+
+		// Folding
+		let foldingModel: FoldingModel | null = null;
+		const foldingController = FoldingController.get(this._editor);
+		if (foldingController) {
+			foldingModel = await foldingController.getFoldingModel();
+		}
+		// Folding
+
 		const layoutInfo = this._editor.getLayoutInfo();
-		const maxLineLength = this._renderLinesAndFindMaximumLineLength(layoutInfo);
+		const maxLineLength = this._renderLinesAndFindMaximumLineLength(layoutInfo, foldingModel);
 
 		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
@@ -194,7 +205,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._updateViewZone(maxLineLength);
 	}
 
-	private _renderChildNode(index: number, line: number, layoutInfo: EditorLayoutInfo): { lineNumberHTMLNode: HTMLSpanElement; lineHTMLNode: HTMLSpanElement } {
+	private _renderChildNode(index: number, line: number, layoutInfo: EditorLayoutInfo, foldingModel: FoldingModel | null): { lineNumberHTMLNode: HTMLSpanElement; lineHTMLNode: HTMLSpanElement } {
 		const viewModel = this._editor._getViewModel();
 		const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
 		const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
@@ -254,6 +265,31 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
 		}
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
+
+		innerLineNumberHTML.style.float = 'left';
+		if (foldingModel) {
+			const foldingRegions = foldingModel.regions;
+			const indexOfLine = foldingRegions.findRange(line);
+			console.log('indexOfLine : ', indexOfLine);
+			const startLineNumber = foldingRegions.getStartLineNumber(indexOfLine);
+			console.log('startLineNumber : ', startLineNumber);
+			const isFoldingLine = line === startLineNumber;
+			console.log('isFoldingLine ; ', isFoldingLine);
+
+			if (isFoldingLine) {
+				const divToUnfold = document.createElement('div');
+				divToUnfold.style.backgroundColor = 'red';
+				divToUnfold.style.height = '18px';
+				divToUnfold.style.width = '18px';
+				divToUnfold.style.float = 'right';
+				divToUnfold.className = 'unfold-icon';
+				lineNumberHTMLNode.append(divToUnfold);
+
+				this._disposableStore.add(dom.addDisposableListener(divToUnfold, 'click', (e) => {
+					toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
+				}));
+			}
+		}
 
 		this._editor.applyFontInfo(lineHTMLNode);
 		this._editor.applyFontInfo(innerLineNumberHTML);
