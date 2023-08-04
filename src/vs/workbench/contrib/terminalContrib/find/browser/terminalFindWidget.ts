@@ -35,7 +35,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			checkImeCompletionState: true,
 			showResultCount: true,
 			initialWidth: TERMINAL_FIND_WIDGET_INITIAL_WIDTH,
-			enableSash: true
+			enableSash: true,
 			appendCaseSensitiveActionId: TerminalCommandId.ToggleFindCaseSensitive,
 			appendRegexActionId: TerminalCommandId.ToggleFindRegex,
 			appendWholeWordsActionId: TerminalCommandId.ToggleFindWholeWord,
