@@ -29,10 +29,9 @@ rmp-serde = "1.1.1"
 uuid = { version = "1.3.3", features = ["serde", "v4"] }
 dirs = "5.0.1"
 rand = "0.8.5"
-atty = "0.2.14"
 opentelemetry = { version = "0.19.0", features = ["rt-tokio"] }
 serde_bytes = "0.11.9"
-chrono = { version = "0.4.26", features = ["serde"] }
+chrono = { version = "0.4.26", features = ["serde", "std", "clock"], default-features = false }
 gethostname = "0.4.3"
 libc = "0.2.144"
 tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "2621784a9ad72aa39500372391332a14bad581a3", default-features = false, features = ["connections"] }

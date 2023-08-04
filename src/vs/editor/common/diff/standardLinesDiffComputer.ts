@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { compareBy, findLastIndex, numberComparator, reverseOrder } from 'vs/base/common/arrays';
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { CharCode } from 'vs/base/common/charCode';
+import { SetMap } from 'vs/base/common/collections';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Position } from 'vs/editor/common/core/position';
@@ -137,37 +139,9 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 
 		const changes = lineRangeMappingFromRangeMappings(alignments, originalLines, modifiedLines);
 
-		const moves: MovedText[] = [];
+		let moves: MovedText[] = [];
 		if (options.computeMoves) {
-			const deletions = changes
-				.filter(c => c.modifiedRange.isEmpty && c.originalRange.length >= 3)
-				.map(d => new LineRangeFragment(d.originalRange, originalLines));
-			const insertions = new Set(changes
-				.filter(c => c.originalRange.isEmpty && c.modifiedRange.length >= 3)
-				.map(d => new LineRangeFragment(d.modifiedRange, modifiedLines)));
-
-			for (const deletion of deletions) {
-				let highestSimilarity = -1;
-				let best: LineRangeFragment | undefined;
-				for (const insertion of insertions) {
-					const similarity = deletion.computeSimilarity(insertion);
-					if (similarity > highestSimilarity) {
-						highestSimilarity = similarity;
-						best = insertion;
-					}
-				}
-
-				if (highestSimilarity > 0.90 && best) {
-					const moveChanges = this.refineDiff(originalLines, modifiedLines, new SequenceDiff(
-						new OffsetRange(deletion.range.startLineNumber - 1, deletion.range.endLineNumberExclusive - 1),
-						new OffsetRange(best.range.startLineNumber - 1, best.range.endLineNumberExclusive - 1),
-					), timeout, considerWhitespaceChanges);
-					const mappings = lineRangeMappingFromRangeMappings(moveChanges.mappings, originalLines, modifiedLines, true);
-
-					insertions.delete(best);
-					moves.push(new MovedText(new SimpleLineRangeMapping(deletion.range, best.range), mappings));
-				}
-			}
+			moves = this.computeMoves(changes, originalLines, modifiedLines, srcDocLines, tgtDocLines, timeout, considerWhitespaceChanges);
 		}
 
 		// Make sure all ranges are valid
@@ -202,6 +176,136 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		return new LinesDiff(changes, moves, hitTimeout);
 	}
 
+	private computeMoves(changes: LineRangeMapping[], originalLines: string[], modifiedLines: string[], hashedOriginalLines: number[], hashedModifiedLines: number[], timeout: ITimeout, considerWhitespaceChanges: boolean): MovedText[] {
+		const moves: MovedText[] = [];
+		const deletions = changes
+			.filter(c => c.modifiedRange.isEmpty && c.originalRange.length >= 3)
+			.map(d => new LineRangeFragment(d.originalRange, originalLines, d));
+		const insertions = new Set(changes
+			.filter(c => c.originalRange.isEmpty && c.modifiedRange.length >= 3)
+			.map(d => new LineRangeFragment(d.modifiedRange, modifiedLines, d)));
+
+		const excludedChanges = new Set<LineRangeMapping>();
+
+		for (const deletion of deletions) {
+			let highestSimilarity = -1;
+			let best: LineRangeFragment | undefined;
+			for (const insertion of insertions) {
+				const similarity = deletion.computeSimilarity(insertion);
+				if (similarity > highestSimilarity) {
+					highestSimilarity = similarity;
+					best = insertion;
+				}
+			}
+
+			if (highestSimilarity > 0.90 && best) {
+				const moveChanges = this.refineDiff(originalLines, modifiedLines, new SequenceDiff(
+					new OffsetRange(deletion.range.startLineNumber - 1, deletion.range.endLineNumberExclusive - 1),
+					new OffsetRange(best.range.startLineNumber - 1, best.range.endLineNumberExclusive - 1)
+				), timeout, considerWhitespaceChanges);
+				const mappings = lineRangeMappingFromRangeMappings(moveChanges.mappings, originalLines, modifiedLines, true);
+
+				insertions.delete(best);
+				moves.push(new MovedText(new SimpleLineRangeMapping(deletion.range, best.range), mappings));
+				excludedChanges.add(deletion.source);
+				excludedChanges.add(best.source);
+			}
+		}
+
+		const original3LineHashes = new SetMap<string, { range: LineRange }>();
+
+		for (const change of changes) {
+			if (excludedChanges.has(change)) {
+				continue;
+			}
+
+			for (let i = change.originalRange.startLineNumber; i < change.originalRange.endLineNumberExclusive - 2; i++) {
+				const key = `${hashedOriginalLines[i - 1]}:${hashedOriginalLines[i + 1 - 1]}:${hashedOriginalLines[i + 2 - 1]}`;
+				original3LineHashes.add(key, { range: new LineRange(i, i + 3) });
+			}
+		}
+
+		interface PossibleMapping {
+			modifiedLineRange: LineRange;
+			originalLineRange: LineRange;
+		}
+
+		const possibleMappings: PossibleMapping[] = [];
+
+		changes.sort(compareBy(c => c.modifiedRange.startLineNumber, numberComparator));
+
+		for (const change of changes) {
+			if (excludedChanges.has(change)) {
+				continue;
+			}
+
+			let lastMappings: PossibleMapping[] = [];
+			for (let i = change.modifiedRange.startLineNumber; i < change.modifiedRange.endLineNumberExclusive - 2; i++) {
+				const key = `${hashedModifiedLines[i - 1]}:${hashedModifiedLines[i + 1 - 1]}:${hashedModifiedLines[i + 2 - 1]}`;
+
+				//const isWeakKey = (originalLines[i].trim().length + originalLines[i + 1].trim().length + originalLines[i + 2].trim().length < 20);
+
+				const currentModifiedRange = new LineRange(i, i + 3);
+
+				const nextMappings: PossibleMapping[] = [];
+				original3LineHashes.forEach(key, ({ range }) => {
+					for (const lastMapping of lastMappings) {
+						// does this match extend some last match?
+						if (lastMapping.originalLineRange.endLineNumberExclusive + 1 === range.endLineNumberExclusive &&
+							lastMapping.modifiedLineRange.endLineNumberExclusive + 1 === currentModifiedRange.endLineNumberExclusive) {
+							lastMapping.originalLineRange = new LineRange(lastMapping.originalLineRange.startLineNumber, range.endLineNumberExclusive);
+							lastMapping.modifiedLineRange = new LineRange(lastMapping.modifiedLineRange.startLineNumber, currentModifiedRange.endLineNumberExclusive);
+							nextMappings.push(lastMapping);
+							return;
+						}
+					}
+
+					const mapping: PossibleMapping = {
+						modifiedLineRange: currentModifiedRange,
+						originalLineRange: range,
+					};
+					possibleMappings.push(mapping);
+					nextMappings.push(mapping);
+				});
+				lastMappings = nextMappings;
+			}
+		}
+
+		possibleMappings.sort(reverseOrder(compareBy(m => m.modifiedLineRange.length, numberComparator)));
+
+		const modifiedSet = new LineRangeSet();
+		const originalSet = new LineRangeSet();
+
+		for (const mapping of possibleMappings) {
+
+			const diffOrigToMod = mapping.modifiedLineRange.startLineNumber - mapping.originalLineRange.startLineNumber;
+			const modifiedSections = modifiedSet.subtractFrom(mapping.modifiedLineRange);
+			const originalTranslatedSections = originalSet.subtractFrom(mapping.originalLineRange).map(r => r.delta(diffOrigToMod));
+
+			const modifiedIntersectedSections = intersectRanges(modifiedSections, originalTranslatedSections);
+
+			for (const s of modifiedIntersectedSections) {
+				if (s.length < 3) {
+					continue;
+				}
+				const modifiedLineRange = s;
+				const originalLineRange = s.delta(-diffOrigToMod);
+
+				const moveChanges = this.refineDiff(originalLines, modifiedLines, new SequenceDiff(
+					new OffsetRange(originalLineRange.startLineNumber - 1, originalLineRange.endLineNumberExclusive - 1),
+					new OffsetRange(modifiedLineRange.startLineNumber - 1, modifiedLineRange.endLineNumberExclusive - 1)
+				), timeout, considerWhitespaceChanges);
+				const mappings = lineRangeMappingFromRangeMappings(moveChanges.mappings, originalLines, modifiedLines, true);
+				moves.push(new MovedText(new SimpleLineRangeMapping(originalLineRange, modifiedLineRange), mappings));
+
+				modifiedSet.addRange(modifiedLineRange);
+				originalSet.addRange(originalLineRange);
+			}
+		}
+
+		return moves;
+	}
+
 	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout, considerWhitespaceChanges: boolean): { mappings: RangeMapping[]; hitTimeout: boolean } {
 		const slice1 = new LinesSliceCharSequence(originalLines, diff.seq1Range, considerWhitespaceChanges);
 		const slice2 = new LinesSliceCharSequence(modifiedLines, diff.seq2Range, considerWhitespaceChanges);
@@ -231,6 +335,100 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			hitTimeout: diffResult.hitTimeout,
 		};
 	}
+}
+
+function intersectRanges(ranges1: LineRange[], ranges2: LineRange[]): LineRange[] {
+	const result: LineRange[] = [];
+
+	let i1 = 0;
+	let i2 = 0;
+	while (i1 < ranges1.length && i2 < ranges2.length) {
+		const r1 = ranges1[i1];
+		const r2 = ranges2[i2];
+
+		const i = r1.intersect(r2);
+		if (i && !i.isEmpty) {
+			result.push(i);
+		}
+
+		if (r1.endLineNumberExclusive < r2.endLineNumberExclusive) {
+			i1++;
+		} else {
+			i2++;
+		}
+	}
+
+	return result;
+}
+
+// TODO make this fast
+class LineRangeSet {
+	private readonly _normalizedRanges: LineRange[] = [];
+
+	addRange(range: LineRange): void {
+		// Idea: Find joinRange such that:
+		// replaceRange = _normalizedRanges.replaceRange(joinRange, range.joinAll(joinRange.map(idx => this._normalizedRanges[idx])))
+
+		// idx of first element that touches range or that is after range
+		const joinRangeStartIdx = mapMinusOne(this._normalizedRanges.findIndex(r => r.endLineNumberExclusive >= range.startLineNumber), this._normalizedRanges.length);
+		// idx of element after { last element that touches range or that is before range }
+		const joinRangeEndIdxExclusive = findLastIndex(this._normalizedRanges, r => r.startLineNumber <= range.endLineNumberExclusive) + 1;
+
+		if (joinRangeStartIdx === joinRangeEndIdxExclusive) {
+			// If there is no element that touches range, then joinRangeStartIdx === joinRangeEndIdxExclusive and that value is the index of the element after range
+			this._normalizedRanges.splice(joinRangeStartIdx, 0, range);
+		} else if (joinRangeStartIdx === joinRangeEndIdxExclusive - 1) {
+			// Else, there is an element that touches range and in this case it is both the first and last element. Thus we can replace it
+			const joinRange = this._normalizedRanges[joinRangeStartIdx];
+			this._normalizedRanges[joinRangeStartIdx] = joinRange.join(range);
+		} else {
+			// First and last element are different - we need to replace the entire range
+			const joinRange = this._normalizedRanges[joinRangeStartIdx].join(this._normalizedRanges[joinRangeEndIdxExclusive - 1]).join(range);
+			this._normalizedRanges.splice(joinRangeStartIdx, joinRangeEndIdxExclusive - joinRangeStartIdx, joinRange);
+		}
+	}
+
+	intersects(range: LineRange): boolean {
+		for (const r of this._normalizedRanges) {
+			if (r.intersectsStrict(range)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Subtracts all ranges in this set from `range` and returns the result.
+	 */
+	subtractFrom(range: LineRange): LineRange[] {
+		// idx of first element that touches range or that is after range
+		const joinRangeStartIdx = mapMinusOne(this._normalizedRanges.findIndex(r => r.endLineNumberExclusive >= range.startLineNumber), this._normalizedRanges.length);
+		// idx of element after { last element that touches range or that is before range }
+		const joinRangeEndIdxExclusive = findLastIndex(this._normalizedRanges, r => r.startLineNumber <= range.endLineNumberExclusive) + 1;
+
+		if (joinRangeStartIdx === joinRangeEndIdxExclusive) {
+			return [range];
+		}
+
+		const result: LineRange[] = [];
+		let startLineNumber = range.startLineNumber;
+		for (let i = joinRangeStartIdx; i < joinRangeEndIdxExclusive; i++) {
+			const r = this._normalizedRanges[i];
+			if (r.startLineNumber > startLineNumber) {
+				result.push(new LineRange(startLineNumber, r.startLineNumber));
+			}
+			startLineNumber = r.endLineNumberExclusive;
+		}
+		if (startLineNumber < range.endLineNumberExclusive) {
+			result.push(new LineRange(startLineNumber, range.endLineNumberExclusive));
+		}
+
+		return result;
+	}
+}
+
+function mapMinusOne(idx: number, mapTo: number): number {
+	return idx === -1 ? mapTo : idx;
 }
 
 function coverFullWords(sequence1: LinesSliceCharSequence, sequence2: LinesSliceCharSequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
@@ -676,6 +874,7 @@ class LineRangeFragment {
 	constructor(
 		public readonly range: LineRange,
 		public readonly lines: string[],
+		public readonly source: LineRangeMapping,
 	) {
 		let counter = 0;
 		for (let i = range.startLineNumber - 1; i < range.endLineNumberExclusive - 1; i++) {

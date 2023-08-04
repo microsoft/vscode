@@ -42,9 +42,10 @@ import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { QuickQuestionMode } from 'vs/workbench/contrib/chat/browser/actions/quickQuestionActions/quickQuestionAction';
 import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -90,13 +91,6 @@ configurationRegistry.registerConfiguration({
 			],
 			description: nls.localize('interactiveSession.defaultMode', "Controls the default mode of the chat experience."),
 			default: 'chatView'
-		},
-		'chat.experimental.quickQuestion.mode': {
-			type: 'string',
-			tags: ['experimental'],
-			enum: [QuickQuestionMode.SingleQuestion, QuickQuestionMode.InputOnTopChat, QuickQuestionMode.InputOnBottomChat],
-			description: nls.localize('interactiveSession.quickQuestion.mode', "Controls the mode of quick question chat experience."),
-			default: QuickQuestionMode.InputOnTopChat,
 		}
 	}
 });
@@ -171,8 +165,19 @@ class ChatAccessibleViewContribution extends Disposable {
 				}
 
 				widget.focus(focusedItem);
-
-				const responseContent = isResponseVM(focusedItem) ? focusedItem.response.value : undefined;
+				const isWelcome = focusedItem instanceof ChatWelcomeMessageModel;
+				let responseContent = isResponseVM(focusedItem) ? focusedItem.response.value : undefined;
+				if (isWelcome) {
+					const welcomeReplyContents = [];
+					for (const content of focusedItem.content) {
+						if (Array.isArray(content)) {
+							welcomeReplyContents.push(...content.map(m => m.message));
+						} else {
+							welcomeReplyContents.push((content as IMarkdownString).value);
+						}
+					}
+					responseContent = welcomeReplyContents.join('\n');
+				}
 				if (!responseContent) {
 					return false;
 				}
@@ -182,7 +187,7 @@ class ChatAccessibleViewContribution extends Disposable {
 
 				accessibleViewService.show({
 					verbositySettingKey: AccessibilityVerbositySettingId.Chat,
-					provideContent(): string { return responseContent; },
+					provideContent(): string { return responseContent!; },
 					onClose() {
 						verifiedWidget.reveal(focusedItem);
 						if (chatInputFocused) {
