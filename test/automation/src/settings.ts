@@ -61,6 +61,9 @@ export class SettingsEditor {
 
 	async searchSettingsUI(query: string): Promise<void> {
 		await this.openUserSettingsUI();
+		await this.code.waitAndClick('.settings-editor .suggest-input-container .monaco-editor textarea');
+		await this.code.dispatchKeybinding('ctrl+a');
+		await this.code.dispatchKeybinding('backspace');
 		await this.code.waitForTypeInEditor('.settings-editor .suggest-input-container .monaco-editor textarea', query);
 	}
 }
