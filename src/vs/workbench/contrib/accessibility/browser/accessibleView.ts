@@ -39,8 +39,8 @@ class AccessibleViewDisableHintAction extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.action.accessibleViewDisableHint',
-			precondition: ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown),
 			keybinding: {
+				when: ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown),
 				primary: KeyMod.Alt | KeyCode.F6,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
@@ -155,7 +155,7 @@ class AccessibleView extends Disposable {
 			}
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (this._currentProvider && this._accessiblityHelpIsShown.get() && e.affectsConfiguration(`accessibility.verbosity.${this._currentProvider.verbositySettingKey}`)) {
+			if (this._currentProvider && this._accessiblityHelpIsShown.get() && e.affectsConfiguration(this._currentProvider.verbositySettingKey)) {
 				this.show(this._currentProvider);
 			}
 		}));
@@ -258,7 +258,7 @@ class AccessibleView extends Disposable {
 		if (!this._currentProvider) {
 			return;
 		}
-		this._configurationService.updateValue(this._currentProvider?.verbositySettingKey, 'false');
+		this._configurationService.updateValue(this._currentProvider?.verbositySettingKey, false);
 		alert(localize('disableAccessibilityHelp', '{0} accessibility verbosity is now disabled', this._currentProvider.verbositySettingKey));
 	}
 
@@ -307,7 +307,20 @@ class AccessibleView extends Disposable {
 			}
 			model.setLanguage(provider.options.language ?? 'markdown');
 			container.appendChild(this._editorContainer);
-			this._editorWidget.updateOptions({ ariaLabel: provider.next && provider.previous ? localize('accessibleViewAriaLabelWithNav', "{0} {1}", provider.options.ariaLabel, this._getNavigationAriaHint(provider.verbositySettingKey)) : localize('accessibleViewAriaLabel', "{0}", provider.options.ariaLabel) });
+			let ariaLabel = undefined;
+			const label = provider.options.ariaLabel;
+			const navigationHint = this._getNavigationAriaHint(provider.verbositySettingKey);
+			const disableHint = this._getDisableVerbosityHint(provider.verbositySettingKey);
+			if (label && navigationHint && disableHint) {
+				ariaLabel = localize('ariaLabelAll', '{0}, {1}, {2}', label, navigationHint, disableHint);
+			} else if (label && navigationHint) {
+				ariaLabel = localize('ariaLabelLabelNavigation', '{0}, {1}', label, navigationHint);
+			} else if (label && disableHint) {
+				ariaLabel = localize('ariaLabelLabelDisable', '{0}, {1}', label, disableHint);
+			} else if (navigationHint && disableHint) {
+				ariaLabel = localize('ariaLabelNavigationDisable', '{0}, {1}', navigationHint, disableHint);
+			}
+			this._editorWidget.updateOptions({ ariaLabel });
 			this._editorWidget.focus();
 		});
 		const disposableStore = new DisposableStore();
@@ -355,9 +368,16 @@ class AccessibleView extends Disposable {
 		const nextKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewNextAction.id)?.getAriaLabel();
 		const previousKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewPreviousAction.id)?.getAriaLabel();
 		if (this._configurationService.getValue(verbositySettingKey)) {
-			hint = (nextKeybinding && previousKeybinding) ? localize('chatAccessibleViewNextPreviousHint', "Show the next {0} or previous {1} item in the accessible view", nextKeybinding, previousKeybinding) : localize('chatAccessibleViewNextPreviousHintNoKb', "Show the next or previous item in the accessible view by configuring keybindings for Show Next / Previous in Accessible View");
+			hint = (nextKeybinding && previousKeybinding) ? localize('accessibleViewNextPreviousHint', "Show the next {0} or previous {1} item in the accessible view", nextKeybinding, previousKeybinding) : localize('chatAccessibleViewNextPreviousHintNoKb', "Show the next or previous item in the accessible view by configuring keybindings for Show Next / Previous in Accessible View");
 		}
 		return hint;
+	}
+	private _getDisableVerbosityHint(verbositySettingKey: AccessibilityVerbositySettingId): string {
+		if (!this._configurationService.getValue(verbositySettingKey)) {
+			return '';
+		}
+		const disableKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewDisableHintAction.id)?.getAriaLabel();
+		return disableKeybinding ? localize('acessibleViewDisableHint', "Disable the hint to open the accessible view by pressing {1}.", disableKeybinding) : localize('accessibleViewDisableHintNoKb', 'Add a keybinding for the command Disable Accessible View Hint to disable this hint."');
 	}
 }
 
@@ -397,13 +417,13 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		const disableKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewDisableHintAction.id)?.getAriaLabel();
 		let hint = null;
 		if (keybinding && disableKeybinding) {
-			hint = localize('chatAccessibleViewHint', "Inspect this in the accessible view with {0}, disable this hint with {1}", keybinding, disableKeybinding);
+			hint = localize('acessibleViewHint', "Inspect this in the accessible view with {0}", keybinding, disableKeybinding);
 		} else if (keybinding && !disableKeybinding) {
-			hint = localize('chatAccessibleViewHintNoKbDisable', "Inspect this in the accessible view with {0}, disable this hint by adding a keybinding for the command Disable Accessible View Hint", keybinding);
+			hint = localize('acessibleViewHintNoKbDisable', "Inspect this in the accessible view with {0}. Add a keybinding for the command Disable Accessible View Hint to disable this hint.", keybinding);
 		} else if (!keybinding && disableKeybinding) {
-			hint = localize('chatAccessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding, disable this hint with {0}", disableKeybinding);
+			hint = localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding. Disable this hint via {0}.", disableKeybinding);
 		} else {
-			hint = localize('chatAccessibleViewHintNoKbEither', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding, disable this hint by adding a keybinding for the command Disable Accessible View Hint");
+			hint = localize('acessibleViewHintNoKbEither', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding, Disable this hint by adding a keybinding for the command Disable Accessible View Hint.");
 		}
 		return hint;
 	}
