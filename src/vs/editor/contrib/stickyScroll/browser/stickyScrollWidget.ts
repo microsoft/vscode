@@ -49,7 +49,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 		this._lineNumbersDomNode.className = 'sticky-widget-line-numbers';
 		const layoutInfo = this._editor.getOption(EditorOption.layoutInfo);
-		this._lineNumbersDomNode.style.width = layoutInfo.contentLeft + 'px';
+		this._lineNumbersDomNode.style.width = `${layoutInfo.contentLeft}px`;
 
 		this._linesDomNode.className = 'sticky-widget-lines';
 		this._linesDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
@@ -139,7 +139,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 
 		array.forEach(node => {
-			node.style.width = maximumLength + 'px';
+			node.style.width = `${maximumLength}px`;
 		});
 
 		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
@@ -149,7 +149,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._lineNumbersDomNode.style.display = display;
 		this._linesDomNode.style.display = display;
 
-		const height = widgetHeight.toString() + 'px';
+		const height = `${widgetHeight.toString()}px`;
 		this._lineNumbersDomNode.style.height = height;
 		this._linesDomNode.style.height = height;
 
@@ -182,7 +182,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			}
 		});
 
-		this._scrollableDomNode.style.height = this._linesDomNode.clientHeight + 'px';
+		this._scrollableDomNode.style.height = `${this._linesDomNode.clientHeight}px`;
 	}
 
 	private _renderChildNode(index: number, line: number): { lineNumberHTMLNode: HTMLSpanElement; lineHTMLNode: HTMLSpanElement } {
