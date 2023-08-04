@@ -39,7 +39,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lastLineRelativePosition: number = 0;
 	private _hoverOnLine: number = -1;
 	private _hoverOnColumn: number = -1;
-
 	private _bottomMostLine: number | undefined;
 	private _minWidthInPixels: number | undefined;
 	private _viewZoneId: string | undefined;
@@ -73,9 +72,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			scrollbar.setScrollPosition({ scrollLeft: e.scrollLeft });
 		}));
 		this._register(this._editor.onDidLayoutChange((e) => {
-			const minimapSide = this._editor.getOption(EditorOption.minimap).side;
-			const lineNumbersWidth = minimapSide === 'left' ? e.contentLeft - e.minimap.minimapCanvasOuterWidth : e.contentLeft;
-			this._linesDomNode.style.width = `${e.width - e.minimap.minimapCanvasOuterWidth - e.verticalScrollbarWidth - lineNumbersWidth}px`;
+			this._updateWidgetWidth(e);
 			scrollbar.scanDomNode();
 		}));
 		scrollbar.scanDomNode();
@@ -129,15 +126,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				maxLength = lineHTMLNode.scrollWidth;
 			}
 		}
-		return maxLength;
-	}
-
-	private _updateWidthOfHTMLCollection(collection: HTMLCollection, width: number) {
-		for (const child of collection) {
+		for (const child of this._linesDomNode.children) {
 			if (child instanceof HTMLElement) {
-				child.style.width = `${width}px`;
+				child.style.width = `${maxLength}px`;
 			}
 		}
+		return maxLength;
 	}
 
 	private _updateWidgetWidth(layoutInfo: EditorLayoutInfo): void {
@@ -190,7 +184,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 		const layoutInfo = this._editor.getLayoutInfo();
 		const maxLineLength = this._renderLinesAndFindMaximumLineLength(layoutInfo);
-		this._updateWidthOfHTMLCollection(this._linesDomNode.children, maxLineLength);
 
 		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
