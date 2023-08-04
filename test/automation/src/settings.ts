@@ -53,4 +53,14 @@ export class SettingsEditor {
 		await this.quickaccess.runCommand('workbench.action.openSettingsJson');
 		await this.editor.waitForEditorFocus('settings.json', 1);
 	}
+
+	async openUserSettingsUI(): Promise<void> {
+		await this.quickaccess.runCommand('workbench.action.openSettings2');
+		await this.code.waitForElement('.settings-group-title-label');
+	}
+
+	async searchSettingsUI(query: string): Promise<void> {
+		await this.openUserSettingsUI();
+		await this.code.waitForTypeInEditor('.settings-editor .suggest-input-container .monaco-editor textarea', query);
+	}
 }
