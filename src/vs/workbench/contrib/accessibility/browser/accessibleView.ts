@@ -35,7 +35,6 @@ import { marked } from 'vs/base/common/marked/marked';
 
 
 class AccessibleViewDisableHintAction extends Action2 {
-	static id: 'editor.action.accessibleViewDisableHint';
 	constructor() {
 		super({
 			id: 'editor.action.accessibleViewDisableHint',
@@ -365,10 +364,10 @@ class AccessibleView extends Disposable {
 
 	private _getNavigationAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string {
 		let hint = '';
-		const nextKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewNextAction.id)?.getAriaLabel();
-		const previousKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewPreviousAction.id)?.getAriaLabel();
+		const nextKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleViewNext')?.getAriaLabel();
+		const previousKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleViewPrevious')?.getAriaLabel();
 		if (this._configurationService.getValue(verbositySettingKey)) {
-			hint = (nextKeybinding && previousKeybinding) ? localize('accessibleViewNextPreviousHint', "Show the next {0} or previous {1} item in the accessible view", nextKeybinding, previousKeybinding) : localize('chatAccessibleViewNextPreviousHintNoKb', "Show the next or previous item in the accessible view by configuring keybindings for Show Next / Previous in Accessible View");
+			hint = (nextKeybinding && previousKeybinding) ? localize('accessibleViewNextPreviousHint', "Show the next ({0}) or previous ({1}) item in the accessible view", nextKeybinding, previousKeybinding) : localize('chatAccessibleViewNextPreviousHintNoKb', "Show the next or previous item in the accessible view by configuring keybindings for Show Next / Previous in Accessible View");
 		}
 		return hint;
 	}
@@ -376,8 +375,8 @@ class AccessibleView extends Disposable {
 		if (!this._configurationService.getValue(verbositySettingKey)) {
 			return '';
 		}
-		const disableKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewDisableHintAction.id)?.getAriaLabel();
-		return disableKeybinding ? localize('acessibleViewDisableHint', "Disable the hint to open the accessible view by pressing {1}.", disableKeybinding) : localize('accessibleViewDisableHintNoKb', 'Add a keybinding for the command Disable Accessible View Hint to disable this hint."');
+		const disableKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleViewDisableHint', this._contextKeyService)?.getAriaLabel();
+		return !!disableKeybinding ? localize('acessibleViewDisableHint', "Disable the hint to open the accessible view by pressing ({0}).", disableKeybinding) : localize('accessibleViewDisableHintNoKb', 'Add a keybinding for the command Disable Accessible View Hint to disable this hint."');
 	}
 }
 
@@ -414,16 +413,11 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 			return null;
 		}
 		const keybinding = this._keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
-		const disableKeybinding = this._keybindingService.lookupKeybinding(AccessibleViewDisableHintAction.id)?.getAriaLabel();
 		let hint = null;
-		if (keybinding && disableKeybinding) {
-			hint = localize('acessibleViewHint', "Inspect this in the accessible view with {0}", keybinding, disableKeybinding);
-		} else if (keybinding && !disableKeybinding) {
-			hint = localize('acessibleViewHintNoKbDisable', "Inspect this in the accessible view with {0}. Add a keybinding for the command Disable Accessible View Hint to disable this hint.", keybinding);
-		} else if (!keybinding && disableKeybinding) {
-			hint = localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding. Disable this hint via {0}.", disableKeybinding);
+		if (keybinding) {
+			hint = localize('acessibleViewHint', "Inspect this in the accessible view with {0}", keybinding);
 		} else {
-			hint = localize('acessibleViewHintNoKbEither', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding, Disable this hint by adding a keybinding for the command Disable Accessible View Hint.");
+			hint = localize('acessibleViewHintNoKbEither', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.");
 		}
 		return hint;
 	}
@@ -433,7 +427,6 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 }
 
 class AccessibleViewNextAction extends Action2 {
-	static id: 'editor.action.accessibleViewNext';
 	constructor() {
 		super({
 			id: 'editor.action.accessibleViewNext',
@@ -458,7 +451,6 @@ registerAction2(AccessibleViewNextAction);
 
 
 class AccessibleViewGoToSymbolAction extends Action2 {
-	static id: 'editor.action.accessibleViewGoToSymbol';
 	constructor() {
 		super({
 			id: 'editor.action.accessibleViewGoToSymbol',
@@ -482,7 +474,6 @@ class AccessibleViewGoToSymbolAction extends Action2 {
 registerAction2(AccessibleViewGoToSymbolAction);
 
 class AccessibleViewPreviousAction extends Action2 {
-	static id: 'editor.action.accessibleViewPrevious';
 	constructor() {
 		super({
 			id: 'editor.action.accessibleViewPrevious',
