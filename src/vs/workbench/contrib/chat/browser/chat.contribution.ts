@@ -166,7 +166,7 @@ class ChatAccessibleViewContribution extends Disposable {
 
 				widget.focus(focusedItem);
 				const isWelcome = focusedItem instanceof ChatWelcomeMessageModel;
-				let responseContent = isResponseVM(focusedItem) ? focusedItem.response.value : undefined;
+				let responseContent = isResponseVM(focusedItem) ? focusedItem.response.asString() : undefined;
 				if (isWelcome) {
 					const welcomeReplyContents = [];
 					for (const content of focusedItem.content) {
