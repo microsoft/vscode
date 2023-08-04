@@ -265,10 +265,16 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 		// Special case for the last line of sticky scroll
 		const isLastLine = index === this._lineNumbers.length - 1;
-		lineHTMLNode.style.zIndex = isLastLine ? '0' : '1';
-		lineNumberHTMLNode.style.zIndex = isLastLine ? '0' : '1';
-		lineHTMLNode.style.top = isLastLine ? `${index * lineHeight + this._lastLineRelativePosition}px` : `${index * lineHeight}px`;
-		lineNumberHTMLNode.style.top = isLastLine ? `${index * lineHeight + this._lastLineRelativePosition}px` : `${index * lineHeight}px`;
+
+		const lastLineZIndex = '0';
+		const intermediateLineZIndex = '1';
+		lineHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
+		lineNumberHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
+
+		const lastLineTop = `${index * lineHeight + this._lastLineRelativePosition}px`;
+		const intermediateLineTop = `${index * lineHeight}px`;
+		lineHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
+		lineNumberHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
 
 		// Each child has a listener which fires when the mouse hovers over the child
 		this._disposableStore.add(dom.addDisposableListener(lineHTMLNode, 'mouseover', (e) => {
