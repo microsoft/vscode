@@ -749,7 +749,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		}
 	}
 
-	private firstExpandPane(): ExtensionsListView | undefined {
+	private getFirstExpandedPane(): ExtensionsListView | undefined {
 		for (const pane of this.panes) {
 			if (pane.isExpanded() && pane instanceof ExtensionsListView) {
 				return pane;
@@ -759,7 +759,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	}
 
 	private focusListView(): void {
-		const pane = this.firstExpandPane();
+		const pane = this.getFirstExpandedPane();
 		if (pane && pane.count() > 0) {
 			pane.focus();
 		}
