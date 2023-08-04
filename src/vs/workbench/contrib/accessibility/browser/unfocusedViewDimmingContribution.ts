@@ -42,9 +42,11 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 				// Terminal tabs
 				rules.add(`.monaco-workbench .pane-body.integrated-terminal:not(:focus-within) .tabs-container { ${filterRule} }`);
 				// Terminals
-				rules.add(`.monaco-workbench .pane-body.integrated-terminal .xterm:not(.focus) { ${filterRule} }`);
-				// Editors
+				rules.add(`.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper:not(:focus-within) { ${filterRule} }`);
+				// Text editors
 				rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .monaco-editor { ${filterRule} }`);
+				// Terminal editors
+				rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .terminal-wrapper { ${filterRule} }`);
 			}
 
 			elStyle.textContent = [...rules].join('\n');
