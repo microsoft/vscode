@@ -29,7 +29,6 @@ const _ttPolicy = createTrustedTypesPolicy('stickyScrollViewLayer', { createHTML
 
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
-	private readonly _layoutInfo: EditorLayoutInfo;
 	private readonly _rootDomNode: HTMLElement = document.createElement('div');
 	private readonly _lineNumbersDomNode: HTMLElement = document.createElement('div');
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
