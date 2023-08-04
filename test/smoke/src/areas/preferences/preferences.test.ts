@@ -16,10 +16,10 @@ export function setup(logger: Logger) {
 			const app = this.app as Application;
 
 			await app.workbench.settingsEditor.openUserSettingsFile();
-			await app.code.waitForElements('.margin .line-numbers', false, elements => !!elements.length);
+			await app.code.waitForElements('.line-numbers', false, elements => !!elements.length);
 
 			await app.workbench.settingsEditor.addUserSetting('editor.lineNumbers', '"off"');
-			await app.code.waitForElements('.margin .line-numbers', false, elements => !elements || elements.length === 0);
+			await app.code.waitForElements('.line-numbers', false, elements => !elements || elements.length === 0);
 		});
 
 		it('changes "workbench.action.toggleSidebarPosition" command key binding and verifies it', async function () {
@@ -53,14 +53,14 @@ export function setup(logger: Logger) {
 
 			await app.workbench.editors.newUntitledFile();
 			await app.code.dispatchKeybinding('enter');
-			await app.code.waitForElements('.margin .line-numbers', false, elements => !!elements.length);
+			await app.code.waitForElements('.line-numbers', false, elements => !!elements.length);
 
 			await app.workbench.settingsEditor.searchSettingsUI('editor.lineNumbers');
 			await app.code.waitAndClick('.settings-editor .monaco-list-rows .setting-item-control select', 2, 2);
 			await app.code.waitAndClick('.context-view .option-text', 2, 2);
 
 			await app.workbench.editors.selectTab('Untitled-1');
-			await app.code.waitForElements('.margin .line-numbers', false, elements => !elements || elements.length === 0);
+			await app.code.waitForElements('.line-numbers', false, elements => !elements || elements.length === 0);
 		});
 	});
 }
