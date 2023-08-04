@@ -21,6 +21,7 @@ export interface IEnvironmentVariableMutator {
 
 export interface IEnvironmentVariableCollectionDescription {
 	readonly description: string | undefined;
+	readonly promptPrefix?: string;
 	readonly scope?: EnvironmentVariableScope;
 }
 

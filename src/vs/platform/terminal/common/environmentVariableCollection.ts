@@ -176,7 +176,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			const extensionMutator = {
 				extensionIdentifier,
 				scope: mutator.scope,
-				description: mutator.description
+				description: mutator.description,
+				promptPrefix: mutator.promptPrefix
 			};
 			if (!extensionMutator.scope) {
 				delete extensionMutator.scope; // Convenient for tests
