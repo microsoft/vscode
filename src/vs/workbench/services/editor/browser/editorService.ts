@@ -621,7 +621,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const resourceUri = EditorResourceAccessor.getCanonicalUri(editor);
 			if (resourceUri) {
 				for (const openedEditor of this.editors) {
-					if (openedEditor.resource?.toString() === resourceUri.toString()) {
+					if (this.uriIdentityService.extUri.isEqual(resourceUri, openedEditor.resource)) {
 						return openedEditor;
 					}
 				}
