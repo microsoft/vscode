@@ -503,16 +503,13 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.LocalEchoStyle]: {
 			description: localize('terminal.integrated.localEchoStyle', "Terminal style of locally echoed text; either a font style or an RGB color."),
 			default: 'dim',
-			oneOf: [
+			anyOf: [
 				{
-					type: 'string',
-					default: 'dim',
-					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted'],
+					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted', '#ff0000'],
 				},
 				{
 					type: 'string',
 					format: 'color-hex',
-					default: '#ff0000',
 				}
 			]
 		},
@@ -531,6 +528,17 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.persistentSessionReviveProcess.never', "Never restore the terminal buffers or recreate the process.")
 			],
 			default: 'onExit'
+		},
+		[TerminalSettingId.HideOnStartup]: {
+			description: localize('terminal.integrated.hideOnStartup', "Whether to hide the terminal view on startup, avoiding creating a terminal when there are no persistent sessions."),
+			type: 'string',
+			enum: ['never', 'whenEmpty', 'always'],
+			markdownEnumDescriptions: [
+				localize('hideOnStartup.never', "Never hide the terminal view on startup."),
+				localize('hideOnStartup.whenEmpty', "Only hide the terminal when there are no persistent sessions restored."),
+				localize('hideOnStartup.always', "Always hide the terminal, even when there are persistent sessions restored.")
+			],
+			default: 'never'
 		},
 		[TerminalSettingId.CustomGlyphs]: {
 			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
@@ -582,6 +590,11 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
+			type: 'boolean',
+			default: false
+		},
+		[TerminalSettingId.IgnoreBracketedPasteMode]: {
+			markdownDescription: localize('terminal.integrated.ignoreBracketedPasteMode', "Controls whether the terminal will ignore bracketed paste mode even if the terminal was put into the mode, omitting the {0} and {1} sequences when pasting. This is useful when the shell is not respecting the mode which can happen in sub-shells for example.", '`\\x1b[200~`', '`\\x1b[201~`'),
 			type: 'boolean',
 			default: false
 		},

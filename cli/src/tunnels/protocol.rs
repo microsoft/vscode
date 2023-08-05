@@ -214,6 +214,24 @@ pub struct ChallengeVerifyParams {
 	pub response: String,
 }
 
+pub mod forward_singleton {
+	use serde::{Deserialize, Serialize};
+
+	pub const METHOD_SET_PORTS: &str = "set_ports";
+
+	pub type PortList = Vec<u16>;
+
+	#[derive(Serialize, Deserialize)]
+	pub struct SetPortsParams {
+		pub ports: PortList,
+	}
+
+	#[derive(Serialize, Deserialize)]
+	pub struct SetPortsResponse {
+		pub port_format: Option<String>,
+	}
+}
+
 pub mod singleton {
 	use crate::log;
 	use serde::{Deserialize, Serialize};

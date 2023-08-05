@@ -145,7 +145,7 @@
       "properties": {
         "typescript.experimental.aiQuickFix": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%typescript.experimental.aiQuickFix%",
           "scope": "resource"
         },

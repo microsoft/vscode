@@ -300,6 +300,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			},
 			isInEmbeddedEditor: false,
 			onlyShowAccessibleDiffViewer: false,
+			renderSideBySideInlineBreakpoint: 0,
+			useInlineViewWhenSpaceIsLimited: false,
 		});
 
 		this.isEmbeddedDiffEditorKey = EditorContextKeys.isEmbeddedDiffEditor.bindTo(this._contextKeyService);
@@ -2745,6 +2747,8 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		},
 		isInEmbeddedEditor: validateBooleanOption(options.isInEmbeddedEditor, defaults.isInEmbeddedEditor),
 		onlyShowAccessibleDiffViewer: false,
+		renderSideBySideInlineBreakpoint: 0,
+		useInlineViewWhenSpaceIsLimited: false,
 	};
 }
 

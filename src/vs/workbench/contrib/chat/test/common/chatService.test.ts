@@ -215,6 +215,6 @@ suite('Chat', () => {
 		await testService.addCompleteRequest(model.sessionId, 'test request', { message: 'test response' });
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.ok(model.getRequests()[0].response);
-		assert.strictEqual(model.getRequests()[0].response?.response.value, 'test response');
+		assert.strictEqual(model.getRequests()[0].response?.response.asString(), 'test response');
 	});
 });

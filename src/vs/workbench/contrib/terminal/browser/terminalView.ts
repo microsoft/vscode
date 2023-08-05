@@ -55,6 +55,7 @@ export class TerminalViewPane extends ViewPane {
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _isWelcomeShowing: boolean = false;
+	private _isInitialized: boolean = false;
 	private _newDropdown: DropdownWithPrimaryActionViewItem | undefined;
 	private readonly _dropdownMenu: IMenu;
 	private readonly _singleTabMenu: IMenu;
@@ -131,15 +132,41 @@ export class TerminalViewPane extends ViewPane {
 
 	private _initializeTerminal(checkRestoredTerminals: boolean) {
 		if (this.isBodyVisible() && this._terminalService.isProcessSupportRegistered && this._terminalService.connectionState === TerminalConnectionState.Connected) {
+			const wasInitialized = this._isInitialized;
+			this._isInitialized = true;
+
+			let hideOnStartup: 'never' | 'whenEmpty' | 'always' = 'never';
+			if (!wasInitialized) {
+				hideOnStartup = this._configurationService.getValue(TerminalSettingId.HideOnStartup);
+				if (hideOnStartup === 'always') {
+					this._terminalGroupService.hidePanel();
+				}
+			}
+
 			let shouldCreate = this._terminalGroupService.groups.length === 0;
 			// When triggered just after reconnection, also check there are no groups that could be
 			// getting restored currently
 			if (checkRestoredTerminals) {
 				shouldCreate &&= this._terminalService.restoredGroupCount === 0;
 			}
-			if (shouldCreate) {
-				this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+			if (!shouldCreate) {
+				return;
 			}
+			if (!wasInitialized) {
+				switch (hideOnStartup) {
+					case 'never':
+						this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+						break;
+					case 'whenEmpty':
+						if (this._terminalService.restoredGroupCount === 0) {
+							this._terminalGroupService.hidePanel();
+						}
+						break;
+				}
+				return;
+			}
+
+			this._terminalService.createTerminal({ location: TerminalLocation.Panel });
 		}
 	}
 

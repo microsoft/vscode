@@ -32,7 +32,7 @@ import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { FindMatchDecorationModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findMatchDecorationModel';
-import { CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -220,6 +220,11 @@ export class CellMatch {
 			this._contentMatches.delete(match.id());
 			this._webviewMatches.delete(match.id());
 		}
+	}
+
+	clearAllMatches() {
+		this._contentMatches.clear();
+		this._webviewMatches.clear();
 	}
 
 	addContentMatches(textSearchMatches: ITextSearchMatch[]) {
@@ -625,6 +630,12 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 	setSelectedMatch(match: Match | null): void {
 		if (match) {
+
+			if (!this.isMatchSelected(match) && match instanceof MatchInNotebook) {
+				this._selectedMatch = match;
+				return;
+			}
+
 			if (!this._textMatches.has(match.id())) {
 				return;
 			}
@@ -765,6 +776,9 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._findMatchDecorationModel?.stopWebviewFind();
 		this._findMatchDecorationModel?.dispose();
 		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditorWidget, this.searchInstanceID);
+		if (this._selectedMatch instanceof MatchInNotebook) {
+			this.highlightCurrentFindMatchDecoration(this._selectedMatch);
+		}
 	}
 
 	private _removeNotebookHighlights(): void {
@@ -780,20 +794,19 @@ export class FileMatch extends Disposable implements IFileMatch {
 			return;
 		}
 
+		const oldCellMatches = new Map<string, CellMatch>(this._cellMatches);
 		if (this._notebookEditorWidget.getId() !== this._lastEditorWidgetIdForUpdate) {
 			this._cellMatches.clear();
 			this._lastEditorWidgetIdForUpdate = this._notebookEditorWidget.getId();
 		}
 		matches.forEach(match => {
-
-
 			let existingCell = this._cellMatches.get(match.cell.id);
 			if (this._notebookEditorWidget && !existingCell) {
 				const index = this._notebookEditorWidget.getCellIndex(match.cell);
-				const existingRawCell = this._cellMatches.get(`${rawCellPrefix}${index}`);
+				const existingRawCell = oldCellMatches.get(`${rawCellPrefix}${index}`);
 				if (existingRawCell) {
 					existingRawCell.setCellModel(match.cell);
-					this._cellMatches.delete(`${rawCellPrefix}${index}`);
+					existingRawCell.clearAllMatches();
 					existingCell = existingRawCell;
 				}
 			}
@@ -805,6 +818,9 @@ export class FileMatch extends Disposable implements IFileMatch {
 		});
 
 		this._findMatchDecorationModel?.setAllFindMatchesDecorations(matches);
+		if (this._selectedMatch instanceof MatchInNotebook) {
+			this.highlightCurrentFindMatchDecoration(this._selectedMatch);
+		}
 		this._onChange.fire({ forceUpdateModel: modelChange });
 	}
 
@@ -886,7 +902,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 				this._notebookEditorWidget.revealCellOffsetInCenterAsync(match.cell, outputOffset ?? 0);
 			}
 		} else {
-			match.cell.updateEditState(CellEditState.Editing, 'focusNotebookCell');
+			match.cell.updateEditState(match.cell.getEditState(), 'focusNotebookCell');
 			this._notebookEditorWidget.setCellEditorSelection(match.cell, match.range());
 			this._notebookEditorWidget.revealRangeInCenterIfOutsideViewportAsync(match.cell, match.range());
 		}
@@ -1140,7 +1156,7 @@ export class FolderMatch extends Disposable {
 						const existingCellMatch = existingFileMatch.getCellMatch(rawCellMatch.cell.id);
 						if (existingCellMatch) {
 							existingCellMatch.addContentMatches(rawCellMatch.contentResults);
-							existingCellMatch.addContentMatches(rawCellMatch.webviewResults);
+							existingCellMatch.addWebviewMatches(rawCellMatch.webviewResults);
 						} else {
 							existingFileMatch.addCellMatch(rawCellMatch);
 						}
@@ -2012,7 +2028,13 @@ export class SearchModel extends Disposable {
 		tokenSource.dispose();
 		const searchLength = Date.now() - searchStart;
 		this.logService.trace(`whole search time | ${searchLength}ms`);
-		return notebookResult ? { ...currentResult, ...notebookResult.completeData } : currentResult;
+		return {
+			results: currentResult.results.concat(notebookResult.completeData.results),
+			messages: currentResult.messages.concat(notebookResult.completeData.messages),
+			limitHit: currentResult.limitHit || notebookResult.completeData.limitHit,
+			exit: currentResult.exit,
+			stats: currentResult.stats,
+		};
 	}
 
 	async search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {

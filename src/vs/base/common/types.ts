@@ -225,6 +225,10 @@ export type AddFirstParameterToFunctions<Target, TargetFunctionsReturnType, Firs
  */
 export type AtLeastOne<T, U = { [K in keyof T]: Pick<T, K> }> = Partial<T> & U[keyof U];
 
+/**
+ * Only picks the non-optional properties of a type.
+ */
+export type OmitOptional<T> = { [K in keyof T as T[K] extends Required<T>[K] ? K : never]: T[K] };
 
 /**
  * A type that removed readonly-less from all properties of `T`

@@ -26,7 +26,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { equals } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -83,7 +83,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
-		_storageService.onDidChangeValue(this._handleStorageChange, this, this._disposables);
+		_storageService.onDidChangeValue(StorageScope.PROFILE, EditorStatusContribution._keyDedicatedItems, this._disposables)(this._handleStorageChange, this, this._disposables);
 		this._restoreState();
 		this._interactionCounter = new StoredCounter(_storageService, 'languageStatus.interactCount');
 
@@ -110,10 +110,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 	// --- persisting dedicated items
 
-	private _handleStorageChange(e: IStorageValueChangeEvent) {
-		if (e.key !== EditorStatusContribution._keyDedicatedItems) {
-			return;
-		}
+	private _handleStorageChange() {
 		this._restoreState();
 		this._update();
 	}
