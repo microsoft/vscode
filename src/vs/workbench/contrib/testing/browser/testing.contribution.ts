@@ -24,7 +24,7 @@ import { testingResultsIcon, testingViewIcon } from 'vs/workbench/contrib/testin
 import { TestingDecorationService, TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { CloseTestPeek, GoToNextMessageAction, GoToPreviousMessageAction, OpenMessageInEditorAction, TestResultsView, TestingOutputPeekController, TestingPeekOpener, ToggleTestingPeekHistory } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
-import { ITestingProgressUiService, TestingProgressTrigger, TestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
+import { TestingProgressTrigger } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestCommandId, Testing } from 'vs/workbench/contrib/testing/common/constants';
@@ -52,7 +52,6 @@ registerSingleton(ITestingContinuousRunService, TestingContinuousRunService, Ins
 registerSingleton(ITestResultService, TestResultService, InstantiationType.Delayed);
 registerSingleton(ITestExplorerFilterState, TestExplorerFilterState, InstantiationType.Delayed);
 registerSingleton(ITestingPeekOpener, TestingPeekOpener, InstantiationType.Delayed);
-registerSingleton(ITestingProgressUiService, TestingProgressUiService, InstantiationType.Delayed);
 registerSingleton(ITestingDecorationsService, TestingDecorationService, InstantiationType.Delayed);
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({

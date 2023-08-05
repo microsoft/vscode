@@ -185,7 +185,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 			unicodeVersion,
 			resolverEnv
 		};
-		return await this._channel.call<ICreateTerminalProcessResult>('$createProcess', args);
+		return await this._channel.call<ICreateTerminalProcessResult>(RemoteTerminalChannelRequest.CreateProcess, args);
 	}
 
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
@@ -281,7 +281,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 			workspaceId: workspace.id,
 			tabs: layout ? layout.tabs : []
 		};
-		return this._channel.call<void>('$setTerminalLayoutInfo', args);
+		return this._channel.call<void>(RemoteTerminalChannelRequest.SetTerminalLayoutInfo, args);
 	}
 
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<string> {
@@ -305,11 +305,11 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		const args: IGetTerminalLayoutInfoArgs = {
 			workspaceId: workspace.id,
 		};
-		return this._channel.call<ITerminalsLayoutInfo>('$getTerminalLayoutInfo', args);
+		return this._channel.call<ITerminalsLayoutInfo>(RemoteTerminalChannelRequest.GetTerminalLayoutInfo, args);
 	}
 
-	reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void> {
-		return this._channel.call(RemoteTerminalChannelRequest.ReviveTerminalProcesses, [state, dateTimeFormatLocate]);
+	reviveTerminalProcesses(workspaceId: string, state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.ReviveTerminalProcesses, [workspaceId, state, dateTimeFormatLocate]);
 	}
 
 	getRevivedPtyNewId(id: number): Promise<number | undefined> {

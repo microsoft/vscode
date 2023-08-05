@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { externalUriSchemes, createEditAddingLinksForUriList, getPasteUrlAsFormattedLinkSetting, PasteUrlAsFormattedLink } from './shared';
+import { createEditAddingLinksForUriList, getPasteUrlAsFormattedLinkSetting, PasteUrlAsFormattedLink, validateLink } from './shared';
 class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 
 	readonly id = 'insertMarkdownLink';
@@ -42,24 +42,17 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 
 		uriEdit.label = pasteEdit.label;
 		uriEdit.additionalEdit = pasteEdit.additionalEdits;
+		uriEdit.priority = this._getPriority(pasteEdit.markdownLink);
 		return uriEdit;
 	}
-}
 
-export function validateLink(urlList: string): { isValid: boolean; cleanedUrlList: string } {
-	let isValid = false;
-	let uri = undefined;
-	const trimmedUrlList = urlList?.trim(); //remove leading and trailing whitespace and new lines
-	try {
-		uri = vscode.Uri.parse(trimmedUrlList);
-	} catch (error) {
-		return { isValid: false, cleanedUrlList: urlList };
+	private _getPriority(pasteAsMarkdownLink: boolean): number {
+		if (!pasteAsMarkdownLink) {
+			// Deprioritize in favor of default paste
+			return -10;
+		}
+		return 0;
 	}
-	const splitUrlList = trimmedUrlList.split(' ').filter(item => item !== ''); //split on spaces and remove empty strings
-	if (uri) {
-		isValid = splitUrlList.length === 1 && !splitUrlList[0].includes('\n') && externalUriSchemes.includes(vscode.Uri.parse(splitUrlList[0]).scheme);
-	}
-	return { isValid, cleanedUrlList: splitUrlList[0] };
 }
 
 export function registerLinkPasteSupport(selector: vscode.DocumentSelector,) {

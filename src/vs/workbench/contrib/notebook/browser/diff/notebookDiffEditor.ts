@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { lastIndex } from 'vs/base/common/arrays';
+import { findLastIndex } from 'vs/base/common/arrays';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -825,7 +825,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._list.reveal(prevChangeIndex);
 		} else {
 			// go to the last one
-			const index = lastIndex(this._diffElementViewModels, vm => vm.type !== 'unchanged');
+			const index = findLastIndex(this._diffElementViewModels, vm => vm.type !== 'unchanged');
 			if (index >= 0) {
 				this._list.setFocus([index]);
 				this._list.reveal(index);
@@ -999,6 +999,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			height: this._dimension!.height,
 			fontInfo: this._fontInfo!,
 			scrollHeight: this._list?.getScrollHeight() ?? 0,
+			stickyHeight: 0,
 		};
 	}
 

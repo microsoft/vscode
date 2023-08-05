@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -239,7 +240,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private deserializeChats(sessionData: string): ISerializableChatsData {
 		try {
-			const arrayOfSessions: ISerializableChatData[] = JSON.parse(sessionData);
+			const arrayOfSessions: ISerializableChatData[] = revive(JSON.parse(sessionData)); // Revive serialized URIs in session data
 			if (!Array.isArray(arrayOfSessions)) {
 				throw new Error('Expected array');
 			}

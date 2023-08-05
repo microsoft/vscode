@@ -1039,7 +1039,7 @@ class StandaloneContextMenuService extends ContextMenuService {
 
 class StandaloneAudioService implements IAudioCueService {
 	_serviceBrand: undefined;
-	async playAudioCue(cue: AudioCue, allowManyInParallel?: boolean | undefined): Promise<void> {
+	async playAudioCue(cue: AudioCue, options: {}): Promise<void> {
 	}
 
 	async playAudioCues(cues: AudioCue[]): Promise<void> {

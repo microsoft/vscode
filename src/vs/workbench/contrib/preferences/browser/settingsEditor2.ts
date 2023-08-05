@@ -1252,10 +1252,9 @@ export class SettingsEditor2 extends EditorPane {
 		const toggleData = await getExperimentalExtensionToggleData(this.workbenchAssignmentService, this.environmentService, this.productService);
 		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
-				const prerelease = toggleData.settingsEditorRecommendedExtensions[key].onSettingsEditorOpen!.prerelease;
-
-				const extensionId = (typeof prerelease === 'string' && this.productService.quality !== 'stable') ? prerelease : key;
-				const [extension] = await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None);
+				const extensionId = key;
+				// Always recommend prerelease for now.
+				const [extension] = await this.extensionGalleryService.getExtensions([{ id: extensionId, preRelease: true }], CancellationToken.None);
 				if (!extension) {
 					continue;
 				}
@@ -1284,8 +1283,8 @@ export class SettingsEditor2 extends EditorPane {
 					scope: ConfigurationScope.WINDOW,
 					type: 'null',
 					displayExtensionId: extensionId,
+					prereleaseExtensionId: key,
 					stableExtensionId: key,
-					prereleaseExtensionId: typeof prerelease === 'string' ? prerelease : key,
 					extensionGroupTitle: groupTitle ?? extensionName
 				};
 				const additionalGroup = this.addOrRemoveManageExtensionSetting(setting, extension, groups);
