@@ -146,21 +146,21 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 
-	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>();
+	private readonly _onDidRequestRunCommand = this.add(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
-	private readonly _onDidRequestFocus = new Emitter<void>();
+	private readonly _onDidRequestFocus = this.add(new Emitter<void>());
 	readonly onDidRequestFocus = this._onDidRequestFocus.event;
-	private readonly _onDidRequestSendText = new Emitter<string>();
+	private readonly _onDidRequestSendText = this.add(new Emitter<string>());
 	readonly onDidRequestSendText = this._onDidRequestSendText.event;
-	private readonly _onDidRequestFreePort = new Emitter<string>();
+	private readonly _onDidRequestFreePort = this.add(new Emitter<string>());
 	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
-	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number }>();
+	private readonly _onDidChangeFindResults = this.add(new Emitter<{ resultIndex: number; resultCount: number }>());
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
-	private readonly _onDidChangeSelection = new Emitter<void>();
+	private readonly _onDidChangeSelection = this.add(new Emitter<void>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
-	private readonly _onDidChangeFocus = new Emitter<boolean>();
+	private readonly _onDidChangeFocus = this.add(new Emitter<boolean>());
 	readonly onDidChangeFocus = this._onDidChangeFocus.event;
-	private readonly _onDidDispose = new Emitter<void>();
+	private readonly _onDidDispose = this.add(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
 
 	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
