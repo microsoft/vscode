@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput, IEditorOptions, EditorActivation, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, IEditorOptions, EditorActivation, IResourceEditorInputIdentifier, ITextResourceEditorInput, EditorResolution } from 'vs/platform/editor/common/editor';
 import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions, isResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -501,19 +501,24 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			preferredGroup = optionsOrPreferredGroup;
 		}
 
-		// Resolve override unless disabled
+		// Resolve override
 		if (!isEditorInput(editor)) {
-			const resolvedEditor = await this.editorResolverService.resolveEditor(editor, preferredGroup);
+			const resolvedOpenEditor = this.resolveOpenEditor(editor);
+			if (resolvedOpenEditor) {
+				typedEditor = resolvedOpenEditor;
+			} else {
+				const resolvedEditor = await this.editorResolverService.resolveEditor(editor, preferredGroup);
 
-			if (resolvedEditor === ResolvedStatus.ABORT) {
-				return; // skip editor if override is aborted
-			}
+				if (resolvedEditor === ResolvedStatus.ABORT) {
+					return; // skip editor if override is aborted
+				}
 
-			// We resolved an editor to use
-			if (isEditorInputWithOptionsAndGroup(resolvedEditor)) {
-				typedEditor = resolvedEditor.editor;
-				options = resolvedEditor.options;
-				group = resolvedEditor.group;
+				// We resolved an editor to use
+				if (isEditorInputWithOptionsAndGroup(resolvedEditor)) {
+					typedEditor = resolvedEditor.editor;
+					options = resolvedEditor.options;
+					group = resolvedEditor.group;
+				}
 			}
 		}
 
@@ -561,18 +566,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			let typedEditor: EditorInputWithOptions | undefined = undefined;
 			let group: IEditorGroup | undefined = undefined;
 
-			// Resolve override unless disabled
+			// Resolve override
 			if (!isEditorInputWithOptions(editor)) {
-				const resolvedEditor = await this.editorResolverService.resolveEditor(editor, preferredGroup);
+				const resolvedOpenEditor = this.resolveOpenEditor(editor);
+				if (resolvedOpenEditor) {
+					typedEditor = { editor: resolvedOpenEditor, options: editor.options };
+				} else {
+					const resolvedEditor = await this.editorResolverService.resolveEditor(editor, preferredGroup);
 
-				if (resolvedEditor === ResolvedStatus.ABORT) {
-					continue; // skip editor if override is aborted
-				}
+					if (resolvedEditor === ResolvedStatus.ABORT) {
+						continue; // skip editor if override is aborted
+					}
 
-				// We resolved an editor to use
-				if (isEditorInputWithOptionsAndGroup(resolvedEditor)) {
-					typedEditor = resolvedEditor;
-					group = resolvedEditor.group;
+					// We resolved an editor to use
+					if (isEditorInputWithOptionsAndGroup(resolvedEditor)) {
+						typedEditor = resolvedEditor;
+						group = resolvedEditor.group;
+					}
 				}
 			}
 
@@ -603,6 +613,22 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		return coalesce(await Promises.settled(result));
+	}
+
+	private resolveOpenEditor(editor: IUntypedEditorInput): EditorInput | undefined {
+		// Prefer the first open editor with the given resource unless picking a specific editor
+		if (editor.options && editor.options.override !== EditorResolution.PICK) {
+			const resourceUri = EditorResourceAccessor.getCanonicalUri(editor);
+			if (resourceUri) {
+				for (const openedEditor of this.editors) {
+					if (openedEditor.resource?.toString() === resourceUri.toString()) {
+						return openedEditor;
+					}
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	private async handleWorkspaceTrust(editors: Array<EditorInputWithOptions | IUntypedEditorInput>): Promise<boolean> {
