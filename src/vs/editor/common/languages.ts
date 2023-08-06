@@ -83,22 +83,6 @@ export class EncodedTokenizationResult {
 /**
  * @internal
  */
-export interface IBackgroundTokenizer extends IDisposable {
-	/**
-	 * Instructs the background tokenizer to set the tokens for the given range again.
-	 *
-	 * This might be necessary if the renderer overwrote those tokens with heuristically computed ones for some viewport,
-	 * when the change does not even propagate to that viewport.
-	 */
-	requestTokens(startLineNumber: number, endLineNumberExclusive: number): void;
-
-	reportMismatchingTokens?(lineNumber: number): void;
-}
-
-
-/**
- * @internal
- */
 export interface ITokenizationSupport {
 	/**
 	 * If true, the background tokenizer will only be used to verify tokens against the default background tokenizer.
@@ -116,6 +100,21 @@ export interface ITokenizationSupport {
 	 * Can be/return undefined if default background tokenization should be used.
 	 */
 	createBackgroundTokenizer?(textModel: model.ITextModel, store: IBackgroundTokenizationStore): IBackgroundTokenizer | undefined;
+}
+
+/**
+ * @internal
+ */
+export interface IBackgroundTokenizer extends IDisposable {
+	/**
+	 * Instructs the background tokenizer to set the tokens for the given range again.
+	 *
+	 * This might be necessary if the renderer overwrote those tokens with heuristically computed ones for some viewport,
+	 * when the change does not even propagate to that viewport.
+	 */
+	requestTokens(startLineNumber: number, endLineNumberExclusive: number): void;
+
+	reportMismatchingTokens?(lineNumber: number): void;
 }
 
 /**

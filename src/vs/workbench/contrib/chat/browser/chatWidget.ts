@@ -189,7 +189,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		const indexToFocus = type === 'next' ? targetIndex + 1 : targetIndex - 1;
-		if (indexToFocus < 0 || indexToFocus === responseItems.length - 1) {
+		if (indexToFocus < 0 || indexToFocus > responseItems.length - 1) {
 			return;
 		}
 		this.focus(responseItems[indexToFocus]);
@@ -434,7 +434,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const editorValue = this.inputPart.inputEditor.getValue();
 
 			// Shortcut for /clear command
-			if (!query && editorValue.trim() === '/clear') {
+			if (!query && editorValue.trim() === '/clear' || typeof query === 'string' && query.trim() === '/clear') {
 				// Small hack, if this becomes a repeated pattern, we should have a real internal slash command provider system
 				this.instantiationService.invokeFunction(clearChatSession, this);
 				return;
@@ -572,6 +572,10 @@ export class ChatWidgetService implements IChatWidgetService {
 
 	getWidgetByInputUri(uri: URI): ChatWidget | undefined {
 		return this._widgets.find(w => isEqual(w.inputUri, uri));
+	}
+
+	getWidgetBySessionId(sessionId: string): ChatWidget | undefined {
+		return this._widgets.find(w => w.viewModel?.sessionId === sessionId);
 	}
 
 	async revealViewForProvider(providerId: string): Promise<ChatWidget | undefined> {

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
-import { promises as fs } from 'fs';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -213,9 +212,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}
 				if (injection.filesToCopy) {
 					for (const f of injection.filesToCopy) {
-						await fs.mkdir(path.dirname(f.dest), { recursive: true });
+						await Promises.mkdir(path.dirname(f.dest), { recursive: true });
 						try {
-							await fs.copyFile(f.source, f.dest);
+							await Promises.copyFile(f.source, f.dest);
 						} catch {
 							// Swallow error, this should only happen when multiple users are on the same
 							// machine. Since the shell integration scripts rarely change, plus the other user

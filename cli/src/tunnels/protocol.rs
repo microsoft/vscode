@@ -200,6 +200,11 @@ pub const METHOD_CHALLENGE_ISSUE: &str = "challenge_issue";
 pub const METHOD_CHALLENGE_VERIFY: &str = "challenge_verify";
 
 #[derive(Serialize, Deserialize)]
+pub struct ChallengeIssueParams {
+	pub token: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct ChallengeIssueResponse {
 	pub challenge: String,
 }
@@ -207,6 +212,24 @@ pub struct ChallengeIssueResponse {
 #[derive(Deserialize, Serialize)]
 pub struct ChallengeVerifyParams {
 	pub response: String,
+}
+
+pub mod forward_singleton {
+	use serde::{Deserialize, Serialize};
+
+	pub const METHOD_SET_PORTS: &str = "set_ports";
+
+	pub type PortList = Vec<u16>;
+
+	#[derive(Serialize, Deserialize)]
+	pub struct SetPortsParams {
+		pub ports: PortList,
+	}
+
+	#[derive(Serialize, Deserialize)]
+	pub struct SetPortsResponse {
+		pub port_format: Option<String>,
+	}
 }
 
 pub mod singleton {

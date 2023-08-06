@@ -159,7 +159,7 @@ export class InteractiveEditor extends EditorPane {
 				this._editorOptions = this._computeEditorOptions();
 			}
 		}));
-		this._notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, dragAndDropEnabled: false });
+		this._notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScroll: false, dragAndDropEnabled: false });
 		this._editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});

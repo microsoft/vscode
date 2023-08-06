@@ -3908,6 +3908,16 @@ declare namespace monaco.editor {
 		 */
 		renderSideBySide?: boolean;
 		/**
+		 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+		 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+		 */
+		renderSideBySideInlineBreakpoint?: number | undefined;
+		/**
+		 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+		 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+		 */
+		useInlineViewWhenSpaceIsLimited?: boolean;
+		/**
 		 * Timeout in milliseconds after which diff computation is cancelled.
 		 * Defaults to 5000.
 		 */
@@ -6133,8 +6143,8 @@ declare namespace monaco.editor {
 		 * Update the editor's options after the editor has been created.
 		 */
 		updateOptions(newOptions: IDiffEditorOptions): void;
-		diffReviewNext(): void;
-		diffReviewPrev(): void;
+		accessibleDiffViewerNext(): void;
+		accessibleDiffViewerPrev(): void;
 	}
 
 	export class FontInfo extends BareFontInfo {

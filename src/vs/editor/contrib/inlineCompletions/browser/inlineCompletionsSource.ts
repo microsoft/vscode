@@ -6,8 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { matchesSubString } from 'vs/base/common/filters';
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ITransaction, derived } from 'vs/base/common/observable';
-import { IObservable, IReader, disposableObservableValue, transaction } from 'vs/base/common/observableImpl/base';
+import { IObservable, IReader, ITransaction, derived, disposableObservableValue, transaction } from 'vs/base/common/observable';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { InlineCompletionContext, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
@@ -15,8 +14,8 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from 'vs/editor/contrib/inlineCompletions/browser/provideInlineCompletions';
+import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 
 export class InlineCompletionsSource extends Disposable {
 	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
@@ -91,6 +90,7 @@ export class InlineCompletionsSource extends Disposable {
 
 			this._updateOperation.clear();
 			transaction(tx => {
+				/** @description Update completions with provider result */
 				target.set(completions, tx);
 			});
 
@@ -183,7 +183,8 @@ export class UpToDateInlineCompletions implements IDisposable {
 	private readonly _prependedInlineCompletionItems: InlineCompletionItem[] = [];
 
 	private _rangeVersionIdValue = 0;
-	private readonly _rangeVersionId = derived('ranges', reader => {
+	private readonly _rangeVersionId = derived(reader => {
+		/** @description ranges */
 		this.versionId.read(reader);
 		let changed = false;
 		for (const i of this._inlineCompletions) {

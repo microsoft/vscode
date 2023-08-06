@@ -2526,8 +2526,11 @@ class ApplySettingToAllProfilesAction extends Action {
 		}
 
 		const newValue = distinct(value);
-		await this.configService.updateValue(APPLY_ALL_PROFILES_SETTING, newValue.length ? newValue : undefined, ConfigurationTarget.USER_LOCAL);
-		if (!this.checked) {
+		if (this.checked) {
+			await this.configService.updateValue(this.setting.key, this.configService.inspect(this.setting.key).application?.value, ConfigurationTarget.USER_LOCAL);
+			await this.configService.updateValue(APPLY_ALL_PROFILES_SETTING, newValue.length ? newValue : undefined, ConfigurationTarget.USER_LOCAL);
+		} else {
+			await this.configService.updateValue(APPLY_ALL_PROFILES_SETTING, newValue.length ? newValue : undefined, ConfigurationTarget.USER_LOCAL);
 			await this.configService.updateValue(this.setting.key, this.configService.inspect(this.setting.key).userLocal?.value, ConfigurationTarget.USER_LOCAL);
 		}
 	}

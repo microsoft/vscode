@@ -26,6 +26,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import * as dom from 'vs/base/browser/dom';
 import { StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 interface CustomMouseEvent {
 	detail: string;
@@ -290,7 +291,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		return linkGestureStore;
 	}
 
-	private _onContextMenu(event: MouseEvent) {
+	private _onContextMenu(e: MouseEvent) {
+		const event = new StandardMouseEvent(e);
+
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.StickyScrollContext,
 			getAnchor: () => event,

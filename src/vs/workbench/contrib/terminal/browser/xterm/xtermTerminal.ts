@@ -41,6 +41,8 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { debounce } from 'vs/base/common/decorators';
+import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 
 const enum RenderConstants {
 	/**
@@ -119,6 +121,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 	private _core: IXtermCore;
 	private static _suggestedRendererType: 'canvas' | 'dom' | undefined = undefined;
 	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
+	private _isPhysicalMouseWheel = MouseWheelClassifier.INSTANCE.isPhysicalMouseWheel();
 
 	// Always on addons
 	private _markNavigationAddon: MarkNavigationAddon;
@@ -234,8 +237,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			wordSeparator: config.wordSeparators,
 			overviewRulerWidth: 10,
-			smoothScrollDuration: config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0
+			ignoreBracketedPasteMode: config.ignoreBracketedPasteMode
 		}));
+		this._updateSmoothScrolling();
 		this._core = (this.raw as any)._core as IXtermCore;
 
 		this.add(this._configurationService.onDidChangeConfiguration(async e => {
@@ -352,6 +356,18 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		ad.add(dom.addDisposableListener(this.raw.textarea, 'blur', () => this._setFocused(false)));
 		ad.add(dom.addDisposableListener(this.raw.textarea, 'focusout', () => this._setFocused(false)));
 
+		// Track wheel events in mouse wheel classifier and update smoothScrolling when it changes
+		// as it must be disabled when a trackpad is used
+		ad.add(dom.addDisposableListener(this.raw.element!, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
+			const classifier = MouseWheelClassifier.INSTANCE;
+			classifier.acceptStandardWheelEvent(new StandardWheelEvent(e));
+			const value = classifier.isPhysicalMouseWheel();
+			if (value !== this._isPhysicalMouseWheel) {
+				this._isPhysicalMouseWheel = value;
+				this._updateSmoothScrolling();
+			}
+		}, { passive: true }));
+
 		this._suggestAddon?.setContainer(container);
 
 		this._attached = { container, options };
@@ -392,7 +408,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.customGlyphs = config.customGlyphs;
-		this.raw.options.smoothScrollDuration = config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0;
+		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
+		this._updateSmoothScrolling();
 		if (this._attached?.options.enableGpu) {
 			if (this._shouldLoadWebgl()) {
 				this._enableWebglRenderer();
@@ -405,6 +422,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 				}
 			}
 		}
+	}
+
+	private _updateSmoothScrolling() {
+		this.raw.options.smoothScrollDuration = this._configHelper.config.smoothScrolling && this._isPhysicalMouseWheel ? RenderConstants.SmoothScrollDuration : 0;
 	}
 
 	private _shouldLoadWebgl(): boolean {

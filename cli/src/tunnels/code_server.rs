@@ -541,6 +541,15 @@ impl<'a> ServerBuilder<'a> {
 
 		debug!(self.logger, "Starting server with command... {:?}", cmd);
 
+		// On Windows spawning a code-server binary will run cmd.exe /c C:\path\to\code-server.cmd...
+		// This spawns a cmd.exe window for the user, which if they close will kill the code-server process
+		// and disconnect the tunnel. To prevent this, pass the CREATE_NO_WINDOW flag to the Command
+		// only on Windows.
+		// Original issue: https://github.com/microsoft/vscode/issues/184058
+		// Partial fix: https://github.com/microsoft/vscode/pull/184621
+		#[cfg(target_os = "windows")]
+		let cmd = cmd.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
+
 		let child = cmd
 			.stderr(std::process::Stdio::piped())
 			.stdout(std::process::Stdio::piped())

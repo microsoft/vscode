@@ -278,7 +278,7 @@ function areSame(fromExtension: ISyncExtension, toExtension: ISyncExtension, che
 		return false;
 	}
 
-	if (fromExtension.isApplicationScoped !== toExtension.isApplicationScoped) {
+	if (!!fromExtension.isApplicationScoped !== !!toExtension.isApplicationScoped) {
 		/* extension application scope has changed */
 		return false;
 	}
@@ -395,30 +395,32 @@ function isSameExtensionState(a: IStringDictionary<any> = {}, b: IStringDictiona
 
 // massage incoming extension - add optional properties
 function massageIncomingExtension(extension: ISyncExtension): ISyncExtension {
-	return { ...extension, ...{ disabled: !!extension.disabled, installed: !!extension.installed, isApplicationScoped: !!extension.isApplicationScoped } };
+	return { ...extension, ...{ disabled: !!extension.disabled, installed: !!extension.installed } };
 }
 
 // massage outgoing extension - remove optional properties
 function massageOutgoingExtension(extension: ISyncExtension, key: string): ISyncExtension {
 	const massagedExtension: ISyncExtension = {
+		...extension,
 		identifier: {
 			id: extension.identifier.id,
 			uuid: key.startsWith('uuid:') ? key.substring('uuid:'.length) : undefined
 		},
-		version: extension.version,
 		/* set following always so that to differentiate with older clients */
 		preRelease: !!extension.preRelease,
 		pinned: !!extension.pinned,
-		isApplicationScoped: !!extension.isApplicationScoped,
 	};
-	if (extension.disabled) {
-		massagedExtension.disabled = true;
+	if (!extension.disabled) {
+		delete massagedExtension.disabled;
 	}
-	if (extension.installed) {
-		massagedExtension.installed = true;
+	if (!extension.installed) {
+		delete massagedExtension.installed;
 	}
-	if (extension.state) {
-		massagedExtension.state = extension.state;
+	if (!extension.state) {
+		delete massagedExtension.state;
+	}
+	if (!extension.isApplicationScoped) {
+		delete massagedExtension.isApplicationScoped;
 	}
 	return massagedExtension;
 }

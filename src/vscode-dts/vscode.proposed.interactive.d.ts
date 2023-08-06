@@ -53,7 +53,8 @@ declare module 'vscode' {
 	export enum InteractiveEditorResponseFeedbackKind {
 		Unhelpful = 0,
 		Helpful = 1,
-		Undone = 2
+		Undone = 2,
+		Accepted = 3
 	}
 
 	export interface TextDocumentContext {
@@ -125,7 +126,22 @@ declare module 'vscode' {
 		responseId: string;
 	}
 
-	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId;
+	export interface InteractiveProgressTask {
+		placeholder: string;
+		resolvedContent: Thenable<InteractiveProgressContent | InteractiveProgressFileTree>;
+	}
+
+	export interface FileTreeData {
+		label: string;
+		uri: Uri;
+		children?: FileTreeData[];
+	}
+
+	export interface InteractiveProgressFileTree {
+		treeData: FileTreeData;
+	}
+
+	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId | InteractiveProgressTask | InteractiveProgressFileTree;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;

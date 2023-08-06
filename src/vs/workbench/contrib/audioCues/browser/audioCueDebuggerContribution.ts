@@ -24,6 +24,7 @@ export class AudioCueLineDebuggerContribution
 			() => audioCueService.isEnabled(AudioCue.onDebugBreak)
 		);
 		this._register(autorunWithStore((reader, store) => {
+			/** @description subscribe to debug sessions */
 			if (!isEnabled.read(reader)) {
 				return;
 			}
@@ -51,8 +52,7 @@ export class AudioCueLineDebuggerContribution
 				.forEach((session) =>
 					sessionDisposables.set(session, this.handleSession(session))
 				);
-
-		}, 'subscribe to debug sessions'));
+		}));
 	}
 
 	private handleSession(session: IDebugSession): IDisposable {

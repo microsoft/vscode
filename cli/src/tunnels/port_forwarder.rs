@@ -91,7 +91,7 @@ impl PortForwardingProcessor {
 			self.forwarded.insert(port);
 		}
 
-		tunnel.get_port_uri(port).await
+		tunnel.get_port_uri(port)
 	}
 }
 
