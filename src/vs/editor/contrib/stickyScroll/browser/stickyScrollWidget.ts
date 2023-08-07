@@ -38,6 +38,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lastLineRelativePosition: number = 0;
 	private _hoverOnLine: number = -1;
 	private _hoverOnColumn: number = -1;
+	private _minContentWidthInPx: number = 0;
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -261,6 +262,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return {
 			preference: null
 		};
+	}
+
+	getMinContentWidthInPx(): number {
+		return this._minContentWidthInPx;
 	}
 
 	focusLineWithIndex(index: number) {
