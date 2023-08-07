@@ -23,7 +23,7 @@ import { ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIV
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSessionAccount, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -43,6 +43,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { runWhenIdle } from 'vs/base/common/async';
+import { Lazy } from 'vs/base/common/lazy';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -233,7 +234,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 	private readonly problematicProviders: Set<string> = new Set();
 
 	private initialized = false;
-	private sessionFromEmbedder = getCurrentAuthenticationSessionInfo(this.credentialsService, this.secretStorageService, this.productService);
+	private sessionFromEmbedder = new Lazy<Promise<AuthenticationSessionInfo | undefined>>(() => getCurrentAuthenticationSessionInfo(this.credentialsService, this.secretStorageService, this.productService));
 
 	constructor(
 		action: ActivityAction,
@@ -414,7 +415,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 			this.groupedAccounts.set(providerId, accounts);
 		}
 
-		const sessionFromEmbedder = await this.sessionFromEmbedder;
+		const sessionFromEmbedder = await this.sessionFromEmbedder.value;
 		// If the session stored from the embedder allows sign out, then we can treat it and all others as sign out-able
 		let canSignOut = !!sessionFromEmbedder?.canSignOut;
 		if (!canSignOut) {
