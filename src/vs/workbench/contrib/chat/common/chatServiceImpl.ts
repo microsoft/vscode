@@ -255,6 +255,8 @@ export class ChatService extends Disposable implements IChatService {
 							}
 							return response;
 						});
+					} else if (typeof request.response === 'string') {
+						request.response = [new MarkdownString(request.response)];
 					}
 				}
 
