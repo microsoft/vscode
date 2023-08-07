@@ -92,6 +92,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._domNode.appendChild(domNode);
 
 		this.setShouldRender();
+		this._updateMaxMinWidth();
 	}
 
 	public setWidgetPosition(widget: IOverlayWidget, preference: OverlayWidgetPositionPreference | null): boolean {
@@ -102,6 +103,7 @@ export class ViewOverlayWidgets extends ViewPart {
 
 		widgetData.preference = preference;
 		this.setShouldRender();
+		this._updateMaxMinWidth();
 
 		return true;
 	}
@@ -115,7 +117,22 @@ export class ViewOverlayWidgets extends ViewPart {
 
 			domNode.parentNode!.removeChild(domNode);
 			this.setShouldRender();
+			this._updateMaxMinWidth();
 		}
+	}
+
+	private _updateMaxMinWidth(): void {
+		let maxMinWidth = 0;
+		const keys = Object.keys(this._widgets);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			const widgetId = keys[i];
+			const widget = this._widgets[widgetId];
+			const widgetMinWidthInPx = widget.widget.getMinContentWidthInPx?.();
+			if (typeof widgetMinWidthInPx !== 'undefined') {
+				maxMinWidth = Math.max(maxMinWidth, widgetMinWidthInPx);
+			}
+		}
+		this._context.viewLayout.setOverlayWidgetsMinWidth(maxMinWidth);
 	}
 
 	private _renderWidget(widgetData: IWidgetData): void {
