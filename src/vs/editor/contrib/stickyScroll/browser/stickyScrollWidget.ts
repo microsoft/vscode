@@ -65,11 +65,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				this._linesDomNode.style.left = `-${e.scrollLeft}px`;
 			}
 			if (e.scrollWidthChanged) {
-				this._linesDomNodeScrollable.style.width = `${e.scrollWidth}px`;
+				this._linesDomNodeScrollable.style.setProperty('--vscode-editorStickyScroll-width', `${e.scrollWidth - this._editor.getLayoutInfo().verticalScrollbarWidth}px`);
 			}
 		}));
 		this._linesDomNode.style.left = `-${this._editor.getScrollLeft()}px`;
-		this._linesDomNodeScrollable.style.width = `${this._editor.getScrollWidth()}px`;
+		this._linesDomNodeScrollable.style.setProperty('--vscode-editorStickyScroll-width', `${this._editor.getScrollWidth() - this._editor.getLayoutInfo().verticalScrollbarWidth}px`);
 
 		this._register(this._editor.onDidLayoutChange((e) => {
 			this._updateWidgetWidth(e);
@@ -123,7 +123,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 		const lineNumbersWidth = minimapSide === 'left' ? layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth : layoutInfo.contentLeft;
 		this._lineNumbersDomNode.style.width = `${lineNumbersWidth}px`;
-		this._linesDomNodeScrollable.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth - lineNumbersWidth}px`;
+		this._linesDomNodeScrollable.style.setProperty('--vscode-editorStickyScroll-scrollableWidth', `${this._editor.getScrollWidth() - this._editor.getLayoutInfo().verticalScrollbarWidth}px`);
 		this._rootDomNode.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth}px`;
 	}
 

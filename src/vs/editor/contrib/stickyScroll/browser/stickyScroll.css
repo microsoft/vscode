@@ -16,6 +16,7 @@
 	display: inline-block;
 	position: absolute;
 	overflow: hidden;
+	width: var(--vscode-editorStickyScroll-scrollableWidth, 1000000px);
 	background-color: inherit;
 }
 
@@ -33,17 +34,14 @@
 }
 
 .monaco-editor .sticky-line-content {
-	width: 1000000px;
+	width: var(--vscode-editorStickyScroll-scrollableWidth, 1000000px);
+	background-color: inherit;
+	white-space: nowrap;
 }
 
 .monaco-editor .sticky-line-number-inner {
 	display: block;
 	text-align: right;
-}
-
-.monaco-editor .sticky-line-content {
-	background-color: inherit;
-	white-space: nowrap;
 }
 
 .monaco-editor.hc-black .sticky-widget,
