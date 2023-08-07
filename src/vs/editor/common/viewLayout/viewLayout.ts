@@ -343,7 +343,6 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public setOverlayWidgetsMinWidth(maxMinWidth: number): void {
 		this._overlayWidgetsMinWidth = maxMinWidth;
 		this._updateContentWidth();
-
 	}
 
 	private _updateContentWidth(): void {
