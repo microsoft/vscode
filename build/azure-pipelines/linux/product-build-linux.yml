@@ -150,6 +150,8 @@ steps:
       displayName: Mixin distro node modules
 
   - ${{ else }}:
+    # Ref https://github.com/microsoft/vscode/issues/189019
+    # for the node-gyp rebuild step
     - script: |
         set -e
 
@@ -161,6 +163,9 @@ steps:
           fi
           echo "Yarn failed $i, trying again..."
         done
+
+        cd node_modules/native-keymap && node-gyp rebuild --debug
+        cd ../.. && ./.github/workflows/check-clean-git-state.sh
       env:
         npm_config_arch: $(NPM_ARCH)
         ELECTRON_SKIP_BINARY_DOWNLOAD: 1
