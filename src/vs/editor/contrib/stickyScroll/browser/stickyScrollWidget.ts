@@ -44,8 +44,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	) {
 		super();
 
-		const layoutInfo = this._editor.getOption(EditorOption.layoutInfo);
-
 		this._lineNumbersDomNode.className = 'sticky-widget-line-numbers';
 		this._lineNumbersDomNode.setAttribute('role', 'none');
 
@@ -64,13 +62,16 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			if (e.scrollLeftChanged) {
 				this._linesDomNode.style.left = `-${e.scrollLeft}px`;
 			}
+			if (e.scrollWidthChanged) {
+				this._updateWidgetWidth();
+			}
 		}));
 		this._linesDomNode.style.left = `-${this._editor.getScrollLeft()}px`;
 
 		this._register(this._editor.onDidLayoutChange((e) => {
-			this._updateWidgetWidth(e);
+			this._updateWidgetWidth();
 		}));
-		this._updateWidgetWidth(layoutInfo);
+		this._updateWidgetWidth();
 	}
 
 	get hoverOnLine(): number {
@@ -111,11 +112,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._renderRootNode();
 	}
 
-	private _updateWidgetWidth(layoutInfo: EditorLayoutInfo): void {
+	private _updateWidgetWidth(): void {
+		const layoutInfo = this._editor.getLayoutInfo();
 		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 		const lineNumbersWidth = minimapSide === 'left' ? layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth : layoutInfo.contentLeft;
 		this._lineNumbersDomNode.style.width = `${lineNumbersWidth}px`;
-		this._linesDomNodeScrollable.style.setProperty('--vscode-editorStickyScroll-scrollableWidth', `${this._editor.getScrollWidth() - this._editor.getLayoutInfo().verticalScrollbarWidth}px`);
+		this._linesDomNodeScrollable.style.setProperty('--vscode-editorStickyScroll-scrollableWidth', `${this._editor.getScrollWidth() - layoutInfo.verticalScrollbarWidth}px`);
 		this._rootDomNode.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth}px`;
 	}
 
@@ -142,7 +144,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 
 		if (minimapSide === 'left') {
-			this._rootDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
+			this._rootDomNode.style.marginLeft = layoutInfo.minimap.minimapCanvasOuterWidth + 'px';
 		} else {
 			this._rootDomNode.style.marginLeft = '0px';
 		}
