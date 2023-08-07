@@ -123,12 +123,6 @@ class AskQuickQuestionAction extends Action2 {
 			}, 1000 * 30); // 30 seconds
 		}));
 
-		//#endregion
-
-		disposableStore.add(this._input.onDidAccept(() => {
-			this._currentChat?.acceptInput();
-		}));
-
 		disposableStore.add(this._input.onDidTriggerButton((e) => {
 			if (e === clearButton) {
 				this._currentChat?.clear();
@@ -136,6 +130,8 @@ class AskQuickQuestionAction extends Action2 {
 				this._currentChat?.openChatView();
 			}
 		}));
+
+		//#endregion
 
 		this._currentChat.focus();
 

@@ -1421,17 +1421,20 @@ export class QuickInputController extends Disposable {
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
 		}));
-		this._register(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
+		// TODO: Turn into commands instead of handling KEY_DOWN
+		this._register(dom.addStandardDisposableListener(container, dom.EventType.KEY_DOWN, (event) => {
+			if (dom.isAncestor(event.target, widget)) {
+				return; // Ignore event if target is inside widget to allow the widget to handle the event.
+			}
 			switch (event.keyCode) {
 				case KeyCode.Enter:
-					dom.EventHelper.stop(e, true);
+					dom.EventHelper.stop(event, true);
 					if (this.enabled) {
 						this.onDidAcceptEmitter.fire();
 					}
 					break;
 				case KeyCode.Escape:
-					dom.EventHelper.stop(e, true);
+					dom.EventHelper.stop(event, true);
 					this.hide(QuickInputHideReason.Gesture);
 					break;
 				case KeyCode.Tab:
@@ -1467,17 +1470,17 @@ export class QuickInputController extends Disposable {
 						if (event.shiftKey && event.target === stops[0]) {
 							// Clear the focus from the list in order to allow
 							// screen readers to read operations in the input box.
-							dom.EventHelper.stop(e, true);
+							dom.EventHelper.stop(event, true);
 							list.clearFocus();
 						} else if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
-							dom.EventHelper.stop(e, true);
+							dom.EventHelper.stop(event, true);
 							stops[0].focus();
 						}
 					}
 					break;
 				case KeyCode.Space:
 					if (event.ctrlKey) {
-						dom.EventHelper.stop(e, true);
+						dom.EventHelper.stop(event, true);
 						this.getUI().list.toggleHover();
 					}
 					break;
