@@ -98,6 +98,7 @@ export class ViewOverlayWidgets extends ViewPart {
 	public setWidgetPosition(widget: IOverlayWidget, preference: OverlayWidgetPositionPreference | null): boolean {
 		const widgetData = this._widgets[widget.getId()];
 		if (widgetData.preference === preference) {
+			this._updateMaxMinWidth();
 			return false;
 		}
 
