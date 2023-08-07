@@ -99,7 +99,7 @@ export const enum InlineChatResponseFeedbackKind {
 export interface IInlineChatSessionProvider {
 
 	debugName: string;
-	label?: string;
+	label: string;
 
 	prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): ProviderResult<IInlineChatSession>;
 
