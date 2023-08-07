@@ -147,7 +147,7 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 				return;
 			}
 			if (activeItem.exitCode) {
-				this._audioCueService.playAudioCue(AudioCue.error, true);
+				this._audioCueService.playAudioCue(AudioCue.error, { allowManyInParallel: true, source: 'accessibleBufferWidget' });
 			}
 			this.editorWidget.revealLine(activeItem.lineNumber, 0);
 		});

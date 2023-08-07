@@ -15,6 +15,8 @@ import { Event } from 'vs/base/common/event';
 import type { ISearchOptions } from 'xterm-addon-search';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 
+const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;
+
 export class TerminalFindWidget extends SimpleFindWidget {
 	private _findInputFocused: IContextKey<boolean>;
 	private _findWidgetFocused: IContextKey<boolean>;
@@ -32,6 +34,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			showCommonFindToggles: true,
 			checkImeCompletionState: true,
 			showResultCount: true,
+			initialWidth: TERMINAL_FIND_WIDGET_INITIAL_WIDTH,
+			enableSash: true,
 			appendCaseSensitiveActionId: TerminalCommandId.ToggleFindCaseSensitive,
 			appendRegexActionId: TerminalCommandId.ToggleFindRegex,
 			appendWholeWordsActionId: TerminalCommandId.ToggleFindWholeWord,
@@ -58,6 +62,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 				this.find(true, true);
 			}
 		}));
+
+		this.updateResultCount();
 	}
 
 	find(previous: boolean, update?: boolean) {

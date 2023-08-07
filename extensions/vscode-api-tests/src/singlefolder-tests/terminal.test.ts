@@ -387,7 +387,12 @@ import { assertNoRpc, poll } from '../utils';
 		});
 
 		suite('window.onDidWriteTerminalData', () => {
-			test.skip('should listen to all future terminal data events', (done) => {
+			test('should listen to all future terminal data events', function (done) {
+				// This test has been flaky in the past but it's not clear why, possibly because
+				// events from previous tests polluting the event recording in this test. Retries
+				// was added so we continue to have coverage of the onDidWriteTerminalData API.
+				this.retries(3);
+
 				const openEvents: string[] = [];
 				const dataEvents: { name: string; data: string }[] = [];
 				const closeEvents: string[] = [];
@@ -936,6 +941,7 @@ import { assertNoRpc, poll } from '../utils';
 					{ value: 'scoped~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions },
 					{ value: 'scoped~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions }
 				]);
+				deepStrictEqual(entries.map(v => v[0]), ['A', 'B', 'C']);
 			});
 		});
 	});

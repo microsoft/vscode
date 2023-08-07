@@ -6,10 +6,14 @@
 import { localize } from 'vs/nls';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Command, MultiCommand } from 'vs/editor/browser/editorExtensions';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
+export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
+
+export const enum AccessibilitySettingId {
+	UnfocusedViewOpacity = 'accessibility.unfocusedViewOpacity'
+}
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
@@ -65,6 +69,14 @@ const configuration: IConfigurationNode = {
 		[AccessibilityVerbositySettingId.Notification]: {
 			description: localize('verbosity.notification', 'Provide information about how to open the notification in an accessible view.'),
 			...baseProperty
+		},
+		[AccessibilitySettingId.UnfocusedViewOpacity]: {
+			description: localize('unfocusedViewOpacity', 'The opacity percentage (0.2 to 1.0) to use for unfocused editors and terminals.'),
+			type: 'number',
+			minimum: 0.2,
+			maximum: 1,
+			default: 1,
+			tags: ['accessibility']
 		}
 	}
 };
@@ -73,78 +85,3 @@ export function registerAccessibilityConfiguration() {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration(configuration);
 }
-
-function registerCommand<T extends Command>(command: T): T {
-	command.register();
-	return command;
-}
-
-export const AccessibilityHelpAction = registerCommand(new MultiCommand({
-	id: 'editor.action.accessibilityHelp',
-	precondition: undefined,
-	kbOpts: {
-		primary: KeyMod.Alt | KeyCode.F1,
-		weight: KeybindingWeight.WorkbenchContrib,
-		linux: {
-			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
-			secondary: [KeyMod.Alt | KeyCode.F1]
-		}
-	},
-	menuOpts: [{
-		menuId: MenuId.CommandPalette,
-		group: '',
-		title: localize('editor.action.accessibilityHelp', "Open Accessibility Help"),
-		order: 1
-	}],
-}));
-
-
-export const AccessibleViewAction = registerCommand(new MultiCommand({
-	id: 'editor.action.accessibleView',
-	precondition: undefined,
-	kbOpts: {
-		primary: KeyMod.Alt | KeyCode.F2,
-		weight: KeybindingWeight.WorkbenchContrib,
-		linux: {
-			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F2,
-			secondary: [KeyMod.Alt | KeyCode.F2]
-		}
-	},
-	menuOpts: [{
-		menuId: MenuId.CommandPalette,
-		group: '',
-		title: localize('editor.action.accessibleView', "Open Accessible View"),
-		order: 1
-	}],
-}));
-
-
-export const AccessibleViewNextAction = registerCommand(new MultiCommand({
-	id: 'editor.action.accessibleViewNext',
-	precondition: undefined,
-	kbOpts: {
-		primary: KeyMod.Alt | KeyCode.BracketRight,
-		weight: KeybindingWeight.WorkbenchContrib
-	},
-	menuOpts: [{
-		menuId: MenuId.CommandPalette,
-		group: '',
-		title: localize('editor.action.accessibleViewNext', "Show Next in Accessible View"),
-		order: 1
-	}],
-}));
-
-export const AccessibleViewPreviousAction = registerCommand(new MultiCommand({
-	id: 'editor.action.accessibleViewPrevious',
-	precondition: undefined,
-	kbOpts: {
-		primary: KeyMod.Alt | KeyCode.BracketLeft,
-		weight: KeybindingWeight.WorkbenchContrib
-	},
-	menuOpts: [{
-		menuId: MenuId.CommandPalette,
-		group: '',
-		title: localize('editor.action.accessibleViewPrevious', "Show Previous in Accessible View"),
-		order: 1
-	}],
-}));

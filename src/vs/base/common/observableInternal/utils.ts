@@ -5,11 +5,14 @@
 
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun } from 'vs/base/common/observableImpl/autorun';
-import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, getFunctionName, observableValue, transaction } from 'vs/base/common/observableImpl/base';
-import { derived } from 'vs/base/common/observableImpl/derived';
-import { getLogger } from 'vs/base/common/observableImpl/logging';
+import { autorun } from 'vs/base/common/observableInternal/autorun';
+import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, getFunctionName, observableValue, transaction } from 'vs/base/common/observableInternal/base';
+import { derived } from 'vs/base/common/observableInternal/derived';
+import { getLogger } from 'vs/base/common/observableInternal/logging';
 
+/**
+ * Represents an efficient observable whose value never changes.
+ */
 export function constObservable<T>(value: T): IObservable<T> {
 	return new ConstObservable(value);
 }
@@ -53,7 +56,8 @@ export function waitForState<T>(observable: IObservable<T>, predicate: (state: T
 	return new Promise(resolve => {
 		let didRun = false;
 		let shouldDispose = false;
-		const d = autorun('waitForState', reader => {
+		const d = autorun(reader => {
+			/** @description waitForState */
 			const currentState = observable.read(reader);
 			if (predicate(currentState)) {
 				if (!didRun) {
@@ -85,13 +89,13 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 
 	constructor(
 		private readonly event: Event<TArgs>,
-		private readonly getValue: (args: TArgs | undefined) => T
+		public readonly _getValue: (args: TArgs | undefined) => T
 	) {
 		super();
 	}
 
 	private getDebugName(): string | undefined {
-		return getFunctionName(this.getValue);
+		return getFunctionName(this._getValue);
 	}
 
 	public get debugName(): string {
@@ -104,11 +108,11 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 	}
 
 	private readonly handleEvent = (args: TArgs | undefined) => {
-		const newValue = this.getValue(args);
+		const newValue = this._getValue(args);
 
 		const didChange = !this.hasValue || this.value !== newValue;
 
-		getLogger()?.handleFromEventObservableTriggered(this, { oldValue: this.value, newValue, change: undefined, didChange });
+		getLogger()?.handleFromEventObservableTriggered(this, { oldValue: this.value, newValue, change: undefined, didChange, hadValue: this.hasValue });
 
 		if (didChange) {
 			this.value = newValue;
@@ -146,7 +150,7 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 			return this.value!;
 		} else {
 			// no cache, as there are no subscribers to keep it updated
-			return this.getValue(undefined);
+			return this._getValue(undefined);
 		}
 	}
 }
@@ -200,6 +204,8 @@ class FromEventObservableSignal extends BaseObservable<void> {
 
 /**
  * Creates a signal that can be triggered to invalidate observers.
+ * Signals don't have a value - when they are triggered they indicate a change.
+ * However, signals can carry a delta that is passed to observers.
  */
 export function observableSignal<TDelta = void>(
 	debugName: string
@@ -242,7 +248,8 @@ export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: n
 
 	let timeout: any = undefined;
 
-	disposableStore.add(autorun('debounce', reader => {
+	disposableStore.add(autorun(reader => {
+		/** @description debounce */
 		const value = observable.read(reader);
 
 		if (timeout) {
@@ -327,21 +334,21 @@ class KeepAliveObserver implements IObserver {
 
 export function derivedObservableWithCache<T>(name: string, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> {
 	let lastValue: T | undefined = undefined;
-	const observable = derived(name, reader => {
+	const observable = derived(reader => {
 		lastValue = computeFn(reader, lastValue);
 		return lastValue;
-	});
+	}, name);
 	return observable;
 }
 
 export function derivedObservableWithWritableCache<T>(name: string, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> & { clearCache(transaction: ITransaction): void } {
 	let lastValue: T | undefined = undefined;
 	const counter = observableValue('derivedObservableWithWritableCache.counter', 0);
-	const observable = derived(name, reader => {
+	const observable = derived(reader => {
 		counter.read(reader);
 		lastValue = computeFn(reader, lastValue);
 		return lastValue;
-	});
+	}, name);
 	return Object.assign(observable, {
 		clearCache: (transaction: ITransaction) => {
 			lastValue = undefined;

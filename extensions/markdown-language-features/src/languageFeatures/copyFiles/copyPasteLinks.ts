@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { externalUriSchemes, createEditAddingLinksForUriList } from './shared';
+import { createEditAddingLinksForUriList, getPasteUrlAsFormattedLinkSetting, PasteUrlAsFormattedLink, validateLink } from './shared';
 class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 
 	readonly id = 'insertMarkdownLink';
@@ -14,8 +14,8 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 		dataTransfer: vscode.DataTransfer,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit | undefined> {
-		const enabled = vscode.workspace.getConfiguration('markdown', document).get<'always' | 'smart' | 'never'>('editor.pasteUrlAsFormattedLink.enabled', 'smart');
-		if (enabled === 'never') {
+		const pasteUrlSetting = await getPasteUrlAsFormattedLinkSetting(document);
+		if (pasteUrlSetting === PasteUrlAsFormattedLink.Never) {
 			return;
 		}
 
@@ -26,7 +26,7 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		if (!validateLink(urlList)) {
+		if (!validateLink(urlList).isValid) {
 			return;
 		}
 
@@ -34,23 +34,25 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 		if (!urlList) {
 			return undefined;
 		}
-		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, urlList, token, true);
+
+		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, validateLink(urlList).cleanedUrlList, true, pasteUrlSetting === PasteUrlAsFormattedLink.Smart, token);
 		if (!pasteEdit) {
 			return;
 		}
 
 		uriEdit.label = pasteEdit.label;
 		uriEdit.additionalEdit = pasteEdit.additionalEdits;
+		uriEdit.priority = this._getPriority(pasteEdit.markdownLink);
 		return uriEdit;
 	}
-}
 
-export function validateLink(urlList: string): boolean {
-	const url = urlList?.split(/\s+/);
-	if (url.length > 1 || !externalUriSchemes.includes(vscode.Uri.parse(url[0]).scheme)) {
-		return false;
+	private _getPriority(pasteAsMarkdownLink: boolean): number {
+		if (!pasteAsMarkdownLink) {
+			// Deprioritize in favor of default paste
+			return -10;
+		}
+		return 0;
 	}
-	return true;
 }
 
 export function registerLinkPasteSupport(selector: vscode.DocumentSelector,) {
