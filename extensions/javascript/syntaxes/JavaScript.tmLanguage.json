@@ -5225,7 +5225,7 @@
 		"docblock": {
 			"patterns": [
 				{
-					"match": "(?x)\n((@)(?:access|api))\n\\s+\n(private|protected|public)\n\\b",
+					"match": "(?x)\n((@)(?:access|api))\n\\s+\n(private|protected|package|public)\n\\b",
 					"captures": {
 						"1": {
 							"name": "storage.type.class.jsdoc"
