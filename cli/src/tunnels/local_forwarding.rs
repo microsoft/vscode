@@ -5,6 +5,7 @@
 
 use std::{
 	collections::HashMap,
+	ops::{Index, IndexMut},
 	sync::{Arc, Mutex},
 };
 
@@ -26,11 +27,52 @@ use super::{
 	protocol::{
 		self,
 		forward_singleton::{PortList, SetPortsResponse},
+		PortPrivacy,
 	},
 	shutdown_signal::ShutdownSignal,
 };
 
-type PortMap = HashMap<u16, u32>;
+#[derive(Default, Clone)]
+struct PortCount {
+	public: u32,
+	private: u32,
+}
+
+impl Index<PortPrivacy> for PortCount {
+	type Output = u32;
+
+	fn index(&self, privacy: PortPrivacy) -> &Self::Output {
+		match privacy {
+			PortPrivacy::Public => &self.public,
+			PortPrivacy::Private => &self.private,
+		}
+	}
+}
+
+impl IndexMut<PortPrivacy> for PortCount {
+	fn index_mut(&mut self, privacy: PortPrivacy) -> &mut Self::Output {
+		match privacy {
+			PortPrivacy::Public => &mut self.public,
+			PortPrivacy::Private => &mut self.private,
+		}
+	}
+}
+
+impl PortCount {
+	fn is_empty(&self) -> bool {
+		self.public == 0 && self.private == 0
+	}
+
+	fn primary_privacy(&self) -> PortPrivacy {
+		if self.public > 0 {
+			PortPrivacy::Public
+		} else {
+			PortPrivacy::Private
+		}
+	}
+}
+
+type PortMap = HashMap<u16, PortCount>;
 
 /// The PortForwardingHandle is given out to multiple consumers to allow
 /// them to set_ports that they want to be forwarded.
@@ -56,23 +98,25 @@ impl PortForwardingSender {
 		self.sender.lock().unwrap().send_modify(|v| {
 			for p in current.iter() {
 				if !ports.contains(p) {
-					match v.get(p) {
-						Some(1) => {
-							v.remove(p);
-						}
-						Some(n) => {
-							v.insert(*p, n - 1);
-						}
-						None => unreachable!("removed port not in map"),
+					let n = v.get_mut(&p.number).expect("expected port in map");
+					n[p.privacy] -= 1;
+					if n.is_empty() {
+						v.remove(&p.number);
 					}
 				}
 			}
 
 			for p in ports.iter() {
 				if !current.contains(p) {
-					match v.get(p) {
-						Some(n) => v.insert(*p, n + 1),
-						None => v.insert(*p, 1),
+					match v.get_mut(&p.number) {
+						Some(n) => {
+							n[p.privacy] += 1;
+						}
+						None => {
+							let mut pc = PortCount::default();
+							pc[p.privacy] += 1;
+							v.insert(p.number, pc);
+						}
 					};
 				}
 			}
@@ -116,23 +160,26 @@ impl PortForwardingReceiver {
 
 	/// Applies all changes from PortForwardingHandles to the tunnel.
 	pub async fn apply_to(&mut self, log: log::Logger, tunnel: Arc<ActiveTunnel>) {
-		let mut current = vec![];
+		let mut current: PortMap = HashMap::new();
 		while self.receiver.changed().await.is_ok() {
-			let next = self.receiver.borrow().keys().copied().collect::<Vec<_>>();
+			let next = self.receiver.borrow().clone();
 
-			for p in current.iter() {
-				if !next.contains(p) {
-					match tunnel.remove_port(*p).await {
-						Ok(_) => info!(log, "stopped forwarding port {}", p),
-						Err(e) => error!(log, "failed to stop forwarding port {}: {}", p, e),
+			for (port, count) in current.iter() {
+				let privacy = count.primary_privacy();
+				if !matches!(next.get(port), Some(n) if n.primary_privacy() == privacy) {
+					match tunnel.remove_port(*port).await {
+						Ok(_) => info!(log, "stopped forwarding port {} at {:?}", *port, privacy),
+						Err(e) => error!(log, "failed to stop forwarding port {}: {}", port, e),
 					}
 				}
 			}
-			for p in next.iter() {
-				if !current.contains(p) {
-					match tunnel.add_port_tcp(*p).await {
-						Ok(_) => info!(log, "forwarding port {}", p),
-						Err(e) => error!(log, "failed to forward port {}: {}", p, e),
+
+			for (port, count) in next.iter() {
+				let privacy = count.primary_privacy();
+				if !matches!(current.get(port), Some(n) if n.primary_privacy() == privacy) {
+					match tunnel.add_port_tcp(*port, privacy).await {
+						Ok(_) => info!(log, "forwarding port {} at {:?}", port, privacy),
+						Err(e) => error!(log, "failed to forward port {}: {}", port, e),
 					}
 				}
 			}

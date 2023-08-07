@@ -35,7 +35,7 @@ use crate::{
 		code_server::CodeServerArgs,
 		create_service_manager,
 		dev_tunnels::{self, DevTunnels},
-		forwarding, legal,
+		local_forwarding, legal,
 		paths::get_all_servers,
 		protocol, serve_stream,
 		shutdown_signal::ShutdownRequest,
@@ -444,7 +444,7 @@ pub async fn forward(
 		match acquire_singleton(&ctx.paths.forwarding_lockfile()).await {
 			Ok(SingletonConnection::Client(stream)) => {
 				debug!(ctx.log, "starting as client to singleton");
-				let r = forwarding::client(forwarding::SingletonClientArgs {
+				let r = local_forwarding::client(local_forwarding::SingletonClientArgs {
 					log: ctx.log.clone(),
 					shutdown: shutdown.clone(),
 					stream,
@@ -477,7 +477,7 @@ pub async fn forward(
 		.start_new_launcher_tunnel(None, true, &forward_args.ports)
 		.await?;
 
-	forwarding::server(ctx.log, tunnel, server, own_ports_rx, shutdown).await?;
+	local_forwarding::server(ctx.log, tunnel, server, own_ports_rx, shutdown).await?;
 
 	Ok(0)
 }
