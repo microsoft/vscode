@@ -2129,9 +2129,6 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	registerDocumentRangeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
 		const canFormatMultipleRanges = typeof provider.provideDocumentRangesFormattingEdits === 'function';
-		if (canFormatMultipleRanges) {
-			checkProposedApiEnabled(extension, 'formatMultipleRanges');
-		}
 		const handle = this._addNewAdapter(new RangeFormattingAdapter(this._documents, provider), extension);
 		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector, extension), extension.identifier, extension.displayName || extension.name, canFormatMultipleRanges);
 		return this._createDisposable(handle);
