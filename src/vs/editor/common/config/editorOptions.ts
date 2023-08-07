@@ -2790,7 +2790,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 				},
 				'editor.stickyScroll.scrollWithEditor': {
 					type: 'boolean',
-					default: defaults.enabled,
+					default: defaults.scrollWithEditor,
 					description: nls.localize('editor.stickyScroll.scrollWithEditor', "When enabled it is possible to scroll the sticky scroll widget with the editor horizontal scrollbar.")
 				},
 			}
