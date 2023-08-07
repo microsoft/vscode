@@ -348,8 +348,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _onDidResize() {
 		const layoutInfo = this._editor.getLayoutInfo();
-		const width = layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth;
-		this._stickyScrollWidget.getDomNode().style.width = `${width}px`;
 		// Make sure sticky scroll doesn't take up more than 25% of the editor
 		const theoreticalLines = layoutInfo.height / this._editor.getOption(EditorOption.lineHeight);
 		this._maxStickyLines = Math.round(theoreticalLines * .25);
