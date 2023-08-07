@@ -149,6 +149,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		} else {
 			this._rootDomNode.style.marginLeft = '0px';
 		}
+		this._updateMinContentWidth();
+		this._editor.layoutOverlayWidget(this);
 	}
 
 	private _renderChildNode(index: number, line: number, layoutInfo: EditorLayoutInfo): { lineNumberHTMLNode: HTMLSpanElement; lineHTMLNode: HTMLSpanElement } {
@@ -248,6 +250,16 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}));
 
 		return { lineNumberHTMLNode, lineHTMLNode };
+	}
+
+	private _updateMinContentWidth() {
+		this._minContentWidthInPx = 0;
+		for (const stickyLine of this._stickyLines) {
+			if (stickyLine.scrollWidth > this._minContentWidthInPx) {
+				this._minContentWidthInPx = stickyLine.scrollWidth;
+			}
+		}
+		this._minContentWidthInPx += this._editor.getLayoutInfo().verticalScrollbarWidth;
 	}
 
 	getId(): string {
