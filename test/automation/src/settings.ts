@@ -62,8 +62,12 @@ export class SettingsEditor {
 	async searchSettingsUI(query: string): Promise<void> {
 		await this.openUserSettingsUI();
 		await this.code.waitAndClick('.settings-editor .suggest-input-container .monaco-editor textarea');
-		await this.code.dispatchKeybinding('ctrl+a');
-		await this.code.dispatchKeybinding('backspace');
+		if (process.platform === 'darwin') {
+			await this.code.dispatchKeybinding('cmd+a');
+		} else {
+			await this.code.dispatchKeybinding('ctrl+a');
+		}
+		await this.code.dispatchKeybinding('Delete');
 		await this.code.waitForTypeInEditor('.settings-editor .suggest-input-container .monaco-editor textarea', query);
 	}
 }
