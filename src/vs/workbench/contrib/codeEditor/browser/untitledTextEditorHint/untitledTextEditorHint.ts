@@ -60,6 +60,11 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 				this.untitledTextHintContentWidget?.dispose();
 			}
 		}));
+		this.toDispose.push(inlineChatSessionService.onDidEndSession(editor => {
+			if (this.editor === editor) {
+				this.update();
+			}
+		}));
 	}
 
 	private update(): void {
