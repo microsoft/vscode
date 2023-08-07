@@ -11,7 +11,7 @@ import { IHoverTarget, IHoverOptions } from 'vs/workbench/services/hover/browser
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAriaLabel } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -20,6 +20,7 @@ import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdo
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { localize } from 'vs/nls';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const $ = dom.$;
 type TargetRect = {
@@ -89,6 +90,7 @@ export class HoverWidget extends Widget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 
@@ -116,6 +118,8 @@ export class HoverWidget extends Widget {
 		if (options.trapFocus) {
 			this._enableFocusTraps = true;
 		}
+
+		this._hover.containerDomNode.ariaLabel = getHoverAriaLabel(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel()) ?? '';
 
 		this._hoverPosition = options.hoverPosition ?? HoverPosition.ABOVE;
 

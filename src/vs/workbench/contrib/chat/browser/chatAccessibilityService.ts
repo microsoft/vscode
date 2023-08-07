@@ -38,7 +38,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		const isPanelChat = typeof response !== 'string';
 		this._responsePendingAudioCue?.dispose();
 		this._runOnceScheduler?.cancel();
-		const responseContent = typeof response === 'string' ? response : response?.response.value;
+		const responseContent = typeof response === 'string' ? response : response?.response.asString();
 		if (this._lastResponse === responseContent) {
 			return;
 		}

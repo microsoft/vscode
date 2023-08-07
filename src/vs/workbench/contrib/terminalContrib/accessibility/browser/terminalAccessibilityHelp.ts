@@ -20,7 +20,6 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import type { Terminal } from 'xterm';
 
 export const enum ClassName {
-	AccessibleBuffer = 'terminal-accessibility-help',
 	Active = 'active',
 	EditorTextArea = 'textarea'
 }
