@@ -59,15 +59,20 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.appendChild(this._lineNumbersDomNode);
 		this._rootDomNode.appendChild(this._linesDomNodeScrollable);
 
+		this._register(this._editor.onDidChangeConfiguration((e) => {
+			if (e.hasChanged(EditorOption.stickyScroll)) {
+				this._linesDomNode.style.left = this._editor.getOption(EditorOption.stickyScroll).scrollWithEditor ? `-${this._editor.getScrollLeft()}px` : '0px';
+			}
+		}));
 		this._register(this._editor.onDidScrollChange((e) => {
-			if (e.scrollLeftChanged) {
+			if (e.scrollLeftChanged && this._editor.getOption(EditorOption.stickyScroll).scrollWithEditor) {
 				this._linesDomNode.style.left = `-${e.scrollLeft}px`;
 			}
 			if (e.scrollWidthChanged) {
 				this._updateWidgetWidth();
 			}
 		}));
-		this._linesDomNode.style.left = `-${this._editor.getScrollLeft()}px`;
+		this._linesDomNode.style.left = this._editor.getOption(EditorOption.stickyScroll).scrollWithEditor ? `-${this._editor.getScrollLeft()}px` : '0px';
 
 		this._register(this._editor.onDidLayoutChange((e) => {
 			this._updateWidgetWidth();
