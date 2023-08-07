@@ -6,9 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./stickyScroll';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -30,8 +28,8 @@ const _ttPolicy = createTrustedTypesPolicy('stickyScrollViewLayer', { createHTML
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private readonly _rootDomNode: HTMLElement = document.createElement('div');
-	private readonly _scrollableLinesDomNode: HTMLElement;
 	private readonly _lineNumbersDomNode: HTMLElement = document.createElement('div');
+	private readonly _linesDomNodeScrollable: HTMLElement = document.createElement('div');
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
 	private readonly _disposableStore = this._register(new DisposableStore());
 
@@ -39,9 +37,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lastLineRelativePosition: number = 0;
 	private _hoverOnLine: number = -1;
 	private _hoverOnColumn: number = -1;
-	private _bottomMostLine: number | undefined;
-	private _minWidthInPixels: number | undefined;
-	private _viewZoneId: string | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -51,31 +46,34 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const layoutInfo = this._editor.getOption(EditorOption.layoutInfo);
 
 		this._lineNumbersDomNode.className = 'sticky-widget-line-numbers';
-		this._lineNumbersDomNode.style.width = `${layoutInfo.contentLeft}px`;
-		this._lineNumbersDomNode.setAttribute('role', 'list');
+		this._lineNumbersDomNode.setAttribute('role', 'none');
 
 		this._linesDomNode.className = 'sticky-widget-lines';
-		this._linesDomNode.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth - layoutInfo.contentLeft}px`;
 		this._linesDomNode.setAttribute('role', 'list');
 
-		const scrollbar = this._register(new DomScrollableElement(this._linesDomNode, { vertical: ScrollbarVisibility.Hidden, horizontal: ScrollbarVisibility.Hidden, handleMouseWheel: false }));
-		this._scrollableLinesDomNode = scrollbar.getDomNode();
-		this._scrollableLinesDomNode.className = 'sticky-widget-scrollable';
+		this._linesDomNodeScrollable.className = 'sticky-widget-lines-scrollable';
+		this._linesDomNodeScrollable.appendChild(this._linesDomNode);
 
 		this._rootDomNode.className = 'sticky-widget';
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.appendChild(this._lineNumbersDomNode);
-		this._rootDomNode.appendChild(this._scrollableLinesDomNode);
+		this._rootDomNode.appendChild(this._linesDomNodeScrollable);
 
 		this._register(this._editor.onDidScrollChange((e) => {
-			scrollbar.scanDomNode();
-			scrollbar.setScrollPosition({ scrollLeft: e.scrollLeft });
+			if (e.scrollLeftChanged) {
+				this._linesDomNode.style.left = `-${e.scrollLeft}px`;
+			}
+			if (e.scrollWidthChanged) {
+				this._linesDomNodeScrollable.style.width = `${e.scrollWidth}px`;
+			}
 		}));
+		this._linesDomNode.style.left = `-${this._editor.getScrollLeft()}px`;
+		this._linesDomNodeScrollable.style.width = `${this._editor.getScrollWidth()}px`;
+
 		this._register(this._editor.onDidLayoutChange((e) => {
 			this._updateWidgetWidth(e);
-			scrollbar.scanDomNode();
 		}));
-		scrollbar.scanDomNode();
+		this._updateWidgetWidth(layoutInfo);
 	}
 
 	get hoverOnLine(): number {
@@ -116,65 +114,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._renderRootNode();
 	}
 
-	private _renderLinesAndFindMaximumLineLength(layoutInfo: EditorLayoutInfo): number {
-		let maxLength = 0;
-		for (const [index, line] of this._lineNumbers.entries()) {
-			const { lineNumberHTMLNode, lineHTMLNode } = this._renderChildNode(index, line, layoutInfo);
-			this._lineNumbersDomNode.appendChild(lineNumberHTMLNode);
-			this._linesDomNode.appendChild(lineHTMLNode);
-			if (lineHTMLNode.scrollWidth > maxLength) {
-				maxLength = lineHTMLNode.scrollWidth;
-			}
-		}
-		for (const child of this._linesDomNode.children) {
-			if (child instanceof HTMLElement) {
-				child.style.width = `${maxLength}px`;
-			}
-		}
-		return maxLength;
-	}
-
 	private _updateWidgetWidth(layoutInfo: EditorLayoutInfo): void {
 		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 		const lineNumbersWidth = minimapSide === 'left' ? layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth : layoutInfo.contentLeft;
 		this._lineNumbersDomNode.style.width = `${lineNumbersWidth}px`;
-		this._linesDomNode.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth - lineNumbersWidth}px`;
-	}
-
-	private _updateWidgetHeight(height: number): void {
-		const heightPx = `${height}px`;
-		this._lineNumbersDomNode.style.height = heightPx;
-		this._linesDomNode.style.height = heightPx;
-		this._scrollableLinesDomNode.style.height = heightPx;
-	}
-
-	private _updateMarginLeft(): void {
-		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
-		if (minimapSide === 'left') {
-			this._rootDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
-		}
-	}
-
-	private _updateViewZone(minWidthInPixels: number): void {
-		this._editor.changeViewZones((changeAccessor) => {
-			const bottomMostLine = this._editor.getVisibleRangesPlusViewportAboveBelow().pop()?.endLineNumber;
-			if (bottomMostLine !== undefined && (this._bottomMostLine !== bottomMostLine || this._minWidthInPixels !== minWidthInPixels)) {
-				if (this._viewZoneId) {
-					changeAccessor.removeZone(this._viewZoneId);
-					this._viewZoneId = undefined;
-				}
-				const domNode = document.createElement('div');
-				this._bottomMostLine = bottomMostLine;
-				this._minWidthInPixels = minWidthInPixels;
-				this._viewZoneId = changeAccessor.addZone({
-					afterLineNumber: bottomMostLine,
-					suppressMouseDown: true,
-					showInHiddenAreas: true,
-					minWidthInPx: this._minWidthInPixels + 30,
-					domNode,
-				});
-			}
-		});
+		this._linesDomNodeScrollable.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth - lineNumbersWidth}px`;
+		this._rootDomNode.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth}px`;
 	}
 
 	private _renderRootNode(): void {
@@ -183,15 +128,23 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return;
 		}
 		const layoutInfo = this._editor.getLayoutInfo();
-		const maxLineLength = this._renderLinesAndFindMaximumLineLength(layoutInfo);
+		for (const [index, line] of this._lineNumbers.entries()) {
+			const { lineNumberHTMLNode, lineHTMLNode } = this._renderChildNode(index, line, layoutInfo);
+			this._lineNumbersDomNode.appendChild(lineNumberHTMLNode);
+			this._linesDomNode.appendChild(lineHTMLNode);
+		}
 
 		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
 		this._rootDomNode.style.display = widgetHeight > 0 ? 'block' : 'none';
-		this._updateWidgetWidth(layoutInfo);
-		this._updateWidgetHeight(widgetHeight);
-		this._updateMarginLeft();
-		this._updateViewZone(maxLineLength);
+		this._lineNumbersDomNode.style.height = `${widgetHeight}px`;
+		this._linesDomNodeScrollable.style.height = `${widgetHeight}px`;
+		this._rootDomNode.style.height = `${widgetHeight}px`;
+		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
+
+		if (minimapSide === 'left') {
+			this._rootDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
+		}
 	}
 
 	private _renderChildNode(index: number, line: number, layoutInfo: EditorLayoutInfo): { lineNumberHTMLNode: HTMLSpanElement; lineHTMLNode: HTMLSpanElement } {
@@ -228,7 +181,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 
 		const lineHTMLNode = document.createElement('span');
-		lineHTMLNode.className = 'sticky-line';
+		lineHTMLNode.className = 'sticky-line-content';
 		lineHTMLNode.classList.add(`stickyLine${line}`);
 		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
 		lineHTMLNode.innerHTML = newLine as string;
@@ -236,8 +189,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const lineNumberHTMLNode = document.createElement('span');
 		lineNumberHTMLNode.className = 'sticky-line-number';
 		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
-		const lineNumbersWidth = minimapSide === 'left' ? layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth : layoutInfo.contentLeft;
-		lineNumberHTMLNode.style.width = `${lineNumbersWidth}px`;
 
 		const innerLineNumberHTML = document.createElement('span');
 		if (lineNumberOption.renderType === RenderLineNumbersType.On || lineNumberOption.renderType === RenderLineNumbersType.Interval && line % 10 === 0) {
@@ -259,9 +210,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.applyFontInfo(innerLineNumberHTML);
 
 		lineHTMLNode.setAttribute('role', 'listitem');
-		lineNumberHTMLNode.setAttribute('role', 'listitem');
-		lineHTMLNode.style.height = `${lineHeight}px`;
+		lineHTMLNode.tabIndex = 0;
+
+		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
+		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
 		lineNumberHTMLNode.style.height = `${lineHeight}px`;
+		lineHTMLNode.style.height = `${lineHeight}px`;
 
 		// Special case for the last line of sticky scroll
 		const isLastLine = index === this._lineNumbers.length - 1;
