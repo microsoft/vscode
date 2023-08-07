@@ -33,6 +33,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
 	private readonly _disposableStore = this._register(new DisposableStore());
 
+	private _stickyLines: HTMLElement[] = [];
 	private _lineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
 	private _hoverOnLine: number = -1;
@@ -88,6 +89,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return this._lineNumbers;
 	}
 
+	get numberOfLines(): number {
+		return this._lineNumbers.length;
+	}
+
 	get codeLineCount(): number {
 		return this._lineNumbers.length;
 	}
@@ -127,11 +132,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (!this._editor._getViewModel()) {
 			return;
 		}
+		this._stickyLines.length = 0;
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const { lineNumberHTMLNode, lineHTMLNode } = this._renderChildNode(index, line, layoutInfo);
 			this._lineNumbersDomNode.appendChild(lineNumberHTMLNode);
 			this._linesDomNode.appendChild(lineHTMLNode);
+			this._stickyLines.push(lineHTMLNode);
 		}
 
 		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
@@ -258,5 +265,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return {
 			preference: null
 		};
+	}
+
+	focusLineWithIndex(index: number) {
+		console.log('inside of focusLineWithIndex : ', index);
+		console.log('this._stickyLines : ', this._stickyLines);
+		this._stickyLines[index].focus();
 	}
 }
