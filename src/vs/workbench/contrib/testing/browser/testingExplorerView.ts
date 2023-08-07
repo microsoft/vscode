@@ -489,9 +489,11 @@ class ResultSummaryView extends Disposable {
 		const { results } = this.resultService;
 		const { count, root, status, duration, rerun } = this.elements;
 		if (!results.length) {
-			this.container.removeChild(root);
 			this.container.innerText = localize('noResults', 'No test results yet.');
-			this.elementsWereAttached = false;
+			if (this.elementsWereAttached) {
+				this.container.removeChild(root);
+				this.elementsWereAttached = false;
+			}
 			return;
 		}
 
@@ -509,7 +511,7 @@ class ResultSummaryView extends Disposable {
 			const last = results[0];
 			const dominantState = mapFind(statesInOrder, s => last.counts[s] > 0 ? s : undefined);
 			status.className = ThemeIcon.asClassName(icons.testingStatesToIcons.get(dominantState ?? TestResultState.Unset)!);
-			counts = collectTestStateCounts(true, [last]);
+			counts = collectTestStateCounts(false, [last]);
 			duration.textContent = last instanceof LiveTestResult ? formatDuration(last.completedAt! - last.startedAt) : '';
 			rerun.style.display = 'block';
 		}

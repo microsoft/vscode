@@ -40,9 +40,18 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		uriEdit.label = pasteUrlSetting === PasteUrlAsFormattedLink.Smart ? vscode.l10n.t('Smartly Insert Link') : pasteEdit.label;
+		uriEdit.label = pasteEdit.label;
 		uriEdit.additionalEdit = pasteEdit.additionalEdits;
+		uriEdit.priority = this._getPriority(pasteEdit.markdownLink);
 		return uriEdit;
+	}
+
+	private _getPriority(pasteAsMarkdownLink: boolean): number {
+		if (!pasteAsMarkdownLink) {
+			// Deprioritize in favor of default paste
+			return -10;
+		}
+		return 0;
 	}
 }
 

@@ -121,4 +121,8 @@ export abstract class BaseTerminalBackend extends Disposable {
 		}
 		return parsedCrossVersion.state as ISerializedTerminalState[];
 	}
+
+	protected _getWorkspaceId(): string {
+		return this._workspaceContextService.getWorkspace().id;
+	}
 }
