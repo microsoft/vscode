@@ -87,17 +87,18 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 	}
 
 	private convertInlayHintText(resource: vscode.Uri, tsHint: Proto.InlayHintItem): string | vscode.InlayHintLabelPart[] {
-		if (typeof tsHint.text === 'string') {
-			return tsHint.text;
+		if (tsHint.displayParts) {
+			return tsHint.displayParts.map((part): vscode.InlayHintLabelPart => {
+				const out = new vscode.InlayHintLabelPart(part.text);
+				if (part.span) {
+					out.location = Location.fromTextSpan(resource, part.span);
+				}
+				return out;
+			});
 		}
 
-		return tsHint.text.map((part): vscode.InlayHintLabelPart => {
-			const out = new vscode.InlayHintLabelPart(part.text);
-			if (part.span) {
-				out.location = Location.fromTextSpan(resource, part.span);
-			}
-			return out;
-		});
+		return tsHint.text;
+
 	}
 }
 
