@@ -66,6 +66,8 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+
 
 export const enum SettingsFocusContext {
 	Search,
@@ -335,6 +337,20 @@ export class SettingsEditor2 extends EditorPane {
 		this.createBody(this.rootElement);
 		this.addCtrlAInterceptor(this.rootElement);
 		this.updateStyles();
+
+		this._register(registerNavigableContainer({
+			focusNotifiers: [this],
+			focusNextWidget: () => {
+				if (this.searchWidget.inputWidget.hasWidgetFocus()) {
+					this.focusSettings();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (!this.searchWidget.inputWidget.hasWidgetFocus()) {
+					this.focusSearch();
+				}
+			}
+		}));
 	}
 
 	override async setInput(input: SettingsEditor2Input, options: ISettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -1861,3 +1877,6 @@ interface ISettingsEditor2State {
 	searchQuery: string;
 	target: SettingsTarget;
 }
+
+
+
