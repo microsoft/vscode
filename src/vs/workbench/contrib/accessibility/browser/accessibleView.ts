@@ -401,8 +401,10 @@ class AccessibleView extends Disposable {
 		let hint = '';
 		const nextKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleViewNext')?.getAriaLabel();
 		const previousKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleViewPrevious')?.getAriaLabel();
-		if (this._configurationService.getValue(verbositySettingKey)) {
-			hint = (nextKeybinding && previousKeybinding) ? localize('accessibleViewNextPreviousHint', "Show the next ({0}) or previous ({1}) item in the accessible view.", nextKeybinding, previousKeybinding) : localize('chatAccessibleViewNextPreviousHintNoKb', "Show the next or previous item in the accessible view by configuring keybindings for Show Next / Previous in Accessible View.");
+		if (this._configurationService.getValue(verbositySettingKey) && nextKeybinding && previousKeybinding) {
+			hint = localize('accessibleViewNextPreviousHint', "Show the next ({0}) or previous ({1}) item in the accessible view.", nextKeybinding, previousKeybinding);
+		} else {
+			localize('chatAccessibleViewNextPreviousHintNoKb', "Show the next or previous item in the accessible view by configuring keybindings for Show Next / Previous in Accessible View.");
 		}
 		return hint;
 	}
@@ -410,8 +412,14 @@ class AccessibleView extends Disposable {
 		if (!this._configurationService.getValue(verbositySettingKey)) {
 			return '';
 		}
+		let hint = '';
 		const disableKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleViewDisableHint', this._contextKeyService)?.getAriaLabel();
-		return !!disableKeybinding ? localize('acessibleViewDisableHint', "Disable the hint to open the accessible view by pressing ({0}).", disableKeybinding) : localize('accessibleViewDisableHintNoKb', 'Add a keybinding for the command Disable Accessible View Hint to disable this hint."');
+		if (disableKeybinding) {
+			hint = localize('acessibleViewDisableHint', "Disable the hint to open the accessible view by pressing ({0}).", disableKeybinding);
+		} else {
+			hint = localize('accessibleViewDisableHintNoKb', "Add a keybinding for the command Disable Accessible View Hint to disable this hint.");
+		}
+		return hint;
 	}
 
 	private _getGoToSymbolHint(provider: IAccessibleContentProvider): string {
