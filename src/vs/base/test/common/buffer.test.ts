@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
-import { bufferedStreamToBuffer, bufferToReadable, bufferToStream, decodeBase64, encodeBase64, newWriteableBufferStream, readableToBuffer, streamToBuffer, VSBuffer } from 'vs/base/common/buffer';
+import { bufferedStreamToBuffer, bufferToReadable, bufferToStream, decodeBase64, encodeBase64, newWriteableBufferStream, readableToBuffer, streamToBuffer, VSBuffer, VSFloat32Array } from 'vs/base/common/buffer';
+import { parse, stringify } from 'vs/base/common/marshalling';
 import { peekStream } from 'vs/base/common/stream';
 
 suite('Buffer', () => {
@@ -475,6 +476,24 @@ suite('Buffer', () => {
 
 		test('throws error on invalid encoding', () => {
 			assert.throws(() => decodeBase64('invalid!'));
+		});
+	});
+
+	suite('Float32Array', () => {
+
+		test('serialization', () => {
+			const array = new Float32Array(10);
+			for (let i = 0; i < array.length; i++) {
+				array[i] = i === 0 ? 0 : Math.random();
+			}
+
+			const buffer = VSFloat32Array.wrap(array);
+			const serialized = stringify(buffer);
+			const deserialized = parse(serialized);
+
+			assert.ok(deserialized instanceof VSFloat32Array);
+			assert.deepStrictEqual(array, deserialized.buffer);
+			assert.deepStrictEqual(array.byteLength, deserialized.byteLength);
 		});
 	});
 });

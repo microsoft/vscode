@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
+import { VSBuffer, VSFloat32Array } from 'vs/base/common/buffer';
 import { regExpFlags } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { MarshalledId } from './marshallingIds';
@@ -54,6 +54,7 @@ export function revive<T = any>(obj: any, depth = 0): Revived<T> {
 			case MarshalledId.Uri: return <any>URI.revive(obj);
 			case MarshalledId.Regexp: return <any>new RegExp(obj.source, obj.flags);
 			case MarshalledId.Date: return <any>new Date(obj.source);
+			case MarshalledId.Float32Array: return <any>VSFloat32Array.revive(obj);
 		}
 
 		if (
