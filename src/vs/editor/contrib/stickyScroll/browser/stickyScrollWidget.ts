@@ -295,7 +295,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	private _getRenderedStickyLineFromChildDomNode(domNode: HTMLElement | null): RenderedStickyLine | null {
-		const index = this._getStickyLineIndexFromChildDomNode(domNode);
+		const index = this.getStickyLineIndexFromChildDomNode(domNode);
 		if (index === null || index < 0 || index >= this._stickyLines.length) {
 			return null;
 		}
@@ -306,7 +306,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	 * Given a child dom node, tries to find the line number attribute
 	 * that was stored in the node. Returns null if none is found.
 	 */
-	private _getStickyLineIndexFromChildDomNode(domNode: HTMLElement | null): number | null {
+	getStickyLineIndexFromChildDomNode(domNode: HTMLElement | null): number | null {
 		while (domNode && domNode !== this._rootDomNode) {
 			const line = domNode.getAttribute(STICKY_LINE_INDEX_ATTR);
 			if (line) {
