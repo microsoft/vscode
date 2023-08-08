@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -283,13 +283,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				this._renderStickyScroll();
 			}
 		}));
-		this._register(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_OUT, (mouseEvent: IMouseEvent) => {
-			// When mouse over text in sticky scroll widget, mouse out event is triggered, despite being still inside the widget
-			// Following code takes that into account
-			const clientX = mouseEvent.posx;
-			const clientY = mouseEvent.posy;
-			const domRect = stickyScrollWidgetDomNode.getBoundingClientRect();
-			if (this._showEndForLine !== null && (clientX <= domRect.left || clientX >= domRect.right || clientY <= domRect.top || clientY >= domRect.bottom)) {
+		this._register(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_LEAVE, (e) => {
+			if (this._showEndForLine !== null) {
 				this._showEndForLine = null;
 				this._renderStickyScroll();
 			}
