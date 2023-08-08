@@ -3,13 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-slash-command-content-widget {
-	padding: 0 3px 1px 3px;
-	border-radius: 3px;
-	background-color: var(--vscode-chat-slashCommandBackground);
-	color: var(--vscode-chat-slashCommandForeground);
-}
+//@ts-check
 
-.interactive-session .interactive-input-and-toolbar .chat-slash-command-content-widget {
-	top: 7px !important;
-}
+'use strict';
+
+const withDefaults = require('../shared.webpack.config');
+
+module.exports = withDefaults({
+	context: __dirname,
+	entry: {
+		extension: './src/extension.ts',
+	},
+	resolve: {
+		mainFields: ['module', 'main']
+	}
+});
