@@ -416,7 +416,7 @@ export class InlineChatController implements IEditorContribution {
 			msgListener.dispose();
 		}
 
-		this._zone.value.widget.selectAll();
+		this._zone.value.widget.selectAll(false);
 
 		if (message & (Message.CANCEL_INPUT | Message.CANCEL_SESSION)) {
 			return State.CANCEL;

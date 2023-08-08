@@ -82,7 +82,11 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	readonly minimumHeight: number = 77;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
-	readonly snap = true;
+	get snap(): boolean {
+		// Always allow snapping closed
+		// Only allow dragging open if the panel contains view containers
+		return this.layoutService.isVisible(this.partId) || this.compositeBar.getVisibleComposites().length > 0;
+	}
 
 	get preferredHeight(): number | undefined {
 		// Don't worry about titlebar or statusbar visibility

@@ -142,9 +142,9 @@ class ViewModel extends Disposable {
 			/** @description play audio-cue for diff */
 			const currentViewItem = this.currentElement.read(reader);
 			if (currentViewItem?.type === LineType.Deleted) {
-				this._audioCueService.playAudioCue(AudioCue.diffLineDeleted);
+				this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, { source: 'accessibleDiffViewer.currentElementChanged' });
 			} else if (currentViewItem?.type === LineType.Added) {
-				this._audioCueService.playAudioCue(AudioCue.diffLineInserted);
+				this._audioCueService.playAudioCue(AudioCue.diffLineInserted, { source: 'accessibleDiffViewer.currentElementChanged' });
 			}
 		}));
 
