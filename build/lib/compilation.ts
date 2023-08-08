@@ -93,7 +93,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 	return pipeline;
 }
 
-export function transpileTask(src: string, out: string, swc: boolean): () => NodeJS.ReadWriteStream {
+export function transpileTask(src: string, out: string, swc: boolean): task.StreamTask {
 
 	const task = () => {
 
@@ -109,7 +109,7 @@ export function transpileTask(src: string, out: string, swc: boolean): () => Nod
 	return task;
 }
 
-export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean } = {}): () => NodeJS.ReadWriteStream {
+export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean } = {}): task.StreamTask {
 
 	const task = () => {
 
@@ -158,7 +158,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 	return task;
 }
 
-export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
+export function watchTask(out: string, build: boolean): task.StreamTask {
 
 	const task = () => {
 		const compile = createCompile('src', build, false, false);
