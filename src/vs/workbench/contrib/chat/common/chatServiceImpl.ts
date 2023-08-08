@@ -11,7 +11,6 @@ import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -351,7 +350,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		let session: IChat | undefined;
 		try {
-			session = withNullAsUndefined(await provider.prepareSession(model.providerState, token));
+			session = await provider.prepareSession(model.providerState, token) ?? undefined;
 		} catch (err) {
 			this.trace('initializeSession', `Provider initializeSession threw: ${err}`);
 		}
@@ -362,7 +361,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		this.trace('startSession', `Provider returned session`);
 
-		const welcomeMessage = model.welcomeMessage ? undefined : withNullAsUndefined(await provider.provideWelcomeMessage?.(token));
+		const welcomeMessage = model.welcomeMessage ? undefined : await provider.provideWelcomeMessage?.(token) ?? undefined;
 		const welcomeModel = welcomeMessage && new ChatWelcomeMessageModel(
 			model, welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item as IChatReplyFollowup[]));
 
@@ -500,7 +499,7 @@ export class ChatService extends Disposable implements IChatService {
 				// TODO refactor this or rethink the API https://github.com/microsoft/vscode-copilot/issues/593
 				if (provider.provideFollowups) {
 					Promise.resolve(provider.provideFollowups(model.session!, CancellationToken.None)).then(followups => {
-						model.setFollowups(request, withNullAsUndefined(followups));
+						model.setFollowups(request, followups ?? undefined);
 						model.completeResponse(request);
 					});
 				} else {
@@ -568,12 +567,12 @@ export class ChatService extends Disposable implements IChatService {
 
 		try {
 			const slashCommands = (await providerResults).filter(c => !!c) as ISlashCommand[][];
-			return withNullAsUndefined(slashCommands.flat());
+			return slashCommands.flat() ?? undefined;
 		} catch (e) {
 			this.logService.error(e);
 
 			// If one of the other contributed providers fails, return the main provider's result
-			return withNullAsUndefined(await mainProviderRequest);
+			return await mainProviderRequest ?? undefined;
 		}
 	}
 

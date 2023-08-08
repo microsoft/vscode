@@ -18,7 +18,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
 import 'vs/css!./media/searchview';
@@ -1482,7 +1481,7 @@ export class SearchView extends ViewPane {
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchView',
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-			maxResults: withNullAsUndefined(this.searchConfig.maxResults),
+			maxResults: this.searchConfig.maxResults ?? undefined,
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
 			onlyOpenEditors: onlySearchInOpenEditors,

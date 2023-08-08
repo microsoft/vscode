@@ -37,7 +37,6 @@ import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
@@ -294,7 +293,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private _getKeybindingLabel(action: IAction): string | undefined {
-		return withNullAsUndefined(this._keybindingService.lookupKeybinding(action.id)?.getLabel());
+		return this._keybindingService.lookupKeybinding(action.id)?.getLabel() ?? undefined;
 	}
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {

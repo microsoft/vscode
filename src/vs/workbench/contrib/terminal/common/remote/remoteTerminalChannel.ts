@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -133,7 +132,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		// We will use the resolver service to resolve all the variables in the config / launch config
 		// But then we will keep only some variables, since the rest need to be resolved on the remote side
 		const resolvedVariables = Object.create(null);
-		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 		let allResolvedVariables: Map<string, string> | undefined = undefined;
 		try {
 			allResolvedVariables = (await this._resolverService.resolveAnyMap(lastActiveWorkspace, {
