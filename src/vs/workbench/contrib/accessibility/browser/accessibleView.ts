@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -114,18 +115,18 @@ class AccessibleView extends Disposable {
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			contributions: EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeActionController.ID)
 		};
-		this._toolbar = this._register(_instantiationService.createInstance(MenuWorkbenchToolBar, this._editorContainer, MenuId.AccessibleView, { ariaLabel: localize('accessibleViewToolbar', "Accessible View Toolbar") }));
+		this._toolbar = this._register(_instantiationService.createInstance(MenuWorkbenchToolBar, this._editorContainer, MenuId.AccessibleView, { ariaLabel: localize('accessibleViewToolbar', "Accessible View Toolbar"), orientation: ActionsOrientation.HORIZONTAL }));
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(this._configurationService),
 			lineDecorationsWidth: 6,
-			dragAndDrop: true,
+			dragAndDrop: false,
 			cursorWidth: 1,
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			padding: { top: 2, bottom: 2 },
 			quickSuggestions: false,
 			renderWhitespace: 'none',
-			dropIntoEditor: { enabled: true },
+			dropIntoEditor: { enabled: false },
 			readOnly: true,
 			fontFamily: 'var(--monaco-monospace-font)'
 		};
@@ -308,14 +309,12 @@ class AccessibleView extends Disposable {
 		this._toolbar.context = { viewId: 'accessibleView' };
 		this._toolbar.getElement().tabIndex = 0;
 		const disposableStore = new DisposableStore();
-		disposableStore.add(this._editorWidget.onKeyUp((e) => {
-			provider.onKeyDown?.(e);
-		}));
+		disposableStore.add(this._editorWidget.onKeyUp((e) => provider.onKeyDown?.(e)));
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Escape) {
 				e.stopPropagation();
 				this._contextViewService.hideContextView();
-				// Delay to allow the context view to hide #186514
+				// HACK: Delay to allow the context view to hide #186514
 				setTimeout(() => provider.onClose(), 100);
 			} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
 				const url: string = provider.options.readMoreUrl!;
@@ -325,11 +324,11 @@ class AccessibleView extends Disposable {
 				e.stopPropagation();
 			}
 		}));
-		this._editorWidget.onDidBlurEditorWidget(() => {
+		disposableStore.add(this._editorWidget.onDidBlurEditorWidget(() => {
 			if (document.activeElement !== this._toolbar.getElement()) {
 				this._contextViewService.hideContextView();
 			}
-		});
+		}));
 		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
 		disposableStore.add(this._layoutService.onDidLayout(() => this._layout()));
 		return disposableStore;
@@ -366,6 +365,7 @@ class AccessibleView extends Disposable {
 		accessibleViewHelpProvider.provideContent = () => this._getAccessibleViewHelpDialogContent(accessibleViewHelpProvider);
 		accessibleViewHelpProvider.onClose = () => this.show(previousProvider);
 		this._contextViewService.hideContextView();
+		// HACK: Delay to allow the context view to hide #186514
 		setTimeout(() => {
 			const delegate: IContextViewDelegate = {
 				getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
