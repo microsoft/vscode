@@ -25,6 +25,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { deepClone } from 'vs/base/common/objects';
 import { debounce } from 'vs/base/common/decorators';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -444,7 +445,8 @@ export class TunnelModel extends Disposable {
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 		this.configPortsAttributes = new PortsAttributes(configurationService);
@@ -623,6 +625,8 @@ export class TunnelModel extends Disposable {
 	}
 
 	async forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | undefined> {
+		await this.extensionService.activateByEvent('onTunnel');
+
 		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, tunnelProperties.remote.host, tunnelProperties.remote.port);
 		attributes = attributes ??
 			((attributes !== null)
@@ -1014,10 +1018,11 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ILogService logService: ILogService,
-		@IDialogService dialogService: IDialogService
+		@IDialogService dialogService: IDialogService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		this._tunnelModel = new TunnelModel(tunnelService, storageService, configurationService, environmentService,
-			remoteAuthorityResolverService, workspaceContextService, logService, dialogService);
+			remoteAuthorityResolverService, workspaceContextService, logService, dialogService, extensionService);
 	}
 
 	set targetType(name: string[]) {
