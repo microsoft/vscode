@@ -80,6 +80,7 @@ export const IAccessibleViewService = createDecorator<IAccessibleViewService>('a
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
 	show(provider: IAccessibleContentProvider): void;
+	showAccessibleViewHelp(): void;
 	next(): void;
 	previous(): void;
 	goToSymbol(): void;
@@ -191,7 +192,6 @@ class AccessibleView extends Disposable {
 		if (symbol && this._currentProvider) {
 			this.showSymbol(this._currentProvider, symbol);
 		}
-		this._currentProvider = provider;
 	}
 
 	previous(): void {
@@ -261,20 +261,15 @@ class AccessibleView extends Disposable {
 		alert(localize('disableAccessibilityHelp', '{0} accessibility verbosity is now disabled', this._currentProvider.verbositySettingKey));
 	}
 
-	private _render(provider: IAccessibleContentProvider, container: HTMLElement): IDisposable {
-		this._currentProvider = provider;
+	private _render(provider: IAccessibleContentProvider, container: HTMLElement, internal?: boolean): IDisposable {
+		if (!internal) {
+			this._currentProvider = provider;
+		}
 		const value = this._configurationService.getValue(provider.verbositySettingKey);
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\nPress H now to open a browser window with more information related to accessibility.\n") : '';
-		const disableHintKb = this._keybindingService.lookupKeybinding('editor.action.accessibleViewDisableHint')?.getAriaLabel();
-		let disableHelpHint;
+		let disableHelpHint = '';
 		if (provider.options.type === AccessibleViewType.Help && !!value) {
-			if (disableHintKb) {
-				disableHelpHint = localize('disable-help-hint', '\nTo disable the `accessibility.verbosity` hint for this feature, press {0} now.\n', disableHintKb);
-			} else {
-				disableHelpHint = localize('disable-help-hint-no-b', '\nTo disable the `accessibility.verbosity` hint for this feature, assign a keybinding to the Disable Accessible View Hint command, which is currently not triggerable via keybinding.\n');
-			}
-		} else {
-			disableHelpHint = '\n';
+			disableHelpHint = this._getDisableVerbosityHint(provider.verbositySettingKey);
 		}
 		const accessibilitySupport = this._accessibilityService.isScreenReaderOptimized();
 		let message = '';
@@ -306,18 +301,18 @@ class AccessibleView extends Disposable {
 			}
 			model.setLanguage(provider.options.language ?? 'markdown');
 			container.appendChild(this._editorContainer);
-			let ariaLabel = undefined;
-			const label = provider.options.ariaLabel;
-			const navigationHint = this._getNavigationAriaHint(provider.verbositySettingKey);
-			const disableHint = this._getDisableVerbosityHint(provider.verbositySettingKey);
-			if (label && navigationHint && disableHint) {
-				ariaLabel = localize('ariaLabelAll', '{0}, {1}, {2}', label, navigationHint, disableHint);
-			} else if (label && navigationHint) {
-				ariaLabel = localize('ariaLabelLabelNavigation', '{0}, {1}', label, navigationHint);
-			} else if (label && disableHint) {
-				ariaLabel = localize('ariaLabelLabelDisable', '{0}, {1}', label, disableHint);
-			} else if (navigationHint && disableHint) {
-				ariaLabel = localize('ariaLabelNavigationDisable', '{0}, {1}', navigationHint, disableHint);
+			let ariaLabel = '';
+			let helpHint = '';
+			if (this._configurationService.getValue(provider.verbositySettingKey) && provider.options.type !== 'help') {
+				const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
+				if (accessibilityHelpKeybinding) {
+					helpHint = localize('ariaAccessibilityHelp', "Use {0} for accessibility help", accessibilityHelpKeybinding);
+				}
+			}
+			if (helpHint) {
+				ariaLabel = provider.options.ariaLabel ? localize('helpAriaKb', "{0}, {1}", provider.options.ariaLabel, helpHint) : localize('accessible-view', "Accessible View, {0}", helpHint);
+			} else {
+				ariaLabel = provider.options.ariaLabel ? provider.options.ariaLabel : localize('helpAriaNoKb', "Accessible View");
 			}
 			this._editorWidget.updateOptions({ ariaLabel });
 			this._editorWidget.focus();
@@ -362,6 +357,33 @@ class AccessibleView extends Disposable {
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 
+	public showAccessibleViewHelp(): void {
+		if (!this._currentProvider) {
+			return;
+
+		}
+		const previousProvider = Object.assign({}, this._currentProvider);
+		const accessibleViewHelpProvider = Object.assign({}, this._currentProvider);
+		accessibleViewHelpProvider.options.type = AccessibleViewType.Help;
+		accessibleViewHelpProvider.provideContent = () => this._getAccessibleViewHelpDialogContent(accessibleViewHelpProvider!);
+		accessibleViewHelpProvider.onClose = () => this.show(previousProvider);
+		this._accessiblityHelpIsShown.set(true);
+		const delegate: IContextViewDelegate = {
+			getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
+			render: (container) => {
+				container.classList.add('accessible-view-container');
+				return this._render(accessibleViewHelpProvider, container, true);
+			},
+		};
+		this._contextViewService.showContextView(delegate);
+	}
+
+	private _getAccessibleViewHelpDialogContent(provider: IAccessibleContentProvider): string {
+		const navigationHint = this._getNavigationAriaHint(provider.verbositySettingKey);
+		const goToSymbolHint = this._getGoToSymbolHint(provider);
+		return [navigationHint, goToSymbolHint].filter(i => !!i).join('\n');
+	}
+
 	private _getNavigationAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string {
 		let hint = '';
 		const nextKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleViewNext')?.getAriaLabel();
@@ -377,6 +399,20 @@ class AccessibleView extends Disposable {
 		}
 		const disableKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleViewDisableHint', this._contextKeyService)?.getAriaLabel();
 		return !!disableKeybinding ? localize('acessibleViewDisableHint', "Disable the hint to open the accessible view by pressing ({0}).", disableKeybinding) : localize('accessibleViewDisableHintNoKb', 'Add a keybinding for the command Disable Accessible View Hint to disable this hint."');
+	}
+
+	private _getGoToSymbolHint(provider: IAccessibleContentProvider): string {
+		const goToSymbolKb = this._keybindingService.lookupKeybinding('editor.action.accessibleViewGoToSymbol')?.getAriaLabel();
+		const hasSymbolProvider = provider.options.language === 'markdown' || provider.options.language === undefined || !!provider.getSymbols;
+		let goToSymbolHint = '';
+		if (hasSymbolProvider) {
+			if (goToSymbolKb) {
+				goToSymbolHint = localize('goToSymbolHint', 'Go to a symbol within the accessible view (({0}).', goToSymbolKb);
+			} else {
+				goToSymbolHint = localize('goToSymbolHintNoKb', 'To go to a symbol within the accessible view, configure a keybinding for the command Go To Symbol in Accessible View.', goToSymbolKb);
+			}
+		}
+		return goToSymbolHint;
 	}
 }
 
@@ -423,6 +459,9 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	}
 	disableHint(): void {
 		this._accessibleView?.disableHint();
+	}
+	showAccessibleViewHelp(): void {
+		this._accessibleView?.showAccessibleViewHelp();
 	}
 }
 
@@ -563,6 +602,7 @@ class AccessibleViewSymbolQuickPick {
 		quickPick.show();
 		quickPick.onDidAccept(() => {
 			this._accessibleView.showSymbol(provider, quickPick.selectedItems[0]);
+			quickPick.hide();
 		});
 		quickPick.onDidHide(() => {
 			if (quickPick.selectedItems.length === 0) {

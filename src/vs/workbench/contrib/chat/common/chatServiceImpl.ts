@@ -246,6 +246,20 @@ export class ChatService extends Disposable implements IChatService {
 			}
 
 			const sessions = arrayOfSessions.reduce((acc, session) => {
+				// Revive serialized markdown strings in response data
+				for (const request of session.requests) {
+					if (Array.isArray(request.response)) {
+						request.response = request.response.map((response) => {
+							if (typeof response === 'string') {
+								return new MarkdownString(response);
+							}
+							return response;
+						});
+					} else if (typeof request.response === 'string') {
+						request.response = [new MarkdownString(request.response)];
+					}
+				}
+
 				acc[session.sessionId] = session;
 				return acc;
 			}, {} as ISerializableChatsData);

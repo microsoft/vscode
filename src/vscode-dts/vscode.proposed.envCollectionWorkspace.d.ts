@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/182069
+	// https://github.com/microsoft/vscode/issues/171173
 
 	// export interface ExtensionContext {
 	// 	/**

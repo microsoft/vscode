@@ -1125,7 +1125,7 @@ export interface MainThreadInteractiveShape extends IDisposable {
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {
-	$registerInteractiveEditorProvider(handle: number, debugName: string, supportsFeedback: boolean): Promise<void>;
+	$registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean): Promise<void>;
 	$handleProgressChunk(requestId: string, chunk: { message?: string; edits?: languages.TextEdit[] }): Promise<void>;
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
@@ -1897,7 +1897,7 @@ export interface IPasteEditDto {
 	id: string;
 	label: string;
 	detail: string;
-	priority: number;
+	yieldTo?: readonly languages.DropYieldTo[];
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
 }
@@ -1909,7 +1909,7 @@ export interface IDocumentDropEditProviderMetadata {
 export interface IDocumentOnDropEditDto {
 	id: string;
 	label: string;
-	priority: number;
+	yieldTo?: readonly languages.DropYieldTo[];
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
 }
