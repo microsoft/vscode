@@ -63,7 +63,7 @@ class QuickChatGlobalAction extends Action2 {
 		// Grab the first provider and run its command
 		const info = chatService.getProviderInfos()[0];
 		if (info) {
-			await commandService.executeCommand(`workbench.action.openChat.${info.id}`);
+			await commandService.executeCommand(`workbench.action.openChat.${info.id}`, query);
 		}
 	}
 }
