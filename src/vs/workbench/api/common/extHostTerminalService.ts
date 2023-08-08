@@ -51,9 +51,8 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
 	registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
-	getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection;
+	getEnvironmentVariableCollection(extension: IExtensionDescription, scope?: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableCollection;
 }
-type IEnvironmentVariableCollection = vscode.EnvironmentVariableCollection & { getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection };
 export interface ITerminalInternalOptions {
 	isFeatureTerminal?: boolean;
 	useShellEnvironment?: boolean;
@@ -833,13 +832,13 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return index;
 	}
 
-	public getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection {
+	public getEnvironmentVariableCollection(extension: IExtensionDescription, scope?: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableCollection {
 		let collection = this._environmentVariableCollections.get(extension.identifier.value);
 		if (!collection) {
 			collection = new UnifiedEnvironmentVariableCollection(extension);
 			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
 		}
-		return collection.getScopedEnvironmentVariableCollection(undefined);
+		return collection.getScopedEnvironmentVariableCollection(scope);
 	}
 
 	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: UnifiedEnvironmentVariableCollection): void {
@@ -906,7 +905,7 @@ class UnifiedEnvironmentVariableCollection {
 		this.map = new Map(serialized);
 	}
 
-	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): IEnvironmentVariableCollection {
+	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection {
 		if (this._extension && scope) {
 			// TODO: This should be removed when the env var extension API(s) are stabilized
 			checkProposedApiEnabled(this._extension, 'envCollectionWorkspace');
@@ -1049,7 +1048,7 @@ class UnifiedEnvironmentVariableCollection {
 	}
 }
 
-class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableCollection, IEnvironmentVariableCollection {
+class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
 	public get persistent(): boolean { return this.collection.persistent; }
 	public set persistent(value: boolean) {
 		this.collection.persistent = value;
