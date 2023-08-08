@@ -282,13 +282,24 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			// This is not a leaf node
 			return null;
 		}
-		const index = this._getStickyLineIndexFromChildDomNode(spanDomNode);
+		const renderedStickyLine = this._getRenderedStickyLineFromChildDomNode(spanDomNode);
+		if (!renderedStickyLine) {
+			return null;
+		}
+		const column = getColumnOfNodeOffset(renderedStickyLine.characterMapping, spanDomNode, 0);
+		return new Position(renderedStickyLine.lineNumber, column);
+	}
+
+	getLineNumberFromChildDomNode(domNode: HTMLElement | null): number | null {
+		return this._getRenderedStickyLineFromChildDomNode(domNode)?.lineNumber ?? null;
+	}
+
+	private _getRenderedStickyLineFromChildDomNode(domNode: HTMLElement | null): RenderedStickyLine | null {
+		const index = this._getStickyLineIndexFromChildDomNode(domNode);
 		if (index === null || index < 0 || index >= this._stickyLines.length) {
 			return null;
 		}
-		const renderedStickyLine = this._stickyLines[index];
-		const column = getColumnOfNodeOffset(renderedStickyLine.characterMapping, spanDomNode, 0);
-		return new Position(renderedStickyLine.lineNumber, column);
+		return this._stickyLines[index];
 	}
 
 	/**

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -109,7 +109,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(focusTracker.onDidFocus(_ => {
 			this.focus();
 		}));
-		this._register(this._createClickLinkGesture());
+		this._registerMouseListeners();
 		// Suppose that mouse down on the sticky scroll, then do not focus on the sticky scroll because this will be followed by the revealing of a position
 		this._register(dom.addDisposableListener(stickyScrollDomNode, dom.EventType.MOUSE_DOWN, (e) => {
 			this._onMouseDown = true;
@@ -189,13 +189,15 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._editor.focus();
 	}
 
-	private _createClickLinkGesture(): IDisposable {
+	private _registerMouseListeners(): void {
 
-		const linkGestureStore = new DisposableStore();
-		const sessionStore = new DisposableStore();
-		linkGestureStore.add(sessionStore);
-		const gesture = new ClickLinkGesture(this._editor, true);
-		linkGestureStore.add(gesture);
+		const sessionStore = this._register(new DisposableStore());
+		const gesture = this._register(new ClickLinkGesture(this._editor, {
+			extractLineNumberFromMouseEvent: (e) => {
+				const position = this._stickyScrollWidget.getEditorPositionFromNode(e.target.element);
+				return position ? position.lineNumber : 0;
+			}
+		}));
 
 		const getMouseEventTarget = (mouseEvent: ClickLinkMouseEvent): { range: Range; textElement: HTMLElement } | null => {
 			if (!this._editor.hasModel()) {
@@ -221,7 +223,37 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			};
 		};
 
-		linkGestureStore.add(gesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, _keyboardEvent]) => {
+		this._register(this._editor.onMouseUp((mouseEvent: IEditorMouseEvent) => {
+			if (mouseEvent.target.type !== MouseTargetType.OVERLAY_WIDGET || mouseEvent.target.detail !== this._stickyScrollWidget.getId()) {
+				// not hovering over our widget
+				return;
+			}
+			if (mouseEvent.event.ctrlKey || mouseEvent.event.shiftKey || mouseEvent.event.altKey || mouseEvent.event.metaKey) {
+				// modifier pressed
+				return;
+			}
+			if (!mouseEvent.event.leftButton) {
+				// not left click
+				return;
+			}
+
+			let position = this._stickyScrollWidget.getEditorPositionFromNode(mouseEvent.target.element);
+			if (!position) {
+				const lineNumber = this._stickyScrollWidget.getLineNumberFromChildDomNode(mouseEvent.target.element);
+				if (lineNumber === null) {
+					// not hovering a sticky scroll line
+					return;
+				}
+				position = new Position(lineNumber, 1);
+			}
+
+			if (this._focused) {
+				this._disposeFocusStickyScrollStore();
+			}
+			this._revealPosition(position);
+		}));
+
+		this._register(gesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, _keyboardEvent]) => {
 			const mouseTarget = getMouseEventTarget(mouseEvent);
 			if (!mouseTarget || !mouseEvent.hasTriggerModifier || !this._editor.hasModel()) {
 				sessionStore.clear();
@@ -267,10 +299,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				}
 			}));
 		}));
-		linkGestureStore.add(gesture.onCancel(() => {
+		this._register(gesture.onCancel(() => {
 			sessionStore.clear();
 		}));
-		linkGestureStore.add(gesture.onExecute(async e => {
+		this._register(gesture.onExecute(async e => {
 			if (e.target.type !== MouseTargetType.OVERLAY_WIDGET || e.target.detail !== this._stickyScrollWidget.getId()) {
 				// not hovering over our widget
 				return;
@@ -280,25 +312,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				// not hovering a sticky scroll line
 				return;
 			}
-			if (e.hasTriggerModifier) {
-				// Control click
-				if (this._candidateDefinitionsLength > 1) {
-					if (this._focused) {
-						this._disposeFocusStickyScrollStore();
-					}
-					this._revealPosition({ lineNumber: position.lineNumber, column: 1 });
-				}
-				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
-
-			} else if (!e.isRightClick) {
-				// Normal click
+			if (this._candidateDefinitionsLength > 1) {
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
 				}
-				this._revealPosition(position);
+				this._revealPosition({ lineNumber: position.lineNumber, column: 1 });
 			}
+			this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
 		}));
-		return linkGestureStore;
 	}
 
 	private _onContextMenu(e: MouseEvent) {
