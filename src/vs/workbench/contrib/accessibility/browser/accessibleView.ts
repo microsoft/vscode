@@ -314,6 +314,9 @@ class AccessibleView extends Disposable {
 			} else {
 				ariaLabel = provider.options.ariaLabel ? provider.options.ariaLabel : localize('helpAriaNoKb', "Accessible View");
 			}
+			if (internal) {
+				ariaLabel = localize('accessibleViewHelp', "Accessible View Help");
+			}
 			this._editorWidget.updateOptions({ ariaLabel });
 			this._editorWidget.focus();
 		});
@@ -367,7 +370,6 @@ class AccessibleView extends Disposable {
 		accessibleViewHelpProvider.options.type = AccessibleViewType.Help;
 		accessibleViewHelpProvider.provideContent = () => this._getAccessibleViewHelpDialogContent(accessibleViewHelpProvider);
 		accessibleViewHelpProvider.onClose = () => this.show(previousProvider);
-		accessibleViewHelpProvider.options.ariaLabel = localize('accessibleViewHelp', "Accessible View Help");
 		this._contextViewService.hideContextView();
 		setTimeout(() => {
 			this._accessiblityHelpIsShown.set(true);
@@ -376,7 +378,7 @@ class AccessibleView extends Disposable {
 				render: (container) => {
 					container.classList.add('accessible-view-container');
 					return this._render(accessibleViewHelpProvider, container, true);
-				},
+				}
 			};
 			this._contextViewService.showContextView(delegate);
 		}, 100);
