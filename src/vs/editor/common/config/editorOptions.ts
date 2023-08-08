@@ -2752,6 +2752,10 @@ export interface IEditorStickyScrollOptions {
 	 * Model to choose for sticky scroll by default
 	 */
 	defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
+	/**
+	 * Define whether to scroll sticky scroll with editor horizontal scrollbae
+	 */
+	scrollWithEditor?: boolean;
 }
 
 /**
@@ -2762,7 +2766,7 @@ export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOpt
 class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel' };
+		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
 		super(
 			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
@@ -2784,6 +2788,11 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 					default: defaults.defaultModel,
 					description: nls.localize('editor.stickyScroll.defaultModel', "Defines the model to use for determining which lines to stick. If the outline model does not exist, it will fall back on the folding provider model which falls back on the indentation model. This order is respected in all three cases.")
 				},
+				'editor.stickyScroll.scrollWithEditor': {
+					type: 'boolean',
+					default: defaults.scrollWithEditor,
+					description: nls.localize('editor.stickyScroll.scrollWithEditor', "When enabled it is possible to scroll the sticky scroll widget with the editor horizontal scrollbar.")
+				},
 			}
 		);
 	}
@@ -2797,6 +2806,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 10),
 			defaultModel: stringSet<'outlineModel' | 'foldingProviderModel' | 'indentationModel'>(input.defaultModel, this.defaultValue.defaultModel, ['outlineModel', 'foldingProviderModel', 'indentationModel']),
+			scrollWithEditor: boolean(input.scrollWithEditor, this.defaultValue.scrollWithEditor)
 		};
 	}
 }

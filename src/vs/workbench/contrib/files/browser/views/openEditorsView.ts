@@ -37,7 +37,6 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
 import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -259,7 +258,7 @@ export class OpenEditorsView extends ViewPane {
 				const resource = element.getResource();
 				this.dirtyEditorFocusedContext.set(element.editor.isDirty() && !element.editor.isSaving());
 				this.readonlyEditorFocusedContext.set(!!element.editor.isReadonly());
-				this.resourceContext.set(withUndefinedAsNull(resource));
+				this.resourceContext.set(resource ?? null);
 			} else if (!!element) {
 				this.groupFocusedContext.set(true);
 			}

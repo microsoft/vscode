@@ -659,7 +659,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		return this.tree.updateChildren(toRefresh, recursive, false, {
+		return this.tree.updateChildren(toRefresh, recursive, !!item, {
 			diffIdentityProvider: identityProvider
 		});
 	}
@@ -908,7 +908,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 }
 
-function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IThemeService): IDisposable {
+export function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IThemeService): IDisposable {
 	container.classList.add('file-icon-themable-tree');
 	container.classList.add('show-file-icons');
 

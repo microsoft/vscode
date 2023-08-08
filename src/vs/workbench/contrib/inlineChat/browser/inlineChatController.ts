@@ -316,7 +316,7 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
-		this._zone.value.widget.onDidChangeInput(_ => {
+		this._sessionStore.add(this._zone.value.widget.onDidChangeInput(_ => {
 			const start = this._zone.value.position;
 			if (!start || !this._zone.value.widget.hasFocus() || !this._zone.value.widget.value || !this._editor.hasModel()) {
 				return;
@@ -327,7 +327,7 @@ export class InlineChatController implements IEditorContribution {
 				return;
 			}
 			this._editor.revealLine(nextLine, ScrollType.Smooth);
-		});
+		}));
 
 		this._showWidget(true, options.position);
 
@@ -416,7 +416,7 @@ export class InlineChatController implements IEditorContribution {
 			msgListener.dispose();
 		}
 
-		this._zone.value.widget.selectAll();
+		this._zone.value.widget.selectAll(false);
 
 		if (message & (Message.CANCEL_INPUT | Message.CANCEL_SESSION)) {
 			return State.CANCEL;

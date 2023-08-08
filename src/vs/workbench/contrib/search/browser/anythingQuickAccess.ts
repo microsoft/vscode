@@ -48,7 +48,6 @@ import { ScrollType, IEditor, ICodeEditorViewState, IDiffEditorViewState } from 
 import { once } from 'vs/base/common/functional';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -145,7 +144,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				this.editorViewState = {
 					group: activeEditorPane.group,
 					editor: activeEditorPane.input,
-					state: withNullAsUndefined(getIEditor(activeEditorPane.getControl())?.saveViewState())
+					state: getIEditor(activeEditorPane.getControl())?.saveViewState() ?? undefined,
 				};
 			}
 		}
