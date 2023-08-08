@@ -381,8 +381,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this._anyFocusedTerminalHasSelection.set(isFocused && this.raw.hasSelection());
 	}
 
-	write(data: string | Uint8Array): void {
-		this.raw.write(data);
+	write(data: string | Uint8Array, callback?: () => void): void {
+		this.raw.write(data, callback);
 	}
 
 	resize(columns: number, rows: number): void {
@@ -593,6 +593,24 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 
 	clearSelection(): void {
 		this.raw.clearSelection();
+	}
+
+	selectMarkedRange(fromMarkerId: string, toMarkerId: string, scrollIntoView = false) {
+		const detectionCapability = this.shellIntegration.capabilities.get(TerminalCapability.BufferMarkDetection);
+		if (!detectionCapability) {
+			return;
+		}
+
+		const start = detectionCapability.getMark(fromMarkerId);
+		const end = detectionCapability.getMark(toMarkerId);
+		if (start === undefined || end === undefined) {
+			return;
+		}
+
+		this.raw.selectLines(start.line, end.line);
+		if (scrollIntoView) {
+			this.raw.scrollToLine(start.line);
+		}
 	}
 
 	selectAll(): void {
