@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -16,7 +16,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
+import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { getDefinitionsAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
 import { goToDefinitionWithLocation } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
@@ -27,11 +27,6 @@ import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/langu
 import * as dom from 'vs/base/browser/dom';
 import { StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-
-interface CustomMouseEvent {
-	detail: string;
-	element: HTMLElement;
-}
 
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
@@ -202,69 +197,95 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const gesture = new ClickLinkGesture(this._editor, true);
 		linkGestureStore.add(gesture);
 
+		const getMouseEventTarget = (mouseEvent: ClickLinkMouseEvent): { range: Range; textElement: HTMLElement } | null => {
+			if (!this._editor.hasModel()) {
+				return null;
+			}
+			if (mouseEvent.target.type !== MouseTargetType.OVERLAY_WIDGET || mouseEvent.target.detail !== this._stickyScrollWidget.getId()) {
+				// not hovering over our widget
+				return null;
+			}
+			const mouseTargetElement = mouseEvent.target.element;
+			if (!mouseTargetElement || mouseTargetElement.innerText !== mouseTargetElement.innerHTML) {
+				// not on a span element rendering text
+				return null;
+			}
+
+			const text = mouseTargetElement.innerText;
+			if (this._stickyScrollWidget.hoverOnColumn === -1) {
+				return null;
+			}
+
+			const lineNumber = this._stickyScrollWidget.getLineNumberFromChildDomNode(mouseTargetElement);
+			if (lineNumber === null) {
+				// not hovering a sticky scroll line
+				return null;
+			}
+			const column = this._stickyScrollWidget.hoverOnColumn;
+
+			return {
+				range: new Range(lineNumber, column, lineNumber, column + text.length),
+				textElement: mouseTargetElement
+			};
+		};
+
 		linkGestureStore.add(gesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, _keyboardEvent]) => {
-			if (!this._editor.hasModel() || !mouseEvent.hasTriggerModifier) {
+			const mouseTarget = getMouseEventTarget(mouseEvent);
+			if (!mouseTarget || !mouseEvent.hasTriggerModifier || !this._editor.hasModel()) {
 				sessionStore.clear();
 				return;
 			}
-			const targetMouseEvent = mouseEvent.target as unknown as CustomMouseEvent;
-			if (targetMouseEvent.detail === this._stickyScrollWidget.getId()
-				&& targetMouseEvent.element.innerText === targetMouseEvent.element.innerHTML) {
+			const { range, textElement } = mouseTarget;
 
-				const text = targetMouseEvent.element.innerText;
-				if (this._stickyScrollWidget.hoverOnColumn === -1) {
-					return;
-				}
-				const lineNumber = this._stickyScrollWidget.hoverOnLine;
-				const column = this._stickyScrollWidget.hoverOnColumn;
-
-				const stickyPositionProjectedOnEditor = new Range(lineNumber, column, lineNumber, column + text.length);
-				if (!stickyPositionProjectedOnEditor.equalsRange(this._stickyRangeProjectedOnEditor)) {
-					this._stickyRangeProjectedOnEditor = stickyPositionProjectedOnEditor;
-					sessionStore.clear();
-				} else if (targetMouseEvent.element.style.textDecoration === 'underline') {
-					return;
-				}
-
-				const cancellationToken = new CancellationTokenSource();
-				sessionStore.add(toDisposable(() => cancellationToken.dispose(true)));
-
-				let currentHTMLChild: HTMLElement;
-
-				getDefinitionsAtPosition(this._languageFeaturesService.definitionProvider, this._editor.getModel(), new Position(lineNumber, column + 1), cancellationToken.token).then((candidateDefinitions => {
-					if (cancellationToken.token.isCancellationRequested) {
-						return;
-					}
-					if (candidateDefinitions.length !== 0) {
-						this._candidateDefinitionsLength = candidateDefinitions.length;
-						const childHTML: HTMLElement = targetMouseEvent.element;
-						if (currentHTMLChild !== childHTML) {
-							sessionStore.clear();
-							currentHTMLChild = childHTML;
-							currentHTMLChild.style.textDecoration = 'underline';
-							sessionStore.add(toDisposable(() => {
-								currentHTMLChild.style.textDecoration = 'none';
-							}));
-						} else if (!currentHTMLChild) {
-							currentHTMLChild = childHTML;
-							currentHTMLChild.style.textDecoration = 'underline';
-							sessionStore.add(toDisposable(() => {
-								currentHTMLChild.style.textDecoration = 'none';
-							}));
-						}
-					} else {
-						sessionStore.clear();
-					}
-				}));
-			} else {
+			if (!range.equalsRange(this._stickyRangeProjectedOnEditor)) {
+				this._stickyRangeProjectedOnEditor = range;
 				sessionStore.clear();
+			} else if (textElement.style.textDecoration === 'underline') {
+				return;
 			}
+
+			const cancellationToken = new CancellationTokenSource();
+			sessionStore.add(toDisposable(() => cancellationToken.dispose(true)));
+
+			let currentHTMLChild: HTMLElement;
+
+			getDefinitionsAtPosition(this._languageFeaturesService.definitionProvider, this._editor.getModel(), new Position(range.startLineNumber, range.startColumn + 1), cancellationToken.token).then((candidateDefinitions => {
+				if (cancellationToken.token.isCancellationRequested) {
+					return;
+				}
+				if (candidateDefinitions.length !== 0) {
+					this._candidateDefinitionsLength = candidateDefinitions.length;
+					const childHTML: HTMLElement = textElement;
+					if (currentHTMLChild !== childHTML) {
+						sessionStore.clear();
+						currentHTMLChild = childHTML;
+						currentHTMLChild.style.textDecoration = 'underline';
+						sessionStore.add(toDisposable(() => {
+							currentHTMLChild.style.textDecoration = 'none';
+						}));
+					} else if (!currentHTMLChild) {
+						currentHTMLChild = childHTML;
+						currentHTMLChild.style.textDecoration = 'underline';
+						sessionStore.add(toDisposable(() => {
+							currentHTMLChild.style.textDecoration = 'none';
+						}));
+					}
+				} else {
+					sessionStore.clear();
+				}
+			}));
 		}));
 		linkGestureStore.add(gesture.onCancel(() => {
 			sessionStore.clear();
 		}));
 		linkGestureStore.add(gesture.onExecute(async e => {
-			if ((e.target as unknown as CustomMouseEvent).detail !== this._stickyScrollWidget.getId()) {
+			if (e.target.type !== MouseTargetType.OVERLAY_WIDGET || e.target.detail !== this._stickyScrollWidget.getId()) {
+				// not hovering over our widget
+				return;
+			}
+			const lineNumber = this._stickyScrollWidget.getLineNumberFromChildDomNode(e.target.element);
+			if (lineNumber === null) {
+				// not hovering a sticky scroll line
 				return;
 			}
 			if (e.hasTriggerModifier) {
@@ -273,7 +294,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					if (this._focused) {
 						this._disposeFocusStickyScrollStore();
 					}
-					this._revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: 1 });
+					this._revealPosition({ lineNumber, column: 1 });
 				}
 				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
 
@@ -282,7 +303,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
 				}
-				this._revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: this._stickyScrollWidget.hoverOnColumn });
+				this._revealPosition({ lineNumber, column: this._stickyScrollWidget.hoverOnColumn });
 			}
 		}));
 		return linkGestureStore;

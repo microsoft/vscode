@@ -24,6 +24,7 @@ export class StickyScrollWidgetState {
 }
 
 const _ttPolicy = createTrustedTypesPolicy('stickyScrollViewLayer', { createHTML: value => value });
+const STICKY_LINE_NUMBER_ATTR = 'data-sticky-line-number';
 
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
@@ -36,7 +37,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _stickyLines: HTMLElement[] = [];
 	private _lineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
-	private _hoverOnLine: number = -1;
 	private _hoverOnColumn: number = -1;
 	private _minContentWidthInPx: number = 0;
 
@@ -81,10 +81,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._updateWidgetWidth();
 		}));
 		this._updateWidgetWidth();
-	}
-
-	get hoverOnLine(): number {
-		return this._hoverOnLine;
 	}
 
 	get hoverOnColumn(): number {
@@ -224,6 +220,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.applyFontInfo(innerLineNumberHTML);
 
 		lineHTMLNode.setAttribute('role', 'listitem');
+		lineHTMLNode.setAttribute(STICKY_LINE_NUMBER_ATTR, String(line));
 		lineHTMLNode.tabIndex = 0;
 
 		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
@@ -250,8 +247,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				const mouseOverEvent = new StandardMouseEvent(e);
 				const text = mouseOverEvent.target.innerText;
 
-				// Line and column number of the hover needed for the control clicking feature
-				this._hoverOnLine = line;
+				// column number of the hover needed for the control clicking feature
 				// TODO: workaround to find the column index, perhaps need a more solid solution
 				this._hoverOnColumn = this._editor.getModel().getLineContent(line).indexOf(text) + 1 || -1;
 			}
@@ -292,5 +288,20 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (0 <= index && index < this._stickyLines.length) {
 			this._stickyLines[index].focus();
 		}
+	}
+
+	/**
+	 * Given a child dom node, tries to find the line number attribute
+	 * that was stored in the node. Returns null if none is found.
+	 */
+	getLineNumberFromChildDomNode(domNode: HTMLElement | null): number | null {
+		while (domNode && domNode !== this._rootDomNode) {
+			const line = domNode.getAttribute(STICKY_LINE_NUMBER_ATTR);
+			if (line) {
+				return parseInt(line, 10);
+			}
+			domNode = domNode.parentElement;
+		}
+		return null;
 	}
 }
