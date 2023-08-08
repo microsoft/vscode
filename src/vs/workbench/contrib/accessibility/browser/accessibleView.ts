@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { isMacintosh } from 'vs/base/common/platform';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { marked } from 'vs/base/common/marked/marked';
+import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { Command, EditorExtensionsRegistry, MultiCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -14,48 +16,22 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/wi
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
+import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { marked } from 'vs/base/common/marked/marked';
-
-
-class AccessibleViewDisableHintAction extends Action2 {
-	constructor() {
-		super({
-			id: 'editor.action.accessibleViewDisableHint',
-			keybinding: {
-				when: ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown),
-				primary: KeyMod.Alt | KeyCode.F6,
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			menu: [{
-				id: MenuId.CommandPalette,
-				group: '',
-				order: 1
-			}],
-			title: localize('editor.action.accessibleViewDisableHint', "Disable Accessible View Hint")
-		});
-	}
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IAccessibleViewService).disableHint();
-	}
-}
-registerAction2(AccessibleViewDisableHintAction);
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
 const enum DIMENSIONS {
 	MAX_WIDTH = 600
@@ -303,7 +279,7 @@ class AccessibleView extends Disposable {
 			container.appendChild(this._editorContainer);
 			let ariaLabel = '';
 			let helpHint = '';
-			if (this._configurationService.getValue(provider.verbositySettingKey) && provider.options.type !== 'help') {
+			if (this._configurationService.getValue(provider.verbositySettingKey) && provider.options.type !== AccessibleViewType.Help) {
 				const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
 				if (accessibilityHelpKeybinding) {
 					helpHint = localize('ariaAccessibilityHelp', "Use {0} for accessibility help", accessibilityHelpKeybinding);
@@ -486,6 +462,44 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	}
 }
 
+
+class AccessibleViewSymbolQuickPick {
+	constructor(private _accessibleView: AccessibleView, @IQuickInputService private readonly _quickInputService: IQuickInputService) {
+
+	}
+	show(provider: IAccessibleContentProvider): void {
+		const quickPick = this._quickInputService.createQuickPick<IAccessibleViewSymbol>();
+		const picks = [];
+		const symbols = this._accessibleView.getSymbols();
+		if (!symbols) {
+			return;
+		}
+		for (const symbol of symbols) {
+			picks.push({
+				label: symbol.label,
+				ariaLabel: symbol.ariaLabel
+			});
+		}
+		quickPick.canSelectMany = false;
+		quickPick.items = symbols;
+		quickPick.show();
+		quickPick.onDidAccept(() => {
+			this._accessibleView.showSymbol(provider, quickPick.selectedItems[0]);
+			quickPick.hide();
+		});
+		quickPick.onDidHide(() => {
+			if (quickPick.selectedItems.length === 0) {
+				// this was escaped, so refocus the accessible view
+				this._accessibleView.show(provider);
+			}
+		});
+	}
+}
+
+interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
+	info: string;
+}
+
 class AccessibleViewNextAction extends Action2 {
 	constructor() {
 		super({
@@ -510,29 +524,6 @@ class AccessibleViewNextAction extends Action2 {
 registerAction2(AccessibleViewNextAction);
 
 
-class AccessibleViewGoToSymbolAction extends Action2 {
-	constructor() {
-		super({
-			id: 'editor.action.accessibleViewGoToSymbol',
-			precondition: accessibleViewIsShown,
-			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
-				weight: KeybindingWeight.WorkbenchContrib + 10
-			},
-			menu: [{
-				id: MenuId.CommandPalette,
-				group: '',
-				order: 1
-			}],
-			title: localize('editor.action.accessibleViewGoToSymbol', "Go To Symbol in Accessible View")
-		});
-	}
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IAccessibleViewService).goToSymbol();
-	}
-}
-registerAction2(AccessibleViewGoToSymbolAction);
-
 class AccessibleViewPreviousAction extends Action2 {
 	constructor() {
 		super({
@@ -555,6 +546,30 @@ class AccessibleViewPreviousAction extends Action2 {
 	}
 }
 registerAction2(AccessibleViewPreviousAction);
+
+
+class AccessibleViewGoToSymbolAction extends Action2 {
+	constructor() {
+		super({
+			id: 'editor.action.accessibleViewGoToSymbol',
+			precondition: accessibleViewIsShown,
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
+				weight: KeybindingWeight.WorkbenchContrib + 10
+			},
+			menu: [{
+				id: MenuId.CommandPalette,
+				group: '',
+				order: 1
+			}],
+			title: localize('editor.action.accessibleViewGoToSymbol', "Go To Symbol in Accessible View")
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IAccessibleViewService).goToSymbol();
+	}
+}
+registerAction2(AccessibleViewGoToSymbolAction);
 
 function registerCommand<T extends Command>(command: T): T {
 	command.register();
@@ -600,40 +615,26 @@ export const AccessibleViewAction = registerCommand(new MultiCommand({
 	}],
 }));
 
-
-class AccessibleViewSymbolQuickPick {
-	constructor(private _accessibleView: AccessibleView, @IQuickInputService private readonly _quickInputService: IQuickInputService) {
-
-	}
-	show(provider: IAccessibleContentProvider): void {
-		const quickPick = this._quickInputService.createQuickPick<IAccessibleViewSymbol>();
-		const picks = [];
-		const symbols = this._accessibleView.getSymbols();
-		if (!symbols) {
-			return;
-		}
-		for (const symbol of symbols) {
-			picks.push({
-				label: symbol.label,
-				ariaLabel: symbol.ariaLabel
-			});
-		}
-		quickPick.canSelectMany = false;
-		quickPick.items = symbols;
-		quickPick.show();
-		quickPick.onDidAccept(() => {
-			this._accessibleView.showSymbol(provider, quickPick.selectedItems[0]);
-			quickPick.hide();
-		});
-		quickPick.onDidHide(() => {
-			if (quickPick.selectedItems.length === 0) {
-				// this was escaped, so refocus the accessible view
-				this._accessibleView.show(provider);
-			}
+class AccessibleViewDisableHintAction extends Action2 {
+	constructor() {
+		super({
+			id: 'editor.action.accessibleViewDisableHint',
+			keybinding: {
+				when: ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown),
+				primary: KeyMod.Alt | KeyCode.F6,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			menu: [{
+				id: MenuId.CommandPalette,
+				group: '',
+				order: 1
+			}],
+			title: localize('editor.action.accessibleViewDisableHint', "Disable Accessible View Hint")
 		});
 	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IAccessibleViewService).disableHint();
+	}
 }
+registerAction2(AccessibleViewDisableHintAction);
 
-interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
-	info: string;
-}
