@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
