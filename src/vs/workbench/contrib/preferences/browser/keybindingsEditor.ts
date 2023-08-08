@@ -86,7 +86,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	private overlayContainer!: HTMLElement;
 	private defineKeybindingWidget!: DefineKeybindingWidget;
 
-	private unAssignedKeybindingItemToRevealAndFocus: IKeybindingItemEntry | null = null;
+	private keybindingItemToRevealAndFocus: IKeybindingItemEntry | null = null;
 	private tableEntries: IKeybindingItemEntry[] = [];
 	private keybindingsTableContainer!: HTMLElement;
 	private keybindingsTable!: WorkbenchTable<IKeybindingItemEntry>;
@@ -238,9 +238,8 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			} else {
 				await this.keybindingEditingService.editKeybinding(keybindingEntry.keybindingItem.keybindingItem, key, when || undefined);
 			}
-			if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
-				this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
-			}
+			// Always reveal because the entry will be placed in different position after rendering
+			this.keybindingItemToRevealAndFocus = keybindingEntry;
 		}
 	}
 
@@ -249,6 +248,8 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
 			try {
 				await this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem);
+				// Always reveal because the entry will be placed in different position after rendering
+				this.keybindingItemToRevealAndFocus = keybindingEntry;
 				this.focus();
 			} catch (error) {
 				this.onKeybindingEditingError(error);
@@ -261,9 +262,8 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.selectEntry(keybindingEntry);
 		try {
 			await this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem);
-			if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
-				this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
-			}
+			// Always reveal because the entry will be placed in different position after rendering
+			this.keybindingItemToRevealAndFocus = keybindingEntry;
 			this.selectEntry(keybindingEntry);
 		} catch (error) {
 			this.onKeybindingEditingError(error);
@@ -596,13 +596,13 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 				this.keybindingsTable.setSelection([]);
 				this.keybindingsTable.setFocus([]);
 			} else {
-				if (this.unAssignedKeybindingItemToRevealAndFocus) {
-					const index = this.getNewIndexOfUnassignedKeybinding(this.unAssignedKeybindingItemToRevealAndFocus);
+				if (this.keybindingItemToRevealAndFocus) {
+					const index = this.getNewIndexOfKeybindingToReveal(this.keybindingItemToRevealAndFocus);
 					if (index !== -1) {
 						this.keybindingsTable.reveal(index, 0.2);
 						this.selectEntry(index);
 					}
-					this.unAssignedKeybindingItemToRevealAndFocus = null;
+					this.keybindingItemToRevealAndFocus = null;
 				} else if (currentSelectedIndex !== -1 && currentSelectedIndex < this.tableEntries.length) {
 					this.selectEntry(currentSelectedIndex, preserveFocus);
 				} else if (this.editorService.activeEditorPane === this && !preserveFocus) {
@@ -642,12 +642,12 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		return index;
 	}
 
-	private getNewIndexOfUnassignedKeybinding(unassignedKeybinding: IKeybindingItemEntry): number {
+	private getNewIndexOfKeybindingToReveal(keybindingToReveal: IKeybindingItemEntry): number {
 		for (let index = 0; index < this.tableEntries.length; index++) {
 			const entry = this.tableEntries[index];
 			if (entry.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
 				const keybindingItemEntry = (<IKeybindingItemEntry>entry);
-				if (keybindingItemEntry.keybindingItem.command === unassignedKeybinding.keybindingItem.command) {
+				if (keybindingItemEntry.keybindingItem.command === keybindingToReveal.keybindingItem.command) {
 					return index;
 				}
 			}
