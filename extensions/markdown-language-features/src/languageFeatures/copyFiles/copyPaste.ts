@@ -9,11 +9,11 @@ import { createEditForMediaFiles, createEditAddingLinksForUriList, mediaMimes, g
 
 class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
-	private readonly _id = 'insertLink';
+	public static readonly id = 'insertLink';
 
 	private readonly _yieldTo = [
 		{ mimeType: 'text/plain' },
-		{ extensionId: 'vscode.ipynb', editId: 'insertAttachment' },
+		{ extensionId: 'vscode.ipynb', providerId: 'insertAttachment' },
 	];
 
 	async provideDocumentPasteEdits(
@@ -32,7 +32,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return createEdit;
 		}
 
-		const uriEdit = new vscode.DocumentPasteEdit('', this._id, '');
+		const uriEdit = new vscode.DocumentPasteEdit('', '');
 		const urlList = await dataTransfer.get('text/uri-list')?.asString();
 		if (!urlList) {
 			return;
@@ -65,7 +65,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const pasteEdit = new vscode.DocumentPasteEdit(edit.snippet, this._id, edit.label);
+		const pasteEdit = new vscode.DocumentPasteEdit(edit.snippet, edit.label);
 		pasteEdit.additionalEdit = edit.additionalEdits;
 		pasteEdit.yieldTo = this._yieldTo;
 		return pasteEdit;
@@ -74,6 +74,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 export function registerPasteSupport(selector: vscode.DocumentSelector,) {
 	return vscode.languages.registerDocumentPasteEditProvider(selector, new PasteEditProvider(), {
+		id: PasteEditProvider.id,
 		pasteMimeTypes: [
 			'text/uri-list',
 			...mediaMimes,
