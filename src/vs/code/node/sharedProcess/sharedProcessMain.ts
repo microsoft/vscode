@@ -112,6 +112,8 @@ import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/plat
 import { RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IVoiceRecognitionService } from 'vs/platform/voiceRecognition/common/voiceRecognitionService';
+import { VoiceRecognitionService } from 'vs/platform/voiceRecognition/node/voiceRecognitionService';
 
 class SharedProcessMain extends Disposable {
 
@@ -351,6 +353,9 @@ class SharedProcessMain extends Disposable {
 		// Remote Tunnel
 		services.set(IRemoteTunnelService, new SyncDescriptor(RemoteTunnelService));
 
+		// Voice Recognition
+		services.set(IVoiceRecognitionService, new SyncDescriptor(VoiceRecognitionService, undefined, false /* proxied to other processes */));
+
 		return new InstantiationService(services);
 	}
 
@@ -408,6 +413,10 @@ class SharedProcessMain extends Disposable {
 		// Remote Tunnel
 		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService));
 		this.server.registerChannel('remoteTunnel', remoteTunnelChannel);
+
+		// Voice Recognition
+		const voiceRecognitionChannel = ProxyChannel.fromService(accessor.get(IVoiceRecognitionService));
+		this.server.registerChannel('voiceRecognition', voiceRecognitionChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {
