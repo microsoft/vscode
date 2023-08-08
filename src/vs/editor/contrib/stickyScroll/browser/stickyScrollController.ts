@@ -210,21 +210,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				// not on a span element rendering text
 				return null;
 			}
-
-			const text = mouseTargetElement.innerText;
-			if (this._stickyScrollWidget.hoverOnColumn === -1) {
-				return null;
-			}
-
-			const lineNumber = this._stickyScrollWidget.getLineNumberFromChildDomNode(mouseTargetElement);
-			if (lineNumber === null) {
+			const position = this._stickyScrollWidget.getEditorPositionFromNode(mouseTargetElement);
+			if (!position) {
 				// not hovering a sticky scroll line
 				return null;
 			}
-			const column = this._stickyScrollWidget.hoverOnColumn;
-
 			return {
-				range: new Range(lineNumber, column, lineNumber, column + text.length),
+				range: new Range(position.lineNumber, position.column, position.lineNumber, position.column + mouseTargetElement.innerText.length),
 				textElement: mouseTargetElement
 			};
 		};
@@ -283,8 +275,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				// not hovering over our widget
 				return;
 			}
-			const lineNumber = this._stickyScrollWidget.getLineNumberFromChildDomNode(e.target.element);
-			if (lineNumber === null) {
+			const position = this._stickyScrollWidget.getEditorPositionFromNode(e.target.element);
+			if (!position) {
 				// not hovering a sticky scroll line
 				return;
 			}
@@ -294,7 +286,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					if (this._focused) {
 						this._disposeFocusStickyScrollStore();
 					}
-					this._revealPosition({ lineNumber, column: 1 });
+					this._revealPosition({ lineNumber: position.lineNumber, column: 1 });
 				}
 				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
 
@@ -303,7 +295,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
 				}
-				this._revealPosition({ lineNumber, column: this._stickyScrollWidget.hoverOnColumn });
+				this._revealPosition(position);
 			}
 		}));
 		return linkGestureStore;
