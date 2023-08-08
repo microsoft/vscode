@@ -207,6 +207,7 @@ export interface ITerminalConfiguration {
 	};
 	enableImages: boolean;
 	smoothScrolling: boolean;
+	ignoreBracketedPasteMode: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];

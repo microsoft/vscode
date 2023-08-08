@@ -12,7 +12,7 @@ import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/b
 import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityHelpAction, AccessibilityVerbositySettingId, AccessibleViewAction, AccessibleViewNextAction, AccessibleViewPreviousAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId, accessibleViewIsShown, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import * as strings from 'vs/base/common/strings';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -26,7 +26,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getNotificationFromContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
-import { IAccessibleViewService, AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IAccessibleViewService, AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType, AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { UnfocusedViewDimmingContribution } from 'vs/workbench/contrib/accessibility/browser/unfocusedViewDimmingContribution';
@@ -153,6 +153,10 @@ class HoverAccessibleViewContribution extends Disposable {
 			});
 			return true;
 		}));
+		this._register(AccessibilityHelpAction.addImplementation(115, 'accessible-view', accessor => {
+			accessor.get(IAccessibleViewService).showAccessibleViewHelp();
+			return true;
+		}, accessibleViewIsShown));
 	}
 }
 
@@ -238,25 +242,6 @@ class NotificationAccessibleViewContribution extends Disposable {
 }
 
 workbenchContributionsRegistry.registerWorkbenchContribution(NotificationAccessibleViewContribution, LifecyclePhase.Eventually);
-
-class AccessibleViewNavigatorContribution extends Disposable {
-	static ID: 'AccessibleViewNavigatorContribution';
-	constructor() {
-		super();
-		this._register(AccessibleViewNextAction.addImplementation(95, 'next', accessor => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			accessibleViewService.next();
-			return true;
-		}));
-		this._register(AccessibleViewPreviousAction.addImplementation(95, 'previous', accessor => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			accessibleViewService.previous();
-			return true;
-		}));
-	}
-}
-
-workbenchContributionsRegistry.registerWorkbenchContribution(AccessibleViewNavigatorContribution, LifecyclePhase.Eventually);
 
 export function alertFocusChange(index: number | undefined, length: number | undefined, type: 'next' | 'previous'): void {
 	if (index === undefined || length === undefined) {

@@ -15,7 +15,7 @@ import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeContextMenuEvent, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
+import { Delayer, Limiter, RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -705,6 +705,7 @@ class TestResultsViewContent extends Disposable {
 	private dimension?: dom.Dimension;
 	private splitView!: SplitView;
 	private contentProviders!: IPeekOutputRenderer[];
+	private contentProvidersUpdateLimiter = this._register(new Limiter(1));
 
 	public current?: InspectSubject;
 
@@ -794,7 +795,8 @@ class TestResultsViewContent extends Disposable {
 
 		if (!this.current || !equalsSubject(this.current, opts.subject)) {
 			this.current = opts.subject;
-			await Promise.all(this.contentProviders.map(p => p.update(opts.subject)));
+			await this.contentProvidersUpdateLimiter.queue(() => Promise.all(
+				this.contentProviders.map(p => p.update(opts.subject))));
 		}
 	}
 

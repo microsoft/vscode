@@ -43,7 +43,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IdleValue } from 'vs/base/common/async';
@@ -465,8 +465,16 @@ export class InlineChatWidget {
 		this._inputEditor.setPosition(this._inputModel.getFullModelRange().getEndPosition());
 	}
 
-	selectAll() {
-		this._inputEditor.setSelection(this._inputModel.getFullModelRange());
+	selectAll(includeSlashCommand: boolean = true) {
+		let selection = this._inputModel.getFullModelRange();
+
+		if (!includeSlashCommand) {
+			const firstLine = this._inputModel.getLineContent(1);
+			const slashCommand = this._slashCommandDetails.find(c => firstLine.startsWith(`/${c.command} `));
+			selection = slashCommand ? new Range(1, slashCommand.command.length + 3, selection.endLineNumber, selection.endColumn) : selection;
+		}
+
+		this._inputEditor.setSelection(selection);
 	}
 
 	set placeholder(value: string) {

@@ -8,8 +8,8 @@
 	margin: auto;
 }
 
-.interactive-list .monaco-list-row .monaco-tl-twistie {
-	/* Hide twisties from tree rows */
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
+	/* Hide twisties from chat tree rows, but not from nested trees within a chat response */
 	display: none !important;
 }
 

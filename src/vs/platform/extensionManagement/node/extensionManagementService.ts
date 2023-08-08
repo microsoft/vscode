@@ -570,7 +570,7 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async removeExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
-		if (this.uriIdentityService.extUri.isEqualOrParent(this.extensionsScannerService.userExtensionsLocation, extension.location)) {
+		if (this.uriIdentityService.extUri.isEqualOrParent(extension.location, this.extensionsScannerService.userExtensionsLocation)) {
 			return this.deleteExtensionFromLocation(extension.identifier.id, extension.location, type);
 		}
 	}

@@ -24,7 +24,7 @@ import { Handler, IEditorContribution, PastePayload } from 'vs/editor/common/edi
 import { DocumentPasteEdit, DocumentPasteEditProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { createCombinedWorkspaceEdit } from 'vs/editor/contrib/dropOrPasteInto/browser/edit';
+import { createCombinedWorkspaceEdit, sortEditsByYieldTo } from 'vs/editor/contrib/dropOrPasteInto/browser/edit';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
 import { localize } from 'vs/nls';
@@ -432,7 +432,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private async getPasteEdits(providers: readonly DocumentPasteEditProvider[], dataTransfer: VSDataTransfer, model: ITextModel, selections: readonly Selection[], token: CancellationToken): Promise<DocumentPasteEdit[]> {
-		const result = await raceCancellation(
+		const results = await raceCancellation(
 			Promise.all(providers.map(provider => {
 				try {
 					return provider.provideDocumentPasteEdits?.(model, selections, dataTransfer, token);
@@ -440,10 +440,11 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					console.error(err);
 					return undefined;
 				}
-			})).then(coalesce),
+			})),
 			token);
-		result?.sort((a, b) => b.priority - a.priority);
-		return result ?? [];
+		const edits = coalesce(results ?? []);
+		sortEditsByYieldTo(edits);
+		return edits;
 	}
 
 	private async applyDefaultPasteHandler(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken) {
