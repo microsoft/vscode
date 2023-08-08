@@ -365,17 +365,21 @@ class AccessibleView extends Disposable {
 		const previousProvider = Object.assign({}, this._currentProvider);
 		const accessibleViewHelpProvider = Object.assign({}, this._currentProvider);
 		accessibleViewHelpProvider.options.type = AccessibleViewType.Help;
-		accessibleViewHelpProvider.provideContent = () => this._getAccessibleViewHelpDialogContent(accessibleViewHelpProvider!);
+		accessibleViewHelpProvider.provideContent = () => this._getAccessibleViewHelpDialogContent(accessibleViewHelpProvider);
 		accessibleViewHelpProvider.onClose = () => this.show(previousProvider);
-		this._accessiblityHelpIsShown.set(true);
-		const delegate: IContextViewDelegate = {
-			getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
-			render: (container) => {
-				container.classList.add('accessible-view-container');
-				return this._render(accessibleViewHelpProvider, container, true);
-			},
-		};
-		this._contextViewService.showContextView(delegate);
+		accessibleViewHelpProvider.options.ariaLabel = localize('accessibleViewHelp', "Accessible View Help");
+		this._contextViewService.hideContextView();
+		setTimeout(() => {
+			this._accessiblityHelpIsShown.set(true);
+			const delegate: IContextViewDelegate = {
+				getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
+				render: (container) => {
+					container.classList.add('accessible-view-container');
+					return this._render(accessibleViewHelpProvider, container, true);
+				},
+			};
+			this._contextViewService.showContextView(delegate);
+		}, 100);
 	}
 
 	private _getAccessibleViewHelpDialogContent(provider: IAccessibleContentProvider): string {
@@ -407,7 +411,7 @@ class AccessibleView extends Disposable {
 		let goToSymbolHint = '';
 		if (hasSymbolProvider) {
 			if (goToSymbolKb) {
-				goToSymbolHint = localize('goToSymbolHint', 'Go to a symbol within the accessible view (({0}).', goToSymbolKb);
+				goToSymbolHint = localize('goToSymbolHint', 'Go to a symbol within the accessible view ({0}).', goToSymbolKb);
 			} else {
 				goToSymbolHint = localize('goToSymbolHintNoKb', 'To go to a symbol within the accessible view, configure a keybinding for the command Go To Symbol in Accessible View.', goToSymbolKb);
 			}
