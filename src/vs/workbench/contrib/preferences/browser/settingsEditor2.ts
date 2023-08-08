@@ -1877,6 +1877,3 @@ interface ISettingsEditor2State {
 	searchQuery: string;
 	target: SettingsTarget;
 }
-
-
-
