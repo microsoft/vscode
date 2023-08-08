@@ -305,7 +305,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	) {
 		super();
 
-		this._isPlaceholder = !_model.response.value && !_model.isComplete;
+		this._isPlaceholder = !_model.response.asString() && !_model.isComplete;
 
 		if (!_model.isComplete) {
 			this._contentUpdateTimings = {

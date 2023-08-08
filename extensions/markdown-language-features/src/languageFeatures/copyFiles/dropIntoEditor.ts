@@ -9,7 +9,13 @@ import { Schemes } from '../../util/schemes';
 
 
 class MarkdownImageDropProvider implements vscode.DocumentDropEditProvider {
+
 	private readonly _id = 'insertLink';
+
+	private readonly _yieldTo = [
+		{ mimeType: 'text/plain' },
+		{ extensionId: 'vscode.ipynb', editId: 'insertAttachment' },
+	];
 
 	async provideDocumentDropEdits(document: vscode.TextDocument, _position: vscode.Position, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentDropEdit | undefined> {
 		const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.drop.enabled', true);
@@ -42,6 +48,7 @@ class MarkdownImageDropProvider implements vscode.DocumentDropEditProvider {
 		const edit = new vscode.DocumentDropEdit(snippet.snippet);
 		edit.id = this._id;
 		edit.label = snippet.label;
+		edit.yieldTo = this._yieldTo;
 		return edit;
 	}
 
@@ -64,6 +71,7 @@ class MarkdownImageDropProvider implements vscode.DocumentDropEditProvider {
 		edit.id = this._id;
 		edit.label = filesEdit.label;
 		edit.additionalEdit = filesEdit.additionalEdits;
+		edit.yieldTo = this._yieldTo;
 		return edit;
 	}
 }

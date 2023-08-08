@@ -57,11 +57,12 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * The relative priority of this edit. Higher priority items are shown first in the UI.
-		 *
-		 * Defaults to `0`.
+		 * Controls the ordering or multiple paste edits. If this provider yield to edits, it will be shown lower in the list.
 		 */
-		priority?: number;
+		yieldTo?: ReadonlyArray<
+			| { readonly extensionId: string; readonly editId: string }
+			| { readonly mimeType: string }
+		>;
 
 		/**
 		 * The text or snippet to insert at the pasted locations.

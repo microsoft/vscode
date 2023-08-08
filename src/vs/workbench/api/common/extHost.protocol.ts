@@ -1922,7 +1922,7 @@ export interface IPasteEditDto {
 	id: string;
 	label: string;
 	detail: string;
-	priority: number;
+	yieldTo?: readonly languages.DropYieldTo[];
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
 }
@@ -1934,7 +1934,7 @@ export interface IDocumentDropEditProviderMetadata {
 export interface IDocumentOnDropEditDto {
 	id: string;
 	label: string;
-	priority: number;
+	yieldTo?: readonly languages.DropYieldTo[];
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
 }
