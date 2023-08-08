@@ -25,6 +25,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { PostEditWidgetManager } from './postEditWidget';
+import { sortEditsByYieldTo as sortEditsByYieldTo } from './edit';
 
 export const changeDropTypeCommandId = 'editor.changeDropType';
 
@@ -128,7 +129,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			return provider.provideDocumentOnDropEdits(model, position, dataTransfer, tokenSource.token);
 		})), tokenSource.token);
 		const edits = coalesce(results ?? []);
-		edits.sort((a, b) => b.priority - a.priority);
+		sortEditsByYieldTo(edits);
 		return edits;
 	}
 

@@ -11,6 +11,11 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 	private readonly _id = 'insertLink';
 
+	private readonly _yieldTo = [
+		{ mimeType: 'text/plain' },
+		{ extensionId: 'vscode.ipynb', editId: 'insertAttachment' },
+	];
+
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
 		ranges: readonly vscode.Range[],
@@ -32,7 +37,8 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		if (!urlList) {
 			return;
 		}
-		const pasteUrlSetting = await getPasteUrlAsFormattedLinkSetting(document);
+
+		const pasteUrlSetting = getPasteUrlAsFormattedLinkSetting(document);
 		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, urlList, false, pasteUrlSetting === PasteUrlAsFormattedLink.Smart, token);
 		if (!pasteEdit) {
 			return;
@@ -40,7 +46,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 		uriEdit.label = pasteEdit.label;
 		uriEdit.additionalEdit = pasteEdit.additionalEdits;
-		uriEdit.priority = this._getPriority(dataTransfer);
+		uriEdit.yieldTo = this._yieldTo;
 		return uriEdit;
 	}
 
@@ -61,16 +67,8 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 		const pasteEdit = new vscode.DocumentPasteEdit(edit.snippet, this._id, edit.label);
 		pasteEdit.additionalEdit = edit.additionalEdits;
-		pasteEdit.priority = this._getPriority(dataTransfer);
+		pasteEdit.yieldTo = this._yieldTo;
 		return pasteEdit;
-	}
-
-	private _getPriority(dataTransfer: vscode.DataTransfer): number {
-		if (dataTransfer.get('text/plain')) {
-			// Deprioritize in favor of normal text content
-			return -10;
-		}
-		return 0;
 	}
 }
 

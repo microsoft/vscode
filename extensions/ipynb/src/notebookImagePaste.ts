@@ -15,6 +15,7 @@ enum MimeType {
 	png = 'image/png',
 	tiff = 'image/tiff',
 	webp = 'image/webp',
+	plain = 'text/plain',
 	uriList = 'text/uri-list',
 }
 
@@ -49,8 +50,6 @@ class DropOrPasteEditProvider implements vscode.DocumentPasteEditProvider, vscod
 
 	private readonly id = 'insertAttachment';
 
-	private readonly defaultPriority = 5;
-
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
 		_ranges: readonly vscode.Range[],
@@ -68,7 +67,7 @@ class DropOrPasteEditProvider implements vscode.DocumentPasteEditProvider, vscod
 		}
 
 		const pasteEdit = new vscode.DocumentPasteEdit(insert.insertText, this.id, vscode.l10n.t('Insert Image as Attachment'));
-		pasteEdit.priority = this.getPastePriority(dataTransfer);
+		pasteEdit.yieldTo = [{ mimeType: MimeType.plain }];
 		pasteEdit.additionalEdit = insert.additionalEdit;
 		return pasteEdit;
 	}
@@ -86,20 +85,10 @@ class DropOrPasteEditProvider implements vscode.DocumentPasteEditProvider, vscod
 
 		const dropEdit = new vscode.DocumentDropEdit(insert.insertText);
 		dropEdit.id = this.id;
-		dropEdit.priority = this.defaultPriority;
+		dropEdit.yieldTo = [{ mimeType: MimeType.plain }];
 		dropEdit.additionalEdit = insert.additionalEdit;
 		dropEdit.label = vscode.l10n.t('Insert Image as Attachment');
 		return dropEdit;
-	}
-
-	private getPastePriority(dataTransfer: vscode.DataTransfer): number {
-		if (dataTransfer.get('text/plain')) {
-			// Deprioritize in favor of normal text content
-			return -5;
-		}
-
-		// Otherwise boost priority so attachments are preferred
-		return this.defaultPriority;
 	}
 
 	private async createInsertImageAttachmentEdit(
