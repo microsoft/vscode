@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { createEditForMediaFiles as createEditForMediaFiles, mediaMimes, tryGetUriListSnippet } from './shared';
+import { Mime, mediaMimes } from '../../util/mimes';
 import { Schemes } from '../../util/schemes';
+import { createEditForMediaFiles, tryGetUriListSnippet } from './shared';
 
-
-class MarkdownImageDropProvider implements vscode.DocumentDropEditProvider {
+class ResourceDropProvider implements vscode.DocumentDropEditProvider {
 
 	public static readonly id = 'insertLink';
+
+	public static readonly dropMimeTypes = [
+		Mime.textUriList,
+		...mediaMimes,
+	];
 
 	private readonly _yieldTo = [
 		{ mimeType: 'text/plain' },
@@ -36,10 +41,11 @@ class MarkdownImageDropProvider implements vscode.DocumentDropEditProvider {
 	}
 
 	private async _getUriListEdit(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentDropEdit | undefined> {
-		const urlList = await dataTransfer.get('text/uri-list')?.asString();
-		if (!urlList) {
+		const urlList = await dataTransfer.get(Mime.textUriList)?.asString();
+		if (!urlList || token.isCancellationRequested) {
 			return undefined;
 		}
+
 		const snippet = await tryGetUriListSnippet(document, urlList, token);
 		if (!snippet) {
 			return undefined;
@@ -61,25 +67,19 @@ class MarkdownImageDropProvider implements vscode.DocumentDropEditProvider {
 			return;
 		}
 
-		const filesEdit = await createEditForMediaFiles(document, dataTransfer, token);
-		if (!filesEdit) {
+		const edit = await createEditForMediaFiles(document, dataTransfer, token);
+		if (!edit) {
 			return;
 		}
 
-		const edit = new vscode.DocumentDropEdit(filesEdit.snippet);
-		edit.label = filesEdit.label;
-		edit.additionalEdit = filesEdit.additionalEdits;
-		edit.yieldTo = this._yieldTo;
-		return edit;
+		const dropEdit = new vscode.DocumentDropEdit(edit.snippet);
+		dropEdit.label = edit.label;
+		dropEdit.additionalEdit = edit.additionalEdits;
+		dropEdit.yieldTo = this._yieldTo;
+		return dropEdit;
 	}
 }
 
 export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector) {
-	return vscode.languages.registerDocumentDropEditProvider(selector, new MarkdownImageDropProvider(), {
-		id: MarkdownImageDropProvider.id,
-		dropMimeTypes: [
-			'text/uri-list',
-			...mediaMimes,
-		]
-	});
+	return vscode.languages.registerDocumentDropEditProvider(selector, new ResourceDropProvider(), ResourceDropProvider);
 }
