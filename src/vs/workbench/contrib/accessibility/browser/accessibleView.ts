@@ -288,7 +288,7 @@ class AccessibleView extends Disposable {
 			}
 		}
 
-		const fragment = message + provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', 'Exit this dialog via the Escape key.');
+		const fragment = message + provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', '\nExit this dialog via the Escape key.');
 
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.verbositySettingKey}`, scheme: 'accessible-view', fragment })).then((model) => {
 			if (!model) {
@@ -387,7 +387,14 @@ class AccessibleView extends Disposable {
 	private _getAccessibleViewHelpDialogContent(provider: IAccessibleContentProvider): string {
 		const navigationHint = this._getNavigationAriaHint(provider.verbositySettingKey);
 		const goToSymbolHint = this._getGoToSymbolHint(provider);
-		return [navigationHint, goToSymbolHint].filter(i => !!i).join('\n');
+		let hint = '';
+		if (navigationHint) {
+			hint = navigationHint + '\n';
+		}
+		if (goToSymbolHint) {
+			hint += goToSymbolHint + '\n';
+		}
+		return hint;
 	}
 
 	private _getNavigationAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string {
@@ -395,7 +402,7 @@ class AccessibleView extends Disposable {
 		const nextKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleViewNext')?.getAriaLabel();
 		const previousKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleViewPrevious')?.getAriaLabel();
 		if (this._configurationService.getValue(verbositySettingKey)) {
-			hint = (nextKeybinding && previousKeybinding) ? localize('accessibleViewNextPreviousHint', "Show the next ({0}) or previous ({1}) item in the accessible view", nextKeybinding, previousKeybinding) : localize('chatAccessibleViewNextPreviousHintNoKb', "Show the next or previous item in the accessible view by configuring keybindings for Show Next / Previous in Accessible View");
+			hint = (nextKeybinding && previousKeybinding) ? localize('accessibleViewNextPreviousHint', "Show the next ({0}) or previous ({1}) item in the accessible view.", nextKeybinding, previousKeybinding) : localize('chatAccessibleViewNextPreviousHintNoKb', "Show the next or previous item in the accessible view by configuring keybindings for Show Next / Previous in Accessible View.");
 		}
 		return hint;
 	}
@@ -415,7 +422,7 @@ class AccessibleView extends Disposable {
 			if (goToSymbolKb) {
 				goToSymbolHint = localize('goToSymbolHint', 'Go to a symbol within the accessible view ({0}).', goToSymbolKb);
 			} else {
-				goToSymbolHint = localize('goToSymbolHintNoKb', 'To go to a symbol within the accessible view, configure a keybinding for the command Go To Symbol in Accessible View.', goToSymbolKb);
+				goToSymbolHint = localize('goToSymbolHintNoKb', 'To go to a symbol within the accessible view, configure a keybinding for the command Go To Symbol in Accessible View.');
 			}
 		}
 		return goToSymbolHint;
