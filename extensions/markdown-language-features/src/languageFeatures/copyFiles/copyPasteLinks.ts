@@ -10,7 +10,7 @@ const textPlainMime = 'text/plain';
 
 class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 
-	readonly id = 'insertMarkdownLink';
+	public static readonly id = 'insertMarkdownLink';
 
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
@@ -34,7 +34,7 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const edit = new vscode.DocumentPasteEdit('', this.id, pasteEdit.label);
+		const edit = new vscode.DocumentPasteEdit('', pasteEdit.label);
 		edit.additionalEdit = pasteEdit.additionalEdits;
 		edit.yieldTo = pasteEdit.markdownLink ? undefined : [{ mimeType: textPlainMime }];
 		return edit;
@@ -43,6 +43,7 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 
 export function registerLinkPasteSupport(selector: vscode.DocumentSelector,) {
 	return vscode.languages.registerDocumentPasteEditProvider(selector, new PasteLinkEditProvider(), {
+		id: PasteLinkEditProvider.id,
 		pasteMimeTypes: [textPlainMime]
 	});
 }
