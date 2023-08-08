@@ -78,9 +78,9 @@ class QuickChatGlobalAction extends Action2 {
  */
 export function getQuickChatActionForProvider(id: string, label: string) {
 	return class AskQuickQuestionAction extends Action2 {
-		private _currentTimer: any | undefined;
-		private _input: IQuickPick<IQuickPickItem> | undefined;
-		private _currentChat: QuickChat | undefined;
+		_currentTimer: any | undefined;
+		_input: IQuickPick<IQuickPickItem> | undefined;
+		_currentChat: QuickChat | undefined;
 
 		constructor() {
 			super({
