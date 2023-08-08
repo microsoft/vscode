@@ -29,6 +29,16 @@ export class MainThreadChatSlashCommands implements MainThreadChatSlashCommandsS
 	}
 
 	$registerCommand(handle: number, name: string): void {
+
+		if (!this._chatSlashCommandService.hasCommand(name)) {
+			// dynamic slash commands!
+			this._chatSlashCommandService.registerSlashData({
+				name,
+				id: name,
+				detail: ''
+			});
+		}
+
 		const d = this._chatSlashCommandService.registerSlashCallback(name, async (prompt, progress, history, token) => {
 			const requestId = Math.random();
 			this._pendingProgress.set(requestId, progress);
