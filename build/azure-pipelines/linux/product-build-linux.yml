@@ -164,7 +164,7 @@ steps:
           echo "Yarn failed $i, trying again..."
         done
 
-        cd node_modules/native-keymap && npx node-gyp@latest -y rebuild --debug
+        cd node_modules/native-keymap && npx node-gyp@9.4.0 -y rebuild --debug
         cd ../.. && ./.github/workflows/check-clean-git-state.sh
       env:
         npm_config_arch: $(NPM_ARCH)
@@ -173,13 +173,6 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Install dependencies
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - script: |
-      cd node_modules/native-keymap && npx node-gyp@9.4.0 -y rebuild --debug
-      cd ../.. && ./.github/workflows/check-clean-git-state.sh
-    env:
-      npm_config_arch: $(NPM_ARCH)
-    displayName: Test CI (remove before merge)
 
   - script: |
       set -e
