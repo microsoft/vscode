@@ -175,6 +175,13 @@ steps:
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
+      cd node_modules/native-keymap && npx node-gyp@9.4.0 -y rebuild --debug
+      cd ../.. && ./.github/workflows/check-clean-git-state.sh
+    env:
+      npm_config_arch: $(NPM_ARCH)
+    displayName: Test CI (remove before merge)
+
+  - script: |
       set -e
       node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
