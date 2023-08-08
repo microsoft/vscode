@@ -553,13 +553,19 @@ class DocumentPasteEditProvider {
 		}
 
 		return {
-			id: edit.id ? this._extension.identifier.value + '.' + edit.id : this._extension.identifier.value,
+			id: edit.id ? this.toInternalId(this._extension.identifier.value, edit.id) : this._extension.identifier.value,
 			label: edit.label ?? localize('defaultPasteLabel', "Paste using '{0}' extension", this._extension.displayName || this._extension.name),
 			detail: this._extension.displayName || this._extension.name,
-			priority: edit.priority ?? 0,
+			yieldTo: edit.yieldTo?.map(yTo => {
+				return 'mimeType' in yTo ? yTo : { editId: this.toInternalId(yTo.extensionId, yTo.editId) };
+			}),
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
 			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		};
+	}
+
+	private toInternalId(extId: string, editId: string): string {
+		return extId + '.' + editId;
 	}
 }
 
@@ -1799,12 +1805,18 @@ class DocumentOnDropEditAdapter {
 			return undefined;
 		}
 		return {
-			id: edit.id ? this._extension.identifier.value + '.' + edit.id : this._extension.identifier.value,
+			id: edit.id ? this.toInternalId(this._extension.identifier.value, edit.id) : this._extension.identifier.value,
 			label: edit.label ?? localize('defaultDropLabel', "Drop using '{0}' extension", this._extension.displayName || this._extension.name),
-			priority: edit.priority ?? 0,
+			yieldTo: edit.yieldTo?.map(yTo => {
+				return 'mimeType' in yTo ? yTo : { editId: this.toInternalId(yTo.extensionId, yTo.editId) };
+			}),
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
 			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		};
+	}
+
+	private toInternalId(extId: string, editId: string): string {
+		return extId + '.' + editId;
 	}
 }
 

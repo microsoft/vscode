@@ -12,20 +12,32 @@ declare module 'vscode' {
 		 * Identifies the type of edit.
 		 *
 		 * This id should be unique within the extension but does not need to be unique across extensions.
+		 *
+		 * TODO: Should this live on the provider instead? That way we could call just the provider we want (however it would
+		 * prevent extending providers in the future to allow returning multiple edits)
 		 */
 		id?: string;
-
-		/**
-		 * The relative priority of this edit. Higher priority items are shown first in the UI.
-		 *
-		 * Defaults to `0`.
-		 */
-		priority?: number;
 
 		/**
 		 * Human readable label that describes the edit.
 		 */
 		label?: string;
+
+		/**
+		 * The mime type from the {@link DataTransfer} that this edit applies.
+		 *
+		 * TODO: Should this be taken from `dropMimeTypes` instead?
+		 */
+		handledMimeType?: string;
+
+		/**
+		 * Controls the ordering or multiple paste edits. If this provider yield to edits, it will be shown lower in the list.
+		 */
+		yieldTo?: ReadonlyArray<
+			// TODO: what about built-in providers?
+			| { readonly extensionId: string; readonly editId: string }
+			| { readonly mimeType: string }
+		>;
 	}
 
 	export interface DocumentDropEditProviderMetadata {
