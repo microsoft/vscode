@@ -19,7 +19,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
@@ -395,7 +395,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.editorMemento.clearEditorState(this.input, this.group);
 		}
 
-		return withUndefinedAsNull(cachedState);
+		return cachedState ?? null;
 	}
 
 	override getViewState(): object | undefined {
@@ -830,7 +830,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
-			const element: SettingsTreeGroupElement | null = withUndefinedAsNull(e.elements?.[0]);
+			const element: SettingsTreeGroupElement | null = e.elements?.[0] ?? null;
 			if (this.tocFocusedElement === element) {
 				return;
 			}
@@ -937,7 +937,7 @@ export class SettingsEditor2 extends EditorPane {
 			if (classList && classList.contains('monaco-list') && classList.contains('settings-editor-tree')) {
 				this._currentFocusContext = SettingsFocusContext.SettingTree;
 				this.settingRowFocused.set(true);
-				this.treeFocusedElement ??= withUndefinedAsNull(this.settingsTree.firstVisibleElement);
+				this.treeFocusedElement ??= this.settingsTree.firstVisibleElement ?? null;
 				if (this.treeFocusedElement) {
 					this.treeFocusedElement.tabbable = true;
 				}

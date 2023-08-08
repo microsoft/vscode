@@ -20,7 +20,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenSettingsOptions, IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ITextModel } from 'vs/editor/common/model';
 import { IReference } from 'vs/base/common/lifecycle';
@@ -622,7 +622,7 @@ export class ConfigurationEditing {
 
 			if (target === EditableConfigurationTarget.WORKSPACE) {
 				if (workbenchState === WorkbenchState.WORKSPACE) {
-					return withUndefinedAsNull(workspace.configuration);
+					return workspace.configuration ?? null;
 				}
 				if (workbenchState === WorkbenchState.FOLDER) {
 					return workspace.folders[0].toResource(relativePath);

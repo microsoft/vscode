@@ -11,7 +11,6 @@ import { UriList, VSDataTransfer, createStringDataTransferItem, matchesMimeType 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import * as platform from 'vs/base/common/platform';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ClipboardEventUtils } from 'vs/editor/browser/controller/textAreaInput';
 import { toExternalVSDataTransfer, toVSDataTransfer } from 'vs/editor/browser/dnd';
@@ -395,7 +394,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return {
 				defaultPastePayload: {
 					mode: metadata.mode,
-					multicursorText: withUndefinedAsNull(metadata.multicursorText),
+					multicursorText: metadata.multicursorText ?? null,
 					pasteOnNewLine: !!metadata.isFromEmptySelection,
 				},
 			};
