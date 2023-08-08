@@ -19,7 +19,7 @@ import { registerChatActions } from 'vs/workbench/contrib/chat/browser/actions/c
 import { registerChatCodeBlockActions } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
 import { registerChatCopyActions } from 'vs/workbench/contrib/chat/browser/actions/chatCopyActions';
 import { registerChatExecuteActions } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
-import { registerChatQuickQuestionActions } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
+import { registerQuickChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { registerChatTitleActions } from 'vs/workbench/contrib/chat/browser/actions/chatTitleActions';
 import { registerChatExportActions } from 'vs/workbench/contrib/chat/browser/actions/chatImportExport';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -224,7 +224,7 @@ registerChatCopyActions();
 registerChatCodeBlockActions();
 registerChatTitleActions();
 registerChatExecuteActions();
-registerChatQuickQuestionActions();
+registerQuickChatActions();
 registerChatExportActions();
 registerMoveActions();
 registerClearActions();

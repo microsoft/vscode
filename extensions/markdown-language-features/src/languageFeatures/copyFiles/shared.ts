@@ -83,7 +83,7 @@ export enum PasteUrlAsFormattedLink {
 	Never = 'never'
 }
 
-export async function getPasteUrlAsFormattedLinkSetting(document: vscode.TextDocument): Promise<PasteUrlAsFormattedLink> {
+export function getPasteUrlAsFormattedLinkSetting(document: vscode.TextDocument): PasteUrlAsFormattedLink {
 	return vscode.workspace.getConfiguration('markdown', document).get<PasteUrlAsFormattedLink>('editor.pasteUrlAsFormattedLink.enabled', PasteUrlAsFormattedLink.Smart);
 }
 

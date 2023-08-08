@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { WorkspaceEdit } from 'vs/editor/common/languages';
+import { DropYieldTo, WorkspaceEdit } from 'vs/editor/common/languages';
 import { Range } from 'vs/editor/common/core/range';
 
 export interface DropOrPasteEdit {
@@ -26,4 +26,27 @@ export function createCombinedWorkspaceEdit(uri: URI, ranges: readonly Range[], 
 			...(edit.additionalEdit?.edits ?? [])
 		]
 	};
+}
+
+export function sortEditsByYieldTo<T extends {
+	readonly id: string;
+	readonly handledMimeType?: string;
+	readonly yieldTo?: readonly DropYieldTo[];
+}>(edits: T[]): void {
+	function yieldsTo(yTo: DropYieldTo, other: T): boolean {
+		return ('editId' in yTo && yTo.editId === other.id)
+			|| ('mimeType' in yTo && yTo.mimeType === other.handledMimeType);
+	}
+
+	edits.sort((a, b) => {
+		if (a.yieldTo?.some(yTo => yieldsTo(yTo, b))) {
+			return 1;
+		}
+
+		if (b.yieldTo?.some(yTo => yieldsTo(yTo, a))) {
+			return -1;
+		}
+
+		return 0;
+	});
 }
