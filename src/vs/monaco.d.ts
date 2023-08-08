@@ -3908,6 +3908,16 @@ declare namespace monaco.editor {
 		 */
 		renderSideBySide?: boolean;
 		/**
+		 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+		 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+		 */
+		renderSideBySideInlineBreakpoint?: number | undefined;
+		/**
+		 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+		 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+		 */
+		useInlineViewWhenSpaceIsLimited?: boolean;
+		/**
 		 * Timeout in milliseconds after which diff computation is cancelled.
 		 * Defaults to 5000.
 		 */
@@ -4303,6 +4313,10 @@ declare namespace monaco.editor {
 		 * Model to choose for sticky scroll by default
 		 */
 		defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
+		/**
+		 * Define whether to scroll sticky scroll with editor horizontal scrollbae
+		 */
+		scrollWithEditor?: boolean;
 	}
 
 	/**
@@ -5412,6 +5426,10 @@ declare namespace monaco.editor {
 		 * If null is returned, the overlay widget is responsible to place itself.
 		 */
 		getPosition(): IOverlayWidgetPosition | null;
+		/**
+		 * The editor will ensure that the scroll width is >= than this value.
+		 */
+		getMinContentWidthInPx?(): number;
 	}
 
 	/**

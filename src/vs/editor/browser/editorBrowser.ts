@@ -250,6 +250,10 @@ export interface IOverlayWidget {
 	 * If null is returned, the overlay widget is responsible to place itself.
 	 */
 	getPosition(): IOverlayWidgetPosition | null;
+	/**
+	 * The editor will ensure that the scroll width is >= than this value.
+	 */
+	getMinContentWidthInPx?(): number;
 }
 
 /**

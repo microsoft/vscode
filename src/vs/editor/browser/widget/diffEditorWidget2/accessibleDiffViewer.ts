@@ -10,10 +10,7 @@ import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, derived, keepAlive, observableValue, transaction } from 'vs/base/common/observable';
-import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
-import { subtransaction } from 'vs/base/common/observableImpl/base';
-import { derivedWithStore } from 'vs/base/common/observableImpl/derived';
+import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, keepAlive, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
@@ -115,7 +112,8 @@ class ViewModel extends Disposable {
 	) {
 		super();
 
-		this._register(autorun('update groups', reader => {
+		this._register(autorun(reader => {
+			/** @description update groups */
 			const diffs = this._diffs.read(reader);
 			if (!diffs) {
 				this._groups.set([], undefined);
@@ -140,16 +138,18 @@ class ViewModel extends Disposable {
 			});
 		}));
 
-		this._register(autorun('play audio-cue for diff', reader => {
+		this._register(autorun(reader => {
+			/** @description play audio-cue for diff */
 			const currentViewItem = this.currentElement.read(reader);
 			if (currentViewItem?.type === LineType.Deleted) {
-				this._audioCueService.playAudioCue(AudioCue.diffLineDeleted);
+				this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, { source: 'accessibleDiffViewer.currentElementChanged' });
 			} else if (currentViewItem?.type === LineType.Added) {
-				this._audioCueService.playAudioCue(AudioCue.diffLineInserted);
+				this._audioCueService.playAudioCue(AudioCue.diffLineInserted, { source: 'accessibleDiffViewer.currentElementChanged' });
 			}
 		}));
 
-		this._register(autorun('select lines in editor', reader => {
+		this._register(autorun(reader => {
+			/** @description select lines in editor */
 			// This ensures editor commands (like revert/stage) work
 			const currentViewItem = this.currentElement.read(reader);
 			if (currentViewItem && currentViewItem.type !== LineType.Header) {
@@ -339,7 +339,8 @@ class View extends Disposable {
 		this._actionBar = this._register(new ActionBar(
 			actionBarContainer
 		));
-		this._register(autorun('update actions', reader => {
+		this._register(autorun(reader => {
+			/** @description update actions */
 			this._actionBar.clear();
 			if (this._model.canClose.read(reader)) {
 				this._actionBar.push(new Action(
@@ -363,7 +364,8 @@ class View extends Disposable {
 		this._register(applyStyle(this.domNode, { width: this._width, height: this._height }));
 		this._register(applyStyle(this._content, { width: this._width, height: this._height }));
 
-		this._register(autorunWithStore2('render', (reader, store) => {
+		this._register(autorunWithStore((reader, store) => {
+			/** @description render */
 			this._model.currentGroup.read(reader);
 			this._render(store);
 		}));
@@ -487,9 +489,10 @@ class View extends Disposable {
 
 			container.appendChild(row);
 
-			const isSelectedObs = derived('isSelected', reader => this._model.currentElement.read(reader) === viewItem);
+			const isSelectedObs = derived(reader => /** @description isSelected */ this._model.currentElement.read(reader) === viewItem);
 
-			store.add(autorun('update tab index', reader => {
+			store.add(autorun(reader => {
+				/** @description update tab index */
 				const isSelected = isSelectedObs.read(reader);
 				row.tabIndex = isSelected ? 0 : -1;
 				if (isSelected) {

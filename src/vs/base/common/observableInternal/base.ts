@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import type { derived } from 'vs/base/common/observableImpl/derived';
-import { getLogger } from 'vs/base/common/observableImpl/logging';
+import type { derived } from 'vs/base/common/observableInternal/derived';
+import { getLogger } from 'vs/base/common/observableInternal/logging';
 
 /**
  * Represents an observable value.
@@ -162,11 +162,21 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 	/** @sealed */
 	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew> {
 		return _derived(
+			(reader) => fn(this.read(reader), reader),
 			() => {
 				const name = getFunctionName(fn);
-				return name !== undefined ? name : `${this.debugName} (mapped)`;
+				if (name !== undefined) {
+					return name;
+				}
+
+				// regexp to match `x => x.y` where x and y can be arbitrary identifiers (uses backref):
+				const regexp = /^\s*\(?\s*([a-zA-Z_$][a-zA-Z_$0-9]*)\s*\)?\s*=>\s*\1\.([a-zA-Z_$][a-zA-Z_$0-9]*)\s*$/;
+				const match = regexp.exec(fn.toString());
+				if (match) {
+					return `${this.debugName}.${match[2]}`;
+				}
+				return `${this.debugName} (mapped)`;
 			},
-			(reader) => fn(this.read(reader), reader)
 		);
 	}
 
@@ -198,11 +208,9 @@ export abstract class BaseObservable<T, TChange = void> extends ConvenientObserv
 export function transaction(fn: (tx: ITransaction) => void, getDebugName?: () => string): void {
 	const tx = new TransactionImpl(fn, getDebugName);
 	try {
-		getLogger()?.handleBeginTransaction(tx);
 		fn(tx);
 	} finally {
 		tx.finish();
-		getLogger()?.handleEndTransaction();
 	}
 }
 
@@ -217,13 +225,15 @@ export function subtransaction(tx: ITransaction | undefined, fn: (tx: ITransacti
 export class TransactionImpl implements ITransaction {
 	private updatingObservers: { observer: IObserver; observable: IObservable<any> }[] | null = [];
 
-	constructor(private readonly fn: Function, private readonly _getDebugName?: () => string) { }
+	constructor(public readonly _fn: Function, private readonly _getDebugName?: () => string) {
+		getLogger()?.handleBeginTransaction(this);
+	}
 
 	public getDebugName(): string | undefined {
 		if (this._getDebugName) {
 			return this._getDebugName();
 		}
-		return getFunctionName(this.fn);
+		return getFunctionName(this._fn);
 	}
 
 	public updateObserver(observer: IObserver, observable: IObservable<any>): void {
@@ -238,6 +248,7 @@ export class TransactionImpl implements ITransaction {
 		for (const { observer, observable } of updatingObservers) {
 			observer.endUpdate(observable);
 		}
+		getLogger()?.handleEndTransaction();
 	}
 }
 
@@ -287,7 +298,7 @@ export class ObservableValue<T, TChange = void>
 		try {
 			const oldValue = this._value;
 			this._setValue(value);
-			getLogger()?.handleObservableChanged(this, { oldValue, newValue: value, change, didChange: true });
+			getLogger()?.handleObservableChanged(this, { oldValue, newValue: value, change, didChange: true, hadValue: true });
 
 			for (const observer of this.observers) {
 				tx.updateObserver(observer, this);

@@ -63,14 +63,12 @@ export const mediaMimes = new Set([
 ]);
 
 const smartPasteRegexes = [
-	{ regex: /\[.*\]\(.*\)/g, isMarkdownLink: true, isInline: true }, // Is a Markdown Link
-	{ regex: /!\[.*\]\(.*\)/g, isMarkdownLink: true, isInline: true }, // Is a Markdown Image Link
-	{ regex: /\[([^\]]*)\]\(([^)]*)\)/g, isMarkdownLink: false, isInline: true }, // In a Markdown link
-	{ regex: /^```[\s\S]*?```$/gm, isMarkdownLink: false, isInline: false }, // In a backtick fenced code block
-	{ regex: /^~~~[\s\S]*?~~~$/gm, isMarkdownLink: false, isInline: false }, // In a tildefenced code block
-	{ regex: /^\$\$[\s\S]*?\$\$$/gm, isMarkdownLink: false, isInline: false }, // In a fenced math block
-	{ regex: /`[^`]*`/g, isMarkdownLink: false, isInline: true }, // In inline code
-	{ regex: /\$[^$]*\$/g, isMarkdownLink: false, isInline: true }, // In inline math
+	{ regex: /(\[[^\[\]]*](?:\([^\(\)]*\)|\[[^\[\]]*]))/g }, // In a Markdown link
+	{ regex: /^```[\s\S]*?```$/gm }, // In a backtick fenced code block
+	{ regex: /^~~~[\s\S]*?~~~$/gm }, // In a tildefenced code block
+	{ regex: /^\$\$[\s\S]*?\$\$$/gm }, // In a fenced math block
+	{ regex: /`[^`]*`/g }, // In inline code
+	{ regex: /\$[^$]*\$/g }, // In inline math
 ];
 
 export interface SkinnyTextDocument {
@@ -79,27 +77,13 @@ export interface SkinnyTextDocument {
 	readonly uri: vscode.Uri;
 }
 
-export interface SmartPaste {
-
-	/**
-	 * `true` if the link is not being pasted within a markdown link, code, or math.
-	 */
-	pasteAsMarkdownLink: boolean;
-
-	/**
-	 * `true` if the link is being pasted over a markdown link.
-	 */
-	updateTitle: boolean;
-
-}
-
 export enum PasteUrlAsFormattedLink {
 	Always = 'always',
 	Smart = 'smart',
 	Never = 'never'
 }
 
-export async function getPasteUrlAsFormattedLinkSetting(document: vscode.TextDocument): Promise<PasteUrlAsFormattedLink> {
+export function getPasteUrlAsFormattedLinkSetting(document: vscode.TextDocument): PasteUrlAsFormattedLink {
 	return vscode.workspace.getConfiguration('markdown', document).get<PasteUrlAsFormattedLink>('editor.pasteUrlAsFormattedLink.enabled', PasteUrlAsFormattedLink.Smart);
 }
 
@@ -110,7 +94,7 @@ export async function createEditAddingLinksForUriList(
 	isExternalLink: boolean,
 	useSmartPaste: boolean,
 	token: vscode.CancellationToken,
-): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string } | undefined> {
+): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string; markdownLink: boolean } | undefined> {
 
 	if (ranges.length === 0) {
 		return;
@@ -118,26 +102,26 @@ export async function createEditAddingLinksForUriList(
 	const edits: vscode.SnippetTextEdit[] = [];
 	let placeHolderValue: number = ranges.length;
 	let label: string = '';
-	let smartPaste = { pasteAsMarkdownLink: true, updateTitle: false };
+	let pasteAsMarkdownLink: boolean = true;
+	let markdownLink: boolean = true;
 
 	for (const range of ranges) {
-		let title = document.getText(range);
 		const selectedRange: vscode.Range = new vscode.Range(
 			new vscode.Position(range.start.line, document.offsetAt(range.start)),
 			new vscode.Position(range.end.line, document.offsetAt(range.end))
 		);
 
 		if (useSmartPaste) {
-			smartPaste = checkSmartPaste(document, selectedRange);
-			title = smartPaste.updateTitle ? '' : document.getText(range);
+			pasteAsMarkdownLink = checkSmartPaste(document, selectedRange, range);
+			markdownLink = pasteAsMarkdownLink; // FIX: this will only match the last range
 		}
 
-		const snippet = await tryGetUriListSnippet(document, urlList, token, title, placeHolderValue, smartPaste.pasteAsMarkdownLink, isExternalLink);
+		const snippet = await tryGetUriListSnippet(document, urlList, token, document.getText(range), placeHolderValue, pasteAsMarkdownLink, isExternalLink);
 		if (!snippet) {
 			return;
 		}
 
-		smartPaste.pasteAsMarkdownLink = true;
+		pasteAsMarkdownLink = true;
 		placeHolderValue--;
 		edits.push(new vscode.SnippetTextEdit(range, snippet.snippet));
 		label = snippet.label;
@@ -146,25 +130,44 @@ export async function createEditAddingLinksForUriList(
 	const additionalEdits = new vscode.WorkspaceEdit();
 	additionalEdits.set(document.uri, edits);
 
-	return { additionalEdits, label };
+	return { additionalEdits, label, markdownLink };
 }
 
-export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range): SmartPaste {
-	const SmartPaste: SmartPaste = { pasteAsMarkdownLink: true, updateTitle: false };
+export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range, range: vscode.Range): boolean {
+	if (selectedRange.isEmpty || /^[\s\n]*$/.test(document.getText(range)) || validateLink(document.getText(range)).isValid) {
+		return false;
+	}
+	if (/\[.*\]\(.*\)/.test(document.getText(range)) || /!\[.*\]\(.*\)/.test(document.getText(range))) {
+		return false;
+	}
 	for (const regex of smartPasteRegexes) {
 		const matches = [...document.getText().matchAll(regex.regex)];
 		for (const match of matches) {
 			if (match.index !== undefined) {
 				const useDefaultPaste = selectedRange.start.character > match.index && selectedRange.end.character < match.index + match[0].length;
-				SmartPaste.pasteAsMarkdownLink = !useDefaultPaste;
-				SmartPaste.updateTitle = regex.isMarkdownLink && selectedRange.start.character === match.index && selectedRange.end.character === match.index + match[0].length;
-				if (!SmartPaste.pasteAsMarkdownLink || SmartPaste.updateTitle) {
-					return SmartPaste;
+				if (useDefaultPaste) {
+					return false;
 				}
 			}
 		}
 	}
-	return SmartPaste;
+	return true;
+}
+
+export function validateLink(urlList: string): { isValid: boolean; cleanedUrlList: string } {
+	let isValid = false;
+	let uri = undefined;
+	const trimmedUrlList = urlList?.trim(); //remove leading and trailing whitespace and new lines
+	try {
+		uri = vscode.Uri.parse(trimmedUrlList);
+	} catch (error) {
+		return { isValid: false, cleanedUrlList: urlList };
+	}
+	const splitUrlList = trimmedUrlList.split(' ').filter(item => item !== ''); //split on spaces and remove empty strings
+	if (uri) {
+		isValid = splitUrlList.length === 1 && !splitUrlList[0].includes('\n') && externalUriSchemes.includes(vscode.Uri.parse(splitUrlList[0]).scheme) && !!vscode.Uri.parse(splitUrlList[0]).authority;
+	}
+	return { isValid, cleanedUrlList: splitUrlList[0] };
 }
 
 export async function tryGetUriListSnippet(document: SkinnyTextDocument, urlList: String, token: vscode.CancellationToken, title = '', placeHolderValue = 0, pasteAsMarkdownLink = true, isExternalLink = false): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
@@ -201,20 +204,14 @@ interface UriListSnippetOptions {
 
 export function appendToLinkSnippet(
 	snippet: vscode.SnippetString,
-	pasteAsMarkdownLink: boolean,
-	mdPath: string,
 	title: string,
 	uriString: string,
 	placeholderValue: number,
 	isExternalLink: boolean,
 ): vscode.SnippetString {
-	if (pasteAsMarkdownLink) {
-		snippet.appendText('[');
-		snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
-		snippet.appendText(isExternalLink ? `](${uriString})` : `](${escapeMarkdownLinkPath(mdPath)})`);
-	} else {
-		snippet.appendText(isExternalLink ? uriString : escapeMarkdownLinkPath(mdPath));
-	}
+	snippet.appendText('[');
+	snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
+	snippet.appendText(`](${escapeMarkdownLinkPath(uriString, isExternalLink)})`);
 	return snippet;
 }
 
@@ -265,15 +262,17 @@ export function createUriListSnippet(
 					const placeholderText = escapeBrackets(title) || options?.placeholderText || 'Alt text';
 					const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (placeholderValue === 0 ? undefined : placeholderValue);
 					snippet.appendPlaceholder(placeholderText, placeholderIndex);
-					snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
+					snippet.appendText(`](${escapeMarkdownLinkPath(mdPath, isExternalLink)})`);
 				} else {
-					snippet.appendText(escapeMarkdownLinkPath(mdPath));
+					snippet.appendText(escapeMarkdownLinkPath(mdPath, isExternalLink));
 				}
 			}
 		} else {
 			insertedLinkCount++;
-			if (uriStrings) {
-				snippet = appendToLinkSnippet(snippet, pasteAsMarkdownLink, mdPath, title, uriStrings[i], placeholderValue, isExternalLink);
+			if (uriStrings && isExternalLink) {
+				snippet = appendToLinkSnippet(snippet, title, uriStrings[i], placeholderValue, isExternalLink);
+			} else {
+				snippet.appendText(escapeMarkdownLinkPath(mdPath, isExternalLink));
 			}
 		}
 
@@ -394,12 +393,12 @@ function escapeHtmlAttribute(attr: string): string {
 	return encodeURI(attr).replaceAll('"', '&quot;');
 }
 
-function escapeMarkdownLinkPath(mdPath: string): string {
+function escapeMarkdownLinkPath(mdPath: string, isExternalLink: boolean): string {
 	if (needsBracketLink(mdPath)) {
 		return '<' + mdPath.replaceAll('<', '\\<').replaceAll('>', '\\>') + '>';
 	}
 
-	return encodeURI(mdPath);
+	return isExternalLink ? mdPath : encodeURI(mdPath);
 }
 
 function escapeBrackets(value: string): string {
