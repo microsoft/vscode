@@ -27,7 +27,7 @@ import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { isString, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { isString, withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
@@ -1077,7 +1077,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			}
 		}
 		if (this.ui.list.ariaLabel !== ariaLabel) {
-			this.ui.list.ariaLabel = withUndefinedAsNull(ariaLabel);
+			this.ui.list.ariaLabel = ariaLabel ?? null;
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
