@@ -16,7 +16,7 @@ declare module 'vscode' {
 		 */
 		readonly environmentVariableCollection: EnvironmentVariableCollection;
 		/**
-		 * Gets the extension's environment variable collection for this workspace, enabling changes
+		 * Gets the extension's environment variable collection for this scope, enabling changes
 		 * to be applied to terminal environment variables.
 		 *
 		 * @param scope The scope to which the environment variable collection applies to.
