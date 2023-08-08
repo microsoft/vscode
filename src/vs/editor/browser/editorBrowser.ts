@@ -358,7 +358,7 @@ export interface IBaseMouseTarget {
 	/**
 	 * The target element
 	 */
-	readonly element: Element | null;
+	readonly element: HTMLElement | null;
 	/**
 	 * The 'approximate' editor position
 	 */
