@@ -5,6 +5,11 @@
 
 declare module 'vscode' {
 
+	export interface ChatResponseFragment {
+		index: number;
+		part: string;
+	}
+
 	/**
 	 * Represents access to using a chat provider (LLM). Access is granted and temporary, usually only valid
 	 * for the duration of an user interaction.
@@ -28,7 +33,7 @@ declare module 'vscode' {
 		makeRequest(messages: ChatMessage[], options: { [name: string]: any }, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
 	}
 
-	export namespace llm {
+	export namespace chat {
 
 		/**
 		 * Request access to chat.

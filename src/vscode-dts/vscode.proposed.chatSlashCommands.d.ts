@@ -29,7 +29,7 @@ declare module 'vscode' {
 	}
 
 	export interface SlashResult {
-		followUp?: InteractiveSessionFollowup[];
+		// followUp?: InteractiveSessionFollowup[];
 	}
 
 	export interface SlashCommand {
@@ -37,7 +37,7 @@ declare module 'vscode' {
 		(prompt: ChatMessage, context: SlashCommandContext, progress: Progress<SlashResponse>, token: CancellationToken): Thenable<SlashResult>;
 	}
 
-	export namespace llm {
+	export namespace chat {
 		export function registerSlashCommand(name: string, command: SlashCommand): Disposable;
 	}
 }

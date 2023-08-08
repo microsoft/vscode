@@ -1333,7 +1333,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		};
 
 		// namespace: llm
-		const llm: typeof vscode.llm = {
+		const chat: typeof vscode.chat = {
 			registerChatResponseProvider(id: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatProvider');
 				return extHostChatProvider.registerProvider(extension.identifier, id, provider, metadata);
@@ -1361,7 +1361,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			interactive,
 			interactiveSlashCommands,
 			l10n,
-			llm,
+			chat,
 			languages,
 			notebooks,
 			scm,

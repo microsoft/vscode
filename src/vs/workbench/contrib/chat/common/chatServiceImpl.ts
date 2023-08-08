@@ -6,7 +6,7 @@
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
@@ -488,8 +488,10 @@ export class ChatService extends Disposable implements IChatService {
 					if (typeof request.message !== 'string' || !request.response) {
 						continue;
 					}
-					history.push({ role: ChatMessageRole.User, content: request.message });
-					history.push({ role: ChatMessageRole.Assistant, content: request.response?.response.value });
+					if (isMarkdownString(request.response.response)) {
+						history.push({ role: ChatMessageRole.User, content: request.message });
+						history.push({ role: ChatMessageRole.Assistant, content: request.response?.response.value });
+					}
 				}
 				await this.chatSlashCommandService.executeCommand(resolvedCommand, message.substring(resolvedCommand.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => progressCallback(p)), history, token);
 				rawResponse = { session: model.session! };

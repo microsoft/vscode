@@ -5,23 +5,6 @@
 
 declare module 'vscode' {
 
-	// ChatML
-	export enum ChatMessageRole {
-		System = 0,
-		User = 1,
-		Assistant = 2,
-		Function = 3,
-	}
-
-	// ChatML
-	export class ChatMessage {
-		role: ChatMessageRole;
-		content: string;
-		name?: string;
-
-		constructor(role: ChatMessageRole, content: string);
-	}
-
 	export interface ChatResponseFragment {
 		index: number;
 		part: string;
@@ -39,7 +22,7 @@ declare module 'vscode' {
 		name: string;
 	}
 
-	export namespace llm {
+	export namespace chat {
 
 		/**
 		 * Register a LLM as chat response provider to the editor.
