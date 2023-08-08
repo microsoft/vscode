@@ -190,14 +190,6 @@ export function validateConstraint(arg: unknown, constraint: TypeConstraint | un
 	}
 }
 
-/**
- * Converts null to undefined, passes all other values through.
- */
-export function withNullAsUndefined<T>(x: T | null): T | undefined {
-	return x === null ? undefined : x;
-}
-
-
 type AddFirstParameterToFunction<T, TargetFunctionsReturnType, FirstParameter> = T extends (...args: any[]) => TargetFunctionsReturnType ?
 	// Function: add param to function
 	(firstArg: FirstParameter, ...args: Parameters<T>) => ReturnType<T> :

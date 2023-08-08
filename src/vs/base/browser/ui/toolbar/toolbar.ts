@@ -13,7 +13,6 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { EventMultiplexer } from 'vs/base/common/event';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./toolbar';
 import * as nls from 'vs/nls';
 
@@ -196,7 +195,7 @@ export class ToolBar extends Disposable {
 	private getKeybindingLabel(action: IAction): string | undefined {
 		const key = this.lookupKeybindings ? this.options.getKeyBinding?.(action) : undefined;
 
-		return withNullAsUndefined(key?.getLabel());
+		return key?.getLabel() ?? undefined;
 	}
 
 	private clear(): void {
