@@ -57,7 +57,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
 const _inputEditorOptions: IEditorConstructionOptions = {
-	padding: { top: 3, bottom: 2 },
+	padding: { top: 2, bottom: 2 },
 	overviewRulerLanes: 0,
 	glyphMargin: false,
 	lineNumbers: 'off',
@@ -98,7 +98,7 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 	ariaLabel: defaultAriaLabel,
 	fontFamily: DEFAULT_FONT_FAMILY,
 	fontSize: 13,
-	lineHeight: 20,
+	lineHeight: 20
 };
 
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
