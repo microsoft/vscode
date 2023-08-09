@@ -28,6 +28,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		return this.groups.reduce((p, c) => p.concat(c.terminalInstances), [] as ITerminalInstance[]);
 	}
 
+	lastAccessedMenu: 'inline-tab' | 'tab-list' = 'inline-tab';
+
 	private _terminalGroupCountContextKey: IContextKey<number>;
 
 	private _container: HTMLElement | undefined;
