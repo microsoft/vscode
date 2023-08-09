@@ -62,7 +62,7 @@ end
 
 # Helper function
 function __vsc_esc -d "Emit escape sequences for VS Code shell integration"
-	builtin printf "\e]633;%s\a" (string join ";" $argv)
+	builtin printf "\e]633;%s\a" (string join ";" -- $argv)
 end
 
 # Sent right before executing an interactive command.
