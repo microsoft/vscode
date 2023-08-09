@@ -874,6 +874,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 	protected renderSettingElement(node: ITreeNode<SettingsTreeSettingElement, never>, index: number, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		const element = node.element;
+		element.inspectSelf();
+
 		template.context = element;
 		template.toolbar.context = element;
 		const actions = this.disposableActionFactory(element.setting, element.settingsTarget);
