@@ -15,7 +15,7 @@ import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHos
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { IssueReporter } from './IssueReporterService';
+import { IssueReporter } from './issueReporterService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';

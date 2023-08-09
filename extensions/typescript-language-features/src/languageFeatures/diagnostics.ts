@@ -170,7 +170,7 @@ export class DiagnosticsManager extends Disposable {
 	public override dispose() {
 		super.dispose();
 
-		for (const value of this._pendingUpdates.values) {
+		for (const value of this._pendingUpdates.values()) {
 			clearTimeout(value);
 		}
 		this._pendingUpdates.clear();
@@ -259,7 +259,7 @@ export class DiagnosticsManager extends Disposable {
 
 	private rebuildAll(): void {
 		this._currentDiagnostics.clear();
-		for (const fileDiagnostic of this._diagnostics.values) {
+		for (const fileDiagnostic of this._diagnostics.values()) {
 			this.rebuildFile(fileDiagnostic);
 		}
 	}

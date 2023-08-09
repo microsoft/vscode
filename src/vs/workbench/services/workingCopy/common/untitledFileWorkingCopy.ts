@@ -135,7 +135,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		this._register(workingCopyService.registerWorkingCopy(this));
 	}
 
-	//#region Dirty
+	//#region Dirty/Modified
 
 	private modified = this.hasAssociatedFilePath || Boolean(this.initialContents && this.initialContents.markModified !== false);
 
@@ -251,6 +251,10 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 
 	//#region Backup
+
+	get backupDelay(): number | undefined {
+		return this.model?.configuration?.backupDelay;
+	}
 
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		let content: VSBufferReadableStream | undefined = undefined;

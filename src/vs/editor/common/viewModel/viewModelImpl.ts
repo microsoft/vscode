@@ -19,7 +19,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorState, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { EndOfLinePreference, GlyphMarginLane, IAttachedView, ICursorStateComputer, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from 'vs/editor/common/textModelGuides';
 import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/textModelEvents';
@@ -459,54 +459,6 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this._register(this.model.onDidChangeDecorations((e) => {
 			this._decorations.onModelDecorationsChanged();
-
-			// Determine whether we need to resize the glyph margin
-			if (e.affectsGlyphMargin) {
-				const decorations = this.model.getAllMarginDecorations();
-
-				let hasTwoLanes = false;
-
-				// Decorations are already sorted by their start position, but protect against future changes
-				decorations.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-
-				let leftDecRange: Range | null = null;
-				let rightDecRange: Range | null = null;
-				for (const decoration of decorations) {
-					const position = decoration.options.glyphMargin?.position ?? GlyphMarginLane.Left;
-
-					if (position === GlyphMarginLane.Left && (!leftDecRange || Range.compareRangesUsingEnds(leftDecRange, decoration.range) < 0)) {
-						// assign only if the range of `decoration` ends after, which means it has a higher chance to overlap with the other lane
-						leftDecRange = decoration.range;
-					}
-
-					if (position === GlyphMarginLane.Right && (!rightDecRange || Range.compareRangesUsingEnds(rightDecRange, decoration.range) < 0)) {
-						// assign only if the range of `decoration` ends after, which means it has a higher chance to overlap with the other lane
-						rightDecRange = decoration.range;
-					}
-
-					if (leftDecRange && rightDecRange) {
-
-						if (leftDecRange.endLineNumber < rightDecRange.startLineNumber) {
-							// there's no chance for `leftDecRange` to ever intersect something going further
-							leftDecRange = null;
-							continue;
-						}
-
-						if (rightDecRange.endLineNumber < leftDecRange.startLineNumber) {
-							// there's no chance for `rightDecRange` to ever intersect something going further
-							rightDecRange = null;
-							continue;
-						}
-
-						// leftDecRange and rightDecRange are intersecting or touching => we need two lanes
-						hasTwoLanes = true;
-						break;
-					}
-				}
-
-				this._configuration.setGlyphMarginDecorationLaneCount(hasTwoLanes ? 2 : 1);
-			}
-
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewDecorationsChangedEvent(e));
 			this._eventDispatcher.emitOutgoingEvent(new ModelDecorationsChangedEvent(e));
 		}));

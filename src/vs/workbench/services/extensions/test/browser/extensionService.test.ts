@@ -222,7 +222,7 @@ suite('ExtensionService', () => {
 
 	setup(() => {
 		disposables = new DisposableStore();
-		instantiationService = createServices(disposables, [
+		disposables.add(instantiationService = createServices(disposables, [
 			// custom
 			[IExtensionService, MyTestExtensionService],
 			// default
@@ -246,7 +246,7 @@ suite('ExtensionService', () => {
 			[IUriIdentityService, UriIdentityService],
 			[IRemoteExtensionsScannerService, TestRemoteExtensionsScannerService],
 			[IRemoteAuthorityResolverService, RemoteAuthorityResolverService]
-		]);
+		]));
 		extService = <MyTestExtensionService>instantiationService.get(IExtensionService);
 	});
 
@@ -256,13 +256,13 @@ suite('ExtensionService', () => {
 
 	test('issue #152204: Remote extension host not disposed after closing vscode client', async () => {
 		await extService.startExtensionHosts();
-		extService.stopExtensionHosts(true);
+		await extService.stopExtensionHosts('foo');
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
 	});
 
 	test('Extension host disposed when awaited', async () => {
 		await extService.startExtensionHosts();
-		await extService.stopExtensionHosts(`foo`);
+		await extService.stopExtensionHosts('foo');
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
 	});
 
@@ -272,7 +272,7 @@ suite('ExtensionService', () => {
 		extService.onWillStop(e => e.veto(true, 'test 1'));
 		extService.onWillStop(e => e.veto(false, 'test 2'));
 
-		await extService.stopExtensionHosts(`foo`);
+		await extService.stopExtensionHosts('foo');
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3']));
 	});
 
@@ -283,7 +283,7 @@ suite('ExtensionService', () => {
 		extService.onWillStop(e => e.veto(Promise.resolve(true), 'test 2'));
 		extService.onWillStop(e => e.veto(Promise.resolve(false), 'test 3'));
 
-		await extService.stopExtensionHosts(`foo`);
+		await extService.stopExtensionHosts('foo');
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3']));
 	});
 });

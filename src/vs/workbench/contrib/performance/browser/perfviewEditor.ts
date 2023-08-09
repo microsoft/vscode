@@ -17,7 +17,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
-import { LoaderStats } from 'vs/base/common/amd';
+import { LoaderStats, isESM } from 'vs/base/common/amd';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -25,6 +25,8 @@ import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isWeb } from 'vs/base/common/platform';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import * as perf from 'vs/base/common/performance';
 
 export class PerfviewContrib {
 
@@ -87,7 +89,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ITimerService private readonly _timerService: ITimerService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) { }
 
 	provideTextContent(resource: URI): Promise<ITextModel> {
@@ -113,7 +116,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		Promise.all([
 			this._timerService.whenReady(),
 			this._lifecycleService.when(LifecyclePhase.Eventually),
-			this._extensionService.whenInstalledExtensionsRegistered()
+			this._extensionService.whenInstalledExtensionsRegistered(),
+			this._terminalService.whenConnected
 		]).then(() => {
 			if (this._model && !this._model.isDisposed()) {
 
@@ -125,11 +129,17 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 				md.blank();
 				this._addExtensionsTable(md);
 				md.blank();
+				this._addPerfMarksTable('Terminal Stats', md, this._timerService.getPerformanceMarks().find(e => e[0] === 'renderer')?.[1].filter(e => e.name.startsWith('code/terminal/')));
+				md.blank();
 				this._addRawPerfMarks(md);
+				if (!isESM) {
+					md.blank();
+					this._addLoaderStats(md, stats);
+					md.blank();
+					this._addCachedDataStats(md);
+				}
 				md.blank();
-				this._addLoaderStats(md, stats);
-				md.blank();
-				this._addCachedDataStats(md);
+				this._addResourceTimingStats(md);
 
 				this._model.setValue(md.value);
 			}
@@ -219,6 +229,23 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		}
 	}
 
+	private _addPerfMarksTable(name: string, md: MarkdownBuilder, marks: readonly perf.PerformanceMark[] | undefined): void {
+		if (!marks) {
+			return;
+		}
+		const table: Array<Array<string | number | undefined>> = [];
+		let lastStartTime = -1;
+		let total = 0;
+		for (const { name, startTime } of marks) {
+			const delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
+			total += delta;
+			table.push([name, Math.round(startTime), Math.round(delta), Math.round(total)]);
+			lastStartTime = startTime;
+		}
+		md.heading(2, name);
+		md.table(['Name', 'Timestamp', 'Delta', 'Total'], table);
+	}
+
 	private _addRawPerfMarks(md: MarkdownBuilder): void {
 
 		for (const [source, marks] of this._timerService.getPerformanceMarks()) {
@@ -287,6 +314,17 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		printLists(map.get(LoaderEventType.CachedDataRejected));
 		md.heading(3, 'cached data created (lazy, might need refreshes)');
 		printLists(map.get(LoaderEventType.CachedDataCreated));
+	}
+
+	private _addResourceTimingStats(md: MarkdownBuilder) {
+		const stats = performance.getEntriesByType('resource').map(entry => {
+			return [entry.name, entry.duration];
+		});
+		if (!stats.length) {
+			return;
+		}
+		md.heading(2, 'Resource Timing Stats');
+		md.table(['Name', 'Duration'], stats);
 	}
 }
 

@@ -140,7 +140,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		if (typeof options?.preserveViewState === 'number') {
 			untypedInput.encoding = this.getEncoding();
 			untypedInput.languageId = this.getLanguageId();
-			untypedInput.contents = this.model.isDirty() ? this.model.textEditorModel?.getValue() : undefined;
+			untypedInput.contents = this.model.isModified() ? this.model.textEditorModel?.getValue() : undefined;
 			untypedInput.options.viewState = findViewStateForEditor(this, options.preserveViewState, this.editorService);
 
 			if (typeof untypedInput.contents === 'string' && !this.model.hasAssociatedFilePath) {

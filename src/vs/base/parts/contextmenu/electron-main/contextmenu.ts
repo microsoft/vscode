@@ -5,7 +5,6 @@
 
 import { BrowserWindow, IpcMainEvent, Menu, MenuItem } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { CONTEXT_MENU_CHANNEL, CONTEXT_MENU_CLOSE_CHANNEL, IPopupOptions, ISerializableContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 
 export function registerContextMenuListener(): void {
@@ -13,7 +12,7 @@ export function registerContextMenuListener(): void {
 		const menu = createMenu(event, onClickChannel, items);
 
 		menu.popup({
-			window: withNullAsUndefined(BrowserWindow.fromWebContents(event.sender)),
+			window: BrowserWindow.fromWebContents(event.sender) ?? undefined,
 			x: options ? options.x : undefined,
 			y: options ? options.y : undefined,
 			positioningItem: options ? options.positioningItem : undefined,

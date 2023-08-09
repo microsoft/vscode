@@ -5,23 +5,24 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IRange } from 'vs/base/common/range';
 import { URI } from 'vs/base/common/uri';
+import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IShareableItem {
 	resourceUri: URI;
-	location?: IRange;
+	selection?: Selection;
 }
 
 export interface IShareProvider {
 	readonly id: string;
 	readonly label: string;
+	readonly priority: number;
 	readonly selector: LanguageSelector;
 	prepareShare?(item: IShareableItem, token: CancellationToken): Thenable<boolean | undefined>;
-	provideShare(item: IShareableItem, token: CancellationToken): Thenable<URI | undefined>;
+	provideShare(item: IShareableItem, token: CancellationToken): Thenable<URI | string | undefined>;
 }
 
 export const IShareService = createDecorator<IShareService>('shareService');
@@ -30,5 +31,5 @@ export interface IShareService {
 
 	registerShareProvider(provider: IShareProvider): IDisposable;
 	getShareActions(): ISubmenuItem[];
-	provideShare(item: IShareableItem, token: CancellationToken): Thenable<URI | undefined>;
+	provideShare(item: IShareableItem, token: CancellationToken): Thenable<URI | string | undefined>;
 }

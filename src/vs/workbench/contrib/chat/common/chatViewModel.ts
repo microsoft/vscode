@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatRequestModel, IChatResponseModel, IChatModel, IChatWelcomeMessageContent } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatRequestModel, IChatResponseModel, IChatModel, IChatWelcomeMessageContent, IResponse, Response } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatResponseErrorDetails, IChatReplyFollowup, IChatResponseCommandFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 
@@ -19,11 +19,17 @@ export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 }
 
 export function isResponseVM(item: unknown): item is IChatResponseViewModel {
-	return !!item && typeof (item as IChatResponseViewModel).onDidChange !== 'undefined';
+	return !!item && typeof (item as IChatResponseViewModel).setVote !== 'undefined';
 }
 
 export function isWelcomeVM(item: unknown): item is IChatWelcomeMessageViewModel {
 	return !!item && typeof item === 'object' && 'content' in item;
+}
+
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | null;
+
+export interface IChatAddRequestEvent {
+	kind: 'addRequest';
 }
 
 export interface IChatViewModel {
@@ -31,7 +37,7 @@ export interface IChatViewModel {
 	readonly providerId: string;
 	readonly sessionId: string;
 	readonly onDidDisposeModel: Event<void>;
-	readonly onDidChange: Event<void>;
+	readonly onDidChange: Event<IChatViewModelChangeEvent>;
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[];
@@ -39,6 +45,8 @@ export interface IChatViewModel {
 
 export interface IChatRequestViewModel {
 	readonly id: string;
+	readonly providerRequestId: string | undefined;
+	readonly sessionId: string;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	readonly username: string;
@@ -62,15 +70,15 @@ export interface IChatLiveUpdateData {
 }
 
 export interface IChatResponseViewModel {
-	readonly onDidChange: Event<void>;
 	readonly id: string;
+	readonly sessionId: string;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	readonly providerId: string;
 	readonly providerResponseId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly response: IMarkdownString;
+	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly isPlaceholder: boolean;
@@ -88,10 +96,10 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	private readonly _onDidDisposeModel = this._register(new Emitter<void>());
 	readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
-	private readonly _onDidChange = this._register(new Emitter<void>());
+	private readonly _onDidChange = this._register(new Emitter<IChatViewModelChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private readonly _items: (IChatRequestViewModel | IChatResponseViewModel)[] = [];
+	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
 
 	get inputPlaceholder(): string | undefined {
 		return this._model.inputPlaceholder;
@@ -135,19 +143,33 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 				}
 			} else if (e.kind === 'addResponse') {
 				this.onAddResponse(e.response);
+			} else if (e.kind === 'removeRequest') {
+				const requestIdx = this._items.findIndex(item => isRequestVM(item) && item.providerRequestId === e.requestId);
+				if (requestIdx >= 0) {
+					this._items.splice(requestIdx, 1);
+				}
+
+				const responseIdx = e.responseId && this._items.findIndex(item => isResponseVM(item) && item.providerResponseId === e.responseId);
+				if (typeof responseIdx === 'number' && responseIdx >= 0) {
+					const items = this._items.splice(responseIdx, 1);
+					const item = items[0];
+					if (isResponseVM(item)) {
+						item.dispose();
+					}
+				}
 			}
 
-			this._onDidChange.fire();
+			this._onDidChange.fire(e.kind === 'addRequest' ? { kind: 'addRequest' } : null);
 		}));
 	}
 
 	private onAddResponse(responseModel: IChatResponseModel) {
 		const response = this.instantiationService.createInstance(ChatResponseViewModel, responseModel);
-		this._register(response.onDidChange(() => this._onDidChange.fire()));
+		this._register(response.onDidChange(() => this._onDidChange.fire(null)));
 		this._items.push(response);
 	}
 
-	getItems() {
+	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[] {
 		return [...(this._model.welcomeMessage ? [this._model.welcomeMessage] : []), ...this._items];
 	}
 
@@ -164,8 +186,16 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.id;
 	}
 
+	get providerRequestId() {
+		return this._model.providerRequestId;
+	}
+
 	get dataId() {
 		return this.id + (this._model.session.isInitialized ? '' : '_initializing');
+	}
+
+	get sessionId() {
+		return this._model.session.sessionId;
 	}
 
 	get username() {
@@ -211,6 +241,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.providerResponseId;
 	}
 
+	get sessionId() {
+		return this._model.session.sessionId;
+	}
+
 	get username() {
 		return this._model.username;
 	}
@@ -219,9 +253,9 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.avatarIconUri;
 	}
 
-	get response(): IMarkdownString {
+	get response(): IResponse {
 		if (this._isPlaceholder) {
-			return new MarkdownString(localize('thinking', "Thinking") + '\u2026');
+			return new Response(new MarkdownString(localize('thinking', "Thinking") + '\u2026'));
 		}
 
 		return this._model.response;
@@ -271,13 +305,13 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	) {
 		super();
 
-		this._isPlaceholder = !_model.response.value && !_model.isComplete;
+		this._isPlaceholder = !_model.response.asString() && !_model.isComplete;
 
 		if (!_model.isComplete) {
 			this._contentUpdateTimings = {
 				loadingStartTime: Date.now(),
 				lastUpdateTime: Date.now(),
-				wordCountAfterLastUpdate: this._isPlaceholder ? 0 : countWords(_model.response.value), // don't count placeholder text
+				wordCountAfterLastUpdate: this._isPlaceholder ? 0 : countWords(_model.response.asString()), // don't count placeholder text
 				impliedWordLoadRate: 0
 			};
 		}
@@ -290,7 +324,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			if (this._contentUpdateTimings) {
 				// This should be true, if the model is changing
 				const now = Date.now();
-				const wordCount = countWords(_model.response.value);
+				const wordCount = countWords(_model.response.asString());
 				const timeDiff = now - this._contentUpdateTimings!.loadingStartTime;
 				const impliedWordLoadRate = wordCount / (timeDiff / 1000);
 				if (!this.isComplete) {
@@ -334,4 +368,5 @@ export interface IChatWelcomeMessageViewModel {
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly content: IChatWelcomeMessageContent[];
+	currentRenderedHeight?: number;
 }
