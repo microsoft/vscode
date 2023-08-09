@@ -342,7 +342,7 @@ export class SettingsEditor2 extends EditorPane {
 			focusNotifiers: [this],
 			focusNextWidget: () => {
 				if (this.searchWidget.inputWidget.hasWidgetFocus()) {
-					this.focusSettings();
+					this.focusTOC();
 				}
 			},
 			focusPreviousWidget: () => {
