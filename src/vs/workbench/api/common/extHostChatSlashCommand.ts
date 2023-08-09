@@ -31,11 +31,11 @@ export class ExtHostChatSlashCommands implements ExtHostChatSlashCommandsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatSlashCommands);
 	}
 
-	registerCommand(extension: ExtensionIdentifier, name: string, command: vscode.SlashCommand): IDisposable {
+	registerCommand(extension: ExtensionIdentifier, name: string, command: vscode.SlashCommand, metadata: vscode.SlashCommandMetadata): IDisposable {
 
 		const handle = ExtHostChatSlashCommands._idPool++;
 		this._commands.set(handle, { extension, command });
-		this._proxy.$registerCommand(handle, name);
+		this._proxy.$registerCommand(handle, name, metadata.description);
 
 		return toDisposable(() => {
 			this._proxy.$unregisterCommand(handle);

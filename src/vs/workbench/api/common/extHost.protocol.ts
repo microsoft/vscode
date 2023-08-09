@@ -1140,7 +1140,7 @@ export interface ExtHostChatProviderShape {
 }
 
 export interface MainThreadChatSlashCommandsShape extends IDisposable {
-	$registerCommand(handle: number, name: string): void;
+	$registerCommand(handle: number, name: string, detail: string): void;
 	$unregisterCommand(handle: number): void;
 	$handleProgressChunk(requestId: number, chunk: IChatSlashFragment): Promise<void>;
 }

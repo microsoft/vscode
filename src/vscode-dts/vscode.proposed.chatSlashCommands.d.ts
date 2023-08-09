@@ -32,12 +32,16 @@ declare module 'vscode' {
 		// followUp?: InteractiveSessionFollowup[];
 	}
 
+	export interface SlashCommandMetadata {
+		description: string;
+	}
+
 	export interface SlashCommand {
 
 		(prompt: ChatMessage, context: SlashCommandContext, progress: Progress<SlashResponse>, token: CancellationToken): Thenable<SlashResult>;
 	}
 
 	export namespace chat {
-		export function registerSlashCommand(name: string, command: SlashCommand): Disposable;
+		export function registerSlashCommand(name: string, command: SlashCommand, metadata: SlashCommandMetadata): Disposable;
 	}
 }

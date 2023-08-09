@@ -28,14 +28,14 @@ export class MainThreadChatSlashCommands implements MainThreadChatSlashCommandsS
 		this._commands.clearAndDisposeAll();
 	}
 
-	$registerCommand(handle: number, name: string): void {
+	$registerCommand(handle: number, name: string, detail: string): void {
 
 		if (!this._chatSlashCommandService.hasCommand(name)) {
 			// dynamic slash commands!
 			this._chatSlashCommandService.registerSlashData({
 				name,
 				id: name,
-				detail: ''
+				detail
 			});
 		}
 
