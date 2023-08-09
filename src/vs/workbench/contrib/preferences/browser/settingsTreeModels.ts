@@ -387,6 +387,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 
 		if (!this.tags) {
+			// The setting must inspect itself to get tag information
+			// including for the hasPolicy tag.
 			this.inspectSelf();
 		}
 
