@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const enum AccessibilityCommandIds {
+export const enum AccessibilityCommandId {
 	OpenAccessibleView = 'editor.action.accessibleView',
 	OpenAccessibilityHelp = 'editor.action.accessibilityHelp',
 	DisableVerbosityHint = 'editor.action.accessibleViewDisableHint',

@@ -31,7 +31,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { AccessibilityCommandIds } from 'vs/workbench/contrib/accessibility/browser/accessibilityCommands';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
@@ -299,7 +299,7 @@ class AccessibleView extends Disposable {
 			let helpHint = '';
 			const verbose = this._configurationService.getValue(provider.verbositySettingKey);
 			if (verbose && provider.options.type === AccessibleViewType.View) {
-				const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
+				const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 				if (accessibilityHelpKeybinding) {
 					helpHint = localize('ariaAccessibilityHelp', "Use {0} for accessibility help", accessibilityHelpKeybinding);
 				}
@@ -404,8 +404,8 @@ class AccessibleView extends Disposable {
 
 	private _getNavigationHint(): string {
 		let hint = '';
-		const nextKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleViewNext')?.getAriaLabel();
-		const previousKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleViewPrevious')?.getAriaLabel();
+		const nextKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.ShowNext)?.getAriaLabel();
+		const previousKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.ShowPrevious)?.getAriaLabel();
 		if (nextKeybinding && previousKeybinding) {
 			hint = localize('accessibleViewNextPreviousHint', "Show the next ({0}) or previous ({1}) item", nextKeybinding, previousKeybinding);
 		} else {
@@ -418,7 +418,7 @@ class AccessibleView extends Disposable {
 			return '';
 		}
 		let hint = '';
-		const disableKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleViewDisableHint', this._contextKeyService)?.getAriaLabel();
+		const disableKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.DisableVerbosityHint, this._contextKeyService)?.getAriaLabel();
 		if (disableKeybinding) {
 			hint = localize('acessibleViewDisableHint', "Disable the aria label hint to open this ({0})", disableKeybinding);
 		} else {
@@ -428,7 +428,7 @@ class AccessibleView extends Disposable {
 	}
 
 	private _getGoToSymbolHint(providerHasSymbols?: boolean): string {
-		const goToSymbolKb = this._keybindingService.lookupKeybinding('editor.action.accessibleViewGoToSymbol')?.getAriaLabel();
+		const goToSymbolKb = this._keybindingService.lookupKeybinding(AccessibilityCommandId.GoToSymbol)?.getAriaLabel();
 		let goToSymbolHint = '';
 		if (providerHasSymbols) {
 			if (goToSymbolKb) {
@@ -473,7 +473,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		if (!this._configurationService.getValue(verbositySettingKey)) {
 			return null;
 		}
-		const keybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandIds.OpenAccessibleView)?.getAriaLabel();
+		const keybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibleView)?.getAriaLabel();
 		let hint = null;
 		if (keybinding) {
 			hint = localize('acessibleViewHint', "Inspect this in the accessible view with {0}", keybinding);

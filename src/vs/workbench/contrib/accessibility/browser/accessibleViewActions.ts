@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { AccessibilityCommandIds } from 'vs/workbench/contrib/accessibility/browser/accessibilityCommands';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
@@ -27,7 +27,7 @@ const commandPalette = {
 class AccessibleViewNextAction extends Action2 {
 	constructor() {
 		super({
-			id: AccessibilityCommandIds.ShowNext,
+			id: AccessibilityCommandId.ShowNext,
 			precondition: accessibleViewIsShown,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.BracketRight,
@@ -48,7 +48,7 @@ registerAction2(AccessibleViewNextAction);
 class AccessibleViewPreviousAction extends Action2 {
 	constructor() {
 		super({
-			id: AccessibilityCommandIds.ShowPrevious,
+			id: AccessibilityCommandId.ShowPrevious,
 			precondition: accessibleViewIsShown,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.BracketLeft,
@@ -69,7 +69,7 @@ registerAction2(AccessibleViewPreviousAction);
 class AccessibleViewGoToSymbolAction extends Action2 {
 	constructor() {
 		super({
-			id: AccessibilityCommandIds.GoToSymbol,
+			id: AccessibilityCommandId.GoToSymbol,
 			precondition: accessibleViewIsShown,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
@@ -92,7 +92,7 @@ function registerCommand<T extends Command>(command: T): T {
 }
 
 export const AccessibilityHelpAction = registerCommand(new MultiCommand({
-	id: AccessibilityCommandIds.OpenAccessibilityHelp,
+	id: AccessibilityCommandId.OpenAccessibilityHelp,
 	precondition: undefined,
 	kbOpts: {
 		primary: KeyMod.Alt | KeyCode.F1,
@@ -112,7 +112,7 @@ export const AccessibilityHelpAction = registerCommand(new MultiCommand({
 
 
 export const AccessibleViewAction = registerCommand(new MultiCommand({
-	id: AccessibilityCommandIds.OpenAccessibleView,
+	id: AccessibilityCommandId.OpenAccessibleView,
 	precondition: undefined,
 	kbOpts: {
 		primary: KeyMod.Alt | KeyCode.F2,
@@ -133,7 +133,7 @@ export const AccessibleViewAction = registerCommand(new MultiCommand({
 class AccessibleViewDisableHintAction extends Action2 {
 	constructor() {
 		super({
-			id: AccessibilityCommandIds.DisableVerbosityHint,
+			id: AccessibilityCommandId.DisableVerbosityHint,
 			keybinding: {
 				when: ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown),
 				primary: KeyMod.Alt | KeyCode.F6,
