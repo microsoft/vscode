@@ -42,6 +42,8 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly AUDIO_TIME_SLICE = 2000;
+	private static readonly AUDIO_SAMPLE_RATE = 16000;
+	private static readonly AUDIO_CHANNELS = 1;
 	private static readonly AUDIO_MIME_TYPE = 'audio/webm;codecs=opus';
 
 	constructor(
@@ -74,7 +76,7 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 				return;
 			}
 
-			const audioRecorder = new MediaRecorder(audioDevice, { mimeType: WorkbenchVoiceRecognitionService.AUDIO_MIME_TYPE });
+			const audioRecorder = new MediaRecorder(audioDevice, { mimeType: WorkbenchVoiceRecognitionService.AUDIO_MIME_TYPE, audioBitsPerSecond: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_RATE });
 			audioRecorder.start(WorkbenchVoiceRecognitionService.AUDIO_TIME_SLICE);
 
 			token.onCancellationRequested(() => {
@@ -84,18 +86,28 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 
 			progress.report({ message: localize('voiceTranscriptionRecording', "Recording from microphone...") });
 
+			const audioContextOptions = {
+				sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_RATE,
+				channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
+				echoCancellation: false,
+				autoGainControl: true,
+				noiseSuppression: true
+			};
+
+			const context = new AudioContext(audioContextOptions as any);
+
 			const chunks: Blob[] = [];
 			audioRecorder.ondataavailable = e => {
 				chunks.push(e.data);
 
-				this.doTranscribeChunk(chunks, emitter, token);
+				this.doTranscribeChunk(context, chunks, emitter, token);
 			};
 
 			return recordingDone.p;
 		});
 	}
 
-	private async doTranscribeChunk(chunks: Blob[], emitter: Emitter<string>, token: CancellationToken): Promise<void> {
+	private async doTranscribeChunk(context: AudioContext, chunks: Blob[], emitter: Emitter<string>, token: CancellationToken): Promise<void> {
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -106,24 +118,14 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 			return;
 		}
 
-		const audioContextOptions = {
-			sampleRate: 16000 as const,
-			channelCount: 1 as const,
-			echoCancellation: false,
-			autoGainControl: true,
-			noiseSuppression: true
-		};
-
-		const context = new AudioContext(audioContextOptions as any);
-
 		const audioBuffer = await context.decodeAudioData(blobBuffer);
 		if (token.isCancellationRequested) {
 			return;
 		}
 
 		const text = await this.voiceRecognitionService.transcribe({
-			sampleRate: audioContextOptions.sampleRate,
-			channelCount: audioContextOptions.channelCount,
+			sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_RATE,
+			channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
 			length: audioBuffer.length,
 			channelData: VSFloat32Array.wrap(audioBuffer.getChannelData(0))
 		});
