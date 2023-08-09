@@ -278,8 +278,13 @@ export class NotebookProviderInfoStore extends Disposable {
 			throw new Error(`notebook type '${info.id}' ALREADY EXISTS`);
 		}
 		this._contributedEditors.set(info.id, info);
-		const editorRegistration = this._registerContributionPoint(info);
-		this._contributedEditorDisposables.add(editorRegistration);
+		let editorRegistration: IDisposable | undefined;
+
+		// built-in notebook providers contribute their own editors
+		if (info.extension) {
+			editorRegistration = this._registerContributionPoint(info);
+			this._contributedEditorDisposables.add(editorRegistration);
+		}
 
 		const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
@@ -289,7 +294,7 @@ export class NotebookProviderInfoStore extends Disposable {
 			const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 			mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
 			this._memento.saveMemento();
-			editorRegistration.dispose();
+			editorRegistration?.dispose();
 			this._contributedEditors.delete(info.id);
 		});
 	}
@@ -317,7 +322,7 @@ export class NotebookOutputRendererInfoStore {
 	private readonly contributedRenderers = new Map</* rendererId */ string, NotebookOutputRendererInfo>();
 	private readonly preferredMimetypeMemento: Memento;
 	private readonly preferredMimetype = new Lazy<{ [notebookType: string]: { [mimeType: string]: /* rendererId */ string } }>(
-		() => this.preferredMimetypeMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER));
+		() => this.preferredMimetypeMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE));
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -529,6 +534,7 @@ export class NotebookService extends Disposable implements INotebookService {
 						type,
 						extension: extension.description,
 						entrypoint: notebookContribution.entrypoint,
+						localResourceRoots: notebookContribution.localResourceRoots ?? [],
 					}));
 				}
 			}
@@ -635,7 +641,7 @@ export class NotebookService extends Disposable implements INotebookService {
 			providerDisplayName: data.providerDisplayName,
 			exclusive: data.exclusive,
 			priority: RegisteredEditorPriority.default,
-			selectors: [],
+			selectors: []
 		});
 
 		info.update({ selectors: data.filenamePattern });

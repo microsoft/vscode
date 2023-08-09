@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/ca2caf2157d0674be3d641f71499b84d514e4e5e",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/c635942289ebf40954e69cf3637aac906465ade8",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -41,6 +41,9 @@
 				},
 				{
 					"include": "#html"
+				},
+				{
+					"include": "#table"
 				},
 				{
 					"include": "#paragraph"
@@ -2396,7 +2399,7 @@
 					"name": "punctuation.definition.string.end.markdown"
 				}
 			},
-			"match": "(?x)\n  \\s*            # Leading whitespace\n  (\\[)([^]]+?)(\\])(:)    # Reference name\n  [ \\t]*          # Optional whitespace\n  (?:(<)([^\\>]+?)(>)|(\\S+?))      # The url\n  [ \\t]*          # Optional whitespace\n  (?:\n      ((\\().+?(\\)))    # Match title in parens…\n    | ((\").+?(\"))    # or in double quotes…\n    | ((').+?('))    # or in single quotes.\n  )?            # Title is optional\n  \\s*            # Optional whitespace\n  $\n",
+			"match": "(?x)\n  \\s*            # Leading whitespace\n  (\\[)([^]]+?)(\\])(:)    # Reference name\n  [ \\t]*          # Optional whitespace\n  (?:(<)((?:\\\\[<>]|[^<>\\n])*)(>)|(\\S+?))      # The url\n  [ \\t]*          # Optional whitespace\n  (?:\n      ((\\().+?(\\)))    # Match title in parens…\n    | ((\").+?(\"))    # or in double quotes…\n    | ((').+?('))    # or in single quotes.\n  )?            # Title is optional\n  \\s*            # Optional whitespace\n  $\n",
 			"name": "meta.link.reference.def.markdown"
 		},
 		"list_paragraph": {
@@ -2437,7 +2440,7 @@
 					"while": "((^|\\G)([ ]{2,4}|\\t))|(^[ \\t]*$)"
 				},
 				{
-					"begin": "(^|\\G)([ ]{0,3})([0-9]+\\.)([ \\t])",
+					"begin": "(^|\\G)([ ]{0,3})([0-9]+[\\.\\)])([ \\t])",
 					"beginCaptures": {
 						"3": {
 							"name": "punctuation.definition.list.begin.markdown"
@@ -2457,7 +2460,7 @@
 			]
 		},
 		"paragraph": {
-			"begin": "(^|\\G)[ ]{0,3}(?=\\S)",
+			"begin": "(^|\\G)[ ]{0,3}(?=[^ \\t\\n])",
 			"name": "meta.paragraph.markdown",
 			"patterns": [
 				{
@@ -2470,7 +2473,7 @@
 					"include": "#heading-setext"
 				}
 			],
-			"while": "(^|\\G)((?=\\s*[-=]{3,}\\s*$)|[ ]{4,}(?=\\S))"
+			"while": "(^|\\G)((?=\\s*[-=]{3,}\\s*$)|[ ]{4,}(?=[^ \\t\\n]))"
 		},
 		"raw_block": {
 			"begin": "(^|\\G)([ ]{4}|\\t)",
@@ -2490,6 +2493,42 @@
 				}
 			],
 			"end": "(^|\\G)-{3}|\\.{3}\\s*$"
+		},
+		"table": {
+			"name": "markup.table.markdown",
+			"begin": "(^|\\G)(\\|)(?=[^|].+\\|\\s*$)",
+			"beginCaptures": {
+				"2": {
+					"name": "punctuation.definition.table.markdown"
+				}
+			},
+			"while": "(^|\\G)(?=\\|)",
+			"patterns": [
+				{
+					"match": "\\|",
+					"name": "punctuation.definition.table.markdown"
+				},
+				{
+					"match": "(?<=\\|)\\s*(:?-+:?)\\s*(?=\\|)",
+					"captures": {
+						"1": {
+							"name": "punctuation.separator.table.markdown"
+						}
+					}
+				},
+				{
+					"match": "(?<=\\|)\\s*(?=\\S)((\\\\\\||[^|])+)(?<=\\S)\\s*(?=\\|)",
+					"captures": {
+						"1": {
+							"patterns": [
+								{
+									"include": "#inline"
+								}
+							]
+						}
+					}
+				}
+			]
 		},
 		"inline": {
 			"patterns": [
@@ -2635,47 +2674,50 @@
 				"5": {
 					"name": "punctuation.definition.metadata.markdown"
 				},
-				"6": {
-					"name": "punctuation.definition.link.markdown"
-				},
 				"7": {
-					"name": "markup.underline.link.image.markdown"
+					"name": "punctuation.definition.link.markdown"
 				},
 				"8": {
-					"name": "punctuation.definition.link.markdown"
+					"name": "markup.underline.link.image.markdown"
 				},
 				"9": {
-					"name": "string.other.link.description.title.markdown"
+					"name": "punctuation.definition.link.markdown"
 				},
 				"10": {
-					"name": "punctuation.definition.string.markdown"
-				},
-				"11": {
-					"name": "punctuation.definition.string.markdown"
+					"name": "markup.underline.link.image.markdown"
 				},
 				"12": {
 					"name": "string.other.link.description.title.markdown"
 				},
 				"13": {
-					"name": "punctuation.definition.string.markdown"
+					"name": "punctuation.definition.string.begin.markdown"
 				},
 				"14": {
-					"name": "punctuation.definition.string.markdown"
+					"name": "punctuation.definition.string.end.markdown"
 				},
 				"15": {
 					"name": "string.other.link.description.title.markdown"
 				},
 				"16": {
-					"name": "punctuation.definition.string.markdown"
+					"name": "punctuation.definition.string.begin.markdown"
 				},
 				"17": {
-					"name": "punctuation.definition.string.markdown"
+					"name": "punctuation.definition.string.end.markdown"
 				},
 				"18": {
+					"name": "string.other.link.description.title.markdown"
+				},
+				"19": {
+					"name": "punctuation.definition.string.begin.markdown"
+				},
+				"20": {
+					"name": "punctuation.definition.string.end.markdown"
+				},
+				"21": {
 					"name": "punctuation.definition.metadata.markdown"
 				}
 			},
-			"match": "(?x)\n  (\\!\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])\n                # Match the link text.\n  (\\()            # Opening paren for url\n    (<?)(\\S+?)(>?)      # The url\n    [ \\t]*          # Optional whitespace\n    (?:\n        ((\\().+?(\\)))    # Match title in parens…\n      | ((\").+?(\"))    # or in double quotes…\n      | ((').+?('))    # or in single quotes.\n    )?            # Title is optional\n    \\s*            # Optional whitespace\n  (\\))\n",
+			"match": "(?x)\n  (\\!\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])\n                # Match the link text.\n  (\\()            # Opening paren for url\n    # The url\n      [ \\t]*\n      (\n         (<)((?:\\\\[<>]|[^<>\\n])*)(>)\n         | ((?<url>(?>[^\\s()]+)|\\(\\g<url>*\\))*)\n      )\n      [ \\t]*\n    (?:\n        ((\\().+?(\\)))    # Match title in parens…\n      | ((\").+?(\"))    # or in double quotes…\n      | ((').+?('))    # or in single quotes.\n    )?            # Title is optional\n    \\s*            # Optional whitespace\n  (\\))\n",
 			"name": "meta.image.inline.markdown"
 		},
 		"image-ref": {
@@ -2870,7 +2912,7 @@
 					"name": "punctuation.definition.metadata.markdown"
 				}
 			},
-			"match": "(?x)\n  (\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])\n                # Match the link text.\n  (\\()            # Opening paren for url\n    # The url\n      [ \\t]*\n      (\n         (<)([^<>\\n]*)(>)\n         | ((?<url>(?>[^\\s()]+)|\\(\\g<url>*\\))*)\n      )\n      [ \\t]*\n    # The title  \n    (?:\n        ((\\()[^()]*(\\)))    # Match title in parens…\n      | ((\")[^\"]*(\"))    # or in double quotes…\n      | ((')[^']*('))    # or in single quotes.\n    )?            # Title is optional\n    \\s*            # Optional whitespace\n  (\\))\n",
+			"match": "(?x)\n  (\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])\n                # Match the link text.\n  (\\()            # Opening paren for url\n    # The url\n      [ \\t]*\n      (\n         (<)((?:\\\\[<>]|[^<>\\n])*)(>)\n         | ((?<url>(?>[^\\s()]+)|\\(\\g<url>*\\))*)\n      )\n      [ \\t]*\n    # The title  \n    (?:\n        ((\\()[^()]*(\\)))    # Match title in parens…\n      | ((\")[^\"]*(\"))    # or in double quotes…\n      | ((')[^']*('))    # or in single quotes.\n    )?            # Title is optional\n    \\s*            # Optional whitespace\n  (\\))\n",
 			"name": "meta.link.inline.markdown"
 		},
 		"link-ref": {

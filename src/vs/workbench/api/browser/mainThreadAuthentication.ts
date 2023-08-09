@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { AllowedExtension, readAllowedExtensions, getAuthenticationProviderActivationEvent, addAccountUsage, readAccountUsages, removeAccountUsage } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
+import { IAuthenticationCreateSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -119,8 +119,8 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 		return this._proxy.$getSessions(this.id, scopes);
 	}
 
-	createSession(scopes: string[]): Promise<AuthenticationSession> {
-		return this._proxy.$createSession(this.id, scopes);
+	createSession(scopes: string[], options: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
+		return this._proxy.$createSession(this.id, scopes, options);
 	}
 
 	async removeSession(sessionId: string): Promise<void> {
@@ -242,9 +242,20 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				throw new Error('User did not consent to login.');
 			}
 
-			const session = sessions?.length && !options.forceNewSession && supportsMultipleAccounts
-				? await this.authenticationService.selectSession(providerId, extensionId, extensionName, scopes, sessions)
-				: await this.authenticationService.createSession(providerId, scopes, true);
+			let session;
+			if (sessions?.length && !options.forceNewSession && supportsMultipleAccounts) {
+				session = await this.authenticationService.selectSession(providerId, extensionId, extensionName, scopes, sessions);
+			} else {
+				let sessionToRecreate: AuthenticationSession | undefined;
+				if (typeof options.forceNewSession === 'object' && options.forceNewSession.sessionToRecreate) {
+					sessionToRecreate = options.forceNewSession.sessionToRecreate as AuthenticationSession;
+				} else {
+					const sessionIdToRecreate = this.authenticationService.getSessionPreference(providerId, extensionId, scopes);
+					sessionToRecreate = sessionIdToRecreate ? sessions.find(session => session.id === sessionIdToRecreate) : undefined;
+				}
+				session = await this.authenticationService.createSession(providerId, scopes, { activateImmediate: true, sessionToRecreate });
+			}
+
 			this.authenticationService.updateAllowedExtension(providerId, session.account.label, extensionId, extensionName, true);
 			this.authenticationService.updateSessionPreference(providerId, extensionId, session);
 			return session;

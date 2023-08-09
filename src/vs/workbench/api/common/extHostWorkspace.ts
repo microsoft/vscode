@@ -13,7 +13,6 @@ import { Schemas } from 'vs/base/common/network';
 import { Counter } from 'vs/base/common/numbers';
 import { basename, basenameOrAuthority, dirname, ExtUri, relativePath } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -462,10 +461,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 		const { includePattern, folder } = parseSearchInclude(GlobPattern.from(include));
 		return this._proxy.$startFileSearch(
-			withUndefinedAsNull(includePattern),
-			withUndefinedAsNull(folder),
-			withUndefinedAsNull(excludePatternOrDisregardExcludes),
-			withUndefinedAsNull(maxResults),
+			includePattern ?? null,
+			folder ?? null,
+			excludePatternOrDisregardExcludes ?? null,
+			maxResults ?? null,
 			token
 		)
 			.then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : []);
@@ -541,7 +540,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		try {
 			const result = await this._proxy.$startTextSearch(
 				query,
-				withUndefinedAsNull(folder),
+				folder ?? null,
 				queryOptions,
 				requestId,
 				token);
@@ -695,6 +694,46 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
+	}
+
+	// --- canonical uri identity ---
+
+	private readonly _canonicalUriProviders = new Map<string, vscode.CanonicalUriProvider>();
+
+	// called by ext host
+	registerCanonicalUriProvider(scheme: string, provider: vscode.CanonicalUriProvider) {
+		if (this._canonicalUriProviders.has(scheme)) {
+			throw new Error(`A provider has already been registered for scheme ${scheme}`);
+		}
+
+		this._canonicalUriProviders.set(scheme, provider);
+		const outgoingScheme = this._uriTransformerService.transformOutgoingScheme(scheme);
+		const handle = this._providerHandlePool++;
+		this._proxy.$registerCanonicalUriProvider(handle, outgoingScheme);
+
+		return toDisposable(() => {
+			this._canonicalUriProviders.delete(scheme);
+			this._proxy.$unregisterCanonicalUriProvider(handle);
+		});
+	}
+
+	async provideCanonicalUri(uri: URI, options: vscode.CanonicalUriRequestOptions, cancellationToken: CancellationToken): Promise<URI | undefined> {
+		const provider = this._canonicalUriProviders.get(uri.scheme);
+		if (!provider) {
+			return undefined;
+		}
+
+		const result = await provider.provideCanonicalUri?.(URI.revive(uri), options, cancellationToken);
+		if (!result) {
+			return undefined;
+		}
+
+		return result;
+	}
+
+	// called by main thread
+	async $provideCanonicalUri(uri: UriComponents, targetScheme: string, cancellationToken: CancellationToken): Promise<UriComponents | undefined> {
+		return this.provideCanonicalUri(URI.revive(uri), { targetScheme }, cancellationToken);
 	}
 }
 

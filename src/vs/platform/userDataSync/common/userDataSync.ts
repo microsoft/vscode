@@ -21,9 +21,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-
-export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
+import { IUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export function getDisallowedIgnoredSettings(): string[] {
 	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -35,7 +33,7 @@ export function getDefaultIgnoredSettings(): string[] {
 	const ignoreSyncSettings = Object.keys(allSettings).filter(setting => !!allSettings[setting].ignoreSync);
 	const machineSettings = Object.keys(allSettings).filter(setting => allSettings[setting].scope === ConfigurationScope.MACHINE || allSettings[setting].scope === ConfigurationScope.MACHINE_OVERRIDABLE);
 	const disallowedSettings = getDisallowedIgnoredSettings();
-	return distinct([CONFIGURATION_SYNC_STORE_KEY, ...ignoreSyncSettings, ...machineSettings, ...disallowedSettings]);
+	return distinct([...ignoreSyncSettings, ...machineSettings, ...disallowedSettings]);
 }
 
 export const USER_DATA_SYNC_CONFIGURATION_SCOPE = 'settingsSync';
@@ -94,9 +92,9 @@ export function registerConfiguration(): IDisposable {
 	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	const registerIgnoredSettingsSchema = () => {
 		const disallowedIgnoredSettings = getDisallowedIgnoredSettings();
-		const defaultIgnoredSettings = getDefaultIgnoredSettings().filter(s => s !== CONFIGURATION_SYNC_STORE_KEY);
-		const settings = Object.keys(allSettings.properties).filter(setting => defaultIgnoredSettings.indexOf(setting) === -1);
-		const ignoredSettings = defaultIgnoredSettings.filter(setting => disallowedIgnoredSettings.indexOf(setting) === -1);
+		const defaultIgnoredSettings = getDefaultIgnoredSettings();
+		const settings = Object.keys(allSettings.properties).filter(setting => !defaultIgnoredSettings.includes(setting));
+		const ignoredSettings = defaultIgnoredSettings.filter(setting => !disallowedIgnoredSettings.includes(setting));
 		const ignoredSettingsSchema: IJSONSchema = {
 			items: {
 				type: 'string',
@@ -142,6 +140,7 @@ export const enum SyncResource {
 	Extensions = 'extensions',
 	GlobalState = 'globalState',
 	Profiles = 'profiles',
+	WorkspaceState = 'workspaceState',
 }
 export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Tasks, SyncResource.Extensions, SyncResource.GlobalState, SyncResource.Profiles];
 
@@ -173,7 +172,7 @@ export interface IResourceRefHandle {
 	created: number;
 }
 
-export type ServerResource = SyncResource | 'machines' | 'editSessions';
+export type ServerResource = SyncResource | 'machines' | 'editSessions' | 'workspaceState';
 export type UserDataSyncStoreType = 'insiders' | 'stable';
 
 export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
@@ -326,6 +325,7 @@ export interface ISyncUserDataProfile {
 	readonly collection: string;
 	readonly name: string;
 	readonly shortName?: string;
+	readonly useDefaultFlags?: UseDefaultProfileFlags;
 }
 
 export type ISyncExtension = ILocalSyncExtension | IRemoteSyncExtension;
@@ -337,6 +337,7 @@ export interface ILocalSyncExtension {
 	preRelease: boolean;
 	disabled?: boolean;
 	installed?: boolean;
+	isApplicationScoped?: boolean;
 	state?: IStringDictionary<any>;
 }
 
@@ -347,6 +348,7 @@ export interface IRemoteSyncExtension {
 	preRelease?: boolean;
 	disabled?: boolean;
 	installed?: boolean;
+	isApplicationScoped?: boolean;
 	state?: IStringDictionary<any>;
 }
 
@@ -357,6 +359,17 @@ export interface IStorageValue {
 
 export interface IGlobalState {
 	storage: IStringDictionary<IStorageValue>;
+}
+
+export interface IWorkspaceState {
+	folders: IWorkspaceStateFolder[];
+	storage: IStringDictionary<string>;
+	version: number;
+}
+
+export interface IWorkspaceStateFolder {
+	resourceUri: string;
+	workspaceFolderIdentity: string;
 }
 
 export const enum SyncStatus {

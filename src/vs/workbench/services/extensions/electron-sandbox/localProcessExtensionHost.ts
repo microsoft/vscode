@@ -18,7 +18,6 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
@@ -250,6 +249,9 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			opts.execArgv.unshift('--prof');
 		}
 
+		// Refs https://github.com/microsoft/vscode/issues/189805
+		opts.execArgv.unshift('--dns-result-order=ipv4first');
+
 		// Catch all output coming from the extension host process
 		type Output = { data: string; format: string[] };
 		const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout);
@@ -420,7 +422,8 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
-			parentPid: process.sandboxed ? 0 : process.pid,
+			quality: this._productService.quality,
+			parentPid: 0,
 			environment: {
 				isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 				appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,

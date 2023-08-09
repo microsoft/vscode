@@ -30,7 +30,10 @@ impl AppMutex {
 
 	#[cfg(windows)]
 	pub fn new(name: &str) -> Result<Self, CodeError> {
-		let handle = unsafe { CreateMutexA(ptr::null_mut(), 0, name.as_ptr() as _) };
+		use std::ffi::CString;
+
+		let cname = CString::new(name).unwrap();
+		let handle = unsafe { CreateMutexA(ptr::null_mut(), 0, cname.as_ptr() as _) };
 
 		if !handle.is_null() {
 			return Ok(Self { handle });

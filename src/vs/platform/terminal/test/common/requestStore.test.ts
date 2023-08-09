@@ -17,6 +17,10 @@ suite('RequestStore', () => {
 		instantiationService.stub(ILogService, new LogService(new ConsoleLogger()));
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	test('should resolve requests', async () => {
 		const store: RequestStore<{ data: string }, { arg: string }> = instantiationService.createInstance(RequestStore<{ data: string }, { arg: string }>, undefined);
 		let eventArgs: { requestId: number; arg: string } | undefined;

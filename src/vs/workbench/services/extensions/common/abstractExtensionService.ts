@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier } from 'vs/base/common/async';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 import { ExtensionIdentifier, ExtensionIdentifierMap, IExtension, IExtensionContributions, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -21,6 +24,7 @@ import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -30,6 +34,7 @@ import { ExtensionDescriptionRegistryLock, IActivationEventsReader, LockableExte
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionHostManager, createExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
+import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { ExtensionRunningLocationTracker, filterExtensionIdentifiers } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
@@ -79,6 +84,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	private _extensionHostManagers: IExtensionHostManager[] = [];
 
+	private _resolveAuthorityAttempt: number = 0;
+
 	constructor(
 		private readonly _extensionsProposedApi: ExtensionsProposedApi,
 		private readonly _extensionHostFactory: IExtensionHostFactory,
@@ -97,7 +104,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@ILogService protected readonly _logService: ILogService,
 		@IRemoteAgentService protected readonly _remoteAgentService: IRemoteAgentService,
 		@IRemoteExtensionsScannerService protected readonly _remoteExtensionsScannerService: IRemoteExtensionsScannerService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IRemoteAuthorityResolverService protected readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super();
 
@@ -521,16 +530,102 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._onDidChangeExtensionsStatus.fire(this._registry.getAllExtensionDescriptions().map(e => e.identifier));
 	}
 
-	//#region Stopping / Starting / Restarting
+	//#region remote authority resolving
 
-	public stopExtensionHosts(): Promise<boolean>;
-	public stopExtensionHosts(force: true): void;
-	public stopExtensionHosts(force?: boolean): void | Promise<boolean> {
-		if (force) {
-			return this._doStopExtensionHosts();
+	protected async _resolveAuthorityInitial(remoteAuthority: string): Promise<ResolverResult> {
+		const MAX_ATTEMPTS = 5;
+
+		for (let attempt = 1; ; attempt++) {
+			try {
+				return this._resolveAuthorityWithLogging(remoteAuthority);
+			} catch (err) {
+				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
+					// There is no point in retrying if there is no resolver found
+					throw err;
+				}
+
+				if (RemoteAuthorityResolverError.isNotAvailable(err)) {
+					// The resolver is not available and asked us to not retry
+					throw err;
+				}
+
+				if (attempt >= MAX_ATTEMPTS) {
+					// Too many failed attempts, give up
+					throw err;
+				}
+			}
+		}
+	}
+
+	protected async _resolveAuthorityAgain(): Promise<void> {
+		const remoteAuthority = this._environmentService.remoteAuthority;
+		if (!remoteAuthority) {
+			return;
 		}
 
-		return this._doStopExtensionHostsWithVeto();
+		this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
+		try {
+			const result = await this._resolveAuthorityWithLogging(remoteAuthority);
+			this._remoteAuthorityResolverService._setResolvedAuthority(result.authority, result.options);
+		} catch (err) {
+			this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
+		}
+	}
+
+	private async _resolveAuthorityWithLogging(remoteAuthority: string): Promise<ResolverResult> {
+		const authorityPrefix = getRemoteAuthorityPrefix(remoteAuthority);
+		const sw = StopWatch.create(false);
+		this._logService.info(`Invoking resolveAuthority(${authorityPrefix})...`);
+		try {
+			perf.mark(`code/willResolveAuthority/${authorityPrefix}`);
+			const result = await this._resolveAuthority(remoteAuthority);
+			perf.mark(`code/didResolveAuthorityOK/${authorityPrefix}`);
+			this._logService.info(`resolveAuthority(${authorityPrefix}) returned '${result.authority.connectTo}' after ${sw.elapsed()} ms`);
+			return result;
+		} catch (err) {
+			perf.mark(`code/didResolveAuthorityError/${authorityPrefix}`);
+			this._logService.error(`resolveAuthority(${authorityPrefix}) returned an error after ${sw.elapsed()} ms`, err);
+			throw err;
+		}
+	}
+
+	protected async _resolveAuthorityOnExtensionHosts(kind: ExtensionHostKind, remoteAuthority: string): Promise<ResolverResult> {
+
+		const extensionHosts = this._getExtensionHostManagers(kind);
+		if (extensionHosts.length === 0) {
+			// no local process extension hosts
+			throw new Error(`Cannot resolve authority`);
+		}
+
+		this._resolveAuthorityAttempt++;
+		const results = await Promise.all(extensionHosts.map(extHost => extHost.resolveAuthority(remoteAuthority, this._resolveAuthorityAttempt)));
+
+		let bestErrorResult: IResolveAuthorityErrorResult | null = null;
+		for (const result of results) {
+			if (result.type === 'ok') {
+				return result.value;
+			}
+			if (!bestErrorResult) {
+				bestErrorResult = result;
+				continue;
+			}
+			const bestErrorIsUnknown = (bestErrorResult.error.code === RemoteAuthorityResolverErrorCode.Unknown);
+			const errorIsUnknown = (result.error.code === RemoteAuthorityResolverErrorCode.Unknown);
+			if (bestErrorIsUnknown && !errorIsUnknown) {
+				bestErrorResult = result;
+			}
+		}
+
+		// we can only reach this if there is an error
+		throw new RemoteAuthorityResolverError(bestErrorResult!.error.message, bestErrorResult!.error.code, bestErrorResult!.error.detail);
+	}
+
+	//#endregion
+
+	//#region Stopping / Starting / Restarting
+
+	public stopExtensionHosts(reason: string): Promise<boolean> {
+		return this._doStopExtensionHostsWithVeto(reason);
 	}
 
 	protected _doStopExtensionHosts(): void {
@@ -557,12 +652,28 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	private async _doStopExtensionHostsWithVeto(): Promise<boolean> {
+	private async _doStopExtensionHostsWithVeto(reason: string): Promise<boolean> {
 		const vetos: (boolean | Promise<boolean>)[] = [];
+		const vetoReasons = new Set<string>();
 
 		this._onWillStop.fire({
-			veto(value) {
+			reason,
+			veto(value, reason) {
 				vetos.push(value);
+
+				if (typeof value === 'boolean') {
+					if (value === true) {
+						vetoReasons.add(reason);
+					}
+				} else {
+					value.then(value => {
+						if (value) {
+							vetoReasons.add(reason);
+						}
+					}).catch(error => {
+						vetoReasons.add(nls.localize('extensionStopVetoError', "{0} (Error: {1})", reason, toErrorMessage(error)));
+					});
+				}
 			}
 		});
 
@@ -570,7 +681,16 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (!veto) {
 			this._doStopExtensionHosts();
 		} else {
-			this._logService.warn('Extension Host stop request was vetoed');
+			const vetoReasonsArray = Array.from(vetoReasons);
+
+			this._logService.warn(`Extension host was not stopped because of veto (stop reason: ${reason}, veto reason: ${vetoReasonsArray.join(', ')})`);
+
+			await this._dialogService.warn(
+				nls.localize('extensionStopVetoMessage', "The following operation was blocked: {0}", reason),
+				vetoReasonsArray.length === 1 ?
+					nls.localize('extensionStopVetoDetailsOne', "The reason for blocking the operation: {0}", vetoReasonsArray[0]) :
+					nls.localize('extensionStopVetoDetailsMany', "The reasons for blocking the operation:\n- {0}", vetoReasonsArray.join('\n -')),
+			);
 		}
 
 		return !veto;
@@ -618,7 +738,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected _doCreateExtensionHostManager(extensionHost: IExtensionHost, initialActivationEvents: string[]): IExtensionHostManager {
-		return createExtensionHostManager(this._instantiationService, extensionHost, initialActivationEvents, this._acquireInternalAPI());
+		return createExtensionHostManager(this._instantiationService, extensionHost, initialActivationEvents, this._acquireInternalAPI(extensionHost));
 	}
 
 	private _onExtensionHostCrashOrExit(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
@@ -950,13 +1070,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#region Called by extension host
 
-	private _acquireInternalAPI(): IInternalExtensionService {
+	private _acquireInternalAPI(extensionHost: IExtensionHost): IInternalExtensionService {
 		return {
 			_activateById: (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> => {
 				return this._activateById(extensionId, reason);
 			},
 			_onWillActivateExtension: (extensionId: ExtensionIdentifier): void => {
-				return this._onWillActivateExtension(extensionId);
+				return this._onWillActivateExtension(extensionId, extensionHost.runningLocation);
 			},
 			_onDidActivateExtension: (extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void => {
 				return this._onDidActivateExtension(extensionId, codeLoadingTime, activateCallTime, activateResolvedTime, activationReason);
@@ -980,7 +1100,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	private _onWillActivateExtension(extensionId: ExtensionIdentifier): void {
+	private _onWillActivateExtension(extensionId: ExtensionIdentifier, runningLocation: ExtensionRunningLocation): void {
+		this._runningLocations.set(extensionId, runningLocation);
 		const extensionStatus = this._getOrCreateExtensionStatus(extensionId);
 		extensionStatus.onWillActivate();
 	}
@@ -1019,6 +1140,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected abstract _resolveExtensions(): Promise<ResolvedExtensions>;
 	protected abstract _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null>;
 	protected abstract _onExtensionHostExit(code: number): void;
+	protected abstract _resolveAuthority(remoteAuthority: string): Promise<ResolverResult>;
 }
 
 export class ResolvedExtensions {

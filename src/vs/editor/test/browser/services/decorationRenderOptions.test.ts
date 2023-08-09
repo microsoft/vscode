@@ -41,7 +41,7 @@ suite('Decoration Render Options', () => {
 		const styleSheet = s.globalStyleSheet;
 		s.registerDecorationType('test', 'example', options);
 		const sheet = readStyleSheet(styleSheet);
-		assert(sheet.indexOf(`{background:url('https://github.com/microsoft/vscode/blob/main/resources/linux/code.png') no-repeat;background-size:contain;}`) >= 0);
+		assert(sheet.indexOf(`{background:url('https://github.com/microsoft/vscode/blob/main/resources/linux/code.png') center center no-repeat;background-size:contain;}`) >= 0);
 		assert(sheet.indexOf(`{background-color:red;border-color:yellow;box-sizing: border-box;}`) >= 0);
 	});
 
@@ -108,14 +108,14 @@ suite('Decoration Render Options', () => {
 
 		// URI, only minimal encoding
 		s.registerDecorationType('test', 'example', { gutterIconPath: URI.parse('data:image/svg+xml;base64,PHN2ZyB4b+') });
-		assert(readStyleSheet(styleSheet).indexOf(`{background:url('data:image/svg+xml;base64,PHN2ZyB4b+') no-repeat;}`) > 0);
+		assert(readStyleSheet(styleSheet).indexOf(`{background:url('data:image/svg+xml;base64,PHN2ZyB4b+') center center no-repeat;}`) > 0);
 		s.removeDecorationType('example');
 
 		function assertBackground(url1: string, url2: string) {
 			const actual = readStyleSheet(styleSheet);
 			assert(
-				actual.indexOf(`{background:url('${url1}') no-repeat;}`) > 0
-				|| actual.indexOf(`{background:url('${url2}') no-repeat;}`) > 0
+				actual.indexOf(`{background:url('${url1}') center center no-repeat;}`) > 0
+				|| actual.indexOf(`{background:url('${url2}') center center no-repeat;}`) > 0
 			);
 		}
 
@@ -142,7 +142,7 @@ suite('Decoration Render Options', () => {
 		}
 
 		s.registerDecorationType('test', 'example', { gutterIconPath: URI.parse('http://test/pa\'th') });
-		assert(readStyleSheet(styleSheet).indexOf(`{background:url('http://test/pa%27th') no-repeat;}`) > 0);
+		assert(readStyleSheet(styleSheet).indexOf(`{background:url('http://test/pa%27th') center center no-repeat;}`) > 0);
 		s.removeDecorationType('example');
 	});
 });

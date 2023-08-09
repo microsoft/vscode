@@ -9,7 +9,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -28,7 +28,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
-import { timeout } from 'vs/base/common/async';
 import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
 
 export class LabelContribution implements IWorkbenchContribution {
@@ -140,9 +139,6 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 	}
 }
 
-const EXT_HOST_LATENCY_SAMPLES = 5;
-const EXT_HOST_LATENCY_DELAY = 2_000;
-
 class InitialRemoteConnectionHealthContribution implements IWorkbenchContribution {
 
 	constructor(
@@ -206,15 +202,9 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 	}
 
 	private async _measureExtHostLatency() {
-		// Get the minimum latency, since latency spikes could be caused by a busy extension host.
-		let bestLatency = Infinity;
-		for (let i = 0; i < EXT_HOST_LATENCY_SAMPLES; i++) {
-			const rtt = await this._remoteAgentService.getRoundTripTime();
-			if (rtt === undefined) {
-				return;
-			}
-			bestLatency = Math.min(bestLatency, rtt / 2);
-			await timeout(EXT_HOST_LATENCY_DELAY);
+		const measurement = await remoteConnectionLatencyMeasurer.measure(this._remoteAgentService);
+		if (measurement === undefined) {
+			return;
 		}
 
 		type RemoteConnectionLatencyClassification = {
@@ -233,7 +223,7 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 		this._telemetryService.publicLog2<RemoteConnectionLatencyEvent, RemoteConnectionLatencyClassification>('remoteConnectionLatency', {
 			web: isWeb,
 			remoteName: getRemoteName(this._environmentService.remoteAuthority),
-			latencyMs: bestLatency
+			latencyMs: measurement.current
 		});
 	}
 }
@@ -242,7 +232,7 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteInvalidWorkspaceDetector, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, LifecyclePhase.Restored);
 
 const enableDiagnostics = true;
 

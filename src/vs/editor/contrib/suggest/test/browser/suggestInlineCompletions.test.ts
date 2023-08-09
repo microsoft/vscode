@@ -44,6 +44,7 @@ suite('Suggest Inline Completions', function () {
 
 		insta.invokeFunction(accessor => {
 			accessor.get(ILanguageFeaturesService).completionProvider.register({ pattern: '*.bar', scheme: 'foo' }, new class implements CompletionItemProvider {
+				_debugDisplayName = 'test';
 
 				triggerCharacters?: string[] | undefined;
 

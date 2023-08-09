@@ -438,8 +438,7 @@ export class IssueMainService implements IIssueMainService {
 				enableWebSQL: false,
 				spellcheck: false,
 				zoomFactor: zoomLevelToZoomFactor(options.zoomLevel),
-				sandbox: true,
-				contextIsolation: true
+				sandbox: true
 			},
 			alwaysOnTop: options.alwaysOnTop,
 			experimentalDarkMode: true

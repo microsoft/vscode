@@ -45,11 +45,13 @@ export interface INotebookRendererContribution {
 const NotebookPreloadContribution = Object.freeze({
 	type: 'type',
 	entrypoint: 'entrypoint',
+	localResourceRoots: 'localResourceRoots',
 });
 
 interface INotebookPreloadContribution {
 	readonly [NotebookPreloadContribution.type]: string;
 	readonly [NotebookPreloadContribution.entrypoint]: string;
+	readonly [NotebookPreloadContribution.localResourceRoots]: readonly string[];
 }
 
 const notebookProviderContribution: IJSONSchema = {
@@ -225,6 +227,11 @@ const notebookPreloadContribution: IJSONSchema = {
 			[NotebookPreloadContribution.entrypoint]: {
 				type: 'string',
 				description: nls.localize('contributes.preload.entrypoint', 'Path to file loaded in the webview.'),
+			},
+			[NotebookPreloadContribution.localResourceRoots]: {
+				type: 'array',
+				items: { type: 'string' },
+				description: nls.localize('contributes.preload.localResourceRoots', 'Paths to additional resources that should be allowed in the webview.'),
 			},
 		}
 	}

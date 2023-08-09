@@ -5,85 +5,79 @@
 
 import * as vscode from 'vscode';
 import { Schemes } from '../../util/schemes';
-import { getNewFileName } from './copyFiles';
-import { createUriListSnippet, tryGetUriListSnippet } from './dropIntoEditor';
-
-const supportedImageMimes = new Set([
-	'image/png',
-	'image/jpg',
-]);
+import { createEditForMediaFiles, createEditAddingLinksForUriList, mediaMimes, getPasteUrlAsFormattedLinkSetting, PasteUrlAsFormattedLink } from './shared';
 
 class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
+	public static readonly id = 'insertLink';
+
+	private readonly _yieldTo = [
+		{ mimeType: 'text/plain' },
+		{ extensionId: 'vscode.ipynb', providerId: 'insertAttachment' },
+	];
+
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
-		_ranges: readonly vscode.Range[],
+		ranges: readonly vscode.Range[],
 		dataTransfer: vscode.DataTransfer,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit | undefined> {
-		const enabled = vscode.workspace.getConfiguration('markdown', document).get('experimental.editor.pasteLinks.enabled', true);
+		const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.filePaste.enabled', true);
 		if (!enabled) {
 			return;
 		}
 
-		if (document.uri.scheme === Schemes.notebookCell) {
+		const createEdit = await this._getMediaFilesEdit(document, dataTransfer, token);
+		if (createEdit) {
+			return createEdit;
+		}
+
+		const uriEdit = new vscode.DocumentPasteEdit('', '');
+		const urlList = await dataTransfer.get('text/uri-list')?.asString();
+		if (!urlList) {
 			return;
 		}
 
-		for (const imageMime of supportedImageMimes) {
-			const item = dataTransfer.get(imageMime);
-			const file = item?.asFile();
-			if (item && file) {
-				const edit = await this._makeCreateImagePasteEdit(document, file, token);
-				if (token.isCancellationRequested) {
-					return;
-				}
-
-				if (edit) {
-					return edit;
-				}
-			}
+		const pasteUrlSetting = getPasteUrlAsFormattedLinkSetting(document);
+		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, urlList, false, pasteUrlSetting === PasteUrlAsFormattedLink.Smart, token);
+		if (!pasteEdit) {
+			return;
 		}
 
-		const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
-		return snippet ? new vscode.DocumentPasteEdit(snippet.snippet) : undefined;
+		uriEdit.label = pasteEdit.label;
+		uriEdit.additionalEdit = pasteEdit.additionalEdits;
+		uriEdit.yieldTo = this._yieldTo;
+		return uriEdit;
 	}
 
-	private async _makeCreateImagePasteEdit(document: vscode.TextDocument, file: vscode.DataTransferFile, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
-		if (file.uri) {
-			// If file is already in workspace, we don't want to create a copy of it
-			const workspaceFolder = vscode.workspace.getWorkspaceFolder(file.uri);
-			if (workspaceFolder) {
-				const snippet = createUriListSnippet(document, [file.uri]);
-				return snippet ? new vscode.DocumentPasteEdit(snippet.snippet) : undefined;
-			}
-		}
-
-		const uri = await getNewFileName(document, file);
-		if (token.isCancellationRequested) {
+	private async _getMediaFilesEdit(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
+		if (document.uri.scheme === Schemes.untitled) {
 			return;
 		}
 
-		const snippet = createUriListSnippet(document, [uri]);
-		if (!snippet) {
+		const copyFilesIntoWorkspace = vscode.workspace.getConfiguration('markdown', document).get<'mediaFiles' | 'never'>('editor.filePaste.copyIntoWorkspace', 'mediaFiles');
+		if (copyFilesIntoWorkspace === 'never') {
 			return;
 		}
 
-		// Note that there is currently no way to undo the file creation :/
-		const workspaceEdit = new vscode.WorkspaceEdit();
-		workspaceEdit.createFile(uri, { contents: file });
+		const edit = await createEditForMediaFiles(document, dataTransfer, token);
+		if (!edit) {
+			return;
+		}
 
-		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet);
-		pasteEdit.additionalEdit = workspaceEdit;
+		const pasteEdit = new vscode.DocumentPasteEdit(edit.snippet, edit.label);
+		pasteEdit.additionalEdit = edit.additionalEdits;
+		pasteEdit.yieldTo = this._yieldTo;
 		return pasteEdit;
 	}
 }
 
 export function registerPasteSupport(selector: vscode.DocumentSelector,) {
 	return vscode.languages.registerDocumentPasteEditProvider(selector, new PasteEditProvider(), {
+		id: PasteEditProvider.id,
 		pasteMimeTypes: [
 			'text/uri-list',
-			...supportedImageMimes,
+			...mediaMimes,
 		]
 	});
 }

@@ -190,7 +190,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 			progress.report({ message: vscode.l10n.t('Creating first commit'), increment: 25 });
 
 			if (!repository) {
-				repository = await gitAPI.init(folder) || undefined;
+				repository = await gitAPI.init(folder, { defaultBranch: createdGithubRepository.default_branch }) || undefined;
 
 				if (!repository) {
 					return;

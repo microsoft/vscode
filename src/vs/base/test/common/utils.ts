@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 
 export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
 
-export function toResource(this: any, path: string) {
+export function toResource(this: any, path: string): URI {
 	if (isWindows) {
 		return URI.file(join('C:\\', btoa(this.test.fullTitle()), path));
 	}

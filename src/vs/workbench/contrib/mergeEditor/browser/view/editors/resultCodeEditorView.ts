@@ -10,9 +10,7 @@ import { CompareResult } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, autorunWithStore, derived, IObservable } from 'vs/base/common/observable';
-import { IEditorContributionDescription, EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
-import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -48,16 +46,18 @@ export class ResultCodeEditorView extends CodeEditorView {
 
 		this._register(
 			autorunWithStore((reader, store) => {
+				/** @description update checkboxes */
 				if (this.checkboxesVisible.read(reader)) {
 					store.add(new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
 						getIntersectingGutterItems: (range, reader) => [],
 						createView: (item, target) => { throw new BugIndicatingError(); },
 					}));
 				}
-			}, 'update checkboxes')
+			})
 		);
 
-		this._register(autorun('update labels & text model', reader => {
+		this._register(autorun(reader => {
+			/** @description update labels & text model */
 			const vm = this.viewModel.read(reader);
 			if (!vm) {
 				return;
@@ -70,7 +70,8 @@ export class ResultCodeEditorView extends CodeEditorView {
 
 		const remainingConflictsActionBar = this._register(new ActionBar(this.htmlElements.detail));
 
-		this._register(autorun('update remainingConflicts label', reader => {
+		this._register(autorun(reader => {
+			/** @description update remainingConflicts label */
 			const vm = this.viewModel.read(reader);
 			if (!vm) {
 				return;
@@ -128,7 +129,8 @@ export class ResultCodeEditorView extends CodeEditorView {
 		);
 	}
 
-	private readonly decorations = derived('result.decorations', reader => {
+	private readonly decorations = derived(reader => {
+		/** @description result.decorations */
 		const viewModel = this.viewModel.read(reader);
 		if (!viewModel) {
 			return [];
@@ -157,12 +159,14 @@ export class ResultCodeEditorView extends CodeEditorView {
 
 			if (modifiedBaseRange) {
 				const blockClassNames = ['merge-editor-block'];
+				let blockPadding: [top: number, right: number, bottom: number, left: number] = [0, 0, 0, 0];
 				const isHandled = model.isHandled(modifiedBaseRange).read(reader);
 				if (isHandled) {
 					blockClassNames.push('handled');
 				}
 				if (modifiedBaseRange === activeModifiedBaseRange) {
 					blockClassNames.push('focused');
+					blockPadding = [0, 2, 0, 2];
 				}
 				if (modifiedBaseRange.isConflicting) {
 					blockClassNames.push('conflicting');
@@ -179,6 +183,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 					options: {
 						showIfCollapsed: true,
 						blockClassName: blockClassNames.join(' '),
+						blockPadding,
 						blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
 						description: 'Result Diff',
 						minimap: {
@@ -223,8 +228,4 @@ export class ResultCodeEditorView extends CodeEditorView {
 		}
 		return result;
 	});
-
-	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
-		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
-	}
 }

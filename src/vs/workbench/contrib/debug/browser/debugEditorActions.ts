@@ -254,7 +254,8 @@ export class RunToCursorAction extends EditorAction {
 			precondition: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, PanelFocusContext.toNegated(), EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
 				group: 'debug',
-				order: 2
+				order: 2,
+				when: CONTEXT_IN_DEBUG_MODE
 			}
 		});
 	}
@@ -331,7 +332,7 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 			id: SelectionToWatchExpressionsAction.ID,
 			label: SelectionToWatchExpressionsAction.LABEL,
 			alias: 'Debug: Add to Watch',
-			precondition: ContextKeyExpr.and(EditorContextKeys.editorTextFocus),
+			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 1

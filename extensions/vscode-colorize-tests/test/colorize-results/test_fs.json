@@ -8,9 +8,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -22,9 +22,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -36,9 +36,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -50,9 +50,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -64,9 +64,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.type: #4EC9B0",
-			"dark_plus_experimental": "entity.name.type: #4EC9B0",
+			"dark_modern": "entity.name.type: #4EC9B0",
 			"hc_light": "entity.name.type: #185E73",
-			"light_plus_experimental": "entity.name.type: #267F99"
+			"light_modern": "entity.name.type: #267F99"
 		}
 	},
 	{
@@ -78,9 +78,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -92,9 +92,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080"
 		}
 	},
 	{
@@ -106,9 +106,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -120,9 +120,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.type: #4EC9B0",
-			"dark_plus_experimental": "entity.name.type: #4EC9B0",
+			"dark_modern": "entity.name.type: #4EC9B0",
 			"hc_light": "entity.name.type: #185E73",
-			"light_plus_experimental": "entity.name.type: #267F99"
+			"light_modern": "entity.name.type: #267F99"
 		}
 	},
 	{
@@ -134,9 +134,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -148,9 +148,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -162,9 +162,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080"
 		}
 	},
 	{
@@ -176,9 +176,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -190,9 +190,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.type: #4EC9B0",
-			"dark_plus_experimental": "entity.name.type: #4EC9B0",
+			"dark_modern": "entity.name.type: #4EC9B0",
 			"hc_light": "entity.name.type: #185E73",
-			"light_plus_experimental": "entity.name.type: #267F99"
+			"light_modern": "entity.name.type: #267F99"
 		}
 	},
 	{
@@ -204,9 +204,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -218,9 +218,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -232,9 +232,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -246,9 +246,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -260,9 +260,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -274,9 +274,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -288,9 +288,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080"
 		}
 	},
 	{
@@ -302,23 +302,23 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -330,9 +330,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -344,23 +344,23 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
 		"c": "new",
-		"t": "source.fsharp keyword.symbol.new",
+		"t": "source.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -372,9 +372,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -386,9 +386,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -400,9 +400,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -414,9 +414,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -428,9 +428,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -442,9 +442,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -456,9 +456,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -470,9 +470,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -484,9 +484,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -498,9 +498,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -512,9 +512,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -526,9 +526,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -540,9 +540,9 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"dark_plus_experimental": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
 			"hc_light": "constant.numeric: #096D48",
-			"light_plus_experimental": "constant.numeric: #098658"
+			"light_modern": "constant.numeric: #098658"
 		}
 	},
 	{
@@ -554,9 +554,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -568,9 +568,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -582,9 +582,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -596,9 +596,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -610,9 +610,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080"
 		}
 	},
 	{
@@ -624,23 +624,23 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -652,9 +652,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -666,9 +666,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -680,9 +680,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -694,9 +694,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -708,9 +708,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -722,9 +722,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -736,9 +736,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080"
 		}
 	},
 	{
@@ -750,9 +750,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -764,9 +764,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -778,23 +778,23 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
 		"c": "()",
-		"t": "source.fsharp binding.fsharp constant.language.unit.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
-			"dark_plus": "constant.language: #569CD6",
-			"light_plus": "constant.language: #0000FF",
-			"dark_vs": "constant.language: #569CD6",
-			"light_vs": "constant.language: #0000FF",
-			"hc_black": "constant.language: #569CD6",
-			"dark_plus_experimental": "constant.language: #569CD6",
-			"hc_light": "constant.language: #0F4A85",
-			"light_plus_experimental": "constant.language: #0000FF"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85",
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -806,23 +806,23 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -834,9 +834,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -848,9 +848,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -862,9 +862,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -876,9 +876,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -890,9 +890,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080"
 		}
 	},
 	{
@@ -904,9 +904,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -918,9 +918,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080"
 		}
 	},
 	{
@@ -932,9 +932,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -946,23 +946,23 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -974,23 +974,23 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
 		"c": "<-",
-		"t": "source.fsharp keyword.symbol.fsharp",
+		"t": "source.fsharp keyword.symbol.arrow.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1002,9 +1002,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1016,9 +1016,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1030,9 +1030,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1044,9 +1044,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1058,9 +1058,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080"
 		}
 	},
 	{
@@ -1072,23 +1072,23 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080"
 		}
 	},
 	{
 		"c": "()",
-		"t": "source.fsharp binding.fsharp constant.language.unit.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
-			"dark_plus": "constant.language: #569CD6",
-			"light_plus": "constant.language: #0000FF",
-			"dark_vs": "constant.language: #569CD6",
-			"light_vs": "constant.language: #0000FF",
-			"hc_black": "constant.language: #569CD6",
-			"dark_plus_experimental": "constant.language: #569CD6",
-			"hc_light": "constant.language: #0F4A85",
-			"light_plus_experimental": "constant.language: #0000FF"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85",
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1100,23 +1100,23 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1128,23 +1128,23 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
 		"c": "<-",
-		"t": "source.fsharp keyword.symbol.fsharp",
+		"t": "source.fsharp keyword.symbol.arrow.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1156,9 +1156,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1170,9 +1170,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1184,9 +1184,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1198,9 +1198,9 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"dark_plus_experimental": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
 			"hc_light": "constant.numeric: #096D48",
-			"light_plus_experimental": "constant.numeric: #098658"
+			"light_modern": "constant.numeric: #098658"
 		}
 	},
 	{
@@ -1212,9 +1212,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1226,9 +1226,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1240,9 +1240,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1254,9 +1254,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080"
 		}
 	},
 	{
@@ -1268,23 +1268,23 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080"
 		}
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1296,9 +1296,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1310,9 +1310,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1324,9 +1324,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1338,9 +1338,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1352,9 +1352,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1366,9 +1366,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1380,9 +1380,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080"
 		}
 	},
 	{
@@ -1394,23 +1394,23 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080"
 		}
 	},
 	{
 		"c": "()",
-		"t": "source.fsharp binding.fsharp constant.language.unit.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
-			"dark_plus": "constant.language: #569CD6",
-			"light_plus": "constant.language: #0000FF",
-			"dark_vs": "constant.language: #569CD6",
-			"light_vs": "constant.language: #0000FF",
-			"hc_black": "constant.language: #569CD6",
-			"dark_plus_experimental": "constant.language: #569CD6",
-			"hc_light": "constant.language: #0F4A85",
-			"light_plus_experimental": "constant.language: #0000FF"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85",
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1422,23 +1422,23 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1450,9 +1450,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1464,9 +1464,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
@@ -1478,9 +1478,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
@@ -1492,9 +1492,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
@@ -1506,9 +1506,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1520,9 +1520,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1534,9 +1534,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1548,9 +1548,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1562,9 +1562,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1576,9 +1576,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
@@ -1590,9 +1590,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "constant.character: #569CD6",
-			"dark_plus_experimental": "constant.character: #569CD6",
+			"dark_modern": "constant.character: #569CD6",
 			"hc_light": "constant.character: #0F4A85",
-			"light_plus_experimental": "constant.character: #0000FF"
+			"light_modern": "constant.character: #0000FF"
 		}
 	},
 	{
@@ -1604,9 +1604,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
@@ -1618,9 +1618,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1632,9 +1632,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1646,9 +1646,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1660,9 +1660,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
@@ -1674,9 +1674,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
@@ -1688,9 +1688,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515"
 		}
 	},
 	{
@@ -1702,9 +1702,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1716,9 +1716,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1730,9 +1730,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1744,9 +1744,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1758,9 +1758,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1772,9 +1772,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"dark_plus_experimental": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
 			"hc_light": "keyword: #0F4A85",
-			"light_plus_experimental": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1786,9 +1786,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B"
 		}
 	}
 ]

@@ -52,7 +52,7 @@ export class UserDataSyncClient extends Disposable {
 
 	constructor(readonly testServer: UserDataSyncTestServer = new UserDataSyncTestServer()) {
 		super();
-		this.instantiationService = new TestInstantiationService();
+		this.instantiationService = this._register(new TestInstantiationService());
 	}
 
 	async setUp(empty: boolean = false): Promise<void> {

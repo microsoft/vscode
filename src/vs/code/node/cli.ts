@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, ChildProcessWithoutNullStreams, spawn, SpawnOptions } from 'child_process';
+import { ChildProcess, spawn, SpawnOptions, StdioOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, release, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
@@ -21,10 +21,12 @@ import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener 
 import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
 import product from 'vs/platform/product/common/product';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { randomPath } from 'vs/base/common/extpath';
+import { isUNC, randomPath } from 'vs/base/common/extpath';
 import { Utils } from 'vs/platform/profiling/common/profiling';
 import { FileAccess } from 'vs/base/common/network';
 import { cwd } from 'vs/base/common/process';
+import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { URI } from 'vs/base/common/uri';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -56,20 +58,21 @@ export async function main(argv: string[]): Promise<any> {
 		}
 		const tunnelArgs = argv.slice(argv.indexOf('tunnel') + 1); // all arguments behind `tunnel`
 		return new Promise((resolve, reject) => {
-			let tunnelProcess: ChildProcessWithoutNullStreams;
+			let tunnelProcess: ChildProcess;
+			const stdio: StdioOptions = ['ignore', 'pipe', 'pipe'];
 			if (process.env['VSCODE_DEV']) {
-				tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...tunnelArgs], { cwd: join(getAppRoot(), 'cli') });
+				tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio });
 			} else {
 				const appPath = process.platform === 'darwin'
 					// ./Contents/MacOS/Electron => ./Contents/Resources/app/bin/code-tunnel-insiders
 					? join(dirname(dirname(process.execPath)), 'Resources', 'app')
 					: dirname(process.execPath);
 				const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
-				tunnelProcess = spawn(tunnelCommand, ['tunnel', ...tunnelArgs], { cwd: cwd() });
+				tunnelProcess = spawn(tunnelCommand, ['tunnel', ...tunnelArgs], { cwd: cwd(), stdio });
 			}
 
-			tunnelProcess.stdout.pipe(process.stdout);
-			tunnelProcess.stderr.pipe(process.stderr);
+			tunnelProcess.stdout!.pipe(process.stdout);
+			tunnelProcess.stderr!.pipe(process.stderr);
 			tunnelProcess.on('exit', resolve);
 			tunnelProcess.on('error', reject);
 		});
@@ -97,7 +100,7 @@ export async function main(argv: string[]): Promise<any> {
 			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"`
 			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
 			// Usage: `string match -q "$TERM_PROGRAM" "vscode"; and . (code --locate-shell-integration-path fish)`
-			case 'fish': file = 'shellIntegration.fish'; break;
+			case 'fish': file = 'fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish'; break;
 			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
 		}
 		console.log(join(getAppRoot(), 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
@@ -115,6 +118,16 @@ export async function main(argv: string[]): Promise<any> {
 	else if (args['file-write']) {
 		const source = args._[0];
 		const target = args._[1];
+
+		// Windows: set the paths as allowed UNC paths given
+		// they are explicitly provided by the user as arguments
+		if (isWindows) {
+			for (const path of [source, target]) {
+				if (isUNC(path)) {
+					addUNCHostToAllowlist(URI.file(path).authority);
+				}
+			}
+		}
 
 		// Validate
 		if (
@@ -175,13 +188,14 @@ export async function main(argv: string[]): Promise<any> {
 
 		const processCallbacks: ((child: ChildProcess) => Promise<void>)[] = [];
 
-		const verbose = args.verbose || args.status;
-		if (verbose) {
+		if (args.verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
+		}
 
+		if (args.verbose || args.status) {
 			processCallbacks.push(async child => {
-				child.stdout!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
-				child.stderr!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
+				child.stdout?.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
+				child.stderr?.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 
 				await Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'));
 			});
@@ -206,7 +220,7 @@ export async function main(argv: string[]): Promise<any> {
 
 				// returns a file path where stdin input is written into (write in progress).
 				try {
-					await readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
+					await readFromStdin(stdinFilePath, !!args.verbose); // throws error if file can not be written
 
 					// Make sure to open tmp file
 					addArg(argv, stdinFilePath);
@@ -245,7 +259,7 @@ export async function main(argv: string[]): Promise<any> {
 		// is closed and then exit the waiting process.
 		let waitMarkerFilePath: string | undefined;
 		if (args.wait) {
-			waitMarkerFilePath = createWaitMarkerFileSync(verbose);
+			waitMarkerFilePath = createWaitMarkerFileSync(args.verbose);
 			if (waitMarkerFilePath) {
 				addArg(argv, '--waitMarkerFilePath', waitMarkerFilePath);
 			}
@@ -394,12 +408,16 @@ export async function main(argv: string[]): Promise<any> {
 			env
 		};
 
-		if (!verbose) {
+		if (!args.verbose) {
 			options['stdio'] = 'ignore';
 		}
 
 		let child: ChildProcess;
 		if (!isMacOSBigSurOrNewer) {
+			if (!args.verbose && args.status) {
+				options['stdio'] = ['ignore', 'pipe', 'ignore']; // restore ability to see output when --status is used
+			}
+
 			// We spawn process.execPath directly
 			child = spawn(process.execPath, argv.slice(2), options);
 		} else {
@@ -418,13 +436,13 @@ export async function main(argv: string[]): Promise<any> {
 			// -a opens the given application.
 			spawnArgs.push('-a', process.execPath); // -a: opens a specific application
 
-			if (verbose) {
+			if (args.verbose || args.status) {
 				spawnArgs.push('--wait-apps'); // `open --wait-apps`: blocks until the launched app is closed (even if they were already running)
 
 				// The open command only allows for redirecting stderr and stdout to files,
 				// so we make it redirect those to temp files, and then use a logger to
 				// redirect the file output to the console
-				for (const outputType of ['stdout', 'stderr']) {
+				for (const outputType of args.verbose ? ['stdout', 'stderr'] : ['stdout']) {
 
 					// Tmp file to target output to
 					const tmpName = randomPath(tmpdir(), `code-${outputType}`);

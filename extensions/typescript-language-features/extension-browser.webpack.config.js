@@ -41,7 +41,7 @@ module.exports = [withBrowserDefaults({
 			patterns: [
 				{
 					from: '../node_modules/typescript/lib/*.d.ts',
-					to: 'typescript/',
+					to: 'typescript/[name][ext]',
 				},
 				{
 					from: '../node_modules/typescript/lib/typesMap.json',

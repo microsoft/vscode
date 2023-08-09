@@ -5,7 +5,7 @@
 
 import { toLocalISOString } from 'vs/base/common/date';
 import { memoize } from 'vs/base/common/decorators';
-import { FileAccess } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { dirname, join, normalize, resolve } from 'vs/base/common/path';
 import { env } from 'vs/base/common/process';
 import { joinPath } from 'vs/base/common/resources';
@@ -65,10 +65,10 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get stateResource(): URI { return joinPath(this.appSettingsHome, 'globalStorage', 'storage.json'); }
 
 	@memoize
-	get userRoamingDataHome(): URI { return this.appSettingsHome; }
+	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 
 	@memoize
-	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync'); }
+	get userDataSyncHome(): URI { return joinPath(this.appSettingsHome, 'sync'); }
 
 	get logsHome(): URI {
 		if (!this.args.logsPath) {
@@ -235,6 +235,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
+
+	@memoize
+	get disableKeytar(): boolean { return !!this.args['disable-keytar']; }
 
 	@memoize
 	get policyFile(): URI | undefined {

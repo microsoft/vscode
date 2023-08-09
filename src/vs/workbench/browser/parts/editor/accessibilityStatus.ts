@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationHandle, INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationHandle, INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -40,26 +40,27 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 	}
 
 	private showScreenReaderNotification(): void {
-		if (!this.screenReaderNotification) {
-			this.screenReaderNotification = this.notificationService.prompt(
-				Severity.Info,
-				localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"),
-				[{
-					label: localize('screenReaderDetectedExplanation.answerYes', "Yes"),
-					run: () => {
-						this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
-					}
-				}, {
-					label: localize('screenReaderDetectedExplanation.answerNo', "No"),
-					run: () => {
-						this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
-					}
-				}],
-				{ sticky: true }
-			);
+		this.screenReaderNotification = this.notificationService.prompt(
+			Severity.Info,
+			localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"),
+			[{
+				label: localize('screenReaderDetectedExplanation.answerYes', "Yes"),
+				run: () => {
+					this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
+				}
+			}, {
+				label: localize('screenReaderDetectedExplanation.answerNo', "No"),
+				run: () => {
+					this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
+				}
+			}],
+			{
+				sticky: true,
+				priority: NotificationPriority.URGENT
+			}
+		);
 
-			Event.once(this.screenReaderNotification.onDidClose)(() => this.screenReaderNotification = null);
-		}
+		Event.once(this.screenReaderNotification.onDidClose)(() => this.screenReaderNotification = null);
 	}
 	private updateScreenReaderModeElement(visible: boolean): void {
 		if (visible) {

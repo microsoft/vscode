@@ -6,7 +6,7 @@
 import * as cp from 'child_process';
 import * as os from 'os';
 import * as treekill from 'tree-kill';
-import { IElement, ILocaleInfo, ILocalizedStrings } from './driver';
+import { IElement, ILocaleInfo, ILocalizedStrings, ILogFile } from './driver';
 import { Logger, measureAndLog } from './logger';
 import { launch as launchPlaywrightBrowser } from './playwrightBrowser';
 import { PlaywrightDriver } from './playwrightDriver';
@@ -242,12 +242,16 @@ export class Code {
 		await this.poll(() => this.driver.writeInTerminal(selector, value), () => true, `writeInTerminal '${selector}'`);
 	}
 
-	async getLocaleInfo(): Promise<ILocaleInfo> {
+	getLocaleInfo(): Promise<ILocaleInfo> {
 		return this.driver.getLocaleInfo();
 	}
 
-	async getLocalizedStrings(): Promise<ILocalizedStrings> {
+	getLocalizedStrings(): Promise<ILocalizedStrings> {
 		return this.driver.getLocalizedStrings();
+	}
+
+	getLogs(): Promise<ILogFile[]> {
+		return this.driver.getLogs();
 	}
 
 	private async poll<T>(

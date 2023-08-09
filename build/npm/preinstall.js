@@ -9,12 +9,12 @@ const majorNodeVersion = parseInt(nodeVersion[1]);
 const minorNodeVersion = parseInt(nodeVersion[2]);
 const patchNodeVersion = parseInt(nodeVersion[3]);
 
-if (majorNodeVersion < 16 || (majorNodeVersion === 16 && minorNodeVersion < 17)) {
-	console.error('\033[1;31m*** Please use node.js versions >=16.17.x and <17.\033[0;0m');
-	err = true;
+if (majorNodeVersion < 18 || (majorNodeVersion === 18 && minorNodeVersion < 15)) {
+	console.error('\033[1;31m*** Please use node.js versions >=18.15.x and <19.\033[0;0m');
+	// err = true; enable once update unit test docker images are updated #189885
 }
-if (majorNodeVersion >= 17) {
-	console.warn('\033[1;31m*** Warning: Versions of node.js >= 17 have not been tested.\033[0;0m')
+if (majorNodeVersion >= 19) {
+	console.warn('\033[1;31m*** Warning: Versions of node.js >= 19 have not been tested.\033[0;0m')
 }
 
 const path = require('path');
@@ -123,7 +123,19 @@ function installHeaders() {
 		cp.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target]);
 	}
 
-	if (remote !== undefined && !versions.has(remote.target)) {
+	// Avoid downloading headers for Windows arm64 till we move to Nodejs v19 in remote
+	// which is the first official release with support for the architecture. Downloading
+	// the headers for older versions now redirect to https://origin.nodejs.org/404.html
+	// which causes checksum validation error in node-gyp.
+	//
+	// gyp http 200 https://origin.nodejs.org/404.html
+	// gyp WARN install got an error, rolling back install
+	// gyp ERR! install error
+	// gyp ERR! stack Error: win-arm64/node.lib local checksum 4c62bed7a032f7b36984321b7ffdd60b596fac870672037ff879ae9ac9548fb7 not match remote undefined
+	//
+	if (remote !== undefined && !versions.has(remote.target) &&
+		process.env['npm_config_arch'] !== "arm64" &&
+		process.arch !== "arm64") {
 		// Both disturl and target come from a file checked into our repository
 		cp.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target]);
 	}
