@@ -6,14 +6,13 @@
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { marked } from 'vs/base/common/marked/marked';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { Command, EditorExtensionsRegistry, MultiCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -22,18 +21,18 @@ import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeA
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
 const enum DIMENSIONS {
@@ -388,7 +387,8 @@ class AccessibleView extends Disposable {
 	private _getAccessibleViewHelpDialogContent(providerHasSymbols?: boolean): string {
 		const navigationHint = this._getNavigationHint();
 		const goToSymbolHint = this._getGoToSymbolHint(providerHasSymbols);
-		const toolbarHint = this._getToolbarHint();
+		const toolbarHint = localize('toolbar', "Navigate to the toolbar ({0} or Shift+Tab)");
+
 		let hint = localize('intro', "In the accessible view, you can:\n");
 		if (navigationHint) {
 			hint += ' - ' + navigationHint + '\n';
@@ -400,17 +400,6 @@ class AccessibleView extends Disposable {
 			hint += ' - ' + toolbarHint + '\n';
 		}
 		return hint;
-	}
-
-	private _getToolbarHint(): string {
-		let toolbarHint = '';
-		const toolbarKb = this._keybindingService.lookupKeybinding('editor.action.accessibleViewFocusToolbar')?.getLabel();
-		if (toolbarKb) {
-			toolbarHint = localize('toolbar', "Navigate to the toolbar ({0} or Shift+Tab)", toolbarKb);
-		} else {
-			toolbarHint = localize('toolbarNoKb', "Navigate to the toolbar (Shift+Tab)");
-		}
-		return toolbarHint;
 	}
 
 	private _getNavigationHint(): string {
@@ -543,162 +532,3 @@ interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
 	info: string;
 	firstListItem?: string;
 }
-const accessibleViewMenu = {
-	id: MenuId.AccessibleView,
-	group: 'navigation',
-	when: accessibleViewIsShown
-};
-const commandPalette = {
-	id: MenuId.CommandPalette,
-	group: '',
-	order: 1
-};
-class AccessibleViewNextAction extends Action2 {
-	constructor() {
-		super({
-			id: 'editor.action.accessibleViewNext',
-			precondition: accessibleViewIsShown,
-			keybinding: {
-				primary: KeyMod.Alt | KeyCode.BracketRight,
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			menu: [commandPalette, accessibleViewMenu],
-			icon: Codicon.chevronRight,
-			title: localize('editor.action.accessibleViewNext', "Show Next in Accessible View")
-		});
-	}
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IAccessibleViewService).next();
-	}
-}
-registerAction2(AccessibleViewNextAction);
-
-
-class AccessibleViewPreviousAction extends Action2 {
-	constructor() {
-		super({
-			id: 'editor.action.accessibleViewPrevious',
-			precondition: accessibleViewIsShown,
-			keybinding: {
-				primary: KeyMod.Alt | KeyCode.BracketLeft,
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			icon: Codicon.chevronLeft,
-			menu: [commandPalette, accessibleViewMenu],
-			title: localize('editor.action.accessibleViewPrevious', "Show Previous in Accessible View")
-		});
-	}
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IAccessibleViewService).previous();
-	}
-}
-registerAction2(AccessibleViewPreviousAction);
-
-
-class AccessibleViewGoToSymbolAction extends Action2 {
-	constructor() {
-		super({
-			id: 'editor.action.accessibleViewGoToSymbol',
-			precondition: accessibleViewIsShown,
-			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
-				weight: KeybindingWeight.WorkbenchContrib + 10
-			},
-			icon: Codicon.symbolField,
-			menu: [commandPalette, accessibleViewMenu],
-			title: localize('editor.action.accessibleViewGoToSymbol', "Go To Symbol in Accessible View")
-		});
-	}
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IAccessibleViewService).goToSymbol();
-	}
-}
-registerAction2(AccessibleViewGoToSymbolAction);
-
-function registerCommand<T extends Command>(command: T): T {
-	command.register();
-	return command;
-}
-
-export const AccessibilityHelpAction = registerCommand(new MultiCommand({
-	id: 'editor.action.accessibilityHelp',
-	precondition: undefined,
-	kbOpts: {
-		primary: KeyMod.Alt | KeyCode.F1,
-		weight: KeybindingWeight.WorkbenchContrib,
-		linux: {
-			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
-			secondary: [KeyMod.Alt | KeyCode.F1]
-		}
-	},
-	menuOpts: [{
-		menuId: MenuId.CommandPalette,
-		group: '',
-		title: localize('editor.action.accessibilityHelp', "Open Accessibility Help"),
-		order: 1
-	}],
-}));
-
-
-export const AccessibleViewAction = registerCommand(new MultiCommand({
-	id: 'editor.action.accessibleView',
-	precondition: undefined,
-	kbOpts: {
-		primary: KeyMod.Alt | KeyCode.F2,
-		weight: KeybindingWeight.WorkbenchContrib,
-		linux: {
-			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F2,
-			secondary: [KeyMod.Alt | KeyCode.F2]
-		}
-	},
-	menuOpts: [{
-		menuId: MenuId.CommandPalette,
-		group: '',
-		title: localize('editor.action.accessibleView', "Open Accessible View"),
-		order: 1
-	}],
-}));
-
-class AccessibleViewDisableHintAction extends Action2 {
-	constructor() {
-		super({
-			id: 'editor.action.accessibleViewDisableHint',
-			keybinding: {
-				when: ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown),
-				primary: KeyMod.Alt | KeyCode.F6,
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			icon: Codicon.treeFilterClear,
-			menu: [commandPalette,
-				{
-					id: MenuId.AccessibleView,
-					group: 'navigation',
-					when: ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown)
-				}],
-			title: localize('editor.action.accessibleViewDisableHint', "Disable Accessible View Hint")
-		});
-	}
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IAccessibleViewService).disableHint();
-	}
-}
-registerAction2(AccessibleViewDisableHintAction);
-
-class AccessibleViewFocusToolbarAction extends Action2 {
-	constructor() {
-		super({
-			id: 'editor.action.accessibleViewFocusToolbar',
-			keybinding: {
-				when: accessibleViewIsShown,
-				primary: KeyMod.Alt | KeyCode.F7,
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			menu: [commandPalette],
-			title: localize('editor.action.accessibleViewFocusToolbar', "Accessible View Focus Toolbar")
-		});
-	}
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IAccessibleViewService).focusToolbar();
-	}
-}
-registerAction2(AccessibleViewFocusToolbarAction);

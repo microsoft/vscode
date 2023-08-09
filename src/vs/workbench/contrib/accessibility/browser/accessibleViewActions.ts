@@ -153,22 +153,3 @@ class AccessibleViewDisableHintAction extends Action2 {
 	}
 }
 registerAction2(AccessibleViewDisableHintAction);
-
-class AccessibleViewFocusToolbarAction extends Action2 {
-	constructor() {
-		super({
-			id: 'editor.action.accessibleViewFocusToolbar',
-			keybinding: {
-				when: accessibleViewIsShown,
-				primary: KeyMod.Alt | KeyCode.F7,
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			menu: [commandPalette],
-			title: localize('editor.action.accessibleViewFocusToolbar', "Accessible View Focus Toolbar")
-		});
-	}
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IAccessibleViewService).focusToolbar();
-	}
-}
-registerAction2(AccessibleViewFocusToolbarAction);
