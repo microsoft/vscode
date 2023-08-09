@@ -502,7 +502,16 @@ impl DevTunnels {
 		info!(self.log, "Creating tunnel with the name: {}", name);
 
 		let tunnel = match self.get_existing_tunnel_with_name(name).await? {
-			Some(e) => e,
+			Some(e) => {
+				let loc = TunnelLocator::try_from(&e).unwrap();
+				info!(self.log, "Adopting existing tunnel (ID={:?})", loc);
+				spanf!(
+					self.log,
+					self.log.span("dev-tunnel.tag.get"),
+					self.client.get_tunnel(&loc, &HOST_TUNNEL_REQUEST_OPTIONS)
+				)
+				.map_err(|e| wrap(e, "failed to lookup tunnel"))?
+			}
 			None => {
 				let new_tunnel = Tunnel {
 					tags: self.get_tags(name),
@@ -552,13 +561,13 @@ impl DevTunnels {
 		};
 
 		let pt = PersistedTunnel {
-			cluster: tunnel.cluster_id.unwrap(),
-			id: tunnel.tunnel_id.unwrap(),
+			cluster: tunnel.cluster_id.clone().unwrap(),
+			id: tunnel.tunnel_id.clone().unwrap(),
 			name: name.to_string(),
 		};
 
 		self.launcher_tunnel.save(Some(pt.clone()))?;
-		return Ok((pt, t));
+		Ok((pt, tunnel))
 	}
 
 	/// Gets the expected tunnel tags
@@ -668,7 +677,7 @@ impl DevTunnels {
 		Ok(tunnels)
 	}
 
-	async fn get_existing_tunnel_with_name() -> Result<Option<Tunnel>, AnyError> {
+	async fn get_existing_tunnel_with_name(&self, name: &str) -> Result<Option<Tunnel>, AnyError> {
 		let existing: Vec<Tunnel> = spanf!(
 			self.log,
 			self.log.span("dev-tunnel.rename.search"),
@@ -676,23 +685,14 @@ impl DevTunnels {
 				tags: vec![self.tag.to_string(), name.to_string()],
 				require_all_tags: true,
 				limit: 1,
+				include_ports: true,
+				token_scopes: vec!["host".to_string()],
 				..Default::default()
 			})
 		)
 		.map_err(|e| wrap(e, "failed to list existing tunnels"))?;
 
-		Ok(existing.first())
-	}
-
-	async fn check_is_name_free(&mut self, name: &str) -> Result<(), AnyError> {
-		if get_existing_tunnel_with_name(name).await?.is_some() {
-			return Err(AnyError::from(TunnelCreationFailed(
-				name.to_string(),
-				"tunnel name already in use".to_string(),
-			)));
-		};
-
-		Ok(())
+		Ok(existing.into_iter().next())
 	}
 
 	fn get_placeholder_name() -> String {
