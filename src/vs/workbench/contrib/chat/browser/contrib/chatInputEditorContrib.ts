@@ -126,7 +126,6 @@ class InputEditorDecorations extends Disposable {
 						after: {
 							contentText: shouldRenderFollowupPlaceholder ? command.followupPlaceholder : command.detail,
 							color: this.getPlaceholderColor(),
-							padding: '0 0 0 3px'
 						}
 					}
 				}];
