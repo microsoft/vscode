@@ -25,14 +25,16 @@ import { INotebookOutputActionContext } from 'vs/workbench/contrib/notebook/brow
 import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { CLIPBOARD_COMPATIBLE_MIMETYPES, CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellUri, IOrderedMimeType, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, IOrderedMimeType, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { COPY_OUTPUT_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/copyOutputAction';
+import { CLEAR_CELL_OUTPUTS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -253,9 +255,29 @@ class CellOutputElement extends Disposable {
 		return { type: RenderOutputType.Html, source: viewModel, htmlContent: el.outerHTML };
 	}
 
+	private shouldEnableCopy(mimeTypes: readonly IOrderedMimeType[]) {
+		if (!mimeTypes.find(mimeType => CLIPBOARD_COMPATIBLE_MIMETYPES.indexOf(mimeType.mimeType))) {
+			return false;
+		}
+
+		if (isTextStreamMime(mimeTypes[0].mimeType)) {
+			const cellViewModel = this.output.cellViewModel as ICellViewModel;
+			const index = cellViewModel.outputsViewModels.indexOf(this.output);
+			if (index > 0) {
+				const previousOutput = cellViewModel.model.outputs[index - 1];
+				// if the previous output was also a stream, the copy command will be in that output instead
+				return !isTextStreamMime(previousOutput.outputs[0].mime);
+			}
+		}
+
+		return true;
+	}
+
 	private async _attachToolbar(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, index: number, mimeTypes: readonly IOrderedMimeType[]) {
 		const hasMultipleMimeTypes = mimeTypes.filter(mimeType => mimeType.isTrusted).length > 1;
-		if (index > 0 && !hasMultipleMimeTypes) {
+		const isCopyEnabled = this.shouldEnableCopy(mimeTypes);
+		if (index > 0 && !hasMultipleMimeTypes && !isCopyEnabled) {
+			// nothing to put in the toolbar
 			return;
 		}
 
@@ -284,21 +306,30 @@ class CellOutputElement extends Disposable {
 		// TODO: This could probably be a real registered action, but it has to talk to this output element
 		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Change Presentation"), ThemeIcon.asClassName(mimetypeIcon), undefined,
 			async _context => this._pickActiveMimeTypeRenderer(outputItemDiv, notebookTextModel, kernel, this.output));
-		if (index === 0 && useConsolidatedButton) {
-			const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService));
-			const updateMenuToolbar = () => {
-				const primary: IAction[] = [];
-				const secondary: IAction[] = [];
-				const result = { primary, secondary };
 
-				createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, () => false);
-				toolbar.setActions([], [pickAction, ...secondary]);
-			};
-			updateMenuToolbar();
-			this._renderDisposableStore.add(menu.onDidChange(updateMenuToolbar));
-		} else {
-			toolbar.setActions([pickAction]);
-		}
+		const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService));
+		const updateMenuToolbar = () => {
+			const primary: IAction[] = [];
+			let secondary: IAction[] = [];
+			const result = { primary, secondary };
+
+			createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, () => false);
+			if (index > 0 || !useConsolidatedButton) {
+				// clear outputs should only appear in the first output item's menu
+				secondary = secondary.filter((action) => action.id !== CLEAR_CELL_OUTPUTS_COMMAND_ID);
+			}
+			if (!isCopyEnabled) {
+				secondary = secondary.filter((action) => action.id !== COPY_OUTPUT_COMMAND_ID);
+			}
+			if (hasMultipleMimeTypes) {
+				secondary = [pickAction, ...secondary];
+			}
+
+			toolbar.setActions([], secondary);
+		};
+		updateMenuToolbar();
+		this._renderDisposableStore.add(menu.onDidChange(updateMenuToolbar));
+
 	}
 
 	private async _pickActiveMimeTypeRenderer(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
@@ -756,3 +787,5 @@ const JUPYTER_RENDERER_MIMETYPES = [
 	'application/vnd.jupyter.widget-view+json',
 	'application/vnd.code.notebook.error'
 ];
+
+
