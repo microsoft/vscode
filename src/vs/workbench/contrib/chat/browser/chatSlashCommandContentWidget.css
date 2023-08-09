@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-slash-command-content-widget {
-	padding: 0 3px 1px 3px;
+	padding: 1px 2px 0px 1px;
+	margin-top: 1px;
 	border-radius: 3px;
 	background-color: var(--vscode-chat-slashCommandBackground);
 	color: var(--vscode-chat-slashCommandForeground);
@@ -12,4 +13,8 @@
 
 .interactive-session .interactive-input-and-toolbar .chat-slash-command-content-widget {
 	top: 7px !important;
+}
+
+.inline-chat .chat-slash-command-content-widget {
+	top: 2px !important;
 }
