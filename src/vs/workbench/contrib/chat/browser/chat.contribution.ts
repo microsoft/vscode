@@ -42,12 +42,12 @@ import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ChatProviderService, IChatProviderService } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
+import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
