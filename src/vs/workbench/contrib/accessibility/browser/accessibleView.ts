@@ -155,7 +155,9 @@ class AccessibleView extends Disposable {
 				return this._render(provider!, container, showAccessibleViewHelp);
 			},
 			onHide: () => {
-				this._currentProvider = undefined;
+				if (!showAccessibleViewHelp) {
+					this._currentProvider = undefined;
+				}
 			}
 		};
 		this._contextViewService.showContextView(delegate);
@@ -379,16 +381,8 @@ class AccessibleView extends Disposable {
 			verbositySettingKey: this._currentProvider.verbositySettingKey
 		};
 		this._contextViewService.hideContextView();
-
-		const delegate: IContextViewDelegate = {
-			getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
-			render: (container) => {
-				container.classList.add('accessible-view-container');
-				return this._render(accessibleViewHelpProvider, container, true);
-			}
-		};
 		// HACK: Delay to allow the context view to hide #186514
-		setTimeout(() => this._contextViewService.showContextView(delegate), 100);
+		setTimeout(() => this.show(accessibleViewHelpProvider, undefined, true), 100);
 	}
 
 	private _getAccessibleViewHelpDialogContent(providerHasSymbols?: boolean): string {
