@@ -98,6 +98,10 @@ export interface IChatRendererDelegate {
 	getSlashCommands(): ISlashCommand[];
 }
 
+export interface IChatListItemRendererOptions {
+	readonly renderStyle?: 'default' | 'compact';
+}
+
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
 	static readonly cursorCharacter = '\u258c';
 	static readonly ID = 'item';
@@ -122,6 +126,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	constructor(
 		private readonly editorOptions: ChatEditorOptions,
+		private readonly rendererOptions: IChatListItemRendererOptions,
 		private readonly delegate: IChatRendererDelegate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
@@ -198,6 +203,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	renderTemplate(container: HTMLElement): IChatListItemTemplate {
 		const templateDisposables = new DisposableStore();
 		const rowContainer = dom.append(container, $('.interactive-item-container'));
+		if (this.rendererOptions.renderStyle === 'compact') {
+			rowContainer.classList.add('interactive-item-compact');
+		}
 		const header = dom.append(rowContainer, $('.header'));
 		const user = dom.append(header, $('.user'));
 		const avatar = dom.append(user, $('.avatar'));
