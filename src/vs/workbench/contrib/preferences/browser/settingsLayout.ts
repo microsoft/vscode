@@ -5,6 +5,10 @@
 
 import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { getExperimentalExtensionToggleData } from 'vs/workbench/contrib/preferences/common/preferences';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 export interface ITOCEntry<T> {
 	id: string;
 	label: string;
@@ -13,11 +17,29 @@ export interface ITOCEntry<T> {
 	settings?: Array<T>;
 }
 
-export const commonlyUsedData: ITOCEntry<string> = {
-	id: 'commonlyUsed',
-	label: localize('commonlyUsed', "Commonly Used"),
-	settings: ['files.autoSave', 'editor.fontSize', 'editor.fontFamily', 'editor.tabSize', 'editor.renderWhitespace', 'editor.cursorStyle', 'editor.multiCursorModifier', 'editor.insertSpaces', 'editor.wordWrap', 'files.exclude', 'files.associations', 'workbench.editor.enablePreview']
-};
+const defaultCommonlyUsedSettings: string[] = [
+	'files.autoSave',
+	'editor.fontSize',
+	'editor.fontFamily',
+	'editor.tabSize',
+	'editor.renderWhitespace',
+	'editor.cursorStyle',
+	'editor.multiCursorModifier',
+	'editor.insertSpaces',
+	'editor.wordWrap',
+	'files.exclude',
+	'files.associations',
+	'workbench.editor.enablePreview'
+];
+
+export async function getCommonlyUsedData(workbenchAssignmentService: IWorkbenchAssignmentService, environmentService: IEnvironmentService, productService: IProductService): Promise<ITOCEntry<string>> {
+	const toggleData = await getExperimentalExtensionToggleData(workbenchAssignmentService, environmentService, productService);
+	return {
+		id: 'commonlyUsed',
+		label: localize('commonlyUsed', "Commonly Used"),
+		settings: toggleData ? toggleData.commonlyUsed : defaultCommonlyUsedSettings
+	};
+}
 
 export const tocData: ITOCEntry<string> = {
 	id: 'root',
@@ -210,8 +232,8 @@ export const tocData: ITOCEntry<string> = {
 				},
 				{
 					id: 'features/chat',
-					label: localize('interactiveSession', 'Interactive Session'),
-					settings: ['chat.*', 'interactiveEditor.*']
+					label: localize('chat', 'Chat'),
+					settings: ['chat.*', 'inlineChat.*']
 				}
 			]
 		},

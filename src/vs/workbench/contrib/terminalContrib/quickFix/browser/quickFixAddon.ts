@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
-import { IDecoration, Terminal } from 'xterm';
+import type { IDecoration, Terminal } from 'xterm';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -248,12 +248,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			return;
 		}
 		decoration?.onRender((e: HTMLElement) => {
-			if (e.classList.contains(DecorationSelector.QuickFix)) {
-				return;
-			}
-			e.classList.add(...quickFixSelectors);
-			updateLayout(this._configurationService, e);
-			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 			const rect = e.getBoundingClientRect();
 			const anchor = {
 				x: rect.x,
@@ -261,6 +255,18 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				width: rect.width,
 				height: rect.height
 			};
+
+			if (e.classList.contains(DecorationSelector.QuickFix)) {
+				if (this._currentRenderContext) {
+					this._currentRenderContext.anchor = anchor;
+				}
+
+				return;
+			}
+
+			e.classList.add(...quickFixSelectors);
+			updateLayout(this._configurationService, e);
+			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 
 			const parentElement = e.parentElement?.parentElement?.parentElement?.parentElement;
 			if (!parentElement) {

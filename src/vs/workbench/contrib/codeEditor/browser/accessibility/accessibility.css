@@ -3,12 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .accessibilityHelpWidget {
-	padding: 10px;
-	vertical-align: middle;
-	overflow: auto;
+.accessible-view {
+	position: absolute;
 	background-color: var(--vscode-editorWidget-background);
 	color: var(--vscode-editorWidget-foreground);
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
-	border: 2px solid var(--vscode-contrastBorder);
+	border: 2px solid var(--vscode-focusBorder);
+	border-radius: 6px;
+	margin-top: -1px;
+	z-index: 2550;
+}
+
+.accessible-view-container .actions-container {
+	display: flex;
+	margin: 0 auto;
+	padding: 0;
+	width: 100%;
+	justify-content: flex-end;
 }

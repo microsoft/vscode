@@ -91,6 +91,12 @@ export interface INewOrExistingUntitledFileWorkingCopyOptions extends INewUntitl
 	 * Note: the resource will not be used unless the scheme is `untitled`.
 	 */
 	untitledResource: URI;
+
+	/**
+	 * A flag that will prevent the working copy from appearing dirty in the UI
+	 * and not show a confirmation dialog when closed with unsaved content.
+	 */
+	isScratchpad?: boolean;
 }
 
 type IInternalUntitledFileWorkingCopyOptions = INewUntitledFileWorkingCopyOptions & INewUntitledFileWorkingCopyWithAssociatedResourceOptions & INewOrExistingUntitledFileWorkingCopyOptions;
@@ -165,8 +171,11 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 		}
 
 		// Handle untitled resource
-		else if (options.untitledResource?.scheme === Schemas.untitled) {
-			massagedOptions.untitledResource = options.untitledResource;
+		else {
+			if (options.untitledResource?.scheme === Schemas.untitled) {
+				massagedOptions.untitledResource = options.untitledResource;
+			}
+			massagedOptions.isScratchpad = options.isScratchpad;
 		}
 
 		// Take over initial value
@@ -184,7 +193,7 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 			do {
 				untitledResource = URI.from({
 					scheme: Schemas.untitled,
-					path: `Untitled-${counter}`,
+					path: options.isScratchpad ? `Scratchpad-${counter}` : `Untitled-${counter}`,
 					query: this.workingCopyTypeId ?
 						`typeId=${this.workingCopyTypeId}` : // distinguish untitled resources among others by encoding the `typeId` as query param
 						undefined							 // keep untitled resources for text files as they are (when `typeId === ''`)
@@ -199,6 +208,7 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 			untitledResource,
 			this.labelService.getUriBasenameLabel(untitledResource),
 			!!options.associatedResource,
+			!!options.isScratchpad,
 			options.contents,
 			this.modelFactory,
 			this.saveDelegate,

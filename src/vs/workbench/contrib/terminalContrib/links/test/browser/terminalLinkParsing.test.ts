@@ -11,8 +11,11 @@ interface ITestLink {
 	link: string;
 	prefix: string | undefined;
 	suffix: string | undefined;
+	// TODO: These has vars would be nicer as a flags enum
 	hasRow: boolean;
 	hasCol: boolean;
+	hasRowEnd?: boolean;
+	hasColEnd?: boolean;
 }
 
 const operatingSystems: ReadonlyArray<OperatingSystem> = [
@@ -33,6 +36,8 @@ const osLabel: { [key: number | OperatingSystem]: string } = {
 
 const testRow = 339;
 const testCol = 12;
+const testRowEnd = 341;
+const testColEnd = 14;
 const testLinks: ITestLink[] = [
 	// Simple
 	{ link: 'foo', prefix: undefined, suffix: undefined, hasRow: false, hasCol: false },
@@ -117,8 +122,9 @@ const testLinks: ITestLink[] = [
 
 	// OCaml-style
 	{ link: '"foo", line 339, character 12', prefix: '"', suffix: '", line 339, character 12', hasRow: true, hasCol: true },
-	{ link: '"foo", line 339, characters 12-13', prefix: '"', suffix: '", line 339, characters 12-13', hasRow: true, hasCol: true },
-	{ link: '"foo", lines 339-340', prefix: '"', suffix: '", lines 339-340', hasRow: true, hasCol: false },
+	{ link: '"foo", line 339, characters 12-14', prefix: '"', suffix: '", line 339, characters 12-14', hasRow: true, hasCol: true, hasColEnd: true },
+	{ link: '"foo", lines 339-341', prefix: '"', suffix: '", lines 339-341', hasRow: true, hasCol: false, hasRowEnd: true },
+	{ link: '"foo", lines 339-341, characters 12-14', prefix: '"', suffix: '", lines 339-341, characters 12-14', hasRow: true, hasCol: true, hasRowEnd: true, hasColEnd: true },
 
 	// Non-breaking space
 	{ link: 'foo\u00A0339:12', prefix: undefined, suffix: '\u00A0339:12', hasRow: true, hasCol: true },
@@ -148,6 +154,8 @@ suite('TerminalLinkParsing', () => {
 					testLink.suffix === undefined ? null : {
 						row: testLink.hasRow ? testRow : undefined,
 						col: testLink.hasCol ? testCol : undefined,
+						rowEnd: testLink.hasRowEnd ? testRowEnd : undefined,
+						colEnd: testLink.hasColEnd ? testColEnd : undefined,
 						suffix: {
 							index: testLink.link.length - testLink.suffix.length,
 							text: testLink.suffix
@@ -165,6 +173,8 @@ suite('TerminalLinkParsing', () => {
 					testLink.suffix === undefined ? [] : [{
 						row: testLink.hasRow ? testRow : undefined,
 						col: testLink.hasCol ? testCol : undefined,
+						rowEnd: testLink.hasRowEnd ? testRowEnd : undefined,
+						colEnd: testLink.hasColEnd ? testColEnd : undefined,
 						suffix: {
 							index: testLink.link.length - testLink.suffix.length,
 							text: testLink.suffix
@@ -181,6 +191,8 @@ suite('TerminalLinkParsing', () => {
 					{
 						col: 2,
 						row: 1,
+						rowEnd: undefined,
+						colEnd: undefined,
 						suffix: {
 							index: 3,
 							text: '(1, 2)'
@@ -189,6 +201,8 @@ suite('TerminalLinkParsing', () => {
 					{
 						col: 4,
 						row: 3,
+						rowEnd: undefined,
+						colEnd: undefined,
 						suffix: {
 							index: 13,
 							text: '[3, 4]'
@@ -197,6 +211,8 @@ suite('TerminalLinkParsing', () => {
 					{
 						col: undefined,
 						row: 5,
+						rowEnd: undefined,
+						colEnd: undefined,
 						suffix: {
 							index: 23,
 							text: ' on line 5'
@@ -233,6 +249,8 @@ suite('TerminalLinkParsing', () => {
 						suffix: {
 							col: 2,
 							row: 1,
+							rowEnd: undefined,
+							colEnd: undefined,
 							suffix: {
 								index: 3,
 								text: '(1, 2)'
@@ -248,6 +266,8 @@ suite('TerminalLinkParsing', () => {
 						suffix: {
 							col: 4,
 							row: 3,
+							rowEnd: undefined,
+							colEnd: undefined,
 							suffix: {
 								index: 13,
 								text: '[3, 4]'
@@ -266,6 +286,8 @@ suite('TerminalLinkParsing', () => {
 						suffix: {
 							col: undefined,
 							row: 5,
+							rowEnd: undefined,
+							colEnd: undefined,
 							suffix: {
 								index: 24,
 								text: '" on line 5'
@@ -292,6 +314,8 @@ suite('TerminalLinkParsing', () => {
 						suffix: {
 							row: 5,
 							col: 6,
+							rowEnd: undefined,
+							colEnd: undefined,
 							suffix: {
 								index: 4,
 								text: '", line 5, col 6'
@@ -318,6 +342,8 @@ suite('TerminalLinkParsing', () => {
 						suffix: {
 							row: 5,
 							col: 6,
+							rowEnd: undefined,
+							colEnd: undefined,
 							suffix: {
 								index: 10,
 								text: '", line 5, col 6'
@@ -353,6 +379,8 @@ suite('TerminalLinkParsing', () => {
 						suffix: {
 							row: 5,
 							col: 6,
+							rowEnd: undefined,
+							colEnd: undefined,
 							suffix: {
 								index: 41,
 								text: '", line 5, col 6'
@@ -392,6 +420,8 @@ suite('TerminalLinkParsing', () => {
 							suffix: {
 								col: undefined,
 								row: 400,
+								rowEnd: undefined,
+								colEnd: undefined,
 								suffix: {
 									index: 27,
 									text: ':400'
@@ -446,6 +476,8 @@ suite('TerminalLinkParsing', () => {
 								suffix: {
 									col: undefined,
 									row: 400,
+									rowEnd: undefined,
+									colEnd: undefined,
 									suffix: {
 										index: 1 + osTestPath[os].length,
 										text: ':400'
@@ -466,11 +498,46 @@ suite('TerminalLinkParsing', () => {
 								suffix: {
 									col: undefined,
 									row: 400,
+									rowEnd: undefined,
+									colEnd: undefined,
 									suffix: {
 										index: 1 + osTestPath[os].length,
 										text: ':400'
 									}
 								}
+							}
+						] as IParsedLink[]
+					);
+				});
+			}
+		});
+
+		suite('query strings', () => {
+			for (const os of operatingSystems) {
+				test(`should exclude query strings from link paths ${osLabel[os]}`, () => {
+					deepStrictEqual(
+						detectLinks(`${osTestPath[os]}?a=b`, os),
+						[
+							{
+								path: {
+									index: 0,
+									text: osTestPath[os]
+								},
+								prefix: undefined,
+								suffix: undefined
+							}
+						] as IParsedLink[]
+					);
+					deepStrictEqual(
+						detectLinks(`${osTestPath[os]}?a=b&c=d`, os),
+						[
+							{
+								path: {
+									index: 0,
+									text: osTestPath[os]
+								},
+								prefix: undefined,
+								suffix: undefined
 							}
 						] as IParsedLink[]
 					);
@@ -540,7 +607,7 @@ suite('TerminalLinkParsing', () => {
 				const link2 = testLinksWithSuffix[i + 1];
 				const link3 = testLinksWithSuffix[i + 2];
 				const line = ` ${link1.link} ${link2.link} ${link3.link} `;
-				test('`' + line + '`', () => {
+				test('`' + line.replaceAll('\u00A0', '<nbsp>') + '`', () => {
 					strictEqual(detectLinks(line, OperatingSystem.Linux).length, 3);
 					ok(link1.suffix);
 					ok(link2.suffix);
@@ -557,6 +624,8 @@ suite('TerminalLinkParsing', () => {
 						suffix: {
 							row: link1.hasRow ? testRow : undefined,
 							col: link1.hasCol ? testCol : undefined,
+							rowEnd: link1.hasRowEnd ? testRowEnd : undefined,
+							colEnd: link1.hasColEnd ? testColEnd : undefined,
 							suffix: {
 								index: 1 + (link1.link.length - link1.suffix.length),
 								text: link1.suffix
@@ -575,6 +644,8 @@ suite('TerminalLinkParsing', () => {
 						suffix: {
 							row: link2.hasRow ? testRow : undefined,
 							col: link2.hasCol ? testCol : undefined,
+							rowEnd: link2.hasRowEnd ? testRowEnd : undefined,
+							colEnd: link2.hasColEnd ? testColEnd : undefined,
 							suffix: {
 								index: (detectedLink1.prefix?.index ?? detectedLink1.path.index) + link1.link.length + 1 + (link2.link.length - link2.suffix.length),
 								text: link2.suffix
@@ -593,6 +664,8 @@ suite('TerminalLinkParsing', () => {
 						suffix: {
 							row: link3.hasRow ? testRow : undefined,
 							col: link3.hasCol ? testCol : undefined,
+							rowEnd: link3.hasRowEnd ? testRowEnd : undefined,
+							colEnd: link3.hasColEnd ? testColEnd : undefined,
 							suffix: {
 								index: (detectedLink2.prefix?.index ?? detectedLink2.path.index) + link2.link.length + 1 + (link3.link.length - link3.suffix.length),
 								text: link3.suffix

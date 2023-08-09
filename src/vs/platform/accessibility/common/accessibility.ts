@@ -40,3 +40,9 @@ export interface IAccessibilityInformation {
 	label: string;
 	role?: string;
 }
+
+export function isAccessibilityInformation(obj: any): obj is IAccessibilityInformation {
+	return obj && typeof obj === 'object'
+		&& typeof obj.label === 'string'
+		&& (typeof obj.role === 'undefined' || typeof obj.role === 'string');
+}

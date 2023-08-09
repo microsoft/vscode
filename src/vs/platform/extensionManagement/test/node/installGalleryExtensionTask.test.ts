@@ -70,8 +70,9 @@ class TestInstallGalleryExtensionTask extends InstallGalleryExtensionTask {
 	constructor(
 		extension: IGalleryExtension,
 		extensionDownloader: ExtensionsDownloader,
+		disposables: DisposableStore,
 	) {
-		const instantiationService = new TestInstantiationService();
+		const instantiationService = disposables.add(new TestInstantiationService());
 		const logService = instantiationService.stub(ILogService, new NullLogService());
 		const fileService = instantiationService.stub(IFileService, new FileService(logService));
 		const fileSystemProvider = new InMemoryFileSystemProvider();
@@ -131,7 +132,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 	teardown(() => disposables.clear());
 
 	test('if verification is enabled by default, the task completes', async () => {
-		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: true, didExecute: true }));
+		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: true, didExecute: true }), disposables);
 
 		await testObject.run();
 
@@ -140,7 +141,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 	});
 
 	test('if verification is enabled in stable, the task completes', async () => {
-		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: true, didExecute: true, quality: 'stable' }));
+		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: true, didExecute: true, quality: 'stable' }), disposables);
 
 		await testObject.run();
 
@@ -149,7 +150,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 	});
 
 	test('if verification is disabled by setting set to false, the task skips verification', async () => {
-		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: false, verificationResult: 'error', didExecute: false }));
+		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: false, verificationResult: 'error', didExecute: false }), disposables);
 
 		await testObject.run();
 
@@ -158,7 +159,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 	});
 
 	test('if verification is disabled because the module is not loaded, the task skips verification', async () => {
-		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: false, didExecute: false }));
+		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: false, didExecute: false }), disposables);
 
 		await testObject.run();
 
@@ -168,7 +169,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 	test('if verification fails to execute, the task completes', async () => {
 		const errorCode = 'ENOENT';
-		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: errorCode, didExecute: false }));
+		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: errorCode, didExecute: false }), disposables);
 
 		await testObject.run();
 
@@ -179,7 +180,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 	test('if verification fails', async () => {
 		const errorCode = 'IntegrityCheckFailed';
 
-		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: errorCode, didExecute: true }));
+		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: errorCode, didExecute: true }), disposables);
 
 		await testObject.run();
 
@@ -188,7 +189,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 	});
 
 	test('if verification succeeds, the task completes', async () => {
-		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: true, didExecute: true }));
+		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: true, didExecute: true }), disposables);
 
 		await testObject.run();
 
@@ -197,7 +198,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 	});
 
 	test('task completes for unsigned extension', async () => {
-		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: false }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: true, didExecute: false }));
+		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: false }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: true, didExecute: false }), disposables);
 
 		await testObject.run();
 
@@ -206,7 +207,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 	});
 
 	test('task completes for an unsigned extension even when signature verification throws error', async () => {
-		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: false }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: 'error', didExecute: true }));
+		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: false }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: 'error', didExecute: true }), disposables);
 
 		await testObject.run();
 

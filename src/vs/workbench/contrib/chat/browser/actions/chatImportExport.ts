@@ -14,6 +14,7 @@ import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatAct
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
+import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { isExportableSessionData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -31,6 +32,7 @@ export function registerChatExportActions() {
 					value: localize('chat.export.label', "Export Session") + '...',
 					original: 'Export Session...'
 				},
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 			});
 		}
@@ -71,9 +73,10 @@ export function registerChatExportActions() {
 				id: 'workbench.action.chat.import',
 				title: {
 					value: localize('chat.import.label', "Import Session") + '...',
-					original: 'Export Session...'
+					original: 'Import Session...'
 				},
 				category: CHAT_CATEGORY,
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 			});
 		}

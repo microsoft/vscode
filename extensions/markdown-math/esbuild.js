@@ -6,35 +6,13 @@
 
 const path = require('path');
 const fse = require('fs-extra');
-const esbuild = require('esbuild');
 
 const args = process.argv.slice(2);
 
-const isWatch = args.indexOf('--watch') >= 0;
-
-let outputRoot = __dirname;
-const outputRootIndex = args.indexOf('--outputRoot');
-if (outputRootIndex >= 0) {
-	outputRoot = args[outputRootIndex + 1];
-}
-
 const srcDir = path.join(__dirname, 'notebook');
-const outDir = path.join(outputRoot, 'notebook-out');
+const outDir = path.join(__dirname, 'notebook-out');
 
-async function build() {
-	await esbuild.build({
-		entryPoints: [
-			path.join(srcDir, 'katex.ts'),
-		],
-		bundle: true,
-		minify: true,
-		sourcemap: false,
-		format: 'esm',
-		outdir: outDir,
-		platform: 'browser',
-		target: ['es2020'],
-	});
-
+function postBuild(outDir) {
 	fse.copySync(
 		path.join(__dirname, 'node_modules', 'katex', 'dist', 'katex.min.css'),
 		path.join(outDir, 'katex.min.css'));
@@ -51,16 +29,10 @@ async function build() {
 	}
 }
 
-
-build().catch(() => process.exit(1));
-
-if (isWatch) {
-	const watcher = require('@parcel/watcher');
-	watcher.subscribe(srcDir, async () => {
-		try {
-			await build();
-		} catch (e) {
-			console.error(e);
-		}
-	});
-}
+require('../esbuild-webview-common').run({
+	entryPoints: [
+		path.join(srcDir, 'katex.ts'),
+	],
+	srcDir,
+	outdir: outDir,
+}, process.argv, postBuild);

@@ -80,6 +80,13 @@
             "type": "boolean",
             "default": true,
             "description": "%config.markdown.math.enabled%"
+          },
+          "markdown.math.macros": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "default": {},
+            "description": "%config.markdown.math.macros%",
+            "scope": "resource"
           }
         }
       }

@@ -71,6 +71,12 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	command: revealInOsCommand,
 	when: REVEAL_IN_OS_WHEN_CONTEXT
 });
+MenuRegistry.appendMenuItem(MenuId.OpenEditorsContextShare, {
+	title: nls.localize('miShare', "Share"),
+	submenu: MenuId.MenubarShare,
+	group: 'share',
+	order: 3,
+});
 
 // Menu registration - explorer
 

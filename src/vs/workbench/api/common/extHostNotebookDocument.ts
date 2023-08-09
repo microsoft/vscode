@@ -132,7 +132,7 @@ export class ExtHostCell {
 					const compressed = notebookCommon.compressOutputItemStreams(mimeOutputs.get(mime)!);
 					output.items.push({
 						mime,
-						data: compressed.buffer
+						data: compressed.data.buffer
 					});
 				});
 			}
@@ -184,6 +184,10 @@ export class ExtHostNotebookDocument {
 
 	dispose() {
 		this._disposed = true;
+	}
+
+	get versionId(): number {
+		return this._versionId;
 	}
 
 	get apiNotebook(): vscode.NotebookDocument {

@@ -50,7 +50,8 @@ suite('Suggest Widget Model', () => {
 			async ({ editor, editorViewModel, context, model }) => {
 				let last: boolean | undefined = undefined;
 				const history = new Array<boolean>();
-				const d = autorun('debug', reader => {
+				const d = autorun(reader => {
+					/** @description debug */
 					const selectedSuggestItem = !!model.selectedSuggestItem.read(reader);
 					if (last !== selectedSuggestItem) {
 						last = selectedSuggestItem;
@@ -103,6 +104,7 @@ suite('Suggest Widget Model', () => {
 });
 
 const provider: CompletionItemProvider = {
+	_debugDisplayName: 'test',
 	triggerCharacters: ['.'],
 	async provideCompletionItems(model, pos) {
 		const word = model.getWordAtPosition(pos);

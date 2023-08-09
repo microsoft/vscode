@@ -5,17 +5,29 @@
 
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, badgeForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 
-export const interactiveRequestBackground = registerColor(
-	'interactive.requestBackground',
+export const chatRequestBackground = registerColor(
+	'chat.requestBackground',
 	{ dark: new Color(new RGBA(255, 255, 255, 0.03)), light: new Color(new RGBA(0, 0, 0, 0.03)), hcDark: null, hcLight: null, },
-	localize('interactive.requestBackground', 'The background color of an interactive request.')
+	localize('chat.requestBackground', 'The background color of a chat request.')
 );
 
-export const interactiveRequestBorder = registerColor(
-	'interactive.requestBorder',
+export const chatRequestBorder = registerColor(
+	'chat.requestBorder',
 	{ dark: new Color(new RGBA(255, 255, 255, 0.10)), light: new Color(new RGBA(0, 0, 0, 0.10)), hcDark: null, hcLight: null, },
-	localize('interactive.requestBorder', 'The border color of an interactive request.')
+	localize('chat.requestBorder', 'The border color of a chat request.')
+);
+
+export const chatSlashCommandBackground = registerColor(
+	'chat.slashCommandBackground',
+	{ dark: badgeBackground, light: badgeBackground, hcDark: Color.white, hcLight: badgeBackground },
+	localize('chat.slashCommandBackground', 'The background color of a chat slash command.')
+);
+
+export const chatSlashCommandForeground = registerColor(
+	'chat.slashCommandForeground',
+	{ dark: badgeForeground, light: badgeForeground, hcDark: Color.black, hcLight: badgeForeground },
+	localize('chat.slashCommandForeground', 'The foreground color of a chat slash command.')
 );

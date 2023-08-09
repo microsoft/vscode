@@ -7,29 +7,29 @@ import * as vscode from 'vscode';
 import { API as GitAPI } from './typings/git';
 import { publishRepository } from './publish';
 import { DisposableStore } from './util';
-import { LinkContext, getLink } from './links';
-
-function getVscodeDevHost(): string {
-	return `https://${vscode.env.appName.toLowerCase().includes('insiders') ? 'insiders.' : ''}vscode.dev/github`;
-}
+import { LinkContext, getLink, getVscodeDevHost } from './links';
 
 async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean, context: LinkContext, includeRange = true) {
 	try {
-		const permalink = getLink(gitAPI, useSelection, getVscodeDevHost(), 'headlink', context, includeRange);
+		const permalink = await getLink(gitAPI, useSelection, true, getVscodeDevHost(), 'headlink', context, includeRange);
 		if (permalink) {
 			return vscode.env.clipboard.writeText(permalink);
 		}
 	} catch (err) {
-		vscode.window.showErrorMessage(err.message);
+		if (!(err instanceof vscode.CancellationError)) {
+			vscode.window.showErrorMessage(err.message);
+		}
 	}
 }
 
 async function openVscodeDevLink(gitAPI: GitAPI): Promise<vscode.Uri | undefined> {
 	try {
-		const headlink = getLink(gitAPI, true, getVscodeDevHost(), 'headlink');
+		const headlink = await getLink(gitAPI, true, false, getVscodeDevHost(), 'headlink');
 		return headlink ? vscode.Uri.parse(headlink) : undefined;
 	} catch (err) {
-		vscode.window.showErrorMessage(err.message);
+		if (!(err instanceof vscode.CancellationError)) {
+			vscode.window.showErrorMessage(err.message);
+		}
 		return undefined;
 	}
 }

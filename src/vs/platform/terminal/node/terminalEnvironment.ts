@@ -177,7 +177,7 @@ export function getShellIntegrationInjection(
 			// The injection mechanism used for fish is to add a custom dir to $XDG_DATA_DIRS which
 			// is similar to $ZDOTDIR in zsh but contains a list of directories to run from.
 			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share';
-			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/xdg_data');
+			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/fish_xdg_data');
 			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`;
 			addEnvMixinPathPrefix(options, envMixin);
 			return { newArgs: undefined, envMixin };

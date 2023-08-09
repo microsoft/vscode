@@ -5,17 +5,24 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/182069
+	// https://github.com/microsoft/vscode/issues/171173
 
-	// export interface ExtensionContext {
-	// 	/**
-	// 	 * Gets the extension's environment variable collection for this workspace, enabling changes
-	// 	 * to be applied to terminal environment variables.
-	// 	 *
-	// 	 * @param scope The scope to which the environment variable collection applies to.
-	// 	 */
-	// 	readonly environmentVariableCollection: EnvironmentVariableCollection & { getScopedEnvironmentVariableCollection(scope: EnvironmentVariableScope): EnvironmentVariableCollection };
-	// }
+	export interface ExtensionContext {
+		/**
+		 * Gets the extension's environment variable collection for this workspace, enabling changes
+		 * to be applied to terminal environment variables.
+		 *
+		 * @deprecated Use {@link getEnvironmentVariableCollection} instead.
+		 */
+		readonly environmentVariableCollection: EnvironmentVariableCollection;
+		/**
+		 * Gets the extension's environment variable collection for this scope, enabling changes
+		 * to be applied to terminal environment variables.
+		 *
+		 * @param scope The scope to which the environment variable collection applies to.
+		 */
+		getEnvironmentVariableCollection(scope?: EnvironmentVariableScope): EnvironmentVariableCollection;
+	}
 
 	export type EnvironmentVariableScope = {
 		/**
@@ -23,12 +30,4 @@ declare module 'vscode' {
 		*/
 		workspaceFolder?: WorkspaceFolder;
 	};
-
-	export interface EnvironmentVariableCollection extends Iterable<[variable: string, mutator: EnvironmentVariableMutator]> {
-		/**
-		 * A description for the environment variable collection, this will be used to describe the
-		 * changes in the UI.
-		 */
-		description: string | MarkdownString | undefined;
-	}
 }
