@@ -10,6 +10,7 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { AccessibilityCommandIds } from 'vs/workbench/contrib/accessibility/browser/accessibilityCommands';
 import { accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
@@ -91,7 +92,7 @@ function registerCommand<T extends Command>(command: T): T {
 }
 
 export const AccessibilityHelpAction = registerCommand(new MultiCommand({
-	id: 'editor.action.accessibilityHelp',
+	id: AccessibilityCommandIds.OpenAccessibilityHelp,
 	precondition: undefined,
 	kbOpts: {
 		primary: KeyMod.Alt | KeyCode.F1,
@@ -111,7 +112,7 @@ export const AccessibilityHelpAction = registerCommand(new MultiCommand({
 
 
 export const AccessibleViewAction = registerCommand(new MultiCommand({
-	id: 'editor.action.accessibleView',
+	id: AccessibilityCommandIds.OpenAccessibleView,
 	precondition: undefined,
 	kbOpts: {
 		primary: KeyMod.Alt | KeyCode.F2,

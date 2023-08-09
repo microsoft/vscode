@@ -31,8 +31,8 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { AccessibilityCommandIds } from 'vs/workbench/contrib/accessibility/browser/accessibilityCommands';
 import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
 const enum DIMENSIONS {
@@ -473,7 +473,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		if (!this._configurationService.getValue(verbositySettingKey)) {
 			return null;
 		}
-		const keybinding = this._keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
+		const keybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandIds.OpenAccessibleView)?.getAriaLabel();
 		let hint = null;
 		if (keybinding) {
 			hint = localize('acessibleViewHint', "Inspect this in the accessible view with {0}", keybinding);
