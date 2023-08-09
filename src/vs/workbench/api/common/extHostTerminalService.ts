@@ -21,7 +21,6 @@ import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator,
 import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeColor } from 'vs/base/common/themables';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { Promises } from 'vs/base/common/async';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ViewColumn } from 'vs/workbench/api/common/extHostTypeConverters';
@@ -51,9 +50,8 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
 	registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
-	getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection;
+	getEnvironmentVariableCollection(extension: IExtensionDescription, scope?: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableCollection;
 }
-type IEnvironmentVariableCollection = vscode.EnvironmentVariableCollection & { getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection };
 export interface ITerminalInternalOptions {
 	isFeatureTerminal?: boolean;
 	useShellEnvironment?: boolean;
@@ -149,20 +147,20 @@ export class ExtHostTerminal {
 		}
 		await this._proxy.$createTerminal(this._id, {
 			name: options.name,
-			shellPath: withNullAsUndefined(options.shellPath),
-			shellArgs: withNullAsUndefined(options.shellArgs),
-			cwd: withNullAsUndefined(options.cwd),
-			env: withNullAsUndefined(options.env),
-			icon: withNullAsUndefined(asTerminalIcon(options.iconPath)),
+			shellPath: options.shellPath ?? undefined,
+			shellArgs: options.shellArgs ?? undefined,
+			cwd: options.cwd ?? undefined,
+			env: options.env ?? undefined,
+			icon: asTerminalIcon(options.iconPath) ?? undefined,
 			color: ThemeColor.isThemeColor(options.color) ? options.color.id : undefined,
-			initialText: withNullAsUndefined(options.message),
-			strictEnv: withNullAsUndefined(options.strictEnv),
-			hideFromUser: withNullAsUndefined(options.hideFromUser),
-			isFeatureTerminal: withNullAsUndefined(internalOptions?.isFeatureTerminal),
+			initialText: options.message ?? undefined,
+			strictEnv: options.strictEnv ?? undefined,
+			hideFromUser: options.hideFromUser ?? undefined,
+			isFeatureTerminal: internalOptions?.isFeatureTerminal ?? undefined,
 			isExtensionOwnedTerminal: true,
-			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
+			useShellEnvironment: internalOptions?.useShellEnvironment ?? undefined,
 			location: internalOptions?.location || this._serializeParentTerminal(options.location, internalOptions?.resolvedExtHostIdentifier),
-			isTransient: withNullAsUndefined(options.isTransient)
+			isTransient: options.isTransient ?? undefined,
 		});
 	}
 
@@ -833,13 +831,13 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return index;
 	}
 
-	public getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection {
+	public getEnvironmentVariableCollection(extension: IExtensionDescription, scope?: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableCollection {
 		let collection = this._environmentVariableCollections.get(extension.identifier.value);
 		if (!collection) {
 			collection = new UnifiedEnvironmentVariableCollection(extension);
 			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
 		}
-		return collection.getScopedEnvironmentVariableCollection(undefined);
+		return collection.getScopedEnvironmentVariableCollection(scope);
 	}
 
 	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: UnifiedEnvironmentVariableCollection): void {
@@ -906,7 +904,7 @@ class UnifiedEnvironmentVariableCollection {
 		this.map = new Map(serialized);
 	}
 
-	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): IEnvironmentVariableCollection {
+	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection {
 		if (this._extension && scope) {
 			// TODO: This should be removed when the env var extension API(s) are stabilized
 			checkProposedApiEnabled(this._extension, 'envCollectionWorkspace');
@@ -1049,7 +1047,7 @@ class UnifiedEnvironmentVariableCollection {
 	}
 }
 
-class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableCollection, IEnvironmentVariableCollection {
+class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
 	public get persistent(): boolean { return this.collection.persistent; }
 	public set persistent(value: boolean) {
 		this.collection.persistent = value;

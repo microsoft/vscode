@@ -9,7 +9,6 @@ import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -318,6 +317,6 @@ export class ExtHostChat implements ExtHostChatShape {
 		}
 
 		const resolved = await entry.provider.resolveSlashCommand(command, token);
-		return withNullAsUndefined(resolved);
+		return resolved ?? undefined;
 	}
 }

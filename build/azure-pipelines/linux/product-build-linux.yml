@@ -164,7 +164,7 @@ steps:
           echo "Yarn failed $i, trying again..."
         done
 
-        cd node_modules/native-keymap && node-gyp rebuild --debug
+        cd node_modules/native-keymap && npx node-gyp@9.4.0 -y rebuild --debug
         cd ../.. && ./.github/workflows/check-clean-git-state.sh
       env:
         npm_config_arch: $(NPM_ARCH)
