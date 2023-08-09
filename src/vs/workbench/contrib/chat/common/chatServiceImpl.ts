@@ -6,7 +6,7 @@
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
@@ -17,12 +17,15 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Progress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, ISlashCommandProvider, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, ISlashCommandProvider, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatSlashCommandService, IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedChatKey = 'interactive.sessions';
@@ -146,7 +149,8 @@ export class ChatService extends Disposable implements IChatService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 	) {
 		super();
 
@@ -472,7 +476,29 @@ export class ChatService extends Disposable implements IChatService {
 			if (usedSlashCommand?.command) {
 				this._onDidSubmitSlashCommand.fire({ slashCommand: usedSlashCommand.command, sessionId: model.sessionId });
 			}
-			let rawResponse = await provider.provideReply({ session: model.session!, message: resolvedCommand }, progressCallback, token);
+
+			let rawResponse: IChatResponse | null | undefined;
+
+			if ((typeof resolvedCommand === 'string' && typeof message === 'string' && this.chatSlashCommandService.hasCommand(resolvedCommand))) {
+				// contributed slash commands
+				// TODO: spell this out in the UI
+				const history: IChatMessage[] = [];
+				for (const request of model.getRequests()) {
+					if (typeof request.message !== 'string' || !request.response) {
+						continue;
+					}
+					if (isMarkdownString(request.response.response.value)) {
+						history.push({ role: ChatMessageRole.User, content: request.message });
+						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.value.value });
+					}
+				}
+				await this.chatSlashCommandService.executeCommand(resolvedCommand, message.substring(resolvedCommand.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => progressCallback(p)), history, token);
+				rawResponse = { session: model.session! };
+
+			} else {
+				rawResponse = await provider.provideReply({ session: model.session!, message: resolvedCommand }, progressCallback, token);
+			}
+
 			if (token.isCancellationRequested) {
 				return;
 			} else {
@@ -533,11 +559,15 @@ export class ChatService extends Disposable implements IChatService {
 	private async handleSlashCommand(sessionId: string, command: string): Promise<string> {
 		const slashCommands = await this.getSlashCommands(sessionId, CancellationToken.None);
 		for (const slashCommand of slashCommands ?? []) {
-			if (command.startsWith(`/${slashCommand.command}`) && slashCommand.provider) {
-				return await slashCommand.provider.resolveSlashCommand(command, CancellationToken.None) ?? command;
+			if (command.startsWith(`/${slashCommand.command}`)) {
+				if (slashCommand.provider) {
+					return await slashCommand.provider.resolveSlashCommand(command, CancellationToken.None) ?? command;
+				} else if (this.chatSlashCommandService.hasCommand(slashCommand.command)) {
+					return slashCommand.command;
+				}
+
 			}
 		}
-
 		return command;
 	}
 
@@ -565,9 +595,16 @@ export class ChatService extends Disposable implements IChatService {
 				.then(commands => commands?.map(c => ({ ...c, provider: p }))))
 		]);
 
+		const serviceResults = this.chatSlashCommandService.getCommands().map(data => {
+			return <ISlashCommand>{
+				command: data.name,
+				detail: data.detail,
+			};
+		});
+
 		try {
 			const slashCommands = (await providerResults).filter(c => !!c) as ISlashCommand[][];
-			return slashCommands.flat() ?? undefined;
+			return slashCommands.flat().concat(serviceResults);
 		} catch (e) {
 			this.logService.error(e);
 
