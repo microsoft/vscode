@@ -29,12 +29,12 @@ export function createCombinedWorkspaceEdit(uri: URI, ranges: readonly Range[], 
 }
 
 export function sortEditsByYieldTo<T extends {
-	readonly id: string;
+	readonly providerId: string | undefined;
 	readonly handledMimeType?: string;
 	readonly yieldTo?: readonly DropYieldTo[];
 }>(edits: T[]): void {
 	function yieldsTo(yTo: DropYieldTo, other: T): boolean {
-		return ('editId' in yTo && yTo.editId === other.id)
+		return ('providerId' in yTo && yTo.providerId === other.providerId)
 			|| ('mimeType' in yTo && yTo.mimeType === other.handledMimeType);
 	}
 

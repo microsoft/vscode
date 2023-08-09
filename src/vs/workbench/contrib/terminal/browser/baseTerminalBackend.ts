@@ -6,7 +6,6 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { ICrossVersionSerializedTerminalState, IPtyHostController, ISerializedTerminalState, ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -92,7 +91,7 @@ export abstract class BaseTerminalBackend extends Disposable {
 				return;
 			}
 			const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-			const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+			const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 			const resolveCalls: Promise<string>[] = e.originalText.map(t => {
 				return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
 			});

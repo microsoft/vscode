@@ -104,6 +104,8 @@ import { ExtHostSemanticSimilarity } from 'vs/workbench/api/common/extHostSemant
 import { ExtHostIssueReporter } from 'vs/workbench/api/common/extHostIssueReporter';
 import { IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
 import { ExtHostShare } from 'vs/workbench/api/common/extHostShare';
+import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
+import { ExtHostChatSlashCommands } from 'vs/workbench/api/common/extHostChatSlashCommand';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -203,6 +205,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInlineChat, new ExtHostInteractiveEditor(rpcProtocol, extHostCommands, extHostDocuments, extHostLogService));
+	const extHostChatProvider = rpcProtocol.set(ExtHostContext.ExtHostChatProvider, new ExtHostChatProvider(rpcProtocol, extHostLogService));
+	const extHostChatSlashCommands = rpcProtocol.set(ExtHostContext.ExtHostChatSlashCommands, new ExtHostChatSlashCommands(rpcProtocol, extHostChatProvider, extHostLogService));
 	const extHostChat = rpcProtocol.set(ExtHostContext.ExtHostChat, new ExtHostChat(rpcProtocol, extHostLogService));
 	const extHostSemanticSimilarity = rpcProtocol.set(ExtHostContext.ExtHostSemanticSimilarity, new ExtHostSemanticSimilarity(rpcProtocol));
 	const extHostIssueReporter = rpcProtocol.set(ExtHostContext.ExtHostIssueReporter, new ExtHostIssueReporter(rpcProtocol));
@@ -1328,6 +1332,22 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		// namespace: llm
+		const chat: typeof vscode.chat = {
+			registerChatResponseProvider(id: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata) {
+				checkProposedApiEnabled(extension, 'chatProvider');
+				return extHostChatProvider.registerProvider(extension.identifier, id, provider, metadata);
+			},
+			registerSlashCommand(name: string, command: vscode.SlashCommand, metadata?: vscode.SlashCommandMetadata) {
+				checkProposedApiEnabled(extension, 'chatSlashCommands');
+				return extHostChatSlashCommands.registerCommand(extension.identifier, name, command, metadata ?? { description: '' });
+			},
+			requestChatAccess(id: string) {
+				checkProposedApiEnabled(extension, 'chatRequestAccess');
+				return extHostChatProvider.requestChatResponseProvider(extension.identifier, id);
+			}
+		};
+
 		return <typeof vscode>{
 			version: initData.version,
 			// namespaces
@@ -1341,6 +1361,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			interactive,
 			interactiveSlashCommands,
 			l10n,
+			chat,
 			languages,
 			notebooks,
 			scm,
@@ -1351,6 +1372,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			// types
 			Breakpoint: extHostTypes.Breakpoint,
 			TerminalOutputAnchor: extHostTypes.TerminalOutputAnchor,
+			ChatMessage: extHostTypes.ChatMessage,
+			ChatMessageRole: extHostTypes.ChatMessageRole,
 			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
 			CallHierarchyItem: extHostTypes.CallHierarchyItem,
 			CallHierarchyOutgoingCall: extHostTypes.CallHierarchyOutgoingCall,

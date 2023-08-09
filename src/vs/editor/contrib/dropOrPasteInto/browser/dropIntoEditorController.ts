@@ -125,8 +125,16 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 	}
 
 	private async getDropEdits(providers: DocumentOnDropEditProvider[], model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, tokenSource: EditorStateCancellationTokenSource) {
-		const results = await raceCancellation(Promise.all(providers.map(provider => {
-			return provider.provideDocumentOnDropEdits(model, position, dataTransfer, tokenSource.token);
+		const results = await raceCancellation(Promise.all(providers.map(async provider => {
+			try {
+				const edit = await provider.provideDocumentOnDropEdits(model, position, dataTransfer, tokenSource.token);
+				if (edit) {
+					return { ...edit, providerId: provider.id };
+				}
+			} catch (err) {
+				console.error(err);
+			}
+			return undefined;
 		})), tokenSource.token);
 		const edits = coalesce(results ?? []);
 		sortEditsByYieldTo(edits);

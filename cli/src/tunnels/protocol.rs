@@ -214,12 +214,27 @@ pub struct ChallengeVerifyParams {
 	pub response: String,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Eq, Copy, Clone, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum PortPrivacy {
+	Public,
+	Private,
+}
+
 pub mod forward_singleton {
 	use serde::{Deserialize, Serialize};
 
+	use super::PortPrivacy;
+
 	pub const METHOD_SET_PORTS: &str = "set_ports";
 
-	pub type PortList = Vec<u16>;
+	#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
+	pub struct PortRec {
+		pub number: u16,
+		pub privacy: PortPrivacy,
+	}
+
+	pub type PortList = Vec<PortRec>;
 
 	#[derive(Serialize, Deserialize)]
 	pub struct SetPortsParams {

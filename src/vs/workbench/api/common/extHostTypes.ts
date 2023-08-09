@@ -2755,16 +2755,12 @@ export class DocumentDropEdit {
 
 @es5ClassCompat
 export class DocumentPasteEdit {
-	id: string;
 
 	label: string;
-
 	insertText: string | SnippetString;
-
 	additionalEdit?: WorkspaceEdit;
 
-	constructor(insertText: string | SnippetString, id: string, label: string) {
-		this.id = id;
+	constructor(insertText: string | SnippetString, label: string) {
 		this.label = label;
 		this.insertText = insertText;
 	}
@@ -4094,6 +4090,25 @@ export enum InteractiveEditorResponseFeedbackKind {
 	Helpful = 1,
 	Undone = 2,
 	Accepted = 3
+}
+
+export enum ChatMessageRole {
+	System = 0,
+	User = 1,
+	Assistant = 2,
+	Function = 3,
+}
+
+export class ChatMessage implements vscode.ChatMessage {
+
+	role: ChatMessageRole;
+	content: string;
+	name?: string;
+
+	constructor(role: ChatMessageRole, content: string) {
+		this.role = role;
+		this.content = content;
+	}
 }
 
 //#endregion
