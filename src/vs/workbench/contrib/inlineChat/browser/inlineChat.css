@@ -54,7 +54,7 @@
 .monaco-editor .inline-chat .body .content .input .editor-placeholder {
 	position: absolute;
 	z-index: 1;
-	color: var(--vscode-input-placeholderForeground);
+	color: var(--vscode-inlineChatInput-placeholderForeground);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
