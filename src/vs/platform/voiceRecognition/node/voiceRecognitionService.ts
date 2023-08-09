@@ -15,6 +15,7 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 	) { }
 
 	async transcribe(buffer: IAudioBuffer): Promise<string> {
+		const now = Date.now();
 		this.logService.info(`[voice] transcribe(${buffer.length}): Begin`);
 
 		const modulePath = process.env.VSCODE_VOICE_MODULE_PATH;
@@ -22,19 +23,20 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 			throw new Error('Voice recognition not yet supported!');
 		}
 
-		const voiceModule: { transcribe: (audioBuffer: { channelCount: 1; length: number; sampleRate: 16000; channelData: Float32Array }, options: { language: string | 'auto'; suppressNonSpeechTokens: boolean }) => Promise<string> } = require.__$__nodeRequire(modulePath);
+		const voiceModule: { transcribe: (audioBuffer: { channelCount: 1; length: number; sampleRate: 16000; sampleSize: 16; channelData: Float32Array }, options: { language: string | 'auto'; suppressNonSpeechTokens: boolean }) => Promise<string> } = require.__$__nodeRequire(modulePath);
 
 		const text = await voiceModule.transcribe({
+			sampleRate: buffer.sampleRate,
+			sampleSize: buffer.sampleSize,
 			channelCount: buffer.channelCount,
 			length: buffer.length,
-			sampleRate: buffer.sampleRate,
 			channelData: buffer.channelData.buffer
 		}, {
 			language: 'en',
 			suppressNonSpeechTokens: true
 		});
 
-		this.logService.info(`[voice] transcribe(${buffer.length}): End (text: "${text}"))`);
+		this.logService.info(`[voice] transcribe(${buffer.length}): End (text: "${text}", took: ${Date.now() - now}ms))`);
 
 		return text;
 	}

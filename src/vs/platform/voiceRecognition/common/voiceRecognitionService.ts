@@ -10,6 +10,7 @@ export const IVoiceRecognitionService = createDecorator<IVoiceRecognitionService
 
 export interface IAudioBuffer {
 	readonly sampleRate: 16000;
+	readonly sampleSize: 16;
 	readonly channelCount: 1;
 	readonly length: number;
 	readonly channelData: VSFloat32Array;

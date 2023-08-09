@@ -30,7 +30,6 @@ export interface IWorkbenchVoiceRecognitionService {
 
 // TODO@voice
 // - load `navigator.mediaDevices.getUserMedia` lazily on startup? or would it trigger a permission prompt?
-// - figure out the ugly `any` cast for AudioContext
 // - how to prevent data processing accumulation when processing is slow?
 // - how to make this a singleton service that enables ref-counting on multiple callers?
 // - cancellation should flow to the shared process
@@ -41,8 +40,9 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly AUDIO_TIME_SLICE = 2000;
+	private static readonly AUDIO_TIME_SLICE = 4000;
 	private static readonly AUDIO_SAMPLE_RATE = 16000;
+	private static readonly AUDIO_SAMPLE_SIZE = 16;
 	private static readonly AUDIO_CHANNELS = 1;
 	private static readonly AUDIO_MIME_TYPE = 'audio/webm;codecs=opus';
 
@@ -70,7 +70,15 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 
 			progress.report({ message: localize('voiceTranscriptionGettingReady', "Getting microphone ready...") });
 
-			const audioDevice = await navigator.mediaDevices.getUserMedia({ audio: true });
+			const audioDevice = await navigator.mediaDevices.getUserMedia({
+				audio: {
+					sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_RATE,
+					sampleSize: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_SIZE,
+					channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
+					autoGainControl: true,
+					noiseSuppression: true
+				}
+			});
 
 			if (token.isCancellationRequested) {
 				return;
@@ -86,15 +94,10 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 
 			progress.report({ message: localize('voiceTranscriptionRecording', "Recording from microphone...") });
 
-			const audioContextOptions = {
+			const context = new AudioContext({
 				sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_RATE,
-				channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
-				echoCancellation: false,
-				autoGainControl: true,
-				noiseSuppression: true
-			};
-
-			const context = new AudioContext(audioContextOptions as any);
+				latencyHint: 'interactive'
+			});
 
 			const chunks: Blob[] = [];
 			audioRecorder.ondataavailable = e => {
@@ -125,6 +128,7 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 
 		const text = await this.voiceRecognitionService.transcribe({
 			sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_RATE,
+			sampleSize: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_SIZE,
 			channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
 			length: audioBuffer.length,
 			channelData: VSFloat32Array.wrap(audioBuffer.getChannelData(0))
