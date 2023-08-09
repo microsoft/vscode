@@ -150,11 +150,6 @@ class AccessibleView extends Disposable {
 		if (!provider) {
 			return;
 		}
-		if (provider.options.type === AccessibleViewType.Help) {
-			this._accessiblityHelpIsShown.set(true);
-		} else {
-			this._accessibleViewIsShown.set(true);
-		}
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
 			render: (container) => {
@@ -162,11 +157,6 @@ class AccessibleView extends Disposable {
 				return this._render(provider!, container);
 			},
 			onHide: () => {
-				if (provider!.options.type === AccessibleViewType.Help) {
-					this._accessiblityHelpIsShown.reset();
-				} else {
-					this._accessibleViewIsShown.reset();
-				}
 				this._currentProvider = undefined;
 			}
 		};
@@ -254,10 +244,21 @@ class AccessibleView extends Disposable {
 		alert(localize('disableAccessibilityHelp', '{0} accessibility verbosity is now disabled', this._currentProvider.verbositySettingKey));
 	}
 
+	private _updateContextKeys(provider: IAccessibleContentProvider, shown: boolean): void {
+		if (provider.options.type === AccessibleViewType.Help) {
+			this._accessiblityHelpIsShown.set(shown);
+			this._accessibleViewIsShown.set(!shown);
+		} else {
+			this._accessibleViewIsShown.set(shown);
+			this._accessiblityHelpIsShown.set(!shown);
+		}
+	}
+
 	private _render(provider: IAccessibleContentProvider, container: HTMLElement, internal?: boolean): IDisposable {
 		if (!internal) {
 			this._currentProvider = provider;
 		}
+		this._updateContextKeys(provider, true);
 		const value = this._configurationService.getValue(provider.verbositySettingKey);
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\nPress H now to open a browser window with more information related to accessibility.\n") : '';
 		let disableHelpHint = '';
@@ -322,6 +323,7 @@ class AccessibleView extends Disposable {
 			if (e.keyCode === KeyCode.Escape) {
 				e.stopPropagation();
 				this._contextViewService.hideContextView();
+				this._updateContextKeys(provider, false);
 				// HACK: Delay to allow the context view to hide #186514
 				setTimeout(() => provider.onClose(), 100);
 			} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
@@ -371,9 +373,11 @@ class AccessibleView extends Disposable {
 		const accessibleViewHelpProvider = Object.assign({}, this._currentProvider);
 		accessibleViewHelpProvider.options.type = AccessibleViewType.Help;
 		accessibleViewHelpProvider.provideContent = () => this._getAccessibleViewHelpDialogContent(accessibleViewHelpProvider);
-		accessibleViewHelpProvider.onClose = () => this.show(previousProvider);
+		accessibleViewHelpProvider.onClose = () => {
+			previousProvider.options.type = AccessibleViewType.View;
+			this.show(previousProvider);
+		};
 		this._contextViewService.hideContextView();
-		this._accessiblityHelpIsShown.set(true);
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
 			render: (container) => {
@@ -547,7 +551,16 @@ interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
 	info: string;
 	firstListItem?: string;
 }
-
+const accessibleViewMenu = {
+	id: MenuId.AccessibleView,
+	group: 'navigation',
+	when: accessibleViewIsShown
+};
+const commandPalette = {
+	id: MenuId.CommandPalette,
+	group: '',
+	order: 1
+};
 class AccessibleViewNextAction extends Action2 {
 	constructor() {
 		super({
@@ -557,12 +570,7 @@ class AccessibleViewNextAction extends Action2 {
 				primary: KeyMod.Alt | KeyCode.BracketRight,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			menu: [{
-				id: MenuId.CommandPalette,
-				group: '',
-				order: 1
-			},
-			{ id: MenuId.AccessibleView, group: 'navigation' }],
+			menu: [commandPalette, accessibleViewMenu],
 			icon: Codicon.chevronRight,
 			title: localize('editor.action.accessibleViewNext', "Show Next in Accessible View")
 		});
@@ -584,14 +592,7 @@ class AccessibleViewPreviousAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			icon: Codicon.chevronLeft,
-			menu: [{
-				id: MenuId.CommandPalette,
-				group: '',
-			},
-			{
-				id: MenuId.AccessibleView,
-				group: 'navigation'
-			}],
+			menu: [commandPalette, accessibleViewMenu],
 			title: localize('editor.action.accessibleViewPrevious', "Show Previous in Accessible View")
 		});
 	}
@@ -612,14 +613,7 @@ class AccessibleViewGoToSymbolAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib + 10
 			},
 			icon: Codicon.symbolField,
-			menu: [{
-				id: MenuId.CommandPalette,
-				group: '',
-				order: 1
-			}, {
-				id: MenuId.AccessibleView,
-				group: 'navigation'
-			}],
+			menu: [commandPalette, accessibleViewMenu],
 			title: localize('editor.action.accessibleViewGoToSymbol', "Go To Symbol in Accessible View")
 		});
 	}
@@ -683,15 +677,12 @@ class AccessibleViewDisableHintAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			icon: Codicon.treeFilterClear,
-			menu: [{
-				id: MenuId.CommandPalette,
-				group: '',
-				order: 1
-			},
-			{
-				id: MenuId.AccessibleView,
-				group: 'navigation'
-			}],
+			menu: [commandPalette,
+				{
+					id: MenuId.AccessibleView,
+					group: 'navigation',
+					when: ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown)
+				}],
 			title: localize('editor.action.accessibleViewDisableHint', "Disable Accessible View Hint")
 		});
 	}
@@ -710,11 +701,7 @@ class AccessibleViewFocusToolbarAction extends Action2 {
 				primary: KeyMod.Alt | KeyCode.F7,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			menu: [{
-				id: MenuId.CommandPalette,
-				group: '',
-				order: 1
-			}],
+			menu: [commandPalette],
 			title: localize('editor.action.accessibleViewFocusToolbar', "Accessible View Focus Toolbar")
 		});
 	}
