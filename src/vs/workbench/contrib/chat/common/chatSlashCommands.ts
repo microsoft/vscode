@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -65,6 +66,7 @@ export const IChatSlashCommandService = createDecorator<IChatSlashCommandService
 
 export interface IChatSlashCommandService {
 	_serviceBrand: undefined;
+	readonly onDidChangeCommands: Event<void>;
 	registerSlashData(data: IChatSlashData): IDisposable;
 	registerSlashCallback(id: string, command: IChatSlashCallback): IDisposable;
 	executeCommand(id: string, prompt: string, progress: IProgress<IChatSlashFragment>, history: IChatMessage[], token: CancellationToken): Promise<void>;
@@ -79,6 +81,9 @@ export class ChatSlashCommandService implements IChatSlashCommandService {
 	declare _serviceBrand: undefined;
 
 	private readonly _commands = new Map<string, Tuple>();
+
+	private readonly _onDidChangeCommands = new Emitter<void>();
+	readonly onDidChangeCommands: Event<void> = this._onDidChangeCommands.event;
 
 	constructor(@IExtensionService private readonly _extensionService: IExtensionService) {
 
@@ -104,6 +109,7 @@ export class ChatSlashCommandService implements IChatSlashCommandService {
 
 	dispose(): void {
 		this._commands.clear();
+		this._onDidChangeCommands.dispose();
 	}
 
 	registerSlashData(data: IChatSlashData): IDisposable {
@@ -111,7 +117,13 @@ export class ChatSlashCommandService implements IChatSlashCommandService {
 			throw new Error(`Already registered a command with id ${data.id}}`);
 		}
 		this._commands.set(data.id, { data });
-		return toDisposable(() => this._commands.delete(data.id));
+		this._onDidChangeCommands.fire();
+
+		return toDisposable(() => {
+			if (this._commands.delete(data.id)) {
+				this._onDidChangeCommands.fire();
+			}
+		});
 	}
 
 	registerSlashCallback(id: string, command: IChatSlashCallback): IDisposable {
