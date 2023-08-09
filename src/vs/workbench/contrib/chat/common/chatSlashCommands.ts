@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress } from 'vs/platform/progress/common/progress';
@@ -51,9 +51,15 @@ export const slashesExtPoint = ExtensionsRegistry.registerExtensionPoint<IChatSl
 //#region slash service, commands etc
 
 export interface IChatSlashData {
-	id: string;
-	name: string;
+	command: string;
 	detail: string;
+	sortText?: string;
+
+	/**
+	 * Whether the command should execute as soon
+	 * as it is entered. Defaults to `false`.
+	 */
+	executeImmediately?: boolean;
 }
 
 export interface IChatSlashFragment {
@@ -69,6 +75,7 @@ export interface IChatSlashCommandService {
 	readonly onDidChangeCommands: Event<void>;
 	registerSlashData(data: IChatSlashData): IDisposable;
 	registerSlashCallback(id: string, command: IChatSlashCallback): IDisposable;
+	registerSlashCommand(data: IChatSlashData, command: IChatSlashCallback): IDisposable;
 	executeCommand(id: string, prompt: string, progress: IProgress<IChatSlashFragment>, history: IChatMessage[], token: CancellationToken): Promise<void>;
 	getCommands(): Array<IChatSlashData>;
 	hasCommand(id: string): boolean;
@@ -101,7 +108,7 @@ export class ChatSlashCommandService implements IChatSlashCommandService {
 				const { value } = entry;
 
 				for (const candidate of Iterable.wrap(value)) {
-					contributions.add(this.registerSlashData({ ...candidate, id: candidate.name }));
+					contributions.add(this.registerSlashData({ ...candidate }));
 				}
 			}
 		});
@@ -113,14 +120,14 @@ export class ChatSlashCommandService implements IChatSlashCommandService {
 	}
 
 	registerSlashData(data: IChatSlashData): IDisposable {
-		if (this._commands.has(data.id)) {
-			throw new Error(`Already registered a command with id ${data.id}}`);
+		if (this._commands.has(data.command)) {
+			throw new Error(`Already registered a command with id ${data.command}}`);
 		}
-		this._commands.set(data.id, { data });
+		this._commands.set(data.command, { data });
 		this._onDidChangeCommands.fire();
 
 		return toDisposable(() => {
-			if (this._commands.delete(data.id)) {
+			if (this._commands.delete(data.command)) {
 				this._onDidChangeCommands.fire();
 			}
 		});
@@ -133,6 +140,13 @@ export class ChatSlashCommandService implements IChatSlashCommandService {
 		}
 		data.command = command;
 		return toDisposable(() => data.command = undefined);
+	}
+
+	registerSlashCommand(data: IChatSlashData, command: IChatSlashCallback): IDisposable {
+		return combinedDisposable(
+			this.registerSlashData(data),
+			this.registerSlashCallback(data.command, command)
+		);
 	}
 
 	getCommands(): Array<IChatSlashData> {
