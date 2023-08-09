@@ -33,8 +33,7 @@ export class MainThreadChatSlashCommands implements MainThreadChatSlashCommandsS
 		if (!this._chatSlashCommandService.hasCommand(name)) {
 			// dynamic slash commands!
 			this._chatSlashCommandService.registerSlashData({
-				name,
-				id: name,
+				command: name,
 				detail
 			});
 		}

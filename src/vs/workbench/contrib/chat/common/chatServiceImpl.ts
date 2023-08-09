@@ -597,8 +597,10 @@ export class ChatService extends Disposable implements IChatService {
 
 		const serviceResults = this.chatSlashCommandService.getCommands().map(data => {
 			return <ISlashCommand>{
-				command: data.name,
+				command: data.command,
 				detail: data.detail,
+				sortText: data.sortText,
+				executeImmediately: data.executeImmediately
 			};
 		});
 
