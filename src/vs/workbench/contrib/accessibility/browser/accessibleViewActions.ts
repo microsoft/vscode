@@ -27,7 +27,7 @@ const commandPalette = {
 class AccessibleViewNextAction extends Action2 {
 	constructor() {
 		super({
-			id: 'editor.action.accessibleViewNext',
+			id: AccessibilityCommandIds.ShowNext,
 			precondition: accessibleViewIsShown,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.BracketRight,
@@ -48,7 +48,7 @@ registerAction2(AccessibleViewNextAction);
 class AccessibleViewPreviousAction extends Action2 {
 	constructor() {
 		super({
-			id: 'editor.action.accessibleViewPrevious',
+			id: AccessibilityCommandIds.ShowPrevious,
 			precondition: accessibleViewIsShown,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.BracketLeft,
@@ -69,7 +69,7 @@ registerAction2(AccessibleViewPreviousAction);
 class AccessibleViewGoToSymbolAction extends Action2 {
 	constructor() {
 		super({
-			id: 'editor.action.accessibleViewGoToSymbol',
+			id: AccessibilityCommandIds.GoToSymbol,
 			precondition: accessibleViewIsShown,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
@@ -133,7 +133,7 @@ export const AccessibleViewAction = registerCommand(new MultiCommand({
 class AccessibleViewDisableHintAction extends Action2 {
 	constructor() {
 		super({
-			id: 'editor.action.accessibleViewDisableHint',
+			id: AccessibilityCommandIds.DisableVerbosityHint,
 			keybinding: {
 				when: ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown),
 				primary: KeyMod.Alt | KeyCode.F6,

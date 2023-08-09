@@ -5,5 +5,9 @@
 
 export const enum AccessibilityCommandIds {
 	OpenAccessibleView = 'editor.action.accessibleView',
-	OpenAccessibilityHelp = 'editor.action.accessibilityHelp'
+	OpenAccessibilityHelp = 'editor.action.accessibilityHelp',
+	DisableVerbosityHint = 'editor.action.accessibleViewDisableHint',
+	GoToSymbol = 'editor.action.accessibleViewGoToSymbol',
+	ShowNext = 'editor.action.accessibleViewNext',
+	ShowPrevious = 'editor.action.accessibleViewPrevious'
 }
