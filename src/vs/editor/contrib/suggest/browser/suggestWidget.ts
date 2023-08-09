@@ -434,6 +434,14 @@ export class SuggestWidget implements IDisposable {
 		if (this._state === state) {
 			return;
 		}
+
+		// Exit current state.
+		switch (this._state) {
+			case State.Details:
+				this._details.widget.removeFocusIndicator();
+				break;
+		}
+
 		this._state = state;
 
 		this.element.domNode.classList.toggle('frozen', state === State.Frozen);
@@ -488,6 +496,7 @@ export class SuggestWidget implements IDisposable {
 				dom.show(this._listElement, this._status.element);
 				this._details.show();
 				this._show();
+				this._details.widget.focus();
 				break;
 		}
 	}
@@ -596,6 +605,10 @@ export class SuggestWidget implements IDisposable {
 				return false;
 			case State.Loading:
 				return !this._isAuto;
+			case State.Details:
+				// The list item will be focused, so remove details focus
+				// indicator and fall through to the default action.
+				this._setState(State.Open);
 			default:
 				this._list.focusNext(1, true);
 				return true;
@@ -638,6 +651,10 @@ export class SuggestWidget implements IDisposable {
 				return false;
 			case State.Loading:
 				return !this._isAuto;
+			case State.Details:
+				// The list item should be focused, so remove details focus
+				// indicator and fall through to the default action.
+				this._setState(State.Open);
 			default:
 				this._list.focusPrevious(1, true);
 				return false;
@@ -678,12 +695,14 @@ export class SuggestWidget implements IDisposable {
 
 	toggleDetailsFocus(): void {
 		if (this._state === State.Details) {
+			// Should return the focus to the list item.
+			this.focusSelected();
 			this._setState(State.Open);
-			this._details.widget.domNode.classList.remove('focused');
-
 		} else if (this._state === State.Open && this._isDetailsVisible()) {
 			this._setState(State.Details);
-			this._details.widget.domNode.classList.add('focused');
+		} else if (this._state === State.Open) {
+			this.toggleDetails();
+			this._setState(State.Details);
 		}
 	}
 
@@ -695,6 +714,10 @@ export class SuggestWidget implements IDisposable {
 			this._setDetailsVisible(false);
 			this._details.hide();
 			this.element.domNode.classList.remove('shows-details');
+
+			if (this._state === State.Details) {
+				this._setState(State.Open);
+			}
 
 		} else if ((canExpandCompletionItem(this._list.getFocusedElements()[0]) || this._explainMode) && (this._state === State.Open || this._state === State.Details || this._state === State.Frozen)) {
 			// show details widget (iff possible)
