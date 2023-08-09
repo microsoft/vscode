@@ -92,13 +92,12 @@
 	align-items: center;
 }
 
-.action-widget .monaco-list-row.action.option-disabled {
+.action-widget .monaco-list-row.action.option-disabled,
+.action-widget .monaco-list:focus .monaco-list-row.focused.action.option-disabled,
+.action-widget .monaco-list-row.action.option-disabled .codicon {
 	color: var(--vscode-disabledForeground);
 }
 
-.action-widget .monaco-list-row.action.option-disabled .codicon {
-	opacity: 0.4;
-}
 
 .action-widget .monaco-list-row.action:not(.option-disabled) .codicon {
 	color: inherit;

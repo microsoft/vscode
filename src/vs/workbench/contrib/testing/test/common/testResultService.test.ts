@@ -326,9 +326,11 @@ suite('Workbench - Test Results Service', () => {
 
 			const a1 = ctrl.append(VSBuffer.fromString('12345'), 1);
 			const a2 = ctrl.append(VSBuffer.fromString('67890'), 1234);
+			const a3 = ctrl.append(VSBuffer.fromString('with new line\r\n'), 4);
 
-			assert.deepStrictEqual(ctrl.getRange(a1, 5), VSBuffer.fromString('12345'));
-			assert.deepStrictEqual(ctrl.getRange(a2, 5), VSBuffer.fromString('67890'));
+			assert.deepStrictEqual(ctrl.getRange(a1.offset, a1.length), VSBuffer.fromString('\x1b]633;SetMark;Id=s1;Hidden\x0712345\x1b]633;SetMark;Id=e1;Hidden\x07'));
+			assert.deepStrictEqual(ctrl.getRange(a2.offset, a2.length), VSBuffer.fromString('\x1b]633;SetMark;Id=s1234;Hidden\x0767890\x1b]633;SetMark;Id=e1234;Hidden\x07'));
+			assert.deepStrictEqual(ctrl.getRange(a3.offset, a3.length), VSBuffer.fromString('\x1b]633;SetMark;Id=s4;Hidden\x07with new line\x1b]633;SetMark;Id=e4;Hidden\x07\r\n'));
 		});
 	});
 });

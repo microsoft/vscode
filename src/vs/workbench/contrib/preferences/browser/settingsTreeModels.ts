@@ -5,7 +5,7 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { escapeRegExpCharacters, isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { withUndefinedAsNull, isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
@@ -530,7 +530,7 @@ export class SettingsTreeModel {
 	}
 
 	getElementsByName(name: string): SettingsTreeSettingElement[] | null {
-		return withUndefinedAsNull(this._treeElementsBySettingName.get(name));
+		return this._treeElementsBySettingName.get(name) ?? null;
 	}
 
 	updateElementsByName(name: string): void {

@@ -23,13 +23,15 @@ use std::time::Duration;
 use tokio::sync::{mpsc, watch};
 use tunnels::connections::{ForwardedPortConnection, RelayTunnelHost};
 use tunnels::contracts::{
-	Tunnel, TunnelPort, TunnelRelayTunnelEndpoint, PORT_TOKEN, TUNNEL_PROTOCOL_AUTO,
+	Tunnel, TunnelAccessControl, TunnelPort, TunnelRelayTunnelEndpoint, PORT_TOKEN,
+	TUNNEL_ACCESS_SCOPES_CONNECT, TUNNEL_PROTOCOL_AUTO,
 };
 use tunnels::management::{
 	new_tunnel_management, HttpError, TunnelLocator, TunnelManagementClient, TunnelRequestOptions,
 	NO_REQUEST_OPTIONS,
 };
 
+use super::protocol::PortPrivacy;
 use super::wsl_detect::is_wsl_installed;
 
 static TUNNEL_COUNT_LIMIT_NAME: &str = "TunnelsPerUserPerLocation";
@@ -164,8 +166,12 @@ impl ActiveTunnel {
 	}
 
 	/// Forwards a port over TCP.
-	pub async fn add_port_tcp(&self, port_number: u16) -> Result<(), AnyError> {
-		self.manager.add_port_tcp(port_number).await?;
+	pub async fn add_port_tcp(
+		&self,
+		port_number: u16,
+		privacy: PortPrivacy,
+	) -> Result<(), AnyError> {
+		self.manager.add_port_tcp(port_number, privacy).await?;
 		Ok(())
 	}
 
@@ -866,13 +872,18 @@ impl ActiveTunnelManager {
 
 	/// Adds a port for TCP/IP forwarding.
 	#[allow(dead_code)] // todo: port forwarding
-	pub async fn add_port_tcp(&self, port_number: u16) -> Result<(), WrappedError> {
+	pub async fn add_port_tcp(
+		&self,
+		port_number: u16,
+		privacy: PortPrivacy,
+	) -> Result<(), WrappedError> {
 		self.relay
 			.lock()
 			.await
 			.add_port(&TunnelPort {
 				port_number,
 				protocol: Some(TUNNEL_PROTOCOL_AUTO.to_owned()),
+				access_control: Some(privacy_to_tunnel_acl(privacy)),
 				..Default::default()
 			})
 			.await
@@ -1079,6 +1090,26 @@ fn vec_eq_as_set(a: &[String], b: &[String]) -> bool {
 	}
 
 	true
+}
+
+fn privacy_to_tunnel_acl(privacy: PortPrivacy) -> TunnelAccessControl {
+	let mut acl = TunnelAccessControl { entries: vec![] };
+
+	if privacy == PortPrivacy::Public {
+		acl.entries
+			.push(tunnels::contracts::TunnelAccessControlEntry {
+				kind: tunnels::contracts::TunnelAccessControlEntryType::Anonymous,
+				provider: None,
+				is_inherited: false,
+				is_deny: false,
+				is_inverse: false,
+				organization: None,
+				subjects: vec![],
+				scopes: vec![TUNNEL_ACCESS_SCOPES_CONNECT.to_string()],
+			});
+	}
+
+	acl
 }
 
 #[cfg(test)]
