@@ -143,10 +143,8 @@ class AccessibleView extends Disposable {
 		}));
 	}
 
-	show(provider?: IAccessibleContentProvider, symbol?: IAccessibleViewSymbol): void {
-		if (!provider) {
-			provider = this._currentProvider;
-		}
+	show(provider?: IAccessibleContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean): void {
+		provider = provider ?? this._currentProvider;
 		if (!provider) {
 			return;
 		}
@@ -154,7 +152,7 @@ class AccessibleView extends Disposable {
 			getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
 			render: (container) => {
 				container.classList.add('accessible-view-container');
-				return this._render(provider!, container);
+				return this._render(provider!, container, showAccessibleViewHelp);
 			},
 			onHide: () => {
 				this._currentProvider = undefined;
@@ -254,8 +252,9 @@ class AccessibleView extends Disposable {
 		}
 	}
 
-	private _render(provider: IAccessibleContentProvider, container: HTMLElement, internal?: boolean): IDisposable {
-		if (!internal) {
+	private _render(provider: IAccessibleContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean): IDisposable {
+		if (!showAccessibleViewHelp) {
+			// don't overwrite the current provider
 			this._currentProvider = provider;
 		}
 		this._updateContextKeys(provider, true);
@@ -303,15 +302,13 @@ class AccessibleView extends Disposable {
 				if (accessibilityHelpKeybinding) {
 					helpHint = localize('ariaAccessibilityHelp', "Use {0} for accessibility help", accessibilityHelpKeybinding);
 				}
-				if (helpHint) {
-					ariaLabel = provider.options.ariaLabel ? localize('helpAriaKb', "{0}, {1}", provider.options.ariaLabel, helpHint) : localize('accessible-view', "Accessible View, {0}", helpHint);
-				} else {
-					ariaLabel = provider.options.ariaLabel ? provider.options.ariaLabel : localize('helpAriaNoKb', "Accessible View");
-				}
 			}
-			if (internal) {
-				ariaLabel = localize('accessibleViewHelp', "Accessible View Help");
+			if (helpHint) {
+				ariaLabel = provider.options.ariaLabel ? localize('helpAriaKb', "{0}, {1}", provider.options.ariaLabel, helpHint) : localize('accessible-view', "Accessible View, {0}", helpHint);
+			} else {
+				ariaLabel = provider.options.ariaLabel ? provider.options.ariaLabel : localize('helpAriaNoKb', "Accessible View");
 			}
+
 			this._editorWidget.updateOptions({ ariaLabel });
 			this._editorWidget.focus();
 		});
@@ -369,15 +366,20 @@ class AccessibleView extends Disposable {
 			return;
 
 		}
-		const previousProvider = Object.assign({}, this._currentProvider);
-		const accessibleViewHelpProvider = Object.assign({}, this._currentProvider);
-		accessibleViewHelpProvider.options.type = AccessibleViewType.Help;
-		accessibleViewHelpProvider.provideContent = () => this._getAccessibleViewHelpDialogContent(accessibleViewHelpProvider);
-		accessibleViewHelpProvider.onClose = () => {
-			previousProvider.options.type = AccessibleViewType.View;
-			this.show(previousProvider);
+		const currentProvider = Object.assign({}, this._currentProvider);
+		currentProvider.options = Object.assign({}, currentProvider.options);
+		const currentProviderHasSymbols = this._currentProvider.options.language === 'markdown' || this._currentProvider.options.language === undefined || !!this._currentProvider.getSymbols;
+		const accessibleViewHelpProvider: IAccessibleContentProvider = {
+			provideContent: () => this._getAccessibleViewHelpDialogContent(currentProviderHasSymbols),
+			onClose: () => this.show(currentProvider),
+			options: {
+				ariaLabel: localize('accessibleViewHelp', "Accessible View Help"),
+				type: AccessibleViewType.Help,
+			},
+			verbositySettingKey: this._currentProvider.verbositySettingKey
 		};
 		this._contextViewService.hideContextView();
+
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
 			render: (container) => {
@@ -389,9 +391,9 @@ class AccessibleView extends Disposable {
 		setTimeout(() => this._contextViewService.showContextView(delegate), 100);
 	}
 
-	private _getAccessibleViewHelpDialogContent(provider: IAccessibleContentProvider): string {
+	private _getAccessibleViewHelpDialogContent(providerHasSymbols?: boolean): string {
 		const navigationHint = this._getNavigationHint();
-		const goToSymbolHint = this._getGoToSymbolHint(provider);
+		const goToSymbolHint = this._getGoToSymbolHint(providerHasSymbols);
 		const toolbarHint = this._getToolbarHint();
 		let hint = localize('intro', "In the accessible view, you can:\n");
 		if (navigationHint) {
@@ -442,11 +444,10 @@ class AccessibleView extends Disposable {
 		return hint;
 	}
 
-	private _getGoToSymbolHint(provider: IAccessibleContentProvider): string {
+	private _getGoToSymbolHint(providerHasSymbols?: boolean): string {
 		const goToSymbolKb = this._keybindingService.lookupKeybinding('editor.action.accessibleViewGoToSymbol')?.getAriaLabel();
-		const hasSymbolProvider = provider.options.language === 'markdown' || provider.options.language === undefined || !!provider.getSymbols;
 		let goToSymbolHint = '';
-		if (hasSymbolProvider) {
+		if (providerHasSymbols) {
 			if (goToSymbolKb) {
 				goToSymbolHint = localize('goToSymbolHint', 'Go to a symbol ({0})', goToSymbolKb);
 			} else {
