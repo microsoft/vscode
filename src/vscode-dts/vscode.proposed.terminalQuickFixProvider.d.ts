@@ -5,6 +5,8 @@
 
 declare module 'vscode' {
 
+	// https://github.com/microsoft/vscode/issues/162950
+
 	export interface TerminalQuickFixProvider {
 		/**
 		 * Provides terminal quick fixes

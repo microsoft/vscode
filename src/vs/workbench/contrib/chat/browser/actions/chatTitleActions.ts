@@ -143,7 +143,7 @@ export function registerChatTitleActions() {
 					return;
 				}
 
-				const value = item.response.value;
+				const value = item.response.asString();
 				const splitContents = splitMarkdownAndCodeBlocks(value);
 
 				const focusRange = notebookEditor.getFocus();

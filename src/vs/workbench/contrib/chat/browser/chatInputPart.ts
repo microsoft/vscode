@@ -30,7 +30,7 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { isMacintosh } from 'vs/base/common/platform';
 
@@ -197,7 +197,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.fontFamily = DEFAULT_FONT_FAMILY;
 		options.fontSize = 13;
 		options.lineHeight = 20;
-		options.padding = { top: 8, bottom: 7 };
+		options.padding = { top: 8, bottom: 8 };
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };

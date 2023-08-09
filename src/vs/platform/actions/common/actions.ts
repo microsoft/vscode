@@ -186,6 +186,7 @@ export class MenuId {
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
 	static readonly ChatExecute = new MenuId('ChatExecute');
+	static readonly AccessibleView = new MenuId('AccessibleView');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
@@ -348,7 +349,10 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		}
 		const rm = list.push(item);
 		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
-		return toDisposable(rm);
+		return toDisposable(() => {
+			rm();
+			this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
+		});
 	}
 
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable {

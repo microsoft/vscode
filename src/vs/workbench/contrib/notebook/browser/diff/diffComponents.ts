@@ -40,7 +40,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { fixedDiffEditorOptions, fixedEditorOptions, fixedEditorPadding } from 'vs/workbench/contrib/notebook/browser/diff/diffCellEditorOptions';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {

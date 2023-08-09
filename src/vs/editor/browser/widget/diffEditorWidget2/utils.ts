@@ -5,7 +5,7 @@
 
 import { IDimension } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ICodeEditor, IOverlayWidget, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
@@ -55,7 +55,7 @@ export function joinCombine<T>(arr1: readonly T[], arr2: readonly T[], keySelect
 export function applyObservableDecorations(editor: ICodeEditor, decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
 	const d = new DisposableStore();
 	const decorationsCollection = editor.createDecorationsCollection();
-	d.add(autorun(`Apply decorations from ${decorations.debugName}`, reader => {
+	d.add(autorunOpts({ debugName: `Apply decorations from ${decorations.debugName}` }, reader => {
 		const d = decorations.read(reader);
 		decorationsCollection.set(d);
 	}));
@@ -102,6 +102,7 @@ export class ObservableElementSizeObserver extends Disposable {
 		this._height = observableValue('height', this.elementSizeObserver.getHeight());
 
 		this._register(this.elementSizeObserver.onDidChange(e => transaction(tx => {
+			/** @description Set width/height from elementSizeObserver */
 			this._width.set(this.elementSizeObserver.getWidth(), tx);
 			this._height.set(this.elementSizeObserver.getHeight(), tx);
 		})));
@@ -130,7 +131,7 @@ export function animatedObservable(base: IObservable<number, boolean>, store: Di
 	const durationMs = 300;
 	let animationFrame: number | undefined = undefined;
 
-	store.add(autorunHandleChanges('update value', {
+	store.add(autorunHandleChanges({
 		createEmptyChangeSummary: () => ({ animate: false }),
 		handleChange: (ctx, s) => {
 			if (ctx.didChange(base)) {
@@ -139,6 +140,7 @@ export function animatedObservable(base: IObservable<number, boolean>, store: Di
 			return true;
 		}
 	}, (reader, s) => {
+		/** @description update value */
 		if (animationFrame !== undefined) {
 			cancelAnimationFrame(animationFrame);
 			animationFrame = undefined;
@@ -269,7 +271,8 @@ export interface CSSStyle {
 }
 
 export function applyStyle(domNode: HTMLElement, style: Partial<{ [TKey in keyof CSSStyle]: CSSStyle[TKey] | IObservable<CSSStyle[TKey] | undefined> | undefined }>) {
-	return autorun('applyStyle', (reader) => {
+	return autorun(reader => {
+		/** @description applyStyle */
 		for (let [key, val] of Object.entries(style)) {
 			if (val && typeof val === 'object' && 'read' in val) {
 				val = val.read(reader) as any;
@@ -316,7 +319,8 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 	const store = new DisposableStore();
 	const lastViewZoneIds: string[] = [];
 
-	store.add(autorun('applyViewZones', (reader) => {
+	store.add(autorun(reader => {
+		/** @description applyViewZones */
 		const curViewZones = viewZones.read(reader);
 
 		const viewZonIdsPerViewZone = new Map<IObservableViewZone, string>();
@@ -335,7 +339,7 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 		});
 		if (setIsUpdating) { setIsUpdating(false); }
 
-		store.add(autorunHandleChanges('layoutZone on change', {
+		store.add(autorunHandleChanges({
 			createEmptyChangeSummary() {
 				return [] as string[];
 			},
@@ -345,6 +349,7 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 				return true;
 			},
 		}, (reader, changeSummary) => {
+			/** @description layoutZone on change */
 			for (const vz of curViewZones) {
 				if (vz.onChange) {
 					viewZoneIdPerOnChangeObservable.set(vz.onChange, viewZonIdsPerViewZone.get(vz)!);

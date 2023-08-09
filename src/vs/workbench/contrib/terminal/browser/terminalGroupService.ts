@@ -33,27 +33,27 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 	private _container: HTMLElement | undefined;
 
-	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
+	private readonly _onDidChangeActiveGroup = this._register(new Emitter<ITerminalGroup | undefined>());
 	readonly onDidChangeActiveGroup = this._onDidChangeActiveGroup.event;
-	private readonly _onDidDisposeGroup = new Emitter<ITerminalGroup>();
+	private readonly _onDidDisposeGroup = this._register(new Emitter<ITerminalGroup>());
 	readonly onDidDisposeGroup = this._onDidDisposeGroup.event;
-	private readonly _onDidChangeGroups = new Emitter<void>();
+	private readonly _onDidChangeGroups = this._register(new Emitter<void>());
 	readonly onDidChangeGroups = this._onDidChangeGroups.event;
-	private readonly _onDidShow = new Emitter<void>();
+	private readonly _onDidShow = this._register(new Emitter<void>());
 	readonly onDidShow = this._onDidShow.event;
 
-	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
+	private readonly _onDidDisposeInstance = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidDisposeInstance = this._onDidDisposeInstance.event;
-	private readonly _onDidFocusInstance = new Emitter<ITerminalInstance>();
+	private readonly _onDidFocusInstance = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidFocusInstance = this._onDidFocusInstance.event;
-	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
+	private readonly _onDidChangeActiveInstance = this._register(new Emitter<ITerminalInstance | undefined>());
 	readonly onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
-	private readonly _onDidChangeInstances = new Emitter<void>();
+	private readonly _onDidChangeInstances = this._register(new Emitter<void>());
 	readonly onDidChangeInstances = this._onDidChangeInstances.event;
-	private readonly _onDidChangeInstanceCapability = new Emitter<ITerminalInstance>();
+	private readonly _onDidChangeInstanceCapability = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidChangeInstanceCapability = this._onDidChangeInstanceCapability.event;
 
-	private readonly _onDidChangePanelOrientation = new Emitter<Orientation>();
+	private readonly _onDidChangePanelOrientation = this._register(new Emitter<Orientation>());
 	readonly onDidChangePanelOrientation = this._onDidChangePanelOrientation.event;
 
 	constructor(

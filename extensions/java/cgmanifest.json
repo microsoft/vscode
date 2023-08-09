@@ -6,7 +6,7 @@
 				"git": {
 					"name": "redhat-developer/vscode-java",
 					"repositoryUrl": "https://github.com/redhat-developer/vscode-java",
-					"commitHash": "7a770ab6750b4b09173d98de14eb9792e3432b36"
+					"commitHash": "5fb57e8e1c5d776b21be13cd7227b25b87edf4a6"
 				}
 			},
 			"license": "MIT",

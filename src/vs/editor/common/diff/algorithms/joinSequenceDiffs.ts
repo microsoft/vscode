@@ -5,7 +5,7 @@
 
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ISequence, SequenceDiff } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
-import { LinesSliceCharSequence } from 'vs/editor/common/diff/standardLinesDiffComputer';
+import { LineSequence, LinesSliceCharSequence } from 'vs/editor/common/diff/standardLinesDiffComputer';
 
 export function optimizeSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	let result = sequenceDiffs;
@@ -32,6 +32,54 @@ export function smoothenSequenceDiffs(sequence1: ISequence, sequence2: ISequence
 
 	return result;
 }
+
+export function removeRandomLineMatches(sequence1: LineSequence, _sequence2: LineSequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
+	let diffs = sequenceDiffs;
+	if (diffs.length === 0) {
+		return diffs;
+	}
+
+	let counter = 0;
+	let shouldRepeat: boolean;
+	do {
+		shouldRepeat = false;
+
+		const result: SequenceDiff[] = [
+			diffs[0]
+		];
+
+		for (let i = 1; i < diffs.length; i++) {
+			const cur = diffs[i];
+			const lastResult = result[result.length - 1];
+
+			function shouldJoinDiffs(before: SequenceDiff, after: SequenceDiff): boolean {
+				const unchangedRange = new OffsetRange(lastResult.seq1Range.endExclusive, cur.seq1Range.start);
+
+				const unchangedText = sequence1.getText(unchangedRange);
+				const unchangedTextWithoutWs = unchangedText.replace(/\s/g, '');
+				if (unchangedTextWithoutWs.length <= 4
+					&& (before.seq1Range.length + before.seq2Range.length > 5 || after.seq1Range.length + after.seq2Range.length > 5)) {
+					return true;
+				}
+
+				return false;
+			}
+
+			const shouldJoin = shouldJoinDiffs(lastResult, cur);
+			if (shouldJoin) {
+				shouldRepeat = true;
+				result[result.length - 1] = result[result.length - 1].join(cur);
+			} else {
+				result.push(cur);
+			}
+		}
+
+		diffs = result;
+	} while (counter++ < 10 && shouldRepeat);
+
+	return diffs;
+}
+
 
 export function removeRandomMatches(sequence1: LinesSliceCharSequence, sequence2: LinesSliceCharSequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	let diffs = sequenceDiffs;
@@ -245,8 +293,7 @@ function shiftDiffToBetterPosition(diff: SequenceDiff, sequence1: ISequence, seq
 	while (
 		diff.seq1Range.start - deltaBefore >= seq1ValidRange.start &&
 		diff.seq2Range.start - deltaBefore >= seq2ValidRange.start &&
-		sequence2.getElement(diff.seq2Range.start - deltaBefore) ===
-		sequence2.getElement(diff.seq2Range.endExclusive - deltaBefore) && deltaBefore < maxShiftLimit
+		sequence2.isStronglyEqual(diff.seq2Range.start - deltaBefore, diff.seq2Range.endExclusive - deltaBefore) && deltaBefore < maxShiftLimit
 	) {
 		deltaBefore++;
 	}
@@ -256,8 +303,7 @@ function shiftDiffToBetterPosition(diff: SequenceDiff, sequence1: ISequence, seq
 	while (
 		diff.seq1Range.start + deltaAfter < seq1ValidRange.endExclusive &&
 		diff.seq2Range.endExclusive + deltaAfter < seq2ValidRange.endExclusive &&
-		sequence2.getElement(diff.seq2Range.start + deltaAfter) ===
-		sequence2.getElement(diff.seq2Range.endExclusive + deltaAfter) && deltaAfter < maxShiftLimit
+		sequence2.isStronglyEqual(diff.seq2Range.start + deltaAfter, diff.seq2Range.endExclusive + deltaAfter) && deltaAfter < maxShiftLimit
 	) {
 		deltaAfter++;
 	}

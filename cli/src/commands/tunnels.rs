@@ -35,7 +35,7 @@ use crate::{
 		code_server::CodeServerArgs,
 		create_service_manager,
 		dev_tunnels::{self, DevTunnels},
-		forwarding, legal,
+		local_forwarding, legal,
 		paths::get_all_servers,
 		protocol, serve_stream,
 		shutdown_signal::ShutdownRequest,
@@ -444,7 +444,7 @@ pub async fn forward(
 		match acquire_singleton(&ctx.paths.forwarding_lockfile()).await {
 			Ok(SingletonConnection::Client(stream)) => {
 				debug!(ctx.log, "starting as client to singleton");
-				let r = forwarding::client(forwarding::SingletonClientArgs {
+				let r = local_forwarding::client(local_forwarding::SingletonClientArgs {
 					log: ctx.log.clone(),
 					shutdown: shutdown.clone(),
 					stream,
@@ -465,22 +465,19 @@ pub async fn forward(
 
 	// #region singleton handler
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
-	println!("preauth {:?}", forward_args.login);
 	if let (Some(p), Some(at)) = (
 		forward_args.login.provider.take(),
 		forward_args.login.access_token.take(),
 	) {
 		auth.login(Some(p.into()), Some(at)).await?;
 	}
-	println!("auth done");
 
 	let mut tunnels = DevTunnels::new_port_forwarding(&ctx.log, auth, &ctx.paths);
 	let tunnel = tunnels
 		.start_new_launcher_tunnel(None, true, &forward_args.ports)
 		.await?;
-	println!("made tunnel");
 
-	forwarding::server(ctx.log, tunnel, server, own_ports_rx, shutdown).await?;
+	local_forwarding::server(ctx.log, tunnel, server, own_ports_rx, shutdown).await?;
 
 	Ok(0)
 }

@@ -766,6 +766,36 @@ export class NativeWindow extends Disposable {
 					}
 				);
 			}
+
+			else if (this.environmentService.os.arch === 'ia32') {
+				const message = localize('windows32eolmessage', "{0} on Windows 32-bit will soon stop receiving updates. Consider upgrading to the 64-bit build.", this.productService.nameLong);
+				const actions = [{
+					label: localize('windowseolBannerLearnMore', "Learn More"),
+					href: 'https://aka.ms/vscode-faq-old-windows'
+				}];
+
+				this.bannerService.show({
+					id: 'windows32eol.banner',
+					message,
+					ariaLabel: localize('windowseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
+					actions,
+					icon: Codicon.warning
+				});
+
+				this.notificationService.prompt(
+					Severity.Warning,
+					message,
+					[{
+						label: localize('learnMore', "Learn More"),
+						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-windows'))
+					}],
+					{
+						neverShowAgain: { id: 'windows32eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
+					}
+				);
+			}
 		}
 
 		// MacOS 10.11 and 10.12 warning

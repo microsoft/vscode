@@ -74,6 +74,8 @@ import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/qu
 import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { TerminalCommandMatchResult, TerminalQuickFixCommand, TerminalQuickFixOpener } from 'vscode';
+import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 
 export type TerminalQuickFix = TerminalQuickFixCommand | TerminalQuickFixOpener;
 
@@ -402,7 +404,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerLinkedEditingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerReferenceSupport(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void;
-	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], metadata: IPasteEditProviderMetadataDto): void;
+	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], id: string, metadata: IPasteEditProviderMetadataDto): void;
 	$registerDocumentFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string, supportRanges: boolean): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
@@ -423,7 +425,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerSelectionRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerTypeHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], metadata?: IDocumentDropEditProviderMetadata): void;
+	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], id: string | undefined, metadata?: IDocumentDropEditProviderMetadata): void;
 	$resolvePasteFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$resolveDocumentOnDropFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
@@ -1124,8 +1126,31 @@ export interface MainThreadNotebookRenderersShape extends IDisposable {
 export interface MainThreadInteractiveShape extends IDisposable {
 }
 
+export interface MainThreadChatProviderShape extends IDisposable {
+	$registerProvider(handle: number, identifier: string, metadata: IChatResponseProviderMetadata): void;
+	$unregisterProvider(handle: number): void;
+	$handleProgressChunk(requestId: number, chunk: IChatResponseFragment): Promise<void>;
+
+	$fetchResponse(extension: ExtensionIdentifier, provider: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any>;
+}
+
+export interface ExtHostChatProviderShape {
+	$provideChatResponse(handle: number, requestId: number, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
+	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;
+}
+
+export interface MainThreadChatSlashCommandsShape extends IDisposable {
+	$registerCommand(handle: number, name: string, detail: string): void;
+	$unregisterCommand(handle: number): void;
+	$handleProgressChunk(requestId: number, chunk: IChatSlashFragment): Promise<void>;
+}
+
+export interface ExtHostChatSlashCommandsShape {
+	$executeCommand(handle: number, requestId: number, prompt: string, context: { history: IChatMessage[] }, token: CancellationToken): Promise<any>;
+}
+
 export interface MainThreadInlineChatShape extends IDisposable {
-	$registerInteractiveEditorProvider(handle: number, debugName: string, supportsFeedback: boolean): Promise<void>;
+	$registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean): Promise<void>;
 	$handleProgressChunk(requestId: string, chunk: { message?: string; edits?: languages.TextEdit[] }): Promise<void>;
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
@@ -1166,7 +1191,13 @@ export interface IChatResponseDto {
 	};
 }
 
-export type IChatResponseProgressDto = { content: string } | { requestId: string } | { placeholder: string };
+export interface IChatResponseProgressFileTreeData {
+	label: string;
+	uri: URI;
+	children?: IChatResponseProgressFileTreeData[];
+}
+
+export type IChatResponseProgressDto = { content: string } | { requestId: string } | { placeholder: string } | { treeData: IChatResponseProgressFileTreeData };
 
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
@@ -1888,12 +1919,11 @@ export interface IPasteEditProviderMetadataDto {
 }
 
 export interface IPasteEditDto {
-	id: string;
 	label: string;
 	detail: string;
-	priority: number;
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
+	yieldTo?: readonly languages.DropYieldTo[];
 }
 
 export interface IDocumentDropEditProviderMetadata {
@@ -1901,11 +1931,10 @@ export interface IDocumentDropEditProviderMetadata {
 }
 
 export interface IDocumentOnDropEditDto {
-	id: string;
 	label: string;
-	priority: number;
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
+	yieldTo?: readonly languages.DropYieldTo[];
 }
 
 export interface ExtHostLanguageFeaturesShape {
@@ -2525,6 +2554,8 @@ export interface MainThreadTestingShape {
 export const MainContext = {
 	MainThreadAuthentication: createProxyIdentifier<MainThreadAuthenticationShape>('MainThreadAuthentication'),
 	MainThreadBulkEdits: createProxyIdentifier<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
+	MainThreadChatProvider: createProxyIdentifier<MainThreadChatProviderShape>('MainThreadChatProvider'),
+	MainThreadChatSlashCommands: createProxyIdentifier<MainThreadChatSlashCommandsShape>('MainThreadChatSlashCommands'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createProxyIdentifier<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createProxyIdentifier<MainThreadCommentsShape>('MainThreadComments'),
@@ -2643,6 +2674,8 @@ export const ExtHostContext = {
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostInlineChat: createProxyIdentifier<ExtHostInlineChatShape>('ExtHostInlineChatShape'),
 	ExtHostChat: createProxyIdentifier<ExtHostChatShape>('ExtHostChat'),
+	ExtHostChatSlashCommands: createProxyIdentifier<ExtHostChatSlashCommandsShape>('ExtHostChatSlashCommands'),
+	ExtHostChatProvider: createProxyIdentifier<ExtHostChatProviderShape>('ExtHostChatProvider'),
 	ExtHostSemanticSimilarity: createProxyIdentifier<ExtHostSemanticSimilarityShape>('ExtHostSemanticSimilarity'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
