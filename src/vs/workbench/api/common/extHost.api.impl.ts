@@ -1338,9 +1338,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatProvider');
 				return extHostChatProvider.registerProvider(extension.identifier, id, provider, metadata);
 			},
-			registerSlashCommand(name: string, command: vscode.SlashCommand) {
+			registerSlashCommand(name: string, command: vscode.SlashCommand, metadata?: vscode.SlashCommandMetadata) {
 				checkProposedApiEnabled(extension, 'chatSlashCommands');
-				return extHostChatSlashCommands.registerCommand(extension.identifier, name, command);
+				return extHostChatSlashCommands.registerCommand(extension.identifier, name, command, metadata ?? { description: '' });
 			},
 			requestChatAccess(id: string) {
 				checkProposedApiEnabled(extension, 'chatRequestAccess');
