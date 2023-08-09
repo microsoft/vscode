@@ -1,6 +1,6 @@
 <!-- BEGIN MICROSOFT SECURITY.MD V0.0.5 BLOCK -->
 
-## Security
+### Security
 
 Microsoft takes the security of our software products and services seriously, which includes all source code repositories managed through our GitHub organizations, which include [Microsoft](https://github.com/Microsoft), [Azure](https://github.com/Azure), [DotNet](https://github.com/dotnet), [AspNet](https://github.com/aspnet), [Xamarin](https://github.com/xamarin), and [our GitHub organizations](https://opensource.microsoft.com/).
 
@@ -24,7 +24,7 @@ Please include the requested information listed below (as much as you can provid
   * Any special configuration required to reproduce the issue
   * Step-by-step instructions to reproduce the issue
   * Proof-of-concept or exploit code (if possible)
-  * Impact of the issue, including how an attacker might exploit the issue
+  * Impact of the issue, including how an attacker might exploit the issue.
 
 This information will help us triage your report more quickly.
 
