@@ -12,6 +12,7 @@ import { IVoiceRecognitionService } from 'vs/platform/voiceRecognition/common/vo
 import { Emitter, Event } from 'vs/base/common/event';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { DeferredPromise } from 'vs/base/common/async';
+import { FileAccess } from 'vs/base/common/network';
 
 export const IWorkbenchVoiceRecognitionService = createDecorator<IWorkbenchVoiceRecognitionService>('workbenchVoiceRecognitionService');
 
@@ -28,6 +29,12 @@ export interface IWorkbenchVoiceRecognitionService {
 	transcribe(cancellation: CancellationToken): Event<string>;
 }
 
+class BufferInputAudioNode extends AudioWorkletNode {
+	constructor(context: BaseAudioContext, options: AudioWorkletNodeOptions) {
+		super(context, 'buffer-input-audio-processor', options);
+	}
+}
+
 // TODO@voice
 // - load `navigator.mediaDevices.getUserMedia` lazily on startup? or would it trigger a permission prompt?
 // - how to prevent data processing accumulation when processing is slow?
@@ -40,11 +47,9 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly AUDIO_TIME_SLICE = 4000;
 	private static readonly AUDIO_SAMPLE_RATE = 16000;
 	private static readonly AUDIO_SAMPLE_SIZE = 16;
 	private static readonly AUDIO_CHANNELS = 1;
-	private static readonly AUDIO_MIME_TYPE = 'audio/webm;codecs=opus';
 
 	constructor(
 		@IVoiceRecognitionService private readonly voiceRecognitionService: IVoiceRecognitionService,
@@ -70,7 +75,7 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 
 			progress.report({ message: localize('voiceTranscriptionGettingReady', "Getting microphone ready...") });
 
-			const audioDevice = await navigator.mediaDevices.getUserMedia({
+			const microphoneDevice = await navigator.mediaDevices.getUserMedia({
 				audio: {
 					sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_RATE,
 					sampleSize: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_SIZE,
@@ -84,44 +89,42 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 				return;
 			}
 
-			const audioRecorder = new MediaRecorder(audioDevice, { mimeType: WorkbenchVoiceRecognitionService.AUDIO_MIME_TYPE, audioBitsPerSecond: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_RATE });
-			audioRecorder.start(WorkbenchVoiceRecognitionService.AUDIO_TIME_SLICE);
-
-			token.onCancellationRequested(() => {
-				audioRecorder.stop();
-				recordingDone.complete();
-			});
-
-			progress.report({ message: localize('voiceTranscriptionRecording', "Recording from microphone...") });
-
-			const context = new AudioContext({
+			const audioContext = new AudioContext({
 				sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_RATE,
 				latencyHint: 'interactive'
 			});
 
-			const chunks: Blob[] = [];
-			audioRecorder.ondataavailable = e => {
-				chunks.push(e.data);
+			const microphoneSource = audioContext.createMediaStreamSource(microphoneDevice);
 
-				this.doTranscribeChunk(context, chunks, emitter, token);
+			token.onCancellationRequested(() => {
+				microphoneDevice.getTracks().forEach(track => track.stop());
+				microphoneSource.disconnect();
+				audioContext.close();
+				recordingDone.complete();
+			});
+
+			await audioContext.audioWorklet.addModule(FileAccess.asBrowserUri('vs/workbench/services/voiceRecognition/electron-sandbox/bufferInputAudioProcessor.js').toString(true));
+
+			const bufferInputAudioTarget = new BufferInputAudioNode(audioContext, {
+				channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
+				channelCountMode: 'explicit'
+			});
+
+			microphoneSource.connect(bufferInputAudioTarget);
+
+			progress.report({ message: localize('voiceTranscriptionRecording', "Recording from microphone...") });
+
+			bufferInputAudioTarget.port.onmessage = async e => {
+				if (e.data instanceof Float32Array) {
+					this.doTranscribeChunk(e.data, emitter, token);
+				}
 			};
 
 			return recordingDone.p;
 		});
 	}
 
-	private async doTranscribeChunk(context: AudioContext, chunks: Blob[], emitter: Emitter<string>, token: CancellationToken): Promise<void> {
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		const blob = new Blob(chunks);
-		const blobBuffer = await blob.arrayBuffer();
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		const audioBuffer = await context.decodeAudioData(blobBuffer);
+	private async doTranscribeChunk(data: Float32Array, emitter: Emitter<string>, token: CancellationToken): Promise<void> {
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -130,8 +133,7 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 			sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_RATE,
 			sampleSize: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_SIZE,
 			channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
-			length: audioBuffer.length,
-			channelData: VSFloat32Array.wrap(audioBuffer.getChannelData(0))
+			channelData: VSFloat32Array.wrap(data)
 		});
 
 		if (token.isCancellationRequested) {

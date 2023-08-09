@@ -44,7 +44,9 @@ CommandsRegistry.registerCommand('workbench.action.toggleVoiceTranscription', as
 		activeVoiceTranscription.add(toDisposable(() => voiceTranscriptionNotification.close()));
 
 		activeVoiceTranscription.add(voiceRecognitionService.transcribe(cts.token)(text => {
-			voiceTranscriptionNotification.updateMessage(text);
+			if (text) {
+				voiceTranscriptionNotification.updateMessage(text);
+			}
 		}));
 	}
 });
