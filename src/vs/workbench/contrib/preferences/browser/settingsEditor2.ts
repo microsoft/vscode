@@ -19,7 +19,6 @@ import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
@@ -839,7 +838,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.tocTree.setSelection(element ? [element] : []);
 			if (this.searchResultModel) {
 				if (this.viewState.filterToCategory !== element) {
-					this.viewState.filterToCategory = withNullAsUndefined(element);
+					this.viewState.filterToCategory = element ?? undefined;
 					// Force render in this case, because
 					// onDidClickSetting relies on the updated view.
 					this.renderTree(undefined, true);

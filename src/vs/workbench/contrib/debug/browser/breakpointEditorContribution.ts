@@ -18,7 +18,6 @@ import * as env from 'vs/base/common/platform';
 import severity from 'vs/base/common/severity';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -95,7 +94,7 @@ function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: IText
 			if (message) {
 				if (!langId) {
 					// Lazily compute this, only if needed for some debug adapter
-					langId = withNullAsUndefined(languageService.guessLanguageIdByFilepathOrFirstLine(breakpoint.uri));
+					langId = languageService.guessLanguageIdByFilepathOrFirstLine(breakpoint.uri) ?? undefined;
 				}
 				return langId && dbg.interestedInLanguage(langId) ? message : undefined;
 			}

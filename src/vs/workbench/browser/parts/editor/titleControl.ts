@@ -33,7 +33,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
-import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { isFirefox } from 'vs/base/browser/browser';
 import { isCancellationError } from 'vs/base/common/errors';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -418,7 +418,7 @@ export abstract class TitleControl extends Themable {
 	protected getKeybindingLabel(action: IAction): string | undefined {
 		const keybinding = this.getKeybinding(action);
 
-		return keybinding ? withNullAsUndefined(keybinding.getLabel()) : undefined;
+		return keybinding ? keybinding.getLabel() ?? undefined : undefined;
 	}
 
 	abstract openEditor(editor: EditorInput): void;

@@ -37,7 +37,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/browser/commentThreadRangeDecorator';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { withNullAsUndefined } from 'vs/base/common/types';
 
 export const ID = 'editor.contrib.review';
 
@@ -498,7 +497,7 @@ export class CommentController implements IEditorContribution {
 			}).then(commentInfos => {
 				if (this.commentService.isCommentingEnabled) {
 					const meaningfulCommentInfos = coalesce(commentInfos);
-					this._commentingRangeDecorator.update(this.editor, meaningfulCommentInfos, this.editor?.getPosition()?.lineNumber, withNullAsUndefined(this.editor?.getSelection()));
+					this._commentingRangeDecorator.update(this.editor, meaningfulCommentInfos, this.editor?.getPosition()?.lineNumber, this.editor?.getSelection() ?? undefined);
 				}
 			}, (err) => {
 				onUnexpectedError(err);

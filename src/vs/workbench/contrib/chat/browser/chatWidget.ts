@@ -10,7 +10,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/chat';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -411,7 +410,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getFocus(): ChatTreeItem | undefined {
-		return withNullAsUndefined(this.tree.getFocus()[0]);
+		return this.tree.getFocus()[0] ?? undefined;
 	}
 
 	reveal(item: ChatTreeItem): void {

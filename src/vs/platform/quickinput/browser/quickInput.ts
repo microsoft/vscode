@@ -27,7 +27,7 @@ import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { isString, withNullAsUndefined } from 'vs/base/common/types';
+import { isString } from 'vs/base/common/types';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
@@ -1807,7 +1807,7 @@ export class QuickInputController extends Disposable {
 			if (!focusChanged) {
 				let currentElement = this.previousFocusElement;
 				while (currentElement && !currentElement.offsetParent) {
-					currentElement = withNullAsUndefined(currentElement.parentElement);
+					currentElement = currentElement.parentElement ?? undefined;
 				}
 				if (currentElement?.offsetParent) {
 					currentElement.focus();
