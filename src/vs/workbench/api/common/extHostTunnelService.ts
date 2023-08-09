@@ -15,7 +15,7 @@ import { ExtHostTunnelServiceShape, MainContext, MainThreadTunnelServiceShape, P
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
 import * as vscode from 'vscode';
 
 class ExtensionTunnel extends DisposableTunnel implements vscode.Tunnel { }
