@@ -487,9 +487,9 @@ export class ChatService extends Disposable implements IChatService {
 					if (typeof request.message !== 'string' || !request.response) {
 						continue;
 					}
-					if (isMarkdownString(request.response.response)) {
+					if (isMarkdownString(request.response.response.value)) {
 						history.push({ role: ChatMessageRole.User, content: request.message });
-						history.push({ role: ChatMessageRole.Assistant, content: request.response?.response.value });
+						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.value.value });
 					}
 				}
 				await this.chatSlashCommandService.executeCommand(resolvedCommand, message.substring(resolvedCommand.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => progressCallback(p)), history, token);
