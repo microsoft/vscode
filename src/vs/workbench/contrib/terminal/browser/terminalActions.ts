@@ -318,14 +318,6 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
-		id: TerminalCommandId.ShowTabs,
-		title: { value: localize('workbench.action.terminal.showTabs', "Show Tabs"), original: 'Show Tabs' },
-		f1: false,
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c) => c.groupService.showTabs()
-	});
-
-	registerTerminalAction({
 		id: TerminalCommandId.FocusPreviousPane,
 		title: { value: localize('workbench.action.terminal.focusPreviousPane', "Focus Previous Terminal in Terminal Group"), original: 'Focus Previous Terminal in Terminal Group' },
 		keybinding: {
@@ -1241,21 +1233,28 @@ export function registerTerminalActions() {
 		}
 	});
 
+	async function killInstance(c: ITerminalServicesCollection, instance: ITerminalInstance | undefined): Promise<void> {
+		if (!instance) {
+			return;
+		}
+		await c.service.safeDisposeTerminal(instance);
+		if (c.groupService.instances.length > 0) {
+			await c.groupService.showPanel(true);
+		}
+	}
 	registerTerminalAction({
 		id: TerminalCommandId.Kill,
 		title: { value: localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance"), original: 'Kill the Active Terminal Instance' },
 		precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
 		icon: killTerminalIcon,
-		run: async (c) => {
-			const instance = c.groupService.activeInstance;
-			if (!instance) {
-				return;
-			}
-			await c.service.safeDisposeTerminal(instance);
-			if (c.groupService.instances.length > 0) {
-				await c.groupService.showPanel(true);
-			}
-		}
+		run: async (c) => killInstance(c, c.groupService.activeInstance)
+	});
+	registerTerminalAction({
+		id: TerminalCommandId.KillViewOrEditor,
+		title: terminalStrings.kill,
+		f1: false, // This is an internal command used for context menus
+		precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
+		run: async (c) => killInstance(c, c.service.activeInstance)
 	});
 
 	registerTerminalAction({

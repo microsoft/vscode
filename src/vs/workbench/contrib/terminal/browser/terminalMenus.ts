@@ -113,8 +113,8 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalInstanceContext,
 				item: {
 					command: {
-						id: TerminalCommandId.Kill,
-						title: terminalStrings.kill.value
+						id: TerminalCommandId.KillViewOrEditor,
+						title: terminalStrings.kill.value,
 					},
 					group: ContextMenuGroup.Kill
 				}
@@ -160,17 +160,6 @@ export function setupTerminalMenus(): void {
 						title: localize('workbench.action.terminal.clear', "Clear")
 					},
 					group: ContextMenuGroup.Clear,
-				}
-			},
-			{
-				id: MenuId.TerminalInstanceContext,
-				item: {
-					command: {
-						id: TerminalCommandId.ShowTabs,
-						title: localize('workbench.action.terminal.showsTabs', "Show Tabs")
-					},
-					when: ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
-					group: ContextMenuGroup.Config
 				}
 			},
 			{
