@@ -206,6 +206,7 @@ class AccessibleView extends Disposable {
 			return;
 		}
 		const symbols: IAccessibleViewSymbol[] = [];
+		let firstListItem: string | undefined;
 		for (const token of tokens) {
 			let label: string | undefined = undefined;
 			if ('type' in token) {
@@ -215,22 +216,29 @@ class AccessibleView extends Disposable {
 					case 'code':
 						label = token.text;
 						break;
-					case 'list':
+					case 'list': {
+						const firstItem = token.items?.[0];
+						if (!firstItem) {
+							break;
+						}
+						firstListItem = `- ${firstItem.text}`;
 						label = token.items?.map(i => i.text).join(', ');
 						break;
+					}
 				}
 			} else {
 				label = token.label;
 			}
 			if (label) {
-				symbols.push({ info: label, label: localize('symbolLabel', "({0}) {1}", token.type, label), ariaLabel: localize('symbolLabelAria', "({0}) {1}", token.type, label) });
+				symbols.push({ info: label, label: localize('symbolLabel', "({0}) {1}", token.type, label), ariaLabel: localize('symbolLabelAria', "({0}) {1}", token.type, label), firstListItem });
+				firstListItem = undefined;
 			}
 		}
 		return symbols;
 	}
 
 	showSymbol(provider: IAccessibleContentProvider, symbol: IAccessibleViewSymbol): void {
-		const index = provider.provideContent().split('\n').findIndex(line => line.includes(symbol.info.split('\n')[0])) ?? -1;
+		const index = provider.provideContent().split('\n').findIndex(line => line.includes(symbol.info.split('\n')[0]) || (symbol.firstListItem && line.includes(symbol.firstListItem))) ?? -1;
 		if (index >= 0) {
 			this.show(provider);
 			this._editorWidget.revealLine(index + 1);
@@ -365,17 +373,19 @@ class AccessibleView extends Disposable {
 		accessibleViewHelpProvider.provideContent = () => this._getAccessibleViewHelpDialogContent(accessibleViewHelpProvider);
 		accessibleViewHelpProvider.onClose = () => this.show(previousProvider);
 		this._contextViewService.hideContextView();
+		this._accessiblityHelpIsShown.set(true);
+		const delegate: IContextViewDelegate = {
+			getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
+			render: (container) => {
+				container.classList.add('accessible-view-container');
+				return this._render(accessibleViewHelpProvider, container, true);
+			},
+			onHide: () => {
+				this._accessiblityHelpIsShown.reset();
+			}
+		};
 		// HACK: Delay to allow the context view to hide #186514
-		setTimeout(() => {
-			const delegate: IContextViewDelegate = {
-				getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
-				render: (container) => {
-					container.classList.add('accessible-view-container');
-					return this._render(accessibleViewHelpProvider, container, true);
-				}
-			};
-			this._contextViewService.showContextView(delegate);
-		}, 100);
+		setTimeout(() => this._contextViewService.showContextView(delegate), 100);
 	}
 
 	private _getAccessibleViewHelpDialogContent(provider: IAccessibleContentProvider): string {
@@ -535,13 +545,14 @@ class AccessibleViewSymbolQuickPick {
 
 interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
 	info: string;
+	firstListItem?: string;
 }
 
 class AccessibleViewNextAction extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.action.accessibleViewNext',
-			precondition: ContextKeyExpr.and(accessibleViewIsShown, accessibilityHelpIsShown.negate()),
+			precondition: accessibleViewIsShown,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.BracketRight,
 				weight: KeybindingWeight.WorkbenchContrib
@@ -567,7 +578,7 @@ class AccessibleViewPreviousAction extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.action.accessibleViewPrevious',
-			precondition: ContextKeyExpr.and(accessibleViewIsShown, accessibilityHelpIsShown.negate()),
+			precondition: accessibleViewIsShown,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.BracketLeft,
 				weight: KeybindingWeight.WorkbenchContrib
@@ -595,7 +606,7 @@ class AccessibleViewGoToSymbolAction extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.action.accessibleViewGoToSymbol',
-			precondition: ContextKeyExpr.and(accessibleViewIsShown, accessibilityHelpIsShown.negate()),
+			precondition: accessibleViewIsShown,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 				weight: KeybindingWeight.WorkbenchContrib + 10
