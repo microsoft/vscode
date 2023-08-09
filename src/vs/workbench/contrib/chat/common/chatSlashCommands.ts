@@ -19,11 +19,11 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 
 const slashItem: IJSONSchema = {
 	type: 'object',
-	required: ['name', 'detail'],
+	required: ['command', 'detail'],
 	properties: {
-		name: {
+		command: {
 			type: 'string',
-			markdownDescription: localize('name', "The name of the slash command which will be used as prefix.")
+			markdownDescription: localize('command', "The name of the slash command which will be used as prefix.")
 		},
 		detail: {
 			type: 'string',
@@ -43,7 +43,7 @@ const slashItems: IJSONSchema = {
 	]
 };
 
-export const slashesExtPoint = ExtensionsRegistry.registerExtensionPoint<IChatSlashData[]>({
+export const slashesExtPoint = ExtensionsRegistry.registerExtensionPoint<IChatSlashData | IChatSlashData[]>({
 	extensionPoint: 'slashes',
 	jsonSchema: slashItems
 });
@@ -60,6 +60,14 @@ export interface IChatSlashData {
 	 * as it is entered. Defaults to `false`.
 	 */
 	executeImmediately?: boolean;
+}
+
+function isChatSlashData(data: any): data is IChatSlashData {
+	return typeof data === 'object' && data &&
+		typeof data.command === 'string' &&
+		typeof data.detail === 'string' &&
+		(typeof data.sortText === 'undefined' || typeof data.sortText === 'string') &&
+		(typeof data.executeImmediately === 'undefined' || typeof data.executeImmediately === 'boolean');
 }
 
 export interface IChatSlashFragment {
@@ -108,6 +116,12 @@ export class ChatSlashCommandService implements IChatSlashCommandService {
 				const { value } = entry;
 
 				for (const candidate of Iterable.wrap(value)) {
+
+					if (!isChatSlashData(candidate)) {
+						entry.collector.error(localize('invalid', "Invalid {0}: {1}", slashesExtPoint.name, JSON.stringify(candidate)));
+						continue;
+					}
+
 					contributions.add(this.registerSlashData({ ...candidate }));
 				}
 			}
