@@ -383,9 +383,6 @@ class AccessibleView extends Disposable {
 			render: (container) => {
 				container.classList.add('accessible-view-container');
 				return this._render(accessibleViewHelpProvider, container, true);
-			},
-			onHide: () => {
-				this._accessiblityHelpIsShown.reset();
 			}
 		};
 		// HACK: Delay to allow the context view to hide #186514
