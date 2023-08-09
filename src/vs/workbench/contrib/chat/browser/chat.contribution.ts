@@ -37,17 +37,18 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import '../common/chatColors';
 import { registerMoveActions } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { ACTION_ID_CLEAR_CHAT, registerClearActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
-import { AccessibleViewAction, AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ChatProviderService, IChatProviderService } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
+import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
+import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 // Register configuration

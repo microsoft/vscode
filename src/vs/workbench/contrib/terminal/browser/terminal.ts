@@ -331,6 +331,10 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	readonly groups: readonly ITerminalGroup[];
 	activeGroup: ITerminalGroup | undefined;
 	readonly activeGroupIndex: number;
+	/**
+	 * Gets or sets the last accessed menu, this is used to select the instance(s) for menu actions.
+	 */
+	lastAccessedMenu: 'inline-tab' | 'tab-list';
 
 	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	readonly onDidDisposeGroup: Event<ITerminalGroup>;
@@ -370,7 +374,6 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	hidePanel(): void;
 	focusTabs(): void;
 	focusHover(): void;
-	showTabs(): void;
 	updateVisibility(): void;
 }
 
