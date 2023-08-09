@@ -46,6 +46,8 @@ import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/acc
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ChatProviderService, IChatProviderService } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -234,4 +236,5 @@ registerSingleton(IChatContributionService, ChatContributionService, Instantiati
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
 registerSingleton(IChatAccessibilityService, ChatAccessibilityService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetHistoryService, ChatWidgetHistoryService, InstantiationType.Delayed);
-
+registerSingleton(IChatProviderService, ChatProviderService, InstantiationType.Delayed);
+registerSingleton(IChatSlashCommandService, ChatSlashCommandService, InstantiationType.Delayed);

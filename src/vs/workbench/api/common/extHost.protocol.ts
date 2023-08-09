@@ -74,6 +74,8 @@ import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/qu
 import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { TerminalCommandMatchResult, TerminalQuickFixCommand, TerminalQuickFixOpener } from 'vscode';
+import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 
 export type TerminalQuickFix = TerminalQuickFixCommand | TerminalQuickFixOpener;
 
@@ -1122,6 +1124,29 @@ export interface MainThreadNotebookRenderersShape extends IDisposable {
 }
 
 export interface MainThreadInteractiveShape extends IDisposable {
+}
+
+export interface MainThreadChatProviderShape extends IDisposable {
+	$registerProvider(handle: number, identifier: string, metadata: IChatResponseProviderMetadata): void;
+	$unregisterProvider(handle: number): void;
+	$handleProgressChunk(requestId: number, chunk: IChatResponseFragment): Promise<void>;
+
+	$fetchResponse(extension: ExtensionIdentifier, provider: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any>;
+}
+
+export interface ExtHostChatProviderShape {
+	$provideChatResponse(handle: number, requestId: number, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
+	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;
+}
+
+export interface MainThreadChatSlashCommandsShape extends IDisposable {
+	$registerCommand(handle: number, name: string, detail: string): void;
+	$unregisterCommand(handle: number): void;
+	$handleProgressChunk(requestId: number, chunk: IChatSlashFragment): Promise<void>;
+}
+
+export interface ExtHostChatSlashCommandsShape {
+	$executeCommand(handle: number, requestId: number, prompt: string, context: { history: IChatMessage[] }, token: CancellationToken): Promise<any>;
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {
@@ -2529,6 +2554,8 @@ export interface MainThreadTestingShape {
 export const MainContext = {
 	MainThreadAuthentication: createProxyIdentifier<MainThreadAuthenticationShape>('MainThreadAuthentication'),
 	MainThreadBulkEdits: createProxyIdentifier<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
+	MainThreadChatProvider: createProxyIdentifier<MainThreadChatProviderShape>('MainThreadChatProvider'),
+	MainThreadChatSlashCommands: createProxyIdentifier<MainThreadChatSlashCommandsShape>('MainThreadChatSlashCommands'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createProxyIdentifier<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createProxyIdentifier<MainThreadCommentsShape>('MainThreadComments'),
@@ -2647,6 +2674,8 @@ export const ExtHostContext = {
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostInlineChat: createProxyIdentifier<ExtHostInlineChatShape>('ExtHostInlineChatShape'),
 	ExtHostChat: createProxyIdentifier<ExtHostChatShape>('ExtHostChat'),
+	ExtHostChatSlashCommands: createProxyIdentifier<ExtHostChatSlashCommandsShape>('ExtHostChatSlashCommands'),
+	ExtHostChatProvider: createProxyIdentifier<ExtHostChatProviderShape>('ExtHostChatProvider'),
 	ExtHostSemanticSimilarity: createProxyIdentifier<ExtHostSemanticSimilarityShape>('ExtHostSemanticSimilarity'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
