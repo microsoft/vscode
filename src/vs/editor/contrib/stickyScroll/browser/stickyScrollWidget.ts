@@ -112,11 +112,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private _updateWidgetWidth(): void {
 		const layoutInfo = this._editor.getLayoutInfo();
-		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
-		const lineNumbersWidth = minimapSide === 'left' ? layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth : layoutInfo.contentLeft;
+		const lineNumbersWidth = layoutInfo.contentLeft;
 		this._lineNumbersDomNode.style.width = `${lineNumbersWidth}px`;
 		this._linesDomNodeScrollable.style.setProperty('--vscode-editorStickyScroll-scrollableWidth', `${this._editor.getScrollWidth() - layoutInfo.verticalScrollbarWidth}px`);
-		this._rootDomNode.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth}px`;
+		this._rootDomNode.style.width = `${layoutInfo.width - layoutInfo.verticalScrollbarWidth}px`;
 	}
 
 	private _renderRootNode(): void {
@@ -139,13 +138,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._lineNumbersDomNode.style.height = `${widgetHeight}px`;
 		this._linesDomNodeScrollable.style.height = `${widgetHeight}px`;
 		this._rootDomNode.style.height = `${widgetHeight}px`;
-		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 
-		if (minimapSide === 'left') {
-			this._rootDomNode.style.marginLeft = layoutInfo.minimap.minimapCanvasOuterWidth + 'px';
-		} else {
-			this._rootDomNode.style.marginLeft = '0px';
-		}
+		this._rootDomNode.style.marginLeft = '0px';
 		this._updateMinContentWidth();
 		this._editor.layoutOverlayWidget(this);
 	}
@@ -154,7 +148,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const viewModel = this._editor._getViewModel();
 		const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
 		const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
-		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 
@@ -202,11 +195,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		innerLineNumberHTML.className = 'sticky-line-number-inner';
 		innerLineNumberHTML.style.lineHeight = `${lineHeight}px`;
 		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
-		if (minimapSide === 'left') {
-			innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft - layoutInfo.minimap.minimapCanvasOuterWidth}px`;
-		} else if (minimapSide === 'right') {
-			innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
-		}
+		innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
 
 		this._editor.applyFontInfo(lineHTMLNode);
