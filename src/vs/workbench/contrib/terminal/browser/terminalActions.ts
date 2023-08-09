@@ -289,7 +289,7 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
-		id: TerminalCommandId.MoveToEditorInstance,
+		id: TerminalCommandId.MoveToEditorActiveTab,
 		title: terminalStrings.moveToEditor,
 		f1: false,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
@@ -700,7 +700,7 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
-		id: TerminalCommandId.ChangeIconInstance,
+		id: TerminalCommandId.ChangeIconActiveTab,
 		title: terminalStrings.changeIcon,
 		f1: false,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
@@ -723,7 +723,7 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
-		id: TerminalCommandId.ChangeColorInstance,
+		id: TerminalCommandId.ChangeColorActiveTab,
 		title: terminalStrings.changeColor,
 		f1: false,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
@@ -746,7 +746,7 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
-		id: TerminalCommandId.RenameInstance,
+		id: TerminalCommandId.RenameActiveTab,
 		title: terminalStrings.rename,
 		f1: false,
 		keybinding: {
@@ -1044,7 +1044,7 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
-		id: TerminalCommandId.SplitInstance,
+		id: TerminalCommandId.SplitActiveTab,
 		title: terminalStrings.split,
 		f1: false,
 		keybinding: {
@@ -1079,7 +1079,7 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
-		id: TerminalCommandId.UnsplitInstance,
+		id: TerminalCommandId.UnsplitActiveTab,
 		title: terminalStrings.unsplit,
 		f1: false,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -1097,7 +1097,7 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
-		id: TerminalCommandId.JoinInstance,
+		id: TerminalCommandId.JoinActiveTab,
 		title: { value: localize('workbench.action.terminal.joinInstance', "Join Terminals"), original: 'Join Terminals' },
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection.toNegated()),
 		run: async (c, accessor) => {
@@ -1285,7 +1285,7 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
-		id: TerminalCommandId.KillInstance,
+		id: TerminalCommandId.KillActiveTab,
 		title: terminalStrings.kill,
 		f1: false,
 		precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
@@ -1378,7 +1378,7 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
-		id: TerminalCommandId.SizeToContentWidthInstance,
+		id: TerminalCommandId.SizeToContentWidthActiveTab,
 		title: terminalStrings.toggleSizeToContentWidth,
 		f1: false,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus),
@@ -1604,6 +1604,15 @@ interface IRemoteTerminalPick extends IQuickPickItem {
 function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] | undefined {
 	const listService = accessor.get(IListService);
 	const terminalService = accessor.get(ITerminalService);
+	const terminalGroupService = accessor.get(ITerminalGroupService);
+
+	// Get inline tab instance
+	if (terminalGroupService.lastAccessedMenu === 'inline-tab') {
+		const instance = terminalGroupService.activeInstance;
+		return instance ? [terminalGroupService.activeInstance] : undefined;
+	}
+
+	// Get tab list instance
 	if (!listService.lastFocusedList?.getSelection()) {
 		return undefined;
 	}

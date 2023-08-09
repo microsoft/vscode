@@ -1840,6 +1840,7 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	groups: readonly ITerminalGroup[] = [];
 	activeGroup: ITerminalGroup | undefined;
 	activeGroupIndex: number = 0;
+	lastAccessedMenu: 'inline-tab' | 'tab-list' = 'inline-tab';
 	onDidChangeActiveGroup = Event.None;
 	onDidDisposeGroup = Event.None;
 	onDidShow = Event.None;
