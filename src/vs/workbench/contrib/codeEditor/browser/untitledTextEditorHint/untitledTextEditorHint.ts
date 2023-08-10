@@ -157,7 +157,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			}
 		};
 
-		return { hintMsg, hintHandler };
+		return { hintMsg, hintHandler, keybindingsLookup: ['inlineChat.start'] };
 	}
 
 	private _getHintDefault() {
@@ -234,7 +234,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.editor.focus();
 		};
 
-		return { hintMsg, hintHandler };
+		return { hintMsg, hintHandler, keybindingsLookup: [ChangeLanguageAction.ID, ApplyFileSnippetAction.Id, 'welcome.showNewFileEntries'] };
 	}
 
 	// Select a language to get started. Start typing to dismiss, or don't show this again.
@@ -244,7 +244,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode.style.width = 'max-content';
 
 			const inlineChatProviders = [...this.inlineChatService.getAllProvider()];
-			const { hintMsg, hintHandler } = !inlineChatProviders.length ? this._getHintDefault() : this._getHintInlineChat(inlineChatProviders);
+			const { hintMsg, hintHandler, keybindingsLookup } = !inlineChatProviders.length ? this._getHintDefault() : this._getHintInlineChat(inlineChatProviders);
 			const hintElement = renderFormattedText(hintMsg, {
 				actionHandler: hintHandler,
 				renderCodeSegments: false,
@@ -252,7 +252,6 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode.append(hintElement);
 
 			// ugly way to associate keybindings...
-			const keybindingsLookup = [ChangeLanguageAction.ID, ApplyFileSnippetAction.Id, 'welcome.showNewFileEntries'];
 			for (const anchor of hintElement.querySelectorAll('a')) {
 				anchor.style.cursor = 'pointer';
 				const id = keybindingsLookup.shift();

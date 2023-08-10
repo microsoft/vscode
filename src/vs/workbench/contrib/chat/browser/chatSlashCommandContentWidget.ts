@@ -15,6 +15,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 export class SlashCommandContentWidget extends Disposable implements IContentWidget {
 	private _domNode = document.createElement('div');
 	private _lastSlashCommandText: string | undefined;
+	private _isVisible = false;
 
 	constructor(private _editor: ICodeEditor) {
 		super();
@@ -32,17 +33,22 @@ export class SlashCommandContentWidget extends Disposable implements IContentWid
 	}
 
 	show() {
+		if (this._isVisible) {
+			return;
+		}
+		this._isVisible = true;
 		this._domNode.toggleAttribute('hidden', false);
 		this._editor.addContentWidget(this);
 	}
 
 	hide() {
+		this._isVisible = false;
 		this._domNode.toggleAttribute('hidden', true);
 		this._editor.removeContentWidget(this);
 	}
 
 	setCommandText(slashCommand: string) {
-		this._domNode.innerText = `${slashCommand} `;
+		this._domNode.innerText = `/${slashCommand} `;
 		this._lastSlashCommandText = slashCommand;
 	}
 

@@ -1316,14 +1316,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
-		// namespace: interactiveSlashCommands
-		const interactiveSlashCommands: typeof vscode.interactiveSlashCommands = {
-			registerSlashCommandProvider(chatProviderId: string, provider: vscode.InteractiveSlashCommandProvider) {
-				checkProposedApiEnabled(extension, 'interactiveSlashCommands');
-				return extHostChat.registerSlashCommandProvider(extension, chatProviderId, provider);
-			}
-		};
-
 		// namespace: ai
 		const ai: typeof vscode.ai = {
 			registerSemanticSimilarityProvider(provider: vscode.SemanticSimilarityProvider) {
@@ -1355,13 +1347,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			authentication,
 			commands,
 			comments,
+			chat,
 			debug,
 			env,
 			extensions,
 			interactive,
-			interactiveSlashCommands,
 			l10n,
-			chat,
 			languages,
 			notebooks,
 			scm,
@@ -1475,7 +1466,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TaskRevealKind: extHostTypes.TaskRevealKind,
 			TaskScope: extHostTypes.TaskScope,
 			TerminalLink: extHostTypes.TerminalLink,
-			TerminalQuickFixCommand: extHostTypes.TerminalQuickFixCommand,
+			TerminalQuickFixExecuteTerminalCommand: extHostTypes.TerminalQuickFixCommand,
 			TerminalQuickFixOpener: extHostTypes.TerminalQuickFixOpener,
 			TerminalLocation: extHostTypes.TerminalLocation,
 			TerminalProfile: extHostTypes.TerminalProfile,
