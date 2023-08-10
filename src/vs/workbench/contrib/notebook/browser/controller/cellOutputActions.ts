@@ -7,7 +7,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { CELL_TITLE_OUTPUT_GROUP_ID, INotebookOutputActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { INotebookOutputActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NOTEBOOK_CELL_HAS_OUTPUTS } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -23,8 +23,7 @@ registerAction2(class CopyCellOutputAction extends NotebookAction {
 				title: localize('notebookActions.copyOutput', "Copy Output to Clipboard"),
 				menu: {
 					id: MenuId.NotebookOutputToolbar,
-					when: NOTEBOOK_CELL_HAS_OUTPUTS,
-					group: CELL_TITLE_OUTPUT_GROUP_ID
+					when: NOTEBOOK_CELL_HAS_OUTPUTS
 				},
 				icon: icons.copyIcon,
 			});
