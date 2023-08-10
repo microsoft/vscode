@@ -109,7 +109,7 @@ where
 }
 
 fn apply_build_from_product_json(path: &Path) {
-	let json: HashMap<String, Value> = read_json_from_path(&path);
+	let json: HashMap<String, Value> = read_json_from_path(path);
 	set_env_vars_from_map_keys("VSCODE_CLI", json);
 }
 
@@ -129,7 +129,7 @@ fn apply_build_environment_variables() {
 	match env::var("VSCODE_CLI_PRODUCT_JSON") {
 		Ok(v) => {
 			let path = if cfg!(windows) {
-				PathBuf::from_str(&v.replace("/", "\\")).unwrap()
+				PathBuf::from_str(&v.replace('/', "\\")).unwrap()
 			} else {
 				PathBuf::from_str(&v).unwrap()
 			};
