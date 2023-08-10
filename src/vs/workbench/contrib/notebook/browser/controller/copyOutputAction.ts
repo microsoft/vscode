@@ -45,16 +45,15 @@ registerAction2(class CopyCellOutputAction extends NotebookAction {
 			return;
 		}
 
-		const charLimit = 100_000_000;
 		const decoder = new TextDecoder();
-		let text = decoder.decode(output.data.slice(0, charLimit).buffer);
+		let text = decoder.decode(output.data.buffer);
 		let totalLength = output.data.byteLength;
 
 		// append adjacent text streams since they are concatenated in the renderer
 		if (isTextStreamMime(mimeType)) {
 			const cellViewModel = outputViewModel.cellViewModel as ICellViewModel;
 			let index = cellViewModel.outputsViewModels.indexOf(outputViewModel) + 1;
-			while (index < cellViewModel.outputsViewModels.length && text.length < charLimit) {
+			while (index < cellViewModel.outputsViewModels.length) {
 				const nextOutputViewModel = cellViewModel.outputsViewModels[index];
 				const nextMimeType = nextOutputViewModel?.pickedMimeType?.mimeType;
 				const nextOutputTextModel = cellViewModel.model.outputs[index];
@@ -65,15 +64,11 @@ registerAction2(class CopyCellOutputAction extends NotebookAction {
 
 				const nextOutput = nextOutputTextModel.outputs.find(output => output.mime === nextMimeType);
 				if (nextOutput) {
-					text = text + decoder.decode(nextOutput.data.slice(0, charLimit).buffer);
+					text = text + decoder.decode(nextOutput.data.buffer);
 					totalLength = totalLength + nextOutput.data.byteLength;
 				}
 				index = index + 1;
 			}
-		}
-
-		if (totalLength > charLimit) {
-			text = text + '...(truncated)';
 		}
 
 		if (mimeType.endsWith('error')) {
