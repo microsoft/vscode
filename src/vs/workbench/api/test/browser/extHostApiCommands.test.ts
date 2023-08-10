@@ -62,6 +62,8 @@ import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { TestTextResourceConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -153,6 +155,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		services.set(IOutlineModelService, new SyncDescriptor(OutlineModelService));
 		testConfigurationService = new TestConfigurationService();
 		services.set(IConfigurationService, testConfigurationService);
+		services.set(ITextResourceConfigurationService, new TestTextResourceConfigurationService(testConfigurationService));
 
 		const insta = new InstantiationService(services);
 

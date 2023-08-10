@@ -30,6 +30,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 class SelectionRanges {
 
@@ -312,10 +313,10 @@ CommandsRegistry.registerCommand('_executeSelectionRangeProvider', async functio
 	assertType(URI.isUri(resource));
 
 	const registry = accessor.get(ILanguageFeaturesService).selectionRangeProvider;
-	const configurationService = accessor.get(IConfigurationService);
+	const configurationService = accessor.get(ITextResourceConfigurationService);
 	const reference = await accessor.get(ITextModelService).createModelReference(resource);
 
-	const options: SelectionRangesOptions = configurationService.getValue<SelectionRangesOptions | undefined>('editor.smartSelect', { resource }) ?? {
+	const options: SelectionRangesOptions = configurationService.getValue<SelectionRangesOptions | undefined>(resource, 'editor.smartSelect') ?? {
 		// TODO: how to avoid repeating defaults here?
 		selectLeadingAndTrailingWhitespace: true,
 		selectSubwords: true
