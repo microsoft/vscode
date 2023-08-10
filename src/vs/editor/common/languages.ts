@@ -802,10 +802,10 @@ export interface CodeActionProvider {
  * @internal
  */
 export interface DocumentPasteEdit {
-	readonly id: string;
 	readonly label: string;
 	readonly detail: string;
-	readonly priority: number;
+	readonly handledMimeType?: string;
+	readonly yieldTo?: readonly DropYieldTo[];
 	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
@@ -815,7 +815,7 @@ export interface DocumentPasteEdit {
  */
 export interface DocumentPasteEditProvider {
 
-	readonly id?: string;
+	readonly id: string;
 
 	readonly copyMimeTypes?: readonly string[];
 	readonly pasteMimeTypes?: readonly string[];
@@ -2011,10 +2011,15 @@ export enum ExternalUriOpenerPriority {
 /**
  * @internal
  */
+export type DropYieldTo = { readonly providerId: string } | { readonly mimeType: string };
+
+/**
+ * @internal
+ */
 export interface DocumentOnDropEdit {
-	readonly id: string;
 	readonly label: string;
-	readonly priority: number;
+	readonly handledMimeType?: string;
+	readonly yieldTo?: readonly DropYieldTo[];
 	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
@@ -2023,6 +2028,7 @@ export interface DocumentOnDropEdit {
  * @internal
  */
 export interface DocumentOnDropEditProvider {
+	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];
 
 	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;

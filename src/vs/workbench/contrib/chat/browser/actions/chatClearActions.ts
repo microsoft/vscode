@@ -19,6 +19,8 @@ import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInp
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 
+export const ACTION_ID_CLEAR_CHAT = `workbench.action.chat.clear`;
+
 export function registerClearActions() {
 
 	registerAction2(class ClearEditorAction extends Action2 {
@@ -48,7 +50,7 @@ export function registerClearActions() {
 	registerAction2(class GlobalClearChatAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.chat.clear`,
+				id: ACTION_ID_CLEAR_CHAT,
 				title: {
 					value: localize('interactiveSession.clear.label', "Clear"),
 					original: 'Clear'

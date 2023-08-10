@@ -21,7 +21,7 @@ import { getMarks, mark } from 'vs/base/common/performance';
 import { IProcessEnvironment, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
-import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
@@ -799,7 +799,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				detail: uri.scheme === Schemas.file ?
 					localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", getPathLabel(uri, { os: OS, tildify: this.environmentMainService })) :
 					localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString(true))
-			}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+			}, BrowserWindow.getFocusedWindow() ?? undefined);
 
 			return undefined;
 		}));
