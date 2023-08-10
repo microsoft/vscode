@@ -31,6 +31,8 @@ import { IAccessibleViewService, IAccessibleContentProvider, IAccessibleViewOpti
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { IAction } from 'vs/base/common/actions';
+import { INotificationViewItem } from 'vs/workbench/common/notifications';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
@@ -220,13 +222,40 @@ export class NotificationAccessibleViewContribution extends Disposable {
 					options: {
 						ariaLabel: localize('notification', "Notification Accessible View"),
 						type: AccessibleViewType.View
-					}
+					},
+					actions: getActionsFromNotification(notification)
 				});
 				return true;
 			}
 			return renderAccessibleView();
 		}, NotificationFocusedContext));
 	}
+}
+
+function getActionsFromNotification(notification: INotificationViewItem): IAction[] | undefined {
+	let actions = undefined;
+	if (notification.actions) {
+		actions = [];
+		if (notification.actions.primary) {
+			actions.push(...notification.actions.primary);
+		}
+		if (notification.actions.secondary) {
+			actions.push(...notification.actions.secondary);
+		}
+	}
+	if (actions) {
+		for (const action of actions) {
+			const initialAction = action.run;
+			action.run = () => {
+				initialAction();
+				notification.close();
+			};
+		}
+	}
+	if (actions) {
+		actions.push({ id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => notification.close(), enabled: true, class: 'codicon codicon-clear-all' });
+	}
+	return actions;
 }
 
 export function alertFocusChange(index: number | undefined, length: number | undefined, type: 'next' | 'previous'): void {
