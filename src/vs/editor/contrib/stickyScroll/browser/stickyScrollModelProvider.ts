@@ -120,6 +120,9 @@ export class StickyModelProvider implements IStickyModelProvider {
 				}
 			}
 			return null;
+		}).catch(() => {
+			// error thrown when cancel is called on _updateScheduler while previous promise has not completed
+			return null;
 		});
 	}
 }
