@@ -115,14 +115,4 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	editor: ICodeEditor;
 }
 
-export const CLIPBOARD_COMPATIBLE_MIMETYPES = [
-	'text/latex',
-	'text/html',
-	'application/vnd.code.notebook.error',
-	'application/vnd.code.notebook.stdout',
-	'application/x.notebook.stdout',
-	'application/x.notebook.stream',
-	'application/vnd.code.notebook.stderr',
-	'application/x.notebook.stderr',
-	'text/plain'
-];
+
