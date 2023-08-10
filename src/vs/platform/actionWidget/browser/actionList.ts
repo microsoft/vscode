@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 import * as dom from 'vs/base/browser/dom';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
+import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
+import { List, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
+import { index } from 'vs/base/common/arrays';
+import { matchesFuzzy } from 'vs/base/common/filters';
 import { Codicon } from 'vs/base/common/codicons';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -41,6 +43,11 @@ interface IActionMenuTemplateData {
 	readonly icon: HTMLElement;
 	readonly text: HTMLElement;
 	readonly keybinding: KeybindingLabel;
+}
+
+interface IActionFilteredItems {
+	readonly label: string | undefined;
+	readonly index: number;
 }
 
 export const enum ActionListItemKind {
@@ -148,7 +155,6 @@ class AcceptSelectedEvent extends UIEvent {
 class PreviewSelectedEvent extends UIEvent {
 	constructor() { super('previewSelectedAction'); }
 }
-
 export class ActionList<T> extends Disposable {
 
 	public readonly domNode: HTMLElement;
@@ -159,6 +165,10 @@ export class ActionList<T> extends Disposable {
 	private readonly _headerLineHeight = 26;
 
 	private readonly _allMenuItems: readonly IActionListItem<T>[];
+	private readonly _allMenuItemsFiltered: IActionFilteredItems[] = [];
+
+	private keypresses: string[] = [];
+	// private timeFrame = 2000; // 2 seconds
 
 	constructor(
 		user: string,
@@ -177,11 +187,11 @@ export class ActionList<T> extends Disposable {
 			getTemplateId: element => element.kind
 		};
 
-		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService),
-			new HeaderRenderer(),
-		], {
-			keyboardSupport: false,
+		this._list = this._register(new List(user, this.domNode, virtualDelegate,
+			[
+				new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService),
+				new HeaderRenderer(),
+			], {
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === ActionListItemKind.Action) {
@@ -195,7 +205,9 @@ export class ActionList<T> extends Disposable {
 				},
 				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`An action widget option`] }, "Action Widget"),
 				getRole: (e) => e.kind === ActionListItemKind.Action ? 'option' : 'separator',
-				getWidgetRole: () => 'listbox'
+				getWidgetRole: () => 'listbox',
+
+
 			},
 		}));
 		this._list.style(defaultListStyles);
@@ -204,8 +216,13 @@ export class ActionList<T> extends Disposable {
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));
 		this._register(this._list.onDidChangeFocus(() => this._list.domFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
+		this._register(this._list.onKeyPress(e => this.onKeyPress(e)));
+		// const timeoutId = setTimeout(this.processKeyPresses, this.timeFrame);
 
 		this._allMenuItems = items;
+		const menuItems = this._allMenuItems;
+		this._allMenuItemsFiltered = menuItems.flatMap((obj, index) => (obj.kind === `action` && !obj.disabled) ? [{ label: obj.label, index }] : []);
+
 		this._list.splice(0, this._list.length, this._allMenuItems);
 
 		if (this._list.length) {
@@ -262,6 +279,10 @@ export class ActionList<T> extends Disposable {
 		this._list.focusNext(1, true, undefined, this.focusCondition);
 	}
 
+	triggerType() {
+		this._list.triggerTypeNavigation();
+	}
+
 	acceptSelected(preview?: boolean) {
 		const focused = this._list.getFocus();
 		if (focused.length === 0) {
@@ -300,6 +321,41 @@ export class ActionList<T> extends Disposable {
 			this._list.setFocus([]);
 		}
 	}
+
+	private onKeyPress(e: KeyboardEvent) {
+		console.log(e.key);
+		const key = e.key;
+		this.keypresses.push(key);
+		console.log(this.keypresses.toString());
+
+		this.listFuzzyMatch(this.keypresses.join(''));
+
+		// this._list.setFocus([1]);
+
+		// Create fuzzy search function that will jump the chracter to the next one of the same letter
+
+	}
+
+	private listFuzzyMatch(str: string) {
+		for (const val of this._allMenuItemsFiltered) {
+			if (val.label) {
+				// console.log(val.label, str);
+				const result = matchesFuzzy(str, val.label);
+				if (result) {
+					console.log(result);
+					this._list.setFocus([val.index]);
+				}
+
+			}
+		}
+	}
+	// private processKeyPresses() {
+	// 	const menuItems = this._allMenuItems;
+	// 	const filtered = menuItems.flatMap((obj, index) => obj.kind === `action` ? [{ label: obj.label, index }] : []);
+	// 	console.log(filtered);
+	// 	// console.log('Keypresses within the time frame:', this.keypresses);
+	// 	this.keypresses = [];
+	// }
 }
 
 function stripNewlines(str: string): string {
