@@ -276,6 +276,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	}
 
 	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any; reportDeprecated: any } {
+		console.log('inside of tsDiagnosticsToVSDiagnostics : ', diagnostic);
 		const { start, end, text } = diagnostic;
 		const range = new vscode.Range(typeConverters.Position.fromLocation(start), typeConverters.Position.fromLocation(end));
 		const converted = new vscode.Diagnostic(range, text, this.getDiagnosticSeverity(diagnostic));

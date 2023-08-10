@@ -210,6 +210,7 @@ class MarkerNavigationService implements IMarkerNavigationService, IMarkerListPr
 	}
 
 	getMarkerList(resource: URI | undefined): MarkerList {
+		console.log('inside of getMarkerList');
 		for (const provider of this._provider) {
 			const result = provider.getMarkerList(resource);
 			if (result) {

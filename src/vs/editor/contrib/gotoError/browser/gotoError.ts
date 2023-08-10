@@ -76,6 +76,7 @@ export class MarkerController implements IEditorContribution {
 		}
 
 		this._model = this._markerNavigationService.getMarkerList(uri);
+		console.log('this._model : ', this._model);
 		if (reusePosition) {
 			this._model.move(true, this._editor.getModel()!, this._editor.getPosition()!);
 		}
@@ -100,6 +101,7 @@ export class MarkerController implements IEditorContribution {
 				return;
 			}
 			const info = this._model.find(this._editor.getModel()!.uri, this._widget!.position!);
+			console.log('info : ', info);
 			if (info) {
 				this._widget.updateMarker(info.marker);
 			} else {

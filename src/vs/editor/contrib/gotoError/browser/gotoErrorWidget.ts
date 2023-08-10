@@ -93,6 +93,8 @@ class MessageWidget {
 	}
 
 	update(marker: IMarker): void {
+		console.log('marker : ', marker);
+
 		const { source, message, relatedInformation, code } = marker;
 		let sourceAndCodeLength = (source?.length || 0) + '()'.length;
 		if (code) {
@@ -366,6 +368,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 	}
 
 	updateMarker(marker: IMarker): void {
+		console.log('inside of updateMarker : ', marker);
 		this._container.classList.remove('stale');
 		this._message.update(marker);
 	}

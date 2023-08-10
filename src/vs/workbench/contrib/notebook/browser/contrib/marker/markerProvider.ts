@@ -35,6 +35,7 @@ class MarkerListProvider implements IMarkerListProvider {
 	}
 
 	getMarkerList(resource: URI | undefined): MarkerList | undefined {
+		console.log('inside of get marker list provider');
 		if (!resource) {
 			return undefined;
 		}
