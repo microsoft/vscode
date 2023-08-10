@@ -52,7 +52,7 @@ stages:
               outputFormat: "pre"
           - task: NodeTool@0
             inputs:
-              versionSpec: "16.x"
+              versionSpec: "18.x"
 
           - template: ./distro/download-distro.yml
 
@@ -67,7 +67,10 @@ stages:
               . build/azure-pipelines/win32/exec.ps1
               $ErrorActionPreference = "Stop"
               exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
-              exec { npm config set always-auth=true --location=project }
+              # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+              # following is a workaround for yarn to send authorization header
+              # for GET requests to the registry.
+              exec { Add-Content -Path .npmrc -Value "always-auth=true" }
               exec { yarn config set registry "$env:NPM_REGISTRY" }
             condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
             displayName: Setup NPM & Yarn
@@ -176,7 +179,7 @@ stages:
               toolMajorVersion: "V2"
           - task: NodeTool@0
             inputs:
-              versionSpec: "16.x"
+              versionSpec: "18.x"
 
           - template: ./distro/download-distro.yml
 
@@ -190,7 +193,10 @@ stages:
           - script: |
               set -e
               npm config set registry "$NPM_REGISTRY" --location=project
-              npm config set always-auth=true --location=project
+              # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+              # following is a workaround for yarn to send authorization header
+              # for GET requests to the registry.
+              echo "always-auth=true" >> .npmrc
               yarn config set registry "$NPM_REGISTRY"
             condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
             displayName: Setup NPM & Yarn

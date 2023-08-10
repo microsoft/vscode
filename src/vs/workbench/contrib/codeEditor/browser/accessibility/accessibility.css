@@ -13,3 +13,11 @@
 	margin-top: -1px;
 	z-index: 2550;
 }
+
+.accessible-view-container .actions-container {
+	display: flex;
+	margin: 0 auto;
+	padding: 0;
+	width: 100%;
+	justify-content: flex-end;
+}

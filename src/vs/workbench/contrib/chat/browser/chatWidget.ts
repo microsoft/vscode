@@ -10,11 +10,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/chat';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -22,7 +20,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/common/views';
-import { clearChatSession } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatAccessibilityProvider, ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
@@ -265,17 +262,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (!this.slashCommandsPromise) {
 			this.slashCommandsPromise = this.chatService.getSlashCommands(this.viewModel.sessionId, CancellationToken.None).then(commands => {
-				// If this becomes a repeated pattern, we should have a real internal slash command provider system
-				const clearCommand: ISlashCommand = {
-					command: 'clear',
-					sortText: 'z_clear',
-					detail: localize('clear', "Clear the session"),
-					executeImmediately: true
-				};
-				this.lastSlashCommands = [
-					...(commands ?? []),
-					clearCommand
-				];
+				this.lastSlashCommands = commands ?? [];
 				return this.lastSlashCommands;
 			});
 		}
@@ -411,7 +398,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getFocus(): ChatTreeItem | undefined {
-		return withNullAsUndefined(this.tree.getFocus()[0]);
+		return this.tree.getFocus()[0] ?? undefined;
 	}
 
 	reveal(item: ChatTreeItem): void {
@@ -432,13 +419,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
 		if (this.viewModel) {
 			const editorValue = this.inputPart.inputEditor.getValue();
-
-			// Shortcut for /clear command
-			if (!query && editorValue.trim() === '/clear' || typeof query === 'string' && query.trim() === '/clear') {
-				// Small hack, if this becomes a repeated pattern, we should have a real internal slash command provider system
-				this.instantiationService.invokeFunction(clearChatSession, this);
-				return;
-			}
 			this._chatAccessibilityService.acceptRequest();
 			const input = query ?? editorValue;
 			const usedSlashCommand = this.lookupSlashCommand(typeof input === 'string' ? input : input.message);
@@ -606,4 +586,3 @@ export class ChatWidgetService implements IChatWidgetService {
 		);
 	}
 }
-

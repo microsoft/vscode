@@ -203,8 +203,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this._register(this.focusTracker.onDidBlur(() => {
 			if (DOM.getActiveElement() === this.domNode || !DOM.isAncestor(DOM.getActiveElement(), this.domNode)) {
 				this._onDidBlur.fire();
+				this.previouslyFocusedItem = this.focusedItem;
 				this.focusedItem = undefined;
-				this.previouslyFocusedItem = undefined;
 				this.triggerKeyDown = false;
 			}
 		}));

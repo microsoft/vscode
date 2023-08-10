@@ -918,7 +918,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		}
 
 		const data = e.target.detail;
-		const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
+		const offsetLeftInGutter = e.target.element.offsetLeft;
 		const gutterOffsetX = data.offsetX - offsetLeftInGutter;
 
 		// TODO@joao TODO@alex TODO@martin this is such that we don't collide with folding

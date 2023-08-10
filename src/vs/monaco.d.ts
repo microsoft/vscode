@@ -4313,6 +4313,10 @@ declare namespace monaco.editor {
 		 * Model to choose for sticky scroll by default
 		 */
 		defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
+		/**
+		 * Define whether to scroll sticky scroll with editor horizontal scrollbae
+		 */
+		scrollWithEditor?: boolean;
 	}
 
 	/**
@@ -5422,6 +5426,10 @@ declare namespace monaco.editor {
 		 * If null is returned, the overlay widget is responsible to place itself.
 		 */
 		getPosition(): IOverlayWidgetPosition | null;
+		/**
+		 * The editor will ensure that the scroll width is >= than this value.
+		 */
+		getMinContentWidthInPx?(): number;
 	}
 
 	/**
@@ -5527,7 +5535,7 @@ declare namespace monaco.editor {
 		/**
 		 * The target element
 		 */
-		readonly element: Element | null;
+		readonly element: HTMLElement | null;
 		/**
 		 * The 'approximate' editor position
 		 */

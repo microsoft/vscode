@@ -25,7 +25,6 @@ import { ResourceMap } from 'vs/base/common/map';
 import { marked } from 'vs/base/common/marked/marked';
 import { FileAccess } from 'vs/base/common/network';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -807,7 +806,7 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 		const text = this.fixCodeText(data.text, data.languageId);
 		this.setText(text);
 
-		const vscodeLanguageId = withNullAsUndefined(this.languageService.getLanguageIdByLanguageName(data.languageId));
+		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(data.languageId) ?? undefined;
 		this.setLanguage(vscodeLanguageId);
 
 		this.layout(width);

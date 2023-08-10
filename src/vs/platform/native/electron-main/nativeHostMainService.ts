@@ -449,7 +449,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (isWindows) {
 			isAdmin = (await import('native-is-elevated'))();
 		} else {
-			isAdmin = process.getuid() === 0;
+			isAdmin = process.getuid?.() === 0;
 		}
 
 		return isAdmin;
