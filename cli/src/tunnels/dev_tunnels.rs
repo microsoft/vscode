@@ -501,61 +501,73 @@ impl DevTunnels {
 	) -> Result<(PersistedTunnel, Tunnel), AnyError> {
 		info!(self.log, "Creating tunnel with the name: {}", name);
 
-		self.check_is_name_free(name).await?;
+		let tunnel = match self.get_existing_tunnel_with_name(name).await? {
+			Some(e) => {
+				let loc = TunnelLocator::try_from(&e).unwrap();
+				info!(self.log, "Adopting existing tunnel (ID={:?})", loc);
+				spanf!(
+					self.log,
+					self.log.span("dev-tunnel.tag.get"),
+					self.client.get_tunnel(&loc, &HOST_TUNNEL_REQUEST_OPTIONS)
+				)
+				.map_err(|e| wrap(e, "failed to lookup tunnel"))?
+			}
+			None => {
+				let new_tunnel = Tunnel {
+					tags: self.get_tags(name),
+					..Default::default()
+				};
 
-		let new_tunnel = Tunnel {
-			tags: self.get_tags(name),
-			..Default::default()
-		};
+				loop {
+					let result = spanf!(
+						self.log,
+						self.log.span("dev-tunnel.create"),
+						self.client.create_tunnel(&new_tunnel, options)
+					);
 
-		loop {
-			let result = spanf!(
-				self.log,
-				self.log.span("dev-tunnel.create"),
-				self.client.create_tunnel(&new_tunnel, options)
-			);
-
-			match result {
-				Err(HttpError::ResponseError(e))
-					if e.status_code == StatusCode::TOO_MANY_REQUESTS =>
-				{
-					if let Some(d) = e.get_details() {
-						let detail = d.detail.unwrap_or_else(|| "unknown".to_string());
-						if detail.contains(TUNNEL_COUNT_LIMIT_NAME)
-							&& self.try_recycle_tunnel().await?
+					match result {
+						Err(HttpError::ResponseError(e))
+							if e.status_code == StatusCode::TOO_MANY_REQUESTS =>
 						{
-							continue;
+							if let Some(d) = e.get_details() {
+								let detail = d.detail.unwrap_or_else(|| "unknown".to_string());
+								if detail.contains(TUNNEL_COUNT_LIMIT_NAME)
+									&& self.try_recycle_tunnel().await?
+								{
+									continue;
+								}
+
+								return Err(AnyError::from(TunnelCreationFailed(
+									name.to_string(),
+									detail,
+								)));
+							}
+
+							return Err(AnyError::from(TunnelCreationFailed(
+								name.to_string(),
+								"You have exceeded a limit for the port fowarding service. Please remove other machines before trying to add this machine.".to_string(),
+							)));
 						}
-
-						return Err(AnyError::from(TunnelCreationFailed(
-							name.to_string(),
-							detail,
-						)));
+						Err(e) => {
+							return Err(AnyError::from(TunnelCreationFailed(
+								name.to_string(),
+								format!("{:?}", e),
+							)))
+						}
+						Ok(t) => break t,
 					}
-
-					return Err(AnyError::from(TunnelCreationFailed(
-						name.to_string(),
-						"You have exceeded a limit for the port fowarding service. Please remove other machines before trying to add this machine.".to_string(),
-					)));
-				}
-				Err(e) => {
-					return Err(AnyError::from(TunnelCreationFailed(
-						name.to_string(),
-						format!("{:?}", e),
-					)))
-				}
-				Ok(t) => {
-					let pt = PersistedTunnel {
-						cluster: t.cluster_id.clone().unwrap(),
-						id: t.tunnel_id.clone().unwrap(),
-						name: name.to_string(),
-					};
-
-					self.launcher_tunnel.save(Some(pt.clone()))?;
-					return Ok((pt, t));
 				}
 			}
-		}
+		};
+
+		let pt = PersistedTunnel {
+			cluster: tunnel.cluster_id.clone().unwrap(),
+			id: tunnel.tunnel_id.clone().unwrap(),
+			name: name.to_string(),
+		};
+
+		self.launcher_tunnel.save(Some(pt.clone()))?;
+		Ok((pt, tunnel))
 	}
 
 	/// Gets the expected tunnel tags
@@ -665,24 +677,22 @@ impl DevTunnels {
 		Ok(tunnels)
 	}
 
-	async fn check_is_name_free(&mut self, name: &str) -> Result<(), AnyError> {
+	async fn get_existing_tunnel_with_name(&self, name: &str) -> Result<Option<Tunnel>, AnyError> {
 		let existing: Vec<Tunnel> = spanf!(
 			self.log,
 			self.log.span("dev-tunnel.rename.search"),
 			self.client.list_all_tunnels(&TunnelRequestOptions {
 				tags: vec![self.tag.to_string(), name.to_string()],
 				require_all_tags: true,
+				limit: 1,
+				include_ports: true,
+				token_scopes: vec!["host".to_string()],
 				..Default::default()
 			})
 		)
 		.map_err(|e| wrap(e, "failed to list existing tunnels"))?;
-		if !existing.is_empty() {
-			return Err(AnyError::from(TunnelCreationFailed(
-				name.to_string(),
-				"tunnel name already in use".to_string(),
-			)));
-		};
-		Ok(())
+
+		Ok(existing.into_iter().next())
 	}
 
 	fn get_placeholder_name() -> String {
