@@ -100,17 +100,36 @@ export class WindowTitle extends Disposable {
 	}
 
 	private doUpdateTitle(): void {
-		const title = this.getFullWindowTitle();
+		const focusedView = this.getFocusedView();
+		let title = this.getFullWindowTitle();
 		if (title !== this.title) {
 			// Always set the native window title to identify us properly to the OS
 			let nativeTitle = title;
 			if (!trim(nativeTitle)) {
 				nativeTitle = this.productService.nameLong;
 			}
+
+			if (focusedView) {
+				title += ` - ${focusedView.title}`;
+			}
 			window.document.title = nativeTitle;
 			this.title = title;
 			this.onDidChangeEmitter.fire();
 		}
+	}
+
+	private getFocusedView(): HTMLElement | null {
+		const focusedElement = document.activeElement as HTMLElement;
+		if (!focusedElement) {
+			return null;
+		}
+
+		let parent = focusedElement.parentElement;
+		while (parent && !parent.classList.contains('view')) {
+			parent = parent.parentElement;
+		}
+
+		return parent as HTMLElement | null;
 	}
 
 	private getFullWindowTitle(): string {
