@@ -1203,9 +1203,6 @@ export interface MainThreadChatShape extends IDisposable {
 	$unregisterChatProvider(handle: number): Promise<void>;
 	$acceptResponseProgress(handle: number, sessionId: number, progress: IChatResponseProgressDto, responsePartHandle?: number): Promise<number | void>;
 	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void;
-
-	$registerSlashCommandProvider(handle: number, chatProviderId: string): Promise<void>;
-	$unregisterSlashCommandProvider(handle: number): Promise<void>;
 }
 
 export interface ExtHostChatShape {
@@ -1218,9 +1215,6 @@ export interface ExtHostChatShape {
 	$provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
 	$releaseSession(sessionId: number): void;
 	$onDidPerformUserAction(event: IChatUserActionEvent): Promise<void>;
-
-	$provideProviderSlashCommands(handle: number, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
-	$resolveSlashCommand(handle: number, command: string, token: CancellationToken): Promise<string | undefined>;
 }
 
 export interface ExtHostUrlsShape {

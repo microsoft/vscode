@@ -24,7 +24,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, ISlashCommandProvider, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService, IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -125,7 +125,7 @@ export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
 	private readonly _providers = new Map<string, IChatProvider>();
-	private readonly _slashCommandProviders = new Set<ISlashCommandProvider>();
+
 	private readonly _sessionModels = new Map<string, ChatModel>();
 	private readonly _pendingRequests = new Map<string, CancelablePromise<void>>();
 	private readonly _persistedSessions: ISerializableChatsData;
@@ -559,13 +559,8 @@ export class ChatService extends Disposable implements IChatService {
 	private async handleSlashCommand(sessionId: string, command: string): Promise<string> {
 		const slashCommands = await this.getSlashCommands(sessionId, CancellationToken.None);
 		for (const slashCommand of slashCommands ?? []) {
-			if (command.startsWith(`/${slashCommand.command}`)) {
-				if (slashCommand.provider) {
-					return await slashCommand.provider.resolveSlashCommand(command, CancellationToken.None) ?? command;
-				} else if (this.chatSlashCommandService.hasCommand(slashCommand.command)) {
-					return slashCommand.command;
-				}
-
+			if (command.startsWith(`/${slashCommand.command}`) && this.chatSlashCommandService.hasCommand(slashCommand.command)) {
+				return slashCommand.command;
 			}
 		}
 		return command;
@@ -583,18 +578,6 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown provider: ${model.providerId}`);
 		}
 
-		if (!provider.provideSlashCommands) {
-			return;
-		}
-
-		const mainProviderRequest = provider.provideSlashCommands(model.session!, token);
-		const slashCommandProviders = Array.from(this._slashCommandProviders).filter(p => p.chatProviderId === model.providerId);
-		const providerResults = Promise.all([
-			mainProviderRequest,
-			...slashCommandProviders.map(p => Promise.resolve(p.provideSlashCommands(token))
-				.then(commands => commands?.map(c => ({ ...c, provider: p }))))
-		]);
-
 		const serviceResults = this.chatSlashCommandService.getCommands().map(data => {
 			return <ISlashCommand>{
 				command: data.command,
@@ -604,14 +587,18 @@ export class ChatService extends Disposable implements IChatService {
 			};
 		});
 
+		const mainProviderRequest = provider.provideSlashCommands?.(model.session!, token);
+
 		try {
-			const slashCommands = (await providerResults).filter(c => !!c) as ISlashCommand[][];
-			return slashCommands.flat().concat(serviceResults);
+			const providerResults = await mainProviderRequest;
+			if (providerResults) {
+				return providerResults.concat(serviceResults);
+			}
+			return serviceResults;
+
 		} catch (e) {
 			this.logService.error(e);
-
-			// If one of the other contributed providers fails, return the main provider's result
-			return await mainProviderRequest ?? undefined;
+			return serviceResults;
 		}
 	}
 
@@ -709,16 +696,6 @@ export class ChatService extends Disposable implements IChatService {
 			this.trace('registerProvider', `Disposing chat provider`);
 			this._providers.delete(provider.id);
 			this._hasProvider.set(this._providers.size > 0);
-		});
-	}
-
-	registerSlashCommandProvider(provider: ISlashCommandProvider): IDisposable {
-		this.trace('registerProvider', `Adding new slash command provider`);
-
-		this._slashCommandProviders.add(provider);
-		return toDisposable(() => {
-			this.trace('registerProvider', `Disposing slash command provider`);
-			this._slashCommandProviders.delete(provider);
 		});
 	}
 
