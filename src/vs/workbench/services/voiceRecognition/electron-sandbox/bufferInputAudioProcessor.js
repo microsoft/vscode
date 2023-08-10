@@ -29,6 +29,10 @@ class BufferInputAudioProcessor extends AudioWorkletProcessor {
 		}
 
 		const inputChannelData = inputs[0][0];
+		if ((!(inputChannelData instanceof Float32Array))) {
+			return;
+		}
+
 		this.currentInputUint8Arrays.push(this.float32ArrayToUint8Array(inputChannelData.slice(0)));
 
 		if (Date.now() - this.startTime > this.bufferTimespan) {
