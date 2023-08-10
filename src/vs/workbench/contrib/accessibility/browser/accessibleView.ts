@@ -47,7 +47,7 @@ export interface IAccessibleContentProvider {
 	verbositySettingKey: AccessibilityVerbositySettingId;
 	options: IAccessibleViewOptions;
 	/**
-	 * Note that the class property should be provided.
+	 * Note that a Codicon class should be specified for each action. 
 	 * If not, a default Codicon will be used.
 	 */
 	actions?: IAction[];
