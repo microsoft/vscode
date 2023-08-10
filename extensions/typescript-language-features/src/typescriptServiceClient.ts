@@ -143,6 +143,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	) {
 		super();
 
+		console.log('inside of type script service client');
+
 		this.logger = services.logger;
 		this.tracer = new Tracer(this.logger);
 
@@ -313,6 +315,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	public readonly onTsServerStarted = this._onTsServerStarted.event;
 
 	private readonly _onDiagnosticsReceived = this._register(new vscode.EventEmitter<TsDiagnostics>());
+	// on diagnositcs received
 	public readonly onDiagnosticsReceived = this._onDiagnosticsReceived.event;
 
 	private readonly _onConfigDiagnosticsReceived = this._register(new vscode.EventEmitter<Proto.ConfigFileDiagnosticEvent>());
@@ -471,6 +474,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.isRestarting = false;
 		});
 
+		// Getting the diagnostics
 		handle.onEvent(event => this.dispatchEvent(event));
 
 		this.serviceStarted(resendModels);
@@ -902,6 +906,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				// This event also roughly signals that projects have been loaded successfully (since the TS server is synchronous)
 				this.loadingIndicator.reset();
 
+				// diagnostic event received
 				const diagnosticEvent = event as Proto.DiagnosticEvent;
 				if (diagnosticEvent.body?.diagnostics) {
 					this._onDiagnosticsReceived.fire({

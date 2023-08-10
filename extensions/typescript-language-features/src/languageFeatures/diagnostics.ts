@@ -238,6 +238,7 @@ export class DiagnosticsManager extends Disposable {
 	}
 
 	public getDiagnostics(file: vscode.Uri): ReadonlyArray<vscode.Diagnostic> {
+		console.log('this._currentDiagnostics : ', this._currentDiagnostics);
 		return this._currentDiagnostics.get(file) || [];
 	}
 

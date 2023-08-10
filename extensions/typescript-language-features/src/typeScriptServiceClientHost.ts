@@ -238,6 +238,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		resource: vscode.Uri,
 		diagnostics: Proto.Diagnostic[]
 	): Promise<void> {
+		console.log('inside of diagnostics received : ', diagnostics);
+		console.log('diagnostics : ', diagnostics);
 		const language = await this.findLanguage(resource);
 		if (language) {
 			language.diagnosticsReceived(
@@ -263,6 +265,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 				const range = tsDiag.start && tsDiag.end ? typeConverters.Range.fromTextSpan(tsDiag) : new vscode.Range(0, 0, 0, 1);
 				const diagnostic = new vscode.Diagnostic(range, body.diagnostics[0].text, this.getDiagnosticSeverity(tsDiag));
 				diagnostic.source = language.diagnosticSource;
+				console.log('diagnostic in configFileDiagnosticsReceived');
 				return diagnostic;
 			}));
 		});
@@ -306,6 +309,40 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		const resultConverted = converted as vscode.Diagnostic & { reportUnnecessary: any; reportDeprecated: any };
 		resultConverted.reportUnnecessary = diagnostic.reportsUnnecessary;
 		resultConverted.reportDeprecated = diagnostic.reportsDeprecated;
+
+		// TODO: After conversion the related information disappears!
+		console.log('resultConverted : ', resultConverted);
+		console.log('diagnostic.relatedInformation : ', diagnostic.relatedInformation);
+
+		if (diagnostic.relatedInformation) {
+
+			console.log('entered into the if loop');
+
+			const diagnosticRelatedInformation: vscode.DiagnosticRelatedInformation[] = [];
+			for (const relatedInformation of diagnostic.relatedInformation) {
+
+				console.log('relatedInformation.span : ', relatedInformation.span);
+
+				if (!relatedInformation.span) {
+					continue;
+				}
+				const start = new vscode.Position(relatedInformation.span.start.line, relatedInformation.span.start.offset);
+				const end = new vscode.Position(relatedInformation.span.end.line, relatedInformation.span.end.offset);
+				const range = new vscode.Range(start, end);
+				const uri = vscode.Uri.parse(relatedInformation.span.file);
+				const location = new vscode.Location(uri, range);
+				const message = relatedInformation.message;
+				const relationInfoConverted = new vscode.DiagnosticRelatedInformation(location, message);
+				diagnosticRelatedInformation.push(relationInfoConverted);
+			}
+			console.log('diagnosticRelatedInformation : ', diagnosticRelatedInformation);
+			resultConverted.relatedInformation = diagnosticRelatedInformation;
+			console.log('resultConverted : ', resultConverted);
+			//
+		}
+
+		console.log('resultConverted : ', resultConverted);
+		console.log('relatedInformation in resultConverted : ', 'relatedInformation' in resultConverted);
 		return resultConverted;
 	}
 
