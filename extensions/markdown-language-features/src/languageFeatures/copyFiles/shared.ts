@@ -390,7 +390,7 @@ function escapeMarkdownLinkPath(mdPath: string, isExternalLink: boolean): string
 }
 
 function escapeBrackets(value: string): string {
-	value = value.replace(/[\[\]]/g, '\\$&');
+	value = value.replace(/[[\]]/g, '\\$&');
 	return value;
 }
 
