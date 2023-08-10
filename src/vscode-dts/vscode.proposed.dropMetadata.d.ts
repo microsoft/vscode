@@ -9,28 +9,39 @@ declare module 'vscode' {
 
 	export interface DocumentDropEdit {
 		/**
-		 * Identifies the type of edit.
-		 *
-		 * This id should be unique within the extension but does not need to be unique across extensions.
-		 */
-		id?: string;
-
-		/**
-		 * The relative priority of this edit. Higher priority items are shown first in the UI.
-		 *
-		 * Defaults to `0`.
-		 */
-		priority?: number;
-
-		/**
 		 * Human readable label that describes the edit.
 		 */
 		label?: string;
+
+		/**
+		 * The mime type from the {@link DataTransfer} that this edit applies.
+		 *
+		 * TODO: Should this be taken from `dropMimeTypes` instead?
+		 */
+		handledMimeType?: string;
+
+		/**
+		 * Controls the ordering or multiple paste edits. If this provider yield to edits, it will be shown lower in the list.
+		 */
+		yieldTo?: ReadonlyArray<
+			// TODO: what about built-in providers?
+			| { readonly extensionId: string; readonly providerId: string }
+			| { readonly mimeType: string }
+		>;
 	}
 
 	export interface DocumentDropEditProviderMetadata {
 		/**
-		 * List of data transfer types that the provider supports.
+		 * Identifies the provider.
+		 *
+		 * This id is used when users configure the default provider for drop.
+		 *
+		 * This id should be unique within the extension but does not need to be unique across extensions.
+		 */
+		readonly id: string;
+
+		/**
+		 * List of {@link DataTransfer} mime types that the provider can handle.
 		 *
 		 * This can either be an exact mime type such as `image/png`, or a wildcard pattern such as `image/*`.
 		 *

@@ -13,7 +13,7 @@ import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/brow
 import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor } from 'vs/base/browser/dom';
 import { CLOSE_EDITOR_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
-import { withNullAsUndefined, assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { equals } from 'vs/base/common/objects';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -245,7 +245,7 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	private redraw(): void {
-		const editor = withNullAsUndefined(this.group.activeEditor);
+		const editor = this.group.activeEditor ?? undefined;
 		const options = this.accessor.partOptions;
 
 		const isEditorPinned = editor ? this.group.isPinned(editor) : false;

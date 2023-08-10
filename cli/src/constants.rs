@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::collections::HashMap;
+use std::{collections::HashMap, io::IsTerminal};
 
 use const_format::concatcp;
 use lazy_static::lazy_static;
@@ -119,7 +119,7 @@ lazy_static! {
 		option_env!("VSCODE_CLI_SERVER_NAME_MAP").and_then(|s| serde_json::from_str(s).unwrap());
 
 	/// Whether i/o interactions are allowed in the current CLI.
-	pub static ref IS_A_TTY: bool = atty::is(atty::Stream::Stdin);
+	pub static ref IS_A_TTY: bool = std::io::stdin().is_terminal();
 
 	/// Whether i/o interactions are allowed in the current CLI.
 	pub static ref COLORS_ENABLED: bool = *IS_A_TTY && std::env::var(NO_COLOR_ENV).is_err();

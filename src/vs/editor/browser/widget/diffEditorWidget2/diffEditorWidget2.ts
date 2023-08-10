@@ -44,6 +44,7 @@ import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffEditorEditors } from './diffEditorEditors';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel';
+import { toDisposable } from 'vs/base/common/lifecycle';
 
 export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
@@ -94,6 +95,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._contextKeyService.createKey('diffEditorVersion', 2);
 
 		this._domElement.appendChild(this.elements.root);
+		this._register(toDisposable(() => this._domElement.removeChild(this.elements.root)));
 
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
@@ -255,11 +257,11 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			if (e?.reason === CursorChangeReason.Explicit) {
 				const diff = this._diffModel.get()?.diff.get()?.mappings.find(m => m.lineRangeMapping.modifiedRange.contains(e.position.lineNumber));
 				if (diff?.lineRangeMapping.modifiedRange.isEmpty) {
-					this._audioCueService.playAudioCue(AudioCue.diffLineDeleted);
+					this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, { source: 'diffEditor.cursorPositionChanged' });
 				} else if (diff?.lineRangeMapping.originalRange.isEmpty) {
-					this._audioCueService.playAudioCue(AudioCue.diffLineInserted);
+					this._audioCueService.playAudioCue(AudioCue.diffLineInserted, { source: 'diffEditor.cursorPositionChanged' });
 				} else if (diff) {
-					this._audioCueService.playAudioCue(AudioCue.diffLineModified);
+					this._audioCueService.playAudioCue(AudioCue.diffLineModified, { source: 'diffEditor.cursorPositionChanged' });
 				}
 			}
 		}));
@@ -460,11 +462,11 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._goTo(diff);
 
 		if (diff.lineRangeMapping.modifiedRange.isEmpty) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted);
+			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, { source: 'diffEditor.goToDiff' });
 		} else if (diff.lineRangeMapping.originalRange.isEmpty) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineInserted);
+			this._audioCueService.playAudioCue(AudioCue.diffLineInserted, { source: 'diffEditor.goToDiff' });
 		} else if (diff) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineModified);
+			this._audioCueService.playAudioCue(AudioCue.diffLineModified, { source: 'diffEditor.goToDiff' });
 		}
 	}
 

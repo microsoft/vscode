@@ -21,7 +21,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { localize } from 'vs/nls';
 import { Extensions, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityMultiCommands';
+import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 
 registerSingleton(IInlineChatService, InlineChatServiceImpl, InstantiationType.Delayed);
 registerSingleton(IInlineChatSessionService, InlineChatSessionService, InstantiationType.Delayed);
