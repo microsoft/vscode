@@ -23,9 +23,12 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isNumber, isObject, isString } from 'vs/base/common/types';
 import { deepClone } from 'vs/base/common/objects';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 const MISMATCH_LOCAL_PORT_COOLDOWN = 10 * 1000; // 10 seconds
 const TUNNELS_TO_RESTORE = 'remote.tunnels.toRestore';
+export const ACTIVATION_EVENT = 'onTunnel';
+export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
 
 export interface Tunnel {
 	remoteHost: string;
@@ -415,7 +418,8 @@ export class TunnelModel extends Disposable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		this.configPortsAttributes = new PortsAttributes(configurationService);
@@ -479,6 +483,27 @@ export class TunnelModel extends Disposable {
 		}));
 		this._register(this.tunnelService.onTunnelClosed(address => {
 			return this.onTunnelClosed(address, TunnelCloseReason.Other);
+		}));
+		this.checkExtensionActivationEvents();
+	}
+
+	private extensionHasActivationEvent() {
+		if (this.extensionService.extensions.find(extension => extension.activationEvents?.includes(ACTIVATION_EVENT))) {
+			this.contextKeyService.createKey(forwardedPortsViewEnabled.key, true);
+			return true;
+		}
+		return false;
+	}
+
+	private checkExtensionActivationEvents() {
+		if (this.extensionHasActivationEvent()) {
+			return;
+		}
+
+		const activationDisposable = this._register(this.extensionService.onDidRegisterExtensions(() => {
+			if (this.extensionHasActivationEvent()) {
+				activationDisposable.dispose();
+			}
 		}));
 	}
 
@@ -594,7 +619,7 @@ export class TunnelModel extends Disposable {
 	}
 
 	async forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | undefined> {
-		await this.extensionService.activateByEvent('onTunnel');
+		await this.extensionService.activateByEvent(ACTIVATION_EVENT);
 
 		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, tunnelProperties.remote.host, tunnelProperties.remote.port);
 		attributes = attributes ??

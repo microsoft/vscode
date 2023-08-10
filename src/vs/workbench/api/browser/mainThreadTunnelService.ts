@@ -19,8 +19,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/tunnelView';
-import { CandidatePort, TunnelCloseReason, TunnelSource, makeAddress } from 'vs/workbench/services/remote/common/tunnelModel';
+import { CandidatePort, TunnelCloseReason, TunnelSource, forwardedPortsViewEnabled, makeAddress } from 'vs/workbench/services/remote/common/tunnelModel';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
 export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape, PortAttributesProvider {
