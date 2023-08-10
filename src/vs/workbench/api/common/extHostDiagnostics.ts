@@ -315,6 +315,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 	getDiagnostics(): ReadonlyArray<[vscode.Uri, ReadonlyArray<vscode.Diagnostic>]>;
 	getDiagnostics(resource?: vscode.Uri): ReadonlyArray<vscode.Diagnostic> | ReadonlyArray<[vscode.Uri, ReadonlyArray<vscode.Diagnostic>]>;
 	getDiagnostics(resource?: vscode.Uri): ReadonlyArray<vscode.Diagnostic> | ReadonlyArray<[vscode.Uri, ReadonlyArray<vscode.Diagnostic>]> {
+		console.log('getDiagnostics of ExtHostDiagnostics');
 		if (resource) {
 			return this._getDiagnostics(resource);
 		} else {

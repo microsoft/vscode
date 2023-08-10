@@ -497,6 +497,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostDiagnostics.onDidChangeDiagnostics;
 			},
 			getDiagnostics: (resource?: vscode.Uri) => {
+				console.log('getDiagnostics of createAPIFactory');
 				return <any>extHostDiagnostics.getDiagnostics(resource);
 			},
 			getLanguages(): Thenable<string[]> {
