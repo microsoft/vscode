@@ -90,7 +90,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	suiteSetup(() => {
 		model = createTextModel(
 			[
-				'This is the first line   ',
+				'This is the first line',
 				'This is the second line',
 				'This is the third line',
 			].join('\n'),
@@ -1405,6 +1405,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	});
 
 	test('Selection Range should respect settings', async function () {
+		model.setValue([
+			'This is the first line   ',
+			'This is the second line',
+			'This is the third line',
+		].join('\n'));
 		// TODO: how to reset this config after this test to avoid polluting other tests?
 		testConfigurationService.setUserConfiguration('editor', { smartSelect: { selectLeadingAndTrailingWhitespace: false } });
 
