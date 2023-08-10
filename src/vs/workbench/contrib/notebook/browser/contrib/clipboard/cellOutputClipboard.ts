@@ -9,10 +9,10 @@ import { ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/noteb
 import { isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export async function copyCellOutput(mimeType: string | undefined, outputViewModel: ICellOutputViewModel, clipboardService: IClipboardService, logService: ILogService) {
-	const outputTextModel = outputViewModel.model;
+	const cellOutput = outputViewModel.model;
 	const output = mimeType && CLIPBOARD_COMPATIBLE_MIMETYPES.includes(mimeType) ?
-		outputTextModel.outputs.find(output => output.mime === mimeType) :
-		outputTextModel.outputs.find(output => CLIPBOARD_COMPATIBLE_MIMETYPES.includes(output.mime));
+		cellOutput.outputs.find(output => output.mime === mimeType) :
+		cellOutput.outputs.find(output => CLIPBOARD_COMPATIBLE_MIMETYPES.includes(output.mime));
 
 	mimeType = output?.mime;
 
@@ -27,19 +27,14 @@ export async function copyCellOutput(mimeType: string | undefined, outputViewMod
 	if (isTextStreamMime(mimeType)) {
 		const cellViewModel = outputViewModel.cellViewModel as ICellViewModel;
 		let index = cellViewModel.outputsViewModels.indexOf(outputViewModel) + 1;
-		while (index < cellViewModel.outputsViewModels.length) {
-			const nextOutputViewModel = cellViewModel.outputsViewModels[index];
-			const nextMimeType = nextOutputViewModel?.pickedMimeType?.mimeType;
-			const nextOutputTextModel = cellViewModel.model.outputs[index];
-
-			if (!nextOutputViewModel || !nextMimeType || !isTextStreamMime(nextMimeType)) {
+		while (index < cellViewModel.model.outputs.length) {
+			const nextCellOutput = cellViewModel.model.outputs[index];
+			const nextOutput = nextCellOutput.outputs.find(output => isTextStreamMime(output.mime));
+			if (!nextOutput) {
 				break;
 			}
 
-			const nextOutput = nextOutputTextModel.outputs.find(output => output.mime === nextMimeType);
-			if (nextOutput) {
-				text = text + decoder.decode(nextOutput.data.buffer);
-			}
+			text = text + decoder.decode(nextOutput.data.buffer);
 			index = index + 1;
 		}
 	}
