@@ -195,6 +195,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 				if (!message) {
 					return false;
 				}
+				notification.onDidClose(() => accessibleViewService.next());
 				accessibleViewService.show({
 					provideContent: () => {
 						return localize('notification.accessibleView', '{0} Source: {1}', message, notification.source);
