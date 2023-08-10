@@ -40,24 +40,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		}));
 	}
 
-	async $registerSlashCommandProvider(handle: number, chatProviderId: string): Promise<void> {
-		const unreg = this._chatService.registerSlashCommandProvider({
-			chatProviderId,
-			provideSlashCommands: async token => {
-				return this._proxy.$provideProviderSlashCommands(handle, token);
-			},
-			resolveSlashCommand: async (command, token) => {
-				return this._proxy.$resolveSlashCommand(handle, command, token);
-			}
-		});
-
-		this._providerRegistrations.set(handle, unreg);
-	}
-
-	async $unregisterSlashCommandProvider(handle: number): Promise<void> {
-		this._providerRegistrations.deleteAndDispose(handle);
-	}
-
 	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void {
 		const sessionIdStr = this._chatService.getSessionId(sessionId);
 		if (!sessionIdStr) {
