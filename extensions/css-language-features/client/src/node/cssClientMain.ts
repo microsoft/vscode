@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getNodeFSRequestService } from './nodeFs';
-import { ExtensionContext, extensions, l10n } from 'vscode';
+import { Disposable, DocumentSelector, ExtensionContext, extensions, l10n } from 'vscode';
 import { startClient, LanguageClientConstructor } from '../cssClient';
 import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient, BaseLanguageClient } from 'vscode-languageclient/node';
 import { TextDecoder } from 'util';
-
-
+import { registerDropIntoEditorSupport } from './dropIntoEditor';
+import { registerPasteIntoEditorSupport } from './pasteIntoEditor';
 let client: BaseLanguageClient | undefined;
 
 // this method is called when vs code is activated
@@ -37,6 +37,7 @@ export async function activate(context: ExtensionContext) {
 	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = l10n.uri?.toString() ?? '';
 
 	client = await startClient(context, newLanguageClient, { fs: getNodeFSRequestService(), TextDecoder });
+	context.subscriptions.push(registerCssLanguageFeatures());
 }
 
 export async function deactivate(): Promise<void> {
@@ -44,4 +45,13 @@ export async function deactivate(): Promise<void> {
 		await client.stop();
 		client = undefined;
 	}
+}
+
+function registerCssLanguageFeatures(): Disposable {
+	const selector: DocumentSelector = { language: 'css', scheme: '*' };
+	return Disposable.from(
+		// Language features
+		registerDropIntoEditorSupport(selector),
+		registerPasteIntoEditorSupport(selector),
+	);
 }
