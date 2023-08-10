@@ -65,15 +65,8 @@ export interface IChatProvider {
 	removeRequest?(session: IChat, requestId: string): void;
 }
 
-export interface ISlashCommandProvider {
-	chatProviderId: string;
-	provideSlashCommands(token: CancellationToken): ProviderResult<ISlashCommand[]>;
-	resolveSlashCommand(command: string, token: CancellationToken): ProviderResult<string>;
-}
-
 export interface ISlashCommand {
 	command: string;
-	provider?: ISlashCommandProvider;
 	sortText?: string;
 	detail?: string;
 
@@ -208,7 +201,6 @@ export interface IChatService {
 
 	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
-	registerSlashCommandProvider(provider: ISlashCommandProvider): IDisposable;
 	getProviderInfos(): IChatProviderInfo[];
 	startSession(providerId: string, token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;

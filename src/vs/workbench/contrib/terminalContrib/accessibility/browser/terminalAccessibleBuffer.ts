@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -121,7 +120,7 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 	}
 
 	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
-		this._cursorPosition = withNullAsUndefined(this.editorWidget.getPosition());
+		this._cursorPosition = this.editorWidget.getPosition() ?? undefined;
 		const commands = this._getCommandsWithEditorLine();
 		if (!commands) {
 			return;
@@ -233,7 +232,7 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 		// Save the view state before the update if it was set by the user
 		let savedViewState: IEditorViewState | undefined;
 		if (dataChanged) {
-			savedViewState = withNullAsUndefined(this.editorWidget.saveViewState());
+			savedViewState = this.editorWidget.saveViewState() ?? undefined;
 		}
 
 		let model = this.editorWidget.getModel();

@@ -68,6 +68,8 @@ export class SettingsEditor {
 			await this.code.dispatchKeybinding('ctrl+a');
 		}
 		await this.code.dispatchKeybinding('Delete');
+		await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => !results || (results?.length === 1 && !results[0].textContent));
 		await this.code.waitForTypeInEditor('.settings-editor .suggest-input-container .monaco-editor textarea', query);
+		await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => results?.length === 1 && results[0].textContent.includes('Found'));
 	}
 }

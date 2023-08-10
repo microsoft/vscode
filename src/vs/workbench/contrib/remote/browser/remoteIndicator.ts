@@ -81,7 +81,6 @@ interface RemoteExtensionMetadata {
 	supportedPlatforms?: PlatformName[];
 }
 
-export const showRemoteStartEntry = new RawContextKey<boolean>('showRemoteStartEntry', false);
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
 
 	private static readonly REMOTE_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
@@ -341,7 +340,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		this.remoteMetadataInitialized = true;
 		this._onDidChangeEntries.fire();
-		showRemoteStartEntry.bindTo(this.contextKeyService).set(true);
 		this.updateRemoteStatusIndicator();
 	}
 

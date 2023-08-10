@@ -15,7 +15,8 @@ import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeContextMenuEvent, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
+import { Delayer, Limiter, RunOnceScheduler } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -28,6 +29,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { count } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./testingOutputPeek';
 import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -83,10 +85,10 @@ import { IObservableValue, MutableObservableValue, staticObservableValue } from 
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { ITestResult, LiveTestResult, TestResultItemChange, TestResultItemChangeReason, maxCountPriority, resultItemParents } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITaskRawOutput, ITestResult, ITestRunTaskResults, LiveTestResult, TestResultItemChange, TestResultItemChangeReason, maxCountPriority, resultItemParents } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset, getMarkId } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { IShowResultOptions, ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -95,6 +97,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 
 class MessageSubject {
 	public readonly test: ITestItem;
+	public readonly message: ITestMessage;
 	public readonly messages: ITestMessage[];
 	public readonly expectedUri: URI;
 	public readonly actualUri: URI;
@@ -116,7 +119,7 @@ class MessageSubject {
 		this.actualUri = buildTestUri({ ...parts, type: TestUriType.ResultActualOutput });
 		this.messageUri = buildTestUri({ ...parts, type: TestUriType.ResultMessage });
 
-		const message = this.messages[this.messageIndex];
+		const message = this.message = this.messages[this.messageIndex];
 		this.revealLocation = message.location ?? (test.item.uri && test.item.range ? { uri: test.item.uri, range: Range.lift(test.item.range) } : undefined);
 	}
 }
@@ -130,12 +133,24 @@ class TaskSubject {
 	}
 }
 
-type InspectSubject = MessageSubject | TaskSubject;
+class TestOutputSubject {
+	public readonly revealLocation: undefined;
+
+	public get outputUri() {
+		return buildTestUri({ resultId: this.resultId, taskIndex: this.taskIndex, testExtId: this.test.item.extId, type: TestUriType.TestOutput });
+	}
+
+	constructor(public readonly resultId: string, public readonly taskIndex: number, public readonly task: ITestRunTask, public readonly test: TestResultItem) {
+	}
+}
+
+type InspectSubject = MessageSubject | TaskSubject | TestOutputSubject;
 
 const equalsSubject = (a: InspectSubject, b: InspectSubject) =>
 	a.resultId === b.resultId && a.taskIndex === b.taskIndex && (
 		(a instanceof MessageSubject && b instanceof MessageSubject && a.messageIndex === b.messageIndex) ||
-		(a instanceof TaskSubject && b instanceof TaskSubject)
+		(a instanceof TaskSubject && b instanceof TaskSubject) ||
+		(a instanceof TestOutputSubject && b instanceof TestOutputSubject && a.test === b.test)
 	);
 
 /** Iterates through every message in every result */
@@ -233,6 +248,10 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			return false;
 		}
 
+		if (!('messageIndex' in parsed)) {
+			return false;
+		}
+
 		const message = result.getStateById(parsed.testExtId)?.tasks[parsed.taskIndex].messages[parsed.messageIndex];
 		if (!message?.location) {
 			return false;
@@ -263,12 +282,17 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		}
 
 		const options = { pinned: false, revealIfOpened: true };
-		if (current instanceof TaskSubject) {
+		if (current instanceof TaskSubject || current instanceof TestOutputSubject) {
 			this.editorService.openEditor({ resource: current.outputUri, options });
 			return;
 		}
 
-		const message = current.messages[current.messageIndex];
+		if (current instanceof TestOutputSubject) {
+			this.editorService.openEditor({ resource: current.outputUri, options });
+			return;
+		}
+
+		const message = current.message;
 		if (current.isDiffable) {
 			this.editorService.openEditor({
 				original: { resource: current.expectedUri },
@@ -375,7 +399,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			}
 
 			mapFindTestMessage(result[1], (_task, message, messageIndex, taskIndex) => {
-				if (!message.location || message.location.uri.toString() !== demandedUriStr) {
+				if (message.type !== TestMessageType.Error || !message.location || message.location.uri.toString() !== demandedUriStr) {
 					return;
 				}
 
@@ -544,8 +568,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		}
 
 		if (subject instanceof MessageSubject) {
-			const message = subject.messages[subject.messageIndex];
-			alert(renderStringAsPlaintext(message.message));
+			alert(renderStringAsPlaintext(subject.message.message));
 		}
 
 		this.peek.value.setModel(subject);
@@ -604,7 +627,13 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 					testExtId: test.item.extId
 				}));
 				return;
-			} if (subject instanceof MessageSubject && subject.test.extId === test.item.extId && subject.messageIndex === messageIndex && subject.taskIndex === taskIndex && subject.resultId === result.id) {
+			}
+
+			if (subject instanceof TestOutputSubject && subject.test.item.extId === test.item.extId && subject.taskIndex === taskIndex && subject.resultId === result.id) {
+				found = true;
+			}
+
+			if (subject instanceof MessageSubject && subject.test.extId === test.item.extId && subject.messageIndex === messageIndex && subject.taskIndex === taskIndex && subject.resultId === result.id) {
 				found = true;
 			}
 		}
@@ -623,6 +652,13 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		for (const m of allMessages(this.testResults.results)) {
 			if (subject instanceof TaskSubject) {
 				if (m.result.id === subject.resultId) {
+					break;
+				}
+				continue;
+			}
+
+			if (subject instanceof TestOutputSubject) {
+				if (m.test.item.extId === subject.test.item.extId && m.result.id === subject.resultId && m.taskIndex === subject.taskIndex) {
 					break;
 				}
 				continue;
@@ -688,6 +724,14 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			return new TaskSubject(parts.resultId, parts.taskIndex);
 		}
 
+		if (parts.type === TestUriType.TestOutput) {
+			const result = this.testResults.results.find(r => r.id === parts.resultId);
+			const test = result?.getStateById(parts.testExtId);
+			const task = result?.tasks[parts.taskIndex];
+			if (!test || !task) { return; }
+			return new TestOutputSubject(parts.resultId, parts.taskIndex, task, test);
+		}
+
 		const { resultId, testExtId, taskIndex, messageIndex } = parts;
 		const test = this.testResults.getResult(parts.resultId)?.getStateById(testExtId);
 		if (!test || !test.tasks[parts.taskIndex]) {
@@ -705,6 +749,7 @@ class TestResultsViewContent extends Disposable {
 	private dimension?: dom.Dimension;
 	private splitView!: SplitView;
 	private contentProviders!: IPeekOutputRenderer[];
+	private contentProvidersUpdateLimiter = this._register(new Limiter(1));
 
 	public current?: InspectSubject;
 
@@ -794,7 +839,8 @@ class TestResultsViewContent extends Disposable {
 
 		if (!this.current || !equalsSubject(this.current, opts.subject)) {
 			this.current = opts.subject;
-			await Promise.all(this.contentProviders.map(p => p.update(opts.subject)));
+			await this.contentProvidersUpdateLimiter.queue(() => Promise.all(
+				this.contentProviders.map(p => p.update(opts.subject))));
 		}
 	}
 
@@ -872,7 +918,9 @@ class TestResultsPeek extends PeekViewWidget {
 	protected override _fillBody(containerElement: HTMLElement): void {
 		this.content.fillBody(containerElement);
 		this.content.onDidRequestReveal(sub => {
-			TestingOutputPeekController.get(this.editor)?.show(sub instanceof MessageSubject ? sub.messageUri : sub.outputUri);
+			TestingOutputPeekController.get(this.editor)?.show(sub instanceof MessageSubject
+				? sub.messageUri
+				: sub.outputUri);
 		});
 	}
 
@@ -880,12 +928,12 @@ class TestResultsPeek extends PeekViewWidget {
 	 * Updates the test to be shown.
 	 */
 	public setModel(subject: InspectSubject): Promise<void> {
-		if (subject instanceof TaskSubject) {
+		if (subject instanceof TaskSubject || subject instanceof TestOutputSubject) {
 			this.current = subject;
 			return this.showInPlace(subject);
 		}
 
-		const message = subject.messages[subject.messageIndex];
+		const message = subject.message;
 		const previous = this.current;
 		if (!subject.revealLocation && !previous) {
 			return Promise.resolve();
@@ -908,7 +956,7 @@ class TestResultsPeek extends PeekViewWidget {
 	 */
 	public async showInPlace(subject: InspectSubject) {
 		if (subject instanceof MessageSubject) {
-			const message = subject.messages[subject.messageIndex];
+			const message = subject.message;
 			this.setTitle(firstLine(renderStringAsPlaintext(message.message)), stripIcons(subject.test.label));
 		} else {
 			this.setTitle(localize('testOutputTitle', 'Test Output'));
@@ -1055,7 +1103,7 @@ class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 		if (!(subject instanceof MessageSubject)) {
 			return this.clear();
 		}
-		const message = subject.messages[subject.messageIndex];
+		const message = subject.message;
 		if (!isDiffable(message)) {
 			return this.clear();
 		}
@@ -1160,7 +1208,7 @@ class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer 
 			return this.textPreview.clear();
 		}
 
-		const message = subject.messages[subject.messageIndex];
+		const message = subject.message;
 		if (isDiffable(message) || typeof message.message === 'string') {
 			return this.textPreview.clear();
 		}
@@ -1196,11 +1244,10 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 			return this.clear();
 		}
 
-		const message = subject.messages[subject.messageIndex];
-		if (isDiffable(message) || typeof message.message !== 'string') {
+		const message = subject.message;
+		if (isDiffable(message) || message.type === TestMessageType.Output || typeof message.message !== 'string') {
 			return this.clear();
 		}
-
 
 		const modelRef = this.model.value = await this.modelService.createModelReference(subject.messageUri);
 		if (!this.widget.value) {
@@ -1304,36 +1351,113 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 
 	public async update(subject: InspectSubject) {
 		this.outputDataListener.clear();
-		if (!(subject instanceof TaskSubject)) {
+		if (subject instanceof TaskSubject) {
+			await this.updateForTaskSubject(subject);
+		} else if (subject instanceof TestOutputSubject || (subject instanceof MessageSubject && subject.message.type === TestMessageType.Output)) {
+			await this.updateForTestSubject(subject);
+		} else {
+			this.clear();
+		}
+	}
+
+	private async updateForTestSubject(subject: TestOutputSubject | MessageSubject) {
+		const that = this;
+		const testItem = subject instanceof TestOutputSubject ? subject.test.item : subject.test;
+		const terminal = await this.updateGenerically<ITaskRawOutput>({
+			subject,
+			getTarget: result => result?.tasks[subject.taskIndex].output,
+			*doInitialWrite(output, results) {
+				that.updateCwd(testItem.uri);
+				const state = subject instanceof TestOutputSubject ? subject.test : results.getStateById(testItem.extId);
+				if (!state) {
+					return;
+				}
+
+				for (const message of state.tasks[subject.taskIndex].messages) {
+					if (message.type === TestMessageType.Output) {
+						yield* output.getRangeIter(message.offset, message.length);
+					}
+				}
+			},
+			doListenForMoreData: (output, result, terminal) => result.onChange(e => {
+				if (e.reason === TestResultItemChangeReason.NewMessage && e.item.item.extId === testItem.extId && e.message.type === TestMessageType.Output) {
+					for (const chunk of output.getRangeIter(e.message.offset, e.message.length)) {
+						terminal.write(chunk.buffer);
+					}
+				}
+			}),
+		});
+
+		if (subject instanceof MessageSubject && subject.message.type === TestMessageType.Output && subject.message.marker !== undefined) {
+			terminal?.selectMarkedRange(getMarkId(subject.message.marker, true), getMarkId(subject.message.marker, false), /* scrollIntoView= */ true);
+		}
+	}
+
+	private updateForTaskSubject(subject: TaskSubject) {
+		return this.updateGenerically<ITestRunTaskResults>({
+			subject,
+			getTarget: result => result?.tasks[subject.taskIndex],
+			doInitialWrite: (task, result) => {
+				// Update the cwd and use the first test to try to hint at the correct cwd,
+				// but often this will fall back to the first workspace folder.
+				this.updateCwd(Iterable.find(result.tests, t => !!t.item.uri)?.item.uri);
+				return task.output.buffers;
+			},
+			doListenForMoreData: (task, _result, terminal) => task.output.onDidWriteData(e => terminal.write(e.buffer)),
+		});
+	}
+
+	private async updateGenerically<T>(opts: {
+		subject: InspectSubject;
+		getTarget: (result: ITestResult) => T | undefined;
+		doInitialWrite: (target: T, result: LiveTestResult) => Iterable<VSBuffer>;
+		doListenForMoreData: (target: T, result: LiveTestResult, terminal: IDetachedXtermTerminal) => IDisposable | undefined;
+	}) {
+		const result = this.resultService.getResult(opts.subject.resultId);
+		if (!result) {
 			return this.clear();
 		}
 
-		const result = this.resultService.getResult(subject.resultId);
-		const task = result?.tasks[subject.taskIndex];
-		if (!task) {
+		const target = opts.getTarget(result);
+		if (!target) {
 			return this.clear();
 		}
-
-		// Update the cwd and use the first test to try to hint at the correct cwd,
-		// but often this will fall back to the first workspace folder.
-		this.updateCwd(Iterable.find(result.tests, t => !!t.item.uri)?.item.uri);
 
 		const terminal = await this.makeTerminal();
+		let didWriteData = false;
+
+		const pendingWrites = new MutableObservableValue(0);
 		if (result instanceof LiveTestResult) {
-			let hadData = false;
-			for (const buffer of task.output.buffers) {
-				hadData ||= buffer.byteLength > 0;
-				terminal.write(buffer.buffer);
-			}
-			if (!hadData && !task.running) {
-				this.writeNotice(terminal, localize('runNoOutout', 'The test run did not record any output.'));
+			for (const chunk of opts.doInitialWrite(target, result)) {
+				didWriteData ||= chunk.byteLength > 0;
+				pendingWrites.value++;
+				terminal.write(chunk.buffer, () => pendingWrites.value--);
 			}
 		} else {
 			this.writeNotice(terminal, localize('runNoOutputForPast', 'Test output is only available for new test runs.'));
 		}
 
 		this.attachTerminalToDom(terminal);
-		this.outputDataListener.value = task.output.onDidWriteData(e => terminal.write(e.buffer));
+		this.outputDataListener.value = result instanceof LiveTestResult ? opts.doListenForMoreData(target, result, terminal) : undefined;
+
+		if (!this.outputDataListener.value && !didWriteData) {
+			this.writeNotice(terminal, localize('runNoOutput', 'The test run did not record any output.'));
+		}
+
+		// Ensure pending writes finish, otherwise the selection in `updateForTestSubject`
+		// can happen before the markers are processed.
+		if (pendingWrites.value > 0) {
+			await new Promise<void>(resolve => {
+				const l = pendingWrites.onDidChange(() => {
+					if (pendingWrites.value === 0) {
+						l.dispose();
+						resolve();
+					}
+				});
+			});
+		}
+
+		return terminal;
 	}
 
 	private updateCwd(testUri?: URI) {
@@ -1503,8 +1627,13 @@ class TestCaseElement implements ITreeElement {
 		return icons.testingStatesToIcons.get(this.state);
 	}
 
+	public get outputSubject() {
+		return new TestOutputSubject(this.results.id, this.taskIndex, this.task, this.test);
+	}
+
 	constructor(
 		private readonly results: ITestResult,
+		private readonly task: ITestRunTask,
 		public readonly test: TestResultItem,
 		public readonly taskIndex: number,
 	) {
@@ -1547,7 +1676,6 @@ class TestMessageElement implements ITreeElement {
 	public readonly uri: URI;
 	public readonly location?: IRichLocation;
 	public readonly description?: string;
-	public readonly marker?: number;
 	public readonly onDidChange = Event.None;
 
 	constructor(
@@ -1559,7 +1687,6 @@ class TestMessageElement implements ITreeElement {
 		const m = test.tasks[taskIndex].messages[messageIndex];
 
 		this.location = m.location;
-		this.marker = m.type === TestMessageType.Output ? m.marker : undefined;
 		this.uri = this.context = buildTestUri({
 			type: TestUriType.ResultMessage,
 			messageIndex,
@@ -1571,7 +1698,7 @@ class TestMessageElement implements ITreeElement {
 		this.id = this.uri.toString();
 
 		const asPlaintext = renderStringAsPlaintext(m.message);
-		const lines = count(asPlaintext.trimRight(), '\n');
+		const lines = count(asPlaintext.trimEnd(), '\n');
 		this.label = firstLine(asPlaintext);
 		if (lines > 0) {
 			this.description = lines > 1
@@ -1647,17 +1774,20 @@ class OutputPeekTree extends Disposable {
 			const tests = Iterable.filter(taskElem.results.tests, test => test.tasks[taskElem.index].state >= TestResultState.Running || test.tasks[taskElem.index].messages.length > 0);
 
 			return Iterable.map(tests, test => ({
-				element: taskElem.itemsCache.getOrCreate(test, () => new TestCaseElement(taskElem.results, test, taskElem.index)),
+				element: taskElem.itemsCache.getOrCreate(test, () => new TestCaseElement(taskElem.results, taskElem.task, test, taskElem.index)),
 				incompressible: true,
 				children: getTestChildren(taskElem.results, test, taskElem.index),
 			}));
 		};
 
 		const getTestChildren = (result: ITestResult, test: TestResultItem, taskIndex: number): Iterable<ICompressedTreeElement<TreeElement>> => {
-			return Iterable.map(test.tasks[taskIndex].messages, (m, messageIndex) => ({
-				element: cc.getOrCreate(m, () => new TestMessageElement(result, test, taskIndex, messageIndex)),
-				incompressible: true,
-			}));
+			return test.tasks[taskIndex].messages
+				.map((m, messageIndex) =>
+					m.type === TestMessageType.Error
+						? { element: cc.getOrCreate(m, () => new TestMessageElement(result, test, taskIndex, messageIndex)), incompressible: true }
+						: undefined
+				)
+				.filter(isDefined);
 		};
 
 		const getResultChildren = (result: ITestResult): Iterable<ICompressedTreeElement<TreeElement>> => {
@@ -1719,7 +1849,7 @@ class OutputPeekTree extends Disposable {
 
 					const itemNode = taskNode.itemsCache.get(e.item);
 					if (itemNode && this.tree.hasElement(itemNode)) {
-						if (e.reason === TestResultItemChangeReason.NewMessage) {
+						if (e.reason === TestResultItemChangeReason.NewMessage && e.message.type === TestMessageType.Error) {
 							this.tree.setChildren(itemNode, getTestChildren(result, e.item, index), { diffIdentityProvider });
 						}
 						itemNode.changeEmitter.fire();
@@ -1776,20 +1906,31 @@ class OutputPeekTree extends Disposable {
 
 		this._register(onDidReveal(async ({ subject, preserveFocus = false }) => {
 			if (subject instanceof TaskSubject) {
-				const resultItem = this.tree.getNode(null).children.find(c => (c.element as TestResultElement)?.id === subject.resultId);
+				const resultItem = this.tree.getNode(null).children.find(c => {
+					if (c.element instanceof TaskElement) {
+						return c.element.results.id === subject.resultId && c.element.index === subject.taskIndex;
+					}
+					if (c.element instanceof TestResultElement) {
+						return c.element.id === subject.resultId;
+					}
+					return false;
+				});
+
 				if (resultItem) {
-					revealItem(resultItem.element as TestResultElement, preserveFocus);
+					revealItem(resultItem.element!, preserveFocus);
 				}
 				return;
 			}
 
-			const messageNode = cc.get(subject.messages[subject.messageIndex]);
-			if (!messageNode || !this.tree.hasElement(messageNode)) {
+			const revealElement = subject instanceof TestOutputSubject
+				? cc.get<TaskElement>(subject.task)?.itemsCache.get(subject.test)
+				: cc.get(subject.message);
+			if (!revealElement || !this.tree.hasElement(revealElement)) {
 				return;
 			}
 
 			const parents: TreeElement[] = [];
-			for (let parent = this.tree.getParentElement(messageNode); parent; parent = this.tree.getParentElement(parent)) {
+			for (let parent = this.tree.getParentElement(revealElement); parent; parent = this.tree.getParentElement(parent)) {
 				parents.unshift(parent);
 			}
 
@@ -1797,11 +1938,11 @@ class OutputPeekTree extends Disposable {
 				this.tree.expand(parent);
 			}
 
-			if (this.tree.getRelativeTop(messageNode) === null) {
-				this.tree.reveal(messageNode, 0.5);
+			if (this.tree.getRelativeTop(revealElement) === null) {
+				this.tree.reveal(revealElement, 0.5);
 			}
 
-			revealItem(messageNode, preserveFocus);
+			revealItem(revealElement, preserveFocus);
 		}));
 
 		this._register(this.tree.onDidOpen(async e => {
@@ -1897,13 +2038,15 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 					: undefined
 		});
 
+		const elementDisposable = new DisposableStore();
+		templateDisposable.add(elementDisposable);
 		templateDisposable.add(actionBar);
 
 		return {
 			icon,
 			label,
 			actionBar,
-			elementDisposable: new DisposableStore(),
+			elementDisposable,
 			templateDisposable,
 		};
 	}
@@ -2020,6 +2163,16 @@ class TreeActionsProvider {
 					undefined,
 					() => this.commandService.executeCommand('vscode.revealTest', extId),
 				));
+
+				if (element.test.tasks[element.taskIndex].messages.some(m => m.type === TestMessageType.Output)) {
+					primary.push(new Action(
+						'testing.outputPeek.showResultOutput',
+						localize('testing.showResultOutput', "Show Result Output"),
+						ThemeIcon.asClassName(Codicon.terminal),
+						undefined,
+						() => this.requestReveal.fire(element.outputSubject),
+					));
+				}
 
 				secondary.push(new Action(
 					'testing.outputPeek.revealInExplorer',
@@ -2229,8 +2382,8 @@ export class ToggleTestingPeekHistory extends Action2 {
 class CreationCache<T> {
 	private readonly v = new WeakMap<object, T>();
 
-	public get(key: object) {
-		return this.v.get(key);
+	public get<T2 extends T = T>(key: object): T2 | undefined {
+		return this.v.get(key) as T2 | undefined;
 	}
 
 	public getOrCreate<T2 extends T>(ref: object, factory: () => T2): T2 {
