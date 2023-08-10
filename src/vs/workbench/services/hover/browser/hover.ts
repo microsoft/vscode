@@ -43,6 +43,11 @@ export interface IHoverService {
 	 * simultaneously. #188822
 	 */
 	showAndFocusLastHover(): void;
+
+	/**
+	 * Gets the current hover's actions, if any, to be used in the accessible view for example
+	 */
+	get currentHoverActions(): IHoverAction[] | undefined;
 }
 
 export interface IHoverWidget extends IDisposable {

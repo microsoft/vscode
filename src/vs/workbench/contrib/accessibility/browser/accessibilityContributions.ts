@@ -28,7 +28,7 @@ import { getNotificationFromContext } from 'vs/workbench/browser/parts/notificat
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { IAccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { IAction } from 'vs/base/common/actions';
@@ -139,12 +139,15 @@ export class HoverAccessibleViewContribution extends Disposable {
 				// The accessible view, itself, uses the context view service to display the text. We don't want to read that.
 				return false;
 			}
+
+			const actions = convertHoverActions(contextViewElement, hoverService.currentHoverActions);
 			accessibleViewService.show({
 				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
 				provideContent() { return extensionHoverContent; },
 				onClose() {
 					hoverService.showAndFocusLastHover();
 				},
+				actions,
 				options: this._options
 			});
 			return true;
@@ -154,6 +157,25 @@ export class HoverAccessibleViewContribution extends Disposable {
 			return true;
 		}, accessibleViewIsShown));
 	}
+}
+
+function convertHoverActions(target: HTMLElement, hoverActions?: IHoverAction[]): IAction[] | undefined {
+	let actions: IAction[] | undefined;
+	if (hoverActions) {
+		actions = [];
+		for (const hoverAction of hoverActions) {
+			actions.push({
+				id: hoverAction.commandId,
+				label: hoverAction.label,
+				run: () => hoverAction.run(target),
+				class: hoverAction.iconClass,
+				enabled: true,
+				tooltip: hoverAction.label
+			});
+		}
+	}
+	console.log(actions);
+	return actions;
 }
 
 export class NotificationAccessibleViewContribution extends Disposable {

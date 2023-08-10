@@ -7,7 +7,7 @@ import 'vs/css!./media/hover';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverService, IHoverOptions, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService, IHoverOptions, IHoverWidget, IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HoverWidget } from 'vs/workbench/services/hover/browser/hoverWidget';
@@ -18,9 +18,13 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-
+// to
 export class HoverService implements IHoverService {
 	declare readonly _serviceBrand: undefined;
+
+	get currentHoverActions(): IHoverAction[] | undefined {
+		return this._currentHoverOptions?.actions;
+	}
 
 	private _currentHoverOptions: IHoverOptions | undefined;
 	private _currentHover: HoverWidget | undefined;
