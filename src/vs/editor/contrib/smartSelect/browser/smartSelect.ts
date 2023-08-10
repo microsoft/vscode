@@ -315,11 +315,7 @@ CommandsRegistry.registerCommand('_executeSelectionRangeProvider', async functio
 	const configurationService = accessor.get(ITextResourceConfigurationService);
 	const reference = await accessor.get(ITextModelService).createModelReference(resource);
 
-	const options: SelectionRangesOptions = configurationService.getValue<SelectionRangesOptions | undefined>(resource, 'editor.smartSelect') ?? {
-		// TODO: how to avoid repeating defaults here?
-		selectLeadingAndTrailingWhitespace: true,
-		selectSubwords: true
-	};
+	const options: SelectionRangesOptions = configurationService.getValue<SelectionRangesOptions>(resource, 'editor.smartSelect');
 
 	try {
 		return provideSelectionRanges(registry, reference.object.textEditorModel, positions, options, CancellationToken.None);

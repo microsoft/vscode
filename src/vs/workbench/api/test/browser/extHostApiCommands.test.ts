@@ -153,7 +153,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 		services.set(ILanguageFeatureDebounceService, new SyncDescriptor(LanguageFeatureDebounceService));
 		services.set(IOutlineModelService, new SyncDescriptor(OutlineModelService));
-		testConfigurationService = new TestConfigurationService();
+		testConfigurationService = new TestConfigurationService({
+			editor: {
+				smartSelect: {
+					selectLeadingAndTrailingWhitespace: true,
+					selectSubwords: true
+				}
+			}
+		});
 		services.set(IConfigurationService, testConfigurationService);
 		services.set(ITextResourceConfigurationService, new TestTextResourceConfigurationService(testConfigurationService));
 
