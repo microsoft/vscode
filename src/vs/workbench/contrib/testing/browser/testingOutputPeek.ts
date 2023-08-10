@@ -1077,6 +1077,7 @@ const diffEditorOptions: IDiffEditorConstructionOptions = {
 	renderOverviewRuler: false,
 	ignoreTrimWhitespace: false,
 	renderSideBySide: true,
+	useInlineViewWhenSpaceIsLimited: false,
 	originalAriaLabel: localize('testingOutputExpected', 'Expected result'),
 	modifiedAriaLabel: localize('testingOutputActual', 'Actual result'),
 	diffAlgorithm: 'advanced',
