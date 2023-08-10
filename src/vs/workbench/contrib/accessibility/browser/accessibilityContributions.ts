@@ -33,6 +33,8 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { IAction } from 'vs/base/common/actions';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
@@ -245,6 +247,7 @@ function getActionsFromNotification(notification: INotificationViewItem): IActio
 	}
 	if (actions) {
 		for (const action of actions) {
+			action.class = ThemeIcon.asClassName(Codicon.bell);
 			const initialAction = action.run;
 			action.run = () => {
 				initialAction();
@@ -253,7 +256,7 @@ function getActionsFromNotification(notification: INotificationViewItem): IActio
 		}
 	}
 	if (actions) {
-		actions.push({ id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => notification.close(), enabled: true, class: 'codicon codicon-clear-all' });
+		actions.push({ id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => notification.close(), enabled: true, class: ThemeIcon.asClassName(Codicon.clearAll) });
 	}
 	return actions;
 }

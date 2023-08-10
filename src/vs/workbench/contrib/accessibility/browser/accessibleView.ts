@@ -36,6 +36,8 @@ import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleVi
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 const enum DIMENSIONS {
 	MAX_WIDTH = 600
@@ -44,6 +46,10 @@ const enum DIMENSIONS {
 export interface IAccessibleContentProvider {
 	verbositySettingKey: AccessibilityVerbositySettingId;
 	options: IAccessibleViewOptions;
+	/**
+	 * Note that the class property should be provided.
+	 * If not, a default Codicon will be used.
+	 */
 	actions?: IAction[];
 	provideContent(): string;
 	onClose(): void;
@@ -356,7 +362,7 @@ class AccessibleView extends Disposable {
 		createAndFillInActionBarActions(toolbarMenu, {}, menuActions);
 		if (providedActions) {
 			for (const providedAction of providedActions) {
-				providedAction.class = 'codicon codicon-primitive-square';
+				providedAction.class = providedAction.class || ThemeIcon.asClassName(Codicon.primitiveSquare);
 				providedAction.checked = undefined;
 			}
 			this._toolbar.setActions([...providedActions, ...menuActions]);
