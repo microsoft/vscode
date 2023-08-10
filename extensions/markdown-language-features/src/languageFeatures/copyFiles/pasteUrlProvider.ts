@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { Mime } from '../../util/mimes';
 import { createEditAddingLinksForUriList, getPasteUrlAsFormattedLinkSetting, PasteUrlAsFormattedLink, validateLink } from './shared';
 
-const textPlainMime = 'text/plain';
+class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 
-class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
+	public static readonly id = 'insertMarkdownLink';
 
-	readonly id = 'insertMarkdownLink';
+	public static readonly pasteMimeTypes = [
+		Mime.textPlain,
+	];
 
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
@@ -23,7 +26,7 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const item = dataTransfer.get(textPlainMime);
+		const item = dataTransfer.get(Mime.textPlain);
 		const urlList = await item?.asString();
 		if (token.isCancellationRequested || !urlList || !validateLink(urlList).isValid) {
 			return;
@@ -34,15 +37,13 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const edit = new vscode.DocumentPasteEdit('', this.id, pasteEdit.label);
+		const edit = new vscode.DocumentPasteEdit('', pasteEdit.label);
 		edit.additionalEdit = pasteEdit.additionalEdits;
-		edit.yieldTo = pasteEdit.markdownLink ? undefined : [{ mimeType: textPlainMime }];
+		edit.yieldTo = pasteEdit.markdownLink ? undefined : [{ mimeType: Mime.textPlain }];
 		return edit;
 	}
 }
 
 export function registerLinkPasteSupport(selector: vscode.DocumentSelector,) {
-	return vscode.languages.registerDocumentPasteEditProvider(selector, new PasteLinkEditProvider(), {
-		pasteMimeTypes: [textPlainMime]
-	});
+	return vscode.languages.registerDocumentPasteEditProvider(selector, new PasteUrlEditProvider(), PasteUrlEditProvider);
 }

@@ -5535,7 +5535,7 @@ declare namespace monaco.editor {
 		/**
 		 * The target element
 		 */
-		readonly element: Element | null;
+		readonly element: HTMLElement | null;
 		/**
 		 * The 'approximate' editor position
 		 */

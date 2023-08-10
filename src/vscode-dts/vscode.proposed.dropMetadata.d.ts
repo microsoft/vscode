@@ -9,16 +9,6 @@ declare module 'vscode' {
 
 	export interface DocumentDropEdit {
 		/**
-		 * Identifies the type of edit.
-		 *
-		 * This id should be unique within the extension but does not need to be unique across extensions.
-		 *
-		 * TODO: Should this live on the provider instead? That way we could call just the provider we want (however it would
-		 * prevent extending providers in the future to allow returning multiple edits)
-		 */
-		id?: string;
-
-		/**
 		 * Human readable label that describes the edit.
 		 */
 		label?: string;
@@ -35,14 +25,23 @@ declare module 'vscode' {
 		 */
 		yieldTo?: ReadonlyArray<
 			// TODO: what about built-in providers?
-			| { readonly extensionId: string; readonly editId: string }
+			| { readonly extensionId: string; readonly providerId: string }
 			| { readonly mimeType: string }
 		>;
 	}
 
 	export interface DocumentDropEditProviderMetadata {
 		/**
-		 * List of data transfer types that the provider supports.
+		 * Identifies the provider.
+		 *
+		 * This id is used when users configure the default provider for drop.
+		 *
+		 * This id should be unique within the extension but does not need to be unique across extensions.
+		 */
+		readonly id: string;
+
+		/**
+		 * List of {@link DataTransfer} mime types that the provider can handle.
 		 *
 		 * This can either be an exact mime type such as `image/png`, or a wildcard pattern such as `image/*`.
 		 *

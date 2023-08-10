@@ -7,7 +7,7 @@ import { equals } from 'vs/base/common/arrays';
 import { AutoOpenBarrier } from 'vs/base/common/async';
 import { throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -27,7 +27,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
  * Links TerminalService with TerminalProfileResolverService
  * and keeps the available terminal profiles updated
  */
-export class TerminalProfileService implements ITerminalProfileService {
+export class TerminalProfileService extends Disposable implements ITerminalProfileService {
 	declare _serviceBrand: undefined;
 
 	private _webExtensionContributedProfileContextKey: IContextKey<boolean>;
@@ -39,7 +39,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 	private _platformConfigJustRefreshed = false;
 	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
 
-	private readonly _onDidChangeAvailableProfiles = new Emitter<ITerminalProfile[]>();
+	private readonly _onDidChangeAvailableProfiles = this._register(new Emitter<ITerminalProfile[]>());
 	get onDidChangeAvailableProfiles(): Event<ITerminalProfile[]> { return this._onDidChangeAvailableProfiles.event; }
 
 	get profilesReady(): Promise<void> { return this._profilesReadyPromise; }
@@ -62,6 +62,8 @@ export class TerminalProfileService implements ITerminalProfileService {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
 	) {
+		super();
+
 		// in web, we don't want to show the dropdown unless there's a web extension
 		// that contributes a profile
 		this._extensionService.onDidChangeExtensions(() => this.refreshAvailableProfiles());

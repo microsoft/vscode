@@ -21,6 +21,10 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IContentActionHandler, renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { ApplyFileSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/fileTemplateSnippets';
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IInlineChatService, IInlineChatSessionProvider } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const $ = dom.$;
 
@@ -39,6 +43,9 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
+		@IInlineChatService private readonly inlineChatService: IInlineChatService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		this.toDispose = [];
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
@@ -53,6 +60,11 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 				this.untitledTextHintContentWidget?.dispose();
 			}
 		}));
+		this.toDispose.push(inlineChatSessionService.onDidEndSession(editor => {
+			if (this.editor === editor) {
+				this.update();
+			}
+		}));
 	}
 
 	private update(): void {
@@ -61,7 +73,16 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 		const model = this.editor.getModel();
 
 		if (model && model.uri.scheme === Schemas.untitled && model.getLanguageId() === PLAINTEXT_LANGUAGE_ID && configValue === 'text') {
-			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(this.editor, this.editorGroupsService, this.commandService, this.configurationService, this.keybindingService);
+			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(
+				this.editor,
+				this.editorGroupsService,
+				this.commandService,
+				this.configurationService,
+				this.keybindingService,
+				this.inlineChatService,
+				this.telemetryService,
+				this.productService
+			);
 		}
 	}
 
@@ -84,8 +105,12 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		private readonly commandService: ICommandService,
 		private readonly configurationService: IConfigurationService,
 		private readonly keybindingService: IKeybindingService,
+		private readonly inlineChatService: IInlineChatService,
+		private readonly telemetryService: ITelemetryService,
+		private readonly productService: IProductService
 	) {
 		this.toDispose = new DisposableStore();
+		this.toDispose.add(this.inlineChatService.onDidChangeProviders(() => this.onDidChangeModelContent()));
 		this.toDispose.add(editor.onDidChangeModelContent(() => this.onDidChangeModelContent()));
 		this.toDispose.add(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (this.domNode && e.hasChanged(EditorOption.fontInfo)) {
@@ -107,39 +132,119 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		return UntitledTextEditorHintContentWidget.ID;
 	}
 
+	private _getHintInlineChat(providers: IInlineChatSessionProvider[]) {
+		const providerName = providers.length === 1 ? providers[0].label : undefined;
+
+		const hintMsg = localize({
+			key: 'inlineChatHint',
+			comment: [
+				'Preserve double-square brackets and their order',
+			]
+		}, '[[Ask {0} to do something]] or start typing to dismiss.', providerName ?? this.productService.nameShort);
+
+		const hintHandler: IContentActionHandler = {
+			disposables: this.toDispose,
+			callback: (index, _event) => {
+				switch (index) {
+					case '0':
+						this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+							id: 'inlineChat.hintAction',
+							from: 'hint'
+						});
+						void this.commandService.executeCommand('inlineChat.start', { from: 'hint' });
+						break;
+				}
+			}
+		};
+
+		return { hintMsg, hintHandler };
+	}
+
+	private _getHintDefault() {
+		const hintMsg = localize({
+			key: 'message',
+			comment: [
+				'Preserve double-square brackets and their order',
+				'language refers to a programming language'
+			]
+		}, '[[Select a language]], or [[fill with template]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
+
+		const hintHandler: IContentActionHandler = {
+			disposables: this.toDispose,
+			callback: (index, event) => {
+				switch (index) {
+					case '0':
+						languageOnClickOrTap(event.browserEvent);
+						break;
+					case '1':
+						snippetOnClickOrTap(event.browserEvent);
+						break;
+					case '2':
+						chooseEditorOnClickOrTap(event.browserEvent);
+						break;
+					case '3':
+						dontShowOnClickOrTap();
+						break;
+				}
+			}
+		};
+
+		// the actual command handlers...
+		const languageOnClickOrTap = async (e: UIEvent) => {
+			e.stopPropagation();
+			// Need to focus editor before so current editor becomes active and the command is properly executed
+			this.editor.focus();
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+				id: ChangeLanguageAction.ID,
+				from: 'hint'
+			});
+			await this.commandService.executeCommand(ChangeLanguageAction.ID, { from: 'hint' });
+			this.editor.focus();
+		};
+
+		const snippetOnClickOrTap = async (e: UIEvent) => {
+			e.stopPropagation();
+
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+				id: ApplyFileSnippetAction.Id,
+				from: 'hint'
+			});
+			await this.commandService.executeCommand(ApplyFileSnippetAction.Id);
+		};
+
+		const chooseEditorOnClickOrTap = async (e: UIEvent) => {
+			e.stopPropagation();
+
+			const activeEditorInput = this.editorGroupsService.activeGroup.activeEditor;
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+				id: 'welcome.showNewFileEntries',
+				from: 'hint'
+			});
+			const newEditorSelected = await this.commandService.executeCommand('welcome.showNewFileEntries', { from: 'hint' });
+
+			// Close the active editor as long as it is untitled (swap the editors out)
+			if (newEditorSelected && activeEditorInput !== null && activeEditorInput.resource?.scheme === Schemas.untitled) {
+				this.editorGroupsService.activeGroup.closeEditor(activeEditorInput, { preserveFocus: true });
+			}
+		};
+
+		const dontShowOnClickOrTap = () => {
+			this.configurationService.updateValue(untitledTextEditorHintSetting, 'hidden');
+			this.dispose();
+			this.editor.focus();
+		};
+
+		return { hintMsg, hintHandler };
+	}
+
 	// Select a language to get started. Start typing to dismiss, or don't show this again.
 	getDomNode(): HTMLElement {
 		if (!this.domNode) {
 			this.domNode = $('.untitled-hint');
 			this.domNode.style.width = 'max-content';
 
-			const hintMsg = localize({
-				key: 'message',
-				comment: [
-					'Preserve double-square brackets and their order',
-					'language refers to a programming language'
-				]
-			}, '[[Select a language]], or [[fill with template]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
-			const hintHandler: IContentActionHandler = {
-				disposables: this.toDispose,
-				callback: (index, event) => {
-					switch (index) {
-						case '0':
-							languageOnClickOrTap(event.browserEvent);
-							break;
-						case '1':
-							snippetOnClickOrTap(event.browserEvent);
-							break;
-						case '2':
-							chooseEditorOnClickOrTap(event.browserEvent);
-							break;
-						case '3':
-							dontShowOnClickOrTap();
-							break;
-					}
-				}
-			};
-
+			const inlineChatProviders = [...this.inlineChatService.getAllProvider()];
+			const { hintMsg, hintHandler } = !inlineChatProviders.length ? this._getHintDefault() : this._getHintInlineChat(inlineChatProviders);
 			const hintElement = renderFormattedText(hintMsg, {
 				actionHandler: hintHandler,
 				renderCodeSegments: false,
@@ -154,39 +259,6 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				const title = id && this.keybindingService.lookupKeybinding(id)?.getLabel();
 				anchor.title = title ?? '';
 			}
-
-			// the actual command handlers...
-			const languageOnClickOrTap = async (e: UIEvent) => {
-				e.stopPropagation();
-				// Need to focus editor before so current editor becomes active and the command is properly executed
-				this.editor.focus();
-				await this.commandService.executeCommand(ChangeLanguageAction.ID, { from: 'hint' });
-				this.editor.focus();
-			};
-
-			const snippetOnClickOrTap = async (e: UIEvent) => {
-				e.stopPropagation();
-
-				await this.commandService.executeCommand(ApplyFileSnippetAction.Id);
-			};
-
-			const chooseEditorOnClickOrTap = async (e: UIEvent) => {
-				e.stopPropagation();
-
-				const activeEditorInput = this.editorGroupsService.activeGroup.activeEditor;
-				const newEditorSelected = await this.commandService.executeCommand('welcome.showNewFileEntries', { from: 'hint' });
-
-				// Close the active editor as long as it is untitled (swap the editors out)
-				if (newEditorSelected && activeEditorInput !== null && activeEditorInput.resource?.scheme === Schemas.untitled) {
-					this.editorGroupsService.activeGroup.closeEditor(activeEditorInput, { preserveFocus: true });
-				}
-			};
-
-			const dontShowOnClickOrTap = () => {
-				this.configurationService.updateValue(untitledTextEditorHintSetting, 'hidden');
-				this.dispose();
-				this.editor.focus();
-			};
 
 			this.toDispose.add(dom.addDisposableListener(this.domNode, 'click', () => {
 				this.editor.focus();

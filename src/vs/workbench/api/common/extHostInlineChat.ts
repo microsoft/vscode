@@ -95,7 +95,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 	registerProvider(extension: Readonly<IRelaxedExtensionDescription>, provider: vscode.InteractiveEditorSessionProvider): vscode.Disposable {
 		const wrapper = new ProviderWrapper(extension, provider);
 		this._inputProvider.set(wrapper.handle, wrapper);
-		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function');
+		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, provider.label, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function');
 		return toDisposable(() => {
 			this._proxy.$unregisterInteractiveEditorProvider(wrapper.handle);
 			this._inputProvider.delete(wrapper.handle);

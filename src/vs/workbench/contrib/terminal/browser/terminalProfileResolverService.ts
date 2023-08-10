@@ -5,7 +5,6 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { env } from 'vs/base/common/process';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -297,7 +296,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Resolve path variables
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(options.remoteAuthority ? Schemas.vscodeRemote : Schemas.file);
-		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 		profile.path = await this._resolveVariables(profile.path, env, lastActiveWorkspace);
 
 		// Resolve args variables
