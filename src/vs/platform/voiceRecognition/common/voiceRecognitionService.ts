@@ -3,17 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSFloat32Array } from 'vs/base/common/buffer';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IVoiceRecognitionService = createDecorator<IVoiceRecognitionService>('voiceRecognitionService');
-
-export interface IAudioBuffer {
-	readonly sampleRate: 16000;
-	readonly sampleSize: 16;
-	readonly channelCount: 1;
-	readonly channelData: VSFloat32Array;
-}
 
 export interface IVoiceRecognitionService {
 
@@ -24,8 +17,10 @@ export interface IVoiceRecognitionService {
 	 * transcribe the spoken words into text.
 	 *
 	 * @param buffer the audio data obtained from
-	 * the microphone as PCM 32-bit float mono in
-	 * 16khz.
+	 * the microphone as uncompressed PCM data:
+	 * - 1 channel (mono)
+	 * - 16khz sampling rate
+	 * - 16bit sample size
 	 */
-	transcribe(buffer: IAudioBuffer): Promise<string>;
+	transcribe(buffer: VSBuffer): Promise<string>;
 }

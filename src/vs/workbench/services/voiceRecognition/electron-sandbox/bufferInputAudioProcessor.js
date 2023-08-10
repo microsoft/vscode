@@ -16,8 +16,8 @@ class BufferInputAudioProcessor extends AudioWorkletProcessor {
 		this.bufferTimespan = 4000;
 		this.startTime = undefined;
 
-		this.allInputChannelDataBuffer = undefined;
-		this.currentInputChannelDataBuffer = []; // buffer over the duration of bufferTimespan
+		this.allInputUint8Array = undefined;
+		this.currentInputUint8Arrays = []; // buffer over the duration of bufferTimespan
 	}
 
 	/**
@@ -29,16 +29,16 @@ class BufferInputAudioProcessor extends AudioWorkletProcessor {
 		}
 
 		const inputChannelData = inputs[0][0];
-		this.currentInputChannelDataBuffer.push(inputChannelData.slice(0));
+		this.currentInputUint8Arrays.push(this.float32ArrayToUint8Array(inputChannelData.slice(0)));
 
 		if (Date.now() - this.startTime > this.bufferTimespan) {
-			const currentInputChannelDataBuffer = this.currentInputChannelDataBuffer;
-			this.currentInputChannelDataBuffer = [];
+			const currentInputUint8Arrays = this.currentInputUint8Arrays;
+			this.currentInputUint8Arrays = [];
 
-			this.allInputChannelDataBuffer = this._joinFloat32Arrays(this.allInputChannelDataBuffer ? [this.allInputChannelDataBuffer, ...currentInputChannelDataBuffer] : currentInputChannelDataBuffer);
+			this.allInputUint8Array = this.joinUint8Arrays(this.allInputUint8Array ? [this.allInputUint8Array, ...currentInputUint8Arrays] : currentInputUint8Arrays);
 
 			// @ts-ignore
-			this.port.postMessage(this.allInputChannelDataBuffer);
+			this.port.postMessage(this.allInputUint8Array);
 
 			this.startTime = Date.now();
 		}
@@ -47,19 +47,41 @@ class BufferInputAudioProcessor extends AudioWorkletProcessor {
 	}
 
 	/**
-	 * @param {Float32Array[]} float32Arrays
-	 * @returns {Float32Array}
+	 * @param {Uint8Array[]} uint8Arrays
+	 * @returns {Uint8Array}
 	 */
-	_joinFloat32Arrays(float32Arrays) {
-		const result = new Float32Array(float32Arrays.reduce((acc, curr) => acc + curr.length, 0));
+	joinUint8Arrays(uint8Arrays) {
+		const result = new Uint8Array(uint8Arrays.reduce((acc, curr) => acc + curr.length, 0));
 
 		let offset = 0;
-		for (const float32Array of float32Arrays) {
-			result.set(float32Array, offset);
-			offset += float32Array.length;
+		for (const uint8Array of uint8Arrays) {
+			result.set(uint8Array, offset);
+			offset += uint8Array.length;
 		}
 
 		return result;
+	}
+
+	/**
+	 *
+	 * @param {Float32Array} float32Array
+	 * @returns {Uint8Array}
+	 */
+	float32ArrayToUint8Array(float32Array) {
+		const uint8Array = new Uint8Array(float32Array.length * 4);
+		let offset = 0;
+
+		for (let i = 0; i < float32Array.length; i++) {
+			const buffer = new ArrayBuffer(4);
+			const view = new DataView(buffer);
+			view.setFloat32(0, float32Array[i], true);
+
+			for (let j = 0; j < 4; j++) {
+				uint8Array[offset++] = view.getUint8(j);
+			}
+		}
+
+		return uint8Array;
 	}
 }
 

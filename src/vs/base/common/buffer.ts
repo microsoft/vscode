@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Lazy } from 'vs/base/common/lazy';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
 import * as streams from 'vs/base/common/stream';
 
 declare const Buffer: any;
@@ -439,35 +438,4 @@ export function encodeBase64({ buffer }: VSBuffer, padded = true, urlSafe = fals
 	}
 
 	return output;
-}
-
-export interface VSFloat32ArrayComponents {
-	readonly $mid: MarshalledId.Float32Array;
-	readonly values: number[];
-}
-
-export class VSFloat32Array {
-
-	readonly buffer: Float32Array;
-	readonly byteLength: number;
-
-	static wrap(actual: Float32Array): VSFloat32Array {
-		return new VSFloat32Array(actual);
-	}
-
-	private constructor(buffer: Float32Array) {
-		this.buffer = buffer;
-		this.byteLength = this.buffer.byteLength;
-	}
-
-	toJSON(): VSFloat32ArrayComponents {
-		return {
-			$mid: MarshalledId.Float32Array,
-			values: Array.from(this.buffer.map(value => value))
-		};
-	}
-
-	static revive(raw: VSFloat32ArrayComponents): VSFloat32Array {
-		return VSFloat32Array.wrap(new Float32Array(raw.values));
-	}
 }

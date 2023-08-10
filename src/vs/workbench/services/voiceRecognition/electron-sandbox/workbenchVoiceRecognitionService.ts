@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { VSFloat32Array } from 'vs/base/common/buffer';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -36,12 +36,12 @@ class BufferInputAudioNode extends AudioWorkletNode {
 }
 
 // TODO@voice
-// - load `navigator.mediaDevices.getUserMedia` lazily on startup? or would it trigger a permission prompt?
 // - how to prevent data processing accumulation when processing is slow?
 // - how to make this a singleton service that enables ref-counting on multiple callers?
 // - cancellation should flow to the shared process
 // - voice module should directly transcribe the PCM32 data
-// - we should transfer the Float32Array directly without serialisation overhead
+// - we should transfer the Float32Array directly without serialisation overhead maybe from AudioWorklet?
+// - the audio worklet should be a TS file (try without any import/export?)
 
 export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
 
@@ -115,7 +115,7 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 			progress.report({ message: localize('voiceTranscriptionRecording', "Recording from microphone...") });
 
 			bufferInputAudioTarget.port.onmessage = async e => {
-				if (e.data instanceof Float32Array) {
+				if (e.data instanceof Uint8Array) {
 					this.doTranscribeChunk(e.data, emitter, token);
 				}
 			};
@@ -124,18 +124,12 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 		});
 	}
 
-	private async doTranscribeChunk(data: Float32Array, emitter: Emitter<string>, token: CancellationToken): Promise<void> {
+	private async doTranscribeChunk(data: Uint8Array, emitter: Emitter<string>, token: CancellationToken): Promise<void> {
 		if (token.isCancellationRequested) {
 			return;
 		}
 
-		const text = await this.voiceRecognitionService.transcribe({
-			sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_RATE,
-			sampleSize: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_SIZE,
-			channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
-			channelData: VSFloat32Array.wrap(data)
-		});
-
+		const text = await this.voiceRecognitionService.transcribe(VSBuffer.wrap(data));
 		if (token.isCancellationRequested) {
 			return;
 		}
