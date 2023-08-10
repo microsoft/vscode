@@ -29,7 +29,6 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistr
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 class SelectionRanges {
