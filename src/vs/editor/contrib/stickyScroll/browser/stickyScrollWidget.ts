@@ -73,6 +73,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				this._updateWidgetWidth();
 			}
 		}));
+		this._register(this._editor.onDidChangeModel(() => updateScrollLeftPosition()));
 		updateScrollLeftPosition();
 
 		this._register(this._editor.onDidLayoutChange((e) => {
