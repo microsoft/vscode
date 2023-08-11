@@ -11,5 +11,5 @@
 	font-size: 12px;
 	color: var(--vscode-chat-slashCommandForeground);
 	border-radius: 4px;
-	padding: 1px 3px;
+	padding: 1px 0px;
 }

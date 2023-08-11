@@ -352,6 +352,10 @@
 	float: left;
 }
 
+.interactive-session .interactive-input-part .interactive-input-editor .suggest-widget .main {
+	font-family: var(--monaco-monospace-font) !important;
+}
+
 .interactive-session-followups .monaco-button.interactive-followup-reply {
 	padding: 0px;
 	font-size: 12px;
