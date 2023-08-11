@@ -576,7 +576,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	private _setHoverWidgetMaxDimensions(width: number | string, height: number | string): void {
 		ContentHoverWidget._applyMaxDimensions(this._hover.contentsDomNode, width, height);
 		ContentHoverWidget._applyMaxDimensions(this._hover.containerDomNode, width, height);
-		this._hover.containerDomNode.style.setProperty('--hover-maxWidth', typeof width === 'number' ? `${width}px` : width);
+		this._hover.containerDomNode.style.setProperty('--vscode-hover-maxWidth', typeof width === 'number' ? `${width}px` : width);
 		this._layoutContentWidget();
 	}
 
@@ -659,11 +659,11 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
-		this._setWhiteSpaceProperties('nowrap', 'nowrap');
+		this._setHoverWrapping(false);
 		const overflowing = this._isHoverTextOverflowing();
-		this._setWhiteSpaceProperties('normal', 'pre-wrap');
+		this._setHoverWrapping(true);
 
-		if (overflowing || this._initialWidth && this._hover.containerDomNode.clientWidth < this._initialWidth) {
+		if (overflowing || (this._initialWidth && this._hover.containerDomNode.clientWidth < this._initialWidth)) {
 			const bodyBoxWidth = dom.getClientArea(document.body).width;
 			const horizontalPadding = 14;
 			return bodyBoxWidth - horizontalPadding;
@@ -756,16 +756,20 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		};
 	}
 
-	private _setWhiteSpaceProperties(hoverWhiteSpace: 'normal' | 'nowrap', hoverSourceWhiteSpace: 'pre-wrap' | 'nowrap') {
-		this._hover.containerDomNode.style.setProperty('--vscode-hover-whiteSpace', hoverWhiteSpace);
-		this._hover.containerDomNode.style.setProperty('--vscode-hoverSource-whiteSpace', hoverSourceWhiteSpace);
+	private _setHoverWrapping(shouldWrap: boolean): void {
+		if (shouldWrap) {
+			this._hover.containerDomNode.style.removeProperty('--vscode-hover-whiteSpace');
+			this._hover.containerDomNode.style.removeProperty('--vscode-hover-sourceWhiteSpace');
+		} else {
+			this._hover.containerDomNode.style.setProperty('--vscode-hover-whiteSpace', 'nowrap');
+			this._hover.containerDomNode.style.setProperty('--vscode-hover-sourceWhiteSpace', 'nowrap');
+		}
 	}
 
 	public showAt(node: DocumentFragment, hoverData: ContentHoverVisibleData): void {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
-		this._setWhiteSpaceProperties('normal', 'pre-wrap');
 		this._render(node, hoverData);
 		const widgetHeight = dom.getTotalHeight(this._hover.containerDomNode);
 		const widgetPosition = hoverData.showAtPosition;
