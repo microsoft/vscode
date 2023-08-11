@@ -65,9 +65,6 @@ class InputEditorDecorations extends Disposable {
 		this._slashCommandContentWidget?.hide();
 		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
 			opacity: '0',
-			after: {
-				contentText: ' ',
-			}
 		});
 		this.updateInputEditorDecorations();
 	}

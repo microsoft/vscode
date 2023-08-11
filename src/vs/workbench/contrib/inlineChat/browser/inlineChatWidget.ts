@@ -745,10 +745,6 @@ export class InlineChatWidget {
 						options: {
 							description: 'inline-chat-slash-command',
 							inlineClassName: 'inline-chat-slash-command',
-							after: {
-								// Force some space between slash command and placeholder
-								content: ' '
-							}
 						}
 					});
 
