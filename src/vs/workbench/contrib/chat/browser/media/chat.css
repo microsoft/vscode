@@ -354,7 +354,7 @@
 }
 
 .interactive-session .interactive-input-part .interactive-input-editor .suggest-widget .main {
-	font-family: var(--monaco-monospace-font) !important;
+	font-family: var(--monaco-monospace-font) !important; /* Have to override the editor options that sets the input text to not use monospace by default */
 }
 
 .interactive-session-followups .monaco-button.interactive-followup-reply {
