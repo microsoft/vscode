@@ -63,7 +63,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			message?: string;
 			autoSend?: boolean;
 			position?: vscode.Position;
-			edits?: extHostTypes.TextEdit[]
+			edits?: extHostTypes.TextEdit[];
 		};
 
 		type InteractiveEditorRunOptions = {
@@ -72,7 +72,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			message?: string;
 			autoSend?: boolean;
 			position?: IPosition;
-			edits?: TextEdit[]
+			edits?: TextEdit[];
 		};
 
 		extHostCommands.registerApiCommand(new ApiCommand(
