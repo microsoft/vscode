@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
@@ -17,20 +17,22 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
-import { getWordAtText } from 'vs/editor/common/core/wordHelper';
+import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
+import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
+import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
+const variableTextDecorationType = 'chat-variable-text';
 
 class InputEditorDecorations extends Disposable {
 
@@ -42,6 +44,7 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatService private readonly chatService: IChatService,
+		// @IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 	) {
 		super();
 
@@ -64,6 +67,7 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private updateRegisteredDecorationTypes() {
+		this.codeEditorService.removeDecorationType(variableTextDecorationType);
 		this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
 		this._slashCommandContentWidget?.hide();
 		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
@@ -71,6 +75,12 @@ class InputEditorDecorations extends Disposable {
 			after: {
 				contentText: ' ',
 			}
+		});
+		const theme = this.themeService.getColorTheme();
+		this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
+			color: theme.getColor(chatSlashCommandForeground)?.toString(),
+			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
+			borderRadius: '3px'
 		});
 		this.updateInputEditorDecorations();
 	}
@@ -165,6 +175,26 @@ class InputEditorDecorations extends Disposable {
 		} else {
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, []);
 		}
+
+		// const variables = this.chatVariablesService.getVariables();
+		const variableReg = /(^|\s)@(\w+)(\s|$)/ig;
+		let match: RegExpMatchArray | null;
+		const varDecorations: IDecorationOptions[] = [];
+		while (match = variableReg.exec(inputValue)) {
+			// const candidate = match[2];
+			// if (Iterable.find(variables, v => v.name === candidate))
+			const atOffset = match[0].indexOf('@');
+			varDecorations.push({
+				range: {
+					startLineNumber: 1,
+					endLineNumber: 1,
+					startColumn: match.index! + atOffset + 1,
+					endColumn: match.index! + match[0].length + 1
+				}
+			});
+		}
+
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
 	}
 }
 
