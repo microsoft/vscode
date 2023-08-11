@@ -32,6 +32,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 
 	// @ts-expect-error disable remote search for now, ref https://github.com/microsoft/vscode/issues/172411
 	private _installedExtensions: Promise<ILocalExtension[]>;
+	private _remoteSearchProvider: RemoteSearchProvider | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -57,9 +58,16 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	}
 
 	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): RemoteSearchProvider | undefined {
-		return this.remoteSearchAllowed ?
-			this.instantiationService.createInstance(RemoteSearchProvider, filter) :
-			undefined;
+		if (!this.remoteSearchAllowed) {
+			return undefined;
+		}
+
+		if (!this._remoteSearchProvider) {
+			this._remoteSearchProvider = this.instantiationService.createInstance(RemoteSearchProvider);
+		}
+
+		this._remoteSearchProvider.setFilter(filter);
+		return this._remoteSearchProvider;
 	}
 
 	getLocalSearchProvider(filter: string): LocalSearchProvider {
@@ -289,32 +297,76 @@ export class SettingMatches {
 	}
 }
 
+class RemoteSearchProviderKeyCache {
+	private settingKeys: string[] = [];
+	private settingsRecord: Record<string, ISetting> = {};
+	private currentPreferencesModel: ISettingsEditorModel | undefined;
+
+	constructor(private readonly semanticSimilarityService: ISemanticSimilarityService) {
+	}
+
+	updateModel(preferencesModel: ISettingsEditorModel) {
+		if (preferencesModel === this.currentPreferencesModel) {
+			return;
+		}
+
+		this.currentPreferencesModel = preferencesModel;
+		this.refresh();
+	}
+
+	refresh() {
+		this.settingKeys = [];
+		this.settingsRecord = {};
+
+		if (!this.semanticSimilarityService.isEnabled() || !this.currentPreferencesModel) {
+			return;
+		}
+
+		for (const group of this.currentPreferencesModel.settingsGroups) {
+			for (const section of group.sections) {
+				for (const setting of section.settings) {
+					this.settingKeys.push(setting.key);
+					this.settingsRecord[setting.key] = setting;
+				}
+			}
+		}
+	}
+
+	getSettingKeys(): string[] {
+		return this.settingKeys;
+	}
+
+	getSettingsRecord(): Record<string, ISetting> {
+		return this.settingsRecord;
+	}
+}
+
 export class RemoteSearchProvider implements ISearchProvider {
 	private static readonly SEMANTIC_SIMILARITY_THRESHOLD = 0.8;
 	private static readonly SEMANTIC_SIMILARITY_MAX_PICKS = 10;
 
+	private readonly _keysProvider: RemoteSearchProviderKeyCache;
+	private _filter: string = '';
+
 	constructor(
-		private _filter: string,
 		@ISemanticSimilarityService private readonly semanticSimilarityService: ISemanticSimilarityService,
 	) {
-		this._filter = cleanFilter(this._filter);
+		this._keysProvider = new RemoteSearchProviderKeyCache(semanticSimilarityService);
+	}
+
+	setFilter(filter: string) {
+		this._filter = cleanFilter(filter);
 	}
 
 	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken | undefined): Promise<ISearchResult | null> {
-		if (!this.semanticSimilarityService.isEnabled()) {
+		if (!this.semanticSimilarityService.isEnabled() || !this._filter) {
 			return Promise.resolve(null);
 		}
 
-		const settingKeys: string[] = [];
-		const settingMap: Record<string, ISetting> = {};
-		for (const group of preferencesModel.settingsGroups) {
-			for (const section of group.sections) {
-				for (const setting of section.settings) {
-					settingKeys.push(setting.key);
-					settingMap[setting.key] = setting;
-				}
-			}
-		}
+		this._keysProvider.updateModel(preferencesModel);
+		const settingKeys = this._keysProvider.getSettingKeys();
+		const settingsRecord = this._keysProvider.getSettingsRecord();
+
 		return this.semanticSimilarityService.getSimilarityScore(this._filter, settingKeys, token ?? CancellationToken.None).then((scores) => {
 			const filterMatches: ISettingMatch[] = [];
 			const sortedIndices = scores.map((_, i) => i).sort((a, b) => scores[b] - scores[a]);
@@ -327,8 +379,8 @@ export class RemoteSearchProvider implements ISearchProvider {
 
 				const pick = settingKeys[i];
 				filterMatches.push({
-					setting: settingMap[pick],
-					matches: [settingMap[pick].range],
+					setting: settingsRecord[pick],
+					matches: [settingsRecord[pick].range],
 					matchType: SettingMatchType.RemoteMatch,
 					score
 				});
