@@ -35,4 +35,20 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 		}
 		return null;
 	}
+
+	protected readNodePath(configuration: vscode.WorkspaceConfiguration): string | null {
+		const configNodePath = configuration.get<string>('typescript.tsserver.nodePath');
+		if (configNodePath) {
+			let fixedPath = this.fixPathPrefixes(configNodePath);
+			if (!path.isAbsolute(fixedPath)) {
+				const first = vscode.workspace.workspaceFolders?.[0];
+				if (first) {
+					fixedPath = vscode.Uri.joinPath(first.uri, fixedPath).fsPath;
+				} else {
+					return null;
+				}
+			}
+		}
+		return null;
+	}
 }

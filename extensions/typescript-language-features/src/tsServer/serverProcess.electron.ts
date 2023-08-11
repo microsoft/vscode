@@ -134,10 +134,12 @@ class Reader<T> extends Disposable {
 	}
 }
 
-function generatePatchedEnv(env: any, modulePath: string): any {
+function generatePatchedEnv(env: any, modulePath: string, hasExecPath: boolean): any {
 	const newEnv = Object.assign({}, env);
 
-	newEnv['ELECTRON_RUN_AS_NODE'] = '1';
+	if (!hasExecPath) {
+		newEnv['ELECTRON_RUN_AS_NODE'] = '1';
+	}
 	newEnv['NODE_PATH'] = path.join(modulePath, '..', '..', '..');
 
 	// Ensure we always have a PATH set
@@ -263,7 +265,17 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 			tsServerPath = versionManager.currentVersion.tsServerPath;
 		}
 
-		const useIpc = version.apiVersion?.gte(API.v460);
+		const execPath = getExecPath(configuration);
+		let useExecPath = !!execPath;
+		if (useExecPath && !fs.existsSync(execPath!)) {
+			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn\'t point to a valid Node install. Falling back to bundled Node version.", execPath!));
+			useExecPath = false;
+		}
+		const useIpc = !useExecPath && version.apiVersion?.gte(API.v460);
+
+		if (useExecPath) {
+			console.log(`Using custom node exec path '${execPath}', useIpc is '${useIpc}'.`); // >> TODO: do real logging
+		}
 
 		const runtimeArgs = [...args];
 		if (useIpc) {
@@ -273,11 +285,16 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 		const childProcess = child_process.fork(tsServerPath, runtimeArgs, {
 			silent: true,
 			cwd: undefined,
-			env: generatePatchedEnv(process.env, tsServerPath),
+			env: generatePatchedEnv(process.env, tsServerPath, useExecPath),
 			execArgv: getExecArgv(kind, configuration),
+			execPath: useExecPath ? execPath! : undefined,
 			stdio: useIpc ? ['pipe', 'pipe', 'pipe', 'ipc'] : undefined,
 		});
 
 		return useIpc ? new IpcChildServerProcess(childProcess) : new StdioChildServerProcess(childProcess);
 	}
+}
+
+function getExecPath(configuration: TypeScriptServiceConfiguration): string | null {
+	return configuration.nodePath;
 }

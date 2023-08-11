@@ -21,7 +21,8 @@
       "restrictedConfigurations": [
         "typescript.tsdk",
         "typescript.tsserver.pluginPaths",
-        "typescript.npm"
+        "typescript.npm",
+        "typescript.tsserver.nodePath"
       ]
     }
   },
@@ -1248,6 +1249,11 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors%",
+          "scope": "window"
+        },
+        "typescript.tsserver.nodePath": {
+          "type": "string",
+          "description": "%configuration.tsserver.nodePath%",
           "scope": "window"
         },
         "typescript.preferGoToSourceDefinition": {
