@@ -15,12 +15,12 @@ export interface IChatVariableData {
 
 export interface IChatResolvedVariable {
 	// TODO should we allow for multiple levels
-	value: string;
+	content: string;
 }
 
 export interface IChatVariableResolver {
 	// TODO should we spec "zoom level"
-	(token: CancellationToken): IChatResolvedVariable;
+	(token: CancellationToken): Promise<IChatResolvedVariable | undefined>;
 }
 
 export const IChatVariablesService = createDecorator<IChatVariablesService>('IChatVariablesService');
@@ -28,7 +28,7 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
 	registerChatVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable;
-	resolveVariable(name: string, token: CancellationToken): Promise<IChatResolvedVariable>;
+	resolveVariable(name: string, token: CancellationToken): Promise<IChatResolvedVariable | undefined>;
 	getVariables(): Iterable<Readonly<IChatVariableData>>;
 }
 
@@ -53,7 +53,7 @@ export class ChatVariablesService implements IChatVariablesService {
 			{ name: 'workspace', description: 'Details of your workspace' },
 			{ name: 'vscode', description: 'Commands and settings in vscode' },
 		].forEach(item => {
-			this.registerChatVariable(item, () => ({ value: item.name }));
+			this.registerChatVariable(item, async () => ({ content: item.name }));
 		});
 	}
 
@@ -72,7 +72,7 @@ export class ChatVariablesService implements IChatVariablesService {
 		});
 	}
 
-	resolveVariable(name: string, token: CancellationToken): Promise<IChatResolvedVariable> {
+	resolveVariable(name: string, token: CancellationToken): Promise<IChatResolvedVariable | undefined> {
 		const key = name.toLowerCase();
 		const chatData = this._resolver.get(key);
 		if (!chatData) {

@@ -76,6 +76,7 @@ import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common
 import { TerminalCommandMatchResult, TerminalQuickFixCommand, TerminalQuickFixOpener } from 'vscode';
 import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
+import { IChatResolvedVariable, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export type TerminalQuickFix = TerminalQuickFixCommand | TerminalQuickFixOpener;
 
@@ -1147,6 +1148,15 @@ export interface MainThreadChatSlashCommandsShape extends IDisposable {
 
 export interface ExtHostChatSlashCommandsShape {
 	$executeCommand(handle: number, requestId: number, prompt: string, context: { history: IChatMessage[] }, token: CancellationToken): Promise<any>;
+}
+
+export interface MainThreadChatVariablesShape extends IDisposable {
+	$registerVariable(handle: number, data: IChatVariableData): void;
+	$unregisterVariable(handle: number): void;
+}
+
+export interface ExtHostChatVariablesShape {
+	$resolveVariable(handle: number, token: CancellationToken): Promise<IChatResolvedVariable | undefined>;
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {
@@ -2556,6 +2566,7 @@ export const MainContext = {
 	MainThreadBulkEdits: createProxyIdentifier<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
 	MainThreadChatProvider: createProxyIdentifier<MainThreadChatProviderShape>('MainThreadChatProvider'),
 	MainThreadChatSlashCommands: createProxyIdentifier<MainThreadChatSlashCommandsShape>('MainThreadChatSlashCommands'),
+	MainThreadChatVariables: createProxyIdentifier<MainThreadChatVariablesShape>('MainThreadChatVariables'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createProxyIdentifier<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createProxyIdentifier<MainThreadCommentsShape>('MainThreadComments'),
@@ -2675,6 +2686,7 @@ export const ExtHostContext = {
 	ExtHostInlineChat: createProxyIdentifier<ExtHostInlineChatShape>('ExtHostInlineChatShape'),
 	ExtHostChat: createProxyIdentifier<ExtHostChatShape>('ExtHostChat'),
 	ExtHostChatSlashCommands: createProxyIdentifier<ExtHostChatSlashCommandsShape>('ExtHostChatSlashCommands'),
+	ExtHostChatVariables: createProxyIdentifier<ExtHostChatVariablesShape>('ExtHostChatVariables'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostChatProviderShape>('ExtHostChatProvider'),
 	ExtHostSemanticSimilarity: createProxyIdentifier<ExtHostSemanticSimilarityShape>('ExtHostSemanticSimilarity'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
