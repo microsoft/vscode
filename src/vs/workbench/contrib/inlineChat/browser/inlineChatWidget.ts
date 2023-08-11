@@ -476,7 +476,7 @@ export class InlineChatWidget {
 
 		if (!includeSlashCommand) {
 			const firstLine = this._inputModel.getLineContent(1);
-			const slashCommand = this._slashCommandDetails.find(c => firstLine.startsWith(`/${c.command}`));
+			const slashCommand = this._slashCommandDetails.find(c => firstLine.startsWith(`/${c.command} `));
 			selection = slashCommand ? new Range(1, slashCommand.command.length + 3, selection.endLineNumber, selection.endColumn) : selection;
 		}
 
