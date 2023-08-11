@@ -494,7 +494,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (usedSlashCommand) {
-			const slashCommandElement = $('span.interactive-slash-command', { title: usedSlashCommand.detail }, `/${usedSlashCommand.command} `);
+			const slashCommandElement = $('code.interactive-slash-command', { title: usedSlashCommand.detail }, `/${usedSlashCommand.command}`);
 			if (result.element.firstChild?.nodeName.toLowerCase() === 'p') {
 				result.element.firstChild.insertBefore(slashCommandElement, result.element.firstChild.firstChild);
 			} else {

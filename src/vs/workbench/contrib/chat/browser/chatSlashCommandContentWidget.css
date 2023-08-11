@@ -7,5 +7,9 @@
 	padding: 1px 3px;
 	border-radius: 3px;
 	background-color: var(--vscode-chat-slashCommandBackground);
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
 	color: var(--vscode-chat-slashCommandForeground);
+	border-radius: 4px;
+	padding: 1px 3px;
 }

@@ -176,7 +176,11 @@
 .interactive-item-container .monaco-tokenized-source,
 .interactive-item-container code {
 	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
 	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	border-radius: 4px;
+	padding: 1px 4px;
 }
 
 .interactive-session .interactive-input-and-toolbar {
@@ -290,7 +294,12 @@
 }
 
 .interactive-item-container .value .interactive-slash-command {
-	color: var(--vscode-textLink-foreground);
+	background-color: var(--vscode-chat-slashCommandBackground);
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	color: var(--vscode-chat-slashCommandForeground);
+	border-radius: 4px;
+	padding: 1px 3px;
 }
 
 .interactive-session .interactive-input-part {
