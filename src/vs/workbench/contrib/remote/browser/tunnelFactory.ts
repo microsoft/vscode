@@ -48,7 +48,7 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 			}
 
 			this._register(tunnelService.setTunnelProvider({
-				forwardPort: async (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<RemoteTunnel | undefined> => {
+				forwardPort: async (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<RemoteTunnel | string | undefined> => {
 					let tunnelPromise: Promise<ITunnel> | undefined;
 					try {
 						tunnelPromise = tunnelFactory(tunnelOptions, tunnelCreationOptions);
@@ -64,6 +64,9 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 						tunnel = await tunnelPromise;
 					} catch (e) {
 						logService.trace('tunnelFactory: tunnel provider promise error');
+						if (e instanceof Error) {
+							return e.message;
+						}
 						return undefined;
 					}
 					const localAddress = tunnel.localAddress.startsWith('http') ? tunnel.localAddress : `http://${tunnel.localAddress}`;
