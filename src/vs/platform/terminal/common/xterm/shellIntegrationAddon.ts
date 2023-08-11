@@ -207,6 +207,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 	constructor(
 		private _nonce: string,
+		private readonly _isScreenReaderOptimized: boolean,
 		private readonly _disableTelemetry: boolean | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
 		private readonly _logService: ILogService
@@ -513,7 +514,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	protected _createOrGetCommandDetection(terminal: Terminal): ICommandDetectionCapability {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 		if (!commandDetection) {
-			commandDetection = this._register(new CommandDetectionCapability(terminal, this._logService));
+			commandDetection = this._register(new CommandDetectionCapability(terminal, this._isScreenReaderOptimized, this._logService));
 			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		}
 		return commandDetection;

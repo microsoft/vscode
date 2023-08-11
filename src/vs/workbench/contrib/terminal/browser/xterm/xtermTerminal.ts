@@ -43,6 +43,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { debounce } from 'vs/base/common/decorators';
 import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const enum RenderConstants {
 	/**
@@ -202,6 +203,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAccessibilityService private readonly _accessiblityService: IAccessibilityService
 	) {
 		super();
 		const font = this._configHelper.getFont(undefined, true);
@@ -272,7 +274,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e));
 		this.raw.loadAddon(this._decorationAddon);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, disableShellIntegrationReporting, this._telemetryService, this._logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, this._accessiblityService.isScreenReaderOptimized(), disableShellIntegrationReporting, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 
 		this._anyTerminalFocusContextKey = TerminalContextKeys.focusInAny.bindTo(contextKeyService);

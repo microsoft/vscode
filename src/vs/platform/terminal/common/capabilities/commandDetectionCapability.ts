@@ -115,6 +115,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	constructor(
 		private readonly _terminal: Terminal,
+		private readonly _isScreenReaderOptimized: boolean,
 		private readonly _logService: ILogService
 	) {
 		super();
@@ -137,6 +138,24 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	@debounce(500)
 	private _handleCursorMove() {
+		// Sync the textarea with the terminal contents so screen readers can read it
+		if (this._isScreenReaderOptimized) {
+			const buffer = this._terminal.buffer.active;
+			const line = buffer.getLine(buffer.cursorY)?.translateToString(true);
+			let commandText: string | undefined;
+			if (line) {
+				if (this._currentCommand.commandStartX) {
+					// Left prompt
+					commandText = line.substring(this._currentCommand.commandStartX);
+				} else if (this._currentCommand.commandRightPromptStartX) {
+					// Right prompt
+					commandText = line.substring(0, this._currentCommand.commandRightPromptStartX).trimStart();
+				}
+				if (commandText?.length) {
+					this._onRequestWriteToTextArea.fire(commandText);
+				}
+			}
+		}
 		// Early versions of conpty do not have real support for an alt buffer, in addition certain
 		// commands such as tsc watch will write to the top of the normal buffer. The following
 		// checks when the cursor has moved while the normal buffer is empty and if it is above the
@@ -147,14 +166,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		//
 		// This is mostly a workaround for Windows but applies to all OS' because of the tsc watch
 		// case.
-		let line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.cursorY)?.translateToString(true);
-		if (this._currentCommand.commandStartX) {
-			line = line?.substring(this._currentCommand.commandStartX).trimEnd();
-		}
-		if (line) {
-			console.log(line);
-			this._onRequestWriteToTextArea.fire(line);
-		}
+
 		if (this._terminal.buffer.active === this._terminal.buffer.normal && this._currentCommand.commandStartMarker) {
 			if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY < this._currentCommand.commandStartMarker.line) {
 				this._clearCommandsInViewport();

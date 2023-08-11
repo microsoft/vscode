@@ -425,9 +425,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				commandCapability?.onRequestWriteToTextArea(text => {
 					const textArea = this.xterm?.raw.textarea;
 					if (textArea) {
+						// Sync the textarea using shell integration so screen
+						// readers can read the command
 						textArea.textContent = text;
-						console.log('content is');
-						console.log(textArea.textContent);
 					}
 				});
 				commandCapability?.onCommandFinished(e => {

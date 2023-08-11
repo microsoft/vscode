@@ -34,7 +34,7 @@ suite('ShellIntegrationAddon', () => {
 
 		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
-		shellIntegrationAddon = new TestShellIntegrationAddon('', true, undefined, new NullLogService());
+		shellIntegrationAddon = new TestShellIntegrationAddon('', false, true, undefined, new NullLogService());
 		xterm.loadAddon(shellIntegrationAddon);
 		capabilities = shellIntegrationAddon.capabilities;
 	});
