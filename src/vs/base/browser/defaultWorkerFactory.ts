@@ -86,11 +86,13 @@ function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
  */
 class WebWorker implements IWorker {
 
-	private id: number;
+	private readonly id: number;
+	private readonly label: string;
 	private worker: Promise<Worker> | null;
 
 	constructor(moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		this.id = id;
+		this.label = label;
 		const workerOrPromise = getWorker(label);
 		if (isPromiseLike(workerOrPromise)) {
 			this.worker = workerOrPromise;
@@ -119,6 +121,7 @@ class WebWorker implements IWorker {
 				w.postMessage(message, transfer);
 			} catch (err) {
 				onUnexpectedError(err);
+				onUnexpectedError(new Error(`FAILED to post message to '${this.label}'-worker`, { cause: err }));
 			}
 		});
 	}
