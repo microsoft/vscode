@@ -474,8 +474,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	private _visibleData: ContentHoverVisibleData | undefined;
 	private _positionPreference: ContentWidgetPositionPreference | undefined;
 	private _minimumSize: dom.Dimension;
-	private _contentWidth: number;
-	private _initialWidth: number | undefined;
+	private _contentWidth: number | undefined;
 
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
@@ -509,7 +508,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		const minimumSize = new dom.Dimension(minimumWidth, minimumHeight);
 		super(editor, minimumSize);
 		this._minimumSize = minimumSize;
-		this._contentWidth = minimumWidth; // we initially assume the content width to be the minimum width
 		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(contextKeyService);
 		this._hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(contextKeyService);
 
@@ -609,7 +607,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		}
 	}
 
-	private _setResizableNodeMaxDimensions(): void {
+	private _updateResizableNodeMaxDimensions(): void {
 		const maxRenderingWidth = this._findMaximumRenderingWidth() ?? Infinity;
 		const maxRenderingHeight = this._findMaximumRenderingHeight() ?? Infinity;
 		this._resizableNode.maxSize = new dom.Dimension(maxRenderingWidth, maxRenderingHeight);
@@ -620,7 +618,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		ContentHoverWidget._lastDimensions = new dom.Dimension(size.width, size.height);
 		this._setAdjustedHoverWidgetDimensions(size);
 		this._resizableNode.layout(size.height, size.width);
-		this._setResizableNodeMaxDimensions();
+		this._updateResizableNodeMaxDimensions();
 		this._hover.scrollbar.scanDomNode();
 		this._editor.layoutContentWidget(this);
 		this._visibleData?.colorPicker?.layout();
@@ -641,8 +639,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		}
 		// Padding needed in order to stop the resizing down to a smaller height
 		let maximumHeight = CONTAINER_HEIGHT_PADDING;
-		Array.from(this._hover.contentsDomNode.children).forEach((hoverElement) => {
-			maximumHeight += hoverElement.clientHeight;
+		Array.from(this._hover.contentsDomNode.children).forEach((hoverPart) => {
+			maximumHeight += hoverPart.clientHeight;
 		});
 		if (this._hasHorizontalScrollbar()) {
 			maximumHeight += SCROLLBAR_WIDTH;
@@ -651,10 +649,17 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _isHoverTextOverflowing(): boolean {
-		let overflowing = false;
-		Array.from(this._hover.contentsDomNode.children).forEach((hoverElement) => {
-			overflowing = overflowing || hoverElement.scrollWidth > hoverElement.clientWidth;
+		// To find out if the text is overflowing, we will disable wrapping, check the widths, and then re-enable wrapping
+		this._hover.containerDomNode.style.setProperty('--vscode-hover-whiteSpace', 'nowrap');
+		this._hover.containerDomNode.style.setProperty('--vscode-hover-sourceWhiteSpace', 'nowrap');
+
+		const overflowing = Array.from(this._hover.contentsDomNode.children).some((hoverElement) => {
+			return hoverElement.scrollWidth > hoverElement.clientWidth;
 		});
+
+		this._hover.containerDomNode.style.removeProperty('--vscode-hover-whiteSpace');
+		this._hover.containerDomNode.style.removeProperty('--vscode-hover-sourceWhiteSpace');
+
 		return overflowing;
 	}
 
@@ -662,11 +667,16 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
-		this._setHoverWrapping(false);
-		const overflowing = this._isHoverTextOverflowing();
-		this._setHoverWrapping(true);
 
-		if (overflowing || (this._initialWidth && this._hover.containerDomNode.clientWidth < this._initialWidth)) {
+		const overflowing = this._isHoverTextOverflowing();
+
+		const initialWidth = (
+			typeof this._contentWidth === 'undefined'
+				? 0
+				: this._contentWidth - 2 // - 2 for the borders
+		);
+
+		if (overflowing || this._hover.containerDomNode.clientWidth < initialWidth) {
 			const bodyBoxWidth = dom.getClientArea(document.body).width;
 			const horizontalPadding = 14;
 			return bodyBoxWidth - horizontalPadding;
@@ -759,16 +769,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		};
 	}
 
-	private _setHoverWrapping(shouldWrap: boolean): void {
-		if (shouldWrap) {
-			this._hover.containerDomNode.style.removeProperty('--vscode-hover-whiteSpace');
-			this._hover.containerDomNode.style.removeProperty('--vscode-hover-sourceWhiteSpace');
-		} else {
-			this._hover.containerDomNode.style.setProperty('--vscode-hover-whiteSpace', 'nowrap');
-			this._hover.containerDomNode.style.setProperty('--vscode-hover-sourceWhiteSpace', 'nowrap');
-		}
-	}
-
 	public showAt(node: DocumentFragment, hoverData: ContentHoverVisibleData): void {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
@@ -827,8 +827,13 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _updateMinimumWidth(): void {
+		const width = (
+			typeof this._contentWidth === 'undefined'
+				? this._minimumSize.width
+				: Math.min(this._contentWidth, this._minimumSize.width)
+		);
 		// We want to avoid that the hover is artificially large, so we use the content width as minimum width
-		this._resizableNode.minSize = new dom.Dimension(Math.min(this._contentWidth, this._minimumSize.width), this._minimumSize.height);
+		this._resizableNode.minSize = new dom.Dimension(width, this._minimumSize.height);
 	}
 
 	public onContentsChanged(): void {
@@ -845,6 +850,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		width = dom.getTotalWidth(containerDomNode);
 		this._contentWidth = width;
 		this._updateMinimumWidth();
+		this._updateResizableNodeMaxDimensions();
 		this._resizableNode.layout(height, width);
 
 		if (this._hasHorizontalScrollbar()) {
@@ -856,7 +862,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			this._positionPreference = this._findPositionPreference(widgetHeight, this._visibleData.showAtPosition);
 		}
 		this._layoutContentWidget();
-		this._initialWidth = this._hover.containerDomNode.clientWidth;
 	}
 
 	public focus(): void {
