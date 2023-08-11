@@ -476,7 +476,7 @@ export class InlineChatWidget {
 
 		if (!includeSlashCommand) {
 			const firstLine = this._inputModel.getLineContent(1);
-			const slashCommand = this._slashCommandDetails.find(c => firstLine.startsWith(`/${c.command} `));
+			const slashCommand = this._slashCommandDetails.find(c => firstLine.startsWith(`/${c.command}`));
 			selection = slashCommand ? new Range(1, slashCommand.command.length + 3, selection.endLineNumber, selection.endColumn) : selection;
 		}
 
@@ -756,7 +756,7 @@ export class InlineChatWidget {
 					this._slashCommandContentWidget.show();
 
 					// inject detail when otherwise empty
-					if (firstLine === `/${command.command} `) {
+					if (firstLine === `/${command.command}`) {
 						newDecorations.push({
 							range: new Range(1, withSlash.length + 1, 1, withSlash.length + 2),
 							options: {
