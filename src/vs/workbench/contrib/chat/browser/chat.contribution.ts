@@ -49,6 +49,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ChatProviderService, IChatProviderService } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ChatVariablesService, IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -258,3 +259,4 @@ registerSingleton(IChatAccessibilityService, ChatAccessibilityService, Instantia
 registerSingleton(IChatWidgetHistoryService, ChatWidgetHistoryService, InstantiationType.Delayed);
 registerSingleton(IChatProviderService, ChatProviderService, InstantiationType.Delayed);
 registerSingleton(IChatSlashCommandService, ChatSlashCommandService, InstantiationType.Delayed);
+registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);

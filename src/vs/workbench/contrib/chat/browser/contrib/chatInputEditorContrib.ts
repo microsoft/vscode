@@ -25,20 +25,8 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { getWordAtText } from 'vs/editor/common/core/wordHelper';
+import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 
-
-const variables = [
-	{ name: 'selection', description: `The current editor's selection` },
-	{ name: 'editor', description: 'The current editor' },
-	{ name: 'debugConsole', description: 'The output in the debug console' },
-	{ name: 'vscodeAPI', description: 'The docs for the vscode extension API' },
-	{ name: 'git', description: 'The git details for your workspace' },
-	{ name: 'problems', description: 'The problems detected in your workspace' },
-	{ name: 'terminal', description: 'The current terminal buffer' },
-	{ name: 'terminalSelection', description: 'The current selection in the terminal' },
-	{ name: 'workspace', description: 'Details of your workspace' },
-	{ name: 'vscode', description: 'Commands and settings in vscode' },
-];
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
@@ -265,6 +253,7 @@ class VariableCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 	) {
 		super();
 
@@ -294,7 +283,7 @@ class VariableCompletions extends Disposable {
 				}
 
 				return <CompletionList>{
-					suggestions: variables.map(v => {
+					suggestions: Array.from(this.chatVariablesService.getVariables()).map(v => {
 						const withAt = `@${v.name}`;
 						return <CompletionItem>{
 							label: withAt,
