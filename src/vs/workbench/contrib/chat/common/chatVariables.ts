@@ -68,13 +68,16 @@ export class ChatVariablesService implements IChatVariablesService {
 		const resolvedVariables = new Map<string, IChatResolvedVariable>();
 		const jobs: Promise<any>[] = [];
 
-		for (const [data, resolver] of this._resolver.values()) {
-			// (^|\s)@foo(\s|$)
-			const regex = new RegExp(`(^|\\s)@${data.name}(\\s|$)`, 'i');
-			if (regex.test(prompt)) {
-				jobs.push(resolver(token).then(value => {
+		const regex = /(^|\s)@(\w+)(\s|$)/ig;
+
+		let match: RegExpMatchArray | null;
+		while (match = regex.exec(prompt)) {
+			const candidate = match[2];
+			const data = this._resolver.get(candidate);
+			if (data) {
+				jobs.push(data[1](token).then(value => {
 					if (value) {
-						resolvedVariables.set(data.name, value);
+						resolvedVariables.set(candidate, value);
 					}
 				}).catch(onUnexpectedExternalError));
 			}
