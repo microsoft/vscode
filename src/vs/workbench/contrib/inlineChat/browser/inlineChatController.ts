@@ -371,11 +371,14 @@ export class InlineChatController implements IEditorContribution {
 				new SessionPrompt('edit'),
 				new EditResponse(
 					this._activeSession.textModelN.uri,
-					this._activeSession.textModelN.getAlternativeVersionId(), {
-					id: 2,
-					type: InlineChatResponseType.EditorEdit,
-					edits: options.edits
-				})));
+					this._activeSession.textModelN.getAlternativeVersionId(),
+					{
+						id: 2,
+						type: InlineChatResponseType.EditorEdit,
+						edits: options.edits
+					},
+					[]
+				)));
 			return State.APPLY_RESPONSE;
 		}
 
