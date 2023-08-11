@@ -218,6 +218,7 @@ export interface ICellOutput {
 	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
 	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
+	asDto(): IOutputDto;
 	bumpVersion(): void;
 }
 
