@@ -296,7 +296,6 @@
 	padding: 12px 0px;
 	display: flex;
 	flex-direction: column;
-	border-top: solid 1px var(--vscode-chat-requestBorder);
 }
 
 .interactive-session-followups {
