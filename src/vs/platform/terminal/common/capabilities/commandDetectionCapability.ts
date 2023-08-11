@@ -166,7 +166,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		//
 		// This is mostly a workaround for Windows but applies to all OS' because of the tsc watch
 		// case.
-
 		if (this._terminal.buffer.active === this._terminal.buffer.normal && this._currentCommand.commandStartMarker) {
 			if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY < this._currentCommand.commandStartMarker.line) {
 				this._clearCommandsInViewport();
