@@ -251,8 +251,8 @@
 	margin: 16px 0;
 }
 
-.interactive-response .monaco-editor .margin,
-.interactive-response .monaco-editor .monaco-editor-background {
+.interactive-session .interactive-item-container.interactive-response .rendered-markdown .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor,
+.interactive-session .interactive-item-container.interactive-response .rendered-markdown .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor .margin {
 	background-color: var(--vscode-interactive-result-editor-background-color);
 }
 
