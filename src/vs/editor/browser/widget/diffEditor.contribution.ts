@@ -50,7 +50,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	order: 10,
 	group: '2_diff',
-	when: EditorContextKeys.accessibleDiffViewerVisible.negate(),
+	when: ContextKeyExpr.and(
+		EditorContextKeys.accessibleDiffViewerVisible.negate(),
+		ContextKeyExpr.has('isInDiffEditor'),
+	),
 });
 
 export class AccessibleDiffViewerPrev extends Action2 {

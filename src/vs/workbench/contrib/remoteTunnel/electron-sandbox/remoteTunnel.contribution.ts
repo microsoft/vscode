@@ -214,15 +214,13 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			return true;
 		};
 		if (await shouldRecommend()) {
-			const storageListener = this.storageService.onDidChangeValue(async e => {
-				if (e.key === REMOTE_TUNNEL_USED_STORAGE_KEY) {
-					const success = await recommed();
-					if (success) {
-						storageListener.dispose();
-					}
-
+			const disposables = this._register(new DisposableStore());
+			disposables.add(this.storageService.onDidChangeValue(StorageScope.APPLICATION, REMOTE_TUNNEL_USED_STORAGE_KEY, disposables)(async () => {
+				const success = await recommed();
+				if (success) {
+					disposables.dispose();
 				}
-			});
+			}));
 		}
 	}
 
@@ -399,11 +397,11 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	private async createQuickpickItems(sessions: ExistingSessionItem[]): Promise<(ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[]> {
 		const options: (ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[] = [];
 
-		options.push({ type: 'separator', label: localize('signed in', "Signed In") });
-
-		options.push(...sessions);
-
-		options.push({ type: 'separator', label: localize('others', "Others") });
+		if (sessions.length) {
+			options.push({ type: 'separator', label: localize('signed in', "Signed In") });
+			options.push(...sessions);
+			options.push({ type: 'separator', label: localize('others', "Others") });
+		}
 
 		for (const authenticationProvider of (await this.getAuthenticationProviders())) {
 			const signedInForProvider = sessions.some(account => account.providerId === authenticationProvider.id);

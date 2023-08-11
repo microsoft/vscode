@@ -41,6 +41,8 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { debounce } from 'vs/base/common/decorators';
+import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 
 const enum RenderConstants {
 	/**
@@ -119,6 +121,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 	private _core: IXtermCore;
 	private static _suggestedRendererType: 'canvas' | 'dom' | undefined = undefined;
 	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
+	private _isPhysicalMouseWheel = MouseWheelClassifier.INSTANCE.isPhysicalMouseWheel();
 
 	// Always on addons
 	private _markNavigationAddon: MarkNavigationAddon;
@@ -143,21 +146,21 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 
-	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>();
+	private readonly _onDidRequestRunCommand = this.add(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
-	private readonly _onDidRequestFocus = new Emitter<void>();
+	private readonly _onDidRequestFocus = this.add(new Emitter<void>());
 	readonly onDidRequestFocus = this._onDidRequestFocus.event;
-	private readonly _onDidRequestSendText = new Emitter<string>();
+	private readonly _onDidRequestSendText = this.add(new Emitter<string>());
 	readonly onDidRequestSendText = this._onDidRequestSendText.event;
-	private readonly _onDidRequestFreePort = new Emitter<string>();
+	private readonly _onDidRequestFreePort = this.add(new Emitter<string>());
 	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
-	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number }>();
+	private readonly _onDidChangeFindResults = this.add(new Emitter<{ resultIndex: number; resultCount: number }>());
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
-	private readonly _onDidChangeSelection = new Emitter<void>();
+	private readonly _onDidChangeSelection = this.add(new Emitter<void>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
-	private readonly _onDidChangeFocus = new Emitter<boolean>();
+	private readonly _onDidChangeFocus = this.add(new Emitter<boolean>());
 	readonly onDidChangeFocus = this._onDidChangeFocus.event;
-	private readonly _onDidDispose = new Emitter<void>();
+	private readonly _onDidDispose = this.add(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
 
 	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
@@ -234,8 +237,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			wordSeparator: config.wordSeparators,
 			overviewRulerWidth: 10,
-			smoothScrollDuration: config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0
+			ignoreBracketedPasteMode: config.ignoreBracketedPasteMode
 		}));
+		this._updateSmoothScrolling();
 		this._core = (this.raw as any)._core as IXtermCore;
 
 		this.add(this._configurationService.onDidChangeConfiguration(async e => {
@@ -352,6 +356,18 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		ad.add(dom.addDisposableListener(this.raw.textarea, 'blur', () => this._setFocused(false)));
 		ad.add(dom.addDisposableListener(this.raw.textarea, 'focusout', () => this._setFocused(false)));
 
+		// Track wheel events in mouse wheel classifier and update smoothScrolling when it changes
+		// as it must be disabled when a trackpad is used
+		ad.add(dom.addDisposableListener(this.raw.element!, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
+			const classifier = MouseWheelClassifier.INSTANCE;
+			classifier.acceptStandardWheelEvent(new StandardWheelEvent(e));
+			const value = classifier.isPhysicalMouseWheel();
+			if (value !== this._isPhysicalMouseWheel) {
+				this._isPhysicalMouseWheel = value;
+				this._updateSmoothScrolling();
+			}
+		}, { passive: true }));
+
 		this._suggestAddon?.setContainer(container);
 
 		this._attached = { container, options };
@@ -365,8 +381,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this._anyFocusedTerminalHasSelection.set(isFocused && this.raw.hasSelection());
 	}
 
-	write(data: string | Uint8Array): void {
-		this.raw.write(data);
+	write(data: string | Uint8Array, callback?: () => void): void {
+		this.raw.write(data, callback);
 	}
 
 	resize(columns: number, rows: number): void {
@@ -392,7 +408,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.customGlyphs = config.customGlyphs;
-		this.raw.options.smoothScrollDuration = config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0;
+		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
+		this._updateSmoothScrolling();
 		if (this._attached?.options.enableGpu) {
 			if (this._shouldLoadWebgl()) {
 				this._enableWebglRenderer();
@@ -405,6 +422,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 				}
 			}
 		}
+	}
+
+	private _updateSmoothScrolling() {
+		this.raw.options.smoothScrollDuration = this._configHelper.config.smoothScrolling && this._isPhysicalMouseWheel ? RenderConstants.SmoothScrollDuration : 0;
 	}
 
 	private _shouldLoadWebgl(): boolean {
@@ -572,6 +593,24 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 
 	clearSelection(): void {
 		this.raw.clearSelection();
+	}
+
+	selectMarkedRange(fromMarkerId: string, toMarkerId: string, scrollIntoView = false) {
+		const detectionCapability = this.shellIntegration.capabilities.get(TerminalCapability.BufferMarkDetection);
+		if (!detectionCapability) {
+			return;
+		}
+
+		const start = detectionCapability.getMark(fromMarkerId);
+		const end = detectionCapability.getMark(toMarkerId);
+		if (start === undefined || end === undefined) {
+			return;
+		}
+
+		this.raw.selectLines(start.line, end.line);
+		if (scrollIntoView) {
+			this.raw.scrollToLine(start.line);
+		}
 	}
 
 	selectAll(): void {

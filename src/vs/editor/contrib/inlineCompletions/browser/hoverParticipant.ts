@@ -139,7 +139,8 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			hoverContentsElement.replaceChildren(renderedContents.element);
 		};
 
-		disposableStore.add(autorun('update hover', (reader) => {
+		disposableStore.add(autorun(reader => {
+			/** @description update hover */
 			const ghostText = part.controller.model.read(reader)?.ghostText.read(reader);
 			if (ghostText) {
 				const lineText = this._editor.getModel()!.getLineContent(ghostText.lineNumber);

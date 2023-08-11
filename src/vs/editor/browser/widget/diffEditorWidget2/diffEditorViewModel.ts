@@ -5,8 +5,7 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ISettableObservable, ITransaction, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
-import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
+import { IObservable, IReader, ISettableObservable, ITransaction, autorunWithStore, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
 import { ISerializedLineRange, LineRange } from 'vs/editor/common/core/lineRange';
 import { Range } from 'vs/editor/common/core/range';
@@ -32,7 +31,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		'unchangedRegion',
 		{ regions: [], originalDecorationIds: [], modifiedDecorationIds: [] }
 	);
-	public readonly unchangedRegions: IObservable<UnchangedRegion[]> = derived('unchangedRegions', r => {
+	public readonly unchangedRegions: IObservable<UnchangedRegion[]> = derived(r => {
+		/** @description unchangedRegions */
 		if (this._options.collapseUnchangedRegions.read(r)) {
 			return this._unchangedRegions.read(r).regions;
 		} else {
@@ -146,7 +146,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 
 		const documentDiffProviderOptionChanged = observableSignalFromEvent('documentDiffProviderOptionChanged', documentDiffProvider.onDidChange);
 
-		this._register(autorunWithStore2('compute diff', async (reader, store) => {
+		this._register(autorunWithStore(async (reader, store) => {
+			/** @description compute diff */
 			debouncer.cancel();
 			contentChangedSignal.read(reader);
 			documentDiffProviderOptionChanged.read(reader);
@@ -339,7 +340,7 @@ export class UnchangedRegion {
 	private readonly _visibleLineCountBottom = observableValue<number>('visibleLineCountBottom', 0);
 	public readonly visibleLineCountBottom: ISettableObservable<number> = this._visibleLineCountBottom;
 
-	private readonly _shouldHideControls = derived('isVisible', reader => this.visibleLineCountTop.read(reader) + this.visibleLineCountBottom.read(reader) === this.lineCount && !this.isDragged.read(reader));
+	private readonly _shouldHideControls = derived(reader => /** @description isVisible */ this.visibleLineCountTop.read(reader) + this.visibleLineCountBottom.read(reader) === this.lineCount && !this.isDragged.read(reader));
 
 	public readonly isDragged = observableValue<boolean>('isDragged', false);
 

@@ -333,6 +333,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	isItemVisible(item: ExplorerItem): boolean {
+		// If filter is undefined it means the tree hasn't been rendered yet, so nothing is visible
+		if (!this.filter) {
+			return false;
+		}
 		return this.filter.filter(item, TreeVisibility.Visible);
 	}
 
@@ -655,7 +659,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		return this.tree.updateChildren(toRefresh, recursive, false, {
+		return this.tree.updateChildren(toRefresh, recursive, !!item, {
 			diffIdentityProvider: identityProvider
 		});
 	}
@@ -904,7 +908,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 }
 
-function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IThemeService): IDisposable {
+export function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IThemeService): IDisposable {
 	container.classList.add('file-icon-themable-tree');
 	container.classList.add('show-file-icons');
 

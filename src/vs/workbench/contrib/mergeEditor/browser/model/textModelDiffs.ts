@@ -36,7 +36,8 @@ export class TextModelDiffs extends Disposable {
 
 		const recomputeSignal = observableSignal('recompute');
 
-		this._register(autorun('Update diff state', reader => {
+		this._register(autorun(reader => {
+			/** @description Update diff state */
 			recomputeSignal.read(reader);
 			this.recompute(reader);
 		}));

@@ -96,9 +96,10 @@ import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/brow
 import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
 import { NotebookStickyScroll } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll';
 import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 
 const $ = DOM.$;
 
@@ -872,7 +873,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._register(this._listDelegate);
 
 		const createNotebookAriaLabel = () => {
-			const keybinding = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
+			const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 
 			if (this.configurationService.getValue(AccessibilityVerbositySettingId.Notebook)) {
 				return keybinding

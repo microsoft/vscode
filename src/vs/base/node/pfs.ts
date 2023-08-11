@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
-import { ResourceQueue } from 'vs/base/common/async';
+import { ResourceQueue, timeout } from 'vs/base/common/async';
 import { isEqualOrParent, isRootOrDriveLetter, randomPath } from 'vs/base/common/extpath';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { join } from 'vs/base/common/path';
@@ -491,16 +491,24 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
 /**
  * A drop-in replacement for `fs.rename` that:
  * - allows to move across multiple disks
+ * - attempts to retry the operation for certain error codes on Windows
  */
-async function move(source: string, target: string): Promise<void> {
+async function rename(source: string, target: string, windowsRetryTimeout: number | false = 60000 /* matches graceful-fs */): Promise<void> {
 	if (source === target) {
 		return;  // simulate node.js behaviour here and do a no-op if paths match
 	}
 
 	try {
-		await Promises.rename(source, target);
+		if (isWindows && typeof windowsRetryTimeout === 'number') {
+			// On Windows, a rename can fail when either source or target
+			// is locked by AV software. We do leverage graceful-fs to iron
+			// out these issues, however in case the target file exists,
+			// graceful-fs will immediately return without retry for fs.rename().
+			await renameWithRetry(source, target, Date.now(), windowsRetryTimeout);
+		} else {
+			await promisify(fs.rename)(source, target);
+		}
 	} catch (error) {
-
 		// In two cases we fallback to classic copy and delete:
 		//
 		// 1.) The EXDEV error indicates that source and target are on different devices
@@ -515,6 +523,44 @@ async function move(source: string, target: string): Promise<void> {
 		} else {
 			throw error;
 		}
+	}
+}
+
+async function renameWithRetry(source: string, target: string, startTime: number, retryTimeout: number, attempt = 0): Promise<void> {
+	try {
+		return await promisify(fs.rename)(source, target);
+	} catch (error) {
+		if (error.code !== 'EACCES' && error.code !== 'EPERM' && error.code !== 'EBUSY') {
+			throw error; // only for errors we think are temporary
+		}
+
+		if (Date.now() - startTime >= retryTimeout) {
+			console.error(`[node.js fs] rename failed after ${attempt} retries with error: ${error}`);
+
+			throw error; // give up after configurable timeout
+		}
+
+		if (attempt === 0) {
+			let abortRetry = false;
+			try {
+				const { stat } = await SymlinkSupport.stat(target);
+				if (!stat.isFile()) {
+					abortRetry = true; // if target is not a file, EPERM error may be raised and we should not attempt to retry
+				}
+			} catch (error) {
+				// Ignore
+			}
+
+			if (abortRetry) {
+				throw error;
+			}
+		}
+
+		// Delay with incremental backoff up to 100ms
+		await timeout(Math.min(100, attempt * 10));
+
+		// Attempt again
+		return renameWithRetry(source, target, startTime, retryTimeout, attempt + 1);
 	}
 }
 
@@ -694,7 +740,6 @@ export const Promises = new class {
 	get fdatasync() { return promisify(fs.fdatasync); }
 	get truncate() { return promisify(fs.truncate); }
 
-	get rename() { return promisify(fs.rename); }
 	get copyFile() { return promisify(fs.copyFile); }
 
 	get open() { return promisify(fs.open); }
@@ -733,7 +778,7 @@ export const Promises = new class {
 
 	get rm() { return rimraf; }
 
-	get move() { return move; }
+	get rename() { return rename; }
 	get copy() { return copy; }
 
 	//#endregion

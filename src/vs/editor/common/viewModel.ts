@@ -114,6 +114,7 @@ export interface IViewLayout {
 	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
 
 	setMaxLineWidth(maxLineWidth: number): void;
+	setOverlayWidgetsMinWidth(overlayWidgetsMinWidth: number): void;
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;

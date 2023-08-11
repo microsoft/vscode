@@ -6,7 +6,7 @@
 				"git": {
 					"name": "microsoft/vscode-mssql",
 					"repositoryUrl": "https://github.com/microsoft/vscode-mssql",
-					"commitHash": "cb5940297a8cef76daaf4a6b63c4968c9a12d17a"
+					"commitHash": "9cb3529a978ddf599bf5bdd228f21bbcfe2914f5"
 				}
 			},
 			"license": "MIT",

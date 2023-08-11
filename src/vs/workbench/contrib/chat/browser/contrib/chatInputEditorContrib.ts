@@ -15,7 +15,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
@@ -24,7 +24,6 @@ import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
@@ -40,7 +39,6 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatService private readonly chatService: IChatService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -76,7 +74,7 @@ class InputEditorDecorations extends Disposable {
 
 	private getPlaceholderColor(): string | undefined {
 		const theme = this.themeService.getColorTheme();
-		const transparentForeground = theme.getColor(editorForeground)?.transparent(0.4);
+		const transparentForeground = theme.getColor(inputPlaceholderForeground);
 		return transparentForeground?.toString();
 	}
 
@@ -128,7 +126,6 @@ class InputEditorDecorations extends Disposable {
 						after: {
 							contentText: shouldRenderFollowupPlaceholder ? command.followupPlaceholder : command.detail,
 							color: this.getPlaceholderColor(),
-							padding: '0 0 0 3px'
 						}
 					}
 				}];
@@ -141,7 +138,7 @@ class InputEditorDecorations extends Disposable {
 
 		if (command && inputValue.startsWith(`/${command.command} `)) {
 			if (!this._slashCommandContentWidget) {
-				this._slashCommandContentWidget = new SlashCommandContentWidget(this.widget.inputEditor, this.accessibilityService);
+				this._slashCommandContentWidget = new SlashCommandContentWidget(this.widget.inputEditor);
 				this._store.add(this._slashCommandContentWidget);
 			}
 			this._slashCommandContentWidget.setCommandText(command.command);
