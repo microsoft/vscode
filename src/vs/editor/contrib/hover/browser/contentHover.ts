@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { HoverAction, HoverWidget, getHoverAriaLabel } from 'vs/base/browser/ui/hover/hoverWidget';
+import { HoverAction, HoverWidget, getHoverAccessibleViewHint } from 'vs/base/browser/ui/hover/hoverWidget';
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -531,8 +531,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._setHoverData(undefined);
 		this._layout();
 		this._editor.addContentWidget(this);
-
-		this._hover.containerDomNode.ariaLabel = getHoverAriaLabel(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel()) ?? '';
 	}
 
 	public override dispose(): void {
@@ -758,6 +756,12 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			this._hover.containerDomNode.focus();
 		}
 		hoverData.colorPicker?.layout();
+
+		// The aria label overrides the label, so if we add to it, add the contents of the hover
+		const accessibleViewHint = getHoverAccessibleViewHint(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel() ?? '');
+		if (accessibleViewHint) {
+			this._hover.contentsDomNode.ariaLabel = this._hover.contentsDomNode.textContent + ', ' + accessibleViewHint;
+		}
 	}
 
 	public hide(): void {
