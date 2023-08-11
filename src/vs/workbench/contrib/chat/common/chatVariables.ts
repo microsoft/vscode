@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -27,15 +28,21 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
-	registerChatVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable;
-	resolveVariable(name: string, token: CancellationToken): Promise<IChatResolvedVariable | undefined>;
+	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable;
 	getVariables(): Iterable<Readonly<IChatVariableData>>;
+
+	/**
+	 * Resolves all variables that occur in `prompt`
+	 */
+	resolveVariables(prompt: string, token: CancellationToken): Promise<ReadonlyMap<string, IChatResolvedVariable>>;
+
+	// TODO is this needed?
+	resolveVariable(name: string, token: CancellationToken): Promise<IChatResolvedVariable | undefined>;
 }
 
 type ChatData = [data: IChatVariableData, resolver: IChatVariableResolver];
 
 export class ChatVariablesService implements IChatVariablesService {
-
 	declare _serviceBrand: undefined;
 
 	private _resolver = new Map<string, ChatData>();
@@ -53,15 +60,36 @@ export class ChatVariablesService implements IChatVariablesService {
 			{ name: 'workspace', description: 'Details of your workspace' },
 			{ name: 'vscode', description: 'Commands and settings in vscode' },
 		].forEach(item => {
-			this.registerChatVariable(item, async () => ({ content: item.name }));
+			this.registerVariable(item, async () => ({ content: item.name }));
 		});
+	}
+
+	async resolveVariables(prompt: string, token: CancellationToken): Promise<ReadonlyMap<string, IChatResolvedVariable>> {
+		const resolvedVariables = new Map<string, IChatResolvedVariable>();
+		const jobs: Promise<any>[] = [];
+
+		for (const [data, resolver] of this._resolver.values()) {
+			// (^|\s)@foo(\s|$)
+			const regex = new RegExp(`(^|\\s)@${data.name}(\\s|$)`, 'i');
+			if (regex.test(prompt)) {
+				jobs.push(resolver(token).then(value => {
+					if (value) {
+						resolvedVariables.set(data.name, value);
+					}
+				}).catch(onUnexpectedExternalError));
+			}
+		}
+
+		await Promise.allSettled(jobs);
+
+		return Promise.resolve(resolvedVariables);
 	}
 
 	getVariables(): Iterable<Readonly<IChatVariableData>> {
 		return Iterable.map(this._resolver.values(), data => data[0]);
 	}
 
-	registerChatVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable {
+	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable {
 		const key = data.name.toLowerCase();
 		if (this._resolver.has(key)) {
 			throw new Error(`A chat variable with the name '${data.name}' already exists.`);
