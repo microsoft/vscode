@@ -189,8 +189,6 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 		h('div.bottom@bottom', { title: localize('diff.bottom', 'Click or drag to show more below'), role: 'button' }),
 	]);
 
-	private showAll() { this._unchangedRegion.showAll(undefined); }
-
 	constructor(
 		private readonly _editor: ICodeEditor,
 		_viewZone: PlaceholderViewZone,
@@ -296,7 +294,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 				const lineCount = _unchangedRegion.getHiddenModifiedRange(reader).length;
 				const linesHiddenText = localize('hiddenLines', '{0} Hidden Lines', lineCount);
 				const span = $('span', { title: localize('diff.hiddenLines.expandAll', 'Double click to show all unchanged region') }, linesHiddenText);
-				addDisposableListener(span, 'dblclick', e => {
+				span.addEventListener('dblclick', e => {
 					if (e.button !== 0) {
 						return;
 					}
@@ -321,4 +319,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 
 		}));
 	}
+
+	private showAll() { this._unchangedRegion.showAll(undefined); }
+
 }
