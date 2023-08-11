@@ -15,7 +15,7 @@ import { ExtHostTunnelServiceShape, MainContext, MainThreadTunnelServiceShape, P
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
 import * as vscode from 'vscode';
 
 class ExtensionTunnel extends DisposableTunnel implements vscode.Tunnel { }
@@ -113,7 +113,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		});
 	}
 
-	async $providePortAttributes(handles: number[], ports: number[], pid: number | undefined, commandline: string | undefined, cancellationToken: vscode.CancellationToken): Promise<ProvidedPortAttributes[]> {
+	async $providePortAttributes(handles: number[], ports: number[], pid: number | undefined, commandLine: string | undefined, cancellationToken: vscode.CancellationToken): Promise<ProvidedPortAttributes[]> {
 		const providedAttributes: { providedAttributes: vscode.PortAttributes | null | undefined; port: number }[] = [];
 		for (const handle of handles) {
 			const provider = this._portAttributesProviders.get(handle);
@@ -121,7 +121,14 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				return [];
 			}
 			providedAttributes.push(...(await Promise.all(ports.map(async (port) => {
-				return { providedAttributes: (await provider.provider.providePortAttributes(port, pid, commandline, cancellationToken)), port };
+				let providedAttributes: vscode.PortAttributes | null | undefined;
+				try {
+					providedAttributes = await provider.provider.providePortAttributes({ port, pid, commandLine }, cancellationToken);
+				} catch (e) {
+					// Call with old signature for breaking API change
+					providedAttributes = await (provider.provider.providePortAttributes as any as (port: number, pid: number | undefined, commandLine: string | undefined, token: vscode.CancellationToken) => vscode.ProviderResult<vscode.PortAttributes>)(port, pid, commandLine, cancellationToken);
+				}
+				return { providedAttributes, port };
 			}))));
 		}
 

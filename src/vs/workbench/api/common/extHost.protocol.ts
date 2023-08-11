@@ -69,17 +69,13 @@ import { ActivationKind, ExtensionActivationReason, MissingExtensionDependency }
 import { Dto, IRPCProtocol, SerializableObjectWithBuffers, createProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ILanguageStatus } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
-import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
 import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { TerminalCommandMatchResult, TerminalQuickFixCommand, TerminalQuickFixOpener } from 'vscode';
 import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatResolvedVariable, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
-
-export type TerminalQuickFix = TerminalQuickFixCommand | TerminalQuickFixOpener;
-
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -1217,9 +1213,6 @@ export interface MainThreadChatShape extends IDisposable {
 	$unregisterChatProvider(handle: number): Promise<void>;
 	$acceptResponseProgress(handle: number, sessionId: number, progress: IChatResponseProgressDto, responsePartHandle?: number): Promise<number | void>;
 	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void;
-
-	$registerSlashCommandProvider(handle: number, chatProviderId: string): Promise<void>;
-	$unregisterSlashCommandProvider(handle: number): Promise<void>;
 }
 
 export interface ExtHostChatShape {
@@ -1232,9 +1225,6 @@ export interface ExtHostChatShape {
 	$provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
 	$releaseSession(sessionId: number): void;
 	$onDidPerformUserAction(event: IChatUserActionEvent): Promise<void>;
-
-	$provideProviderSlashCommands(handle: number, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
-	$resolveSlashCommand(handle: number, command: string, token: CancellationToken): Promise<string | undefined>;
 }
 
 export interface ExtHostUrlsShape {
@@ -2043,6 +2033,27 @@ export interface ITerminalDimensionsDto {
 	rows: number;
 }
 
+type SingleOrMany<T> = T[] | T;
+
+export interface ITerminalQuickFixExecuteTerminalCommandDto {
+	terminalCommand: string;
+}
+
+export interface ITerminalQuickFixOpenerDto {
+	uri: UriComponents;
+}
+
+export type TerminalQuickFix = ITerminalQuickFixExecuteTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto;
+
+export interface TerminalCommandMatchResultDto {
+	commandLine: string;
+	commandLineMatch: RegExpMatchArray;
+	outputMatch?: {
+		regexMatch: RegExpMatchArray;
+		outputLines: string[];
+	};
+}
+
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number, exitCode: number | undefined, exitReason: TerminalExitReason): void;
 	$acceptTerminalOpened(id: number, extHostTerminalId: string | undefined, name: string, shellLaunchConfig: IShellLaunchConfigDto): void;
@@ -2067,7 +2078,7 @@ export interface ExtHostTerminalServiceShape {
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
 	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
-	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResult, token: CancellationToken): Promise<TerminalQuickFix[] | TerminalQuickFix | undefined>;
+	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto, token: CancellationToken): Promise<SingleOrMany<TerminalQuickFix> | undefined>;
 }
 
 export interface ExtHostSCMShape {

@@ -304,7 +304,7 @@ pub enum VersionSubcommand {
 #[derive(Args, Debug, Clone)]
 pub struct UseVersionArgs {
 	/// The version of the editor you want to use. Can be "stable", "insiders",
-	/// a version number, or an absolute path to an existing install.
+	/// or an absolute path to an existing install.
 	#[clap(value_name = "stable | insiders | x.y.z | path")]
 	pub name: String,
 

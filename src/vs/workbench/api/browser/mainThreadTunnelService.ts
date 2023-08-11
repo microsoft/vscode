@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { MainThreadTunnelServiceShape, MainContext, ExtHostContext, ExtHostTunnelServiceShape, CandidatePortSource, PortAttributesSelector, TunnelDto } from 'vs/workbench/api/common/extHost.protocol';
 import { TunnelDtoConverter } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { CandidatePort, IRemoteExplorerService, makeAddress, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, TunnelCloseReason, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, RemoteTunnel, ProvidedPortAttributes, PortAttributesProvider, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -19,7 +19,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/tunnelView';
+import { CandidatePort, TunnelCloseReason, TunnelSource, forwardedPortsViewEnabled, makeAddress } from 'vs/workbench/services/remote/common/tunnelModel';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
 export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape, PortAttributesProvider {
