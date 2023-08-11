@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -11,7 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -91,7 +91,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		this._register(this.authenticationService.onDidChangeSessions((e) => this.onDidChangeSessions(e.event)));
 
 		// If another window changes the preferred session storage, reset our cached auth state in memory
-		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EditSessionsWorkbenchService.CACHED_SESSION_STORAGE_KEY, this._register(new DisposableStore()))(() => this.onDidChangeStorage()));
 
 		this.registerSignInAction();
 		this.registerResetAuthenticationAction();
@@ -106,7 +106,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 * @returns The ref of the stored state.
 	 */
 	async write(resource: SyncResource, content: string | EditSession): Promise<string> {
-		await this.initialize(false);
+		await this.initialize('write', false);
 		if (!this.initialized) {
 			throw new Error('Please sign in to store your edit session.');
 		}
@@ -131,7 +131,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 * @returns An object representing the requested or latest state, if any.
 	 */
 	async read(resource: SyncResource, ref: string | undefined): Promise<{ ref: string; content: string } | undefined> {
-		await this.initialize(false);
+		await this.initialize('read', false);
 		if (!this.initialized) {
 			throw new Error('Please sign in to apply your latest edit session.');
 		}
@@ -159,7 +159,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	}
 
 	async delete(resource: SyncResource, ref: string | null) {
-		await this.initialize(false);
+		await this.initialize('write', false);
 		if (!this.initialized) {
 			throw new Error(`Unable to delete edit session with ref ${ref}.`);
 		}
@@ -172,7 +172,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	}
 
 	async list(resource: SyncResource): Promise<IResourceRefHandle[]> {
-		await this.initialize(false);
+		await this.initialize('read', false);
 		if (!this.initialized) {
 			throw new Error(`Unable to list edit sessions.`);
 		}
@@ -186,11 +186,11 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return [];
 	}
 
-	public async initialize(silent: boolean = false) {
+	public async initialize(reason: 'read' | 'write', silent: boolean = false) {
 		if (this.initialized) {
 			return true;
 		}
-		this.initialized = await this.doInitialize(silent);
+		this.initialized = await this.doInitialize(reason, silent);
 		this.signedInContext.set(this.initialized);
 		if (this.initialized) {
 			this._didSignIn.fire();
@@ -205,7 +205,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 * meaning that authentication is configured and it
 	 * can be used to communicate with the remote storage service
 	 */
-	private async doInitialize(silent: boolean): Promise<boolean> {
+	private async doInitialize(reason: 'read' | 'write', silent: boolean): Promise<boolean> {
 		// Wait for authentication extensions to be registered
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
@@ -231,7 +231,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			return true;
 		}
 
-		const authenticationSession = await this.getAuthenticationSession(silent);
+		const authenticationSession = await this.getAuthenticationSession(reason, silent);
 		if (authenticationSession !== undefined) {
 			this.authenticationInfo = authenticationSession;
 			this.storeClient.setAuthToken(authenticationSession.token, authenticationSession.providerId);
@@ -243,7 +243,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	private cachedMachines: Map<string, string> | undefined;
 
 	async getMachineById(machineId: string) {
-		await this.initialize(false);
+		await this.initialize('read', false);
 
 		if (!this.cachedMachines) {
 			const machines = await this.machineClient!.getMachines();
@@ -264,7 +264,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return currentMachineId;
 	}
 
-	private async getAuthenticationSession(silent: boolean) {
+	private async getAuthenticationSession(reason: 'read' | 'write', silent: boolean) {
 		// If the user signed in previously and the session is still available, reuse that without prompting the user again
 		if (this.existingSessionId) {
 			this.logService.info(`Searching for existing authentication session with ID ${this.existingSessionId}`);
@@ -295,7 +295,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		// Ask the user to pick a preferred account
-		const authenticationSession = await this.getAccountPreference();
+		const authenticationSession = await this.getAccountPreference(reason);
 		if (authenticationSession !== undefined) {
 			this.existingSessionId = authenticationSession.id;
 			return { sessionId: authenticationSession.id, token: authenticationSession.idToken ?? authenticationSession.accessToken, providerId: authenticationSession.providerId };
@@ -312,10 +312,10 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 *
 	 * Prompts the user to pick an authentication option for storing and getting edit sessions.
 	 */
-	private async getAccountPreference(): Promise<AuthenticationSession & { providerId: string } | undefined> {
+	private async getAccountPreference(reason: 'read' | 'write'): Promise<AuthenticationSession & { providerId: string } | undefined> {
 		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption | IQuickPickItem>();
 		quickpick.ok = false;
-		quickpick.placeholder = localize('choose account placeholder', "Select an account to store your working changes in the cloud");
+		quickpick.placeholder = reason === 'read' ? localize('choose account read placeholder', "Select an account to restore your working changes from the cloud") : localize('choose account placeholder', "Select an account to store your working changes in the cloud");
 		quickpick.ignoreFocusOut = true;
 		quickpick.items = await this.createQuickpickItems();
 
@@ -431,18 +431,14 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return accounts.find((account) => account.session.id === this.existingSessionId);
 	}
 
-	private async onDidChangeStorage(e: IStorageValueChangeEvent): Promise<void> {
-		if (e.key === EditSessionsWorkbenchService.CACHED_SESSION_STORAGE_KEY
-			&& e.scope === StorageScope.APPLICATION
-		) {
-			const newSessionId = this.existingSessionId;
-			const previousSessionId = this.authenticationInfo?.sessionId;
+	private async onDidChangeStorage(): Promise<void> {
+		const newSessionId = this.existingSessionId;
+		const previousSessionId = this.authenticationInfo?.sessionId;
 
-			if (previousSessionId !== newSessionId) {
-				this.logService.trace(`Resetting authentication state because authentication session ID preference changed from ${previousSessionId} to ${newSessionId}.`);
-				this.authenticationInfo = undefined;
-				this.initialized = false;
-			}
+		if (previousSessionId !== newSessionId) {
+			this.logService.trace(`Resetting authentication state because authentication session ID preference changed from ${previousSessionId} to ${newSessionId}.`);
+			this.authenticationInfo = undefined;
+			this.initialized = false;
 		}
 	}
 
@@ -482,7 +478,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			}
 
 			async run() {
-				return await that.initialize(false);
+				return await that.initialize('write', false);
 			}
 		}));
 

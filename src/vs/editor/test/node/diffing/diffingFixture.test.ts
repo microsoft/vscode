@@ -40,7 +40,8 @@ suite('diff fixtures', () => {
 
 		const diffingAlgo = diffingAlgoName === 'legacy' ? new SmartLinesDiffComputer() : new StandardLinesDiffComputer();
 
-		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false });
+		const ignoreTrimWhitespace = folder.indexOf('trimws') >= 0;
+		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false });
 
 		function getDiffs(changes: readonly LineRangeMapping[]): IDetailedDiff[] {
 			return changes.map<IDetailedDiff>(c => ({
@@ -58,8 +59,8 @@ suite('diff fixtures', () => {
 			modified: { content: secondContent, fileName: `./${secondFileName}` },
 			diffs: getDiffs(diff.changes),
 			moves: diff.moves.map(v => ({
-				originalRange: v.lineRangeMapping.originalRange.toString(),
-				modifiedRange: v.lineRangeMapping.modifiedRange.toString(),
+				originalRange: v.lineRangeMapping.original.toString(),
+				modifiedRange: v.lineRangeMapping.modified.toString(),
 				changes: getDiffs(v.changes),
 			}))
 		};
@@ -112,7 +113,7 @@ suite('diff fixtures', () => {
 	}
 
 	test(`test`, () => {
-		runTest('issue-185779', 'advanced');
+		runTest('invalid-diff-trimws', 'advanced');
 	});
 
 	for (const folder of folders) {

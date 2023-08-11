@@ -5,8 +5,8 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IProfileStorageValueChangeEvent, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { adoptToGalleryExtensionId, areSameExtensions, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
@@ -103,13 +103,10 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 	) {
 		super();
 		this.extensionsWithKeysForSync = ExtensionStorageService.readAllExtensionsWithKeysForSync(storageService);
-		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorageValue(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._register(new DisposableStore()))(e => this.onDidChangeStorageValue(e)));
 	}
 
-	private onDidChangeStorageValue(e: IStorageValueChangeEvent): void {
-		if (e.scope !== StorageScope.PROFILE) {
-			return;
-		}
+	private onDidChangeStorageValue(e: IProfileStorageValueChangeEvent): void {
 
 		// State of extension with keys for sync has changed
 		if (this.extensionsWithKeysForSync.has(e.key.toLowerCase())) {

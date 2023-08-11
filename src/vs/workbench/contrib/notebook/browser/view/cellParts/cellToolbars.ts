@@ -166,12 +166,12 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 			return this._view;
 		}
 
-		const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
+		const toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
 			actionViewItemProvider: action => {
 				return createActionViewItem(this.instantiationService, action);
 			},
 			renderDropdownAsChildElement: true
-		});
+		}));
 
 		const deleteToolbar = this._register(this.instantiationService.invokeFunction(accessor => createDeleteToolbar(accessor, this.toolbarContainer, 'cell-delete-toolbar')));
 		if (model.deleteActions.primary.length !== 0 || model.deleteActions.secondary.length !== 0) {

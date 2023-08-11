@@ -21,7 +21,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingMatchType } from 'vs/workbench/services/preferences/common/preferences';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { createValidator } from 'vs/workbench/services/preferences/common/preferencesValidation';
 
@@ -387,7 +386,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 					valueRange: nullRange,
 					descriptionRanges: [],
 					overrides: [],
-					overrideOf: withNullAsUndefined(overrideSetting)
+					overrideOf: overrideSetting ?? undefined,
 				};
 				if (previousParents.length === settingsPropertyIndex + 1) {
 					settings.push(setting);

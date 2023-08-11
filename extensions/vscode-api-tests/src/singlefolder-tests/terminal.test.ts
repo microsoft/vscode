@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, doesNotThrow, equal, ok, strictEqual, throws } from 'assert';
-import { ConfigurationTarget, Disposable, env, EnvironmentVariableCollection, EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableMutatorType, EnvironmentVariableScope, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalExitReason, TerminalOptions, TerminalState, UIKind, Uri, window, workspace } from 'vscode';
+import { commands, ConfigurationTarget, Disposable, env, EnvironmentVariableCollection, EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableMutatorType, EnvironmentVariableScope, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalExitReason, TerminalOptions, TerminalState, UIKind, Uri, window, workspace } from 'vscode';
 import { assertNoRpc, poll } from '../utils';
 
 // Disable terminal tests:
@@ -347,8 +347,52 @@ import { assertNoRpc, poll } from '../utils';
 			});
 		});
 
+		suite('selection', () => {
+			test('should be undefined immediately after creation', async () => {
+				const terminal = window.createTerminal({ name: 'selection test' });
+				terminal.show();
+				equal(terminal.selection, undefined);
+				terminal.dispose();
+			});
+			test('should be defined after selecting all content', async () => {
+				const terminal = window.createTerminal({ name: 'selection test' });
+				terminal.show();
+				// Wait for some terminal data
+				await new Promise<void>(r => {
+					const disposable = window.onDidWriteTerminalData(() => {
+						disposable.dispose();
+						r();
+					});
+				});
+				await commands.executeCommand('workbench.action.terminal.selectAll');
+				await poll<void>(() => Promise.resolve(), () => terminal.selection !== undefined, 'selection should be defined');
+				terminal.dispose();
+			});
+			test('should be undefined after clearing a selection', async () => {
+				const terminal = window.createTerminal({ name: 'selection test' });
+				terminal.show();
+				// Wait for some terminal data
+				await new Promise<void>(r => {
+					const disposable = window.onDidWriteTerminalData(() => {
+						disposable.dispose();
+						r();
+					});
+				});
+				await commands.executeCommand('workbench.action.terminal.selectAll');
+				await poll<void>(() => Promise.resolve(), () => terminal.selection !== undefined, 'selection should be defined');
+				await commands.executeCommand('workbench.action.terminal.clearSelection');
+				await poll<void>(() => Promise.resolve(), () => terminal.selection === undefined, 'selection should not be defined');
+				terminal.dispose();
+			});
+		});
+
 		suite('window.onDidWriteTerminalData', () => {
-			test('should listen to all future terminal data events', (done) => {
+			test('should listen to all future terminal data events', function (done) {
+				// This test has been flaky in the past but it's not clear why, possibly because
+				// events from previous tests polluting the event recording in this test. Retries
+				// was added so we continue to have coverage of the onDidWriteTerminalData API.
+				this.retries(3);
+
 				const openEvents: string[] = [];
 				const dataEvents: { name: string; data: string }[] = [];
 				const closeEvents: string[] = [];
@@ -897,6 +941,7 @@ import { assertNoRpc, poll } from '../utils';
 					{ value: 'scoped~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions },
 					{ value: 'scoped~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions }
 				]);
+				deepStrictEqual(entries.map(v => v[0]), ['A', 'B', 'C']);
 			});
 		});
 	});

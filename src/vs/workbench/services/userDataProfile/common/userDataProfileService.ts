@@ -6,6 +6,7 @@
 import { Promises } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { equals } from 'vs/base/common/objects';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { defaultUserDataProfileIcon, DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -17,9 +18,6 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 	private readonly _onDidChangeCurrentProfile = this._register(new Emitter<DidChangeUserDataProfileEvent>());
 	readonly onDidChangeCurrentProfile = this._onDidChangeCurrentProfile.event;
 
-	private readonly _onDidUpdateCurrentProfile = this._register(new Emitter<void>());
-	readonly onDidUpdateCurrentProfile = this._onDidUpdateCurrentProfile.event;
-
 	private _currentProfile: IUserDataProfile;
 	get currentProfile(): IUserDataProfile { return this._currentProfile; }
 
@@ -29,17 +27,10 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 	) {
 		super();
 		this._currentProfile = currentProfile;
-		this._register(userDataProfilesService.onDidChangeProfiles(e => {
-			const updatedCurrentProfile = e.updated.find(p => this._currentProfile.id === p.id);
-			if (updatedCurrentProfile) {
-				this._currentProfile = updatedCurrentProfile;
-				this._onDidUpdateCurrentProfile.fire();
-			}
-		}));
 	}
 
 	async updateCurrentProfile(userDataProfile: IUserDataProfile): Promise<void> {
-		if (this._currentProfile.id === userDataProfile.id) {
+		if (equals(this._currentProfile, userDataProfile)) {
 			return;
 		}
 		const previous = this._currentProfile;

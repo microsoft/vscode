@@ -29,7 +29,6 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { category, getElementsToOperateOn, getSearchView, openSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { Schemas } from 'vs/base/common/network';
@@ -365,7 +364,7 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot();
 		const filteredActiveWorkspaceRootUri = activeWorkspaceRootUri?.scheme === Schemas.file || activeWorkspaceRootUri?.scheme === Schemas.vscodeRemote ? activeWorkspaceRootUri : undefined;
-		const lastActiveWorkspaceRoot = filteredActiveWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(filteredActiveWorkspaceRootUri)) : undefined;
+		const lastActiveWorkspaceRoot = filteredActiveWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(filteredActiveWorkspaceRootUri) ?? undefined : undefined;
 
 		for (const entry of Object.entries(_args)) {
 			const name = entry[0];

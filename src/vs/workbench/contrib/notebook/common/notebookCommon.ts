@@ -217,6 +217,8 @@ export interface ICellOutput {
 	onDidChangeData: Event<void>;
 	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
+	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
+	bumpVersion(): void;
 }
 
 export interface CellInternalMetadataChangedEvent {
@@ -794,6 +796,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly notebook: INotebookTextModel | undefined;
+	readonly hasErrorState: boolean;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
 	isModified(): boolean;
@@ -926,6 +929,7 @@ export const NotebookSetting = {
 	focusIndicator: 'notebook.cellFocusIndicator',
 	insertToolbarLocation: 'notebook.insertToolbarLocation',
 	globalToolbar: 'notebook.globalToolbar',
+	stickyScroll: 'notebook.stickyScroll.enabled',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
 	showFoldingControls: 'notebook.showFoldingControls',
@@ -995,6 +999,7 @@ const textDecoder = new TextDecoder();
  * Given a stream of individual stdout outputs, this function will return the compressed lines, escaping some of the common terminal escape codes.
  * E.g. some terminal escape codes would result in the previous line getting cleared, such if we had 3 lines and
  * last line contained such a code, then the result string would be just the first two lines.
+ * @returns a single VSBuffer with the concatenated and compressed data, and whether any compression was done.
  */
 export function compressOutputItemStreams(outputs: Uint8Array[]) {
 	const buffers: Uint8Array[] = [];
@@ -1007,13 +1012,19 @@ export function compressOutputItemStreams(outputs: Uint8Array[]) {
 			startAppending = true;
 		}
 	}
-	compressStreamBuffer(buffers);
-	return formatStreamText(VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer))));
+
+	let didCompression = compressStreamBuffer(buffers);
+	const concatenated = VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer)));
+	const data = formatStreamText(concatenated);
+	didCompression = didCompression || data.byteLength !== concatenated.byteLength;
+	return { data, didCompression };
 }
-const MOVE_CURSOR_1_LINE_COMMAND = `${String.fromCharCode(27)}[A`;
+
+export const MOVE_CURSOR_1_LINE_COMMAND = `${String.fromCharCode(27)}[A`;
 const MOVE_CURSOR_1_LINE_COMMAND_BYTES = MOVE_CURSOR_1_LINE_COMMAND.split('').map(c => c.charCodeAt(0));
 const LINE_FEED = 10;
 function compressStreamBuffer(streams: Uint8Array[]) {
+	let didCompress = false;
 	streams.forEach((stream, index) => {
 		if (index === 0 || stream.length < MOVE_CURSOR_1_LINE_COMMAND.length) {
 			return;
@@ -1028,10 +1039,13 @@ function compressStreamBuffer(streams: Uint8Array[]) {
 			if (lastIndexOfLineFeed === -1) {
 				return;
 			}
+
+			didCompress = true;
 			streams[index - 1] = previousStream.subarray(0, lastIndexOfLineFeed);
 			streams[index] = stream.subarray(MOVE_CURSOR_1_LINE_COMMAND.length);
 		}
 	});
+	return didCompress;
 }
 
 

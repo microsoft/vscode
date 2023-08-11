@@ -7,11 +7,12 @@
 	font-size: 13px;
 	border-radius: 0;
 	min-width: 160px;
-	max-width: 500px;
+	max-width: 80vw;
 	z-index: 40;
 	display: block;
 	width: 100%;
 	border: 1px solid var(--vscode-editorWidget-border) !important;
+	border-radius: 2px;
 	background-color: var(--vscode-editorWidget-background);
 	color: var(--vscode-editorWidget-foreground);
 }
@@ -91,13 +92,12 @@
 	align-items: center;
 }
 
-.action-widget .monaco-list-row.action.option-disabled {
+.action-widget .monaco-list-row.action.option-disabled,
+.action-widget .monaco-list:focus .monaco-list-row.focused.action.option-disabled,
+.action-widget .monaco-list-row.action.option-disabled .codicon {
 	color: var(--vscode-disabledForeground);
 }
 
-.action-widget .monaco-list-row.action.option-disabled .codicon {
-	opacity: 0.4;
-}
 
 .action-widget .monaco-list-row.action:not(.option-disabled) .codicon {
 	color: inherit;

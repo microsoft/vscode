@@ -78,7 +78,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			}
 
 			const lines = outputMatch.regexMatch[1];
-			const fixes: vscode.TerminalQuickFixCommand[] = [];
+			const fixes: vscode.TerminalQuickFixExecuteTerminalCommand[] = [];
 			for (const line of lines.split('\n')) {
 				// search from the second char, since the lines might be prefixed with
 				// "npm ERR!" which comes before the actual command suggestion.

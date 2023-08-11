@@ -1362,12 +1362,6 @@ begin
     end;
   end;
 
-  if IsNotBackgroundUpdate() and CheckForMutexes('{#TunnelMutex}') then
-  begin
-     MsgBox('{#NameShort} is still running a tunnel. Please stop the tunnel before installing.', mbInformation, MB_OK);
-		 Result := false
-  end;
-
 end;
 
 function WizardNotSilent(): Boolean;
@@ -1379,6 +1373,31 @@ end;
 
 var
 	ShouldRestartTunnelService: Boolean;
+
+function StopTunnelOtherProcesses(): Boolean;
+var
+	WaitCounter: Integer;
+	TaskKilled: Integer;
+begin
+	Log('Stopping all tunnel services (at ' + ExpandConstant('"{app}\bin\{#TunnelApplicationName}.exe"') + ')');
+	ShellExec('', 'powershell.exe', '-Command "Get-WmiObject Win32_Process | Where-Object { $_.ExecutablePath -eq ' + ExpandConstant('''{app}\bin\{#TunnelApplicationName}.exe''') + ' } | Select @{Name=''Id''; Expression={$_.ProcessId}} | Stop-Process -Force"', '', SW_HIDE, ewWaitUntilTerminated, TaskKilled)
+
+	WaitCounter := 10;
+	while (WaitCounter > 0) and CheckForMutexes('{#TunnelMutex}') do
+	begin
+		Log('Tunnel process is is still running, waiting');
+		Sleep(500);
+		WaitCounter := WaitCounter - 1
+	end;
+
+	if CheckForMutexes('{#TunnelMutex}') then
+		begin
+			Log('Unable to stop tunnel processes');
+			Result := False;
+		end
+	else
+		Result := True;
+end;
 
 procedure StopTunnelServiceIfNeeded();
 var
@@ -1413,7 +1432,11 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   if IsNotBackgroundUpdate() then
     StopTunnelServiceIfNeeded();
-  Result := ''
+
+  if IsNotBackgroundUpdate() and not StopTunnelOtherProcesses() then
+     Result := '{#NameShort} is still running a tunnel process. Please stop the tunnel before installing.'
+  else
+  	Result := '';
 end;
 
 // VS Code will create a flag file before the update starts (/update=C:\foo\bar)

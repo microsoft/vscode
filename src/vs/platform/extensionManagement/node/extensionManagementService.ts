@@ -15,7 +15,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceSet } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
 import { isBoolean, isUndefined } from 'vs/base/common/types';
@@ -32,7 +31,7 @@ import {
 	Metadata, InstallVSIXOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IExtensionsProfileScannerService, IScannedProfileExtension } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IExtensionsScannerService, IScannedExtension, ScanOptions } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
 import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
@@ -71,9 +70,6 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	private readonly manifestCache: ExtensionsManifestCache;
 	private readonly extensionsDownloader: ExtensionsDownloader;
 
-	private readonly _onDidUpdateExtensionMetadata = this._register(new Emitter<ILocalExtension>());
-	override readonly onDidUpdateExtensionMetadata = this._onDidUpdateExtensionMetadata.event;
-
 	private readonly installGalleryExtensionsTasks = new Map<string, InstallGalleryExtensionTask>();
 
 	constructor(
@@ -87,10 +83,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService productService: IProductService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService
 	) {
-		super(galleryService, telemetryService, logService, productService, userDataProfilesService);
+		super(galleryService, telemetryService, uriIdentityService, logService, productService, userDataProfilesService);
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
 		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
 		this.manifestCache = this._register(new ExtensionsManifestCache(userDataProfilesService, fileService, uriIdentityService, this, this.logService));
@@ -225,6 +221,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			throw new Error(nls.localize('removeError', "Error while removing the extension: {0}. Please Quit and Start VS Code before trying again.", toErrorMessage(e)));
 		}
 		return this.installFromGallery(galleryExtension);
+	}
+
+	protected copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
+		return this.extensionsScanner.copyExtension(extension, fromProfileLocation, toProfileLocation, metadata);
 	}
 
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void> {
@@ -507,7 +507,7 @@ export class ExtensionsScanner extends Disposable {
 				// Rename
 				try {
 					this.logService.trace(`Started renaming the extension from ${tempLocation.fsPath} to ${extensionLocation.fsPath}`);
-					await this.rename(extensionKey, tempLocation.fsPath, extensionLocation.fsPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+					await this.rename(tempLocation.fsPath, extensionLocation.fsPath);
 					this.logService.info('Renamed to', extensionLocation.fsPath);
 				} catch (error) {
 					if (error.code === 'ENOTEMPTY') {
@@ -531,11 +531,16 @@ export class ExtensionsScanner extends Disposable {
 
 	async scanMetadata(local: ILocalExtension, profileLocation?: URI): Promise<Metadata | undefined> {
 		if (profileLocation) {
-			const extensions = await this.extensionsProfileScannerService.scanProfileExtensions(profileLocation);
-			return extensions.find(e => areSameExtensions(e.identifier, local.identifier))?.metadata;
+			const extension = await this.getScannedExtension(local, profileLocation);
+			return extension?.metadata;
 		} else {
 			return this.extensionsScannerService.scanMetadata(local.location);
 		}
+	}
+
+	private async getScannedExtension(local: ILocalExtension, profileLocation: URI): Promise<IScannedProfileExtension | undefined> {
+		const extensions = await this.extensionsProfileScannerService.scanProfileExtensions(profileLocation);
+		return extensions.find(e => areSameExtensions(e.identifier, local.identifier));
 	}
 
 	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
@@ -544,7 +549,7 @@ export class ExtensionsScanner extends Disposable {
 		} else {
 			await this.extensionsScannerService.updateMetadata(local.location, metadata);
 		}
-		return this.scanLocalExtension(local.location, local.type);
+		return this.scanLocalExtension(local.location, local.type, profileLocation);
 	}
 
 	getUninstalledExtensions(): Promise<IStringDictionary<boolean>> {
@@ -564,13 +569,29 @@ export class ExtensionsScanner extends Disposable {
 		await this.withUninstalledExtensions(uninstalled => delete uninstalled[extensionKey.toString()]);
 	}
 
-	removeExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
-		return this.deleteExtensionFromLocation(extension.identifier.id, extension.location, type);
+	async removeExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
+		if (this.uriIdentityService.extUri.isEqualOrParent(extension.location, this.extensionsScannerService.userExtensionsLocation)) {
+			return this.deleteExtensionFromLocation(extension.identifier.id, extension.location, type);
+		}
 	}
 
 	async removeUninstalledExtension(extension: ILocalExtension | IScannedExtension): Promise<void> {
 		await this.removeExtension(extension, 'uninstalled');
 		await this.withUninstalledExtensions(uninstalled => delete uninstalled[ExtensionKey.create(extension).toString()]);
+	}
+
+	async copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
+		const source = await this.getScannedExtension(extension, fromProfileLocation);
+		const target = await this.getScannedExtension(extension, toProfileLocation);
+		metadata = { ...source?.metadata, ...metadata };
+
+		if (target) {
+			await this.extensionsProfileScannerService.updateMetadata([[extension, { ...target.metadata, ...metadata }]], toProfileLocation);
+		} else {
+			await this.extensionsProfileScannerService.addExtensionsToProfile([[extension, metadata]], toProfileLocation);
+		}
+
+		return this.scanLocalExtension(extension.location, extension.type, toProfileLocation);
 	}
 
 	async copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void> {
@@ -584,7 +605,7 @@ export class ExtensionsScanner extends Disposable {
 	private async deleteExtensionFromLocation(id: string, location: URI, type: string): Promise<void> {
 		this.logService.trace(`Deleting ${type} extension from disk`, id, location.fsPath);
 		const renamedLocation = this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(location), `${this.uriIdentityService.extUri.basename(location)}.${hash(generateUuid()).toString(16)}${DELETED_FOLDER_POSTFIX}`);
-		await this.rename({ id }, location.fsPath, renamedLocation.fsPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+		await this.rename(location.fsPath, renamedLocation.fsPath);
 		await this.fileService.del(renamedLocation, { recursive: true });
 		this.logService.info(`Deleted ${type} extension from disk`, id, location.fsPath);
 	}
@@ -621,22 +642,26 @@ export class ExtensionsScanner extends Disposable {
 		});
 	}
 
-	private async rename(identifier: IExtensionIdentifier, extractPath: string, renamePath: string, retryUntil: number): Promise<void> {
+	private async rename(extractPath: string, renamePath: string): Promise<void> {
 		try {
-			await pfs.Promises.rename(extractPath, renamePath);
+			await pfs.Promises.rename(extractPath, renamePath, 2 * 60 * 1000 /* Retry for 2 minutes */);
 		} catch (error) {
-			if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
-				this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`, identifier.id);
-				return this.rename(identifier, extractPath, renamePath, retryUntil);
-			}
 			throw new ExtensionManagementError(error.message || nls.localize('renameError', "Unknown error while renaming {0} to {1}", extractPath, renamePath), error.code || ExtensionManagementErrorCode.Rename);
 		}
 	}
 
-	private async scanLocalExtension(location: URI, type: ExtensionType): Promise<ILocalExtension> {
-		const scannedExtension = await this.extensionsScannerService.scanExistingExtension(location, type, { includeInvalid: true });
-		if (scannedExtension) {
-			return this.toLocalExtension(scannedExtension);
+	private async scanLocalExtension(location: URI, type: ExtensionType, profileLocation?: URI): Promise<ILocalExtension> {
+		if (profileLocation) {
+			const scannedExtensions = await this.extensionsScannerService.scanUserExtensions({ profileLocation });
+			const scannedExtension = scannedExtensions.find(e => this.uriIdentityService.extUri.isEqual(e.location, location));
+			if (scannedExtension) {
+				return this.toLocalExtension(scannedExtension);
+			}
+		} else {
+			const scannedExtension = await this.extensionsScannerService.scanExistingExtension(location, type, { includeInvalid: true });
+			if (scannedExtension) {
+				return this.toLocalExtension(scannedExtension);
+			}
 		}
 		throw new Error(nls.localize('cannot read', "Cannot read the extension from {0}", location.path));
 	}

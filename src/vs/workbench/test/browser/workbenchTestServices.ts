@@ -749,6 +749,7 @@ class TestHoverService implements IHoverService {
 		};
 		return this.currentHover;
 	}
+	showAndFocusLastHover(): void { }
 	hideHover(): void {
 		this.currentHover?.dispose();
 	}
@@ -1435,6 +1436,9 @@ export class TestHostService implements IHostService {
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
 	async close(): Promise<void> { }
+	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
+		return await expectedShutdownTask();
+	}
 
 	async focus(options?: { force: boolean }): Promise<void> { }
 
@@ -1836,6 +1840,7 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	groups: readonly ITerminalGroup[] = [];
 	activeGroup: ITerminalGroup | undefined;
 	activeGroupIndex: number = 0;
+	lastAccessedMenu: 'inline-tab' | 'tab-list' = 'inline-tab';
 	onDidChangeActiveGroup = Event.None;
 	onDidDisposeGroup = Event.None;
 	onDidShow = Event.None;
@@ -1863,7 +1868,6 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	showPanel(focus?: boolean): Promise<void> { throw new Error('Method not implemented.'); }
 	hidePanel(): void { throw new Error('Method not implemented.'); }
 	focusTabs(): void { throw new Error('Method not implemented.'); }
-	showTabs(): void { throw new Error('Method not implemented.'); }
 	focusHover(): void { throw new Error('Method not implemented.'); }
 	setActiveInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	focusActiveInstance(): Promise<void> { throw new Error('Method not implemented.'); }
@@ -2038,13 +2042,14 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 		throw new Error('Method not implemented.');
 	}
 	copyExtensions(): Promise<void> { throw new Error('Not Supported'); }
+	toggleAppliationScope(): Promise<ILocalExtension> { throw new Error('Not Supported'); }
 	installExtensionsFromProfile(): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
+	whenProfileChanged(from: IUserDataProfile, to: IUserDataProfile): Promise<void> { throw new Error('Not Supported'); }
 }
 
 export class TestUserDataProfileService implements IUserDataProfileService {
 
 	readonly _serviceBrand: undefined;
-	readonly onDidUpdateCurrentProfile = Event.None;
 	readonly onDidChangeCurrentProfile = Event.None;
 	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }), URI.file('tests').with({ scheme: 'vscode-tests' }));
 	async updateCurrentProfile(): Promise<void> { }

@@ -140,19 +140,20 @@ export class RangeMapping {
 	}
 }
 
+// TODO@hediet: Make LineRangeMapping extend from this!
 export class SimpleLineRangeMapping {
 	constructor(
-		public readonly originalRange: LineRange,
-		public readonly modifiedRange: LineRange,
+		public readonly original: LineRange,
+		public readonly modified: LineRange,
 	) {
 	}
 
 	public toString(): string {
-		return `{${this.originalRange.toString()}->${this.modifiedRange.toString()}}`;
+		return `{${this.original.toString()}->${this.modified.toString()}}`;
 	}
 
 	public flip(): SimpleLineRangeMapping {
-		return new SimpleLineRangeMapping(this.modifiedRange, this.originalRange);
+		return new SimpleLineRangeMapping(this.modified, this.original);
 	}
 }
 

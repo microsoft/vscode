@@ -9,7 +9,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Lazy } from 'vs/base/common/lazy';
 
 export const ISecretStorageService = createDecorator<ISecretStorageService>('secretStorageService');
 
@@ -25,40 +26,38 @@ export interface ISecretStorageService extends ISecretStorageProvider {
 	onDidChangeSecret: Event<string>;
 }
 
-export abstract class BaseSecretStorageService implements ISecretStorageService {
+export class BaseSecretStorageService implements ISecretStorageService {
 	declare readonly _serviceBrand: undefined;
 
-	private _storagePrefix = 'secret://';
+	private readonly _storagePrefix = 'secret://';
 
-	private readonly _onDidChangeSecret = new Emitter<string>();
-	onDidChangeSecret: Event<string> = this._onDidChangeSecret.event;
+	protected readonly onDidChangeSecretEmitter = new Emitter<string>();
+	onDidChangeSecret: Event<string> = this.onDidChangeSecretEmitter.event;
 
 	protected readonly _sequencer = new SequencerByKey<string>();
-	protected resolvedStorageService = this.initialize();
 
 	private _type: 'in-memory' | 'persisted' | 'unknown' = 'unknown';
 
-	private _onDidChangeValueDisposable: IDisposable | undefined;
+	private readonly _onDidChangeValueDisposable = new DisposableStore();
 
 	constructor(
+		private readonly _useInMemoryStorage: boolean,
 		@IStorageService private _storageService: IStorageService,
 		@IEncryptionService protected _encryptionService: IEncryptionService,
-		@ILogService protected readonly _logService: ILogService
+		@ILogService protected readonly _logService: ILogService,
 	) { }
 
+	/**
+	 * @Note initialize must be called first so that this can be resolved properly
+	 * otherwise it will return 'unknown'.
+	 */
 	get type() {
 		return this._type;
 	}
 
-	private onDidChangeValue(key: string): void {
-		if (!key.startsWith(this._storagePrefix)) {
-			return;
-		}
-
-		const secretKey = key.slice(this._storagePrefix.length);
-
-		this._logService.trace(`[SecretStorageService] Notifying change in value for secret: ${secretKey}`);
-		this._onDidChangeSecret.fire(secretKey);
+	private _lazyStorageService: Lazy<Promise<IStorageService>> = new Lazy(() => this.initialize());
+	protected get resolvedStorageService() {
+		return this._lazyStorageService.value;
 	}
 
 	get(key: string): Promise<string | undefined> {
@@ -75,7 +74,10 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 
 			try {
 				this._logService.trace('[secrets] decrypting gotten secret for key:', fullKey);
-				const result = await this._encryptionService.decrypt(encrypted);
+				// If the storage service is in-memory, we don't need to decrypt
+				const result = this._type === 'in-memory'
+					? encrypted
+					: await this._encryptionService.decrypt(encrypted);
 				this._logService.trace('[secrets] decrypted secret for key:', fullKey);
 				return result;
 			} catch (e) {
@@ -93,7 +95,10 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 			this._logService.trace('[secrets] encrypting secret for key:', key);
 			let encrypted;
 			try {
-				encrypted = await this._encryptionService.encrypt(value);
+				// If the storage service is in-memory, we don't need to encrypt
+				encrypted = this._type === 'in-memory'
+					? value
+					: await this._encryptionService.encrypt(value);
 			} catch (e) {
 				this._logService.error(e);
 				throw e;
@@ -118,22 +123,40 @@ export abstract class BaseSecretStorageService implements ISecretStorageService 
 
 	private async initialize(): Promise<IStorageService> {
 		let storageService;
-		if (await this._encryptionService.isEncryptionAvailable()) {
+		if (!this._useInMemoryStorage && await this._encryptionService.isEncryptionAvailable()) {
+			this._logService.trace(`[SecretStorageService] Encryption is available, using persisted storage`);
 			this._type = 'persisted';
 			storageService = this._storageService;
 		} else {
+			// If we already have an in-memory storage service, we don't need to recreate it
+			if (this._type === 'in-memory') {
+				return this._storageService;
+			}
 			this._logService.trace('[SecretStorageService] Encryption is not available, falling back to in-memory storage');
 			this._type = 'in-memory';
 			storageService = new InMemoryStorageService();
 		}
 
-		this._onDidChangeValueDisposable?.dispose();
-		this._onDidChangeValueDisposable = storageService.onDidChangeValue(e => this.onDidChangeValue(e.key));
+		this._onDidChangeValueDisposable.clear();
+		this._onDidChangeValueDisposable.add(storageService.onDidChangeValue(StorageScope.APPLICATION, undefined, this._onDidChangeValueDisposable)(e => {
+			this.onDidChangeValue(e.key);
+		}));
 		return storageService;
 	}
 
 	protected reinitialize(): void {
-		this.resolvedStorageService = this.initialize();
+		this._lazyStorageService = new Lazy(() => this.initialize());
+	}
+
+	private onDidChangeValue(key: string): void {
+		if (!key.startsWith(this._storagePrefix)) {
+			return;
+		}
+
+		const secretKey = key.slice(this._storagePrefix.length);
+
+		this._logService.trace(`[SecretStorageService] Notifying change in value for secret: ${secretKey}`);
+		this.onDidChangeSecretEmitter.fire(secretKey);
 	}
 
 	private getKey(key: string): string {
