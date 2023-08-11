@@ -24,6 +24,7 @@ import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { getWordAtText } from 'vs/editor/common/core/wordHelper';
 
 
 const variables = [
@@ -258,6 +259,9 @@ class SlashCommandCompletions extends Disposable {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SlashCommandCompletions, LifecyclePhase.Eventually);
 
 class VariableCompletions extends Disposable {
+
+	private static readonly VariableNameDef = /@\w*/g; // MUST be using `g`-flag
+
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -268,11 +272,25 @@ class VariableCompletions extends Disposable {
 			_debugDisplayName: 'chatVariables',
 			triggerCharacters: ['@'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
-				// TODO Why does this get invoked on every keypress, not just after @?
 
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {
 					return null;
+				}
+
+				const varWord = getWordAtText(position.column, VariableCompletions.VariableNameDef, model.getLineContent(position.lineNumber), 0);
+				if (!varWord && model.getWordUntilPosition(position).word) {
+					// inside a "normal" word
+					return null;
+				}
+
+				let insert: Range;
+				let replace: Range;
+				if (!varWord) {
+					insert = replace = Range.fromPositions(position);
+				} else {
+					insert = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, position.column);
+					replace = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, varWord.endColumn);
 				}
 
 				return <CompletionList>{
@@ -280,7 +298,7 @@ class VariableCompletions extends Disposable {
 						const withAt = `@${v.name}`;
 						return <CompletionItem>{
 							label: withAt,
-							range: new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column - 1),
+							range: { insert, replace },
 							insertText: withAt + ' ',
 							detail: v.description,
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
