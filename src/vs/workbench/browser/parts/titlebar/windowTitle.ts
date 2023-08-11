@@ -100,8 +100,7 @@ export class WindowTitle extends Disposable {
 	}
 
 	private doUpdateTitle(): void {
-		const focusedView = this.getFocusedView();
-		let title = this.getFullWindowTitle();
+		const title = this.getFullWindowTitle();
 		if (title !== this.title) {
 			// Always set the native window title to identify us properly to the OS
 			let nativeTitle = title;
@@ -109,9 +108,6 @@ export class WindowTitle extends Disposable {
 				nativeTitle = this.productService.nameLong;
 			}
 
-			if (focusedView) {
-				title += ` - ${focusedView.title}`;
-			}
 			window.document.title = nativeTitle;
 			this.title = title;
 			this.onDidChangeEmitter.fire();
@@ -143,6 +139,15 @@ export class WindowTitle extends Disposable {
 		}
 		// Replace non-space whitespace
 		title = title.replace(/[^\S ]/g, ' ');
+		return title;
+	}
+
+	private getWindowTitleImpl(): string {
+		const focusedView = this.getFocusedView();
+		let title = this.getFullWindowTitle();
+		if (focusedView) {
+			title += ` - ${focusedView.title}`;
+		}
 		return title;
 	}
 
@@ -196,6 +201,7 @@ export class WindowTitle extends Disposable {
 	 * {remoteName}: e.g. SSH
 	 * {dirty}: indicator
 	 * {separator}: conditional separator
+	 * {focusedView}: e.g. Terminal
 	 */
 	getWindowTitle(): string {
 		const editor = this.editorService.activeEditor;
@@ -256,6 +262,7 @@ export class WindowTitle extends Disposable {
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
 		const titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
+		const focusedView = this.getWindowTitleImpl();
 
 		return template(titleTemplate, {
 			activeEditorShort,
@@ -273,7 +280,8 @@ export class WindowTitle extends Disposable {
 			appName,
 			remoteName,
 			profileName,
-			separator: { label: separator }
+			separator: { label: separator },
+			focusedView
 		});
 	}
 

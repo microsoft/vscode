@@ -550,7 +550,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		localize('appName', "`${appName}`: e.g. VS Code."),
 		localize('remoteName', "`${remoteName}`: e.g. SSH"),
 		localize('dirty', "`${dirty}`: an indicator for when the active editor has unsaved changes."),
-		localize('separator', "`${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
+		localize('separator', "`${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."),
+		localize('focusedView', "`${focusedView}`: the name of the view that is focused on.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
 	registry.registerConfiguration({
