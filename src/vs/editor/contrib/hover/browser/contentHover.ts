@@ -55,10 +55,7 @@ export class ContentHoverController extends Disposable {
 	) {
 		super();
 
-		const minimumHeight = this._editor.getOption(EditorOption.lineHeight) + 8;
-		const minimumWidth = 4 / 3 * minimumHeight;
-		const minimumSize = new dom.Dimension(minimumWidth, minimumHeight);
-		this._widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor, minimumSize));
+		this._widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
 
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
@@ -476,6 +473,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _visibleData: ContentHoverVisibleData | undefined;
 	private _positionPreference: ContentWidgetPositionPreference | undefined;
+	private _minimumSize: dom.Dimension;
+	private _contentWidth: number;
 
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
@@ -499,13 +498,17 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		minimumSize: dom.Dimension,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
+		const minimumHeight = editor.getOption(EditorOption.lineHeight) + 8;
+		const minimumWidth = 150;
+		const minimumSize = new dom.Dimension(minimumWidth, minimumHeight);
 		super(editor, minimumSize);
+		this._minimumSize = minimumSize;
+		this._contentWidth = minimumWidth; // we initially assume the content width to be the minimum width
 		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(contextKeyService);
 		this._hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(contextKeyService);
 
@@ -788,7 +791,17 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	public setMinimumDimensions(dimensions: dom.Dimension): void {
-		this._resizableNode.minSize = dimensions;
+		// We combine the new minimum dimensions with the previous ones
+		this._minimumSize = new dom.Dimension(
+			Math.max(this._minimumSize.width, dimensions.width),
+			Math.max(this._minimumSize.height, dimensions.height)
+		);
+		this._updateMinimumWidth();
+	}
+
+	private _updateMinimumWidth(): void {
+		// We want to avoid that the hover is artificially large, so we use the content width as minimum width
+		this._resizableNode.minSize = new dom.Dimension(Math.min(this._contentWidth, this._minimumSize.width), this._minimumSize.height);
 	}
 
 	public onContentsChanged(): void {
@@ -803,6 +816,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 		height = dom.getTotalHeight(containerDomNode);
 		width = dom.getTotalWidth(containerDomNode);
+		this._contentWidth = width;
+		this._updateMinimumWidth();
 		this._resizableNode.layout(height, width);
 
 		if (this._hasHorizontalScrollbar()) {

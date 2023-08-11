@@ -24,7 +24,8 @@ export const enum AccessibilityVerbositySettingId {
 	Notebook = 'accessibility.verbosity.notebook',
 	Editor = 'accessibility.verbosity.editor',
 	Hover = 'accessibility.verbosity.hover',
-	Notification = 'accessibility.verbosity.notification'
+	Notification = 'accessibility.verbosity.notification',
+	EditorUntitledHint = 'accessibility.verbosity.editor.untitledHint'
 }
 
 const baseProperty: object = {
@@ -68,6 +69,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Notification]: {
 			description: localize('verbosity.notification', 'Provide information about how to open the notification in an accessible view.'),
+			...baseProperty
+		},
+		[AccessibilityVerbositySettingId.EditorUntitledHint]: {
+			description: localize('verbosity.editor.untitledhint', 'Provide information about relevant actions in an untitled text editor.'),
 			...baseProperty
 		},
 		[AccessibilitySettingId.UnfocusedViewOpacity]: {

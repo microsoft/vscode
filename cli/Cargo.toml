@@ -56,7 +56,7 @@ bytes = "1.4.0"
 tar = "0.4.38"
 
 [build-dependencies]
-serde = "1.0.163"
+serde = { version="1.0.163", features = ["derive"] }
 serde_json = "1.0.96"
 
 [target.'cfg(windows)'.dependencies]
