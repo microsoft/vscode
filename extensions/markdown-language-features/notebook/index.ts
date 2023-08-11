@@ -179,12 +179,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			height: 2px;
 		}
 
-		hr,
-		h1,
-		h2 {
-			border-bottom: 1px solid var(--vscode-notebook-cellBorderColor);
-		}
-
 		h1 {
 			font-size: 2em;
 			padding-bottom: 0.3em;
