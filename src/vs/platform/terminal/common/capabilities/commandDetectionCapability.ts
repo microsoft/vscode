@@ -110,6 +110,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 	private readonly _onCurrentCommandInvalidated = this._register(new Emitter<ICommandInvalidationRequest>());
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
+	private readonly _onRequestWriteToTextArea = this._register(new Emitter<string>());
+	readonly onRequestWriteToTextArea = this._onRequestWriteToTextArea.event;
 
 	constructor(
 		private readonly _terminal: Terminal,
@@ -145,6 +147,14 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		//
 		// This is mostly a workaround for Windows but applies to all OS' because of the tsc watch
 		// case.
+		let line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.cursorY)?.translateToString(true);
+		if (this._currentCommand.commandStartX) {
+			line = line?.substring(this._currentCommand.commandStartX).trimEnd();
+		}
+		if (line) {
+			console.log(line);
+			this._onRequestWriteToTextArea.fire(line);
+		}
 		if (this._terminal.buffer.active === this._terminal.buffer.normal && this._currentCommand.commandStartMarker) {
 			if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY < this._currentCommand.commandStartMarker.line) {
 				this._clearCommandsInViewport();

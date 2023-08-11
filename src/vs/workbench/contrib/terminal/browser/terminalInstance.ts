@@ -422,6 +422,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				});
 			} else if (e === TerminalCapability.CommandDetection) {
 				const commandCapability = this.capabilities.get(TerminalCapability.CommandDetection);
+				commandCapability?.onRequestWriteToTextArea(text => {
+					const textArea = this.xterm?.raw.textarea;
+					if (textArea) {
+						textArea.textContent = text;
+						console.log('content is');
+						console.log(textArea.textContent);
+					}
+				});
 				commandCapability?.onCommandFinished(e => {
 					if (e.command.trim().length > 0) {
 						this._scopedInstantiationService.invokeFunction(getCommandHistory)?.add(e.command, { shellType: this._shellType });
