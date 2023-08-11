@@ -405,6 +405,21 @@ export class InlineChatWidget {
 		this._inputEditor.updateOptions({ ariaLabel: label });
 	}
 
+	// Changes styling of properties (e.g. Hides the input field), when toolbar is used only for Edit application.
+	showEditOnlyActions(isEditOnly?: boolean) {
+		if (isEditOnly) {
+			this._elements.content.style.display = 'none';
+			this._elements.status.style.marginTop = '0px';
+			this._elements.previewCreateTitle.classList.add('hidden');
+			this._elements.previewCreate.classList.add('hidden');
+		} else {
+			this._elements.content.style.display = 'flex';
+			this._elements.status.style.marginTop = '2px';
+			this._elements.previewCreateTitle.classList.remove('hidden');
+			this._elements.previewCreate.classList.remove('hidden');
+		}
+	}
+
 	dispose(): void {
 		this._store.dispose();
 		this._ctxInputEmpty.reset();
@@ -446,7 +461,8 @@ export class InlineChatWidget {
 
 	getHeight(): number {
 		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status);
-		const editorHeight = this._inputEditor.getContentHeight() + 12 /* padding and border */;
+		// If the input area is not shown, then don't extend the viewZone with its height.
+		const editorHeight = this._elements.content.style.display === 'none' ? 0 : this._inputEditor.getContentHeight() + 12 /* padding and border */;
 		const markdownMessageHeight = getTotalHeight(this._elements.markdownMessage);
 		const previewDiffHeight = this._previewDiffEditor.value.getModel() ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())) : 0;
 		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);

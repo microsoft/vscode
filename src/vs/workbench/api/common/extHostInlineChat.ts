@@ -18,6 +18,7 @@ import type * as vscode from 'vscode';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
+import { TextEdit } from 'vs/editor/common/languages';
 
 class ProviderWrapper {
 
@@ -62,6 +63,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			message?: string;
 			autoSend?: boolean;
 			position?: vscode.Position;
+			edits?: extHostTypes.TextEdit[]
 		};
 
 		type InteractiveEditorRunOptions = {
@@ -70,6 +72,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			message?: string;
 			autoSend?: boolean;
 			position?: IPosition;
+			edits?: TextEdit[]
 		};
 
 		extHostCommands.registerApiCommand(new ApiCommand(
@@ -86,6 +89,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 					message: v.message,
 					autoSend: v.autoSend,
 					position: v.position ? typeConvert.Position.from(v.position) : undefined,
+					edits: v.edits ? v.edits.map(edit => typeConvert.TextEdit.from(edit)) : undefined,
 				};
 			})],
 			ApiCommandResult.Void

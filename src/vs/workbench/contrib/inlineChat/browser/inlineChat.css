@@ -22,10 +22,6 @@
 
 /* body */
 
-.monaco-editor .inline-chat .body {
-	display: flex;
-}
-
 .monaco-editor .inline-chat .body .content {
 	display: flex;
 	box-sizing: border-box;
@@ -103,10 +99,6 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-}
-
-.monaco-editor .inline-chat .status.actions {
-	margin-top: 2px;
 }
 
 .monaco-editor .inline-chat .status .actions.hidden {
