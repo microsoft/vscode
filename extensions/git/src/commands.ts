@@ -1787,10 +1787,12 @@ export class CommandCenter {
 				const commit = l10n.t('Commit Staged Changes');
 				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
 
+				documents = workspace.textDocuments
+					.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
+
 				if (pick === saveAndCommit) {
 					await Promise.all(documents.map(d => d.save()));
 					await repository.add(documents.map(d => d.uri));
-
 					noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 					noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 				} else if (pick !== commit) {
