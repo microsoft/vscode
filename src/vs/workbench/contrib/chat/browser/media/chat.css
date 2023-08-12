@@ -124,7 +124,6 @@
 }
 
 .interactive-request {
-	background-color: var(--vscode-chat-requestBackground);
 	border-bottom: 1px solid var(--vscode-chat-requestBorder);
 	border-top: 1px solid var(--vscode-chat-requestBorder);
 }
