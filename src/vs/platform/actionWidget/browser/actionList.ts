@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import * as dom from 'vs/base/browser/dom';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { List, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
-import { index } from 'vs/base/common/arrays';
-import { matchesFuzzy } from 'vs/base/common/filters';
+import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { List } from 'vs/base/browser/ui/list/listWidget';
+import { matchesFuzzy2 } from 'vs/base/common/filters';
 import { Codicon } from 'vs/base/common/codicons';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -168,7 +167,8 @@ export class ActionList<T> extends Disposable {
 	private readonly _allMenuItemsFiltered: IActionFilteredItems[] = [];
 
 	private keypresses: string[] = [];
-	// private timeFrame = 2000; // 2 seconds
+	private timeFrame = 2000; // 2 seconds
+	private timeoutId: NodeJS.Timeout | null = null;
 
 	constructor(
 		user: string,
@@ -217,7 +217,6 @@ export class ActionList<T> extends Disposable {
 		this._register(this._list.onDidChangeFocus(() => this._list.domFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 		this._register(this._list.onKeyPress(e => this.onKeyPress(e)));
-		// const timeoutId = setTimeout(this.processKeyPresses, this.timeFrame);
 
 		this._allMenuItems = items;
 		const menuItems = this._allMenuItems;
@@ -323,39 +322,37 @@ export class ActionList<T> extends Disposable {
 	}
 
 	private onKeyPress(e: KeyboardEvent) {
-		console.log(e.key);
 		const key = e.key;
 		this.keypresses.push(key);
-		console.log(this.keypresses.toString());
-
+		// console.log(this.keypresses.toString());
 		this.listFuzzyMatch(this.keypresses.join(''));
 
-		// this._list.setFocus([1]);
+		// Clear the previous timeout
+		if (this.timeoutId !== null) {
+			clearTimeout(this.timeoutId);
+		}
 
+		this.timeoutId = setTimeout(() => this.processKeyPresses(), this.timeFrame);
 		// Create fuzzy search function that will jump the chracter to the next one of the same letter
 
 	}
 
+	private processKeyPresses() {
+		this.keypresses = [];
+	}
 	private listFuzzyMatch(str: string) {
 		for (const val of this._allMenuItemsFiltered) {
 			if (val.label) {
-				// console.log(val.label, str);
-				const result = matchesFuzzy(str, val.label);
-				if (result) {
-					console.log(result);
+				const result2 = matchesFuzzy2(str, val.label);
+				if (result2) {
 					this._list.setFocus([val.index]);
+					if (result2[0].start === 0) {
+						break;
+					}
 				}
-
 			}
 		}
 	}
-	// private processKeyPresses() {
-	// 	const menuItems = this._allMenuItems;
-	// 	const filtered = menuItems.flatMap((obj, index) => obj.kind === `action` ? [{ label: obj.label, index }] : []);
-	// 	console.log(filtered);
-	// 	// console.log('Keypresses within the time frame:', this.keypresses);
-	// 	this.keypresses = [];
-	// }
 }
 
 function stripNewlines(str: string): string {
