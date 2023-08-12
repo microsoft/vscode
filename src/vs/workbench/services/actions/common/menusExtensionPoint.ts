@@ -261,6 +261,16 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
 	},
 	{
+		key: 'testing/message/context',
+		id: MenuId.TestMessageContext,
+		description: localize('testing.message.context.title', "A prominent button overlaying editor content where the message is displayed"),
+	},
+	{
+		key: 'testing/message/content',
+		id: MenuId.TestMessageContent,
+		description: localize('testing.message.content.title', "Context menu for the message in the results tree"),
+	},
+	{
 		key: 'extension/context',
 		id: MenuId.ExtensionContext,
 		description: localize('menus.extensionContext', "The extension context menu")
