@@ -311,7 +311,7 @@ class AccessibleView extends Disposable {
 			let ariaLabel = '';
 			let helpHint = '';
 			const verbose = this._configurationService.getValue(provider.verbositySettingKey);
-			if (verbose && provider.options.type === AccessibleViewType.View) {
+			if (verbose && provider.options.type === AccessibleViewType.View && !showAccessibleViewHelp) {
 				const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 				if (accessibilityHelpKeybinding) {
 					helpHint = localize('ariaAccessibilityHelp', "Use {0} for accessibility help", accessibilityHelpKeybinding);

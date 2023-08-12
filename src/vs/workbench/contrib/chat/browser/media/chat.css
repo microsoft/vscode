@@ -251,8 +251,9 @@
 	margin: 16px 0;
 }
 
-.interactive-response .monaco-editor .margin,
-.interactive-response .monaco-editor .monaco-editor-background {
+.interactive-session .interactive-item-container.interactive-response .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor,
+.interactive-session .interactive-item-container.interactive-response .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor .margin,
+.interactive-session .interactive-item-container.interactive-response .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor .monaco-editor-background {
 	background-color: var(--vscode-interactive-result-editor-background-color);
 }
 
