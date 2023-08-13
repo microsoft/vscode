@@ -360,6 +360,7 @@ export const enum GitErrorCodes {
 	StashConflict = 'StashConflict',
 	UnmergedChanges = 'UnmergedChanges',
 	PushRejected = 'PushRejected',
+	ForcePushRejected = 'ForcePushRejected',
 	RemoteConnectionError = 'RemoteConnectionError',
 	DirtyWorkTree = 'DirtyWorkTree',
 	CantOpenResource = 'CantOpenResource',
