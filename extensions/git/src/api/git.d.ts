@@ -361,6 +361,7 @@ export const enum GitErrorCodes {
 	UnmergedChanges = 'UnmergedChanges',
 	PushRejected = 'PushRejected',
 	ForcePushRejected = 'ForcePushRejected',
+	SaferForcePushRejected = 'SaferForcePushRejected',
 	RemoteConnectionError = 'RemoteConnectionError',
 	DirtyWorkTree = 'DirtyWorkTree',
 	CantOpenResource = 'CantOpenResource',

@@ -3666,6 +3666,9 @@ export class CommandCenter {
 						message = l10n.t('Can\'t push refs to remote. Try running "Pull" first to integrate your changes.');
 						break;
 					case GitErrorCodes.ForcePushRejected:
+						message = l10n.t('Can\'t force push refs to remote. Check if force push is not prohibited by remote.');
+						break;
+					case GitErrorCodes.SaferForcePushRejected:
 						message = l10n.t('Can\'t force push refs to remote. Check if force push is not prohibited by remote or rebase to the latest remote branch first.');
 						break;
 					case GitErrorCodes.Conflict:
