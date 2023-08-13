@@ -468,11 +468,11 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
 	cursor: default;
 	flex: initial;
-	padding: 0 8px 0 4px;
+	padding: 0 8px 0 8px;
 	height: 35px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-item {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-item:not(:last-child) {
 	margin-right: 4px;
 }
 
