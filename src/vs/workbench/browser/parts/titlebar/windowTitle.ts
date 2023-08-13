@@ -107,11 +107,20 @@ export class WindowTitle extends Disposable {
 			if (!trim(nativeTitle)) {
 				nativeTitle = this.productService.nameLong;
 			}
-
 			window.document.title = nativeTitle;
 			this.title = title;
 			this.onDidChangeEmitter.fire();
 		}
+	}
+
+	private getWindowTitleImpl(): string {
+		const focusedView = this.getFocusedView();
+		let title = this.getFullWindowTitle();
+		if (focusedView) {
+			title += ` - ${focusedView.title}`;
+		}
+		window.document.title = title;
+		return title;
 	}
 
 	private getFocusedView(): HTMLElement | null {
@@ -139,15 +148,6 @@ export class WindowTitle extends Disposable {
 		}
 		// Replace non-space whitespace
 		title = title.replace(/[^\S ]/g, ' ');
-		return title;
-	}
-
-	private getWindowTitleImpl(): string {
-		const focusedView = this.getFocusedView();
-		let title = this.getFullWindowTitle();
-		if (focusedView) {
-			title += ` - ${focusedView.title}`;
-		}
 		return title;
 	}
 
