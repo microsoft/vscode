@@ -177,18 +177,17 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		// const variables = this.chatVariablesService.getVariables();
-		const variableReg = /(^|\s)@(\w+)(\s|$)/ig;
+		const variableReg = /(^|\s)@(\w+)(?=(\s|$))/ig;
 		let match: RegExpMatchArray | null;
 		const varDecorations: IDecorationOptions[] = [];
 		while (match = variableReg.exec(inputValue)) {
 			// const candidate = match[2];
 			// if (Iterable.find(variables, v => v.name === candidate))
-			const atOffset = match[0].indexOf('@');
 			varDecorations.push({
 				range: {
 					startLineNumber: 1,
 					endLineNumber: 1,
-					startColumn: match.index! + atOffset + 1,
+					startColumn: match.index! + match[1].length + 1,
 					endColumn: match.index! + match[0].length + 1
 				}
 			});
