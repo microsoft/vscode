@@ -167,7 +167,7 @@ export class ActionList<T> extends Disposable {
 	private readonly _allMenuItemsFiltered: IActionFilteredItems[] = [];
 
 	private keypresses: string[] = [];
-	private timeFrame = 2000; // 2 seconds
+	private timeFrame = 1500; // 1.5 seconds
 	private timeoutId: NodeJS.Timeout | null = null;
 
 	constructor(
@@ -322,9 +322,7 @@ export class ActionList<T> extends Disposable {
 	}
 
 	private onKeyPress(e: KeyboardEvent) {
-		const key = e.key;
-		this.keypresses.push(key);
-		// console.log(this.keypresses.toString());
+		this.keypresses.push(e.key);
 		this.listFuzzyMatch(this.keypresses.join(''));
 
 		// Clear the previous timeout
@@ -333,20 +331,22 @@ export class ActionList<T> extends Disposable {
 		}
 
 		this.timeoutId = setTimeout(() => this.processKeyPresses(), this.timeFrame);
-		// Create fuzzy search function that will jump the chracter to the next one of the same letter
 
 	}
 
 	private processKeyPresses() {
 		this.keypresses = [];
 	}
+
 	private listFuzzyMatch(str: string) {
-		for (const val of this._allMenuItemsFiltered) {
-			if (val.label) {
-				const result2 = matchesFuzzy2(str, val.label);
-				if (result2) {
-					this._list.setFocus([val.index]);
-					if (result2[0].start === 0) {
+		for (const menuItem of this._allMenuItemsFiltered) {
+			if (menuItem.label) {
+				const result = matchesFuzzy2(str, menuItem.label);
+				// Result is either null or an array of obj {start, end} for matches between str and menuItem.label
+				if (result) {
+					this._list.setFocus([menuItem.index]);
+					if (result[0].start === 0) {
+						// Breaks when finds first found instance of match [0,1] to [0,1]
 						break;
 					}
 				}
