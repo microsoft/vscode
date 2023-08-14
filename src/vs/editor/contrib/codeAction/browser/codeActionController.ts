@@ -254,7 +254,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			}
 		};
 
-
 		this._actionWidgetService.show(
 			'codeActionWidget',
 			true,

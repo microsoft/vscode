@@ -167,8 +167,7 @@ export class ActionList<T> extends Disposable {
 	private readonly _allMenuItemsFiltered: IActionFilteredItems[] = [];
 
 	private keypresses: string[] = [];
-	private timeFrame = 1500; // 1.5 seconds
-	private timeoutId: NodeJS.Timeout | null = null;
+	private timeout: number | null = null;
 
 	constructor(
 		user: string,
@@ -325,12 +324,13 @@ export class ActionList<T> extends Disposable {
 		this.keypresses.push(e.key);
 		this.listFuzzyMatch(this.keypresses.join(''));
 
-		// Clear the previous timeout
-		if (this.timeoutId !== null) {
-			clearTimeout(this.timeoutId);
+		// Clear the previous timeout (if any)
+		if (this.timeout !== null) {
+			window.clearTimeout(this.timeout);
 		}
 
-		this.timeoutId = setTimeout(() => this.processKeyPresses(), this.timeFrame);
+		// Set a new timeout
+		this.timeout = window.setTimeout(() => { this.processKeyPresses(); }, 1000);
 
 	}
 
