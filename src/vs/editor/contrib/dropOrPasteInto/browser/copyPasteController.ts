@@ -11,7 +11,6 @@ import { UriList, VSDataTransfer, createStringDataTransferItem, matchesMimeType 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import * as platform from 'vs/base/common/platform';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ClipboardEventUtils } from 'vs/editor/browser/controller/textAreaInput';
 import { toExternalVSDataTransfer, toVSDataTransfer } from 'vs/editor/browser/dnd';
@@ -284,12 +283,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					return;
 				}
 
-				// If the only edit returned is a text edit, use the default paste handler
-				if (providerEdits.length === 1 && providerEdits[0].id === 'text') {
-					await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
-					return;
-				}
-
 				if (providerEdits.length) {
 					const canShowWidget = editor.getOption(EditorOption.pasteAs).showPasteSelector === 'afterPaste';
 					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: 0, allEdits: providerEdits }, canShowWidget, tokenSource.token);
@@ -324,7 +317,11 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				}
 
 				// Filter out any providers the don't match the full data transfer we will send them.
-				const supportedProviders = allProviders.filter(provider => isSupportedPasteProvider(provider, dataTransfer));
+				let supportedProviders = allProviders.filter(provider => isSupportedPasteProvider(provider, dataTransfer));
+				if (preferredId) {
+					// We are looking for a specific edit
+					supportedProviders = supportedProviders.filter(edit => edit.id === preferredId);
+				}
 
 				const providerEdits = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, tokenSource.token);
 				if (tokenSource.token.isCancellationRequested) {
@@ -336,14 +333,13 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				}
 
 				let pickedEdit: DocumentPasteEdit | undefined;
-				if (typeof preferredId === 'string') {
-					// We are looking for a specific edit
-					pickedEdit = providerEdits.find(edit => edit.id === preferredId);
+				if (preferredId) {
+					pickedEdit = providerEdits.at(0);
 				} else {
 					const selected = await this._quickInputService.pick(
 						providerEdits.map((edit): IQuickPickItem & { edit: DocumentPasteEdit } => ({
 							label: edit.label,
-							description: edit.id,
+							description: edit.providerId,
 							detail: edit.detail,
 							edit,
 						})), {
@@ -398,7 +394,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return {
 				defaultPastePayload: {
 					mode: metadata.mode,
-					multicursorText: withUndefinedAsNull(metadata.multicursorText),
+					multicursorText: metadata.multicursorText ?? null,
 					pasteOnNewLine: !!metadata.isFromEmptySelection,
 				},
 			};
@@ -431,15 +427,18 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}
 	}
 
-	private async getPasteEdits(providers: readonly DocumentPasteEditProvider[], dataTransfer: VSDataTransfer, model: ITextModel, selections: readonly Selection[], token: CancellationToken): Promise<DocumentPasteEdit[]> {
+	private async getPasteEdits(providers: readonly DocumentPasteEditProvider[], dataTransfer: VSDataTransfer, model: ITextModel, selections: readonly Selection[], token: CancellationToken): Promise<Array<DocumentPasteEdit & { providerId: string }>> {
 		const results = await raceCancellation(
-			Promise.all(providers.map(provider => {
+			Promise.all(providers.map(async provider => {
 				try {
-					return provider.provideDocumentPasteEdits?.(model, selections, dataTransfer, token);
+					const edit = await provider.provideDocumentPasteEdits?.(model, selections, dataTransfer, token);
+					if (edit) {
+						return { ...edit, providerId: provider.id };
+					}
 				} catch (err) {
 					console.error(err);
-					return undefined;
 				}
+				return undefined;
 			})),
 			token);
 		const edits = coalesce(results ?? []);

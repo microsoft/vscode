@@ -8,6 +8,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
+import { Event } from 'vs/base/common/event';
 import { ProviderResult, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
@@ -98,6 +99,7 @@ export const enum InlineChatResponseFeedbackKind {
 export interface IInlineChatSessionProvider {
 
 	debugName: string;
+	label: string;
 
 	prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): ProviderResult<IInlineChatSession>;
 
@@ -111,6 +113,7 @@ export const IInlineChatService = createDecorator<IInlineChatService>('IInlineCh
 export interface IInlineChatService {
 	_serviceBrand: undefined;
 
+	onDidChangeProviders: Event<void>;
 	addProvider(provider: IInlineChatSessionProvider): IDisposable;
 	getAllProvider(): Iterable<IInlineChatSessionProvider>;
 }

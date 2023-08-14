@@ -6,7 +6,6 @@
 import { localize } from 'vs/nls';
 import { format } from 'vs/base/common/strings';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -65,7 +64,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	if (!inputEditor || !editorUri) {
 		return;
 	}
-	const domNode = withNullAsUndefined(inputEditor.getDomNode());
+	const domNode = inputEditor.getDomNode() ?? undefined;
 	if (!domNode) {
 		return;
 	}

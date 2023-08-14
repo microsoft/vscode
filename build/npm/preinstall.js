@@ -9,12 +9,14 @@ const majorNodeVersion = parseInt(nodeVersion[1]);
 const minorNodeVersion = parseInt(nodeVersion[2]);
 const patchNodeVersion = parseInt(nodeVersion[3]);
 
-if (majorNodeVersion < 18 || (majorNodeVersion === 18 && minorNodeVersion < 15)) {
-	console.error('\033[1;31m*** Please use node.js versions >=18.15.x and <19.\033[0;0m');
-	// err = true; enable once update unit test docker images are updated #189885
-}
-if (majorNodeVersion >= 19) {
-	console.warn('\033[1;31m*** Warning: Versions of node.js >= 19 have not been tested.\033[0;0m')
+if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
+	if (majorNodeVersion < 18 || (majorNodeVersion === 18 && minorNodeVersion < 15)) {
+		console.error('\033[1;31m*** Please use node.js versions >=18.15.x and <19.\033[0;0m');
+		err = true;
+	}
+	if (majorNodeVersion >= 19) {
+		console.warn('\033[1;31m*** Warning: Versions of node.js >= 19 have not been tested.\033[0;0m')
+	}
 }
 
 const path = require('path');

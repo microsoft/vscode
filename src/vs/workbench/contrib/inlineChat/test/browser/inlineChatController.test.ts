@@ -122,6 +122,7 @@ suite('InteractiveChatController', function () {
 
 		store.add(inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random()
@@ -173,6 +174,7 @@ suite('InteractiveChatController', function () {
 
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random()
@@ -201,6 +203,7 @@ suite('InteractiveChatController', function () {
 
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
@@ -246,6 +249,7 @@ suite('InteractiveChatController', function () {
 
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
@@ -284,6 +288,7 @@ suite('InteractiveChatController', function () {
 	test('Stuck inline chat widget #211', async function () {
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random(),

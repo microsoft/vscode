@@ -214,12 +214,27 @@ pub struct ChallengeVerifyParams {
 	pub response: String,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Eq, Copy, Clone, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum PortPrivacy {
+	Public,
+	Private,
+}
+
 pub mod forward_singleton {
 	use serde::{Deserialize, Serialize};
 
+	use super::PortPrivacy;
+
 	pub const METHOD_SET_PORTS: &str = "set_ports";
 
-	pub type PortList = Vec<u16>;
+	#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
+	pub struct PortRec {
+		pub number: u16,
+		pub privacy: PortPrivacy,
+	}
+
+	pub type PortList = Vec<PortRec>;
 
 	#[derive(Serialize, Deserialize)]
 	pub struct SetPortsParams {
@@ -234,6 +249,7 @@ pub mod forward_singleton {
 
 pub mod singleton {
 	use crate::log;
+	use chrono::{DateTime, Utc};
 	use serde::{Deserialize, Serialize};
 
 	pub const METHOD_RESTART: &str = "restart";
@@ -256,17 +272,41 @@ pub mod singleton {
 		pub message: String,
 	}
 
-	#[derive(Serialize, Deserialize)]
+	#[derive(Serialize, Deserialize, Clone, Default)]
+	pub struct StatusWithTunnelName {
+		pub name: Option<String>,
+		#[serde(flatten)]
+		pub status: Status,
+	}
+
+	#[derive(Serialize, Deserialize, Clone)]
 	pub struct Status {
+		pub started_at: DateTime<Utc>,
 		pub tunnel: TunnelState,
+		pub last_connected_at: Option<DateTime<Utc>>,
+		pub last_disconnected_at: Option<DateTime<Utc>>,
+		pub last_fail_reason: Option<String>,
+	}
+
+	impl Default for Status {
+		fn default() -> Self {
+			Self {
+				started_at: Utc::now(),
+				tunnel: TunnelState::Disconnected,
+				last_connected_at: None,
+				last_disconnected_at: None,
+				last_fail_reason: None,
+			}
+		}
 	}
 
 	#[derive(Deserialize, Serialize, Debug)]
 	pub struct LogReplayFinished {}
 
-	#[derive(Deserialize, Serialize, Debug)]
+	#[derive(Deserialize, Serialize, Debug, Default, Clone)]
 	pub enum TunnelState {
+		#[default]
 		Disconnected,
-		Connected { name: String },
+		Connected,
 	}
 }

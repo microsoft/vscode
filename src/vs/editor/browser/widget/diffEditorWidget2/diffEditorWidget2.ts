@@ -44,6 +44,7 @@ import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffEditorEditors } from './diffEditorEditors';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel';
+import { toDisposable } from 'vs/base/common/lifecycle';
 
 export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
@@ -94,6 +95,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._contextKeyService.createKey('diffEditorVersion', 2);
 
 		this._domElement.appendChild(this.elements.root);
+		this._register(toDisposable(() => this._domElement.removeChild(this.elements.root)));
 
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);

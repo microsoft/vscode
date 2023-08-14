@@ -29,12 +29,12 @@ abstract class SimplePasteAndDropProvider implements DocumentOnDropEditProvider,
 
 	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
 		const edit = await this.getEdit(dataTransfer, token);
-		return edit ? { id: this.id, insertText: edit.insertText, label: edit.label, detail: edit.detail, handledMimeType: edit.handledMimeType, yieldTo: edit.yieldTo } : undefined;
+		return edit ? { insertText: edit.insertText, label: edit.label, detail: edit.detail, handledMimeType: edit.handledMimeType, yieldTo: edit.yieldTo } : undefined;
 	}
 
 	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
 		const edit = await this.getEdit(dataTransfer, token);
-		return edit ? { id: this.id, insertText: edit.insertText, label: edit.label, handledMimeType: edit.handledMimeType, yieldTo: edit.yieldTo } : undefined;
+		return edit ? { insertText: edit.insertText, label: edit.label, handledMimeType: edit.handledMimeType, yieldTo: edit.yieldTo } : undefined;
 	}
 
 	protected abstract getEdit(dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
@@ -60,7 +60,6 @@ class DefaultTextProvider extends SimplePasteAndDropProvider {
 
 		const insertText = await textEntry.asString();
 		return {
-			id: this.id,
 			handledMimeType: Mimes.text,
 			label: localize('text.label', "Insert Plain Text"),
 			detail: builtInLabel,
@@ -107,7 +106,6 @@ class PathProvider extends SimplePasteAndDropProvider {
 		}
 
 		return {
-			id: this.id,
 			handledMimeType: Mimes.uriList,
 			insertText,
 			label,
@@ -144,7 +142,6 @@ class RelativePathProvider extends SimplePasteAndDropProvider {
 		}
 
 		return {
-			id: this.id,
 			handledMimeType: Mimes.uriList,
 			insertText: relativeUris.join(' '),
 			label: entries.length > 1
