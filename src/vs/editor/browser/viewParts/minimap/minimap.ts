@@ -35,6 +35,8 @@ import { GestureEvent, EventType, Gesture } from 'vs/base/browser/touch';
 import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
 import { MinimapPosition, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { once } from 'vs/base/common/functional';
+import { SectionHeader, SectionHeaderLocationProvider } from 'vs/editor/browser/viewParts/minimap/sectionHeaderLocationProvider';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
@@ -90,6 +92,9 @@ class MinimapOptions {
 	public readonly fontScale: number;
 	public readonly minimapLineHeight: number;
 	public readonly minimapCharWidth: number;
+	public readonly minimapShowRegionSectionHeaders: boolean;
+	public readonly minimapShowMarkSectionHeaders: boolean;
+	public readonly minimapSectionLabelFontSize: number;
 
 	public readonly charRenderer: () => MinimapCharRenderer;
 	public readonly defaultBackgroundColor: RGBA8;
@@ -131,6 +136,9 @@ class MinimapOptions {
 		this.editorHeight = layoutInfo.height;
 		this.fontScale = minimapLayout.minimapScale;
 		this.minimapLineHeight = minimapLayout.minimapLineHeight;
+		this.minimapShowRegionSectionHeaders = minimapLayout.minimapShowRegionSectionHeaders;
+		this.minimapShowMarkSectionHeaders = minimapLayout.minimapShowMarkSectionHeaders;
+		this.minimapSectionLabelFontSize = minimapLayout.minimapSectionLabelFontSize;
 		this.minimapCharWidth = Constants.BASE_CHAR_WIDTH * this.fontScale;
 
 		this.charRenderer = once(() => MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily));
@@ -298,7 +306,8 @@ class MinimapLayout {
 		//          * scrollTop = 10 => visible lines are [1, 31] (with lines 1 and 31 partially visible)
 		//          * scrollTop = 20 => visible lines are [2, 31]
 		//  b) whitespace gaps might make their way in the viewport (which results in a decrease in the visible line count)
-		//  c) we could be in the scroll beyond last line case (which also results in a decrease in the visible line count, down to possibly only one line being visible)
+		//  c) section labels artificially take up more than one line
+		//  d) we could be in the scroll beyond last line case (which also results in a decrease in the visible line count, down to possibly only one line being visible)
 
 		// We must first establish a desirable slider height.
 		let sliderHeight: number;
@@ -540,6 +549,7 @@ export interface IMinimapModel {
 	getLineCount(): number;
 	getRealLineCount(): number;
 	getLineContent(lineNumber: number): string;
+	getSectionHeader(lineIndex: number): SectionHeader | null;
 	getLineMaxColumn(lineNumber: number): number;
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): (ViewLineData | null)[];
 	getSelections(): Selection[];
@@ -697,7 +707,7 @@ class MinimapSamplingState {
 
 	constructor(
 		public readonly samplingRatio: number,
-		public readonly minimapLines: number[]
+		public readonly minimapLines: number[]	// a map of 0-based minimap line indexes to 1-based view line numbers
 	) {
 	}
 
@@ -790,9 +800,14 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	private _samplingState: MinimapSamplingState | null;
 	private _shouldCheckSampling: boolean;
 
+	private readonly _headerLocationProvider: SectionHeaderLocationProvider;
+	private _sectionHeaders: SectionHeader[] | null;
+
 	private _actual: InnerMinimap;
 
-	constructor(context: ViewContext) {
+	constructor(context: ViewContext,
+		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService
+	) {
 		super(context);
 
 		this.tokensColorTracker = MinimapTokensColorTracker.getInstance();
@@ -804,6 +819,14 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		const [samplingState,] = MinimapSamplingState.compute(this.options, this._context.viewModel.getLineCount(), null);
 		this._samplingState = samplingState;
 		this._shouldCheckSampling = false;
+
+		this._headerLocationProvider = new SectionHeaderLocationProvider(
+			context.viewModel.model,
+			this.options.minimapShowRegionSectionHeaders,
+			this.options.minimapShowMarkSectionHeaders,
+			this.languageConfigurationService);
+
+		this._sectionHeaders = this._headerLocationProvider.compute(startLineNumber, endLineNumber, null);
 
 		this._actual = new InnerMinimap(context.theme, this);
 	}
@@ -829,6 +852,8 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 
 	// ---- begin view event handlers
+
+	// TODO: recreate the section headers as needed
 
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		return this._onOptionsMaybeChanged();
@@ -981,6 +1006,10 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		}
 	}
 
+	private _recreateSectionHeaders(): void {
+		// TODO:
+	}
+
 	public getLineCount(): number {
 		if (this._samplingState) {
 			return this._samplingState.minimapLines.length;
@@ -997,6 +1026,13 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			return this._context.viewModel.getLineContent(this._samplingState.minimapLines[lineNumber - 1]);
 		}
 		return this._context.viewModel.getLineContent(lineNumber);
+	}
+
+	public getSectionHeader(lineNumber: number): SectionHeader | null {
+		if (this._samplingState) {
+			return this._sectionHeaders[this._samplingState.minimapLines[lineNumber - 1]];
+		}
+		return this._sectionHeaders[lineNumber];
 	}
 
 	public getLineMaxColumn(lineNumber: number): number {
@@ -1781,6 +1817,12 @@ class InnerMinimap extends Disposable {
 		const baseCharHeight = (renderMinimap === RenderMinimap.Text ? Constants.BASE_CHAR_HEIGHT : Constants.BASE_CHAR_HEIGHT + 1);
 		const renderMinimapLineHeight = baseCharHeight * fontScale;
 		const innerLinePadding = (minimapLineHeight > renderMinimapLineHeight ? Math.floor((minimapLineHeight - renderMinimapLineHeight) / 2) : 0);
+		// FIXME: probably not this, maybe * 1.3?
+		const sectionLabelLineHeight = this._model.options.minimapSectionLabelFontSize * fontScale;
+		// FIXME: not this:
+		const sectionLabelCharWidth = 8 * fontScale;
+		// FIXME: not this:
+		const sectionLabelFontScale = sectionLabelLineHeight / minimapLineHeight;
 
 		// Render the rest of lines
 		const backgroundA = background.a / 255;
@@ -1794,23 +1836,27 @@ class InnerMinimap extends Disposable {
 		const renderedLines: MinimapLine[] = [];
 		for (let lineIndex = 0, lineCount = endLineNumber - startLineNumber + 1; lineIndex < lineCount; lineIndex++) {
 			if (needed[lineIndex]) {
-				InnerMinimap._renderLine(
-					imageData,
-					renderBackground,
-					background.a,
-					useLighterFont,
-					renderMinimap,
-					minimapCharWidth,
-					tokensColorTracker,
-					foregroundAlpha,
-					charRenderer,
-					dy,
-					innerLinePadding,
-					tabSize,
-					lineInfo[lineIndex]!,
-					fontScale,
-					minimapLineHeight
-				);
+				if (this._model.getSectionHeader(lineIndex)) {
+					dy += sectionLabelLineHeight - minimapLineHeight;
+				} else {
+					InnerMinimap._renderLine(
+						imageData,
+						renderBackground,
+						background.a,
+						useLighterFont,
+						renderMinimap,
+						minimapCharWidth,
+						tokensColorTracker,
+						foregroundAlpha,
+						charRenderer,
+						dy,
+						innerLinePadding,
+						tabSize,
+						lineInfo[lineIndex]!,
+						fontScale,
+						minimapLineHeight
+					);
+				}
 			}
 			renderedLines[lineIndex] = new MinimapLine(dy);
 			dy += minimapLineHeight;
@@ -1823,6 +1869,27 @@ class InnerMinimap extends Disposable {
 		// Finally, paint to the canvas
 		const ctx = this._canvas.domNode.getContext('2d')!;
 		ctx.putImageData(imageData, 0, 0, 0, dirtyY1, imageData.width, dirtyHeight);
+
+		// Render section headers
+		dy = layout.topPaddingLineCount * minimapLineHeight;
+		for (let lineIndex = 0, lineCount = endLineNumber - startLineNumber + 1; lineIndex < lineCount; lineIndex++) {
+			if (needed[lineIndex]) {
+				const sectionHeader = this._model.getSectionHeader(lineIndex);
+				if (sectionHeader) {
+					// TODO: maybe draw a separator line too
+					dy += sectionLabelLineHeight;
+					const content = sectionHeader.header;
+					const context = this._canvas.domNode.getContext('2d')!;
+					context.font = (this._model.options.minimapSectionLabelFontSize * fontScale) + 'px sans';
+					context.fillStyle = 'black';
+					context.fillText(content, MINIMAP_GUTTER_WIDTH, dy);
+				} else {
+					dy += minimapLineHeight;
+				}
+			} else {
+				dy += minimapLineHeight;
+			}
+		}
 
 		// Save rendered data for reuse on next frame if possible
 		return new RenderData(
@@ -1992,6 +2059,26 @@ class InnerMinimap extends Disposable {
 				}
 			}
 		}
+	}
+
+	private static _renderSectionLabel(
+		target: CanvasRenderingContext2D,
+		backgroundColor: RGBA8,
+		backgroundAlpha: number,
+		useLighterFont: boolean,
+		charWidth: number,
+		colorTracker: MinimapTokensColorTracker,
+		foregroundAlpha: number,
+		dy: number,
+		innerLinePadding: number,
+		tabSize: number,
+		lineData: ViewLineData,
+		fontScale: number,
+		minimapLineHeight: number
+	): void {
+		const content = lineData.content.trim();
+
+		target.fillText(content, MINIMAP_GUTTER_WIDTH, dy);
 	}
 }
 
