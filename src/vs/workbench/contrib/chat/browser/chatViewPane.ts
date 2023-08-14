@@ -100,6 +100,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 			this._register(this.onDidChangeBodyVisibility(visible => {
 				this._widget.setVisible(visible);
 			}));
+			this._register(this._widget.onDidClear(() => this.clear()));
 			this._widget.render(parent);
 
 			let sessionId: string | undefined;

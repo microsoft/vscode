@@ -58,6 +58,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidChangeViewModel = this._register(new Emitter<void>());
 	readonly onDidChangeViewModel = this._onDidChangeViewModel.event;
 
+	private _onDidClear = this._register(new Emitter<void>());
+	readonly onDidClear = this._onDidClear.event;
+
 	private tree!: WorkbenchObjectTree<ChatTreeItem>;
 	private renderer!: ChatListItemRenderer;
 
@@ -191,6 +194,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		this.focus(responseItems[indexToFocus]);
+	}
+
+	clear(): void {
+		this._onDidClear.fire();
 	}
 
 	private onDidChangeItems() {
