@@ -980,7 +980,7 @@ class TreePool extends Disposable {
 			new ChatListTreeDataSource(),
 			{
 				collapseByDefault: () => false,
-				expandOnlyOnTwistieClick: () => true,
+				expandOnlyOnTwistieClick: () => false,
 				identityProvider: {
 					getId: (e: IChatResponseProgressFileTreeData) => e.uri.toString()
 				},
