@@ -199,6 +199,12 @@
 	overflow: hidden;
 }
 
+.test-output-peek-message-container .floating-click-widget {
+	position: absolute;
+	right: 20px;
+	bottom: 10px;
+}
+
 .test-output-peek-message-container,
 .test-output-peek-tree {
 	height: 100%;

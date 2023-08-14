@@ -3884,15 +3884,13 @@ export class TestRunRequest implements vscode.TestRunRequest {
 	) { }
 }
 
-/** Back-compat for proposed API users */
-@es5ClassCompat
-export class TestRunRequest2 extends TestRunRequest { }
-
 @es5ClassCompat
 export class TestMessage implements vscode.TestMessage {
 	public expectedOutput?: string;
 	public actualOutput?: string;
 	public location?: vscode.Location;
+	/** proposed: */
+	public contextValue?: string;
 
 	public static diff(message: string | vscode.MarkdownString, expected: string, actual: string) {
 		const msg = new TestMessage(message);
