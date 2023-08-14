@@ -25,7 +25,57 @@ type ApplyCodeActionCommand_args = {
 	readonly action: Proto.CodeFixAction;
 	readonly followupAction?: Command;
 };
+type EditorChatReplacementCommand_args = {
+	readonly message: string;
+	readonly document: vscode.TextDocument;
+	readonly diagnostic: vscode.Diagnostic;
+};
 
+class EditorChatReplacementCommand implements Command {
+	public static readonly ID = '_typescript.quickFix.editorChatReplacement';
+	public readonly id = EditorChatReplacementCommand.ID;
+	constructor(
+		private readonly client: ITypeScriptServiceClient,
+		private readonly diagnosticManager: DiagnosticsManager,
+	) {
+	}
+	async execute({ message, document, diagnostic }: EditorChatReplacementCommand_args) {
+		// TODO: "this code" is not specific; might get better results with a more specific referent
+		// TODO: Doesn't work in JS files? Is this the span-finder's fault? Try falling back to startLine plus something.
+		// TODO: Need to emit jsdoc in JS files once it's working at all
+		// TODO: When there are "enough" types around, leave off the "Add separate interfaces when possible" because it's not helpful.
+		//       (brainstorming: enough non-primitives, or evidence of type aliases in the same file, or imported)
+		this.diagnosticManager.deleteDiagnostic(document.uri, diagnostic);
+		await editorChat(this.client, document, diagnostic.range.start.line, message);
+	}
+}
+function findScopeEndLineFromNavTree(startLine: number, navigationTree: Proto.NavigationTree[]): vscode.Range | undefined {
+	for (const node of navigationTree) {
+		const range = typeConverters.Range.fromTextSpan(node.spans[0]);
+		if (startLine === range.start.line) {
+			return range;
+		} else if (startLine > range.start.line && startLine <= range.end.line && node.childItems) {
+			return findScopeEndLineFromNavTree(startLine, node.childItems);
+		}
+	}
+	return undefined;
+}
+async function editorChat(client: ITypeScriptServiceClient, document: vscode.TextDocument, startLine: number, message: string) {
+		const filepath = client.toOpenTsFilePath(document);
+		if (!filepath) {
+			return;
+		}
+		const response = await client.execute('navtree', { file: filepath }, nulToken);
+		if (response.type !== 'response' || !response.body?.childItems) {
+			return;
+		}
+		const initialRange = findScopeEndLineFromNavTree(startLine, response.body.childItems);
+		if (!initialRange) {
+			return;
+		}
+
+		await vscode.commands.executeCommand('vscode.editorChat.start', { initialRange, message, autoSend: true });
+}
 class EditorChatFollowUp implements Command {
 
 	id: string = '_typescript.quickFix.editorChatFollowUp';
@@ -34,17 +84,7 @@ class EditorChatFollowUp implements Command {
 	}
 
 	async execute() {
-		const findScopeEndLineFromNavTree = (startLine: number, navigationTree: Proto.NavigationTree[]): vscode.Range | undefined => {
-			for (const node of navigationTree) {
-				const range = typeConverters.Range.fromTextSpan(node.spans[0]);
-				if (startLine === range.start.line) {
-					return range;
-				} else if (startLine > range.start.line && startLine <= range.end.line && node.childItems) {
-					return findScopeEndLineFromNavTree(startLine, node.childItems);
-				}
-			}
-			return undefined;
-		};
+		await editorChat(this.client, this.document, this.range.start.line, this.prompt);
 		const filepath = this.client.toOpenTsFilePath(this.document);
 		if (!filepath) {
 			return;
@@ -257,6 +297,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 	) {
 		commandManager.register(new ApplyCodeActionCommand(client, diagnosticsManager, telemetryReporter));
 		commandManager.register(new ApplyFixAllCodeAction(client, telemetryReporter));
+		commandManager.register(new EditorChatReplacementCommand(client, diagnosticsManager));
 
 		this.supportedCodeActionProvider = new SupportedCodeActionProvider(client);
 	}
@@ -340,31 +381,41 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		}
 
 		for (const tsCodeFix of response.body) {
-			results.addAction(this.getSingleFixForTsCodeAction(document, diagnostic, tsCodeFix));
+			for (const action of this.getFixesForTsCodeAction(document, diagnostic, tsCodeFix)) {
+				results.addAction(action);
+			}
 			this.addFixAllForTsCodeAction(results, document.uri, file, diagnostic, tsCodeFix as Proto.CodeFixAction);
 		}
 		return results;
 	}
 
-	private getSingleFixForTsCodeAction(
+	private getFixesForTsCodeAction(
 		document: vscode.TextDocument,
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction
-	): VsCodeCodeAction {
+	): VsCodeCodeAction[] {
+		const actions: VsCodeCodeAction[] = [];
 		const aiQuickFixEnabled = vscode.workspace.getConfiguration('typescript').get('experimental.aiQuickFix');
 		let followupAction: Command | undefined;
 		if (aiQuickFixEnabled && tsAction.fixName === fixNames.classIncorrectlyImplementsInterface) {
 			followupAction = new EditorChatFollowUp('Implement the class using the interface', document, diagnostic.range, this.client);
 		}
 		else if (aiQuickFixEnabled && tsAction.fixName === fixNames.inferFromUsage) {
-			// TODO: "this code" is not specific; not sure if that's important
-			// TODO: Only fires when noImplicitAny is an error
-			// TODO: Seems to replace the inferFromUsage codefix, which is OK by me but maybe not the best.
-			// TODO: Doesn't fire in JS files? Not sure.
-			// TODO: The span for inferFromUsage is smaller than a correct span..and copilot seems to ignore the span anyway.
-			// TODO: When there are "enough" types around, leave off the "Add separate interfaces when possible" because it's not helpful.
-			// TODO: It would be nice to fire on other errors
-			followupAction = new EditorChatFollowUp('Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.', document, diagnostic.range, this.client);
+			// TODO: Only fires when/where noImplicitAny is an error, but I'd like to put a fix on the whole function name.
+			// TODO: Also it would be nice to fire on other errors
+			const inferFromBody = new VsCodeCodeAction(tsAction, 'Copilot: Infer and add types', vscode.CodeActionKind.QuickFix);
+			inferFromBody.edit = new vscode.WorkspaceEdit();
+			inferFromBody.diagnostics = [diagnostic];
+			inferFromBody.command = {
+				command: EditorChatReplacementCommand.ID,
+				arguments: [{
+					message: 'Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.',
+					diagnostic,
+					document } as EditorChatReplacementCommand_args
+				],
+				title: ''
+			};
+			actions.push(inferFromBody);
 		}
 		const codeAction = new VsCodeCodeAction(tsAction, tsAction.description, vscode.CodeActionKind.QuickFix);
 		codeAction.edit = getEditForCodeAction(this.client, tsAction);
@@ -374,7 +425,8 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			arguments: [<ApplyCodeActionCommand_args>{ action: tsAction, diagnostic, document, followupAction }],
 			title: ''
 		};
-		return codeAction;
+		actions.push(codeAction);
+		return actions;
 	}
 
 	private addFixAllForTsCodeAction(
