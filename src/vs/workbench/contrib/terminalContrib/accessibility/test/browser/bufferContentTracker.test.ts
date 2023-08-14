@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { importAMDNodeModule } from 'vs/amdX';
 import { isWindows } from 'vs/base/common/platform';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -61,6 +62,7 @@ suite('Buffer Content Tracker', () => {
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		capabilities = new TerminalCapabilityStore();
 		if (!isWindows) {
