@@ -512,6 +512,22 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		}
 		destination.focus();
 	}
+
+	collapseAllUnchangedRegions(): void {
+		const unchangedRegions = this._diffModel.get()?.unchangedRegions.get();
+		if (!unchangedRegions) { return; }
+		for (const region of unchangedRegions) {
+			region.collapseAll(undefined);
+		}
+	}
+
+	showAllUnchangedRegions(): void {
+		const unchangedRegions = this._diffModel.get()?.unchangedRegions.get();
+		if (!unchangedRegions) { return; }
+		for (const region of unchangedRegions) {
+			region.showAll(undefined);
+		}
+	}
 }
 
 function translatePosition(posInOriginal: Position, mappings: LineRangeMapping[]): Range {
