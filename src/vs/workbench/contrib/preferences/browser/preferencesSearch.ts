@@ -342,7 +342,7 @@ class RemoteSearchProviderKeyCache {
 }
 
 export class RemoteSearchProvider implements ISearchProvider {
-	private static readonly SEMANTIC_SIMILARITY_THRESHOLD = 0.8;
+	private static readonly SEMANTIC_SIMILARITY_THRESHOLD = 0.75;
 	private static readonly SEMANTIC_SIMILARITY_MAX_PICKS = 10;
 
 	private readonly _keysProvider: RemoteSearchProviderKeyCache;
@@ -369,6 +369,7 @@ export class RemoteSearchProvider implements ISearchProvider {
 
 		return this.semanticSimilarityService.getSimilarityScore(this._filter, settingKeys, token ?? CancellationToken.None).then((scores) => {
 			const filterMatches: ISettingMatch[] = [];
+			const foundKeys = new Set<string>();
 			const sortedIndices = scores.map((_, i) => i).sort((a, b) => scores[b] - scores[a]);
 			let numOfSmartPicks = 0;
 			for (const i of sortedIndices) {
@@ -378,13 +379,16 @@ export class RemoteSearchProvider implements ISearchProvider {
 				}
 
 				const pick = settingKeys[i];
-				filterMatches.push({
-					setting: settingsRecord[pick],
-					matches: [settingsRecord[pick].range],
-					matchType: SettingMatchType.RemoteMatch,
-					score
-				});
-				numOfSmartPicks++;
+				if (!foundKeys.has(pick)) {
+					foundKeys.add(pick);
+					filterMatches.push({
+						setting: settingsRecord[pick],
+						matches: [settingsRecord[pick].range],
+						matchType: SettingMatchType.RemoteMatch,
+						score
+					});
+					numOfSmartPicks++;
+				}
 			}
 			return {
 				filterMatches
