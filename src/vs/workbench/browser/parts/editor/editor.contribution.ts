@@ -554,27 +554,18 @@ appendEditorToolItem(
 	11
 );
 
-// Diff Editor Title Menu: Toggle Ignore Trim Whitespace (Enabled)
-appendEditorToolItem(
-	{
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
 		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-		title: localize('ignoreTrimWhitespace.label', "Ignore Leading/Trailing Whitespace Differences"),
-		icon: toggleWhitespace
+		title: localize('ignoreTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
+		icon: toggleWhitespace,
+		precondition: TextCompareEditorActiveContext,
+		toggled: ContextKeyExpr.equals('config.diffEditor.ignoreTrimWhitespace', false),
 	},
-	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', true)),
-	20
-);
-
-// Diff Editor Title Menu: Toggle Ignore Trim Whitespace (Disabled)
-appendEditorToolItem(
-	{
-		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-		title: localize('showTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
-		icon: ThemeIcon.modify(toggleWhitespace, 'disabled')
-	},
-	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', false)),
-	20
-);
+	group: 'navigation',
+	when: TextCompareEditorActiveContext,
+	order: 20,
+});
 
 // Editor Commands for Command Palette
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: KEEP_EDITOR_COMMAND_ID, title: { value: localize('keepEditor', "Keep Editor"), original: 'Keep Editor' }, category: Categories.View }, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
