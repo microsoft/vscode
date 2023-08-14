@@ -186,11 +186,11 @@ export class ActionList<T> extends Disposable {
 			getTemplateId: element => element.kind
 		};
 
-		this._list = this._register(new List(user, this.domNode, virtualDelegate,
-			[
-				new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService),
-				new HeaderRenderer(),
-			], {
+		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
+			new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService),
+			new HeaderRenderer(),
+		], {
+			keyboardSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === ActionListItemKind.Action) {
@@ -205,8 +205,6 @@ export class ActionList<T> extends Disposable {
 				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`An action widget option`] }, "Action Widget"),
 				getRole: (e) => e.kind === ActionListItemKind.Action ? 'option' : 'separator',
 				getWidgetRole: () => 'listbox',
-
-
 			},
 		}));
 		this._list.style(defaultListStyles);
@@ -275,10 +273,6 @@ export class ActionList<T> extends Disposable {
 
 	focusNext() {
 		this._list.focusNext(1, true, undefined, this.focusCondition);
-	}
-
-	triggerType() {
-		this._list.triggerTypeNavigation();
 	}
 
 	acceptSelected(preview?: boolean) {
