@@ -323,6 +323,9 @@ class RemoteSearchProviderKeyCache {
 		}
 
 		for (const group of this.currentPreferencesModel.settingsGroups) {
+			if (group.id === 'mostCommonlyUsed') {
+				continue;
+			}
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
 					this.settingKeys.push(setting.key);
@@ -369,7 +372,6 @@ export class RemoteSearchProvider implements ISearchProvider {
 
 		return this.semanticSimilarityService.getSimilarityScore(this._filter, settingKeys, token ?? CancellationToken.None).then((scores) => {
 			const filterMatches: ISettingMatch[] = [];
-			const foundKeys = new Set<string>();
 			const sortedIndices = scores.map((_, i) => i).sort((a, b) => scores[b] - scores[a]);
 			let numOfSmartPicks = 0;
 			for (const i of sortedIndices) {
@@ -379,16 +381,13 @@ export class RemoteSearchProvider implements ISearchProvider {
 				}
 
 				const pick = settingKeys[i];
-				if (!foundKeys.has(pick)) {
-					foundKeys.add(pick);
-					filterMatches.push({
-						setting: settingsRecord[pick],
-						matches: [settingsRecord[pick].range],
-						matchType: SettingMatchType.RemoteMatch,
-						score
-					});
-					numOfSmartPicks++;
-				}
+				filterMatches.push({
+					setting: settingsRecord[pick],
+					matches: [settingsRecord[pick].range],
+					matchType: SettingMatchType.RemoteMatch,
+					score
+				});
+				numOfSmartPicks++;
 			}
 			return {
 				filterMatches
