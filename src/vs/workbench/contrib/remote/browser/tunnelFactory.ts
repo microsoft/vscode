@@ -12,8 +12,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { forwardedPortsViewEnabled } from 'vs/workbench/services/remote/common/tunnelModel';
 
 export class TunnelFactoryContribution extends Disposable implements IWorkbenchContribution {
 

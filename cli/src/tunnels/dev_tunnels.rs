@@ -31,7 +31,7 @@ use tunnels::management::{
 	NO_REQUEST_OPTIONS,
 };
 
-use super::protocol::PortPrivacy;
+use super::protocol::{self, PortPrivacy};
 use super::wsl_detect::is_wsl_installed;
 
 static TUNNEL_COUNT_LIMIT_NAME: &str = "TunnelsPerUserPerLocation";
@@ -202,6 +202,11 @@ impl ActiveTunnel {
 	pub fn get_port_uri(&self, port: u16) -> Result<String, AnyError> {
 		self.get_port_format()
 			.map(|f| f.replace(PORT_TOKEN, &port.to_string()))
+	}
+
+	/// Gets an object to read the current tunnel status.
+	pub fn status(&self) -> StatusLock {
+		self.manager.get_status()
 	}
 }
 
@@ -843,10 +848,36 @@ impl DevTunnels {
 	}
 }
 
+#[derive(Clone, Default)]
+pub struct StatusLock(Arc<std::sync::Mutex<protocol::singleton::Status>>);
+
+impl StatusLock {
+	fn succeed(&self) {
+		let mut status = self.0.lock().unwrap();
+		status.tunnel = protocol::singleton::TunnelState::Connected;
+		status.last_connected_at = Some(chrono::Utc::now());
+	}
+
+	fn fail(&self, reason: String) {
+		let mut status = self.0.lock().unwrap();
+		if let protocol::singleton::TunnelState::Connected = status.tunnel {
+			status.last_disconnected_at = Some(chrono::Utc::now());
+			status.tunnel = protocol::singleton::TunnelState::Disconnected;
+		}
+		status.last_fail_reason = Some(reason);
+	}
+
+	pub fn read(&self) -> protocol::singleton::Status {
+		let status = self.0.lock().unwrap();
+		status.clone()
+	}
+}
+
 struct ActiveTunnelManager {
 	close_tx: Option<mpsc::Sender<()>>,
 	endpoint_rx: watch::Receiver<Option<Result<TunnelRelayTunnelEndpoint, WrappedError>>>,
 	relay: Arc<tokio::sync::Mutex<RelayTunnelHost>>,
+	status: StatusLock,
 }
 
 impl ActiveTunnelManager {
@@ -862,6 +893,9 @@ impl ActiveTunnelManager {
 		let relay = Arc::new(tokio::sync::Mutex::new(RelayTunnelHost::new(locator, mgmt)));
 		let relay_spawned = relay.clone();
 
+		let status = StatusLock::default();
+
+		let status_spawned = status.clone();
 		tokio::spawn(async move {
 			ActiveTunnelManager::spawn_tunnel(
 				log,
@@ -869,6 +903,7 @@ impl ActiveTunnelManager {
 				close_rx,
 				endpoint_tx,
 				access_token,
+				status_spawned,
 			)
 			.await;
 		});
@@ -877,7 +912,13 @@ impl ActiveTunnelManager {
 			endpoint_rx,
 			relay,
 			close_tx: Some(close_tx),
+			status,
 		}
+	}
+
+	/// Gets a copy of the current tunnel status information
+	pub fn get_status(&self) -> StatusLock {
+		self.status.clone()
 	}
 
 	/// Adds a port for TCP/IP forwarding.
@@ -967,12 +1008,15 @@ impl ActiveTunnelManager {
 		mut close_rx: mpsc::Receiver<()>,
 		endpoint_tx: watch::Sender<Option<Result<TunnelRelayTunnelEndpoint, WrappedError>>>,
 		access_token_provider: impl AccessTokenProvider + 'static,
+		status: StatusLock,
 	) {
 		let mut backoff = Backoff::new(Duration::from_secs(5), Duration::from_secs(120));
 
 		macro_rules! fail {
 			($e: expr, $msg: expr) => {
-				warning!(log, "{}: {}", $msg, $e);
+				let fmt = format!("{}: {}", $msg, $e);
+				warning!(log, &fmt);
+				status.fail(fmt);
 				endpoint_tx.send(Some(Err($e))).ok();
 				backoff.delay().await;
 			};
@@ -1008,6 +1052,7 @@ impl ActiveTunnelManager {
 			};
 
 			backoff.reset();
+			status.succeed();
 			endpoint_tx.send(Some(Ok(handle.endpoint().clone()))).ok();
 
 			tokio::select! {
