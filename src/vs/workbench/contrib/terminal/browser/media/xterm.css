@@ -78,11 +78,11 @@
 	white-space: nowrap;
 	overflow: hidden;
 	resize: none;
-	/** Uncomment for testing purposes */
-	z-index: 36 !important;
+	/** Uncomment the below for textarea testing purposes */
+	/* z-index: 36 !important;
 	opacity: 1 !important;
 	left: 0 !important;
-	width: fit-content !important;
+	width: fit-content !important; */
 }
 
 .monaco-workbench .xterm .xterm-helper-textarea:focus {
@@ -90,7 +90,7 @@
 	opacity: 0 !important;
 
 	/** Uncomment the below for testing purposes */
-	opacity: 1 !important;
+	/* opacity: 1 !important; */
 }
 
 .xterm .composition-view {
