@@ -293,8 +293,7 @@ function shiftDiffToBetterPosition(diff: SequenceDiff, sequence1: ISequence, seq
 	while (
 		diff.seq1Range.start - deltaBefore >= seq1ValidRange.start &&
 		diff.seq2Range.start - deltaBefore >= seq2ValidRange.start &&
-		sequence2.getElement(diff.seq2Range.start - deltaBefore) ===
-		sequence2.getElement(diff.seq2Range.endExclusive - deltaBefore) && deltaBefore < maxShiftLimit
+		sequence2.isStronglyEqual(diff.seq2Range.start - deltaBefore, diff.seq2Range.endExclusive - deltaBefore) && deltaBefore < maxShiftLimit
 	) {
 		deltaBefore++;
 	}
@@ -304,8 +303,7 @@ function shiftDiffToBetterPosition(diff: SequenceDiff, sequence1: ISequence, seq
 	while (
 		diff.seq1Range.start + deltaAfter < seq1ValidRange.endExclusive &&
 		diff.seq2Range.endExclusive + deltaAfter < seq2ValidRange.endExclusive &&
-		sequence2.getElement(diff.seq2Range.start + deltaAfter) ===
-		sequence2.getElement(diff.seq2Range.endExclusive + deltaAfter) && deltaAfter < maxShiftLimit
+		sequence2.isStronglyEqual(diff.seq2Range.start + deltaAfter, diff.seq2Range.endExclusive + deltaAfter) && deltaAfter < maxShiftLimit
 	) {
 		deltaAfter++;
 	}

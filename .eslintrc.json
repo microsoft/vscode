@@ -240,6 +240,7 @@
 							"console",
 							"cookie",
 							"crypto",
+							"dns",
 							"electron",
 							"events",
 							"fs",

@@ -48,7 +48,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
 import { WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
@@ -345,7 +344,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				action.id,
 				action.label,
 				action.alias,
-				withNullAsUndefined(action.precondition),
+				action.precondition ?? undefined,
 				(): Promise<void> => {
 					return this._instantiationService.invokeFunction((accessor) => {
 						return Promise.resolve(action.runEditorCommand(accessor, this, null));

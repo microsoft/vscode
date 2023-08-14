@@ -15,7 +15,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
@@ -74,7 +74,7 @@ class InputEditorDecorations extends Disposable {
 
 	private getPlaceholderColor(): string | undefined {
 		const theme = this.themeService.getColorTheme();
-		const transparentForeground = theme.getColor(editorForeground)?.transparent(0.4);
+		const transparentForeground = theme.getColor(inputPlaceholderForeground);
 		return transparentForeground?.toString();
 	}
 
@@ -126,7 +126,6 @@ class InputEditorDecorations extends Disposable {
 						after: {
 							contentText: shouldRenderFollowupPlaceholder ? command.followupPlaceholder : command.detail,
 							color: this.getPlaceholderColor(),
-							padding: '0 0 0 3px'
 						}
 					}
 				}];

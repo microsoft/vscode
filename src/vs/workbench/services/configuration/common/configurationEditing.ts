@@ -20,7 +20,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenSettingsOptions, IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ITextModel } from 'vs/editor/common/model';
 import { IReference } from 'vs/base/common/lifecycle';
@@ -569,14 +568,14 @@ export class ConfigurationEditing {
 				// Check for prefix
 				if (config.key === key) {
 					const jsonPath = this.isWorkspaceConfigurationResource(resource) ? [key] : [];
-					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource: withNullAsUndefined(resource), workspaceStandAloneConfigurationKey: key, target };
+					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource: resource ?? undefined, workspaceStandAloneConfigurationKey: key, target };
 				}
 
 				// Check for prefix.<setting>
 				const keyPrefix = `${key}.`;
 				if (config.key.indexOf(keyPrefix) === 0) {
 					const jsonPath = this.isWorkspaceConfigurationResource(resource) ? [key, config.key.substr(keyPrefix.length)] : [config.key.substr(keyPrefix.length)];
-					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource: withNullAsUndefined(resource), workspaceStandAloneConfigurationKey: key, target };
+					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource: resource ?? undefined, workspaceStandAloneConfigurationKey: key, target };
 				}
 			}
 		}
@@ -586,14 +585,14 @@ export class ConfigurationEditing {
 		const configurationScope = configurationProperties[key]?.scope;
 		let jsonPath = overrides.overrideIdentifiers?.length ? [keyFromOverrideIdentifiers(overrides.overrideIdentifiers), key] : [key];
 		if (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE) {
-			return { key, jsonPath, value: config.value, resource: withNullAsUndefined(this.getConfigurationFileResource(target, key, '', null, configurationScope)), target };
+			return { key, jsonPath, value: config.value, resource: this.getConfigurationFileResource(target, key, '', null, configurationScope) ?? undefined, target };
 		}
 
 		const resource = this.getConfigurationFileResource(target, key, FOLDER_SETTINGS_PATH, overrides.resource, configurationScope);
 		if (this.isWorkspaceConfigurationResource(resource)) {
 			jsonPath = ['settings', ...jsonPath];
 		}
-		return { key, jsonPath, value: config.value, resource: withNullAsUndefined(resource), target };
+		return { key, jsonPath, value: config.value, resource: resource ?? undefined, target };
 	}
 
 	private isWorkspaceConfigurationResource(resource: URI | null): boolean {
@@ -622,7 +621,7 @@ export class ConfigurationEditing {
 
 			if (target === EditableConfigurationTarget.WORKSPACE) {
 				if (workbenchState === WorkbenchState.WORKSPACE) {
-					return withUndefinedAsNull(workspace.configuration);
+					return workspace.configuration ?? null;
 				}
 				if (workbenchState === WorkbenchState.FOLDER) {
 					return workspace.folders[0].toResource(relativePath);

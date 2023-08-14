@@ -20,7 +20,7 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
+      versionSpec: "18.x"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml
@@ -126,6 +126,7 @@ steps:
         docker run -e GITHUB_TOKEN -e npm_config_arch -e NPM_REGISTRY \
         -e VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME -e VSCODE_HOST_MOUNT \
         -e ELECTRON_SKIP_BINARY_DOWNLOAD -e PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD \
+        -e VSCODE_SKIP_NODE_VERSION_CHECK \
         -v /mnt/vss/_work/1/s:/home/builduser/vscode -v /mnt/vss/_work/1/s/.build/.netrc:/home/builduser/.netrc \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -u 1000:1000 \
@@ -138,6 +139,7 @@ steps:
         NPM_REGISTRY: "$(NPM_REGISTRY)"
         ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+        VSCODE_SKIP_NODE_VERSION_CHECK: 1
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
         VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
         ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
@@ -150,6 +152,8 @@ steps:
       displayName: Mixin distro node modules
 
   - ${{ else }}:
+    # Ref https://github.com/microsoft/vscode/issues/189019
+    # for the node-gyp rebuild step
     - script: |
         set -e
 
@@ -161,6 +165,9 @@ steps:
           fi
           echo "Yarn failed $i, trying again..."
         done
+
+        cd node_modules/native-keymap && npx node-gyp@9.4.0 -y rebuild --debug
+        cd ../.. && ./.github/workflows/check-clean-git-state.sh
       env:
         npm_config_arch: $(NPM_ARCH)
         ELECTRON_SKIP_BINARY_DOWNLOAD: 1
