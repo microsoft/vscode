@@ -60,6 +60,7 @@ export interface ITestRunProfile {
 	tag: string | null;
 	hasConfigurationHandler: boolean;
 	supportsContinuousRun: boolean;
+	saveOnRun: boolean;
 }
 
 /**
@@ -76,6 +77,8 @@ export interface ResolvedTestRunRequest {
 	exclude?: string[];
 	/** Whether this is a continuous test run */
 	continuous?: boolean;
+	/** Whether to save all files before executing this run */
+	saveOnRun?: boolean;
 	/** Whether this was trigged by a user action in UI. Default=true */
 	isUiTriggered?: boolean;
 }
@@ -92,6 +95,8 @@ export interface ExtensionRunTestsRequest {
 	persist: boolean;
 	/** Whether this is a result of a continuous test run request */
 	continuous: boolean;
+	/** Whether to save all files before executing this run */
+	saveOnRun: boolean;
 }
 
 /**

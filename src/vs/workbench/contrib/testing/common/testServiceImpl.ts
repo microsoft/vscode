@@ -134,6 +134,7 @@ export class TestService extends Disposable implements ITestService {
 			targets: [],
 			exclude: req.exclude?.map(t => t.item.extId),
 			continuous: req.continuous,
+			saveOnRun: req.saveOnRun
 		};
 
 		// First, try to run the tests using the default run profiles...
@@ -253,7 +254,9 @@ export class TestService extends Disposable implements ITestService {
 					}
 				})
 			);
-			await this.saveAllBeforeTest(req);
+			if (req.saveOnRun) {
+				await this.saveAllBeforeTest(req);
+			}
 			await Promise.all(requests);
 			return result;
 		} finally {

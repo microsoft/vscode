@@ -851,6 +851,7 @@ abstract class RunTestDecoration {
 				}
 
 				this.testService.runResolvedTests({
+					saveOnRun: profile.saveOnRun,
 					targets: [{
 						profileGroup: profile.group,
 						profileId: profile.profileId,
