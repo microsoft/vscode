@@ -20,7 +20,6 @@ import { Memento } from 'vs/workbench/common/memento';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { IViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-// import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
