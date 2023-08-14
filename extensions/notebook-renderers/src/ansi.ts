@@ -5,7 +5,6 @@
 
 import { RGBA, Color } from './color';
 import { ansiColorIdentifiers } from './colorMap';
-import { ttPolicy } from './htmlHelper';
 import { linkify } from './linkify';
 
 
