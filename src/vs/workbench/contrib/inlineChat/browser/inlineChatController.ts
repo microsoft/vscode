@@ -373,7 +373,7 @@ export class InlineChatController implements IEditorContribution {
 					this._activeSession.textModelN.uri,
 					this._activeSession.textModelN.getAlternativeVersionId(),
 					{
-						id: 2,
+						id: Number.MAX_VALUE,
 						type: InlineChatResponseType.EditorEdit,
 						edits: options.edits
 					},

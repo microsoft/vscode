@@ -226,9 +226,10 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void {
 		const entry = this._inputProvider.get(handle);
 		const sessionData = this._inputSessions.get(sessionId);
-		const response = sessionData?.responses[responseId];
+		// Allows to handle feedback on Edit Only triggers
+		const response = responseId === Number.MAX_VALUE ? { edits: [] } : sessionData?.responses[responseId];
 
-		if (entry && response) {
+		if (entry && sessionData?.session && response) {
 			// todo@jrieken move to type converter
 			let apiKind: extHostTypes.InteractiveEditorResponseFeedbackKind;
 			switch (kind) {
