@@ -17,11 +17,11 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { inputActiveOptionBackground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 registerColor(
 	'actionBar.toggledBackground',
-	{ dark: '#383a49', light: '#dddddd', hcDark: '#383a49', hcLight: '#dddddd', },
+	{ dark: inputActiveOptionBackground, light: inputActiveOptionBackground, hcDark: inputActiveOptionBackground, hcLight: inputActiveOptionBackground, },
 	localize('actionBar.toggledBackground', 'Background color for toggled action items in action bar.')
 );
 
