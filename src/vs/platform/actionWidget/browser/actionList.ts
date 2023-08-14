@@ -346,7 +346,7 @@ export class ActionList<T> extends Disposable {
 				if (result) {
 					this._list.setFocus([menuItem.index]);
 					if (result[0].start === 0) {
-						// Breaks when finds first found instance of match [0,1] to [0,1]
+						// Breaks when finds first found instance of match [0,1+] to [0,1+]
 						break;
 					}
 				}
