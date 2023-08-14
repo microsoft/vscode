@@ -89,7 +89,7 @@
 	/* Override the general vscode style applies `opacity:1!important` to textareas */
 	opacity: 0 !important;
 
-	/** Uncomment the below for testing purposes */
+	/** Uncomment the below for textarea testing purposes */
 	/* opacity: 1 !important; */
 }
 
