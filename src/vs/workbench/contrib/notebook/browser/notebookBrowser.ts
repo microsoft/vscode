@@ -549,6 +549,8 @@ export interface INotebookEditor {
 	 */
 	updateOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
 
+	copyImage(cellOutput: ICellOutputViewModel): Promise<void>;
+
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage>;
 
 	/**

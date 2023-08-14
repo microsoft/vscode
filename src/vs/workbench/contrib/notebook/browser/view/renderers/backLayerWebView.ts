@@ -1543,6 +1543,19 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return;
 	}
 
+	async copyImage(output: ICellOutputViewModel): Promise<void> {
+		const mimeType = output.pickedMimeType?.mimeType;
+		const imageOutput = output.model.outputs.find(out => out.mime === mimeType);
+		if (!imageOutput) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'copyImage',
+			data: imageOutput.data.buffer
+		});
+	}
+
 	removeInsets(outputs: readonly ICellOutputViewModel[]): void {
 		if (this._disposed) {
 			return;

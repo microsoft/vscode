@@ -12,6 +12,8 @@ import { NOTEBOOK_CELL_HAS_OUTPUTS } from 'vs/workbench/contrib/notebook/common/
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ILogService } from 'vs/platform/log/common/log';
 import { copyCellOutput } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 
 export const COPY_OUTPUT_COMMAND_ID = 'notebook.cellOutput.copyToClipboard';
 
@@ -37,5 +39,12 @@ registerAction2(class CopyCellOutputAction extends NotebookAction {
 		const logService = accessor.get(ILogService);
 
 		copyCellOutput(mimeType, outputViewModel, clipboardService, logService);
+
+		if (mimeType === 'image/png') {
+			const editorService = accessor.get(IEditorService);
+			const editor = editorService.activeEditorPane?.getControl() as NotebookEditor;
+			
+
+		}
 	}
 });
