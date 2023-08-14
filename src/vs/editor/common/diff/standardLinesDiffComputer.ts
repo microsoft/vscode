@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, findLastIndex, numberComparator, reverseOrder } from 'vs/base/common/arrays';
+import { compareBy, equals, findLastIndex, numberComparator, reverseOrder } from 'vs/base/common/arrays';
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { CharCode } from 'vs/base/common/charCode';
 import { SetMap } from 'vs/base/common/collections';
@@ -22,23 +22,23 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 	private readonly myersDiffingAlgorithm = new MyersDiffAlgorithm();
 
 	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): LinesDiff {
+		if (originalLines.length <= 1 && equals(originalLines, modifiedLines, (a, b) => a === b)) {
+			return new LinesDiff([], [], false);
+		}
+
 		if (originalLines.length === 1 && originalLines[0].length === 0 || modifiedLines.length === 1 && modifiedLines[0].length === 0) {
-			return {
-				changes: [
-					new LineRangeMapping(
-						new LineRange(1, originalLines.length + 1),
-						new LineRange(1, modifiedLines.length + 1),
-						[
-							new RangeMapping(
-								new Range(1, 1, originalLines.length, originalLines[0].length + 1),
-								new Range(1, 1, modifiedLines.length, modifiedLines[0].length + 1)
-							)
-						]
-					)
-				],
-				hitTimeout: false,
-				moves: [],
-			};
+			return new LinesDiff([
+				new LineRangeMapping(
+					new LineRange(1, originalLines.length + 1),
+					new LineRange(1, modifiedLines.length + 1),
+					[
+						new RangeMapping(
+							new Range(1, 1, originalLines.length, originalLines[0].length + 1),
+							new Range(1, 1, modifiedLines.length, modifiedLines[0].length + 1)
+						)
+					]
+				)
+			], [], false);
 		}
 
 		const timeout = options.maxComputationTimeMs === 0 ? InfiniteTimeout.instance : new DateTimeout(options.maxComputationTimeMs);
