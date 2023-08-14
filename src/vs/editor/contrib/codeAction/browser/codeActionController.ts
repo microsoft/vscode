@@ -254,12 +254,11 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			}
 		};
 
-		const allMenuItems = toMenuItems(actionsToShow, this._shouldShowHeaders(), this._resolver.getResolver());
 
 		this._actionWidgetService.show(
 			'codeActionWidget',
 			true,
-			allMenuItems,
+			toMenuItems(actionsToShow, this._shouldShowHeaders(), this._resolver.getResolver()),
 			delegate,
 			anchor,
 			editorDom,
