@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostChatVariablesShape, IMainContext, MainContext, MainThreadChatVariablesShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IChatResolvedVariable, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 export class ExtHostChatVariables implements ExtHostChatVariablesShape {
@@ -22,7 +22,7 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatVariables);
 	}
 
-	async $resolveVariable(handle: number, token: CancellationToken): Promise<IChatResolvedVariable | undefined> {
+	async $resolveVariable(handle: number, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined> {
 		const item = this._resolver.get(handle);
 		if (!item) {
 			return undefined;

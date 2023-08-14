@@ -75,7 +75,7 @@ import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
-import { IChatResolvedVariable, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -1152,7 +1152,7 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 }
 
 export interface ExtHostChatVariablesShape {
-	$resolveVariable(handle: number, token: CancellationToken): Promise<IChatResolvedVariable | undefined>;
+	$resolveVariable(handle: number, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {
@@ -1187,6 +1187,7 @@ export interface IChatDto {
 
 export interface IChatRequestDto {
 	message: string | IChatReplyFollowup;
+	variables?: Record<string, IChatRequestVariableValue[]>;
 }
 
 export interface IChatResponseDto {

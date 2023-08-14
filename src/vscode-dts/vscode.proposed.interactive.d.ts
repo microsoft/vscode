@@ -105,16 +105,10 @@ declare module 'vscode' {
 		args: any;
 	}
 
-	export interface ResolvedVariableInRequest {
-		name: string;
-		content: string;
-	}
-
-	export type ParsedRequest = (string | ResolvedVariableInRequest)[];
 
 	export interface InteractiveRequest {
 		session: InteractiveSession;
-		message: ParsedRequest | InteractiveSessionReplyFollowup;
+		message: string | InteractiveSessionReplyFollowup;
 	}
 
 	export interface InteractiveResponseErrorDetails {

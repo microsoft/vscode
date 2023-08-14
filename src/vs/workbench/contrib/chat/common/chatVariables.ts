@@ -14,14 +14,15 @@ export interface IChatVariableData {
 	description: string;
 }
 
-export interface IChatResolvedVariable {
-	// TODO should we allow for multiple levels
-	content: string;
+export interface IChatRequestVariableValue {
+	level: 'short' | 'medium' | 'full';
+	value: string;
+	description?: string;
 }
 
 export interface IChatVariableResolver {
 	// TODO should we spec "zoom level"
-	(token: CancellationToken): Promise<IChatResolvedVariable | undefined>;
+	(token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
 }
 
 export const IChatVariablesService = createDecorator<IChatVariablesService>('IChatVariablesService');
@@ -34,10 +35,7 @@ export interface IChatVariablesService {
 	/**
 	 * Resolves all variables that occur in `prompt`
 	 */
-	resolveVariables(prompt: string, token: CancellationToken): Promise<ReadonlyMap<string, IChatResolvedVariable>>;
-
-	// TODO is this needed?
-	resolveVariable(name: string, token: CancellationToken): Promise<IChatResolvedVariable | undefined>;
+	resolveVariables(prompt: string, token: CancellationToken): Promise<Record<string, IChatRequestVariableValue[]>>;
 }
 
 type ChatData = [data: IChatVariableData, resolver: IChatVariableResolver];
@@ -60,12 +58,17 @@ export class ChatVariablesService implements IChatVariablesService {
 			{ name: 'workspace', description: 'Details of your workspace' },
 			{ name: 'vscode', description: 'Commands and settings in vscode' },
 		].forEach(item => {
-			this.registerVariable(item, async () => ({ content: item.name }));
+			this.registerVariable(item, async () => {
+				return [{
+					level: 'short',
+					value: item.name
+				}];
+			});
 		});
 	}
 
-	async resolveVariables(prompt: string, token: CancellationToken): Promise<ReadonlyMap<string, IChatResolvedVariable>> {
-		const resolvedVariables = new Map<string, IChatResolvedVariable>();
+	async resolveVariables(prompt: string, token: CancellationToken): Promise<Record<string, IChatRequestVariableValue[]>> {
+		const resolvedVariables: Record<string, IChatRequestVariableValue[]> = {};
 		const jobs: Promise<any>[] = [];
 
 		const regex = /(^|\s)@(\w+)(\s|$)/ig;
@@ -77,7 +80,7 @@ export class ChatVariablesService implements IChatVariablesService {
 			if (data) {
 				jobs.push(data[1](token).then(value => {
 					if (value) {
-						resolvedVariables.set(candidate, value);
+						resolvedVariables[candidate] = value;
 					}
 				}).catch(onUnexpectedExternalError));
 			}
@@ -101,15 +104,5 @@ export class ChatVariablesService implements IChatVariablesService {
 		return toDisposable(() => {
 			this._resolver.delete(key);
 		});
-	}
-
-	resolveVariable(name: string, token: CancellationToken): Promise<IChatResolvedVariable | undefined> {
-		const key = name.toLowerCase();
-		const chatData = this._resolver.get(key);
-		if (!chatData) {
-			throw new Error(`A chat variable with the name '${name}' does not exist.`);
-		}
-		const [, resolver] = chatData;
-		return Promise.resolve(resolver(token));
 	}
 }

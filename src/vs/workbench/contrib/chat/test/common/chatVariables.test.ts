@@ -17,38 +17,38 @@ suite('ChatVariables', function () {
 
 
 	test('ChatVariables - resolveVariables', async function () {
-		service.registerVariable({ name: 'foo', description: 'bar' }, async () => ({ content: 'farboo' }));
-		service.registerVariable({ name: 'far', description: 'boo' }, async () => ({ content: 'farboo' }));
+		service.registerVariable({ name: 'foo', description: 'bar' }, async () => ([{ level: 'full', value: 'farboo' }]));
+		service.registerVariable({ name: 'far', description: 'boo' }, async () => ([{ level: 'full', value: 'farboo' }]));
 
 		{
 			const data = await service.resolveVariables('Hello @foo and@far', CancellationToken.None);
-			assert.strictEqual(data.size, 1);
-			assert.deepEqual([...data.keys()].sort(), ['foo']);
+			assert.strictEqual(Object.keys(data).length, 1);
+			assert.deepEqual(Object.keys(data).sort(), ['foo']);
 		}
 		{
 			const data = await service.resolveVariables('@foo Hello', CancellationToken.None);
-			assert.strictEqual(data.size, 1);
-			assert.deepEqual([...data.keys()].sort(), ['foo']);
+			assert.strictEqual(Object.keys(data).length, 1);
+			assert.deepEqual(Object.keys(data).sort(), ['foo']);
 		}
 		{
 			const data = await service.resolveVariables('Hello @foo', CancellationToken.None);
-			assert.strictEqual(data.size, 1);
-			assert.deepEqual([...data.keys()].sort(), ['foo']);
+			assert.strictEqual(Object.keys(data).length, 1);
+			assert.deepEqual(Object.keys(data).sort(), ['foo']);
 		}
 		{
 			const data = await service.resolveVariables('Hello @foo and@far @foo', CancellationToken.None);
-			assert.strictEqual(data.size, 1);
-			assert.deepEqual([...data.keys()].sort(), ['foo']);
+			assert.strictEqual(Object.keys(data).length, 1);
+			assert.deepEqual(Object.keys(data).sort(), ['foo']);
 		}
 		{
 			const data = await service.resolveVariables('Hello @foo and @far @foo', CancellationToken.None);
-			assert.strictEqual(data.size, 2);
-			assert.deepEqual([...data.keys()].sort(), ['far', 'foo']);
+			assert.strictEqual(Object.keys(data).length, 2);
+			assert.deepEqual(Object.keys(data).sort(), ['far', 'foo']);
 		}
 		{
 			const data = await service.resolveVariables('Hello @foo and @far @foo @unknown', CancellationToken.None);
-			assert.strictEqual(data.size, 2);
-			assert.deepEqual([...data.keys()].sort(), ['far', 'foo']);
+			assert.strictEqual(Object.keys(data).length, 2);
+			assert.deepEqual(Object.keys(data).sort(), ['far', 'foo']);
 		}
 	});
 });
