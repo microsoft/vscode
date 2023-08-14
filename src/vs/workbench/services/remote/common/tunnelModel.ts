@@ -557,13 +557,14 @@ export class TunnelModel extends Disposable {
 				for (const tunnel of tunnels) {
 					const alreadyForwarded = mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.remoteHost, tunnel.remotePort);
 					// Extension forwarded ports should only be updated, not restored.
-					if ((tunnel.source.source === TunnelSource.User && !alreadyForwarded) || (tunnel.source.source === TunnelSource.Extension && alreadyForwarded)) {
+					if ((tunnel.source.source !== TunnelSource.Extension && !alreadyForwarded) || (tunnel.source.source === TunnelSource.Extension && alreadyForwarded)) {
 						await this.forward({
 							remote: { host: tunnel.remoteHost, port: tunnel.remotePort },
 							local: tunnel.localPort,
 							name: tunnel.name,
 							privacy: tunnel.privacy,
-							elevateIfNeeded: true
+							elevateIfNeeded: true,
+							source: tunnel.source
 						});
 					} else if (tunnel.source.source === TunnelSource.Extension && !alreadyForwarded) {
 						this.unrestoredExtensionTunnels.set(makeAddress(tunnel.remoteHost, tunnel.remotePort), tunnel);
@@ -588,7 +589,7 @@ export class TunnelModel extends Disposable {
 	@debounce(1000)
 	private async storeForwarded() {
 		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
-			const valueToStore = JSON.stringify(Array.from(this.forwarded.values()).filter(value => value.source.source !== TunnelSource.Auto));
+			const valueToStore = JSON.stringify(Array.from(this.forwarded.values()));
 			if (valueToStore !== this.knownPortsRestoreValue) {
 				this.knownPortsRestoreValue = valueToStore;
 				const key = await this.getStorageKey();
