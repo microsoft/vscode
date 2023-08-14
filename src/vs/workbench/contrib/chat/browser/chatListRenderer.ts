@@ -661,16 +661,28 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 			default:
 				commandFollowUpInfo = localize('commandFollowUpInfoMany', "Commands: {0}", element.commandFollowups!.map(followup => followup.title).join(', '));
 		}
+		const fileTreeCount = element.response.value.filter((v) => !('value' in v))?.length ?? 0;
+		let fileTreeCountHint = '';
+		switch (fileTreeCount) {
+			case 0:
+				break;
+			case 1:
+				fileTreeCountHint = localize('singleFileTreeHint', "1 file tree");
+				break;
+			default:
+				fileTreeCountHint = localize('multiFileTreeHint', "{0} file trees", fileTreeCount);
+				break;
+		}
 		const codeBlockCount = marked.lexer(element.response.asString()).filter(token => token.type === 'code')?.length ?? 0;
 		switch (codeBlockCount) {
 			case 0:
-				label = accessibleViewHint ? localize('noCodeBlocksHint', "{0} {1}", element.response.asString(), accessibleViewHint) : localize('noCodeBlocks', "{0}", element.response.asString());
+				label = accessibleViewHint ? localize('noCodeBlocksHint', "{0} {1} {2}", fileTreeCountHint, element.response.asString(), accessibleViewHint) : localize('noCodeBlocks', "{0} {1}", fileTreeCountHint, element.response.asString());
 				break;
 			case 1:
-				label = accessibleViewHint ? localize('singleCodeBlockHint', "1 code block: {0} {1}", element.response.asString(), accessibleViewHint) : localize('singleCodeBlock', "1 code block: {0}", element.response.asString());
+				label = accessibleViewHint ? localize('singleCodeBlockHint', "{0} 1 code block: {1} {2}", fileTreeCountHint, element.response.asString(), accessibleViewHint) : localize('singleCodeBlock', "{0} 1 code block: {1}", fileTreeCountHint, element.response.asString());
 				break;
 			default:
-				label = accessibleViewHint ? localize('multiCodeBlockHint', "{0} code blocks: {1}", codeBlockCount, element.response.asString(), accessibleViewHint) : localize('multiCodeBlock', "{0} code blocks", codeBlockCount, element.response.asString());
+				label = accessibleViewHint ? localize('multiCodeBlockHint', "{0} {1} code blocks: {2}", fileTreeCountHint, codeBlockCount, element.response.asString(), accessibleViewHint) : localize('multiCodeBlock', "{0} {1} code blocks", fileTreeCountHint, codeBlockCount, element.response.asString());
 				break;
 		}
 		return commandFollowUpInfo ? commandFollowUpInfo + ', ' + label : label;
