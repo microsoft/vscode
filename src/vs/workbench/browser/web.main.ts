@@ -73,7 +73,7 @@ import { DelayedLogChannel } from 'vs/workbench/services/output/common/delayedLo
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
-import { IRemoteExplorerService, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { DisposableTunnel, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
@@ -92,6 +92,11 @@ import { BrowserRemoteResourceLoader } from 'vs/workbench/services/remote/browse
 import { BufferLogger } from 'vs/platform/log/common/bufferLog';
 import { FileLoggerService } from 'vs/platform/log/common/fileLog';
 import { IEmbedderTerminalService } from 'vs/workbench/services/terminal/common/embedderTerminalService';
+import { BrowserSecretStorageService } from 'vs/workbench/services/secrets/browser/secretStorageService';
+import { EncryptionService } from 'vs/workbench/services/encryption/browser/encryptionService';
+import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
+import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
+import { TunnelSource } from 'vs/workbench/services/remote/common/tunnelModel';
 
 export class BrowserMain extends Disposable {
 
@@ -205,6 +210,10 @@ export class BrowserMain extends Disposable {
 							requireLocalPort: undefined,
 							protocol: tunnelOptions.protocol === TunnelProtocol.Https ? tunnelOptions.protocol : TunnelProtocol.Http
 						}));
+
+						if (typeof tunnel === 'string') {
+							throw new Error(tunnel);
+						}
 
 						return new class extends DisposableTunnel implements ITunnel {
 							declare localAddress: string;
@@ -384,9 +393,14 @@ export class BrowserMain extends Disposable {
 		const credentialsService = new BrowserCredentialsService(environmentService, remoteAgentService, productService);
 		serviceCollection.set(ICredentialsService, credentialsService);
 
+		const encryptionService = new EncryptionService();
+		serviceCollection.set(IEncryptionService, encryptionService);
+		const secretStorageService = new BrowserSecretStorageService(storageService, encryptionService, environmentService, logService);
+		serviceCollection.set(ISecretStorageService, secretStorageService);
+
 		// Userdata Initialize Service
 		const userDataInitializers: IUserDataInitializer[] = [];
-		userDataInitializers.push(new UserDataSyncInitializer(environmentService, credentialsService, userDataSyncStoreManagementService, fileService, userDataProfilesService, storageService, productService, requestService, logService, uriIdentityService));
+		userDataInitializers.push(new UserDataSyncInitializer(environmentService, secretStorageService, credentialsService, userDataSyncStoreManagementService, fileService, userDataProfilesService, storageService, productService, requestService, logService, uriIdentityService));
 		if (environmentService.options.profile) {
 			userDataInitializers.push(new UserDataProfileInitializer(environmentService, fileService, userDataProfileService, storageService, logService, uriIdentityService, requestService));
 		}

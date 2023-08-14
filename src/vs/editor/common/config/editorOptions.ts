@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as arrays from 'vs/base/common/arrays';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/base/common/uint';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
+import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
+import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as arrays from 'vs/base/common/arrays';
-import * as objects from 'vs/base/common/objects';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
-import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 //#region typed options
 
@@ -58,6 +58,11 @@ export interface IEditorOptions {
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
 	ariaLabel?: string;
+
+	/**
+	 * Whether the aria-required attribute should be set on the editors textarea.
+	 */
+	ariaRequired?: boolean;
 	/**
 	 * Control whether a screen reader announces inline suggestion content immediately.
 	 */
@@ -751,6 +756,16 @@ export interface IDiffEditorBaseOptions {
 	 */
 	renderSideBySide?: boolean;
 	/**
+	 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+	 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+	 */
+	renderSideBySideInlineBreakpoint?: number | undefined;
+	/**
+	 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+	 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+	 */
+	useInlineViewWhenSpaceIsLimited?: boolean;
+	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * Defaults to 5000.
 	 */
@@ -813,18 +828,26 @@ export interface IDiffEditorBaseOptions {
 		 * Defaults to false.
 		 */
 		showMoves?: boolean;
+
+		showEmptyDecorations?: boolean;
 	};
+
+	/**
+	 * Is the diff editor inside another editor
+	 * Defaults to false
+	 */
+	isInEmbeddedEditor?: boolean;
+
+	/**
+	 * If the diff editor should only show the difference review mode.
+	 */
+	onlyShowAccessibleDiffViewer?: boolean;
 }
 
 /**
  * Configuration options for the diff editor.
  */
 export interface IDiffEditorOptions extends IEditorOptions, IDiffEditorBaseOptions {
-	/**
-	 * Is the diff editor inside another editor
-	 * Defaults to false
-	 */
-	isInEmbeddedEditor?: boolean;
 }
 
 /**
@@ -2729,6 +2752,10 @@ export interface IEditorStickyScrollOptions {
 	 * Model to choose for sticky scroll by default
 	 */
 	defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
+	/**
+	 * Define whether to scroll sticky scroll with editor horizontal scrollbae
+	 */
+	scrollWithEditor?: boolean;
 }
 
 /**
@@ -2739,7 +2766,7 @@ export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOpt
 class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel' };
+		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
 		super(
 			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
@@ -2761,6 +2788,11 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 					default: defaults.defaultModel,
 					description: nls.localize('editor.stickyScroll.defaultModel', "Defines the model to use for determining which lines to stick. If the outline model does not exist, it will fall back on the folding provider model which falls back on the indentation model. This order is respected in all three cases.")
 				},
+				'editor.stickyScroll.scrollWithEditor': {
+					type: 'boolean',
+					default: defaults.scrollWithEditor,
+					description: nls.localize('editor.stickyScroll.scrollWithEditor', "When enabled it is possible to scroll the sticky scroll widget with the editor horizontal scrollbar.")
+				},
 			}
 		);
 	}
@@ -2774,6 +2806,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 10),
 			defaultModel: stringSet<'outlineModel' | 'foldingProviderModel' | 'indentationModel'>(input.defaultModel, this.defaultValue.defaultModel, ['outlineModel', 'foldingProviderModel', 'indentationModel']),
+			scrollWithEditor: boolean(input.scrollWithEditor, this.defaultValue.scrollWithEditor)
 		};
 	}
 }
@@ -4969,6 +5002,7 @@ export const enum EditorOption {
 	accessibilitySupport,
 	accessibilityPageSize,
 	ariaLabel,
+	ariaRequired,
 	autoClosingBrackets,
 	screenReaderAnnounceInlineSuggestion,
 	autoClosingDelete,
@@ -5138,6 +5172,9 @@ export const EditorOptions = {
 		})),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
+	)),
+	ariaRequired: register(new EditorBooleanOption(
+		EditorOption.ariaRequired, 'ariaRequired', false, undefined
 	)),
 	screenReaderAnnounceInlineSuggestion: register(new EditorBooleanOption(
 		EditorOption.screenReaderAnnounceInlineSuggestion, 'screenReaderAnnounceInlineSuggestion', true,

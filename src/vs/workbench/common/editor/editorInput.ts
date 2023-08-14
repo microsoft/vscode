@@ -186,6 +186,13 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
+	 * Returns if the input has unsaved changes.
+	 */
+	isModified(): boolean {
+		return this.isDirty();
+	}
+
+	/**
 	 * Returns if this input is currently being saved or soon to be
 	 * saved. Based on this assumption the editor may for example
 	 * decide to not signal the dirty state to the user assuming that

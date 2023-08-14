@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatRequestModel, IChatResponseModel, IChatModel, IChatWelcomeMessageContent } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatRequestModel, IChatResponseModel, IChatModel, IChatWelcomeMessageContent, IResponse, Response } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatResponseErrorDetails, IChatReplyFollowup, IChatResponseCommandFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 
@@ -78,7 +78,7 @@ export interface IChatResponseViewModel {
 	readonly providerResponseId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly response: IMarkdownString;
+	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly isPlaceholder: boolean;
@@ -253,9 +253,9 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.avatarIconUri;
 	}
 
-	get response(): IMarkdownString {
+	get response(): IResponse {
 		if (this._isPlaceholder) {
-			return new MarkdownString(localize('thinking', "Thinking") + '\u2026');
+			return new Response(new MarkdownString(localize('thinking', "Thinking") + '\u2026'));
 		}
 
 		return this._model.response;
@@ -305,13 +305,13 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	) {
 		super();
 
-		this._isPlaceholder = !_model.response.value && !_model.isComplete;
+		this._isPlaceholder = !_model.response.asString() && !_model.isComplete;
 
 		if (!_model.isComplete) {
 			this._contentUpdateTimings = {
 				loadingStartTime: Date.now(),
 				lastUpdateTime: Date.now(),
-				wordCountAfterLastUpdate: this._isPlaceholder ? 0 : countWords(_model.response.value), // don't count placeholder text
+				wordCountAfterLastUpdate: this._isPlaceholder ? 0 : countWords(_model.response.asString()), // don't count placeholder text
 				impliedWordLoadRate: 0
 			};
 		}
@@ -324,7 +324,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			if (this._contentUpdateTimings) {
 				// This should be true, if the model is changing
 				const now = Date.now();
-				const wordCount = countWords(_model.response.value);
+				const wordCount = countWords(_model.response.asString());
 				const timeDiff = now - this._contentUpdateTimings!.loadingStartTime;
 				const impliedWordLoadRate = wordCount / (timeDiff / 1000);
 				if (!this.isComplete) {
@@ -368,4 +368,5 @@ export interface IChatWelcomeMessageViewModel {
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly content: IChatWelcomeMessageContent[];
+	currentRenderedHeight?: number;
 }

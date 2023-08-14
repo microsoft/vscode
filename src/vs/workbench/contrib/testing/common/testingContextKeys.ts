@@ -35,7 +35,7 @@ export namespace TestingContextKeys {
 	export const viewMode = new RawContextKey<TestExplorerViewMode>('testing.explorerViewMode', TestExplorerViewMode.List);
 	export const viewSorting = new RawContextKey<TestExplorerViewSorting>('testing.explorerViewSorting', TestExplorerViewSorting.ByLocation);
 	export const isRunning = new RawContextKey<boolean>('testing.isRunning', false);
-	export const isInPeek = new RawContextKey<boolean>('testing.isInPeek', true);
+	export const isInPeek = new RawContextKey<boolean>('testing.isInPeek', false);
 	export const isPeekVisible = new RawContextKey<boolean>('testing.isPeekVisible', false);
 
 	export const peekItemType = new RawContextKey<string | undefined>('peekItemType', undefined, {
@@ -57,5 +57,9 @@ export namespace TestingContextKeys {
 	export const testItemIsHidden = new RawContextKey<boolean>('testing.testItemIsHidden', false, {
 		type: 'boolean',
 		description: localize('testing.testItemIsHidden', 'Boolean indicating whether the test item is hidden')
+	});
+	export const testMessageContext = new RawContextKey<string>('testMessage', undefined, {
+		type: 'boolean',
+		description: localize('testing.testMessage', 'Value set in `testMessage.contextValue`, available in editor/content and testing/message/context')
 	});
 }

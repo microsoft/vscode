@@ -58,6 +58,7 @@ import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionMana
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionUrlTrustService';
 import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
 import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
+import 'vs/workbench/services/secrets/electron-sandbox/secretStorageService';
 import 'vs/workbench/services/localization/electron-sandbox/languagePackService';
 import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
 import 'vs/workbench/services/extensions/electron-sandbox/extensionHostStarter';
@@ -90,13 +91,11 @@ import 'vs/workbench/services/extensions/electron-sandbox/nativeExtensionService
 import 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ISecretStorageService, SecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
-registerSingleton(ISecretStorageService, SecretStorageService, InstantiationType.Delayed);
 registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataInitializationService, [[]], true));
 registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, InstantiationType.Delayed);
 

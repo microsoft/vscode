@@ -301,7 +301,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[FILES_READONLY_FROM_PERMISSIONS_CONFIG]: {
 			'type': 'boolean',
-			'markdownDescription': nls.localize('filesReadonlyFromPermissions', "Marks files as readonly when their file permissions indicate as such. This can be overridden via `#files.readonlyInclude#` and `#files.readonlyExclude#` settings."),
+			'markdownDescription': nls.localize('filesReadonlyFromPermissions', "Marks files as read-only when their file permissions indicate as such. This can be overridden via `#files.readonlyInclude#` and `#files.readonlyExclude#` settings."),
 			'default': false
 		},
 		'files.restoreUndoStack': {
@@ -322,6 +322,13 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('files.saveConflictResolution', "A save conflict can occur when a file is saved to disk that was changed by another program in the meantime. To prevent data loss, the user is asked to compare the changes in the editor with the version on disk. This setting should only be changed if you frequently encounter save conflict errors and may result in data loss if used without caution."),
 			'default': 'askUser',
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+		},
+		'files.dialog.defaultPath': {
+			'type': 'string',
+			'pattern': '^((\\/|\\\\\\\\|[a-zA-Z]:\\\\).*)?$', // slash OR UNC-root OR drive-root OR undefined
+			'patternErrorMessage': nls.localize('defaultPathErrorMessage', "Default path for file dialogs must be an absolute path (e.g. C:\\\\myFolder or /myFolder)."),
+			'description': nls.localize('fileDialogDefaultPath', "Default path for file dialogs, overriding user's home path. Only used in the absence of a context-specific path, such as most recently opened file or folder."),
+			'scope': ConfigurationScope.MACHINE
 		},
 		'files.simpleDialog.enable': {
 			'type': 'boolean',

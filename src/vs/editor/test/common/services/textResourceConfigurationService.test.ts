@@ -15,6 +15,7 @@ import { URI } from 'vs/base/common/uri';
 
 suite('TextResourceConfigurationService - Update', () => {
 
+	let instantiationService: TestInstantiationService;
 	let configurationValue: IConfigurationValue<any> = {};
 	let updateArgs: any[];
 	const configurationService = new class extends TestConfigurationService {
@@ -30,11 +31,15 @@ suite('TextResourceConfigurationService - Update', () => {
 	let testObject: TextResourceConfigurationService;
 
 	setup(() => {
-		const instantiationService = new TestInstantiationService();
+		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IModelService, <Partial<IModelService>>{ getModel() { return null; } });
 		instantiationService.stub(ILanguageService, <Partial<ILanguageService>>{ guessLanguageIdByFilepathOrFirstLine() { return language; } });
 		instantiationService.stub(IConfigurationService, configurationService);
 		testObject = instantiationService.createInstance(TextResourceConfigurationService);
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	test('updateValue writes without target and overrides when no language is defined', async () => {

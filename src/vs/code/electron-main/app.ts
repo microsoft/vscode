@@ -9,7 +9,7 @@ import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { once } from 'vs/base/common/functional';
 import { stripComments } from 'vs/base/common/json';
@@ -188,7 +188,7 @@ export class CodeApplication extends Disposable {
 		//#region Request filtering
 
 		// Block all SVG requests from unsupported origins
-		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']);
+		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, Schemas.vscodeManagedRemoteResource, 'devtools']);
 
 		// But allow them if the are made from inside an webview
 		const isSafeFrame = (requestFrame: WebFrameMain | undefined): boolean => {
@@ -336,7 +336,11 @@ export class CodeApplication extends Disposable {
 
 		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 		setUnexpectedErrorHandler(error => this.onUnexpectedError(error));
-		process.on('uncaughtException', error => onUnexpectedError(error));
+		process.on('uncaughtException', error => {
+			if (!isSigPipeError(error)) {
+				onUnexpectedError(error);
+			}
+		});
 		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 
 		// Dispose on shutdown
@@ -632,7 +636,7 @@ export class CodeApplication extends Disposable {
 			new NodeRemoteResourceRouter(),
 		));
 
-		protocol.registerBufferProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
+		protocol.registerBufferProtocol(Schemas.vscodeManagedRemoteResource, (request, callback) => {
 			const url = URI.parse(request.url);
 			if (!url.authority.startsWith('window:')) {
 				return callback(notFound());
@@ -930,7 +934,7 @@ export class CodeApplication extends Disposable {
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
 
 		// Encryption
-		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
+		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
@@ -1279,7 +1283,7 @@ export class CodeApplication extends Disposable {
 		// Crash reporter
 		this.updateCrashReporterEnablement();
 
-		if (app.runningUnderARM64Translation) {
+		if (isMacintosh && app.runningUnderARM64Translation) {
 			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
 		}
 

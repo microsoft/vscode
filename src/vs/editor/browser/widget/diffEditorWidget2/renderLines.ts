@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, EditorFontLigatures, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
+import { diffEditorWidgetTtPolicy } from 'vs/editor/browser/widget/diffEditorWidget';
+import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecoration, ViewLineRenderingData } from 'vs/editor/common/viewModel';
 
-const ttPolicy = createTrustedTypesPolicy('diffEditorWidget2', { createHTML: value => value });
+const ttPolicy = diffEditorWidgetTtPolicy;
 
 export function renderLines(source: LineSource, options: RenderOptions, decorations: InlineDecoration[], domNode: HTMLElement): RenderLinesResult {
 	applyFontInfo(domNode, options.fontInfo);
@@ -44,26 +44,12 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 					source.mightContainNonBasicASCII,
 					source.mightContainRTL,
 					options,
-					sb,
-					//marginDomNode
+					sb
 				));
 				renderedLineCount++;
 				lastBreakOffset = breakOffset;
 			}
 			viewLineCounts.push(lineBreakData.breakOffsets.length);
-
-
-			/*
-			const marginDomNode2 = document.createElement('div');
-			marginDomNode2.className = 'gutter-delete';
-			result.original.push({
-				afterLineNumber: lineNumber,
-				afterColumn: 0,
-				heightInLines: lineBreakData.breakOffsets.length - 1,
-				domNode: createFakeLinesDiv(),
-				marginDomNode: marginDomNode2
-			});
-			*/
 		} else {
 			viewLineCounts.push(1);
 			maxCharsPerLine = Math.max(maxCharsPerLine, renderOriginalLine(
@@ -197,4 +183,3 @@ function renderOriginalLine(
 
 	return output.characterMapping.getHorizontalOffset(output.characterMapping.length);
 }
-

@@ -498,7 +498,7 @@ export async function joinNotebookCells(editor: IActiveNotebookEditor, range: IC
 export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, context: INotebookCellActionContext, direction: 'above' | 'below'): Promise<void> {
 	const editor = context.notebookEditor;
 	const textModel = editor.textModel;
-	const viewModel = editor._getViewModel() as NotebookViewModel;
+	const viewModel = editor.getViewModel() as NotebookViewModel;
 	let ret: {
 		edits: ResourceEdit[];
 		cell: ICellViewModel;
@@ -656,7 +656,7 @@ export function insertCell(
 	initialText: string = '',
 	ui: boolean = false
 ) {
-	const viewModel = editor._getViewModel() as NotebookViewModel;
+	const viewModel = editor.getViewModel() as NotebookViewModel;
 	const activeKernel = editor.activeKernel;
 	if (viewModel.options.isReadOnly) {
 		return null;

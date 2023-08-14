@@ -944,15 +944,16 @@ export class ExtensionEditor extends EditorPane {
 		const moreInfoContainer = append(container, $('.more-info-container.additional-details-element'));
 		append(moreInfoContainer, $('.additional-details-title', undefined, localize('Marketplace Info', "More Info")));
 		const moreInfo = append(moreInfoContainer, $('.more-info'));
+		const toDateString = (date: Date) => `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
 		if (gallery) {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('published', "Published")),
-					$('div', undefined, new Date(gallery.releaseDate).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, toDateString(new Date(gallery.releaseDate)))
 				),
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last released', "Last released")),
-					$('div', undefined, new Date(gallery.lastUpdated).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, toDateString(new Date(gallery.lastUpdated)))
 				)
 			);
 		}
@@ -960,7 +961,7 @@ export class ExtensionEditor extends EditorPane {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last updated', "Last updated")),
-					$('div', undefined, new Date(extension.local.installedTimestamp).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, toDateString(new Date(extension.local.installedTimestamp)))
 				)
 			);
 		}

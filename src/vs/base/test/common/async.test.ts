@@ -255,6 +255,12 @@ suite('Async', () => {
 					// OK
 				}
 			});
+
+			test('trigger after dispose throws', async () => {
+				const throttledDelayer = new async.ThrottledDelayer<void>(100);
+				throttledDelayer.dispose();
+				await assert.rejects(() => throttledDelayer.trigger(async () => { }, 0));
+			});
 		});
 
 		test('simple cancel', function () {

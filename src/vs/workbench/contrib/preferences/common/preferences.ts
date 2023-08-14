@@ -58,7 +58,6 @@ export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindi
 export const CONTEXT_KEYBINDINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inKeybindingsSearch', false);
 export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
 export const CONTEXT_WHEN_FOCUS = new RawContextKey<boolean>('whenFocus', false);
-export const CONTEXT_SETTINGS_EDITOR_IN_USER_TAB = new RawContextKey<boolean>('inSettingsEditorUserTab', false);
 
 export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
 export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.editor.clearSearchResults';
@@ -115,10 +114,10 @@ export async function getExperimentalExtensionToggleData(workbenchAssignmentServ
 	const isTreatment = await workbenchAssignmentService.getTreatment<boolean>('ExtensionToggleSettings');
 	if ((isTreatment || !environmentService.isBuilt) && productService.extensionRecommendations && productService.commonlyUsedSettings) {
 		const settingsEditorRecommendedExtensions: Record<string, IExtensionRecommendations> = {};
-		Object.keys(productService.extensionRecommendations).forEach(key => {
-			const value = productService.extensionRecommendations![key];
-			if (value.onSettingsEditorOpen) {
-				settingsEditorRecommendedExtensions[key] = value;
+		Object.keys(productService.extensionRecommendations).forEach(extensionId => {
+			const extensionInfo = productService.extensionRecommendations![extensionId];
+			if (extensionInfo.onSettingsEditorOpen) {
+				settingsEditorRecommendedExtensions[extensionId] = extensionInfo;
 			}
 		});
 		cachedExtensionToggleData = {

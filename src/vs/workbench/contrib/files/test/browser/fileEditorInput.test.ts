@@ -259,9 +259,11 @@ suite('Files - FileEditorInput', () => {
 		const resolved = await input.resolve() as TextFileEditorModel;
 		resolved.textEditorModel!.setValue('changed');
 		assert.ok(input.isDirty());
+		assert.ok(input.isModified());
 
 		await input.save(0);
 		assert.ok(!input.isDirty());
+		assert.ok(!input.isModified());
 		resolved.dispose();
 	});
 
@@ -271,9 +273,11 @@ suite('Files - FileEditorInput', () => {
 		const resolved = await input.resolve() as TextFileEditorModel;
 		resolved.textEditorModel!.setValue('changed');
 		assert.ok(input.isDirty());
+		assert.ok(input.isModified());
 
 		await input.revert(0);
 		assert.ok(!input.isDirty());
+		assert.ok(!input.isModified());
 
 		input.dispose();
 		assert.ok(input.isDisposed());

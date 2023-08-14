@@ -60,7 +60,7 @@ export class ColorContribution extends Disposable implements IEditorContribution
 		if (!hoverController) {
 			return;
 		}
-		if (!hoverController.isColorPickerVisible()) {
+		if (!hoverController.isColorPickerVisible) {
 			const range = new Range(target.range.startLineNumber, target.range.startColumn + 1, target.range.endLineNumber, target.range.endColumn + 1);
 			hoverController.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false, true);
 		}

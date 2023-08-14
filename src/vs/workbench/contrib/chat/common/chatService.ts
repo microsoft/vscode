@@ -42,8 +42,14 @@ export interface IChatResponse {
 	};
 }
 
+export interface IChatResponseProgressFileTreeData {
+	label: string;
+	uri: URI;
+	children?: IChatResponseProgressFileTreeData[];
+}
+
 export type IChatProgress =
-	{ content: string } | { requestId: string };
+	{ content: string } | { requestId: string } | { placeholder: string; resolvedContent: Promise<string | { treeData: IChatResponseProgressFileTreeData }> };
 
 export interface IPersistedChatState { }
 export interface IChatProvider {
@@ -59,17 +65,28 @@ export interface IChatProvider {
 	removeRequest?(session: IChat, requestId: string): void;
 }
 
-export interface ISlashCommandProvider {
-	chatProviderId: string;
-	provideSlashCommands(token: CancellationToken): ProviderResult<ISlashCommand[]>;
-	resolveSlashCommand(command: string, token: CancellationToken): ProviderResult<string>;
-}
-
 export interface ISlashCommand {
 	command: string;
-	provider?: ISlashCommandProvider;
 	sortText?: string;
 	detail?: string;
+
+	/**
+	 * Whether the command should execute as soon
+	 * as it is entered. Defaults to `false`.
+	 */
+	executeImmediately?: boolean;
+	/**
+	 * Whether executing the command puts the
+	 * chat into a persistent mode, where the
+	 * slash command is prepended to the chat input.
+	 */
+	shouldRepopulate?: boolean;
+	/**
+	 * Placeholder text to render in the chat input
+	 * when the slash command has been repopulated.
+	 * Has no effect if `shouldRepopulate` is `false`.
+	 */
+	followupPlaceholder?: string;
 }
 
 export interface IChatReplyFollowup {
@@ -171,22 +188,30 @@ export interface IChatProviderInfo {
 	displayName: string;
 }
 
+export interface IChatTransferredSessionData {
+	sessionId: string;
+	inputValue: string;
+}
+
 export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
 	_serviceBrand: undefined;
+	transferredSessionData: IChatTransferredSessionData | undefined;
+
+	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
-	registerSlashCommandProvider(provider: ISlashCommandProvider): IDisposable;
 	getProviderInfos(): IChatProviderInfo[];
 	startSession(providerId: string, token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;
+	getSessionId(sessionProviderId: number): string | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
 	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined;
 
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string | IChatReplyFollowup): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
+	sendRequest(sessionId: string, message: string | IChatReplyFollowup, usedSlashCommand?: ISlashCommand): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
@@ -199,4 +224,6 @@ export interface IChatService {
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
+
+	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 }

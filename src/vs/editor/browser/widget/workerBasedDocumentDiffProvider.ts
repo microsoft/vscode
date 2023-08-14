@@ -41,11 +41,20 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 
 		// This significantly speeds up the case when the original file is empty
 		if (original.getLineCount() === 1 && original.getLineMaxColumn(1) === 1) {
+			if (modified.getLineCount() === 1 && modified.getLineMaxColumn(1) === 1) {
+				return {
+					changes: [],
+					identical: true,
+					quitEarly: false,
+					moves: [],
+				};
+			}
+
 			return {
 				changes: [
 					new LineRangeMapping(
-						new LineRange(1, 1),
-						new LineRange(1, modified.getLineCount()),
+						new LineRange(1, 2),
+						new LineRange(1, modified.getLineCount() + 1),
 						[
 							new RangeMapping(
 								original.getFullModelRange(),

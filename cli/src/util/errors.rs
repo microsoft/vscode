@@ -509,8 +509,14 @@ pub enum CodeError {
 	ServerAuthRequired,
 	#[error("challenge not yet issued")]
 	AuthChallengeNotIssued,
+	#[error("challenge token is invalid")]
+	AuthChallengeBadToken,
 	#[error("unauthorized client refused")]
 	AuthMismatch,
+	#[error("keyring communication timed out after 5s")]
+	KeyringTimeout,
+	#[error("no host is connected to the tunnel relay")]
+	NoTunnelEndpoint,
 }
 
 makeAnyError!(

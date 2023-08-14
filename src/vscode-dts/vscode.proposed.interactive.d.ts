@@ -9,6 +9,11 @@ declare module 'vscode' {
 		command: string;
 		detail?: string;
 		refer?: boolean;
+		/**
+		 * Whether the command should execute as soon
+		 * as it is entered. Defaults to `false`.
+		 */
+		executeImmediately?: boolean;
 		// kind: CompletionItemKind;
 	}
 
@@ -28,6 +33,7 @@ declare module 'vscode' {
 		selection: Selection;
 		wholeRange: Range;
 		attempt: number;
+		live: boolean;
 	}
 
 	// todo@API make classes
@@ -47,7 +53,8 @@ declare module 'vscode' {
 	export enum InteractiveEditorResponseFeedbackKind {
 		Unhelpful = 0,
 		Helpful = 1,
-		Undone = 2
+		Undone = 2,
+		Accepted = 3
 	}
 
 	export interface TextDocumentContext {
@@ -57,10 +64,13 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
+		label: string;
+
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
 
 		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<R>;
+		provideInteractiveEditorResponse2?(request: InteractiveEditorRequest, progress: Progress<{ message: string; edits: TextEdit[] }>, token: CancellationToken): ProviderResult<R>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		releaseInteractiveEditorSession?(session: S): any;
@@ -118,7 +128,22 @@ declare module 'vscode' {
 		responseId: string;
 	}
 
-	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId;
+	export interface InteractiveProgressTask {
+		placeholder: string;
+		resolvedContent: Thenable<InteractiveProgressContent | InteractiveProgressFileTree>;
+	}
+
+	export interface FileTreeData {
+		label: string;
+		uri: Uri;
+		children?: FileTreeData[];
+	}
+
+	export interface InteractiveProgressFileTree {
+		treeData: FileTreeData;
+	}
+
+	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId | InteractiveProgressTask | InteractiveProgressFileTree;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
@@ -130,6 +155,9 @@ declare module 'vscode' {
 		command: string;
 		kind: CompletionItemKind;
 		detail?: string;
+		shouldRepopulate?: boolean;
+		followupPlaceholder?: string;
+		executeImmediately?: boolean;
 	}
 
 	export interface InteractiveSessionReplyFollowup {
@@ -181,5 +209,7 @@ declare module 'vscode' {
 		export function sendInteractiveRequestToProvider(providerId: string, message: InteractiveSessionDynamicRequest): void;
 
 		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider): Disposable;
+
+		export function transferChatSession(session: InteractiveSession, toWorkspace: Uri): void;
 	}
 }
