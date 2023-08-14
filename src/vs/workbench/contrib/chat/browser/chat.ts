@@ -47,7 +47,20 @@ export interface IChatCodeBlockInfo {
 
 export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
 
-export type IChatWidgetViewContext = { viewId: string; renderInputOnTop?: false } | { resource: boolean; renderInputOnTop?: boolean };
+export interface IBaseChatWidgetViewContext {
+	renderInputOnTop?: boolean;
+	renderStyle?: 'default' | 'compact';
+}
+
+export interface IChatViewViewContext extends IBaseChatWidgetViewContext {
+	viewId: string;
+}
+
+export interface IChatResourceViewContext extends IBaseChatWidgetViewContext {
+	resource: boolean;
+}
+
+export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext;
 
 export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
