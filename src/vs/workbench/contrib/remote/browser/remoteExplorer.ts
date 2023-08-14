@@ -51,7 +51,8 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	) {
 		super();
 		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViewWelcomeContent(TUNNEL_VIEW_ID, {
-			content: `No forwarded ports. Forward a port to access your running services locally.\n[Forward a Port](command:${ForwardPortAction.INLINE_ID})`,
+			content: this.environmentService.remoteAuthority ? nls.localize('remoteNoPorts', "No forwarded ports. Forward a port to access your running services locally.\n[Forward a Port]({0})", `command:${ForwardPortAction.INLINE_ID}`)
+				: nls.localize('noRemoteNoPorts', "No forwarded ports. Forward a port to access your locally running services over the internet.\n[Forward a Port]({0})", `command:${ForwardPortAction.INLINE_ID}`),
 		}));
 		this.enableBadgeAndStatusBar();
 		this.enableForwardedPortsView();
@@ -411,7 +412,7 @@ class OnAutoForwardedAction extends Disposable {
 					elevateIfNeeded: true,
 					source: AutoTunnelSource
 				});
-				if (!newTunnel) {
+				if (!newTunnel || (typeof newTunnel === 'string')) {
 					return;
 				}
 				this.lastNotification?.close();
@@ -492,7 +493,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 				return;
 			}
 			const forwarded = await this.remoteExplorerService.forward({ remote: localUrl, source: AutoTunnelSource }, attributes ?? null);
-			if (forwarded) {
+			if (forwarded && (typeof forwarded !== 'string')) {
 				this.notifier.doAction([forwarded]);
 			}
 		}));
@@ -632,7 +633,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} has been notified`);
 				this.notifiedOnly.add(address);
 			}
-			if (forwarded) {
+			if (forwarded && (typeof forwarded !== 'string')) {
 				allTunnels.push(forwarded);
 			}
 		}

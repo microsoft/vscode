@@ -20,5 +20,6 @@ export const enum MarshalledId {
 	NotebookCellActionContext,
 	NotebookActionContext,
 	TestItemContext,
-	Date
+	Date,
+	TestMessageMenuArgs,
 }

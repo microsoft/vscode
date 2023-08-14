@@ -17,8 +17,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
@@ -63,7 +62,7 @@ class QuickChatGlobalAction extends Action2 {
 		// Grab the first provider and run its command
 		const info = chatService.getProviderInfos()[0];
 		if (info) {
-			await commandService.executeCommand(`workbench.action.openChat.${info.id}`, query);
+			await commandService.executeCommand(`workbench.action.openQuickChat.${info.id}`, query);
 		}
 	}
 }
@@ -77,14 +76,14 @@ class QuickChatGlobalAction extends Action2 {
  * @returns An action that will open the quick chat for this provider
  */
 export function getQuickChatActionForProvider(id: string, label: string) {
-	return class AskQuickQuestionAction extends Action2 {
+	return class AskQuickChatAction extends Action2 {
 		_currentTimer: any | undefined;
 		_input: IQuickPick<IQuickPickItem> | undefined;
 		_currentChat: QuickChat | undefined;
 
 		constructor() {
 			super({
-				id: `workbench.action.openChat.${id}`,
+				id: `workbench.action.openQuickChat.${id}`,
 				category: CHAT_CATEGORY,
 				title: { value: localize('interactiveSession.open', "Open Quick Chat ({0})", label), original: `Open Quick Chat (${label})` },
 				f1: true
@@ -215,12 +214,12 @@ class QuickChat extends Disposable {
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
-				{ resource: true, renderInputOnTop: true },
+				{ resource: true, renderInputOnTop: true, renderStyle: 'compact' },
 				{
 					listForeground: editorForeground,
 					listBackground: editorBackground,
-					inputEditorBackground: SIDE_BAR_BACKGROUND,
-					resultEditorBackground: SIDE_BAR_BACKGROUND
+					inputEditorBackground: inputBackground,
+					resultEditorBackground: editorBackground
 				}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);

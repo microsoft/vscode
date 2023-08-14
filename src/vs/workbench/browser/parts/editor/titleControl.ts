@@ -199,7 +199,8 @@ export abstract class TitleControl extends Themable {
 			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
 			telemetrySource: 'editorPart',
 			resetMenu: MenuId.EditorTitle,
-			maxNumberOfItems: 9
+			maxNumberOfItems: 9,
+			highlightToggledItems: true,
 		}));
 
 		// Context
