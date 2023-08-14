@@ -33,7 +33,6 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { Color, RGBA } from 'vs/base/common/color';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;
@@ -123,7 +122,6 @@ suite('XtermTerminal', () => {
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;

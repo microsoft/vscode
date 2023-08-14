@@ -5,6 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
 
@@ -152,12 +153,12 @@ export interface ICommandDetectionCapability {
 	 * the state cannot reliably be detected the fallback of undefined will be used.
 	 */
 	readonly hasInput: boolean | undefined;
+	readonly currentCommand: ICurrentPartialCommand | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	readonly onCommandExecuted: Event<void>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
-	readonly onRequestWriteToTextArea: Event<string>;
 
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;

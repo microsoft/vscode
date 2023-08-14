@@ -79,6 +79,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		return undefined;
 	}
+	get currentCommand(): ICurrentPartialCommand | undefined {
+		return this._currentCommand;
+	}
 	get cwd(): string | undefined { return this._cwd; }
 	private get _isInputting(): boolean {
 		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
@@ -110,12 +113,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 	private readonly _onCurrentCommandInvalidated = this._register(new Emitter<ICommandInvalidationRequest>());
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
-	private readonly _onRequestWriteToTextArea = this._register(new Emitter<string>());
-	readonly onRequestWriteToTextArea = this._onRequestWriteToTextArea.event;
 
 	constructor(
 		private readonly _terminal: Terminal,
-		private readonly _isScreenReaderOptimized: boolean,
 		private readonly _logService: ILogService
 	) {
 		super();
@@ -138,24 +138,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	@debounce(500)
 	private _handleCursorMove() {
-		// Sync the textarea with the terminal contents so screen readers can read it
-		if (this._isScreenReaderOptimized) {
-			const buffer = this._terminal.buffer.active;
-			const line = buffer.getLine(buffer.cursorY)?.translateToString(true);
-			let commandText: string | undefined;
-			if (line) {
-				if (this._currentCommand.commandStartX) {
-					// Left prompt
-					commandText = line.substring(this._currentCommand.commandStartX);
-				} else if (this._currentCommand.commandRightPromptStartX) {
-					// Right prompt
-					commandText = line.substring(0, this._currentCommand.commandRightPromptStartX).trimStart();
-				}
-				if (commandText?.length) {
-					this._onRequestWriteToTextArea.fire(commandText);
-				}
-			}
-		}
 		// Early versions of conpty do not have real support for an alt buffer, in addition certain
 		// commands such as tsc watch will write to the top of the normal buffer. The following
 		// checks when the cursor has moved while the normal buffer is empty and if it is above the

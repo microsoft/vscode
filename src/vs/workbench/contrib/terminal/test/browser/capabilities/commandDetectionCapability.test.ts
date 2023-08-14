@@ -62,7 +62,7 @@ suite('CommandDetectionCapability', () => {
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80 });
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IContextMenuService, { showContextMenu(delegate: IContextMenuDelegate): void { } } as Partial<IContextMenuService>);
-		capability = new TestCommandDetectionCapability(xterm, false, new NullLogService());
+		capability = new TestCommandDetectionCapability(xterm, new NullLogService());
 		addEvents = [];
 		capability.onCommandFinished(e => addEvents.push(e));
 		assertCommands([]);
