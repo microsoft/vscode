@@ -44,7 +44,6 @@ export class ChatEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		// @IChatService private readonly chatService: IChatService,
 	) {
 		super(ChatEditorInput.EditorID, telemetryService, themeService, storageService);
 	}
