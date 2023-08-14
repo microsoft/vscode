@@ -1,5 +1,6 @@
 {
 	"colors": [
+		"--vscode-actionBar-toggledBackground",
 		"--vscode-activityBar-activeBackground",
 		"--vscode-activityBar-activeBorder",
 		"--vscode-activityBar-activeFocusBorder",
