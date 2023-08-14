@@ -245,11 +245,7 @@ class QuickChat extends Disposable {
 	}
 
 	async acceptInput(): Promise<void> {
-		if (this.widget.inputEditor.getValue().trim() === '/clear') {
-			this.clear();
-		} else {
-			await this.widget.acceptInput();
-		}
+		return this.widget.acceptInput();
 	}
 
 	async openChatView(): Promise<void> {

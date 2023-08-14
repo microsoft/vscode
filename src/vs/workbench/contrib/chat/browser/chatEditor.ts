@@ -20,7 +20,9 @@ import { Memento } from 'vs/workbench/common/memento';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { IViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+// import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target: { sessionId: string } | { providerId: string } | { data: ISerializableChatData };
@@ -43,14 +45,24 @@ export class ChatEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatService private readonly chatService: IChatService,
+		// @IChatService private readonly chatService: IChatService,
 	) {
 		super(ChatEditorInput.EditorID, telemetryService, themeService, storageService);
 	}
 
 	public async clear() {
-		if (this.widget?.viewModel) {
-			this.chatService.clearSession(this.widget.viewModel.sessionId);
+		const input = this.input;
+		if (this.widget?.viewModel && input instanceof ChatEditorInput) {
+			// Replace the current editor with a new one
+			this.instantiationService.invokeFunction(async accessor => {
+				const editorService = accessor.get(IEditorService);
+				const editorGroupsService = accessor.get(IEditorGroupsService);
+
+				await editorService.replaceEditors([{
+					editor: input,
+					replacement: { resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId: input.providerId, pinned: true } } }
+				}], editorGroupsService.activeGroup);
+			});
 		}
 	}
 
@@ -68,6 +80,7 @@ export class ChatEditor extends EditorPane {
 					inputEditorBackground: inputBackground,
 					resultEditorBackground: editorBackground
 				}));
+		this._register(this.widget.onDidClear(() => this.clear()));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
 	}
