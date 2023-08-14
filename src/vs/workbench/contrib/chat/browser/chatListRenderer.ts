@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./chatListRenderer';
 import * as dom from 'vs/base/browser/dom';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
@@ -969,9 +968,6 @@ class TreePool extends Disposable {
 		const resourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility });
 
 		const container = $('.interactive-response-progress-tree');
-		container.style.margin = '16px 0px';
-		container.style.borderRadius = '4px';
-		container.style.border = '1px solid var(--vscode-input-border, transparent)';
 		createFileIconThemableTreeContainerScope(container, this.themeService);
 
 		const tree = <WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData>>this.instantiationService.createInstance(
