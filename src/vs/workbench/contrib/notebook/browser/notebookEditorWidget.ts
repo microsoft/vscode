@@ -87,7 +87,7 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { BaseCellEditorOptions } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEditorOptions';
-import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
+import { FloatingEditorClickMenu } from 'vs/workbench/browser/codeeditor';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
@@ -107,7 +107,7 @@ export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOpti
 	// We inlined the id to avoid loading comment contrib in tests
 	const skipContributions = [
 		'editor.contrib.review',
-		FloatingClickMenu.ID,
+		FloatingEditorClickMenu.ID,
 		'editor.contrib.dirtydiff',
 		'editor.contrib.testingOutputPeek',
 		'editor.contrib.testingDecorations',

@@ -22,12 +22,6 @@ export const TERMINAL_VIEW_ID = 'terminal';
 
 export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
 
-export const TerminalCursorStyle = {
-	BLOCK: 'block',
-	LINE: 'line',
-	UNDERLINE: 'underline'
-};
-
 export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 
 export const DEFAULT_LETTER_SPACING = 0;
@@ -145,6 +139,7 @@ export interface ITerminalConfiguration {
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord' | 'nothing';
 	cursorBlinking: boolean;
 	cursorStyle: 'block' | 'underline' | 'line';
+	cursorStyleInactive: 'outline' | 'block' | 'underline' | 'line' | 'none';
 	cursorWidth: number;
 	drawBoldTextInBrightColors: boolean;
 	fastScrollSensitivity: number;

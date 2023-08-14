@@ -227,7 +227,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		this._onDidChangeTunnels.fire();
 	}
 
-	async $forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined> {
+	async $forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | string | undefined> {
 		if (this._forwardPortProvider) {
 			try {
 				this.logService.trace('ForwardedPorts: (ExtHostTunnelService) Getting tunnel from provider.');
@@ -254,6 +254,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				}
 			} catch (e) {
 				this.logService.trace('ForwardedPorts: (ExtHostTunnelService) tunnel provider error');
+				if (e instanceof Error) {
+					return e.message;
+				}
 			}
 		}
 		return undefined;

@@ -270,18 +270,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const followupsHeight = this.followupsContainer.offsetHeight;
 
 		const inputPartBorder = 1;
-		const inputPartPadding = 24;
-		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), height - followupsHeight - inputPartPadding - inputPartBorder, INPUT_EDITOR_MAX_HEIGHT);
+		const inputPartHorizontalPadding = 40;
+		const inputPartVerticalPadding = 24;
+		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), height - followupsHeight - inputPartHorizontalPadding - inputPartBorder, INPUT_EDITOR_MAX_HEIGHT);
 
 		const inputEditorBorder = 2;
-		const inputPartHeight = followupsHeight + inputEditorHeight + inputPartPadding + inputPartBorder + inputEditorBorder;
+		const inputPartHeight = followupsHeight + inputEditorHeight + inputPartVerticalPadding + inputPartBorder + inputEditorBorder;
 
 		const editorBorder = 2;
 		const editorPadding = 8;
 		const executeToolbarWidth = 25;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		this._inputEditor.layout({ width: width - inputPartPadding - editorBorder - editorPadding - executeToolbarWidth, height: inputEditorHeight });
+		this._inputEditor.layout({ width: width - inputPartHorizontalPadding - editorBorder - editorPadding - executeToolbarWidth, height: inputEditorHeight });
 
 		if (allowRecurse && initialEditorScrollWidth < 10) {
 			// This is probably the initial layout. Now that the editor is layed out with its correct width, it should report the correct contentHeight
