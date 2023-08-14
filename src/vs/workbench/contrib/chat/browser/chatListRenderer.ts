@@ -59,7 +59,7 @@ import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IChatCodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
-import { ChatTreeItem, IChatCodeBlockInfo } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
@@ -72,6 +72,7 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { distinct } from 'vs/base/common/arrays';
 
 const $ = dom.$;
 
@@ -108,6 +109,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly codeBlocksByResponseId = new Map<string, IChatCodeBlockInfo[]>();
 	private readonly codeBlocksByEditorUri = new ResourceMap<IChatCodeBlockInfo>();
+
+	private readonly fileTreesByResponseId = new Map<string, IChatFileTreeInfo[]>();
+	private readonly focusedFileTreesByResponseId = new Map<string, number>();
 
 	private readonly renderer: MarkdownRenderer;
 
@@ -186,6 +190,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
 		return this.codeBlocksByEditorUri.get(uri);
+	}
+
+	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[] {
+		const fileTrees = this.fileTreesByResponseId.get(response.id);
+		return fileTrees ?? [];
+	}
+
+	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined {
+		const fileTrees = this.fileTreesByResponseId.get(response.id);
+		const lastFocusedFileTreeIndex = this.focusedFileTreesByResponseId.get(response.id);
+		if (fileTrees?.length && lastFocusedFileTreeIndex !== undefined && lastFocusedFileTreeIndex < fileTrees.length) {
+			return fileTrees[lastFocusedFileTreeIndex];
+		}
+		return undefined;
 	}
 
 	setVisible(visible: boolean): void {
@@ -303,10 +321,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete);
 
 		dom.clearNode(templateData.value);
+		let fileTreeIndex = 0;
 		for (const data of markdownValue) {
 			const result = 'value' in data
 				? this.renderMarkdown(data, element, templateData.elementDisposables, templateData, fillInIncompleteTokens)
-				: this.renderTreeData(data, element, templateData.elementDisposables, templateData);
+				: this.renderTreeData(data, element, templateData.elementDisposables, templateData, fileTreeIndex++);
 			templateData.value.appendChild(result.element);
 			templateData.elementDisposables.add(result);
 		}
@@ -420,19 +439,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return !!isFullyRendered;
 	}
 
-	private renderTreeData(data: IChatResponseProgressFileTreeData, element: ChatTreeItem, disposables: DisposableStore, templateData: IChatListItemTemplate): { element: HTMLElement; dispose: () => void } {
+	private renderTreeData(data: IChatResponseProgressFileTreeData, element: ChatTreeItem, disposables: DisposableStore, templateData: IChatListItemTemplate, treeDataIndex: number): { element: HTMLElement; dispose: () => void } {
 		const ref = this._treePool.get();
 		const tree = ref.object;
 
-		const didOpenListener = tree.onDidOpen((e) => {
+		const treeDisposables = new DisposableStore();
+		treeDisposables.add(tree.onDidOpen((e) => {
 			if (e.element && !('children' in e.element)) {
 				this.openerService.open(e.element.uri);
 			}
-		});
-
-		const didToggleListener = tree.onDidChangeCollapseState(() => {
+		}));
+		treeDisposables.add(tree.onDidChangeCollapseState(() => {
 			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
-		});
+		}));
 
 		tree.setInput(data).then(() => {
 			if (!ref.isStale()) {
@@ -441,11 +460,29 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		});
 
+		if (isResponseVM(element)) {
+			const fileTreeFocusInfo = {
+				treeDataId: data.uri.toString(),
+				treeIndex: treeDataIndex,
+				focus() {
+					tree.domFocus();
+				}
+			};
+
+			treeDisposables.add(tree.onDidFocus(() => {
+				this.focusedFileTreesByResponseId.set(element.id, fileTreeFocusInfo.treeIndex);
+			}));
+
+			const fileTrees = this.fileTreesByResponseId.get(element.id) ?? [];
+			fileTrees.push(fileTreeFocusInfo);
+			this.fileTreesByResponseId.set(element.id, distinct(fileTrees, (v) => v.treeDataId));
+			disposables.add(toDisposable(() => this.fileTreesByResponseId.set(element.id, fileTrees.filter(v => v.treeDataId !== data.uri.toString()))));
+		}
+
 		return {
 			element: tree.getHTMLElement().parentElement!,
 			dispose: () => {
-				didOpenListener.dispose();
-				didToggleListener.dispose();
+				treeDisposables.dispose();
 				ref.dispose();
 			}
 		};
