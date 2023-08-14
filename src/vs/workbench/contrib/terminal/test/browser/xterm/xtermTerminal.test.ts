@@ -51,7 +51,7 @@ class TestWebglAddon implements WebglAddon {
 	}
 	clearTextureAtlas() { }
 }
-// to
+
 class TestXtermTerminal extends XtermTerminal {
 	webglAddonPromise: Promise<typeof WebglAddon> = Promise.resolve(TestWebglAddon);
 	// Force synchronous to avoid async when activating the addon

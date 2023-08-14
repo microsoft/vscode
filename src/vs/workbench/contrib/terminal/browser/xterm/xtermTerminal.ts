@@ -284,11 +284,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 			if (!textArea) {
 				return;
 			}
-			// Sync the textarea using shell integration so screen
-			// readers can review the command with left/ right arrow keys
+			// Sync the textarea using shell integration
 			textArea.textContent = data.content;
 			textArea.selectionStart = data.cursorX;
 			textArea.selectionEnd = data.cursorX;
+			// TODO: cursorY?
 		}));
 
 		this._anyTerminalFocusContextKey = TerminalContextKeys.focusInAny.bindTo(contextKeyService);
