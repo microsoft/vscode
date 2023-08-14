@@ -20,8 +20,7 @@ import { Memento } from 'vs/workbench/common/memento';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { IViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target: { sessionId: string } | { providerId: string } | { data: ISerializableChatData };
@@ -49,19 +48,7 @@ export class ChatEditor extends EditorPane {
 	}
 
 	public async clear() {
-		const input = this.input;
-		if (this.widget?.viewModel && input instanceof ChatEditorInput) {
-			// Replace the current editor with a new one
-			this.instantiationService.invokeFunction(async accessor => {
-				const editorService = accessor.get(IEditorService);
-				const editorGroupsService = accessor.get(IEditorGroupsService);
-
-				await editorService.replaceEditors([{
-					editor: input,
-					replacement: { resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId: input.providerId, pinned: true } } }
-				}], editorGroupsService.activeGroup);
-			});
-		}
+		return this.instantiationService.invokeFunction(clearChatEditor);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
