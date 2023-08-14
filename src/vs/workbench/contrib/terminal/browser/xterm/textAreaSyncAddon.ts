@@ -16,8 +16,8 @@ export interface ITextAreaData {
 
 export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 	private _terminal: Terminal | undefined;
-	private readonly _onDidRequestUpdateTextArea = this._register(new Emitter<ITextAreaData>());
-	readonly onDidRequestUpdateTextArea = this._onDidRequestUpdateTextArea.event;
+	private readonly _onDidRequestTextAreaSync = this._register(new Emitter<ITextAreaData>());
+	readonly onDidRequestTextAreaSync = this._onDidRequestTextAreaSync.event;
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
 		this._register(this._terminal.onCursorMove(() => this._refreshTextArea()));
@@ -57,7 +57,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 				commandStartX = 0;
 			}
 			if (commandStartX) {
-				this._onDidRequestUpdateTextArea.fire({ content, cursorX: buffer.cursorX - commandStartX });
+				this._onDidRequestTextAreaSync.fire({ content, cursorX: buffer.cursorX - commandStartX });
 			}
 		}
 	}
