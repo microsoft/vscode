@@ -42,6 +42,7 @@ import 'vs/workbench/contrib/search/browser/searchActionsNav';
 import 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
 import 'vs/workbench/contrib/search/browser/searchActionsSymbol';
 import 'vs/workbench/contrib/search/browser/searchActionsTopBar';
+import { TEXT_RESULT_QUICK_ACCESS_PREFIX, TextResultQuickAccess } from 'vs/workbench/contrib/search/browser/quickTextResultMenu/textResultQuickAccess';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
@@ -116,6 +117,14 @@ quickAccessRegistry.registerQuickAccessProvider({
 	placeholder: nls.localize('symbolsQuickAccessPlaceholder', "Type the name of a symbol to open."),
 	contextKey: 'inWorkspaceSymbolsPicker',
 	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), commandId: Constants.ShowAllSymbolsActionId }]
+});
+
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: TextResultQuickAccess,
+	prefix: TEXT_RESULT_QUICK_ACCESS_PREFIX,
+	contextKey: 'inTextResultPicker',
+	placeholder: nls.localize('textResultPickerPlaceholder', "Search for text in files."),
+	helpEntries: [{ description: nls.localize('textResultPickerHelp', "Show All Text Results"), commandId: Constants.QuickTextResultsActionId }]
 });
 
 // Configuration

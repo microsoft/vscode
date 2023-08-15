@@ -1854,7 +1854,7 @@ export class SearchView extends ViewPane {
 	}
 
 	async open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean, resourceInput?: URI): Promise<void> {
-		const selection = this.getSelectionFrom(element);
+		const selection = getEditorSelectionFromMatch(element, this.viewModel);
 		const oldParentMatches = element instanceof Match ? element.parent().matches() : [];
 		const resource = resourceInput ?? (element instanceof Match ? element.parent().resource : (<FileMatch>element).resource);
 		let editor: IEditorPane | undefined;
@@ -1947,30 +1947,6 @@ export class SearchView extends ViewPane {
 			}
 			this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 		}, errors.onUnexpectedError);
-	}
-
-	private getSelectionFrom(element: FileMatchOrMatch): any {
-		let match: Match | null = null;
-		if (element instanceof Match) {
-			match = element;
-		}
-		if (element instanceof FileMatch && element.count() > 0) {
-			match = element.matches()[element.matches().length - 1];
-		}
-		if (match) {
-			const range = match.range();
-			if (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) {
-				const replaceString = match.replaceString;
-				return {
-					startLineNumber: range.startLineNumber,
-					startColumn: range.startColumn,
-					endLineNumber: range.startLineNumber,
-					endColumn: range.startColumn + replaceString.length
-				};
-			}
-			return range;
-		}
-		return undefined;
 	}
 
 	private onUntitledDidDispose(resource: URI): void {
@@ -2145,4 +2121,28 @@ class SearchLinkButton extends Disposable {
 			}
 		}));
 	}
+}
+
+export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel: SearchModel): any {
+	let match: Match | null = null;
+	if (element instanceof Match) {
+		match = element;
+	}
+	if (element instanceof FileMatch && element.count() > 0) {
+		match = element.matches()[element.matches().length - 1];
+	}
+	if (match) {
+		const range = match.range();
+		if (viewModel.isReplaceActive() && !!viewModel.replaceString) {
+			const replaceString = match.replaceString;
+			return {
+				startLineNumber: range.startLineNumber,
+				startColumn: range.startColumn,
+				endLineNumber: range.startLineNumber,
+				endColumn: range.startColumn + replaceString.length
+			};
+		}
+		return range;
+	}
+	return undefined;
 }
