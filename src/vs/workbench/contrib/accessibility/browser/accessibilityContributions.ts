@@ -35,6 +35,9 @@ import { IAction } from 'vs/base/common/actions';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
+import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
@@ -276,3 +279,44 @@ export function alertFocusChange(index: number | undefined, length: number | und
 	return;
 }
 
+export class InlineCompletionsAccessibleViewContribution extends Disposable {
+	static ID: 'inlineCompletionsAccessibleViewContribution';
+	private _options: IAccessibleViewOptions = {
+		ariaLabel: localize('inlineCompletionsAccessibleView', "Inline Completions Accessible View"), language: 'typescript', type: AccessibleViewType.View
+	};
+	constructor() {
+		super();
+		this._register(AccessibleViewAction.addImplementation(95, 'inline-completions', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const codeEditorService = accessor.get(ICodeEditorService);
+			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
+			if (!editor) {
+				return false;
+			}
+			const model = InlineCompletionsController.get(editor)?.model.get();
+			const state = model?.state.get();
+			if (!state) {
+				return false;
+			}
+			const lineText = model?.textModel.getLineContent(state.ghostText.lineNumber);
+			if (!lineText) {
+				return false;
+			}
+			const content = InlineCompletionsController.get(editor)?.model.get()?.ghostText.get()?.renderForScreenReader(lineText);
+			if (!content) {
+				return false;
+			}
+			accessibleViewService.show({
+				verbositySettingKey: AccessibilityVerbositySettingId.InlineCompletions,
+				provideContent() { return content; },
+				onClose() {
+
+				},
+				options: this._options
+			});
+			return true;
+		}, ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible, EditorContextKeys.focus, EditorContextKeys.hasCodeActionsProvider)
+		)
+		);
+	}
+}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import { alert, status } from 'vs/base/browser/ui/aria/aria';
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITransaction, autorun, constObservable, disposableObservableValue, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
@@ -22,11 +22,13 @@ import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions
 import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
 import { InlineCompletionsModel, VersionIdChangeReason } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { SuggestWidgetAdaptor } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
+import { localize } from 'vs/nls';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class InlineCompletionsController extends Disposable {
 	static ID = 'editor.contrib.inlineCompletionsController';
@@ -73,6 +75,7 @@ export class InlineCompletionsController extends Disposable {
 		@ILanguageFeatureDebounceService private readonly debounceService: ILanguageFeatureDebounceService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IAudioCueService private readonly audioCueService: IAudioCueService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -191,12 +194,31 @@ export class InlineCompletionsController extends Disposable {
 				this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
 						alert(state.ghostText.renderForScreenReader(lineText));
+						this.provideScreenReaderHint();
 					}
 				});
 			}
 		}));
 
 		this._register(new InlineCompletionsHintsWidget(this.editor, this.model, this.instantiationService));
+	}
+
+	private provideScreenReaderHint(): void {
+		const showHoverKeybinding = this._keybindingService.lookupKeybinding('editor.action.showHover');
+		const accessibleViewKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleView');
+		if (this.configurationService.getValue('accessibility.verbosity.inlineCompletions')) {
+			let hint: string | undefined;
+			if (showHoverKeybinding && accessibleViewKeybinding) {
+				hint = localize('showBothHints', "View more actions ({0}) or inspect this in the accessible view ({1})", showHoverKeybinding.getAriaLabel(), accessibleViewKeybinding.getAriaLabel());
+			} else if (showHoverKeybinding) {
+				hint = localize('showHoverHint', "View more actions ({0})", showHoverKeybinding.getAriaLabel());
+			} else if (accessibleViewKeybinding) {
+				hint = localize('showAccessibleViewHint', "Inspect this in the accessible view ({0})", accessibleViewKeybinding.getAriaLabel());
+			}
+			if (hint) {
+				status(hint);
+			}
+		}
 	}
 
 	/**
