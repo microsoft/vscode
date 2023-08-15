@@ -28,7 +28,6 @@ import type { Terminal } from 'xterm';
 
 class TextAreaSyncContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.textAreaSync';
-	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
 	static get(instance: ITerminalInstance): TextAreaSyncContribution | null {
 		return instance.getContribution<TextAreaSyncContribution>(TextAreaSyncContribution.ID);
 	}

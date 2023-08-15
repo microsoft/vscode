@@ -110,7 +110,6 @@ registerTerminalAction({
 
 class DevModeContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.devMode';
-	devModeClass = 'dev-mode';
 	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
 	static get(instance: ITerminalInstance): DevModeContribution | null {
 		return instance.getContribution<DevModeContribution>(DevModeContribution.ID);
@@ -123,16 +122,18 @@ class DevModeContribution extends DisposableStore implements ITerminalContributi
 		super();
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.DevMode)) {
-				const devMode: boolean = this._configurationService.getValue(TerminalSettingId.DevMode) || false;
-				this._xterm?.raw.element?.classList.toggle(this.devModeClass, devMode);
+				this._updateDevMode();
 			}
 		}));
 	}
 	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
 		this._xterm = xterm;
-		if (this._configurationService.getValue(TerminalSettingId.DevMode)) {
-			this._xterm.raw.element?.classList.add(this.devModeClass);
-		}
+		this._updateDevMode();
+	}
+
+	private _updateDevMode() {
+		const devMode: boolean = this._configurationService.getValue(TerminalSettingId.DevMode) || false;
+		this._xterm?.raw.element?.classList.toggle('dev-mode', devMode);
 	}
 }
 registerTerminalContribution(DevModeContribution.ID, DevModeContribution);
