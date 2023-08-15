@@ -42,7 +42,7 @@ class TextAreaSyncContribution extends DisposableStore implements ITerminalContr
 	}
 	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
 		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
-		this._xterm?.raw.loadAddon(addon);
+		xterm.raw.loadAddon(addon);
 		addon.activate(xterm.raw);
 	}
 }
