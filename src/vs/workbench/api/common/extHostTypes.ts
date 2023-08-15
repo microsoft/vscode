@@ -3884,15 +3884,13 @@ export class TestRunRequest implements vscode.TestRunRequest {
 	) { }
 }
 
-/** Back-compat for proposed API users */
-@es5ClassCompat
-export class TestRunRequest2 extends TestRunRequest { }
-
 @es5ClassCompat
 export class TestMessage implements vscode.TestMessage {
 	public expectedOutput?: string;
 	public actualOutput?: string;
 	public location?: vscode.Location;
+	/** proposed: */
+	public contextValue?: string;
 
 	public static diff(message: string | vscode.MarkdownString, expected: string, actual: string) {
 		const msg = new TestMessage(message);
@@ -4090,6 +4088,25 @@ export enum InteractiveEditorResponseFeedbackKind {
 	Helpful = 1,
 	Undone = 2,
 	Accepted = 3
+}
+
+export enum ChatMessageRole {
+	System = 0,
+	User = 1,
+	Assistant = 2,
+	Function = 3,
+}
+
+export class ChatMessage implements vscode.ChatMessage {
+
+	role: ChatMessageRole;
+	content: string;
+	name?: string;
+
+	constructor(role: ChatMessageRole, content: string) {
+		this.role = role;
+		this.content = content;
+	}
 }
 
 //#endregion

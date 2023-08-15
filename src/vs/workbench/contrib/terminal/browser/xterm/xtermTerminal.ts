@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from 'xterm';
+import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from 'xterm';
 import type { CanvasAddon as CanvasAddonType } from 'xterm-addon-canvas';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
@@ -17,7 +17,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalFont, ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
 import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider, XtermTerminalConstants, IXtermAttachToElementOptions, IDetachedXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { LogLevel } from 'vs/platform/log/common/log';
@@ -227,7 +227,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 			minimumContrastRatio: config.minimumContrastRatio,
 			tabStopWidth: config.tabStopWidth,
 			cursorBlink: config.cursorBlinking,
-			cursorStyle: config.cursorStyle === 'line' ? 'bar' : config.cursorStyle,
+			cursorStyle: vscodeToXtermCursorStyle<'cursorStyle'>(config.cursorStyle),
+			cursorInactiveStyle: vscodeToXtermCursorStyle(config.cursorStyleInactive),
 			cursorWidth: config.cursorWidth,
 			macOptionIsMeta: config.macOptionIsMeta,
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
@@ -394,6 +395,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this.raw.options.altClickMovesCursor = config.altClickMovesCursor;
 		this._setCursorBlink(config.cursorBlinking);
 		this._setCursorStyle(config.cursorStyle);
+		this._setCursorStyleInactive(config.cursorStyleInactive);
 		this._setCursorWidth(config.cursorWidth);
 		this.raw.options.scrollback = config.scrollback;
 		this.raw.options.drawBoldTextInBrightColors = config.drawBoldTextInBrightColors;
@@ -651,10 +653,17 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		}
 	}
 
-	private _setCursorStyle(style: 'block' | 'underline' | 'bar' | 'line'): void {
-		if (this.raw.options.cursorStyle !== style) {
-			// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
-			this.raw.options.cursorStyle = (style === 'line') ? 'bar' : style;
+	private _setCursorStyle(style: ITerminalConfiguration['cursorStyle']): void {
+		const mapped = vscodeToXtermCursorStyle<'cursorStyle'>(style);
+		if (this.raw.options.cursorStyle !== mapped) {
+			this.raw.options.cursorStyle = mapped;
+		}
+	}
+
+	private _setCursorStyleInactive(style: ITerminalConfiguration['cursorStyleInactive']): void {
+		const mapped = vscodeToXtermCursorStyle(style);
+		if (this.raw.options.cursorInactiveStyle !== mapped) {
+			this.raw.options.cursorInactiveStyle = mapped;
 		}
 	}
 
@@ -959,4 +968,16 @@ function vscodeToXtermLogLevel(logLevel: LogLevel): XtermLogLevel {
 		case LogLevel.Error: return 'error';
 		default: return 'off';
 	}
+}
+
+interface ICursorStyleVscodeToXtermMap {
+	'cursorStyle': NonNullable<ITerminalOptions['cursorStyle']>;
+	'cursorStyleInactive': NonNullable<ITerminalOptions['cursorInactiveStyle']>;
+}
+function vscodeToXtermCursorStyle<T extends 'cursorStyle' | 'cursorStyleInactive'>(style: ITerminalConfiguration[T]): ICursorStyleVscodeToXtermMap[T] {
+	// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
+	if (style === 'line') {
+		return 'bar';
+	}
+	return style as ICursorStyleVscodeToXtermMap[T];
 }

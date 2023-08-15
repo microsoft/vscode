@@ -33,7 +33,7 @@ export class ExtHostChat implements ExtHostChatShape {
 	private static _nextId = 0;
 
 	private readonly _chatProvider = new Map<number, ChatProviderWrapper<vscode.InteractiveSessionProvider>>();
-	private readonly _slashCommandProvider = new Map<number, ChatProviderWrapper<vscode.InteractiveSlashCommandProvider>>();
+
 	private readonly _chatSessions = new Map<number, vscode.InteractiveSession>();
 	// private readonly _providerResponsesByRequestId = new Map<number, { response: vscode.ProviderResult<vscode.InteractiveResponse | vscode.InteractiveResponseForProgress>; sessionId: number }>();
 
@@ -200,6 +200,7 @@ export class ExtHostChat implements ExtHostChatShape {
 		const requestObj: vscode.InteractiveRequest = {
 			session: realSession,
 			message: typeof request.message === 'string' ? request.message : typeConvert.ChatReplyFollowup.to(request.message),
+			variables: request.variables ?? {}
 		};
 
 		const stopWatch = StopWatch.create(false);
@@ -286,37 +287,4 @@ export class ExtHostChat implements ExtHostChatShape {
 	}
 
 	//#endregion
-
-	registerSlashCommandProvider(extension: Readonly<IRelaxedExtensionDescription>, chatProviderId: string, provider: vscode.InteractiveSlashCommandProvider): vscode.Disposable {
-		const wrapper = new ChatProviderWrapper(extension, provider);
-		this._slashCommandProvider.set(wrapper.handle, wrapper);
-		this._proxy.$registerSlashCommandProvider(wrapper.handle, chatProviderId);
-		return toDisposable(() => {
-			this._proxy.$unregisterSlashCommandProvider(wrapper.handle);
-			this._slashCommandProvider.delete(wrapper.handle);
-		});
-	}
-
-	async $provideProviderSlashCommands(handle: number, token: CancellationToken): Promise<ISlashCommand[] | undefined> {
-		const entry = this._slashCommandProvider.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-
-		const slashCommands = await entry.provider.provideSlashCommands(token);
-		return slashCommands?.map(c => (<ISlashCommand>{
-			...c,
-			kind: typeConvert.CompletionItemKind.from(c.kind)
-		}));
-	}
-
-	async $resolveSlashCommand(handle: number, command: string, token: CancellationToken): Promise<string | undefined> {
-		const entry = this._slashCommandProvider.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-
-		const resolved = await entry.provider.resolveSlashCommand(command, token);
-		return resolved ?? undefined;
-	}
 }

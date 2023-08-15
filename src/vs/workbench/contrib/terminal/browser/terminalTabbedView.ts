@@ -403,6 +403,9 @@ export class TerminalTabbedView extends Disposable {
 			}
 			if (!this._cancelContextMenu) {
 				const emptyList = this._tabList.getFocus().length === 0;
+				if (!emptyList) {
+					this._terminalGroupService.lastAccessedMenu = 'tab-list';
+				}
 				openContextMenu(event, this._parentElement, emptyList ? this._tabsListEmptyMenu : this._tabsListMenu, this._contextMenuService, emptyList ? this._getTabActions() : undefined);
 			}
 			event.preventDefault();
