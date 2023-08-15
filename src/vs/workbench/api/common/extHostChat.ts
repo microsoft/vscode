@@ -200,7 +200,14 @@ export class ExtHostChat implements ExtHostChatShape {
 		const requestObj: vscode.InteractiveRequest = {
 			session: realSession,
 			message: typeof request.message === 'string' ? request.message : typeConvert.ChatReplyFollowup.to(request.message),
+			variables: {}
 		};
+
+		if (request.variables) {
+			for (const key of Object.keys(request.variables)) {
+				requestObj.variables[key] = request.variables[key].map(typeConvert.ChatVariable.to);
+			}
+		}
 
 		const stopWatch = StopWatch.create(false);
 		let firstProgress: number | undefined;
