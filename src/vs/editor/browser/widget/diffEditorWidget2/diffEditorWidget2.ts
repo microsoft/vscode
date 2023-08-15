@@ -516,17 +516,21 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	collapseAllUnchangedRegions(): void {
 		const unchangedRegions = this._diffModel.get()?.unchangedRegions.get();
 		if (!unchangedRegions) { return; }
-		for (const region of unchangedRegions) {
-			region.collapseAll(undefined);
-		}
+		transaction(tx => {
+			for (const region of unchangedRegions) {
+				region.collapseAll(tx);
+			}
+		});
 	}
 
 	showAllUnchangedRegions(): void {
 		const unchangedRegions = this._diffModel.get()?.unchangedRegions.get();
 		if (!unchangedRegions) { return; }
-		for (const region of unchangedRegions) {
-			region.showAll(undefined);
-		}
+		transaction(tx => {
+			for (const region of unchangedRegions) {
+				region.showAll(tx);
+			}
+		});
 	}
 }
 
