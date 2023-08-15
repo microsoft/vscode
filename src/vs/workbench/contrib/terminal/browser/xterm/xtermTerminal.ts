@@ -43,7 +43,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { debounce } from 'vs/base/common/decorators';
 import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { TextAreaSyncAddon } from 'vs/workbench/contrib/terminal/browser/xterm/textAreaSyncAddon';
 
 const enum RenderConstants {
 	/**
@@ -128,7 +127,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 	private _markNavigationAddon: MarkNavigationAddon;
 	private _shellIntegrationAddon: ShellIntegrationAddon;
 	private _decorationAddon: DecorationAddon;
-	private _textAreaSyncAddon: TextAreaSyncAddon;
 
 	// Optional addons
 	private _suggestAddon?: SuggestAddon;
@@ -277,8 +275,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, disableShellIntegrationReporting, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-		this._textAreaSyncAddon = this._instantiationService.createInstance(TextAreaSyncAddon, this._capabilities);
-		this.raw.loadAddon(this._textAreaSyncAddon);
 
 		this._anyTerminalFocusContextKey = TerminalContextKeys.focusInAny.bindTo(contextKeyService);
 		this._anyFocusedTerminalHasSelection = TerminalContextKeys.textSelectedInFocused.bindTo(contextKeyService);

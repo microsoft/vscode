@@ -6,6 +6,7 @@
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import type { Terminal, ITerminalAddon } from 'xterm';
 
 export interface ITextAreaData {
@@ -25,12 +26,13 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService
 	) {
 		super();
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
 			if (this._accessibilityService.isScreenReaderOptimized() && this._terminal) {
-				this._refreshTextArea()
+				this._refreshTextArea();
 				this._onCursorMoveListener.value = this._terminal.onCursorMove(() => this._refreshTextArea());
 			} else {
 				this._onCursorMoveListener.clear();
@@ -42,16 +44,18 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		if (!this._terminal) {
 			return;
 		}
-
+		this._logService.debug('TextAreaSyncAddon#refreshTextArea');
 		const commandCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		const currentCommand = commandCapability?.currentCommand;
 		if (!currentCommand) {
+			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no currentCommand`);
 			return;
 		}
 		const buffer = this._terminal.buffer.active;
 		const line = buffer.getLine(buffer.cursorY)?.translateToString(true);
 		let commandStartX: number | undefined;
 		if (!line) {
+			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no line`);
 			return;
 		}
 		let content: string | undefined;
@@ -66,26 +70,35 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		}
 
 		if (!content) {
+			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no content`);
 			return;
 		}
 
 		if (commandStartX === undefined) {
+			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no commandStartX`);
 			return;
 		}
 
 		const textArea = this._terminal.textarea;
 		if (!textArea) {
+			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no textarea`);
 			return;
 		}
 
+		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: content is "${content}"`);
+		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: textContent is "${textArea.textContent}"`);
 		if (content !== textArea.textContent) {
 			textArea.textContent = content;
+			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: textContent changed to "${content}"`);
 		}
 
 		const cursorX = buffer.cursorX - commandStartX;
+		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: cursorX is ${cursorX}`);
+		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: selectionStart is ${textArea.selectionStart}`);
 		if (cursorX !== textArea.selectionStart) {
 			textArea.selectionStart = cursorX;
 			textArea.selectionEnd = cursorX;
+			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: selectionStart changed to ${cursorX}`);
 		}
 		// TODO: cursorY?
 	}
