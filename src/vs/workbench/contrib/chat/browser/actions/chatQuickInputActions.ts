@@ -62,7 +62,7 @@ class QuickChatGlobalAction extends Action2 {
 		// Grab the first provider and run its command
 		const info = chatService.getProviderInfos()[0];
 		if (info) {
-			await commandService.executeCommand(`workbench.action.openChat.${info.id}`, query);
+			await commandService.executeCommand(`workbench.action.openQuickChat.${info.id}`, query);
 		}
 	}
 }
@@ -76,14 +76,14 @@ class QuickChatGlobalAction extends Action2 {
  * @returns An action that will open the quick chat for this provider
  */
 export function getQuickChatActionForProvider(id: string, label: string) {
-	return class AskQuickQuestionAction extends Action2 {
+	return class AskQuickChatAction extends Action2 {
 		_currentTimer: any | undefined;
 		_input: IQuickPick<IQuickPickItem> | undefined;
 		_currentChat: QuickChat | undefined;
 
 		constructor() {
 			super({
-				id: `workbench.action.openChat.${id}`,
+				id: `workbench.action.openQuickChat.${id}`,
 				category: CHAT_CATEGORY,
 				title: { value: localize('interactiveSession.open', "Open Quick Chat ({0})", label), original: `Open Quick Chat (${label})` },
 				f1: true
@@ -214,7 +214,7 @@ class QuickChat extends Disposable {
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
-				{ resource: true, renderInputOnTop: true },
+				{ resource: true, renderInputOnTop: true, renderStyle: 'compact' },
 				{
 					listForeground: editorForeground,
 					listBackground: editorBackground,
@@ -241,14 +241,11 @@ class QuickChat extends Disposable {
 		this._register(this.widget.inputEditor.onDidChangeModelContent((e) => {
 			this._currentQuery = this.widget.inputEditor.getValue();
 		}));
+		this._register(this.widget.onDidClear(() => this.clear()));
 	}
 
 	async acceptInput(): Promise<void> {
-		if (this.widget.inputEditor.getValue().trim() === '/clear') {
-			this.clear();
-		} else {
-			await this.widget.acceptInput();
-		}
+		return this.widget.acceptInput();
 	}
 
 	async openChatView(): Promise<void> {

@@ -142,3 +142,8 @@
 .action-widget-action-bar .action-label:hover {
 	background-color: transparent !important;
 }
+
+.monaco-action-bar .actions-container.highlight-toggled .action-label.checked {
+	/* The important gives this rule precedence over the hover rule. */
+	background: var(--vscode-actionBar-toggledBackground) !important;
+}
