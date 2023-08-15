@@ -10,6 +10,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtHostChatVariablesShape, IMainContext, MainContext, MainThreadChatVariablesShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { ChatVariable } from 'vs/workbench/api/common/extHostTypeConverters';
 
 export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 
@@ -28,11 +29,14 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 			return undefined;
 		}
 		try {
-			return (await item.resolver.resolve(item.data.name, { message: messageText }, token)) ?? undefined;
+			const value = await item.resolver.resolve(item.data.name, { message: messageText }, token);
+			if (value) {
+				return value.map(ChatVariable.from);
+			}
 		} catch (err) {
 			onUnexpectedExternalError(err);
-			return undefined;
 		}
+		return undefined;
 	}
 
 	registerVariableResolver(extension: IExtensionDescription, name: string, description: string, resolver: vscode.ChatVariableResolver): IDisposable {
