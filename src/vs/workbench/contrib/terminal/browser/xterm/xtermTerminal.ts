@@ -279,17 +279,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this.raw.loadAddon(this._shellIntegrationAddon);
 		this._textAreaSyncAddon = this._instantiationService.createInstance(TextAreaSyncAddon, this._capabilities);
 		this.raw.loadAddon(this._textAreaSyncAddon);
-		this.add(this._textAreaSyncAddon.onDidRequestTextAreaSync((data) => {
-			const textArea = this.raw.textarea;
-			if (!textArea) {
-				return;
-			}
-			// Sync the textarea using shell integration
-			textArea.textContent = data.content;
-			textArea.selectionStart = data.cursorX;
-			textArea.selectionEnd = data.cursorX;
-			// TODO: cursorY?
-		}));
 
 		this._anyTerminalFocusContextKey = TerminalContextKeys.focusInAny.bindTo(contextKeyService);
 		this._anyFocusedTerminalHasSelection = TerminalContextKeys.textSelectedInFocused.bindTo(contextKeyService);
