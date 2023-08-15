@@ -412,7 +412,7 @@ class OnAutoForwardedAction extends Disposable {
 					elevateIfNeeded: true,
 					source: AutoTunnelSource
 				});
-				if (!newTunnel) {
+				if (!newTunnel || (typeof newTunnel === 'string')) {
 					return;
 				}
 				this.lastNotification?.close();
@@ -493,7 +493,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 				return;
 			}
 			const forwarded = await this.remoteExplorerService.forward({ remote: localUrl, source: AutoTunnelSource }, attributes ?? null);
-			if (forwarded) {
+			if (forwarded && (typeof forwarded !== 'string')) {
 				this.notifier.doAction([forwarded]);
 			}
 		}));
@@ -633,7 +633,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} has been notified`);
 				this.notifiedOnly.add(address);
 			}
-			if (forwarded) {
+			if (forwarded && (typeof forwarded !== 'string')) {
 				allTunnels.push(forwarded);
 			}
 		}

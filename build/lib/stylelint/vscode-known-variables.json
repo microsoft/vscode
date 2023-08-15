@@ -1,5 +1,6 @@
 {
 	"colors": [
+		"--vscode-actionBar-toggledBackground",
 		"--vscode-activityBar-activeBackground",
 		"--vscode-activityBar-activeBorder",
 		"--vscode-activityBar-activeFocusBorder",
@@ -702,7 +703,6 @@
 		"--background-light",
 		"--dropdown-padding-bottom",
 		"--dropdown-padding-top",
-		"--hover-maxWidth",
 		"--insert-border-color",
 		"--last-tab-margin-right",
 		"--monaco-monospace-font",
@@ -732,6 +732,9 @@
 		"--vscode-editorCodeLens-fontSize",
 		"--vscode-editorCodeLens-lineHeight",
 		"--vscode-explorer-align-offset-margin-left",
+		"--vscode-hover-maxWidth",
+		"--vscode-hover-sourceWhiteSpace",
+		"--vscode-hover-whiteSpace",
 		"--vscode-inline-chat-cropped",
 		"--vscode-inline-chat-expanded",
 		"--vscode-interactive-session-foreground",
