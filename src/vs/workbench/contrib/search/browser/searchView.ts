@@ -1426,9 +1426,11 @@ export class SearchView extends ViewPane {
 		if (options.triggeredOnType && !this.searchConfig.searchOnType) { return; }
 
 		if (!this.pauseSearching) {
+
+			const delay = options.triggeredOnType ? options.delay : 0;
 			this.triggerQueryDelayer.trigger(() => {
 				this._onQueryChanged(options.preserveFocus, options.triggeredOnType);
-			}, options.delay);
+			}, delay);
 		}
 	}
 
