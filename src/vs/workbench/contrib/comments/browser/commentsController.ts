@@ -38,6 +38,7 @@ import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/brows
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { URI } from 'vs/base/common/uri';
 
 export const ID = 'editor.contrib.review';
 
@@ -296,6 +297,18 @@ export const ActiveCursorHasCommentingRange = new RawContextKey<boolean>('active
 	type: 'boolean'
 });
 
+const pendingNewCommentsKey = 'comments.pendingNewComments';
+const pendingEditsKey = 'comments.pendingEdits';
+interface PendingNewComments {
+	uri: URI;
+	cache: { [key: string]: { [key: string]: string } };
+}
+
+interface PendingEdits {
+	uri: URI;
+	cache: { [key: string]: { [key: string]: { [key: number]: string } } };
+}
+
 export class CommentController implements IEditorContribution {
 	private readonly globalToDispose = new DisposableStore();
 	private readonly localToDispose = new DisposableStore();
@@ -327,7 +340,7 @@ export class CommentController implements IEditorContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IStorageService storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
@@ -399,21 +412,21 @@ export class CommentController implements IEditorContribution {
 		this.beginCompute();
 
 		this.globalToDispose.add(storageService.onWillSaveState(() => {
-			storageService.store('comments.pendingNewComments', this._pendingNewCommentCache, StorageScope.WORKSPACE, StorageTarget.USER);
-			storageService.store('comments.pendingEdits', this._pendingEditsCache, StorageScope.WORKSPACE, StorageTarget.USER);
-
+			this.storePendingInfo();
 		}));
-		this.globalToDispose.add(storageService.onDidChangeValue(StorageScope.WORKSPACE, 'comments.pendingNewComments', this.globalToDispose)(e => {
+		this.globalToDispose.add(storageService.onDidChangeValue(StorageScope.WORKSPACE, pendingNewCommentsKey, this.globalToDispose)(e => {
 			if (e.external) {
-				const pendingNewCommentCache: { [key: string]: { [key: string]: string } } | undefined = storageService.getObject('comments.pendingNewComments', StorageScope.WORKSPACE, {});
+				const pendingNewComments: PendingNewComments[] = storageService.getObject(pendingNewCommentsKey, StorageScope.WORKSPACE, []);
+				const pendingNewCommentCache: { [key: string]: { [key: string]: string } } | undefined = pendingNewComments.find(pendingNewCommentEntry => pendingNewCommentEntry.uri.toString() === this.editor?.getModel()?.uri.toString())?.cache;
 				if (pendingNewCommentCache) {
 					this.restorePendingCommentCache(pendingNewCommentCache);
 				}
 			}
 		}));
-		this.globalToDispose.add(storageService.onDidChangeValue(StorageScope.WORKSPACE, 'comments.pendingEdits', this.globalToDispose)(e => {
+		this.globalToDispose.add(storageService.onDidChangeValue(StorageScope.WORKSPACE, pendingEditsKey, this.globalToDispose)(e => {
 			if (e.external) {
-				const pendingEditsCache: { [key: string]: { [key: string]: string } } | undefined = storageService.getObject('comments.pendingEdits', StorageScope.WORKSPACE, {});
+				const pendingEdits: PendingEdits[] = storageService.getObject(pendingEditsKey, StorageScope.WORKSPACE, []);
+				const pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: string } } } | undefined = pendingEdits.find(pendingEditEntry => pendingEditEntry.uri.toString() === this.editor?.getModel()?.uri.toString())?.cache;
 				if (pendingEditsCache) {
 					this.restorePendingEditsCache(pendingEditsCache);
 				}
@@ -1036,6 +1049,44 @@ export class CommentController implements IEditorContribution {
 			this.editor.focus();
 			this.editor.revealRangeInCenter(this.editor.getSelection()!);
 		}
+	}
+
+	private storePendingInfo() {
+		const pendingNewComments: PendingNewComments[] = this.storageService.getObject(pendingNewCommentsKey, StorageScope.WORKSPACE, []);
+		let newCommentsIndex = -1;
+		for (let i = 0; i < pendingNewComments.length; i++) {
+			const pendingNewComment = pendingNewComments[i];
+			if (pendingNewComment.uri.toString() === this.editor?.getModel()?.uri.toString()) {
+				newCommentsIndex = i;
+				pendingNewComment.cache = this._pendingNewCommentCache;
+				break;
+			}
+		}
+		if (newCommentsIndex === -1) {
+			const uri = this.editor?.getModel()?.uri;
+			if (uri) {
+				pendingNewComments.push({ uri, cache: this._pendingNewCommentCache });
+			}
+		}
+		this.storageService.store(pendingNewCommentsKey, pendingNewComments, StorageScope.WORKSPACE, StorageTarget.USER);
+
+		const pendingEdits: PendingEdits[] = this.storageService.getObject(pendingEditsKey, StorageScope.WORKSPACE, []);
+		let editsIndex = -1;
+		for (let i = 0; i < pendingEdits.length; i++) {
+			const pendingEdit = pendingEdits[i];
+			if (pendingEdit.uri.toString() === this.editor?.getModel()?.uri.toString()) {
+				editsIndex = i;
+				pendingEdit.cache = this._pendingEditsCache;
+				break;
+			}
+		}
+		if (editsIndex === -1) {
+			const uri = this.editor?.getModel()?.uri;
+			if (uri) {
+				pendingEdits.push({ uri, cache: this._pendingEditsCache });
+			}
+		}
+		this.storageService.store(pendingEditsKey, pendingEdits, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private restorePendingCommentCache(newValue: { [key: string]: { [key: string]: string } }) {
