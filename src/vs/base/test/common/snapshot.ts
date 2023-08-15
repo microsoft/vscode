@@ -31,8 +31,8 @@ export interface ISnapshotOptions {
  */
 export class SnapshotContext {
 	private nextIndex = 0;
+	protected snapshotsDir: URI;
 	private readonly namePrefix: string;
-	private readonly snapshotsDir: URI;
 	private readonly usedNames = new Set();
 
 	constructor(private readonly test: Mocha.Test | undefined) {
