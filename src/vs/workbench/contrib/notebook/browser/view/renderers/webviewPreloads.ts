@@ -1495,13 +1495,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'copyImage': {
-				const { outputId } = event.data;
-
-				const image = document.getElementById(outputId)?.querySelector('img');
+				const image = document.getElementById(event.data.outputId)?.querySelector('img');
 				if (image) {
 					await copyImage(image);
 				} else {
-					console.warn('Could not find image element to copy');
+					console.warn('Could not find image element to copy for output with id', event.data.outputId);
 				}
 
 				break;
