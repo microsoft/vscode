@@ -77,7 +77,10 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 		const configValue = this.configurationService.getValue(untitledTextEditorHintSetting);
 		const model = this.editor.getModel();
 
-		if (model && model.uri.scheme === Schemas.untitled && model.getLanguageId() === PLAINTEXT_LANGUAGE_ID && configValue === 'text') {
+		const inlineChatProviders = [...this.inlineChatService.getAllProvider()];
+		const shouldRenderEitherDefaultOrInlineChatHint = model?.getLanguageId() === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length || inlineChatProviders.length > 0;
+
+		if (model && model.uri.scheme === Schemas.untitled && shouldRenderEitherDefaultOrInlineChatHint && configValue === 'text') {
 			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(
 				this.editor,
 				this.editorGroupsService,
@@ -313,7 +316,6 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		return { hintElement, ariaLabel };
 	}
 
-	// Select a language to get started. Start typing to dismiss, or don't show this again.
 	getDomNode(): HTMLElement {
 		if (!this.domNode) {
 			this.domNode = $('.untitled-hint');

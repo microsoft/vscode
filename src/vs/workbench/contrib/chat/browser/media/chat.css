@@ -428,3 +428,17 @@
 }
 
 /* #endregion */
+
+.interactive-response-progress-tree .monaco-tl-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.interactive-response-progress-tree {
+	margin: 16px 0px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-input-border, transparent);
+}
+
+.interactive-response-progress-tree.focused {
+	border-color: var(--vscode-focusBorder, transparent);
+}

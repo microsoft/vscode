@@ -51,6 +51,7 @@ import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/acc
 import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ChatVariablesService, IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { registerChatFileTreeActions } from 'vs/workbench/contrib/chat/browser/actions/chatFileTreeActions';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -246,6 +247,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 registerChatActions();
 registerChatCopyActions();
 registerChatCodeBlockActions();
+registerChatFileTreeActions();
 registerChatTitleActions();
 registerChatExecuteActions();
 registerQuickChatActions();
