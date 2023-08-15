@@ -266,9 +266,9 @@ export interface IShowOutputMessage {
 	readonly content?: ICreationContent;
 }
 
-export interface ICopyOutputImage {
+export interface ICopyImageMessage {
 	readonly type: 'copyImage';
-	readonly data: Uint8Array;
+	readonly outputId: string;
 }
 
 export interface IFocusOutputMessage {
@@ -532,7 +532,7 @@ export type ToWebviewMessage = IClearMessage |
 	IClearOutputRequestMessage |
 	IHideOutputMessage |
 	IShowOutputMessage |
-	ICopyOutputImage |
+	ICopyImageMessage |
 	IUpdateControllerPreloadsMessage |
 	IUpdateRenderersMessage |
 	IUpdateDecorationsMessage |

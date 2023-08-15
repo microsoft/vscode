@@ -13,7 +13,7 @@ import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ILogService } from 'vs/platform/log/common/log';
 import { copyCellOutput } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
+import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export const COPY_OUTPUT_COMMAND_ID = 'notebook.cellOutput.copyToClipboard';
 
@@ -40,11 +40,11 @@ registerAction2(class CopyCellOutputAction extends NotebookAction {
 
 		copyCellOutput(mimeType, outputViewModel, clipboardService, logService);
 
-		if (mimeType === 'image/png') {
+		if (mimeType?.startsWith('image/')) {
 			const editorService = accessor.get(IEditorService);
-			const editor = editorService.activeEditorPane?.getControl() as NotebookEditor;
-			
-
+			const editor = editorService.activeEditorPane?.getControl() as INotebookEditor;
+			await editor.focusNotebookCell(outputViewModel.cellViewModel as ICellViewModel, 'output');
+			editor.copyImage(outputViewModel);
 		}
 	}
 });
