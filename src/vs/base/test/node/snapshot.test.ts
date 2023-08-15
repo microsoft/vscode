@@ -101,7 +101,7 @@ suite('snapshot', () => {
 
 		await ctx1.assert({ cool: true });
 		await ctx1.assert({ nifty: true });
-		await ctx1.assert({ customName: 1 }, { name: 'thirdTest' });
+		await ctx1.assert({ customName: 1 }, { name: 'thirdTest', extension: 'txt' });
 		await ctx1.assert({ customName: 2 }, { name: 'fourthTest' });
 
 		await snapshotFileTree();
