@@ -53,6 +53,17 @@
 	outline: 0 !important;
 }
 
+/** Uncomment the below two blocks to view the textarea */
+.xterm .xterm-helper-textarea {
+	z-index: 36 !important;
+	opacity: 1 !important;
+	left: 0 !important;
+	width: fit-content !important;
+}
+.monaco-workbench .xterm .xterm-helper-textarea:focus {
+	opacity: 1 !important;
+}
+
 .monaco-workbench .terminal-tab::before {
 	font-family: 'codicon' !important;
 	font-size: 16px !important;
