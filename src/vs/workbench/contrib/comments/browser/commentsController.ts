@@ -1096,6 +1096,9 @@ export class CommentController implements IEditorContribution {
 		for (const owner of owners) {
 			const threads = Object.keys(newValue[owner]);
 			for (const thread of threads) {
+				if (!this._pendingNewCommentCache[owner]) {
+					this._pendingNewCommentCache[owner] = {};
+				}
 				if (!this._pendingNewCommentCache[owner][thread]) {
 					this._pendingNewCommentCache[owner][thread] = newValue[owner][thread];
 				}
@@ -1111,8 +1114,14 @@ export class CommentController implements IEditorContribution {
 				const comments = Object.keys(newValue[owner][thread]);
 				for (const comment of comments) {
 					const commentNumber = Number(comment);
+					if (!this._pendingEditsCache[owner]) {
+						this._pendingEditsCache[owner] = {};
+					}
+					if (!this._pendingEditsCache[owner][thread]) {
+						this._pendingEditsCache[owner][thread] = {};
+					}
 					if (!this._pendingEditsCache[owner][thread][commentNumber]) {
-						this._pendingEditsCache[owner][thread[commentNumber]] = newValue[owner][thread][commentNumber];
+						this._pendingEditsCache[owner][thread][commentNumber] = newValue[owner][thread][commentNumber];
 					}
 				}
 			}
