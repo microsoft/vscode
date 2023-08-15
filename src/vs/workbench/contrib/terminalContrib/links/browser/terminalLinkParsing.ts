@@ -71,11 +71,14 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 	const lineAndColumnRegexClauses = [
 		// foo:339
 		// foo:339:12
+		// foo:339.12
 		// foo 339
 		// foo 339:12                             [#140780]
+		// foo 339.12
 		// "foo",339
 		// "foo",339:12
-		`(?::| |['"],)${r()}(:${c()})?` + eolSuffix,
+		// "foo",339.12
+		`(?::| |['"],)${r()}([:.]${c()})?` + eolSuffix,
 		// The quotes below are optional          [#171652]
 		// "foo", line 339                        [#40468]
 		// "foo", line 339, col 12

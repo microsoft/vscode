@@ -6,10 +6,11 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as URI from 'vscode-uri';
-import { Schemes } from '../../util/schemes';
-import { NewFilePathGenerator } from './copyFiles';
 import { coalesce } from '../../util/arrays';
 import { getDocumentDir } from '../../util/document';
+import { mediaMimes } from '../../util/mimes';
+import { Schemes } from '../../util/schemes';
+import { NewFilePathGenerator } from './copyFiles';
 
 enum MediaKind {
 	Image,
@@ -47,19 +48,6 @@ export const mediaFileExtensions = new Map<string, MediaKind>([
 	['mp3', MediaKind.Audio],
 	['aac', MediaKind.Audio],
 	['wav', MediaKind.Audio],
-]);
-
-export const mediaMimes = new Set([
-	'image/bmp',
-	'image/gif',
-	'image/jpeg',
-	'image/png',
-	'image/webp',
-	'video/mp4',
-	'video/ogg',
-	'audio/mpeg',
-	'audio/aac',
-	'audio/x-wav',
 ]);
 
 const smartPasteRegexes = [
@@ -402,7 +390,7 @@ function escapeMarkdownLinkPath(mdPath: string, isExternalLink: boolean): string
 }
 
 function escapeBrackets(value: string): string {
-	value = value.replace(/[\[\]]/g, '\\$&');
+	value = value.replace(/[\[\]]/g, '\\$&'); // CodeQL [SM02383] The Markdown is fully sanitized after being rendered.
 	return value;
 }
 

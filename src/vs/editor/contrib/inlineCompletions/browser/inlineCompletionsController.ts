@@ -41,7 +41,14 @@ export class InlineCompletionsController extends Disposable {
 	private readonly suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
 		this.editor,
 		() => this.model.get()?.selectedInlineCompletion.get()?.toSingleTextEdit(undefined),
-		(tx) => this.updateObservables(tx, VersionIdChangeReason.Other)
+		(tx) => this.updateObservables(tx, VersionIdChangeReason.Other),
+		(item) => {
+			transaction(tx => {
+				/** @description handleSuggestAccepted */
+				this.updateObservables(tx, VersionIdChangeReason.Other);
+				this.model.get()?.handleSuggestAccepted(item);
+			});
+		}
 	));
 	private readonly _enabled = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
 

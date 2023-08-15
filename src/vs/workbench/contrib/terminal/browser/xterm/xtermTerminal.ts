@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from 'xterm';
+import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from 'xterm';
 import type { CanvasAddon as CanvasAddonType } from 'xterm-addon-canvas';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
@@ -17,7 +17,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalFont, ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
 import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider, XtermTerminalConstants, IXtermAttachToElementOptions, IDetachedXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { LogLevel } from 'vs/platform/log/common/log';
@@ -146,21 +146,21 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 
-	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>();
+	private readonly _onDidRequestRunCommand = this.add(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
-	private readonly _onDidRequestFocus = new Emitter<void>();
+	private readonly _onDidRequestFocus = this.add(new Emitter<void>());
 	readonly onDidRequestFocus = this._onDidRequestFocus.event;
-	private readonly _onDidRequestSendText = new Emitter<string>();
+	private readonly _onDidRequestSendText = this.add(new Emitter<string>());
 	readonly onDidRequestSendText = this._onDidRequestSendText.event;
-	private readonly _onDidRequestFreePort = new Emitter<string>();
+	private readonly _onDidRequestFreePort = this.add(new Emitter<string>());
 	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
-	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number }>();
+	private readonly _onDidChangeFindResults = this.add(new Emitter<{ resultIndex: number; resultCount: number }>());
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
-	private readonly _onDidChangeSelection = new Emitter<void>();
+	private readonly _onDidChangeSelection = this.add(new Emitter<void>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
-	private readonly _onDidChangeFocus = new Emitter<boolean>();
+	private readonly _onDidChangeFocus = this.add(new Emitter<boolean>());
 	readonly onDidChangeFocus = this._onDidChangeFocus.event;
-	private readonly _onDidDispose = new Emitter<void>();
+	private readonly _onDidDispose = this.add(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
 
 	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
@@ -227,7 +227,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 			minimumContrastRatio: config.minimumContrastRatio,
 			tabStopWidth: config.tabStopWidth,
 			cursorBlink: config.cursorBlinking,
-			cursorStyle: config.cursorStyle === 'line' ? 'bar' : config.cursorStyle,
+			cursorStyle: vscodeToXtermCursorStyle<'cursorStyle'>(config.cursorStyle),
+			cursorInactiveStyle: vscodeToXtermCursorStyle(config.cursorStyleInactive),
 			cursorWidth: config.cursorWidth,
 			macOptionIsMeta: config.macOptionIsMeta,
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
@@ -381,8 +382,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this._anyFocusedTerminalHasSelection.set(isFocused && this.raw.hasSelection());
 	}
 
-	write(data: string | Uint8Array): void {
-		this.raw.write(data);
+	write(data: string | Uint8Array, callback?: () => void): void {
+		this.raw.write(data, callback);
 	}
 
 	resize(columns: number, rows: number): void {
@@ -394,6 +395,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this.raw.options.altClickMovesCursor = config.altClickMovesCursor;
 		this._setCursorBlink(config.cursorBlinking);
 		this._setCursorStyle(config.cursorStyle);
+		this._setCursorStyleInactive(config.cursorStyleInactive);
 		this._setCursorWidth(config.cursorWidth);
 		this.raw.options.scrollback = config.scrollback;
 		this.raw.options.drawBoldTextInBrightColors = config.drawBoldTextInBrightColors;
@@ -595,6 +597,24 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this.raw.clearSelection();
 	}
 
+	selectMarkedRange(fromMarkerId: string, toMarkerId: string, scrollIntoView = false) {
+		const detectionCapability = this.shellIntegration.capabilities.get(TerminalCapability.BufferMarkDetection);
+		if (!detectionCapability) {
+			return;
+		}
+
+		const start = detectionCapability.getMark(fromMarkerId);
+		const end = detectionCapability.getMark(toMarkerId);
+		if (start === undefined || end === undefined) {
+			return;
+		}
+
+		this.raw.selectLines(start.line, end.line);
+		if (scrollIntoView) {
+			this.raw.scrollToLine(start.line);
+		}
+	}
+
 	selectAll(): void {
 		this.raw.focus();
 		this.raw.selectAll();
@@ -633,10 +653,17 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		}
 	}
 
-	private _setCursorStyle(style: 'block' | 'underline' | 'bar' | 'line'): void {
-		if (this.raw.options.cursorStyle !== style) {
-			// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
-			this.raw.options.cursorStyle = (style === 'line') ? 'bar' : style;
+	private _setCursorStyle(style: ITerminalConfiguration['cursorStyle']): void {
+		const mapped = vscodeToXtermCursorStyle<'cursorStyle'>(style);
+		if (this.raw.options.cursorStyle !== mapped) {
+			this.raw.options.cursorStyle = mapped;
+		}
+	}
+
+	private _setCursorStyleInactive(style: ITerminalConfiguration['cursorStyleInactive']): void {
+		const mapped = vscodeToXtermCursorStyle(style);
+		if (this.raw.options.cursorInactiveStyle !== mapped) {
+			this.raw.options.cursorInactiveStyle = mapped;
 		}
 	}
 
@@ -941,4 +968,16 @@ function vscodeToXtermLogLevel(logLevel: LogLevel): XtermLogLevel {
 		case LogLevel.Error: return 'error';
 		default: return 'off';
 	}
+}
+
+interface ICursorStyleVscodeToXtermMap {
+	'cursorStyle': NonNullable<ITerminalOptions['cursorStyle']>;
+	'cursorStyleInactive': NonNullable<ITerminalOptions['cursorInactiveStyle']>;
+}
+function vscodeToXtermCursorStyle<T extends 'cursorStyle' | 'cursorStyleInactive'>(style: ITerminalConfiguration[T]): ICursorStyleVscodeToXtermMap[T] {
+	// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
+	if (style === 'line') {
+		return 'bar';
+	}
+	return style as ICursorStyleVscodeToXtermMap[T];
 }

@@ -33,7 +33,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
-import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { isFirefox } from 'vs/base/browser/browser';
 import { isCancellationError } from 'vs/base/common/errors';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -199,7 +199,8 @@ export abstract class TitleControl extends Themable {
 			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
 			telemetrySource: 'editorPart',
 			resetMenu: MenuId.EditorTitle,
-			maxNumberOfItems: 9
+			maxNumberOfItems: 9,
+			highlightToggledItems: true,
 		}));
 
 		// Context
@@ -251,7 +252,7 @@ export abstract class TitleControl extends Themable {
 		this.contextKeyService.bufferChangeEvents(() => {
 			const activeEditor = this.group.activeEditor;
 
-			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+			this.resourceContext.set(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
 
 			this.editorPinnedContext.set(activeEditor ? this.group.isPinned(activeEditor) : false);
 			this.editorIsFirstContext.set(activeEditor ? this.group.isFirst(activeEditor) : false);
@@ -360,7 +361,7 @@ export abstract class TitleControl extends Themable {
 
 		// Update contexts based on editor picked and remember previous to restore
 		const currentResourceContext = this.resourceContext.get();
-		this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+		this.resourceContext.set(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
 		const currentPinnedContext = !!this.editorPinnedContext.get();
 		this.editorPinnedContext.set(this.group.isPinned(editor));
 		const currentEditorIsFirstContext = !!this.editorIsFirstContext.get();
@@ -418,7 +419,7 @@ export abstract class TitleControl extends Themable {
 	protected getKeybindingLabel(action: IAction): string | undefined {
 		const keybinding = this.getKeybinding(action);
 
-		return keybinding ? withNullAsUndefined(keybinding.getLabel()) : undefined;
+		return keybinding ? keybinding.getLabel() ?? undefined : undefined;
 	}
 
 	abstract openEditor(editor: EditorInput): void;

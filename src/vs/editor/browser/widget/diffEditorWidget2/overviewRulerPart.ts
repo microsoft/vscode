@@ -119,13 +119,18 @@ export class OverviewRulerPart extends Disposable {
 							.map(r => {
 								const start = vm.coordinatesConverter.convertModelPositionToViewPosition(new Position(r.startLineNumber, 1));
 								const end = vm.coordinatesConverter.convertModelPositionToViewPosition(new Position(r.endLineNumberExclusive, 1));
-
-								return new OverviewRulerZone(start.lineNumber, end.lineNumber, 0, color.toString());
+								// By computing the lineCount, we won't ask the view model later for the bottom vertical position.
+								// (The view model will take into account the alignment viewzones, which will give
+								// modifications and deletetions always the same height.)
+								const lineCount = end.lineNumber - start.lineNumber;
+								return new OverviewRulerZone(start.lineNumber, end.lineNumber, lineCount, color.toString());
 							});
 					}
 
-					originalOverviewRuler?.setZones(createZones((diff || []).map(d => d.lineRangeMapping.originalRange), colors.removeColor, this._editors.original));
-					modifiedOverviewRuler?.setZones(createZones((diff || []).map(d => d.lineRangeMapping.modifiedRange), colors.insertColor, this._editors.modified));
+					const originalZones = createZones((diff || []).map(d => d.lineRangeMapping.originalRange), colors.removeColor, this._editors.original);
+					const modifiedZones = createZones((diff || []).map(d => d.lineRangeMapping.modifiedRange), colors.insertColor, this._editors.modified);
+					originalOverviewRuler?.setZones(originalZones);
+					modifiedOverviewRuler?.setZones(modifiedZones);
 				}));
 
 				store.add(autorun(reader => {

@@ -27,7 +27,7 @@ import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { isString, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { isString } from 'vs/base/common/types';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
@@ -1077,7 +1077,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			}
 		}
 		if (this.ui.list.ariaLabel !== ariaLabel) {
-			this.ui.list.ariaLabel = withUndefinedAsNull(ariaLabel);
+			this.ui.list.ariaLabel = ariaLabel ?? null;
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
@@ -1410,6 +1410,10 @@ export class QuickInputController extends Disposable {
 		const focusTracker = dom.trackFocus(container);
 		this._register(focusTracker);
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, e => {
+			// Ignore focus events within container
+			if (dom.isAncestor(e.relatedTarget as HTMLElement, container)) {
+				return;
+			}
 			this.previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
 		}, true));
 		this._register(focusTracker.onDidBlur(() => {
@@ -1799,25 +1803,27 @@ export class QuickInputController extends Disposable {
 
 	hide(reason?: QuickInputHideReason) {
 		const controller = this.controller;
-		if (controller) {
-			const focusChanged = !this.ui?.container.contains(document.activeElement);
-			this.controller = null;
-			this.onHideEmitter.fire();
-			this.getUI().container.style.display = 'none';
-			if (!focusChanged) {
-				let currentElement = this.previousFocusElement;
-				while (currentElement && !currentElement.offsetParent) {
-					currentElement = withNullAsUndefined(currentElement.parentElement);
-				}
-				if (currentElement?.offsetParent) {
-					currentElement.focus();
-					this.previousFocusElement = undefined;
-				} else {
-					this.options.returnFocus();
-				}
-			}
-			controller.didHide(reason);
+		if (!controller) {
+			return;
 		}
+
+		const focusChanged = !dom.isAncestor(document.activeElement, this.ui?.container ?? null);
+		this.controller = null;
+		this.onHideEmitter.fire();
+		this.getUI().container.style.display = 'none';
+		if (!focusChanged) {
+			let currentElement = this.previousFocusElement;
+			while (currentElement && !currentElement.offsetParent) {
+				currentElement = currentElement.parentElement ?? undefined;
+			}
+			if (currentElement?.offsetParent) {
+				currentElement.focus();
+				this.previousFocusElement = undefined;
+			} else {
+				this.options.returnFocus();
+			}
+		}
+		controller.didHide(reason);
 	}
 
 	focus() {

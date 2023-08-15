@@ -64,6 +64,7 @@ export const enum TerminalSettingId {
 	FontWeightBold = 'terminal.integrated.fontWeightBold',
 	CursorBlinking = 'terminal.integrated.cursorBlinking',
 	CursorStyle = 'terminal.integrated.cursorStyle',
+	CursorStyleInactive = 'terminal.integrated.cursorStyleInactive',
 	CursorWidth = 'terminal.integrated.cursorWidth',
 	Scrollback = 'terminal.integrated.scrollback',
 	DetectLocale = 'terminal.integrated.detectLocale',

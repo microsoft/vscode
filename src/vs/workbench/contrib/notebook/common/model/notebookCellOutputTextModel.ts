@@ -109,7 +109,7 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		}
 	}
 
-	toJSON(): IOutputDto {
+	asDto(): IOutputDto {
 		return {
 			// data: this._data,
 			metadata: this._rawOutput.metadata,

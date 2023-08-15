@@ -36,13 +36,6 @@ steps:
       tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.8.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
     displayName: Extract openssl prebuilt
 
-  - powershell: node build/azure-pipelines/cli/prepare.js
-    displayName: Prepare CLI build
-    env:
-      VSCODE_CLI_PREPARE_ROOT: $(Build.SourcesDirectory)/.build/distro
-      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-
   - template: ../cli/install-rust-win32.yml
     parameters:
       targets:
@@ -56,6 +49,7 @@ steps:
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
       parameters:
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_TARGET: x86_64-pc-windows-msvc
         VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_x64_cli
         VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
@@ -67,6 +61,7 @@ steps:
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
       parameters:
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_TARGET: aarch64-pc-windows-msvc
         VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_arm64_cli
         VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
@@ -78,6 +73,7 @@ steps:
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32_32BIT, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
       parameters:
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_TARGET: i686-pc-windows-msvc
         VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_ia32_cli
         VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}

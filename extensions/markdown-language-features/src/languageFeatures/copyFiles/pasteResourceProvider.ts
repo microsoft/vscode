@@ -4,16 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { Mime, mediaMimes } from '../../util/mimes';
 import { Schemes } from '../../util/schemes';
-import { createEditForMediaFiles, createEditAddingLinksForUriList, mediaMimes, getPasteUrlAsFormattedLinkSetting, PasteUrlAsFormattedLink } from './shared';
+import { PasteUrlAsFormattedLink, createEditAddingLinksForUriList, createEditForMediaFiles, getPasteUrlAsFormattedLinkSetting } from './shared';
 
-class PasteEditProvider implements vscode.DocumentPasteEditProvider {
+class PasteResourceEditProvider implements vscode.DocumentPasteEditProvider {
 
-	private readonly _id = 'insertLink';
+	public static readonly id = 'insertLink';
+
+	public static readonly pasteMimeTypes = [
+		Mime.textUriList,
+		...mediaMimes,
+	];
 
 	private readonly _yieldTo = [
 		{ mimeType: 'text/plain' },
-		{ extensionId: 'vscode.ipynb', editId: 'insertAttachment' },
+		{ extensionId: 'vscode.ipynb', providerId: 'insertAttachment' },
 	];
 
 	async provideDocumentPasteEdits(
@@ -32,19 +38,26 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return createEdit;
 		}
 
-		const uriEdit = new vscode.DocumentPasteEdit('', this._id, '');
-		const urlList = await dataTransfer.get('text/uri-list')?.asString();
-		if (!urlList) {
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		return this._getUriListEdit(document, ranges, dataTransfer, token);
+	}
+
+	private async _getUriListEdit(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
+		const uriList = await dataTransfer.get(Mime.textUriList)?.asString();
+		if (!uriList || token.isCancellationRequested) {
 			return;
 		}
 
 		const pasteUrlSetting = getPasteUrlAsFormattedLinkSetting(document);
-		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, urlList, false, pasteUrlSetting === PasteUrlAsFormattedLink.Smart, token);
+		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, uriList, false, pasteUrlSetting === PasteUrlAsFormattedLink.Smart, token);
 		if (!pasteEdit) {
 			return;
 		}
 
-		uriEdit.label = pasteEdit.label;
+		const uriEdit = new vscode.DocumentPasteEdit('', pasteEdit.label);
 		uriEdit.additionalEdit = pasteEdit.additionalEdits;
 		uriEdit.yieldTo = this._yieldTo;
 		return uriEdit;
@@ -65,7 +78,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const pasteEdit = new vscode.DocumentPasteEdit(edit.snippet, this._id, edit.label);
+		const pasteEdit = new vscode.DocumentPasteEdit(edit.snippet, edit.label);
 		pasteEdit.additionalEdit = edit.additionalEdits;
 		pasteEdit.yieldTo = this._yieldTo;
 		return pasteEdit;
@@ -73,10 +86,5 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 }
 
 export function registerPasteSupport(selector: vscode.DocumentSelector,) {
-	return vscode.languages.registerDocumentPasteEditProvider(selector, new PasteEditProvider(), {
-		pasteMimeTypes: [
-			'text/uri-list',
-			...mediaMimes,
-		]
-	});
+	return vscode.languages.registerDocumentPasteEditProvider(selector, new PasteResourceEditProvider(), PasteResourceEditProvider);
 }

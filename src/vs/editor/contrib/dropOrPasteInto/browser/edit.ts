@@ -29,24 +29,71 @@ export function createCombinedWorkspaceEdit(uri: URI, ranges: readonly Range[], 
 }
 
 export function sortEditsByYieldTo<T extends {
-	readonly id: string;
+	readonly providerId: string | undefined;
 	readonly handledMimeType?: string;
 	readonly yieldTo?: readonly DropYieldTo[];
-}>(edits: T[]): void {
+}>(edits: readonly T[]): T[] {
 	function yieldsTo(yTo: DropYieldTo, other: T): boolean {
-		return ('editId' in yTo && yTo.editId === other.id)
+		return ('providerId' in yTo && yTo.providerId === other.providerId)
 			|| ('mimeType' in yTo && yTo.mimeType === other.handledMimeType);
 	}
 
-	edits.sort((a, b) => {
-		if (a.yieldTo?.some(yTo => yieldsTo(yTo, b))) {
-			return 1;
+	// Build list of nodes each node yields to
+	const yieldsToMap = new Map<T, T[]>();
+	for (const edit of edits) {
+		for (const yTo of edit.yieldTo ?? []) {
+			for (const other of edits) {
+				if (other === edit) {
+					continue;
+				}
+
+				if (yieldsTo(yTo, other)) {
+					let arr = yieldsToMap.get(edit);
+					if (!arr) {
+						arr = [];
+						yieldsToMap.set(edit, arr);
+					}
+					arr.push(other);
+				}
+			}
+		}
+	}
+
+	if (!yieldsToMap.size) {
+		return Array.from(edits);
+	}
+
+	// Topological sort
+	const visited = new Set<T>();
+	const tempStack: T[] = [];
+
+	function visit(nodes: T[]): T[] {
+		if (!nodes.length) {
+			return [];
 		}
 
-		if (b.yieldTo?.some(yTo => yieldsTo(yTo, a))) {
-			return -1;
+		const node = nodes[0];
+		if (tempStack.includes(node)) {
+			console.warn(`Yield to cycle detected for ${node.providerId}`);
+			return nodes;
 		}
 
-		return 0;
-	});
+		if (visited.has(node)) {
+			return visit(nodes.slice(1));
+		}
+
+		let pre: T[] = [];
+		const yTo = yieldsToMap.get(node);
+		if (yTo) {
+			tempStack.push(node);
+			pre = visit(yTo);
+			tempStack.pop();
+		}
+
+		visited.add(node);
+
+		return [...pre, node, ...visit(nodes.slice(1))];
+	}
+
+	return visit(Array.from(edits));
 }
