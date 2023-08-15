@@ -44,7 +44,6 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatService private readonly chatService: IChatService,
-		// @IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 	) {
 		super();
 
