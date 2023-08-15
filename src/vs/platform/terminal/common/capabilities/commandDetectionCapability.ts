@@ -176,7 +176,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 		// For non-Windows backends we can just listen to CSI J which is what the clear command
 		// typically emits.
-		this._terminal.parser.registerCsiHandler({ final: 'J' }, (params: (number | number[])[]) => {
+		this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
 			if (!this._isWindowsPty) {
 				if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
 					this._clearCommandsInViewport();
