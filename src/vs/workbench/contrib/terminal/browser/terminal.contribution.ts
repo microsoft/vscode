@@ -5,9 +5,9 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import 'vs/css!./media/scrollbar';
-import 'vs/css!./media/terminal';
 import 'vs/css!./media/widgets';
 import 'vs/css!./media/xterm';
+import 'vs/css!./media/terminal';
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
