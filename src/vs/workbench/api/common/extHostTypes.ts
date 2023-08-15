@@ -4097,6 +4097,12 @@ export enum ChatMessageRole {
 	Function = 3,
 }
 
+export enum ChatVariableLevel {
+	Short = 1,
+	Medium = 2,
+	Full = 3
+}
+
 export class ChatMessage implements vscode.ChatMessage {
 
 	role: ChatMessageRole;
