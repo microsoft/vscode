@@ -39,6 +39,7 @@ import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
+import { deepClone } from 'vs/base/common/objects';
 
 export const ID = 'editor.contrib.review';
 
@@ -1052,20 +1053,21 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private storePendingInfo() {
+		const caches = this.collectCommentWidgetsCache();
 		const pendingNewComments: PendingNewComments[] = this.storageService.getObject(pendingNewCommentsKey, StorageScope.WORKSPACE, []);
 		let newCommentsIndex = -1;
 		for (let i = 0; i < pendingNewComments.length; i++) {
 			const pendingNewComment = pendingNewComments[i];
 			if (pendingNewComment.uri.toString() === this.editor?.getModel()?.uri.toString()) {
 				newCommentsIndex = i;
-				pendingNewComment.cache = this._pendingNewCommentCache;
+				pendingNewComment.cache = caches.pendingNewCommentCache;
 				break;
 			}
 		}
 		if (newCommentsIndex === -1) {
 			const uri = this.editor?.getModel()?.uri;
 			if (uri) {
-				pendingNewComments.push({ uri, cache: this._pendingNewCommentCache });
+				pendingNewComments.push({ uri, cache: caches.pendingNewCommentCache });
 			}
 		}
 		this.storageService.store(pendingNewCommentsKey, pendingNewComments, StorageScope.WORKSPACE, StorageTarget.USER);
@@ -1076,14 +1078,14 @@ export class CommentController implements IEditorContribution {
 			const pendingEdit = pendingEdits[i];
 			if (pendingEdit.uri.toString() === this.editor?.getModel()?.uri.toString()) {
 				editsIndex = i;
-				pendingEdit.cache = this._pendingEditsCache;
+				pendingEdit.cache = caches.pendingEditsCache;
 				break;
 			}
 		}
 		if (editsIndex === -1) {
 			const uri = this.editor?.getModel()?.uri;
 			if (uri) {
-				pendingEdits.push({ uri, cache: this._pendingEditsCache });
+				pendingEdits.push({ uri, cache: caches.pendingEditsCache });
 			}
 		}
 		this.storageService.store(pendingEditsKey, pendingEdits, StorageScope.WORKSPACE, StorageTarget.USER);
@@ -1117,12 +1119,14 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
-	private removeCommentWidgetsAndStoreCache() {
+	private collectCommentWidgetsCache(): { pendingNewCommentCache: { [key: string]: { [key: string]: string } }; pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: string } } } } {
+		const pendingNewCommentCache: { [key: string]: { [key: string]: string } } = deepClone(this._pendingNewCommentCache);
+		const pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: string } } } = deepClone(this._pendingEditsCache);
 		if (this._commentWidgets) {
 			this._commentWidgets.forEach(zone => {
 				const pendingComments = zone.getPendingComments();
 				const pendingNewComment = pendingComments.newComment;
-				const providerNewCommentCacheStore = this._pendingNewCommentCache[zone.owner];
+				const providerNewCommentCacheStore = pendingNewCommentCache[zone.owner];
 
 				let lastCommentBody;
 				if (zone.commentThread.comments && zone.commentThread.comments.length) {
@@ -1135,10 +1139,10 @@ export class CommentController implements IEditorContribution {
 				}
 				if (pendingNewComment && (pendingNewComment !== lastCommentBody)) {
 					if (!providerNewCommentCacheStore) {
-						this._pendingNewCommentCache[zone.owner] = {};
+						pendingNewCommentCache[zone.owner] = {};
 					}
 
-					this._pendingNewCommentCache[zone.owner][zone.commentThread.threadId!] = pendingNewComment;
+					pendingNewCommentCache[zone.owner][zone.commentThread.threadId!] = pendingNewComment;
 				} else {
 					if (providerNewCommentCacheStore) {
 						delete providerNewCommentCacheStore[zone.commentThread.threadId!];
@@ -1146,16 +1150,26 @@ export class CommentController implements IEditorContribution {
 				}
 
 				const pendingEdits = pendingComments.edits;
-				const providerEditsCacheStore = this._pendingEditsCache[zone.owner];
+				const providerEditsCacheStore = pendingEditsCache[zone.owner];
 				if (Object.keys(pendingEdits).length > 0) {
 					if (!providerEditsCacheStore) {
-						this._pendingEditsCache[zone.owner] = {};
+						pendingEditsCache[zone.owner] = {};
 					}
-					this._pendingEditsCache[zone.owner][zone.commentThread.threadId!] = pendingEdits;
+					pendingEditsCache[zone.owner][zone.commentThread.threadId!] = pendingEdits;
 				} else if (providerEditsCacheStore) {
 					delete providerEditsCacheStore[zone.commentThread.threadId!];
 				}
+			});
+		}
+		return { pendingNewCommentCache, pendingEditsCache };
+	}
 
+	private removeCommentWidgetsAndStoreCache() {
+		const newCaches = this.collectCommentWidgetsCache();
+		this._pendingNewCommentCache = newCaches.pendingNewCommentCache;
+		this._pendingEditsCache = newCaches.pendingEditsCache;
+		if (this._commentWidgets) {
+			this._commentWidgets.forEach(zone => {
 				zone.dispose();
 			});
 		}
