@@ -8,6 +8,7 @@ import { DiagnosticLanguage } from '../configuration/languageDescription';
 import * as arrays from '../utils/arrays';
 import { Disposable } from '../utils/dispose';
 import { ResourceMap } from '../utils/resourceMap';
+import { TelemetryReporter } from '../logging/telemetry';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
 	if (a === b) {
@@ -153,11 +154,13 @@ export class DiagnosticsManager extends Disposable {
 	private readonly _settings = new DiagnosticSettings();
 	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
 	private readonly _pendingUpdates: ResourceMap<any>;
+	private readonly _telemetryReporter: TelemetryReporter;
 
 	private readonly _updateDelay = 50;
 
 	constructor(
 		owner: string,
+		telemetryReporter: TelemetryReporter,
 		onCaseInsensitiveFileSystem: boolean
 	) {
 		super();
@@ -165,6 +168,7 @@ export class DiagnosticsManager extends Disposable {
 		this._pendingUpdates = new ResourceMap<any>(undefined, { onCaseInsensitiveFileSystem });
 
 		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
+		this._telemetryReporter = telemetryReporter;
 	}
 
 	public override dispose() {
@@ -238,7 +242,29 @@ export class DiagnosticsManager extends Disposable {
 	}
 
 	public getDiagnostics(file: vscode.Uri): ReadonlyArray<vscode.Diagnostic> {
-		return this._currentDiagnostics.get(file) || [];
+		const diagnostics = this._currentDiagnostics.get(file) || [];
+		const diagnoticCodes = diagnostics.reduce(function (result: number[], d: vscode.Diagnostic) {
+			const code = d.code;
+			if (typeof code === 'string' || typeof code === 'number') {
+				result.push(Number(code));
+			} else if (code !== undefined) {
+				result.push(Number(code.value));
+			}
+			return result;
+		}, []).sort();
+		/* __GDPR__
+			"typescript.diagnostics" : {
+				"owner": "@aiday-mar",
+				"diagnosticCodes" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"${include}": [
+					"${TypeScriptCommonProperties}"
+				]
+			}
+		*/
+		this._telemetryReporter.logTelemetry('typescript.diagnostics', {
+			diagnoticCodes: diagnoticCodes.join(', ')
+		});
+		return diagnostics;
 	}
 
 	private scheduleDiagnosticsUpdate(file: vscode.Uri) {
