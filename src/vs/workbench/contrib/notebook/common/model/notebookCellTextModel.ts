@@ -88,6 +88,11 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		const newLanguageId = this._languageService.getLanguageIdByLanguageName(newLanguage);
 
 		if (newLanguageId === null) {
+			const index = newLanguage.indexOf(':unregistered');
+			if (index > 0) {
+				const selected = newLanguage.substring(0, index);
+				console.warn(`selected language ${selected} not registered`);
+			}
 			return;
 		}
 

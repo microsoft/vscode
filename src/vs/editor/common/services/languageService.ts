@@ -98,9 +98,9 @@ export class LanguageService extends Disposable implements ILanguageService {
 		return firstOrDefault(languageIds, null);
 	}
 
-	public createById(languageId: string | null | undefined): ILanguageSelection {
+	public createById(languageId: string | null | undefined, disableFallback?: boolean): ILanguageSelection {
 		return new LanguageSelection(this.onDidChange, () => {
-			return this._createAndGetLanguageIdentifier(languageId);
+			return this._createAndGetLanguageIdentifier(languageId, disableFallback);
 		});
 	}
 
@@ -118,10 +118,10 @@ export class LanguageService extends Disposable implements ILanguageService {
 		});
 	}
 
-	private _createAndGetLanguageIdentifier(languageId: string | null | undefined): string {
+	private _createAndGetLanguageIdentifier(languageId: string | null | undefined, disableFallback?: boolean): string {
 		if (!languageId || !this.isRegisteredLanguageId(languageId)) {
-			// Fall back to plain text if language is unknown
-			languageId = PLAINTEXT_LANGUAGE_ID;
+			// Fall back to plain text if language is unknown, or just denote that the language is unregistered
+			languageId = disableFallback ? languageId + ':unregistered' : PLAINTEXT_LANGUAGE_ID;
 		}
 
 		return languageId;

@@ -143,7 +143,7 @@ export interface ILanguageService {
 	/**
 	 * Will fall back to 'plaintext' if `languageId` is unknown.
 	 */
-	createById(languageId: string | null | undefined): ILanguageSelection;
+	createById(languageId: string | null | undefined, disableFallback?: boolean): ILanguageSelection;
 
 	/**
 	 * Will fall back to 'plaintext' if `mimeType` is unknown.
