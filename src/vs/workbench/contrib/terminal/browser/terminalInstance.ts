@@ -755,7 +755,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const lineDataEventAddon = this._register(new LineDataEventAddon(initialTextWrittenPromise));
 		lineDataEventAddon.onLineData(e => this._onLineData.fire(e));
 		this._lineDataEventAddon = lineDataEventAddon;
-
 		// Delay the creation of the bell listener to avoid showing the bell when the terminal
 		// starts up or reconnects
 		setTimeout(() => {
