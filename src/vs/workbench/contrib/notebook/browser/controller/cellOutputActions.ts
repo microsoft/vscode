@@ -40,7 +40,7 @@ registerAction2(class CopyCellOutputAction extends NotebookAction {
 			const editorService = accessor.get(IEditorService);
 			const editor = editorService.activeEditorPane?.getControl() as INotebookEditor;
 			await editor.focusNotebookCell(outputViewModel.cellViewModel as ICellViewModel, 'output');
-			editor.copyImage(outputViewModel);
+			editor.copyOutputImage(outputViewModel);
 		} else {
 			const clipboardService = accessor.get(IClipboardService);
 			const logService = accessor.get(ILogService);

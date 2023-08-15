@@ -549,7 +549,10 @@ export interface INotebookEditor {
 	 */
 	updateOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
 
-	copyImage(cellOutput: ICellOutputViewModel): Promise<void>;
+	/**
+	 * Copy the image in the specific cell output to the clipboard
+	 */
+	copyOutputImage(cellOutput: ICellOutputViewModel): Promise<void>;
 
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage>;
 

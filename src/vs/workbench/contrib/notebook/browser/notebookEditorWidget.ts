@@ -2793,7 +2793,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		});
 	}
 
-	async copyImage(cellOutput: ICellOutputViewModel): Promise<void> {
+	async copyOutputImage(cellOutput: ICellOutputViewModel): Promise<void> {
 		this._webview?.copyImage(cellOutput);
 	}
 
