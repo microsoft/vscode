@@ -1390,7 +1390,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				})
 			})]);
 		} catch (e) {
-			console.error(e);
+			console.error('Could not copy image:', e);
 		}
 	};
 
@@ -1498,8 +1498,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const { outputId } = event.data;
 
 				const image = document.getElementById(outputId)?.querySelector('img');
-				if (!!image) {
+				if (image) {
 					await copyImage(image);
+				} else {
+					console.warn('Could not find image element to copy');
 				}
 
 				break;

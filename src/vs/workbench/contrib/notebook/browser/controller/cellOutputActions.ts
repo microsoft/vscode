@@ -35,16 +35,17 @@ registerAction2(class CopyCellOutputAction extends NotebookAction {
 		const outputViewModel = context.outputViewModel;
 
 		const mimeType = outputViewModel.pickedMimeType?.mimeType;
-		const clipboardService = accessor.get(IClipboardService);
-		const logService = accessor.get(ILogService);
-
-		copyCellOutput(mimeType, outputViewModel, clipboardService, logService);
 
 		if (mimeType?.startsWith('image/')) {
 			const editorService = accessor.get(IEditorService);
 			const editor = editorService.activeEditorPane?.getControl() as INotebookEditor;
 			await editor.focusNotebookCell(outputViewModel.cellViewModel as ICellViewModel, 'output');
 			editor.copyImage(outputViewModel);
+		} else {
+			const clipboardService = accessor.get(IClipboardService);
+			const logService = accessor.get(ILogService);
+
+			copyCellOutput(mimeType, outputViewModel, clipboardService, logService);
 		}
 	}
 });
