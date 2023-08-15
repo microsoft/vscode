@@ -80,11 +80,6 @@
 	resize: none;
 }
 
-.monaco-workbench .xterm .xterm-helper-textarea:focus {
-	/* Override the general vscode style applies `opacity:1!important` to textareas */
-	opacity: 0 !important;
-}
-
 .xterm .composition-view {
 	/* TODO: Composition position got messed up somewhere */
 	background: #000;
