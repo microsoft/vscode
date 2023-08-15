@@ -29,9 +29,12 @@ suite('snapshot', () => {
 	});
 
 	const makeContext = (test: Partial<Mocha.Test> | undefined) => {
-		const ctx = new SnapshotContext(test as Mocha.Test);
-		(ctx as any as { snapshotsDir: URI }).snapshotsDir = URI.file(testDir);
-		return ctx;
+		return new class extends SnapshotContext {
+			constructor() {
+				super(test as Mocha.Test);
+				this.snapshotsDir = URI.file(testDir);
+			}
+		};
 	};
 
 	const snapshotFileTree = async () => {
