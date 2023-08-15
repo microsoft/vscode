@@ -241,14 +241,11 @@ class QuickChat extends Disposable {
 		this._register(this.widget.inputEditor.onDidChangeModelContent((e) => {
 			this._currentQuery = this.widget.inputEditor.getValue();
 		}));
+		this._register(this.widget.onDidClear(() => this.clear()));
 	}
 
 	async acceptInput(): Promise<void> {
-		if (this.widget.inputEditor.getValue().trim() === '/clear') {
-			this.clear();
-		} else {
-			await this.widget.acceptInput();
-		}
+		return this.widget.acceptInput();
 	}
 
 	async openChatView(): Promise<void> {

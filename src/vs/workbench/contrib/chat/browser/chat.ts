@@ -45,6 +45,12 @@ export interface IChatCodeBlockInfo {
 	focus(): void;
 }
 
+export interface IChatFileTreeInfo {
+	treeDataId: string;
+	treeIndex: number;
+	focus(): void;
+}
+
 export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
 
 export interface IBaseChatWidgetViewContext {
@@ -79,6 +85,9 @@ export interface IChatWidget {
 	getSlashCommands(): Promise<ISlashCommand[] | undefined>;
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
+	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
+	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
+	clear(): void;
 }
 
 export interface IChatViewPane {

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.82.0",
-  "distro": "510a8d740286d6895197995d1edc978ffe23cadf",
+  "distro": "505b0336f71abdfa7d1ed0dbaafa20c812fa58e7",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -150,7 +150,7 @@
     "cssnano": "^4.1.11",
     "debounce": "^1.0.0",
     "deemon": "^1.8.0",
-    "electron": "25.4.0",
+    "electron": "25.5.0",
     "eslint": "8.36.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^39.3.2",
