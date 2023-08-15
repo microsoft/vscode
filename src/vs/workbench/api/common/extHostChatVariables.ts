@@ -22,13 +22,13 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatVariables);
 	}
 
-	async $resolveVariable(handle: number, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined> {
+	async $resolveVariable(handle: number, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined> {
 		const item = this._resolver.get(handle);
 		if (!item) {
 			return undefined;
 		}
 		try {
-			return (await item.resolver.resolve(item.data.name, token)) ?? undefined;
+			return (await item.resolver.resolve(item.data.name, { message: messageText }, token)) ?? undefined;
 		} catch (err) {
 			onUnexpectedExternalError(err);
 			return undefined;

@@ -1152,7 +1152,7 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 }
 
 export interface ExtHostChatVariablesShape {
-	$resolveVariable(handle: number, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
+	$resolveVariable(handle: number, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {

@@ -16,13 +16,15 @@ declare module 'vscode' {
 		description?: string;
 	}
 
-	export interface ChatVariableResolver {
-		resolve(name: string, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
+	export interface ChatVariableContext {
+		message: string;
 	}
 
-	// Could be provider/resolver pattern, but how dynamic are they?
+	export interface ChatVariableResolver {
+		resolve(name: string, context: ChatVariableContext, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
+	}
+
 	export namespace chat {
-		// name: selection
 		export function registerVariable(name: string, description: string, resolver: ChatVariableResolver): Disposable;
 	}
 }

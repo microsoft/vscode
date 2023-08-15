@@ -22,7 +22,7 @@ export interface IChatRequestVariableValue {
 
 export interface IChatVariableResolver {
 	// TODO should we spec "zoom level"
-	(token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
+	(messageText: string, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
 }
 
 export const IChatVariablesService = createDecorator<IChatVariablesService>('IChatVariablesService');
@@ -46,25 +46,6 @@ export class ChatVariablesService implements IChatVariablesService {
 	private _resolver = new Map<string, ChatData>();
 
 	constructor() {
-		[
-			{ name: 'selection', description: `The current editor's selection` },
-			{ name: 'editor', description: 'The current editor' },
-			{ name: 'debugConsole', description: 'The output in the debug console' },
-			{ name: 'vscodeAPI', description: 'The docs for the vscode extension API' },
-			{ name: 'git', description: 'The git details for your workspace' },
-			{ name: 'problems', description: 'The problems detected in your workspace' },
-			{ name: 'terminal', description: 'The current terminal buffer' },
-			{ name: 'terminalSelection', description: 'The current selection in the terminal' },
-			{ name: 'workspace', description: 'Details of your workspace' },
-			{ name: 'vscode', description: 'Commands and settings in vscode' },
-		].forEach(item => {
-			this.registerVariable(item, async () => {
-				return [{
-					level: 'short',
-					value: item.name
-				}];
-			});
-		});
 	}
 
 	async resolveVariables(prompt: string, token: CancellationToken): Promise<Record<string, IChatRequestVariableValue[]>> {
@@ -78,7 +59,7 @@ export class ChatVariablesService implements IChatVariablesService {
 			const candidate = match[2];
 			const data = this._resolver.get(candidate);
 			if (data) {
-				jobs.push(data[1](token).then(value => {
+				jobs.push(data[1](prompt, token).then(value => {
 					if (value) {
 						resolvedVariables[candidate] = value;
 					}

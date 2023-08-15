@@ -26,8 +26,8 @@ export class MainThreadChatSlashCommands implements MainThreadChatVariablesShape
 	}
 
 	$registerVariable(handle: number, data: IChatVariableData): void {
-		const registration = this._chatVariablesService.registerVariable(data, token => {
-			return this._proxy.$resolveVariable(handle, token);
+		const registration = this._chatVariablesService.registerVariable(data, (messageText, token) => {
+			return this._proxy.$resolveVariable(handle, messageText, token);
 		});
 		this._variables.set(handle, registration);
 	}
