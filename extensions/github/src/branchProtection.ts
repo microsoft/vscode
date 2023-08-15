@@ -8,6 +8,7 @@ import { Repository as GitHubRepository, RepositoryRuleset } from '@octokit/grap
 import { AuthenticationError, getOctokitGraphql } from './auth';
 import { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git';
 import { DisposableStore, getRepositoryFromUrl } from './util';
+import TelemetryReporter from '@vscode/extension-telemetry';
 
 const REPOSITORY_QUERY = `
 	query repositoryPermissions($owner: String!, $repo: String!) {
@@ -60,7 +61,7 @@ export class GithubBranchProtectionProviderManager {
 
 		if (enabled) {
 			for (const repository of this.gitAPI.repositories) {
-				this.providerDisposables.add(this.gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository, this.globalState, this.logger)));
+				this.providerDisposables.add(this.gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository, this.globalState, this.logger, this.telemetryReporter)));
 			}
 		} else {
 			this.providerDisposables.dispose();
@@ -72,10 +73,11 @@ export class GithubBranchProtectionProviderManager {
 	constructor(
 		private readonly gitAPI: API,
 		private readonly globalState: Memento,
-		private readonly logger: LogOutputChannel) {
+		private readonly logger: LogOutputChannel,
+		private readonly telemetryReporter: TelemetryReporter) {
 		this.disposables.add(this.gitAPI.onDidOpenRepository(repository => {
 			if (this._enabled) {
-				this.providerDisposables.add(gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository, this.globalState, this.logger)));
+				this.providerDisposables.add(gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository, this.globalState, this.logger, this.telemetryReporter)));
 			}
 		}));
 
@@ -110,7 +112,8 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 	constructor(
 		private readonly repository: Repository,
 		private readonly globalState: Memento,
-		private readonly logger: LogOutputChannel) {
+		private readonly logger: LogOutputChannel,
+		private readonly telemetryReporter: TelemetryReporter) {
 		// Restore branch protection from global state
 		this.branchProtection = this.globalState.get<BranchProtection[]>(this.globalStateKey, []);
 
@@ -199,17 +202,27 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 			// Save branch protection to global state
 			await this.globalState.update(this.globalStateKey, branchProtection);
 			this.logger.trace(`Branch protection for "${this.repository.rootUri.toString()}": ${JSON.stringify(branchProtection)}.`);
+
+			/* __GDPR__
+				"branchProtection" : {
+					"owner": "lszomoru",
+					"rulesetCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of repository rulesets" }
+				}
+			*/
+			this.telemetryReporter.sendTelemetryEvent('branchProtection', undefined, { rulesetCount: this.branchProtection.length });
 		} catch (err) {
 			this.logger.warn(`Failed to update repository branch protection: ${err.message}`);
 
 			if (err instanceof AuthenticationError) {
 				// A GitHub authentication session could be missing if the user has not yet
-				// signed in with their GitHub account or they have signed out. In this case
-				// we have to clear the branch protection information.
-				this.branchProtection = branchProtection;
-				this._onDidChangeBranchProtection.fire(this.repository.rootUri);
+				// signed in with their GitHub account or they have signed out. If there is
+				// branch protection information we have to clear it.
+				if (this.branchProtection.length !== 0) {
+					this.branchProtection = branchProtection;
+					this._onDidChangeBranchProtection.fire(this.repository.rootUri);
 
-				await this.globalState.update(this.globalStateKey, undefined);
+					await this.globalState.update(this.globalStateKey, undefined);
+				}
 			}
 		}
 	}

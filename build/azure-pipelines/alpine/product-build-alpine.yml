@@ -1,11 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
-
-  - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-    displayName: "Register Docker QEMU"
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
+      versionSpec: "18.x"
 
   - template: ../distro/download-distro.yml
 
@@ -46,7 +42,10 @@ steps:
   - script: |
       set -e
       npm config set registry "$NPM_REGISTRY" --location=project
-      npm config set always-auth=true --location=project
+      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+      # following is a workaround for yarn to send authorization header
+      # for GET requests to the registry.
+      echo "always-auth=true" >> .npmrc
       yarn config set registry "$NPM_REGISTRY"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM & Yarn
@@ -67,6 +66,10 @@ steps:
     displayName: "Pull image"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+  - script: sudo apt-get update && sudo apt-get install -y libkrb5-dev
+    displayName: Install build dependencies
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
   - script: |
       set -e
       for i in {1..5}; do # try 5 times
@@ -78,10 +81,12 @@ steps:
         echo "Yarn failed $i, trying again..."
       done
     env:
+      npm_config_arch: $(NPM_ARCH)
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
       VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH)
+      VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
     displayName: Install build dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -104,53 +109,51 @@ steps:
 
   - script: |
       set -e
-      TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64")
+      TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64") # TODO@joaomoreno
       yarn gulp vscode-reh-$TARGET-min-ci
-      yarn gulp vscode-reh-web-$TARGET-min-ci
-    displayName: Build
+      (cd .. && mv vscode-reh-$TARGET vscode-server-$TARGET) # TODO@joaomoreno
+      ARCHIVE_PATH=".build/linux/server/vscode-server-$TARGET.tar.gz"
+      mkdir -p $(dirname $ARCHIVE_PATH)
+      tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-$TARGET
+      echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Build server
 
   - script: |
       set -e
       TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64")
-      REPO="$(pwd)"
-      ROOT="$REPO/.."
+      yarn gulp vscode-reh-web-$TARGET-min-ci
+      (cd .. && mv vscode-reh-web-$TARGET vscode-server-$TARGET-web) # TODO@joaomoreno
+      ARCHIVE_PATH=".build/linux/web/vscode-server-$TARGET-web.tar.gz"
+      mkdir -p $(dirname $ARCHIVE_PATH)
+      tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-$TARGET-web
+      echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Build server (web)
 
-      # Publish Remote Extension Host
-      LEGACY_SERVER_BUILD_NAME="vscode-reh-$TARGET"
-      SERVER_BUILD_NAME="vscode-server-$TARGET"
-      SERVER_TARBALL_FILENAME="vscode-server-$TARGET.tar.gz"
-      SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
+  - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
+    condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
+    displayName: Generate artifact prefix
 
-      rm -rf $ROOT/vscode-server-*.tar.*
-      (cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar --owner=0 --group=0 -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
-
-      # Publish Remote Extension Host (Web)
-      LEGACY_SERVER_BUILD_NAME="vscode-reh-web-$TARGET"
-      SERVER_BUILD_NAME="vscode-server-$TARGET-web"
-      SERVER_TARBALL_FILENAME="vscode-server-$TARGET-web.tar.gz"
-      SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
-
-      rm -rf $ROOT/vscode-server-*-web.tar.*
-      (cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar --owner=0 --group=0 -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
-    displayName: Prepare for publish
-
-  - publish: $(Agent.BuildDirectory)/vscode-server-alpine-$(VSCODE_ARCH).tar.gz
-    artifact: vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
+  - publish: $(SERVER_PATH)
+    artifact: $(ARTIFACT_PREFIX)vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish server archive
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), ne(variables['VSCODE_ARCH'], 'x64'))
 
-  - publish: $(Agent.BuildDirectory)/vscode-server-alpine-$(VSCODE_ARCH)-web.tar.gz
-    artifact: vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
+  - publish: $(WEB_PATH)
+    artifact: $(ARTIFACT_PREFIX)vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish web server archive
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), ne(variables['VSCODE_ARCH'], 'x64'))
 
   # Legacy x64 artifact name
-  - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine.tar.gz
-    artifact: vscode_server_linux_alpine_archive-unsigned
+  - publish: $(SERVER_PATH)
+    artifact: $(ARTIFACT_PREFIX)vscode_server_linux_alpine_archive-unsigned
     displayName: Publish x64 server archive
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), eq(variables['VSCODE_ARCH'], 'x64'))
 
-  - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine-web.tar.gz
-    artifact: vscode_web_linux_alpine_archive-unsigned
+  - publish: $(WEB_PATH)
+    artifact: $(ARTIFACT_PREFIX)vscode_web_linux_alpine_archive-unsigned
     displayName: Publish x64 web server archive
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), eq(variables['VSCODE_ARCH'], 'x64'))

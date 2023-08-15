@@ -34,12 +34,11 @@ export interface IConsolePatchFn {
 
 export abstract class ErrorHandler {
 
-	static {
+	static async installEarlyHandler(accessor: ServicesAccessor): Promise<void> {
+
 		// increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
 		Error.stackTraceLimit = 100;
-	}
 
-	static async installEarlyHandler(accessor: ServicesAccessor): Promise<void> {
 		// does NOT dependent of extension information, can be installed immediately, and simply forwards
 		// to the log service and main thread errors
 		const logService = accessor.get(ILogService);

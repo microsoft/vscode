@@ -311,9 +311,15 @@ export interface IDeprecationInfo {
 	readonly additionalInfo?: string;
 }
 
+export interface ISearchPrefferedResults {
+	readonly query?: string;
+	readonly preferredResults?: string[];
+}
+
 export interface IExtensionsControlManifest {
 	readonly malicious: IExtensionIdentifier[];
 	readonly deprecated: IStringDictionary<IDeprecationInfo>;
+	readonly search: ISearchPrefferedResults[];
 }
 
 export const enum InstallOperation {
@@ -401,7 +407,6 @@ export enum ExtensionManagementErrorCode {
 	Deprecated = 'Deprecated',
 	Malicious = 'Malicious',
 	Incompatible = 'Incompatible',
-	IncompatiblePreRelease = 'IncompatiblePreRelease',
 	IncompatibleTargetPlatform = 'IncompatibleTargetPlatform',
 	ReleaseVersionNotFound = 'ReleaseVersionNotFound',
 	Invalid = 'Invalid',
@@ -473,6 +478,7 @@ export interface IExtensionManagementService {
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
 	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
+	toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
 	getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;

@@ -20,7 +20,6 @@ import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./menubar';
 import * as nls from 'vs/nls';
 
@@ -1020,7 +1019,7 @@ export class MenuBar extends Disposable {
 			getKeyBinding: this.options.getKeybinding,
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
-			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label')),
+			ariaLabel: customMenu.buttonElement.getAttribute('aria-label') ?? undefined,
 			expandDirection: this.isCompact ? this.options.compactMode : Direction.Right,
 			useEventAsContext: true
 		};

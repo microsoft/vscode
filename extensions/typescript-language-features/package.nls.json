@@ -152,7 +152,7 @@
 	"typescript.preferences.includePackageJsonAutoImports.auto": "Search dependencies based on estimated performance impact.",
 	"typescript.preferences.includePackageJsonAutoImports.on": "Always search dependencies.",
 	"typescript.preferences.includePackageJsonAutoImports.off": "Never search dependencies.",
-	"typescript.preferences.autoImportFileExcludePatterns": "Specify glob patterns of files to exclude from auto imports. Requires using TypeScript 4.8 or newer in the workspace.",
+	"typescript.preferences.autoImportFileExcludePatterns": "Specify glob patterns of files to exclude from auto imports. Relative paths are resolved relative to the workspace root. Patterns are evaluated using tsconfig.json [`exclude`](https://www.typescriptlang.org/tsconfig#exclude) semantics. Requires using TypeScript 4.8 or newer in the workspace.",
 	"typescript.updateImportsOnFileMove.enabled": "Enable/disable automatic updating of import paths when you rename or move a file in VS Code.",
 	"typescript.updateImportsOnFileMove.enabled.prompt": "Prompt on each rename.",
 	"typescript.updateImportsOnFileMove.enabled.always": "Always update paths automatically.",

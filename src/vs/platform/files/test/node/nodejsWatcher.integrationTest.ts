@@ -252,7 +252,7 @@ import { FileAccess } from 'vs/base/common/network';
 
 		// Move file
 		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED);
-		await Promises.move(filePath, `${filePath}-moved`);
+		await Promises.rename(filePath, `${filePath}-moved`);
 		await changeFuture;
 	});
 

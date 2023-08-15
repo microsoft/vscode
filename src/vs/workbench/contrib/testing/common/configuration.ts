@@ -75,7 +75,7 @@ export const testingConfiguration: IConfigurationNode = {
 		[TestingConfigKeys.ShowAllMessages]: {
 			description: localize('testing.showAllMessages', "Controls whether to show messages from all test runs."),
 			type: 'boolean',
-			default: true,
+			default: false,
 		},
 		[TestingConfigKeys.AutoOpenPeekViewDuringContinuousRun]: {
 			description: localize('testing.automaticallyOpenPeekViewDuringContinuousRun', "Controls whether to automatically open the Peek view during continuous run mode."),
