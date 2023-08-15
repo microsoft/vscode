@@ -310,7 +310,7 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 				verbositySettingKey: AccessibilityVerbositySettingId.InlineCompletions,
 				provideContent() { return content; },
 				onClose() {
-
+					editor.focus();
 				},
 				options: this._options
 			});
