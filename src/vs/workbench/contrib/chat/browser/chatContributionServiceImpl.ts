@@ -17,6 +17,7 @@ import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer
 import { getHistoryAction, getOpenChatEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { getClearAction } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
 import { getMoveToEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
+import { getQuickChatActionForProvider } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane, IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { IChatContributionService, IChatProviderContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -125,7 +126,10 @@ export class ChatContributionService implements IChatContributionService {
 			canToggleVisibility: false,
 			canMoveView: true,
 			ctorDescriptor: new SyncDescriptor(ChatViewPane, [<IChatViewOptions>{ providerId: providerDescriptor.id }]),
-			when: ContextKeyExpr.deserialize(providerDescriptor.when),
+			when: ContextKeyExpr.and(
+				ContextKeyExpr.deserialize(providerDescriptor.when),
+				ContextKeyExpr.notEquals('config.chat.experimental.defaultMode', 'quickQuestion')
+			)
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, viewContainer);
 
@@ -137,8 +141,9 @@ export class ChatContributionService implements IChatContributionService {
 		disposables.add(registerAction2(getClearAction(viewId, providerDescriptor.id)));
 		disposables.add(registerAction2(getMoveToEditorAction(viewId, providerDescriptor.id)));
 
-		// "Open Chat Editor" Action
+		// "Open Chat" Actions
 		disposables.add(registerAction2(getOpenChatEditorAction(providerDescriptor.id, providerDescriptor.label, providerDescriptor.when)));
+		disposables.add(registerAction2(getQuickChatActionForProvider(providerDescriptor.id, providerDescriptor.label)));
 
 		return {
 			dispose: () => {

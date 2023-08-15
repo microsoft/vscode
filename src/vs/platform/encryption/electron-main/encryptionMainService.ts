@@ -5,7 +5,7 @@
 
 import { safeStorage as safeStorageElectron, app } from 'electron';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { KnownStorageProvider, IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
+import { KnownStorageProvider, IEncryptionMainService, PasswordStoreCLIOption } from 'vs/platform/encryption/common/encryptionService';
 import { ILogService } from 'vs/platform/log/common/log';
 
 // These APIs are currently only supported in our custom build of electron so
@@ -21,11 +21,10 @@ export class EncryptionMainService implements IEncryptionMainService {
 	_serviceBrand: undefined;
 
 	constructor(
-		private readonly machineId: string,
 		@ILogService private readonly logService: ILogService
 	) {
 		// if this commandLine switch is set, the user has opted in to using basic text encryption
-		if (app.commandLine.getSwitchValue('password-store') === 'basic_text') {
+		if (app.commandLine.getSwitchValue('password-store') === PasswordStoreCLIOption.basic) {
 			safeStorage.setUsePlainTextEncryption?.(true);
 		}
 	}
@@ -47,17 +46,11 @@ export class EncryptionMainService implements IEncryptionMainService {
 		try {
 			parsedValue = JSON.parse(value);
 			if (!parsedValue.data) {
-				this.logService.trace('[EncryptionMainService] Unable to parse encrypted value. Attempting old decryption.');
-				return this.oldDecrypt(value);
+				throw new Error(`[EncryptionMainService] Invalid encrypted value: ${value}`);
 			}
-		} catch (e) {
-			this.logService.trace('[EncryptionMainService] Unable to parse encrypted value. Attempting old decryption.', e);
-			return this.oldDecrypt(value);
-		}
-		const bufferToDecrypt = Buffer.from(parsedValue.data);
+			const bufferToDecrypt = Buffer.from(parsedValue.data);
 
-		this.logService.trace('[EncryptionMainService] Decrypting value.');
-		try {
+			this.logService.trace('[EncryptionMainService] Decrypting value.');
 			const result = safeStorage.decryptString(bufferToDecrypt);
 			this.logService.trace('[EncryptionMainService] Decrypted value.');
 			return result;
@@ -103,22 +96,5 @@ export class EncryptionMainService implements IEncryptionMainService {
 		}
 
 		safeStorage.setUsePlainTextEncryption(true);
-	}
-
-	// TODO: Remove this after a few releases
-	private async oldDecrypt(value: string): Promise<string> {
-		let encryption: { decrypt(salt: string, value: string): Promise<string> };
-		try {
-			encryption = await new Promise((resolve, reject) => require(['vscode-encrypt'], resolve, reject));
-		} catch (e) {
-			return value;
-		}
-
-		try {
-			return encryption.decrypt(this.machineId, value);
-		} catch (e) {
-			this.logService.error(e);
-			return value;
-		}
 	}
 }

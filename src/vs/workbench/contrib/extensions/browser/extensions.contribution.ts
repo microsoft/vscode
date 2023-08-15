@@ -1308,7 +1308,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: INSTALL_ACTIONS_GROUP,
 				order: 2,
-				when: ContextKeyExpr.and(ContextKeyExpr.not('installedExtensionIsPreReleaseVersion'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
+				when: ContextKeyExpr.and(ContextKeyExpr.not('installedExtensionIsPreReleaseVersion'), ContextKeyExpr.not('installedExtensionIsOptedTpPreRelease'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
@@ -1415,23 +1415,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
-			id: TOGGLE_IGNORE_EXTENSION_ACTION_ID,
-			title: { value: localize('workbench.extensions.action.toggleIgnoreExtension', "Sync This Extension"), original: `Sync This Extension` },
-			menu: {
-				id: MenuId.ExtensionContext,
-				group: '2_configure',
-				when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, ContextKeyExpr.has('inExtensionEditor').negate()),
-				order: 3
-			},
-			run: async (accessor: ServicesAccessor, id: string) => {
-				const extension = this.extensionsWorkbenchService.local.find(e => areSameExtensions({ id }, e.identifier));
-				if (extension) {
-					return this.extensionsWorkbenchService.toggleExtensionIgnoredToSync(extension);
-				}
-			}
-		});
-
-		this.registerExtensionAction({
 			id: 'workbench.extensions.action.toggleApplyToAllProfiles',
 			title: { value: localize('workbench.extensions.action.toggleApplyToAllProfiles', "Apply Extension to all Profiles"), original: `Apply Extension to all Profiles` },
 			toggled: ContextKeyExpr.has('isApplicationScopedExtension'),
@@ -1439,12 +1422,29 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('isDefaultApplicationScopedExtension').negate()),
-				order: 4
+				order: 3
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const extension = this.extensionsWorkbenchService.local.find(e => areSameExtensions({ id }, e.identifier));
 				if (extension) {
 					return this.extensionsWorkbenchService.toggleApplyExtensionToAllProfiles(extension);
+				}
+			}
+		});
+
+		this.registerExtensionAction({
+			id: TOGGLE_IGNORE_EXTENSION_ACTION_ID,
+			title: { value: localize('workbench.extensions.action.toggleIgnoreExtension', "Sync This Extension"), original: `Sync This Extension` },
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '2_configure',
+				when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, ContextKeyExpr.has('inExtensionEditor').negate()),
+				order: 4
+			},
+			run: async (accessor: ServicesAccessor, id: string) => {
+				const extension = this.extensionsWorkbenchService.local.find(e => areSameExtensions({ id }, e.identifier));
+				if (extension) {
+					return this.extensionsWorkbenchService.toggleExtensionIgnoredToSync(extension);
 				}
 			}
 		});

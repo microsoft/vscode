@@ -11,56 +11,86 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { observableFromEvent, derived } from 'vs/base/common/observable';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
 export interface IAudioCueService {
 	readonly _serviceBrand: undefined;
-	playAudioCue(cue: AudioCue, allowManyInParallel?: boolean): Promise<void>;
-	playAudioCues(cues: AudioCue[]): Promise<void>;
+	playAudioCue(cue: AudioCue, options?: IAudioCueOptions): Promise<void>;
+	playAudioCues(cues: (AudioCue | { cue: AudioCue; source: string })[]): Promise<void>;
 	isEnabled(cue: AudioCue): boolean;
 	onEnabledChanged(cue: AudioCue): Event<void>;
 
 	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
 	playAudioCueLoop(cue: AudioCue, milliseconds: number): IDisposable;
-	playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): void;
+}
+
+export interface IAudioCueOptions {
+	allowManyInParallel?: boolean;
+	source?: string;
 }
 
 export class AudioCueService extends Disposable implements IAudioCueService {
 	readonly _serviceBrand: undefined;
-	sounds: Map<string, HTMLAudioElement> = new Map();
+	private readonly sounds: Map<string, HTMLAudioElement> = new Map();
 	private readonly screenReaderAttached = observableFromEvent(
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
 	);
+	private readonly sentTelemetry = new Set<string>();
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
 
-	public async playAudioCue(cue: AudioCue, allowManyInParallel = false): Promise<void> {
+	public async playAudioCue(cue: AudioCue, options: IAudioCueOptions = {}): Promise<void> {
 		if (this.isEnabled(cue)) {
-			await this.playSound(cue.sound, allowManyInParallel);
+			this.sendAudioCueTelemetry(cue, options.source);
+			await this.playSound(cue.sound.getSound(), options.allowManyInParallel);
 		}
 	}
 
-	public async playAudioCues(cues: AudioCue[]): Promise<void> {
+	public async playAudioCues(cues: (AudioCue | { cue: AudioCue; source: string })[]): Promise<void> {
+		for (const cue of cues) {
+			this.sendAudioCueTelemetry('cue' in cue ? cue.cue : cue, 'source' in cue ? cue.source : undefined);
+		}
+
 		// Some audio cues might reuse sounds. Don't play the same sound twice.
-		const sounds = new Set(cues.filter(cue => this.isEnabled(cue)).map(cue => cue.sound));
+		const sounds = new Set(cues.map(c => 'cue' in c ? c.cue : c).filter(cue => this.isEnabled(cue)).map(cue => cue.sound.getSound()));
 		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
 	}
 
-	/**
-	 * Gaming and other apps often play a sound variant when the same event happens again
-	 * for an improved experience. This function plays a random sound from the given group to accomplish that.
-	 */
-	public playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): void {
-		const cues = AudioCue.allAudioCues.filter(cue => cue.groupId === groupId);
-		const index = Math.floor(Math.random() * cues.length);
-		this.playAudioCue(cues[index], allowManyInParallel);
+	private sendAudioCueTelemetry(cue: AudioCue, source: string | undefined): void {
+		const isScreenReaderOptimized = this.accessibilityService.isScreenReaderOptimized();
+		const key = cue.name + (source ? `::${source}` : '') + (isScreenReaderOptimized ? '{screenReaderOptimized}' : '');
+		// Only send once per user session
+		if (this.sentTelemetry.has(key) || this.getVolumeInPercent() === 0) {
+			return;
+		}
+		this.sentTelemetry.add(key);
+
+		this.telemetryService.publicLog2<{
+			audioCue: string;
+			source: string;
+			isScreenReaderOptimized: boolean;
+		}, {
+			owner: 'hediet';
+
+			audioCue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The audio cue that was played.' };
+			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source that triggered the audio cue (e.g. "diffEditorNavigation").' };
+			isScreenReaderOptimized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is using a screen reader' };
+
+			comment: 'This data is collected to understand how audio cues are used and if more audio cues should be added.';
+		}>('audioCue.played', {
+			audioCue: cue.name,
+			source: source ?? '',
+			isScreenReaderOptimized,
+		});
 	}
 
 	private getVolumeInPercent(): number {
@@ -102,7 +132,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		let playing = true;
 		const playSound = () => {
 			if (playing) {
-				this.playAudioCue(cue, true).finally(() => {
+				this.playAudioCue(cue, { allowManyInParallel: true }).finally(() => {
 					setTimeout(() => {
 						if (playing) {
 							playSound();
@@ -129,7 +159,8 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			),
 			() => this.configurationService.getValue<'on' | 'off' | 'auto'>(cue.settingsKey)
 		);
-		return derived('audio cue enabled', reader => {
+		return derived(reader => {
+			/** @description audio cue enabled */
 			const setting = settingObservable.read(reader);
 			if (
 				setting === 'on' ||
@@ -206,7 +237,6 @@ export class Sound {
 		return sound;
 	}
 
-
 	public static readonly error = Sound.register({ fileName: 'error.mp3' });
 	public static readonly warning = Sound.register({ fileName: 'warning.mp3' });
 	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.mp3' });
@@ -228,19 +258,36 @@ export class Sound {
 	private constructor(public readonly fileName: string) { }
 }
 
-export const enum AudioCueGroupId {
-	chatResponseReceived = 'chatResponseReceived'
+export class SoundSource {
+	constructor(
+		public readonly randomOneOf: Sound[]
+	) { }
+
+	public getSound(deterministic = false): Sound {
+		if (deterministic || this.randomOneOf.length === 1) {
+			return this.randomOneOf[0];
+		} else {
+			const index = Math.floor(Math.random() * this.randomOneOf.length);
+			return this.randomOneOf[index];
+		}
+	}
 }
 
 export class AudioCue {
 	private static _audioCues = new Set<AudioCue>();
 	private static register(options: {
 		name: string;
-		sound: Sound;
+		sound: Sound | {
+			/**
+			 * Gaming and other apps often play a sound variant when the same event happens again
+			 * for an improved experience. This option enables audio cues to play a random sound.
+			 */
+			randomOneOf: Sound[];
+		};
 		settingsKey: string;
-		groupId?: AudioCueGroupId;
 	}): AudioCue {
-		const audioCue = new AudioCue(options.sound, options.name, options.settingsKey, options.groupId);
+		const soundSource = new SoundSource('randomOneOf' in options.sound ? options.sound.randomOneOf : [options.sound]);
+		const audioCue = new AudioCue(soundSource, options.name, options.settingsKey);
 		AudioCue._audioCues.add(audioCue);
 		return audioCue;
 	}
@@ -353,30 +400,17 @@ export class AudioCue {
 		settingsKey: 'audioCues.chatRequestSent'
 	});
 
-	private static readonly chatResponseReceived = {
+	public static readonly chatResponseReceived = AudioCue.register({
 		name: localize('audioCues.chatResponseReceived', 'Chat Response Received'),
 		settingsKey: 'audioCues.chatResponseReceived',
-		groupId: AudioCueGroupId.chatResponseReceived
-	};
-
-	public static readonly chatResponseReceived1 = AudioCue.register({
-		sound: Sound.chatResponseReceived1,
-		...this.chatResponseReceived
-	});
-
-	public static readonly chatResponseReceived2 = AudioCue.register({
-		sound: Sound.chatResponseReceived2,
-		...this.chatResponseReceived
-	});
-
-	public static readonly chatResponseReceived3 = AudioCue.register({
-		sound: Sound.chatResponseReceived3,
-		...this.chatResponseReceived
-	});
-
-	public static readonly chatResponseReceived4 = AudioCue.register({
-		sound: Sound.chatResponseReceived4,
-		...this.chatResponseReceived
+		sound: {
+			randomOneOf: [
+				Sound.chatResponseReceived1,
+				Sound.chatResponseReceived2,
+				Sound.chatResponseReceived3,
+				Sound.chatResponseReceived4
+			]
+		}
 	});
 
 	public static readonly chatResponsePending = AudioCue.register({
@@ -386,9 +420,8 @@ export class AudioCue {
 	});
 
 	private constructor(
-		public readonly sound: Sound,
+		public readonly sound: SoundSource,
 		public readonly name: string,
 		public readonly settingsKey: string,
-		public readonly groupId?: string
 	) { }
 }

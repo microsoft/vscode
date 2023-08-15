@@ -2480,6 +2480,7 @@ declare namespace monaco.editor {
 		toInclusiveRange(): Range | null;
 		toExclusiveRange(): Range;
 		mapToLineArray<T>(f: (lineNumber: number) => T): T[];
+		forEach(f: (lineNumber: number) => void): void;
 		includes(lineNumber: number): boolean;
 	}
 
@@ -2539,9 +2540,9 @@ declare namespace monaco.editor {
 	}
 
 	export class SimpleLineRangeMapping {
-		readonly originalRange: LineRange;
-		readonly modifiedRange: LineRange;
-		constructor(originalRange: LineRange, modifiedRange: LineRange);
+		readonly original: LineRange;
+		readonly modified: LineRange;
+		constructor(original: LineRange, modified: LineRange);
 		toString(): string;
 		flip(): SimpleLineRangeMapping;
 	}
@@ -3907,6 +3908,16 @@ declare namespace monaco.editor {
 		 */
 		renderSideBySide?: boolean;
 		/**
+		 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+		 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+		 */
+		renderSideBySideInlineBreakpoint?: number | undefined;
+		/**
+		 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+		 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+		 */
+		useInlineViewWhenSpaceIsLimited?: boolean;
+		/**
 		 * Timeout in milliseconds after which diff computation is cancelled.
 		 * Defaults to 5000.
 		 */
@@ -3974,6 +3985,10 @@ declare namespace monaco.editor {
 		 * Defaults to false
 		 */
 		isInEmbeddedEditor?: boolean;
+		/**
+		 * If the diff editor should only show the difference review mode.
+		 */
+		onlyShowAccessibleDiffViewer?: boolean;
 	}
 
 	/**
@@ -4298,6 +4313,10 @@ declare namespace monaco.editor {
 		 * Model to choose for sticky scroll by default
 		 */
 		defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
+		/**
+		 * Define whether to scroll sticky scroll with editor horizontal scrollbae
+		 */
+		scrollWithEditor?: boolean;
 	}
 
 	/**
@@ -5407,6 +5426,10 @@ declare namespace monaco.editor {
 		 * If null is returned, the overlay widget is responsible to place itself.
 		 */
 		getPosition(): IOverlayWidgetPosition | null;
+		/**
+		 * The editor will ensure that the scroll width is >= than this value.
+		 */
+		getMinContentWidthInPx?(): number;
 	}
 
 	/**
@@ -5512,7 +5535,7 @@ declare namespace monaco.editor {
 		/**
 		 * The target element
 		 */
-		readonly element: Element | null;
+		readonly element: HTMLElement | null;
 		/**
 		 * The 'approximate' editor position
 		 */
@@ -6128,8 +6151,8 @@ declare namespace monaco.editor {
 		 * Update the editor's options after the editor has been created.
 		 */
 		updateOptions(newOptions: IDiffEditorOptions): void;
-		diffReviewNext(): void;
-		diffReviewPrev(): void;
+		accessibleDiffViewerNext(): void;
+		accessibleDiffViewerPrev(): void;
 	}
 
 	export class FontInfo extends BareFontInfo {

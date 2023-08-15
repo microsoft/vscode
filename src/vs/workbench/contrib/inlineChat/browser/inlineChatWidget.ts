@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, IInlineChatSlashCommand, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, MENU_INLINE_CHAT_WIDGET_TOGGLE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, IInlineChatSlashCommand, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, MENU_INLINE_CHAT_WIDGET_TOGGLE, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_INNER_CURSOR_START, CTX_INLINE_CHAT_INNER_CURSOR_END, CTX_INLINE_CHAT_RESPONSE_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { EventType, Dimension, addDisposableListener, getActiveElement, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -43,7 +43,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IdleValue } from 'vs/base/common/async';
@@ -51,11 +51,14 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IMenuWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
 const _inputEditorOptions: IEditorConstructionOptions = {
-	padding: { top: 3, bottom: 2 },
+	padding: { top: 2, bottom: 2 },
 	overviewRulerLanes: 0,
 	glyphMargin: false,
 	lineNumbers: 'off',
@@ -96,7 +99,7 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 	ariaLabel: defaultAriaLabel,
 	fontFamily: DEFAULT_FONT_FAMILY,
 	fontSize: 13,
-	lineHeight: 20,
+	lineHeight: 20
 };
 
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
@@ -160,7 +163,10 @@ export class InlineChatWidget {
 	private readonly _ctxMessageCropState: IContextKey<'cropped' | 'not_cropped' | 'expanded'>;
 	private readonly _ctxInnerCursorFirst: IContextKey<boolean>;
 	private readonly _ctxInnerCursorLast: IContextKey<boolean>;
+	private readonly _ctxInnerCursorStart: IContextKey<boolean>;
+	private readonly _ctxInnerCursorEnd: IContextKey<boolean>;
 	private readonly _ctxInputEditorFocused: IContextKey<boolean>;
+	private readonly _ctxResponseFocused: IContextKey<boolean>;
 
 	private readonly _progressBar: ProgressBar;
 
@@ -196,6 +202,7 @@ export class InlineChatWidget {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
 	) {
 
 		// input editor logic
@@ -213,6 +220,9 @@ export class InlineChatWidget {
 		this._store.add(this._inputEditor.onDidChangeModelContent(() => this._onDidChangeInput.fire(this)));
 		this._store.add(this._inputEditor.onDidLayoutChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(this._inputEditor.onDidContentSizeChange(() => this._onDidChangeHeight.fire()));
+		this._store.add(addDisposableListener(this._elements.message, 'focus', () => this._ctxResponseFocused.set(true)));
+		this._store.add(addDisposableListener(this._elements.message, 'blur', () => this._ctxResponseFocused.reset()));
+
 		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
 				this._updateAriaLabel();
@@ -230,13 +240,33 @@ export class InlineChatWidget {
 
 		this._ctxInnerCursorFirst = CTX_INLINE_CHAT_INNER_CURSOR_FIRST.bindTo(this._contextKeyService);
 		this._ctxInnerCursorLast = CTX_INLINE_CHAT_INNER_CURSOR_LAST.bindTo(this._contextKeyService);
+		this._ctxInnerCursorStart = CTX_INLINE_CHAT_INNER_CURSOR_START.bindTo(this._contextKeyService);
+		this._ctxInnerCursorEnd = CTX_INLINE_CHAT_INNER_CURSOR_END.bindTo(this._contextKeyService);
 		this._ctxInputEditorFocused = CTX_INLINE_CHAT_FOCUSED.bindTo(this._contextKeyService);
+		this._ctxResponseFocused = CTX_INLINE_CHAT_RESPONSE_FOCUSED.bindTo(this._contextKeyService);
 
 		// (1) inner cursor position (last/first line selected)
 		const updateInnerCursorFirstLast = () => {
-			const { lineNumber } = this._inputEditor.getPosition();
-			this._ctxInnerCursorFirst.set(lineNumber === 1);
-			this._ctxInnerCursorLast.set(lineNumber === this._inputModel.getLineCount());
+			const selection = this._inputEditor.getSelection();
+			const fullRange = this._inputModel.getFullModelRange();
+			let onFirst = false;
+			let onLast = false;
+			if (selection.isEmpty()) {
+				const selectionTop = this._inputEditor.getTopForPosition(selection.startLineNumber, selection.startColumn);
+				const firstViewLineTop = this._inputEditor.getTopForPosition(fullRange.startLineNumber, fullRange.startColumn);
+				const lastViewLineTop = this._inputEditor.getTopForPosition(fullRange.endLineNumber, fullRange.endColumn);
+
+				if (selectionTop === firstViewLineTop) {
+					onFirst = true;
+				}
+				if (selectionTop === lastViewLineTop) {
+					onLast = true;
+				}
+			}
+			this._ctxInnerCursorFirst.set(onFirst);
+			this._ctxInnerCursorLast.set(onLast);
+			this._ctxInnerCursorStart.set(fullRange.getStartPosition().equals(selection.getStartPosition()));
+			this._ctxInnerCursorEnd.set(fullRange.getEndPosition().equals(selection.getEndPosition()));
 		};
 		this._store.add(this._inputEditor.onDidChangeCursorPosition(updateInnerCursorFirstLast));
 		updateInnerCursorFirstLast();
@@ -329,12 +359,16 @@ export class InlineChatWidget {
 		this._store.add(feedbackToolbar);
 
 		// preview editors
-		this._previewDiffEditor = new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget2, this._elements.previewDiff, _previewEditorEditorOptions, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor)));
+		this._previewDiffEditor = new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget2, this._elements.previewDiff, {
+			..._previewEditorEditorOptions,
+			onlyShowAccessibleDiffViewer: this._accessibilityService.isScreenReaderOptimized(),
+		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor)));
 
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
 		this._previewCreateEditor = new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor)));
 
 		this._elements.message.tabIndex = 0;
+		this._elements.message.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
 		this._elements.statusLabel.tabIndex = 0;
 		const markdownMessageToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.messageActions, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, workbenchToolbarOptions);
 		this._store.add(markdownMessageToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
@@ -343,9 +377,15 @@ export class InlineChatWidget {
 		this._store.add(addDisposableListener(this._elements.root, EventType.CONTEXT_MENU, async (event: MouseEvent) => {
 			this._onContextMenu(event);
 		}));
+		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
+				this._elements.message.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
+			}
+		}));
 	}
 
-	private _onContextMenu(event: MouseEvent) {
+	private _onContextMenu(e: MouseEvent) {
+		const event = new StandardMouseEvent(e);
 		this._contextMenuService.showContextMenu({
 			menuId: MENU_INLINE_CHAT_WIDGET_TOGGLE,
 			getAnchor: () => event,
@@ -358,7 +398,7 @@ export class InlineChatWidget {
 		}
 		let label = defaultAriaLabel;
 		if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InlineChat)) {
-			const kbLabel = this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
+			const kbLabel = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 			label = kbLabel ? localize('inlineChat.accessibilityHelp', "Inline Chat Input, Use {0} for Inline Chat Accessibility Help.", kbLabel) : localize('inlineChat.accessibilityHelpNoKb', "Inline Chat Input, Run the Inline Chat Accessibility Help command for more information.");
 		}
 		_inputEditorOptions.ariaLabel = label;
@@ -431,8 +471,16 @@ export class InlineChatWidget {
 		this._inputEditor.setPosition(this._inputModel.getFullModelRange().getEndPosition());
 	}
 
-	selectAll() {
-		this._inputEditor.setSelection(this._inputModel.getFullModelRange());
+	selectAll(includeSlashCommand: boolean = true) {
+		let selection = this._inputModel.getFullModelRange();
+
+		if (!includeSlashCommand) {
+			const firstLine = this._inputModel.getLineContent(1);
+			const slashCommand = this._slashCommandDetails.find(c => firstLine.startsWith(`/${c.command} `));
+			selection = slashCommand ? new Range(1, slashCommand.command.length + 3, selection.endLineNumber, selection.endColumn) : selection;
+		}
+
+		this._inputEditor.setSelection(selection);
 	}
 
 	set placeholder(value: string) {
@@ -463,6 +511,10 @@ export class InlineChatWidget {
 
 	set preferredExpansionState(expansionState: ExpansionState | undefined) {
 		this._preferredExpansionState = expansionState;
+	}
+
+	get responseContent(): string | undefined {
+		return this._elements.markdownMessage.textContent ?? undefined;
 	}
 
 	updateMarkdownMessage(message: Node | undefined) {
@@ -670,6 +722,7 @@ export class InlineChatWidget {
 						insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
 						kind: CompletionItemKind.Text,
 						range: new Range(1, 1, 1, 1),
+						command: command.executeImmediately ? { id: 'inlineChat.accept', title: withSlash } : undefined
 					};
 				});
 
@@ -760,7 +813,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			if (!this.widget.hasFocus()) {
 				this.widget.focus();
 			}
-		}));
+		}, true));
 
 		// todo@jrieken listen ONLY when showing
 		const updateCursorIsAboveContextKey = () => {

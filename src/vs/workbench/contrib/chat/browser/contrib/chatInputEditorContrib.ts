@@ -3,30 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
+import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
+const variableTextDecorationType = 'chat-variable-text';
 
 class InputEditorDecorations extends Disposable {
 
@@ -60,6 +66,7 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private updateRegisteredDecorationTypes() {
+		this.codeEditorService.removeDecorationType(variableTextDecorationType);
 		this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
 		this._slashCommandContentWidget?.hide();
 		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
@@ -68,12 +75,18 @@ class InputEditorDecorations extends Disposable {
 				contentText: ' ',
 			}
 		});
+		const theme = this.themeService.getColorTheme();
+		this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
+			color: theme.getColor(chatSlashCommandForeground)?.toString(),
+			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
+			borderRadius: '3px'
+		});
 		this.updateInputEditorDecorations();
 	}
 
 	private getPlaceholderColor(): string | undefined {
 		const theme = this.themeService.getColorTheme();
-		const transparentForeground = theme.getColor(editorForeground)?.transparent(0.4);
+		const transparentForeground = theme.getColor(inputPlaceholderForeground);
 		return transparentForeground?.toString();
 	}
 
@@ -118,14 +131,13 @@ class InputEditorDecorations extends Disposable {
 					range: {
 						startLineNumber: 1,
 						endLineNumber: 1,
-						startColumn: command && typeof command !== 'string' ? (command?.command.length + 2) : 1,
+						startColumn: command ? command.command.length : 1,
 						endColumn: 1000
 					},
 					renderOptions: {
 						after: {
 							contentText: shouldRenderFollowupPlaceholder ? command.followupPlaceholder : command.detail,
 							color: this.getPlaceholderColor(),
-							padding: '0 0 0 5px'
 						}
 					}
 				}];
@@ -162,10 +174,29 @@ class InputEditorDecorations extends Disposable {
 		} else {
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, []);
 		}
+
+		// const variables = this.chatVariablesService.getVariables();
+		const variableReg = /(^|\s)@(\w+)(?=(\s|$))/ig;
+		let match: RegExpMatchArray | null;
+		const varDecorations: IDecorationOptions[] = [];
+		while (match = variableReg.exec(inputValue)) {
+			// const candidate = match[2];
+			// if (Iterable.find(variables, v => v.name === candidate))
+			varDecorations.push({
+				range: {
+					startLineNumber: 1,
+					endLineNumber: 1,
+					startColumn: match.index! + match[1].length + 1,
+					endColumn: match.index! + match[0].length + 1
+				}
+			});
+		}
+
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
 	}
 }
 
-class InputEditorSlashCommandFollowups extends Disposable {
+class InputEditorSlashCommandMode extends Disposable {
 	constructor(
 		private readonly widget: IChatWidget,
 		@IChatService private readonly chatService: IChatService
@@ -194,7 +225,7 @@ class InputEditorSlashCommandFollowups extends Disposable {
 	}
 }
 
-ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandFollowups);
+ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandMode);
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -226,11 +257,12 @@ class SlashCommandCompletions extends Disposable {
 						const withSlash = `/${c.command}`;
 						return <CompletionItem>{
 							label: withSlash,
-							insertText: `${withSlash} `,
+							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							detail: c.detail,
 							range: new Range(1, 1, 1, 1),
 							sortText: c.sortText ?? c.command,
-							kind: CompletionItemKind.Text // The icons are disabled here anyway
+							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+							command: c.executeImmediately ? { id: SubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
 						};
 					})
 				};
@@ -240,3 +272,58 @@ class SlashCommandCompletions extends Disposable {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SlashCommandCompletions, LifecyclePhase.Eventually);
+
+class VariableCompletions extends Disposable {
+
+	private static readonly VariableNameDef = /@\w*/g; // MUST be using `g`-flag
+
+	constructor(
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
+	) {
+		super();
+
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'chatVariables',
+			triggerCharacters: ['@'],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget) {
+					return null;
+				}
+
+				const varWord = getWordAtText(position.column, VariableCompletions.VariableNameDef, model.getLineContent(position.lineNumber), 0);
+				if (!varWord && model.getWordUntilPosition(position).word) {
+					// inside a "normal" word
+					return null;
+				}
+
+				let insert: Range;
+				let replace: Range;
+				if (!varWord) {
+					insert = replace = Range.fromPositions(position);
+				} else {
+					insert = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, position.column);
+					replace = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, varWord.endColumn);
+				}
+
+				return <CompletionList>{
+					suggestions: Array.from(this.chatVariablesService.getVariables()).map(v => {
+						const withAt = `@${v.name}`;
+						return <CompletionItem>{
+							label: withAt,
+							range: { insert, replace },
+							insertText: withAt + ' ',
+							detail: v.description,
+							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+						};
+					})
+				};
+			}
+		}));
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(VariableCompletions, LifecyclePhase.Eventually);

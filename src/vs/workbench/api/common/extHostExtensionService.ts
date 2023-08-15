@@ -532,6 +532,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					return that.extensionRuntime;
 				},
 				get environmentVariableCollection() { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription); },
+				getEnvironmentVariableCollection(scope?: vscode.EnvironmentVariableScope) { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription, scope); },
 				get messagePassingProtocol() {
 					if (!messagePassingProtocol) {
 						if (!messagePort) {
@@ -966,7 +967,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	public $activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
 		if (activationKind === ActivationKind.Immediate) {
-			return this._activateByEvent(activationEvent, false);
+			return this._almostReadyToRunExtensions.wait()
+				.then(_ => this._activateByEvent(activationEvent, false));
 		}
 
 		return (

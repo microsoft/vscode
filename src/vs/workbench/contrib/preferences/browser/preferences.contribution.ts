@@ -296,64 +296,6 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			}
 		});
 
-		const registerOpenUserSettingsEditorFromJsonActionDisposables = this._register(new MutableDisposable());
-		const openUserSettingsEditorWhen = ContextKeyExpr.and(
-			ContextKeyExpr.or(ResourceContextKey.Resource.isEqualTo(this.userDataProfileService.currentProfile.settingsResource.toString()),
-				ResourceContextKey.Resource.isEqualTo(this.userDataProfilesService.defaultProfile.settingsResource.toString())),
-			ContextKeyExpr.not('isInDiffEditor'));
-		const registerOpenUserSettingsEditorFromJsonAction = () => {
-			registerOpenUserSettingsEditorFromJsonActionDisposables.value = registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: '_workbench.openUserSettingsEditor',
-						title: OPEN_USER_SETTINGS_UI_TITLE,
-						icon: preferencesOpenSettingsIcon,
-						menu: [{
-							id: MenuId.EditorTitle,
-							when: openUserSettingsEditorWhen,
-							group: 'navigation',
-							order: 1
-						}]
-					});
-				}
-				run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
-					args = sanitizeOpenSettingsArgs(args);
-					return accessor.get(IPreferencesService).openUserSettings({ jsonEditor: false, ...args });
-				}
-			});
-		};
-
-		const openSettingsJsonWhen = ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated());
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
-					title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
-					icon: preferencesOpenSettingsIcon,
-					menu: [{
-						id: MenuId.EditorTitle,
-						when: openSettingsJsonWhen,
-						group: 'navigation',
-						order: 1
-					}]
-				});
-			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof SettingsEditor2) {
-					return editorPane.switchToSettingsFile();
-				}
-				return null;
-			}
-		});
-
-		registerOpenUserSettingsEditorFromJsonAction();
-
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => {
-			// Force the action to check the context again.
-			registerOpenUserSettingsEditorFromJsonAction();
-		}));
-
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -1274,9 +1216,80 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	}
 }
 
+class SettingsEditorTitleContribution extends Disposable implements IWorkbenchContribution {
+	constructor(
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+	) {
+		super();
+		this.registerSettingsEditorTitleActions();
+	}
+
+	private registerSettingsEditorTitleActions() {
+		const registerOpenUserSettingsEditorFromJsonActionDisposables = this._register(new MutableDisposable());
+		const openUserSettingsEditorWhen = ContextKeyExpr.and(
+			ContextKeyExpr.or(
+				ResourceContextKey.Resource.isEqualTo(this.userDataProfileService.currentProfile.settingsResource.toString()),
+				ResourceContextKey.Resource.isEqualTo(this.userDataProfilesService.defaultProfile.settingsResource.toString())),
+			ContextKeyExpr.not('isInDiffEditor'));
+		const registerOpenUserSettingsEditorFromJsonAction = () => {
+			registerOpenUserSettingsEditorFromJsonActionDisposables.value = registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: '_workbench.openUserSettingsEditor',
+						title: OPEN_USER_SETTINGS_UI_TITLE,
+						icon: preferencesOpenSettingsIcon,
+						menu: [{
+							id: MenuId.EditorTitle,
+							when: openUserSettingsEditorWhen,
+							group: 'navigation',
+							order: 1
+						}]
+					});
+				}
+				run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
+					args = sanitizeOpenSettingsArgs(args);
+					return accessor.get(IPreferencesService).openUserSettings({ jsonEditor: false, ...args });
+				}
+			});
+		};
+
+		registerOpenUserSettingsEditorFromJsonAction();
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => {
+			// Force the action to check the context again.
+			registerOpenUserSettingsEditorFromJsonAction();
+		}));
+
+		const openSettingsJsonWhen = ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated());
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
+					title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
+					icon: preferencesOpenSettingsIcon,
+					menu: [{
+						id: MenuId.EditorTitle,
+						when: openSettingsJsonWhen,
+						group: 'navigation',
+						order: 1
+					}]
+				});
+			}
+			run(accessor: ServicesAccessor) {
+				const editorPane = accessor.get(IEditorService).activeEditorPane;
+				if (editorPane instanceof SettingsEditor2) {
+					return editorPane.switchToSettingsFile();
+				}
+				return null;
+			}
+		});
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(SettingsEditorTitleContribution, LifecyclePhase.Restored);
 
 registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution, EditorContributionInstantiation.AfterFirstRender);
 

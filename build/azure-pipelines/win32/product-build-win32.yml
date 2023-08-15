@@ -20,7 +20,7 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
+      versionSpec: "18.x"
 
   - task: UsePythonVersion@0
     inputs:
@@ -73,7 +73,10 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
-      exec { npm config set always-auth=true --location=project }
+      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+      # following is a workaround for yarn to send authorization header
+      # for GET requests to the registry.
+      exec { Add-Content -Path .npmrc -Value "always-auth=true" }
       exec { yarn config set registry "$env:NPM_REGISTRY" }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM & Yarn
@@ -94,9 +97,12 @@ steps:
       $ErrorActionPreference = "Stop"
       # TODO: Should be replaced with upstream URL once https://github.com/nodejs/node-gyp/pull/2825
       # gets merged.
-      exec { git clone https://github.com/rzhao271/node-gyp.git . } "Cloning rzhao271/node-gyp failed"
-      exec { git checkout 102b347da0c92c29f9c67df22e864e70249cf086 } "Checking out 102b347 failed"
-      exec { npm install } "Building rzhao271/node-gyp failed"
+      exec { git config --global user.email "vscode@microsoft.com" } "git config user.email failed"
+      exec { git config --global user.name "VSCode" } "git config user.name failed"
+      exec { git clone https://github.com/nodejs/node-gyp.git . } "Cloning nodejs/node-gyp failed"
+      exec { git checkout v9.4.0 } "Checking out v9.4.0 failed"
+      exec { git am --3way --whitespace=fix ../../build/npm/gyp/patches/gyp_spectre_mitigation_support.patch } "Apply spectre patch failed"
+      exec { npm install } "Building node-gyp failed"
     displayName: Install custom node-gyp
     workingDirectory: .build/node-gyp
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
@@ -136,7 +142,7 @@ steps:
 
   - template: ../common/install-builtin-extensions.yml
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+  - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - powershell: node build\lib\policies
       displayName: Generate Group Policy definitions
       retryCountOnTaskFailure: 3
@@ -148,7 +154,7 @@ steps:
       displayName: Transpile
 
   - ${{ else }}:
-    - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
+    - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_QUALITY, 'insider')) }}:
       - powershell: node build/win32/explorer-appx-fetcher .build/win32/appx
         displayName: Download Explorer Sparse Package
 

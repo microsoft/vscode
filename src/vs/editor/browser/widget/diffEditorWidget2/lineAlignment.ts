@@ -8,8 +8,7 @@ import { ArrayQueue } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { autorun, autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
+import { IObservable, autorun, autorunWithStore, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { assertIsDefined } from 'vs/base/common/types';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
@@ -70,8 +69,12 @@ export class ViewZoneManager extends Disposable {
 
 		this._register(this._editors.original.onDidChangeViewZones((_args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
 		this._register(this._editors.modified.onDidChangeViewZones((_args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
-		this._register(this._editors.original.onDidChangeConfiguration((args) => { if (args.hasChanged(EditorOption.wrappingInfo)) { updateImmediately.schedule(); } }));
-		this._register(this._editors.modified.onDidChangeConfiguration((args) => { if (args.hasChanged(EditorOption.wrappingInfo)) { updateImmediately.schedule(); } }));
+		this._register(this._editors.original.onDidChangeConfiguration((args) => {
+			if (args.hasChanged(EditorOption.wrappingInfo) || args.hasChanged(EditorOption.lineHeight)) { updateImmediately.schedule(); }
+		}));
+		this._register(this._editors.modified.onDidChangeConfiguration((args) => {
+			if (args.hasChanged(EditorOption.wrappingInfo) || args.hasChanged(EditorOption.lineHeight)) { updateImmediately.schedule(); }
+		}));
 
 		const originalModelTokenizationCompleted = this._diffModel.map(m =>
 			m ? observableFromEvent(m.model.original.onDidChangeTokens, () => m.model.original.tokenization.backgroundTokenizationState === BackgroundTokenizationState.Completed) : undefined
@@ -80,21 +83,39 @@ export class ViewZoneManager extends Disposable {
 		const alignmentViewZoneIdsOrig = new Set<string>();
 		const alignmentViewZoneIdsMod = new Set<string>();
 
-		const alignments = derived<ILineRangeAlignment[] | null>('alignments', (reader) => {
+		const alignments = derived<ILineRangeAlignment[] | null>((reader) => {
+			/** @description alignments */
 			const diffModel = this._diffModel.read(reader);
 			const diff = diffModel?.diff.read(reader);
 			if (!diffModel || !diff) { return null; }
 			state.read(reader);
-			return computeRangeAlignment(this._editors.original, this._editors.modified, diff.mappings, alignmentViewZoneIdsOrig, alignmentViewZoneIdsMod);
+			const renderSideBySide = this._options.renderSideBySide.read(reader);
+			const innerHunkAlignment = renderSideBySide;
+			return computeRangeAlignment(
+				this._editors.original,
+				this._editors.modified,
+				diff.mappings,
+				alignmentViewZoneIdsOrig,
+				alignmentViewZoneIdsMod,
+				innerHunkAlignment
+			);
 		});
 
-		const alignmentsSyncedMovedText = derived<ILineRangeAlignment[] | null>('alignments', (reader) => {
+		const alignmentsSyncedMovedText = derived<ILineRangeAlignment[] | null>((reader) => {
+			/** @description alignments */
 			const syncedMovedText = this._diffModel.read(reader)?.syncedMovedTexts.read(reader);
 			if (!syncedMovedText) { return null; }
 			state.read(reader);
 			const mappings = syncedMovedText.changes.map(c => new DiffMapping(c));
 			// TODO dont include alignments outside syncedMovedText
-			return computeRangeAlignment(this._editors.original, this._editors.modified, mappings, alignmentViewZoneIdsOrig, alignmentViewZoneIdsMod);
+			return computeRangeAlignment(
+				this._editors.original,
+				this._editors.modified,
+				mappings,
+				alignmentViewZoneIdsOrig,
+				alignmentViewZoneIdsMod,
+				true
+			);
 		});
 
 		function createFakeLinesDiv(): HTMLElement {
@@ -104,7 +125,8 @@ export class ViewZoneManager extends Disposable {
 		}
 
 		const alignmentViewZonesDisposables = this._register(new DisposableStore());
-		const alignmentViewZones = derived<{ orig: IViewZoneWithZoneId[]; mod: IViewZoneWithZoneId[] }>('alignment viewzones', (reader) => {
+		const alignmentViewZones = derived<{ orig: IViewZoneWithZoneId[]; mod: IViewZoneWithZoneId[] }>((reader) => {
+			/** @description alignment viewzones */
 			alignmentViewZonesDisposables.clear();
 
 			const alignmentsVal = alignments.read(reader) || [];
@@ -243,7 +265,7 @@ export class ViewZoneManager extends Disposable {
 				} else {
 					const delta = a.modifiedHeightInPx - a.originalHeightInPx;
 					if (delta > 0) {
-						if (syncedMovedText?.lineRangeMapping.originalRange.contains(a.originalRange.endLineNumberExclusive - 1)) {
+						if (syncedMovedText?.lineRangeMapping.original.contains(a.originalRange.endLineNumberExclusive - 1)) {
 							continue;
 						}
 
@@ -254,7 +276,7 @@ export class ViewZoneManager extends Disposable {
 							showInHiddenAreas: true,
 						});
 					} else {
-						if (syncedMovedText?.lineRangeMapping.modifiedRange.contains(a.modifiedRange.endLineNumberExclusive - 1)) {
+						if (syncedMovedText?.lineRangeMapping.modified.contains(a.modifiedRange.endLineNumberExclusive - 1)) {
 							continue;
 						}
 
@@ -281,8 +303,8 @@ export class ViewZoneManager extends Disposable {
 			}
 
 			for (const a of alignmentsSyncedMovedText.read(reader) ?? []) {
-				if (!syncedMovedText?.lineRangeMapping.originalRange.intersect(a.originalRange)
-					&& !syncedMovedText?.lineRangeMapping.modifiedRange.intersect(a.modifiedRange)) {
+				if (!syncedMovedText?.lineRangeMapping.original.intersect(a.originalRange)
+					|| !syncedMovedText?.lineRangeMapping.modified.intersect(a.modifiedRange)) {
 					// ignore unrelated alignments outside the synced moved text
 					continue;
 				}
@@ -308,7 +330,8 @@ export class ViewZoneManager extends Disposable {
 			return { orig: origViewZones, mod: modViewZones };
 		});
 
-		this._register(autorunWithStore2('alignment viewzones', (reader) => {
+		this._register(autorunWithStore((reader) => {
+			/** @description alignment viewzones */
 			const scrollState = StableEditorScrollState.capture(this._editors.modified);
 
 			const alignmentViewZones_ = alignmentViewZones.read(reader);
@@ -378,7 +401,8 @@ export class ViewZoneManager extends Disposable {
 		// origOffset - modOffset = heightOfLines(1..Y) - heightOfLines(1..X)
 		// origScrollTop >= 0, modScrollTop >= 0
 
-		this._register(autorun('update scroll modified', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update scroll modified */
 			const newScrollTopModified = this._originalScrollTop.read(reader)
 				- (this._originalScrollOffsetAnimated.get() - this._modifiedScrollOffsetAnimated.read(reader))
 				- (this._originalTopPadding.get() - this._modifiedTopPadding.read(reader));
@@ -387,7 +411,8 @@ export class ViewZoneManager extends Disposable {
 			}
 		}));
 
-		this._register(autorun('update scroll original', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update scroll original */
 			const newScrollTopOriginal = this._modifiedScrollTop.read(reader)
 				- (this._modifiedScrollOffsetAnimated.get() - this._originalScrollOffsetAnimated.read(reader))
 				- (this._modifiedTopPadding.get() - this._originalTopPadding.read(reader));
@@ -397,13 +422,14 @@ export class ViewZoneManager extends Disposable {
 		}));
 
 
-		this._register(autorun('update', reader => {
+		this._register(autorun(reader => {
+			/** @description update editor top offsets */
 			const m = this._diffModel.read(reader)?.syncedMovedTexts.read(reader);
 
 			let deltaOrigToMod = 0;
 			if (m) {
-				const trueTopOriginal = this._editors.original.getTopForLineNumber(m.lineRangeMapping.originalRange.startLineNumber, true) - this._originalTopPadding.get();
-				const trueTopModified = this._editors.modified.getTopForLineNumber(m.lineRangeMapping.modifiedRange.startLineNumber, true) - this._modifiedTopPadding.get();
+				const trueTopOriginal = this._editors.original.getTopForLineNumber(m.lineRangeMapping.original.startLineNumber, true) - this._originalTopPadding.get();
+				const trueTopModified = this._editors.modified.getTopForLineNumber(m.lineRangeMapping.modified.startLineNumber, true) - this._modifiedTopPadding.get();
 				deltaOrigToMod = trueTopModified - trueTopOriginal;
 			}
 
@@ -455,6 +481,7 @@ function computeRangeAlignment(
 	diffs: readonly DiffMapping[],
 	originalEditorAlignmentViewZones: ReadonlySet<string>,
 	modifiedEditorAlignmentViewZones: ReadonlySet<string>,
+	innerHunkAlignment: boolean,
 ): ILineRangeAlignment[] {
 	const originalLineHeightOverrides = new ArrayQueue(getAdditionalLineHeights(originalEditor, originalEditorAlignmentViewZones));
 	const modifiedLineHeightOverrides = new ArrayQueue(getAdditionalLineHeights(modifiedEditor, modifiedEditorAlignmentViewZones));
@@ -546,18 +573,24 @@ function computeRangeAlignment(
 				modifiedRange,
 				originalHeightInPx: originalRange.length * origLineHeight + originalAdditionalHeight,
 				modifiedHeightInPx: modifiedRange.length * modLineHeight + modifiedAdditionalHeight,
+				diff: m.lineRangeMapping,
 			});
 
 			lastOrigLineNumber = origLineNumberExclusive;
 			lastModLineNumber = modLineNumberExclusive;
 		}
 
-		for (const i of c.innerChanges || []) {
-			if (i.originalRange.startColumn > 1 && i.modifiedRange.startColumn > 1) {
-				// There is some unmodified text on this line
-				emitAlignment(i.originalRange.startLineNumber, i.modifiedRange.startLineNumber);
+		if (innerHunkAlignment) {
+			for (const i of c.innerChanges || []) {
+				if (i.originalRange.startColumn > 1 && i.modifiedRange.startColumn > 1) {
+					// There is some unmodified text on this line before the diff
+					emitAlignment(i.originalRange.startLineNumber, i.modifiedRange.startLineNumber);
+				}
+				if (i.originalRange.endColumn < originalEditor.getModel()!.getLineMaxColumn(i.originalRange.endLineNumber)) {
+					// // There is some unmodified text on this line after the diff
+					emitAlignment(i.originalRange.endLineNumber, i.modifiedRange.endLineNumber);
+				}
 			}
-			emitAlignment(i.originalRange.endLineNumber, i.modifiedRange.endLineNumber);
 		}
 
 		emitAlignment(c.originalRange.endLineNumberExclusive, c.modifiedRange.endLineNumberExclusive);

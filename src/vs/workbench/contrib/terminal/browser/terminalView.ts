@@ -37,7 +37,6 @@ import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
@@ -47,6 +46,7 @@ import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles'
 import { Event } from 'vs/base/common/event';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class TerminalViewPane extends ViewPane {
 	private _fontStyleElement: HTMLElement | undefined;
@@ -54,6 +54,7 @@ export class TerminalViewPane extends ViewPane {
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _isWelcomeShowing: boolean = false;
+	private _isInitialized: boolean = false;
 	private _newDropdown: DropdownWithPrimaryActionViewItem | undefined;
 	private readonly _dropdownMenu: IMenu;
 	private readonly _singleTabMenu: IMenu;
@@ -77,7 +78,8 @@ export class TerminalViewPane extends ViewPane {
 		@IMenuService private readonly _menuService: IMenuService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super(options, keybindingService, _contextMenuService, _configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 		this._register(this._terminalService.onDidRegisterProcessSupport(() => {
@@ -96,7 +98,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}));
 		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalNewDropdownContext, this._contextKeyService));
-		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalInlineTabContext, this._contextKeyService));
+		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalTabContext, this._contextKeyService));
 		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
 		this._viewShowing = TerminalContextKeys.viewShowing.bindTo(this._contextKeyService);
 		this._register(this.onDidChangeBodyVisibility(e => {
@@ -129,15 +131,41 @@ export class TerminalViewPane extends ViewPane {
 
 	private _initializeTerminal(checkRestoredTerminals: boolean) {
 		if (this.isBodyVisible() && this._terminalService.isProcessSupportRegistered && this._terminalService.connectionState === TerminalConnectionState.Connected) {
+			const wasInitialized = this._isInitialized;
+			this._isInitialized = true;
+
+			let hideOnStartup: 'never' | 'whenEmpty' | 'always' = 'never';
+			if (!wasInitialized) {
+				hideOnStartup = this._configurationService.getValue(TerminalSettingId.HideOnStartup);
+				if (hideOnStartup === 'always') {
+					this._terminalGroupService.hidePanel();
+				}
+			}
+
 			let shouldCreate = this._terminalGroupService.groups.length === 0;
 			// When triggered just after reconnection, also check there are no groups that could be
 			// getting restored currently
 			if (checkRestoredTerminals) {
 				shouldCreate &&= this._terminalService.restoredGroupCount === 0;
 			}
-			if (shouldCreate) {
-				this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+			if (!shouldCreate) {
+				return;
 			}
+			if (!wasInitialized) {
+				switch (hideOnStartup) {
+					case 'never':
+						this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+						break;
+					case 'whenEmpty':
+						if (this._terminalService.restoredGroupCount === 0) {
+							this._terminalGroupService.hidePanel();
+						}
+						break;
+				}
+				return;
+			}
+
+			this._terminalService.createTerminal({ location: TerminalLocation.Panel });
 		}
 	}
 
@@ -245,7 +273,7 @@ export class TerminalViewPane extends ViewPane {
 				if (action instanceof MenuItemAction) {
 					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
 					this._newDropdown?.dispose();
-					this._newDropdown = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {}, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService);
+					this._newDropdown = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {}, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
 					this._updateTabActionBar(this._terminalProfileService.availableProfiles);
 					return this._newDropdown;
 				}
@@ -265,7 +293,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private _getKeybindingLabel(action: IAction): string | undefined {
-		return withNullAsUndefined(this._keybindingService.lookupKeybinding(action.id)?.getLabel());
+		return this._keybindingService.lookupKeybinding(action.id)?.getLabel() ?? undefined;
 	}
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
@@ -360,11 +388,12 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAccessibilityService _accessibilityService: IAccessibilityService
 	) {
 		super(action, {
 			draggable: true,
 			hoverDelegate: _instantiationService.createInstance(SingleTabHoverDelegate)
-		}, keybindingService, notificationService, contextKeyService, themeService, contextMenuService);
+		}, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibilityService);
 
 		// Register listeners to update the tab
 		this._register(Event.debounce<ITerminalInstance | undefined, Set<ITerminalInstance>>(Event.any(
@@ -393,6 +422,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	override async onClick(event: MouseEvent): Promise<void> {
+		this._terminalGroupService.lastAccessedMenu = 'inline-tab';
 		if (event.altKey && this._menuItemAction.alt) {
 			this._commandService.executeCommand(this._menuItemAction.alt.id, { target: TerminalLocation.Panel } as ICreateTerminalOptions);
 		} else {

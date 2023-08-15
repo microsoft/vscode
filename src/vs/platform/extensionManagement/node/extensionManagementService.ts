@@ -15,7 +15,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceSet } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
 import { isBoolean, isUndefined } from 'vs/base/common/types';
@@ -508,7 +507,7 @@ export class ExtensionsScanner extends Disposable {
 				// Rename
 				try {
 					this.logService.trace(`Started renaming the extension from ${tempLocation.fsPath} to ${extensionLocation.fsPath}`);
-					await this.rename(extensionKey, tempLocation.fsPath, extensionLocation.fsPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+					await this.rename(tempLocation.fsPath, extensionLocation.fsPath);
 					this.logService.info('Renamed to', extensionLocation.fsPath);
 				} catch (error) {
 					if (error.code === 'ENOTEMPTY') {
@@ -570,8 +569,10 @@ export class ExtensionsScanner extends Disposable {
 		await this.withUninstalledExtensions(uninstalled => delete uninstalled[extensionKey.toString()]);
 	}
 
-	removeExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
-		return this.deleteExtensionFromLocation(extension.identifier.id, extension.location, type);
+	async removeExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
+		if (this.uriIdentityService.extUri.isEqualOrParent(extension.location, this.extensionsScannerService.userExtensionsLocation)) {
+			return this.deleteExtensionFromLocation(extension.identifier.id, extension.location, type);
+		}
 	}
 
 	async removeUninstalledExtension(extension: ILocalExtension | IScannedExtension): Promise<void> {
@@ -604,7 +605,7 @@ export class ExtensionsScanner extends Disposable {
 	private async deleteExtensionFromLocation(id: string, location: URI, type: string): Promise<void> {
 		this.logService.trace(`Deleting ${type} extension from disk`, id, location.fsPath);
 		const renamedLocation = this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(location), `${this.uriIdentityService.extUri.basename(location)}.${hash(generateUuid()).toString(16)}${DELETED_FOLDER_POSTFIX}`);
-		await this.rename({ id }, location.fsPath, renamedLocation.fsPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+		await this.rename(location.fsPath, renamedLocation.fsPath);
 		await this.fileService.del(renamedLocation, { recursive: true });
 		this.logService.info(`Deleted ${type} extension from disk`, id, location.fsPath);
 	}
@@ -641,14 +642,10 @@ export class ExtensionsScanner extends Disposable {
 		});
 	}
 
-	private async rename(identifier: IExtensionIdentifier, extractPath: string, renamePath: string, retryUntil: number): Promise<void> {
+	private async rename(extractPath: string, renamePath: string): Promise<void> {
 		try {
-			await pfs.Promises.rename(extractPath, renamePath);
+			await pfs.Promises.rename(extractPath, renamePath, 2 * 60 * 1000 /* Retry for 2 minutes */);
 		} catch (error) {
-			if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
-				this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`, identifier.id);
-				return this.rename(identifier, extractPath, renamePath, retryUntil);
-			}
 			throw new ExtensionManagementError(error.message || nls.localize('renameError', "Unknown error while renaming {0} to {1}", extractPath, renamePath), error.code || ExtensionManagementErrorCode.Rename);
 		}
 	}

@@ -47,6 +47,7 @@ import { DomEmitter } from 'vs/base/browser/event';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { FileAccess } from 'vs/base/common/network';
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 class CommentsActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context: any[]): Promise<void> {
@@ -690,8 +691,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 
 	private onContextMenu(e: MouseEvent) {
+		const event = new StandardMouseEvent(e);
+
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => e,
+			getAnchor: () => event,
 			menuId: MenuId.CommentThreadCommentContext,
 			menuActionOptions: { shouldForwardArgs: true },
 			contextKeyService: this._contextKeyService,
