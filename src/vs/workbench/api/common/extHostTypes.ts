@@ -52,8 +52,9 @@ export enum TerminalOutputAnchor {
 }
 
 export enum TerminalQuickFixType {
-	Command = 0,
-	Opener = 1
+	TerminalCommand = 0,
+	Opener = 1,
+	Command = 3
 }
 
 @es5ClassCompat
