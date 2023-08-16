@@ -211,6 +211,10 @@ export class BrowserMain extends Disposable {
 							protocol: tunnelOptions.protocol === TunnelProtocol.Https ? tunnelOptions.protocol : TunnelProtocol.Http
 						}));
 
+						if (typeof tunnel === 'string') {
+							throw new Error(tunnel);
+						}
+
 						return new class extends DisposableTunnel implements ITunnel {
 							declare localAddress: string;
 						}({
