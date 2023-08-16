@@ -204,18 +204,11 @@ export class InlineCompletionsController extends Disposable {
 	}
 
 	private provideScreenReaderHint(): void {
-		const showHoverKeybinding = this._keybindingService.lookupKeybinding('editor.action.showHover');
 		const accessibleViewKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleView');
 		if (this.configurationService.getValue('accessibility.verbosity.inlineCompletions')) {
 			let hint: string | undefined;
-			if (showHoverKeybinding && accessibleViewKeybinding) {
-				hint = localize('showBothHints', "View more actions ({0}) or inspect this in the accessible view ({1})", showHoverKeybinding.getAriaLabel(), accessibleViewKeybinding.getAriaLabel());
-			} else if (showHoverKeybinding) {
-				hint = localize('showHoverHint', "View more actions ({0})", showHoverKeybinding.getAriaLabel());
-			} else if (accessibleViewKeybinding) {
+			if (accessibleViewKeybinding) {
 				hint = localize('showAccessibleViewHint', "Inspect this in the accessible view ({0})", accessibleViewKeybinding.getAriaLabel());
-			}
-			if (hint) {
 				status(hint);
 			}
 		}
