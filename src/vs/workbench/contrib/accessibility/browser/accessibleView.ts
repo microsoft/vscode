@@ -123,7 +123,7 @@ class AccessibleView extends Disposable {
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			contributions: EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeActionController.ID)
 		};
-		this._toolbar = this._register(_instantiationService.createInstance(WorkbenchToolBar, this._editorContainer, { ariaLabel: localize('accessibleViewToolbar', "Accessible View Toolbar"), orientation: ActionsOrientation.HORIZONTAL }));
+		this._toolbar = this._register(_instantiationService.createInstance(WorkbenchToolBar, this._editorContainer, { orientation: ActionsOrientation.HORIZONTAL }));
 		this._toolbar.context = { viewId: 'accessibleView' };
 		const toolbarElt = this._toolbar.getElement();
 		toolbarElt.tabIndex = 0;
@@ -295,7 +295,7 @@ class AccessibleView extends Disposable {
 			}
 		}
 
-		const fragment = message + provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', 'Exit this dialog via the Escape key.');
+		const fragment = message + provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', '\nExit this dialog via the Escape key.');
 
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.verbositySettingKey}`, scheme: 'accessible-view', fragment })).then((model) => {
 			if (!model) {
@@ -309,16 +309,13 @@ class AccessibleView extends Disposable {
 			model.setLanguage(provider.options.language ?? 'markdown');
 			container.appendChild(this._editorContainer);
 			let ariaLabel = '';
-			let helpHint = '';
+			let actionsHint = '';
 			const verbose = this._configurationService.getValue(provider.verbositySettingKey);
 			if (verbose && provider.options.type === AccessibleViewType.View && !showAccessibleViewHelp) {
-				const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
-				if (accessibilityHelpKeybinding) {
-					helpHint = localize('ariaAccessibilityHelp', "Use {0} for accessibility help", accessibilityHelpKeybinding);
-				}
+				actionsHint = localize('ariaAccessibleViewActions', "Use Shift+Tab to explore actions such as disabling this hint.");
 			}
-			if (helpHint) {
-				ariaLabel = provider.options.ariaLabel ? localize('helpAriaKb', "{0}, {1}", provider.options.ariaLabel, helpHint) : localize('accessible-view', "Accessible View, {0}", helpHint);
+			if (actionsHint) {
+				ariaLabel = provider.options.ariaLabel ? localize('actionsAriaKb', "{0}, {1}", provider.options.ariaLabel, actionsHint) : localize('accessible-view', "Accessible View, {0}", actionsHint);
 			} else {
 				ariaLabel = provider.options.ariaLabel ? provider.options.ariaLabel : localize('helpAriaNoKb', "Accessible View");
 			}
@@ -326,7 +323,7 @@ class AccessibleView extends Disposable {
 			this._editorWidget.updateOptions({ ariaLabel });
 			this._editorWidget.focus();
 		});
-		this._updateToolbar(provider.actions);
+		this._updateToolbar(provider.actions, provider.options.type);
 
 		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyUp((e) => provider.onKeyDown?.(e)));
@@ -355,8 +352,9 @@ class AccessibleView extends Disposable {
 		return disposableStore;
 	}
 
-	private _updateToolbar(providedActions?: IAction[]): void {
+	private _updateToolbar(providedActions?: IAction[], type?: AccessibleViewType): void {
 		this._toolbar.setActions([]);
+		this._toolbar.setAriaLabel(type === AccessibleViewType.Help ? localize('accessibleHelpToolbar', 'Accessibility Help') : localize('accessibleViewToolbar', "Accessible View"));
 		const menuActions: IAction[] = [];
 		const toolbarMenu = this._register(this._menuService.createMenu(MenuId.AccessibleView, this._contextKeyService));
 		createAndFillInActionBarActions(toolbarMenu, {}, menuActions);
@@ -412,7 +410,7 @@ class AccessibleView extends Disposable {
 	private _getAccessibleViewHelpDialogContent(providerHasSymbols?: boolean): string {
 		const navigationHint = this._getNavigationHint();
 		const goToSymbolHint = this._getGoToSymbolHint(providerHasSymbols);
-		const toolbarHint = localize('toolbar', "Navigate to the toolbar ({0} or Shift+Tab)");
+		const toolbarHint = localize('toolbar', "Navigate to the toolbar (Shift+Tab))");
 
 		let hint = localize('intro', "In the accessible view, you can:\n");
 		if (navigationHint) {
