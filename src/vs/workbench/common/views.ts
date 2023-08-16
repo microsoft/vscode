@@ -584,6 +584,7 @@ export interface IViewsService {
 	closeViewContainer(id: string): void;
 	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null;
 	getActiveViewPaneContainerWithId(viewContainerId: string): IViewPaneContainer | null;
+	getFocusedViewName(): string;
 
 	// View APIs
 	readonly onDidChangeViewVisibility: Event<{ id: string; visible: boolean }>;

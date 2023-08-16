@@ -803,6 +803,7 @@ export class TestViewsService implements IViewsService {
 	closeView(id: string): void { }
 	getViewProgressIndicator(id: string) { return null!; }
 	getActiveViewPaneContainerWithId(id: string) { return null; }
+	getFocusedViewName(): string { return ''; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {

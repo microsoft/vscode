@@ -238,6 +238,11 @@ export class ViewsService extends Disposable implements IViewsService {
 		return null;
 	}
 
+	getFocusedViewName(): string {
+		const viewId: string = this.contextKeyService.getContextKeyValue(FocusedViewContext.key) ?? '';
+		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name ?? '';
+	}
+
 	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
 		if (!viewContainer) {
@@ -628,6 +633,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		disposables.add(viewPaneContainer.onDidBlurView(view => {
 			if (this.focusedViewContextKey.get() === view.id) {
 				this.focusedViewContextKey.reset();
+				this._onDidChangeFocusedView.fire();
 			}
 		}));
 

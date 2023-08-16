@@ -24,8 +24,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
 
 const enum WindowSettingNames {
@@ -57,7 +55,6 @@ export class WindowTitle extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService private readonly productService: IProductService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IViewsService private readonly viewsService: IViewsService
 	) {
 		super();
@@ -243,7 +240,7 @@ export class WindowTitle extends Disposable {
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
 		const titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
-		const focusedView: string | undefined = this.contextKeyService.getContextKeyValue(FocusedViewContext.key);
+		const focusedView: string = this.viewsService.getFocusedViewName();
 
 		return template(titleTemplate, {
 			activeEditorShort,
