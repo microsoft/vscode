@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert, status } from 'vs/base/browser/ui/aria/aria';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITransaction, autorun, constObservable, disposableObservableValue, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
@@ -193,8 +193,7 @@ export class InlineCompletionsController extends Disposable {
 				const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
 				this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-						alert(state.ghostText.renderForScreenReader(lineText));
-						this.provideScreenReaderHint();
+						this.provideScreenReaderUpdate(state.ghostText.renderForScreenReader(lineText));
 					}
 				});
 			}
@@ -203,14 +202,14 @@ export class InlineCompletionsController extends Disposable {
 		this._register(new InlineCompletionsHintsWidget(this.editor, this.model, this.instantiationService));
 	}
 
-	private provideScreenReaderHint(): void {
+	private provideScreenReaderUpdate(content: string): void {
 		const accessibleViewKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleView');
 		if (this.configurationService.getValue('accessibility.verbosity.inlineCompletions')) {
 			let hint: string | undefined;
 			if (accessibleViewKeybinding) {
 				hint = localize('showAccessibleViewHint', "Inspect this in the accessible view ({0})", accessibleViewKeybinding.getAriaLabel());
-				status(hint);
 			}
+			hint ? alert(content + ', ' + hint) : alert(content);
 		}
 	}
 
