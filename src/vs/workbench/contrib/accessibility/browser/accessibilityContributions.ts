@@ -313,6 +313,7 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 					verbositySettingKey: AccessibilityVerbositySettingId.InlineCompletions,
 					provideContent() { return lineText + ghostText; },
 					onClose() {
+						model.stop();
 						editor.focus();
 					},
 					next() {
@@ -327,9 +328,11 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 							label: localize('inlineCompletions.accept', "Accept Completion"),
 							tooltip: localize('inlineCompletions.accept', "Accept Completion"),
 							run: () => {
-								alert('Accepted');
-								model.accept(editor);
-								editor.focus();
+								model.accept(editor).then(() => {
+									alert('Accepted');
+									model.stop();
+									editor.focus();
+								});
 							},
 							class: ThemeIcon.asClassName(Codicon.check),
 							enabled: true
