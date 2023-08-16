@@ -302,7 +302,7 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 			if (!lineText) {
 				return false;
 			}
-			const content = InlineCompletionsController.get(editor)?.model.get()?.ghostText.get()?.renderForScreenReader(lineText);
+			const content = state.ghostText.renderForScreenReader(lineText);
 			if (!content) {
 				return false;
 			}
