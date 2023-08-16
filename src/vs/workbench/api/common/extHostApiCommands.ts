@@ -493,6 +493,14 @@ const newCommands: ApiCommand[] = [
 		],
 		ApiCommandResult.Void
 	),
+	// --- multi ghost text
+	new ApiCommand(
+		'vscode.showMultiGhostText', '_showMultiGhostText', 'Show ghost text for multiple ranges',
+		[
+			new ApiCommandArgument<{ position: types.Position; text: string }[], { position: IPosition; text: string }[]>('ranges', 'The ranges to show ghost text for', v => Array.isArray(v) && v.every(v => typeof v === 'object' && types.Position.isPosition(v.position) && typeof v.text === 'string'), v => v.map(({ position, text }) => ({ position: typeConverters.Position.from(position), text }))),
+		],
+		ApiCommandResult.Void
+	),
 	// --- mapped edits
 	new ApiCommand(
 		'vscode.executeMappedEditsProvider', '_executeMappedEditsProvider', 'Execute Mapped Edits Provider',
