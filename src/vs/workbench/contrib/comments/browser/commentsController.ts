@@ -13,7 +13,7 @@ import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser'
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EditorType, IDiffEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDecorationOptions, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
@@ -314,6 +314,7 @@ export class CommentController implements IEditorContribution {
 	private readonly globalToDispose = new DisposableStore();
 	private readonly localToDispose = new DisposableStore();
 	private editor: ICodeEditor | undefined;
+	private model: ITextModel | null | undefined;
 	private _commentWidgets: ReviewZoneWidget[];
 	private _commentInfos: ICommentInfo[];
 	private _commentingRangeDecorator!: CommentingRangeDecorator;
@@ -345,8 +346,8 @@ export class CommentController implements IEditorContribution {
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
-		this._pendingNewCommentCache = {};
-		this._pendingEditsCache = {};
+		this._pendingNewCommentCache = this.getPendingCommentsFromStore() ?? {};
+		this._pendingEditsCache = this.getPendingEditsFromStore() ?? {};
 		this._computePromise = null;
 		this._activeCursorHasCommentingRange = ActiveCursorHasCommentingRange.bindTo(contextKeyService);
 
@@ -417,8 +418,7 @@ export class CommentController implements IEditorContribution {
 		}));
 		this.globalToDispose.add(storageService.onDidChangeValue(StorageScope.WORKSPACE, pendingNewCommentsKey, this.globalToDispose)(e => {
 			if (e.external) {
-				const pendingNewComments: PendingNewComments[] = storageService.getObject(pendingNewCommentsKey, StorageScope.WORKSPACE, []);
-				const pendingNewCommentCache: { [key: string]: { [key: string]: string } } | undefined = pendingNewComments.find(pendingNewCommentEntry => pendingNewCommentEntry.uri.toString() === this.editor?.getModel()?.uri.toString())?.cache;
+				const pendingNewCommentCache = this.getPendingCommentsFromStore();
 				if (pendingNewCommentCache) {
 					this.restorePendingCommentCache(pendingNewCommentCache);
 				}
@@ -426,13 +426,22 @@ export class CommentController implements IEditorContribution {
 		}));
 		this.globalToDispose.add(storageService.onDidChangeValue(StorageScope.WORKSPACE, pendingEditsKey, this.globalToDispose)(e => {
 			if (e.external) {
-				const pendingEdits: PendingEdits[] = storageService.getObject(pendingEditsKey, StorageScope.WORKSPACE, []);
-				const pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: string } } } | undefined = pendingEdits.find(pendingEditEntry => pendingEditEntry.uri.toString() === this.editor?.getModel()?.uri.toString())?.cache;
+				const pendingEditsCache = this.getPendingEditsFromStore();
 				if (pendingEditsCache) {
 					this.restorePendingEditsCache(pendingEditsCache);
 				}
 			}
 		}));
+	}
+
+	private getPendingCommentsFromStore(): { [key: string]: { [key: string]: string } } | undefined {
+		const pendingNewComments: PendingNewComments[] = this.storageService.getObject(pendingNewCommentsKey, StorageScope.WORKSPACE, []);
+		return pendingNewComments.find(pendingNewCommentEntry => pendingNewCommentEntry.uri.toString() === this.model?.uri.toString())?.cache;
+	}
+
+	private getPendingEditsFromStore(): { [key: string]: { [key: string]: { [key: number]: string } } } | undefined {
+		const pendingEdits: PendingEdits[] = this.storageService.getObject(pendingEditsKey, StorageScope.WORKSPACE, []);
+		return pendingEdits.find(pendingEditEntry => pendingEditEntry.uri.toString() === this.model?.uri.toString())?.cache;
 	}
 
 	private registerEditorListeners() {
@@ -669,6 +678,7 @@ export class CommentController implements IEditorContribution {
 	}
 
 	public onModelChanged(): void {
+		this.model = this.editor?.getModel();
 		this.localToDispose.clear();
 
 		this.removeCommentWidgetsAndStoreCache();
