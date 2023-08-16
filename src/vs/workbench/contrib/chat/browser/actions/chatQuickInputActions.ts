@@ -16,7 +16,7 @@ import { ContextKeyExpr, IContextKeyService, IScopedContextKeyService } from 'vs
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
 import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -78,7 +78,7 @@ class QuickChatGlobalAction extends Action2 {
 export function getQuickChatActionForProvider(id: string, label: string) {
 	return class AskQuickChatAction extends Action2 {
 		_currentTimer: any | undefined;
-		_input: IQuickPick<IQuickPickItem> | undefined;
+		_input: IQuickWidget | undefined;
 		_currentChat: QuickChat | undefined;
 
 		constructor() {
@@ -116,10 +116,8 @@ export function getQuickChatActionForProvider(id: string, label: string) {
 
 			//#region Setup quick pick
 
-			this._input = quickInputService.createQuickPick();
+			this._input = quickInputService.createQuickWidget();
 			disposableStore.add(this._input);
-			this._input.hideInput = true;
-
 
 			const containerSession = dom.$('.interactive-session');
 			this._input.widget = containerSession;
