@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { workbenchInstantiationService, TestServiceAccessor, TestFilesConfigurationService, registerTestFileEditor, registerTestResourceEditor, createEditorPart, TestEnvironmentService, TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IResolvedTextFileEditorModel, snapshotToString, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -77,6 +77,7 @@ suite('Files - TextFileEditorTracker', () => {
 		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 
 		const editorService: EditorService = instantiationService.createInstance(EditorService);
+		disposables.add(editorService);
 		instantiationService.stub(IEditorService, editorService);
 
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -93,6 +94,7 @@ suite('Files - TextFileEditorTracker', () => {
 		const resource = toResource.call(this, '/path/index.txt');
 
 		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
+		disposables.add(model);
 
 		model.textEditorModel.setValue('Super Good');
 		assert.strictEqual(snapshotToString(model.createSnapshot()!), 'Super Good');
@@ -141,6 +143,7 @@ suite('Files - TextFileEditorTracker', () => {
 		}
 
 		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
+		disposables.add(model);
 
 		model.textEditorModel.setValue('Super Good');
 
