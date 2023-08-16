@@ -5,6 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -253,7 +254,8 @@ export interface IDefaultShellAndArgsRequest {
 	callback: (shell: string, args: string[] | string | undefined) => void;
 }
 
-export interface ITerminalProcessManager extends IDisposable {
+/** Read-only process information that can apply to detached terminals. */
+export interface ITerminalProcessInfo {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
 	readonly shellProcessId: number | undefined;
@@ -270,7 +272,11 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly capabilities: ITerminalCapabilityStore;
 	readonly shellIntegrationNonce: string;
 	readonly extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
+}
 
+export const isTerminalProcessManager = (t: ITerminalProcessInfo | ITerminalProcessManager): t is ITerminalProcessManager => typeof (t as ITerminalProcessManager).write === 'function';
+
+export interface ITerminalProcessManager extends IDisposable, ITerminalProcessInfo {
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
 
@@ -374,6 +380,14 @@ export interface ITerminalStatusHoverAction {
 	run: () => void;
 }
 
+/**
+ * Context for actions taken on terminal instances.
+ */
+export interface ISerializedTerminalInstanceContext {
+	$mid: MarshalledId.TerminalContext;
+	instanceId: number;
+}
+
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
 export const enum TerminalCommandId {
@@ -394,7 +408,6 @@ export const enum TerminalCommandId {
 	OpenWebLink = 'workbench.action.terminal.openUrlLink',
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
 	FocusAccessibleBuffer = 'workbench.action.terminal.focusAccessibleBuffer',
-	NavigateAccessibleBuffer = 'workbench.action.terminal.navigateAccessibleBuffer',
 	AccessibleBufferGoToNextCommand = 'workbench.action.terminal.accessibleBufferGoToNextCommand',
 	AccessibleBufferGoToPreviousCommand = 'workbench.action.terminal.accessibleBufferGoToPreviousCommand',
 	CopyLastCommandOutput = 'workbench.action.terminal.copyLastCommandOutput',
@@ -563,6 +576,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.AcceptSelectedSuggestion,
 	TerminalCommandId.HideSuggestWidget,
 	TerminalCommandId.FocusHover,
+	TerminalCommandId.FocusAccessibleBuffer,
 	AccessibilityCommandId.OpenAccessibilityHelp,
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',

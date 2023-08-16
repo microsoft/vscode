@@ -166,7 +166,7 @@
     }
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.5"
+    "@vscode/extension-telemetry": "^0.8.5"
   },
   "devDependencies": {
     "@types/node": "18.x"

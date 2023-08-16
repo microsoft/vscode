@@ -11,7 +11,7 @@ import { SetLogLevelAction } from 'vs/workbench/contrib/logs/common/logsActions'
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { IOutputChannelRegistry, IOutputService, Extensions } from 'vs/workbench/services/output/common/output';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { CONTEXT_LOG_LEVEL, ILogService, ILoggerResource, ILoggerService, LogLevel, LogLevelToString, isLogLevel } from 'vs/platform/log/common/log';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -58,6 +58,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 	private readonly contextKeys = new CounterSet<string>();
 	private readonly outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+	private readonly loggerDisposables = this._register(new DisposableMap());
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -86,7 +87,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 				if (visibility) {
 					this.registerLogChannel(logger);
 				} else {
-					this.outputChannelRegistry.removeChannel(logger.id);
+					this.deregisterLogChannel(logger);
 				}
 			}
 		}));
@@ -120,7 +121,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 				if (this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(logger.when))) {
 					this.registerLogChannel(logger);
 				} else {
-					this.outputChannelRegistry.removeChannel(logger.id);
+					this.deregisterLogChannel(logger);
 				}
 			}
 		}
@@ -136,7 +137,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 					}
 				}
 			}
-			this.outputChannelRegistry.removeChannel(logger.id);
+			this.deregisterLogChannel(logger);
 		}
 	}
 
@@ -145,27 +146,36 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		if (channel && this.uriIdentityService.extUri.isEqual(channel.file, logger.resource)) {
 			return;
 		}
+		const disposables = new DisposableStore();
 		const promise = createCancelablePromise(async token => {
 			await whenProviderRegistered(logger.resource, this.fileService);
 			try {
 				await this.whenFileExists(logger.resource, 1, token);
-				const channel = this.outputChannelRegistry.getChannel(logger.id);
-				if (channel?.file?.scheme === Schemas.vscodeRemote) {
-					// Re-register the channel with new id and name
-					this.outputChannelRegistry.removeChannel(channel.id);
-					this.outputChannelRegistry.registerChannel({ id: `${channel.id}.remote`, label: nls.localize('remote name', "{0} (Remote)", channel.label), file: channel.file, log: channel.log, extensionId: channel.extensionId });
+				const existingChannel = this.outputChannelRegistry.getChannel(logger.id);
+				const remoteLogger = existingChannel?.file?.scheme === Schemas.vscodeRemote ? this.loggerService.getRegisteredLogger(existingChannel.file) : undefined;
+				if (remoteLogger) {
+					this.deregisterLogChannel(remoteLogger);
 				}
-				const hasToAppendRemote = channel && logger.resource.scheme === Schemas.vscodeRemote;
+				const hasToAppendRemote = existingChannel && logger.resource.scheme === Schemas.vscodeRemote;
 				const id = hasToAppendRemote ? `${logger.id}.remote` : logger.id;
 				const label = hasToAppendRemote ? nls.localize('remote name', "{0} (Remote)", logger.name ?? logger.id) : logger.name ?? logger.id;
 				this.outputChannelRegistry.registerChannel({ id, label, file: logger.resource, log: true, extensionId: logger.extensionId });
+				disposables.add(toDisposable(() => this.outputChannelRegistry.removeChannel(id)));
+				if (remoteLogger) {
+					this.registerLogChannel(remoteLogger);
+				}
 			} catch (error) {
 				if (!isCancellationError(error)) {
 					this.logService.error('Error while registering log channel', logger.resource.toString(), getErrorMessage(error));
 				}
 			}
 		});
-		this._register(toDisposable(() => promise.cancel()));
+		disposables.add(toDisposable(() => promise.cancel()));
+		this.loggerDisposables.set(logger.resource.toString(), disposables);
+	}
+
+	private deregisterLogChannel(logger: ILoggerResource): void {
+		this.loggerDisposables.deleteAndDispose(logger.resource.toString());
 	}
 
 	private async whenFileExists(file: URI, trial: number, token: CancellationToken): Promise<void> {

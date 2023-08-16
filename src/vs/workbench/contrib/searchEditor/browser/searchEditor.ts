@@ -278,6 +278,8 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		} else {
 			this.queryEditorWidget.focus();
 		}
+
+		super.focus();
 	}
 
 	focusSearchInput() {
@@ -567,8 +569,8 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 		const { configurationModel } = await startInput.resolveModels();
 		configurationModel.updateConfig(config);
-
-		startInput.ongoingSearchOperation = this.searchModel.search(query).finally(() => {
+		const result = this.searchModel.search(query);
+		startInput.ongoingSearchOperation = result.asyncResults.finally(() => {
 			this.ongoingOperations--;
 			if (this.ongoingOperations === 0) {
 				this.searchOperation.stop();
@@ -683,7 +685,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		this.searchResultEditor.setModel(resultsModel);
 		this.pauseSearching = true;
 
-		this.toggleRunAgainMessage(!newInput.ongoingSearchOperation && resultsModel.getLineCount() === 1 && resultsModel.getValue() === '' && configurationModel.config.query !== '');
+		this.toggleRunAgainMessage(!newInput.ongoingSearchOperation && resultsModel.getLineCount() === 1 && resultsModel.getValueLength() === 0 && configurationModel.config.query !== '');
 
 		this.setSearchConfig(configurationModel.config);
 

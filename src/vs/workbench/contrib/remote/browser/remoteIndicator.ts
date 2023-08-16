@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_HOST_NAME_FOREGROUND } from 'vs/workbench/common/theme';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RunOnceScheduler, retry } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -24,7 +22,6 @@ import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteA
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { PlatformName, PlatformToString, isWeb, platform } from 'vs/base/common/platform';
-import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
@@ -45,27 +42,12 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { DomEmitter } from 'vs/base/browser/event';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { infoIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
-
-export const STATUS_BAR_OFFLINE_BACKGROUND = registerColor('statusBar.offlineBackground', {
-	dark: '#6c1717',
-	light: '#6c1717',
-	hcDark: '#6c1717',
-	hcLight: '#6c1717'
-}, nls.localize('statusBarOfflineBackground', "Status bar background color when the workbench is offline. The status bar is shown in the bottom of the window"));
-
-export const STATUS_BAR_OFFLINE_FOREGROUND = registerColor('statusBar.offlineForeground', {
-	dark: STATUS_BAR_HOST_NAME_FOREGROUND,
-	light: STATUS_BAR_HOST_NAME_FOREGROUND,
-	hcDark: STATUS_BAR_HOST_NAME_FOREGROUND,
-	hcLight: STATUS_BAR_HOST_NAME_FOREGROUND
-}, nls.localize('statusBarOfflineForeground', "Status bar foreground color when the workbench is offline. The status bar is shown in the bottom of the window"));
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 
@@ -558,8 +540,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		const properties: IStatusbarEntry = {
 			name: nls.localize('remoteHost', "Remote Host"),
-			backgroundColor: themeColorFromId(this.networkState === 'offline' ? STATUS_BAR_OFFLINE_BACKGROUND : STATUS_BAR_HOST_NAME_BACKGROUND),
-			color: themeColorFromId(this.networkState === 'offline' ? STATUS_BAR_OFFLINE_FOREGROUND : STATUS_BAR_HOST_NAME_FOREGROUND),
+			kind: this.networkState === 'offline' ? 'offline' : 'remote',
 			ariaLabel,
 			text,
 			showProgress,
@@ -786,7 +767,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		quickPick.items = computeItems();
 		quickPick.sortByLabel = false;
 		quickPick.canSelectMany = false;
-		once(quickPick.onDidAccept)((async _ => {
+		Event.once(quickPick.onDidAccept)((async _ => {
 			const selectedItems = quickPick.selectedItems;
 			if (selectedItems.length === 1) {
 				const commandId = selectedItems[0].id!;
@@ -811,7 +792,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			}
 		}));
 
-		once(quickPick.onDidTriggerItemButton)(async (e) => {
+		Event.once(quickPick.onDidTriggerItemButton)(async (e) => {
 			const remoteExtension = this.remoteExtensionMetadata.find(value => ExtensionIdentifier.equals(value.id, e.item.id));
 			if (remoteExtension) {
 				await this.openerService.open(URI.parse(remoteExtension.helpLink));

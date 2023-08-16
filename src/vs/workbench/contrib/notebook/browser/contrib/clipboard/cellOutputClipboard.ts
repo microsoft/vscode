@@ -10,9 +10,9 @@ import { isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookC
 
 export async function copyCellOutput(mimeType: string | undefined, outputViewModel: ICellOutputViewModel, clipboardService: IClipboardService, logService: ILogService) {
 	const cellOutput = outputViewModel.model;
-	const output = mimeType && CLIPBOARD_COMPATIBLE_MIMETYPES.includes(mimeType) ?
+	const output = mimeType && TEXT_BASED_MIMETYPES.includes(mimeType) ?
 		cellOutput.outputs.find(output => output.mime === mimeType) :
-		cellOutput.outputs.find(output => CLIPBOARD_COMPATIBLE_MIMETYPES.includes(output.mime));
+		cellOutput.outputs.find(output => TEXT_BASED_MIMETYPES.includes(output.mime));
 
 	mimeType = output?.mime;
 
@@ -52,7 +52,7 @@ export async function copyCellOutput(mimeType: string | undefined, outputViewMod
 	}
 }
 
-export const CLIPBOARD_COMPATIBLE_MIMETYPES = [
+export const TEXT_BASED_MIMETYPES = [
 	'text/latex',
 	'text/html',
 	'application/vnd.code.notebook.error',
@@ -61,5 +61,7 @@ export const CLIPBOARD_COMPATIBLE_MIMETYPES = [
 	'application/x.notebook.stream',
 	'application/vnd.code.notebook.stderr',
 	'application/x.notebook.stderr',
-	'text/plain'
+	'text/plain',
+	'text/markdown',
+	'application/json'
 ];

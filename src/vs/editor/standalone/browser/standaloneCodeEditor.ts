@@ -8,7 +8,6 @@ import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/
 import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
@@ -37,7 +36,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 /**
@@ -481,83 +480,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 	}
 }
 
-export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
-
-	private readonly _configurationService: IConfigurationService;
-	private readonly _standaloneThemeService: IStandaloneThemeService;
-
-	constructor(
-		domElement: HTMLElement,
-		_options: Readonly<IStandaloneDiffEditorConstructionOptions> | undefined,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IStandaloneThemeService themeService: IStandaloneThemeService,
-		@INotificationService notificationService: INotificationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IEditorProgressService editorProgressService: IEditorProgressService,
-		@IClipboardService clipboardService: IClipboardService
-	) {
-		const options = { ..._options };
-		updateConfigurationService(configurationService, options, true);
-		const themeDomRegistration = (<StandaloneThemeService>themeService).registerEditorContainer(domElement);
-		if (typeof options.theme === 'string') {
-			themeService.setTheme(options.theme);
-		}
-		if (typeof options.autoDetectHighContrast !== 'undefined') {
-			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
-		}
-
-		super(domElement, options, {}, clipboardService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
-
-		this._configurationService = configurationService;
-		this._standaloneThemeService = themeService;
-
-		this._register(themeDomRegistration);
-	}
-
-	public override dispose(): void {
-		super.dispose();
-	}
-
-	public override updateOptions(newOptions: Readonly<IDiffEditorOptions & IGlobalEditorOptions>): void {
-		updateConfigurationService(this._configurationService, newOptions, true);
-		if (typeof newOptions.theme === 'string') {
-			this._standaloneThemeService.setTheme(newOptions.theme);
-		}
-		if (typeof newOptions.autoDetectHighContrast !== 'undefined') {
-			this._standaloneThemeService.setAutoDetectHighContrast(Boolean(newOptions.autoDetectHighContrast));
-		}
-		super.updateOptions(newOptions);
-	}
-
-	protected override _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>): CodeEditorWidget {
-		return instantiationService.createInstance(StandaloneCodeEditor, container, options);
-	}
-
-	public override getOriginalEditor(): IStandaloneCodeEditor {
-		return <StandaloneCodeEditor>super.getOriginalEditor();
-	}
-
-	public override getModifiedEditor(): IStandaloneCodeEditor {
-		return <StandaloneCodeEditor>super.getModifiedEditor();
-	}
-
-	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {
-		return this.getModifiedEditor().addCommand(keybinding, handler, context);
-	}
-
-	public createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T> {
-		return this.getModifiedEditor().createContextKey(key, defaultValue);
-	}
-
-	public addAction(descriptor: IActionDescriptor): IDisposable {
-		return this.getModifiedEditor().addAction(descriptor);
-	}
-}
-
-export class StandaloneDiffEditor2 extends DiffEditorWidget2 implements IStandaloneDiffEditor {
+export class StandaloneDiffEditor2 extends DiffEditorWidget implements IStandaloneDiffEditor {
 
 	private readonly _configurationService: IConfigurationService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
@@ -594,6 +517,7 @@ export class StandaloneDiffEditor2 extends DiffEditorWidget2 implements IStandal
 			instantiationService,
 			codeEditorService,
 			audioCueService,
+			editorProgressService,
 		);
 
 		this._configurationService = configurationService;

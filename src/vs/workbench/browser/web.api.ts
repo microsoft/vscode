@@ -12,7 +12,6 @@ import type { IUpdateProvider } from 'vs/workbench/services/update/browser/updat
 import type { Event } from 'vs/base/common/event';
 import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 import type { IProductConfiguration } from 'vs/base/common/product';
-import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
@@ -102,7 +101,7 @@ export interface IWorkbench {
 		 * @param options The definition of the terminal, this is similar to
 		 * `ExtensionTerminalOptions` in the extension API.
 		 */
-		createTerminal(options: IEmbedderTerminalOptions): void;
+		createTerminal(options: IEmbedderTerminalOptions): Promise<void>;
 	};
 
 	workspace: {
@@ -209,12 +208,6 @@ export interface IWorkbenchConstructionOptions {
 	 * Settings sync options
 	 */
 	readonly settingsSyncOptions?: ISettingsSyncOptions;
-
-	/**
-	 * The credentials provider to store and retrieve secrets.
-	 * TODO: Remove this in favor of the secret storage provider.
-	 */
-	readonly credentialsProvider?: ICredentialsProvider;
 
 	/**
 	 * The secret storage provider to store and retrieve secrets.

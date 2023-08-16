@@ -378,7 +378,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		// mark the untitled text editor as non-dirty once its content becomes empty and we do
 		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this.hasAssociatedFilePath && textEditorModel.getLineCount() === 1 && textEditorModel.getLineContent(1) === '') {
+		if (!this.hasAssociatedFilePath && textEditorModel.getLineCount() === 1 && textEditorModel.getLineLength(1) === 0) {
 			this.setDirty(false);
 		}
 
@@ -419,7 +419,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 				startColumn: 1,
 				endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH + 1		// first cap at FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH
 			})
-			.trim().replace(/\s+/g, ' '); 														// normalize whitespaces
+			.trim().replace(/\s+/g, ' ') 														// normalize whitespaces
+			.replace(/\u202E/g, '');															// drop Right-to-Left Override character (#190133)
 		firstLineText = firstLineText.substr(0, getCharContainingOffset(						// finally cap at FIRST_LINE_NAME_MAX_LENGTH (grapheme aware #111235)
 			firstLineText,
 			UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH)[0]

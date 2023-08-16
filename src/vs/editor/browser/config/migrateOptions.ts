@@ -192,3 +192,32 @@ registerEditorSettingMigration('experimental.stickyScroll.maxLineCount', (value,
 		}
 	}
 });
+
+// Code Actions on Save
+// registerEditorSettingMigration('codeActionsOnSave', (value, read, write) => {
+// 	if (value && typeof value === 'object') {
+// 		let toBeModified = false;
+// 		const newValue = {} as any;
+// 		for (const entry of Object.entries(value)) {
+// 			if (typeof entry[1] === 'boolean') {
+// 				toBeModified = true;
+// 				newValue[entry[0]] = entry[1] ? 'explicit' : 'never';
+// 			} else {
+// 				newValue[entry[0]] = entry[1];
+// 			}
+// 		}
+// 		if (toBeModified) {
+// 			write(`codeActionsOnSave`, newValue);
+// 		}
+// 	}
+// });
+
+// Migrate Quick Fix Settings
+registerEditorSettingMigration('codeActionWidget.includeNearbyQuickfixes', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('codeActionWidget.includeNearbyQuickfixes', undefined);
+		if (typeof read('codeActionWidget.includeNearbyQuickFixes') === 'undefined') {
+			write('codeActionWidget.includeNearbyQuickFixes', value);
+		}
+	}
+});

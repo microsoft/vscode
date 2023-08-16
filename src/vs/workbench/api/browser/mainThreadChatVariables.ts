@@ -9,7 +9,7 @@ import { IChatVariableData, IChatVariablesService } from 'vs/workbench/contrib/c
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChatVariables)
-export class MainThreadChatSlashCommands implements MainThreadChatVariablesShape {
+export class MainThreadChatVariables implements MainThreadChatVariablesShape {
 
 	private readonly _proxy: ExtHostChatVariablesShape;
 	private readonly _variables = new DisposableMap<number>();
@@ -26,7 +26,7 @@ export class MainThreadChatSlashCommands implements MainThreadChatVariablesShape
 	}
 
 	$registerVariable(handle: number, data: IChatVariableData): void {
-		const registration = this._chatVariablesService.registerVariable(data, (messageText, token) => {
+		const registration = this._chatVariablesService.registerVariable(data, (messageText, _arg, _model, token) => {
 			return this._proxy.$resolveVariable(handle, messageText, token);
 		});
 		this._variables.set(handle, registration);

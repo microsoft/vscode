@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/124024 @hediet @alexdima
+	// https://github.com/microsoft/vscode/issues/124024 @hediet
 
 	export namespace languages {
 		/**
@@ -61,11 +61,6 @@ declare module 'vscode' {
 		 * A list of commands associated with the inline completions of this list.
 		 */
 		commands?: Command[];
-
-		/**
-		 * When set, overrides the user setting of `editor.inlineSuggest.suppressSuggestions`.
-		 */
-		suppressSuggestions?: boolean;
 
 		/**
 		 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.

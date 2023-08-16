@@ -10,7 +10,7 @@ import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifec
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from 'vs/platform/action/common/action';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -74,6 +74,7 @@ export class MenuId {
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
 	static readonly GlobalActivity = new MenuId('GlobalActivity');
 	static readonly CommandCenter = new MenuId('CommandCenter');
+	static readonly CommandCenterCenter = new MenuId('CommandCenterCenter');
 	static readonly LayoutControlMenuSubmenu = new MenuId('LayoutControlMenuSubmenu');
 	static readonly LayoutControlMenu = new MenuId('LayoutControlMenu');
 	static readonly MenubarMainMenu = new MenuId('MenubarMainMenu');
@@ -168,6 +169,7 @@ export class MenuId {
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly TimelineFilterSubMenu = new MenuId('TimelineFilterSubMenu');
 	static readonly AccountsContext = new MenuId('AccountsContext');
+	static readonly SidebarTitle = new MenuId('SidebarTitle');
 	static readonly PanelTitle = new MenuId('PanelTitle');
 	static readonly AuxiliaryBarTitle = new MenuId('AuxiliaryBarTitle');
 	static readonly TerminalInstanceContext = new MenuId('TerminalInstanceContext');
@@ -187,6 +189,7 @@ export class MenuId {
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
 	static readonly ChatExecute = new MenuId('ChatExecute');
+	static readonly ChatInputSide = new MenuId('ChatInputSide');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 
 	/**
@@ -511,12 +514,6 @@ interface IAction2CommonOptions extends ICommandAction {
 	 * One keybinding.
 	 */
 	keybinding?: OneOrN<Omit<IKeybindingRule, 'id'>>;
-
-	/**
-	 * Metadata about this command, used for API commands or when
-	 * showing keybindings that have no other UX.
-	 */
-	description?: ICommandHandlerDescription;
 }
 
 interface IBaseAction2Options extends IAction2CommonOptions {
@@ -568,13 +565,13 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	const disposables = new DisposableStore();
 	const action = new ctor();
 
-	const { f1, menu, keybinding, description, ...command } = action.desc;
+	const { f1, menu, keybinding, ...command } = action.desc;
 
 	// command
 	disposables.add(CommandsRegistry.registerCommand({
 		id: command.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),
-		description: description,
+		metadata: command.metadata,
 	}));
 
 	// menu

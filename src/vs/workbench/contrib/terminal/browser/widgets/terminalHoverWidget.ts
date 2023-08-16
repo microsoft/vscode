@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
@@ -37,10 +37,6 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 		super();
 	}
 
-	override dispose() {
-		super.dispose();
-	}
-
 	attach(container: HTMLElement): void {
 		const showLinkHover = this._configurationService.getValue(TerminalSettingId.ShowLinkHover);
 		if (!showLinkHover) {
@@ -62,7 +58,7 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 }
 
 class CellHoverTarget extends Widget implements IHoverTarget {
-	private _domNode: HTMLElement | undefined;
+	private _domNode: HTMLElement;
 	private readonly _targetElements: HTMLElement[] = [];
 
 	get targetElements(): readonly HTMLElement[] { return this._targetElements; }
@@ -122,10 +118,6 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 		}
 
 		container.appendChild(this._domNode);
-	}
-
-	override dispose(): void {
-		this._domNode?.parentElement?.removeChild(this._domNode);
-		super.dispose();
+		this._register(toDisposable(() => this._domNode?.remove()));
 	}
 }

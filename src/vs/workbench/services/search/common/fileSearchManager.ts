@@ -329,7 +329,7 @@ export class FileSearchManager {
 	}
 
 	private doSearch(engine: FileSearchEngine, batchSize: number, onResultBatch: (matches: IInternalFileMatch[]) => void, token: CancellationToken): Promise<IInternalSearchComplete> {
-		token.onCancellationRequested(() => {
+		const listener = token.onCancellationRequested(() => {
 			engine.cancel();
 		});
 
@@ -349,12 +349,14 @@ export class FileSearchManager {
 				onResultBatch(batch);
 			}
 
+			listener.dispose();
 			return result;
 		}, error => {
 			if (batch.length) {
 				onResultBatch(batch);
 			}
 
+			listener.dispose();
 			return Promise.reject(error);
 		});
 	}

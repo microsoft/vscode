@@ -128,7 +128,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		}
 
 		// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
-		this._register(disposableTimeout(() => this.promptImportantRecommendations(uri, model), 0));
+		disposableTimeout(() => this.promptImportantRecommendations(uri, model), 0, this._store);
 	}
 
 	/**
@@ -232,12 +232,12 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				const disposables = new DisposableStore();
 				disposables.add(model.onDidChangeLanguage(() => {
 					// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
-					disposables.add(disposableTimeout(() => {
+					disposableTimeout(() => {
 						if (!disposables.isDisposed) {
 							this.promptImportantRecommendations(uri, model, unmatchedRecommendations);
 							disposables.dispose();
 						}
-					}, 0));
+					}, 0, disposables);
 				}));
 				disposables.add(model.onWillDispose(() => disposables.dispose()));
 			}
@@ -281,7 +281,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		const language = model.getLanguageId();
 		const languageName = this.languageService.getLanguageName(language);
 		if (importantRecommendations.size &&
-			this.promptRecommendedExtensionForFileType(languageName && isImportantRecommendationForLanguage && language !== PLAINTEXT_LANGUAGE_ID ? localize('languageName', "{0} language", languageName) : basename(uri), language, [...importantRecommendations])) {
+			this.promptRecommendedExtensionForFileType(languageName && isImportantRecommendationForLanguage && language !== PLAINTEXT_LANGUAGE_ID ? localize('languageName', "the {0} language", languageName) : basename(uri), language, [...importantRecommendations])) {
 			return;
 		}
 	}

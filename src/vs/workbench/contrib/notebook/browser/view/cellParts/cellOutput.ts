@@ -35,7 +35,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { COPY_OUTPUT_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/cellOutputActions';
 import { CLEAR_CELL_OUTPUTS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
-import { CLIPBOARD_COMPATIBLE_MIMETYPES } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
+import { TEXT_BASED_MIMETYPES } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -257,7 +257,7 @@ class CellOutputElement extends Disposable {
 	}
 
 	private shouldEnableCopy(mimeTypes: readonly IOrderedMimeType[]) {
-		if (!mimeTypes.find(mimeType => CLIPBOARD_COMPATIBLE_MIMETYPES.indexOf(mimeType.mimeType))) {
+		if (!mimeTypes.find(mimeType => TEXT_BASED_MIMETYPES.indexOf(mimeType.mimeType) || mimeType.mimeType.startsWith('image/'))) {
 			return false;
 		}
 

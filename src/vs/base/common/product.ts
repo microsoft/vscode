@@ -114,6 +114,7 @@ export interface IProductConfiguration {
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: IStringDictionary<string[]>;
 	readonly trustedExtensionAuthAccess?: readonly string[];
+	readonly trustedExtensionProtocolHandlers?: readonly string[];
 
 	readonly commandPaletteSuggestedCommandIds?: string[];
 
@@ -186,6 +187,7 @@ export interface IProductConfiguration {
 	readonly profileTemplatesUrl?: string;
 
 	readonly commonlyUsedSettings?: string[];
+	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
 }
 
 export interface ITunnelApplicationConfig {
@@ -278,4 +280,12 @@ export interface ISurveyData {
 	languageId: string;
 	editCount: number;
 	userProbability: number;
+}
+
+export interface IAiGeneratedWorkspaceTrust {
+	readonly title: string;
+	readonly checkboxText: string;
+	readonly trustOption: string;
+	readonly dontTrustOption: string;
+	readonly startupTrustRequestLearnMore: string;
 }

@@ -5,6 +5,11 @@
 
 rm -f /usr/bin/@@NAME@@
 
+# Uninstall the desktop entry
+if hash update-desktop-database 2>/dev/null; then
+	update-desktop-database
+fi
+
 # Update mimetype database for removed workspace mimetype
 if hash update-mime-database 2>/dev/null; then
 	update-mime-database /usr/share/mime

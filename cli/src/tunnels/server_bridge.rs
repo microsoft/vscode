@@ -32,6 +32,7 @@ impl ServerBridge {
 				match read.read(&mut read_buf).await {
 					Err(_) => return,
 					Ok(0) => {
+						let _ = target.server_closed().await;
 						return; // EOF
 					}
 					Ok(s) => {

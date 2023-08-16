@@ -5,7 +5,8 @@ parameters:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ./distro/download-distro.yml
@@ -52,12 +53,14 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  - script: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libsecret-1-dev libnotify-bin libkrb5-dev
+  - script: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
     displayName: Install build tools
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
       set -e
+      npm i -g node-gyp@9.4.0
+
       for i in {1..5}; do # try 5 times
         yarn --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then

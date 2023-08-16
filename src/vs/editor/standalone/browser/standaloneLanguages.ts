@@ -70,7 +70,7 @@ export function onLanguage(languageId: string, callback: () => void): IDisposabl
 
 /**
  * An event emitted when a language is associated for the first time with a text model or
- * whena language is encountered during the tokenization of another language.
+ * when a language is encountered during the tokenization of another language.
  * @event
  */
 export function onLanguageEncountered(languageId: string, callback: () => void): IDisposable {

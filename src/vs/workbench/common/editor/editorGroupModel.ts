@@ -163,7 +163,37 @@ interface IEditorCloseResult {
 	readonly sticky: boolean;
 }
 
-export class EditorGroupModel extends Disposable {
+export interface IReadonlyEditorGroupModel {
+
+	readonly onDidModelChange: Event<IGroupModelChangeEvent>;
+
+	readonly id: GroupIdentifier;
+	readonly count: number;
+	readonly stickyCount: number;
+	readonly isLocked: boolean;
+	readonly activeEditor: EditorInput | null;
+	readonly previewEditor: EditorInput | null;
+
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[];
+	getEditorByIndex(index: number): EditorInput | undefined;
+	indexOf(editor: EditorInput | IUntypedEditorInput | null, editors?: EditorInput[], options?: IMatchEditorOptions): number;
+	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
+	isPinned(editorOrIndex: EditorInput | number): boolean;
+	isSticky(editorOrIndex: EditorInput | number): boolean;
+	isFirst(editor: EditorInput, editors?: EditorInput[]): boolean;
+	isLast(editor: EditorInput, editors?: EditorInput[]): boolean;
+	findEditor(editor: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number /* index */] | undefined;
+	contains(editor: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean;
+}
+
+interface IEditorGroupModel extends IReadonlyEditorGroupModel {
+	openEditor(editor: EditorInput, options?: IEditorOpenOptions): IEditorOpenResult;
+	closeEditor(editor: EditorInput, context?: EditorCloseContext, openNext?: boolean): IEditorCloseResult | undefined;
+	moveEditor(editor: EditorInput, toIndex: number): EditorInput | undefined;
+	setActive(editor: EditorInput | undefined): EditorInput | undefined;
+}
+
+export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	private static IDS = 0;
 
@@ -179,6 +209,8 @@ export class EditorGroupModel extends Disposable {
 
 	private editors: EditorInput[] = [];
 	private mru: EditorInput[] = [];
+
+	private readonly editorListeners = new Set<DisposableStore>();
 
 	private locked = false;
 
@@ -405,6 +437,7 @@ export class EditorGroupModel extends Disposable {
 
 	private registerEditorListeners(editor: EditorInput): void {
 		const listeners = new DisposableStore();
+		this.editorListeners.add(listeners);
 
 		// Re-emit disposal of editor input as our own event
 		listeners.add(Event.once(editor.onWillDispose)(() => {
@@ -453,6 +486,7 @@ export class EditorGroupModel extends Disposable {
 		listeners.add(this.onDidModelChange(event => {
 			if (event.kind === GroupModelChangeKind.EDITOR_CLOSE && event.editor?.matches(editor)) {
 				dispose(listeners);
+				this.editorListeners.delete(listeners);
 			}
 		}));
 	}
@@ -903,19 +937,19 @@ export class EditorGroupModel extends Disposable {
 		return [this.editors[index], index];
 	}
 
-	isFirst(candidate: EditorInput | null): boolean {
-		return this.matches(this.editors[0], candidate);
+	isFirst(candidate: EditorInput | null, editors = this.editors): boolean {
+		return this.matches(editors[0], candidate);
 	}
 
-	isLast(candidate: EditorInput | null): boolean {
-		return this.matches(this.editors[this.editors.length - 1], candidate);
+	isLast(candidate: EditorInput | null, editors = this.editors): boolean {
+		return this.matches(editors[editors.length - 1], candidate);
 	}
 
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean {
 		return this.indexOf(candidate, this.editors, options) !== -1;
 	}
 
-	private matches(editor: EditorInput | null, candidate: EditorInput | IUntypedEditorInput | null, options?: IMatchEditorOptions): boolean {
+	private matches(editor: EditorInput | null | undefined, candidate: EditorInput | IUntypedEditorInput | null, options?: IMatchEditorOptions): boolean {
 		if (!editor || !candidate) {
 			return false;
 		}
@@ -1076,5 +1110,12 @@ export class EditorGroupModel extends Disposable {
 		}
 
 		return this._id;
+	}
+
+	override dispose(): void {
+		dispose(Array.from(this.editorListeners));
+		this.editorListeners.clear();
+
+		super.dispose();
 	}
 }

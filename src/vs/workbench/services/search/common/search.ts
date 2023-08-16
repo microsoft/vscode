@@ -19,12 +19,14 @@ import * as paths from 'vs/base/common/path';
 import { isCancellationError } from 'vs/base/common/errors';
 import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
 import { isThenable } from 'vs/base/common/async';
+import { ResourceSet } from 'vs/base/common/map';
 
 export { TextSearchCompleteMessageType };
 
 export const VIEWLET_ID = 'workbench.view.search';
 export const PANEL_ID = 'workbench.panel.search';
 export const VIEW_ID = 'workbench.view.search';
+export const SEARCH_RESULT_LANGUAGE_ID = 'search-result';
 
 export const SEARCH_EXCLUDE_CONFIG = 'search.exclude';
 
@@ -41,7 +43,8 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
  */
 export interface ISearchService {
 	readonly _serviceBrand: undefined;
-	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void, notebookURIs?: Set<URI>): Promise<ISearchComplete>;
+	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
+	textSearchSplitSyncAsync(query: ITextQuery, token?: CancellationToken | undefined, onProgress?: ((result: ISearchProgressItem) => void) | undefined, notebookFilesToIgnore?: ResourceSet, asyncNotebookFilesToIgnore?: Promise<ResourceSet>): { syncResults: ISearchComplete; asyncResults: Promise<ISearchComplete> };
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
@@ -412,6 +415,9 @@ export interface ISearchConfigurationProperties {
 	defaultViewMode: ViewMode;
 	experimental: {
 		closedNotebookRichContentResults: boolean;
+		quickAccess: {
+			preserveInput: boolean;
+		};
 	};
 }
 

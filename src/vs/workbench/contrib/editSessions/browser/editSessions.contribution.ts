@@ -10,7 +10,7 @@ import { ILifecycleService, LifecyclePhase, ShutdownReason } from 'vs/workbench/
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent, hashedEditSessionId, editSessionsLogId, EDIT_SESSIONS_PENDING } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_ORIGINAL_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent, hashedEditSessionId, editSessionsLogId, EDIT_SESSIONS_PENDING } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -206,14 +206,17 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		} else if (shouldAutoResumeOnReload) {
 			// The application has previously launched via a protocol URL Continue On flow
 			const hasApplicationLaunchedFromContinueOnFlow = this.storageService.getBoolean(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION, false);
+			this.logService.info(`Prompting to enable cloud changes, has application previously launched from Continue On flow: ${hasApplicationLaunchedFromContinueOnFlow}`);
 
 			const handlePendingEditSessions = () => {
 				// display a badge in the accounts menu but do not prompt the user to sign in again
+				this.logService.info('Showing badge to enable cloud changes in accounts menu...');
 				this.updateAccountsMenuBadge();
 				this.pendingEditSessionsContext.set(true);
 				// attempt a resume if we are in a pending state and the user just signed in
 				const disposable = this.editSessionsStorageService.onDidSignIn(async () => {
 					disposable.dispose();
+					this.logService.info('Showing badge to enable cloud changes in accounts menu succeeded, resuming cloud changes...');
 					await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, undefined, progress));
 					this.storageService.remove(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION);
 					this.environmentService.continueOn = undefined;
@@ -227,8 +230,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			) {
 				// store the fact that we prompted the user
 				this.storageService.store(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				this.logService.info('Prompting to enable cloud changes...');
 				await this.editSessionsStorageService.initialize('read');
 				if (this.editSessionsStorageService.isSignedIn) {
+					this.logService.info('Prompting to enable cloud changes succeeded, resuming cloud changes...');
 					await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, undefined, progress));
 				} else {
 					handlePendingEditSessions();
@@ -239,6 +244,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			) {
 				handlePendingEditSessions();
 			}
+		} else {
+			this.logService.debug('Auto resuming cloud changes disabled.');
 		}
 	}
 
@@ -267,7 +274,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		const container = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: EDIT_SESSIONS_CONTAINER_ID,
-				title: EDIT_SESSIONS_TITLE,
+				title: { value: EDIT_SESSIONS_TITLE, original: EDIT_SESSIONS_ORIGINAL_TITLE },
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
 					[EDIT_SESSIONS_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]
@@ -441,6 +448,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			async run(accessor: ServicesAccessor, editSessionId?: string): Promise<void> {
 				const data = await that.quickInputService.input({ prompt: 'Enter serialized data' });
+				if (data) {
+					that.editSessionsStorageService.lastReadResources.set('editSessions', { content: data, ref: '' });
+				}
 				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, undefined, undefined, undefined, data));
 			}
 		}));

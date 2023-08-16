@@ -188,8 +188,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('role', 'textbox');
 		this.textArea.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
 		this.textArea.setAttribute('aria-multiline', 'true');
-		this.textArea.setAttribute('aria-haspopup', 'false');
-		this.textArea.setAttribute('aria-autocomplete', 'both');
+		this.textArea.setAttribute('aria-autocomplete', options.get(EditorOption.readOnly) ? 'none' : 'both');
 
 		this._ensureReadOnlyAttribute();
 
@@ -392,7 +391,7 @@ export class TextAreaHandler extends ViewPart {
 				const distanceToModelLineStart = startModelPosition.column - 1 - visibleBeforeCharCount;
 				const hiddenLineTextBefore = lineTextBeforeSelection.substring(0, lineTextBeforeSelection.length - visibleBeforeCharCount);
 				const { tabSize } = this._context.viewModel.model.getOptions();
-				const widthOfHiddenTextBefore = measureText(hiddenLineTextBefore, this._fontInfo, tabSize);
+				const widthOfHiddenTextBefore = measureText(this.textArea.domNode.ownerDocument, hiddenLineTextBefore, this._fontInfo, tabSize);
 
 				return { distanceToModelLineStart, widthOfHiddenTextBefore };
 			})();
@@ -928,7 +927,7 @@ interface IRenderData {
 	strikethrough?: boolean;
 }
 
-function measureText(text: string, fontInfo: FontInfo, tabSize: number): number {
+function measureText(document: Document, text: string, fontInfo: FontInfo, tabSize: number): number {
 	if (text.length === 0) {
 		return 0;
 	}

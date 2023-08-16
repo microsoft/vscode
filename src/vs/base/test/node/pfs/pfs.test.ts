@@ -13,6 +13,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { basename, dirname, join, sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { configureFlushOnWrite, Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
@@ -488,4 +489,6 @@ flakySuite('PFS', function () {
 		writeFileSync(testFile, largeString);
 		assert.strictEqual(fs.readFileSync(testFile).toString(), largeString);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -285,7 +285,7 @@ CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAcce
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.extensions.installExtension',
-	description: {
+	metadata: {
 		description: localize('workbench.extensions.installExtension.description', "Install the given extension"),
 		args: [
 			{
@@ -364,7 +364,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.extensions.uninstallExtension',
-	description: {
+	metadata: {
 		description: localize('workbench.extensions.uninstallExtension.description', "Uninstall the given extension"),
 		args: [
 			{
@@ -400,7 +400,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.extensions.search',
-	description: {
+	metadata: {
 		description: localize('workbench.extensions.search.description', "Search for a specific extension"),
 		args: [
 			{
@@ -531,6 +531,16 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			group: '2_configuration',
 			order: 3
 		}));
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.focusExtensionsView',
+			title: { value: localize('focusExtensions', "Focus on Extensions View"), original: 'Focus on Extensions View' },
+			category: ExtensionsLocalizedLabel,
+			f1: true,
+			run: async (accessor: ServicesAccessor) => {
+				await accessor.get(IPaneCompositePartService).openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
+			}
+		});
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installExtensions',
@@ -1421,7 +1431,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('isDefaultApplicationScopedExtension').negate()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('isDefaultApplicationScopedExtension').negate(), ContextKeyExpr.has('isBuiltinExtension').negate()),
 				order: 3
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {

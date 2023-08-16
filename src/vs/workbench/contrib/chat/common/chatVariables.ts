@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { IRange } from 'vs/editor/common/core/range';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 
 export interface IChatVariableData {
 	name: string;
 	description: string;
+	hidden?: boolean;
+	canTakeArgument?: boolean;
 }
 
 export interface IChatRequestVariableValue {
@@ -22,7 +26,7 @@ export interface IChatRequestVariableValue {
 
 export interface IChatVariableResolver {
 	// TODO should we spec "zoom level"
-	(messageText: string, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
+	(messageText: string, arg: string | undefined, model: IChatModel, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
 }
 
 export const IChatVariablesService = createDecorator<IChatVariablesService>('IChatVariablesService');
@@ -30,60 +34,23 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
 	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable;
+	hasVariable(name: string): boolean;
 	getVariables(): Iterable<Readonly<IChatVariableData>>;
+	getDynamicReferences(sessionId: string): ReadonlyArray<IDynamicReference>; // should be its own service?
 
 	/**
 	 * Resolves all variables that occur in `prompt`
 	 */
-	resolveVariables(prompt: string, token: CancellationToken): Promise<Record<string, IChatRequestVariableValue[]>>;
+	resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult>;
 }
 
-type ChatData = [data: IChatVariableData, resolver: IChatVariableResolver];
+export interface IChatVariableResolveResult {
+	variables: Record<string, IChatRequestVariableValue[]>;
+	prompt: string;
+}
 
-export class ChatVariablesService implements IChatVariablesService {
-	declare _serviceBrand: undefined;
-
-	private _resolver = new Map<string, ChatData>();
-
-	constructor() {
-	}
-
-	async resolveVariables(prompt: string, token: CancellationToken): Promise<Record<string, IChatRequestVariableValue[]>> {
-		const resolvedVariables: Record<string, IChatRequestVariableValue[]> = {};
-		const jobs: Promise<any>[] = [];
-
-		const regex = /(^|\s)@(\w+)(\s|$)/ig;
-
-		let match: RegExpMatchArray | null;
-		while (match = regex.exec(prompt)) {
-			const candidate = match[2];
-			const data = this._resolver.get(candidate);
-			if (data) {
-				jobs.push(data[1](prompt, token).then(value => {
-					if (value) {
-						resolvedVariables[candidate] = value;
-					}
-				}).catch(onUnexpectedExternalError));
-			}
-		}
-
-		await Promise.allSettled(jobs);
-
-		return Promise.resolve(resolvedVariables);
-	}
-
-	getVariables(): Iterable<Readonly<IChatVariableData>> {
-		return Iterable.map(this._resolver.values(), data => data[0]);
-	}
-
-	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable {
-		const key = data.name.toLowerCase();
-		if (this._resolver.has(key)) {
-			throw new Error(`A chat variable with the name '${data.name}' already exists.`);
-		}
-		this._resolver.set(key, [data, resolver]);
-		return toDisposable(() => {
-			this._resolver.delete(key);
-		});
-	}
+export interface IDynamicReference {
+	range: IRange;
+	// data: any; // File details for a file, something else for a different type of thing, is it typed?
+	data: URI;
 }

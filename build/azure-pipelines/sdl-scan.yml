@@ -50,9 +50,11 @@ stages:
             inputs:
               scanFolder: "$(Build.SourcesDirectory)"
               outputFormat: "pre"
+
           - task: NodeTool@0
             inputs:
-              versionSpec: "18.x"
+              versionSource: fromFile
+              versionFilePath: .nvmrc
 
           - template: ./distro/download-distro.yml
 
@@ -147,6 +149,7 @@ stages:
               InputType: "Basic"
               Function: "analyze"
               TargetPattern: "guardianGlob"
+              AnalyzeIgnorePdbLoadError: true
               AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
               AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb'
 
@@ -179,7 +182,8 @@ stages:
               toolMajorVersion: "V2"
           - task: NodeTool@0
             inputs:
-              versionSpec: "18.x"
+              versionSource: fromFile
+              versionFilePath: .nvmrc
 
           - template: ./distro/download-distro.yml
 

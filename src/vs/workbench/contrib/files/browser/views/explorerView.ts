@@ -450,7 +450,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				}
 				return false;
 			},
-			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT,
+			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
 			overrideStyles: {
 				listBackground: SIDE_BAR_BACKGROUND
 			}
@@ -477,7 +477,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			}
 			// Do not react if the user is expanding selection via keyboard.
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
-			const shiftDown = e.browserEvent instanceof KeyboardEvent && e.browserEvent.shiftKey;
+			const shiftDown = DOM.isKeyboardEvent(e.browserEvent) && e.browserEvent.shiftKey;
 			if (!shiftDown) {
 				if (element.isDirectory || this.explorerService.isEditable(undefined)) {
 					// Do not react if user is clicking on explorer items while some are being edited #70276
@@ -574,12 +574,12 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		let anchor = e.anchor;
 
 		// Adjust for compressed folders (except when mouse is used)
-		if (DOM.isHTMLElement(anchor)) {
+		if (anchor instanceof HTMLElement) {
 			if (stat) {
 				const controller = this.renderer.getCompressedNavigationController(stat);
 
 				if (controller) {
-					if (e.browserEvent instanceof KeyboardEvent || isCompressedFolderName(e.browserEvent.target)) {
+					if (DOM.isKeyboardEvent(e.browserEvent) || isCompressedFolderName(e.browserEvent.target)) {
 						anchor = controller.labels[controller.index];
 					} else {
 						controller.last();

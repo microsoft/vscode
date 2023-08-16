@@ -83,9 +83,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Editor & group changes
 		this.editorGroupService.whenReady.then(() => this.onEditorGroupsReady());
-		this.editorGroupService.onDidChangeActiveGroup(group => this.handleActiveEditorChange(group));
-		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
-		this.editorsObserver.onDidMostRecentlyActiveEditorsChange(() => this._onDidMostRecentlyActiveEditorsChange.fire());
+		this._register(this.editorGroupService.onDidChangeActiveGroup(group => this.handleActiveEditorChange(group)));
+		this._register(this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView)));
+		this._register(this.editorsObserver.onDidMostRecentlyActiveEditorsChange(() => this._onDidMostRecentlyActiveEditorsChange.fire()));
 
 		// Out of workspace file watchers
 		this._register(this.onDidVisibleEditorsChange(() => this.handleVisibleEditorsChange()));
@@ -432,7 +432,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return this.getEditors(EditorsOrder.SEQUENTIAL).map(({ editor }) => editor);
 	}
 
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly IEditorIdentifier[] {
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): IEditorIdentifier[] {
 		switch (order) {
 
 			// MRU

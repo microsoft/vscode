@@ -34,7 +34,6 @@ export interface IInlineChatSession {
 	message?: string;
 	slashCommands?: IInlineChatSlashCommand[];
 	wholeRange?: IRange;
-	dispose?(): void;
 }
 
 export interface IInlineChatRequest {
@@ -87,6 +86,7 @@ export interface IInlineChatMessageResponse {
 export interface IInlineChatProgressItem {
 	edits?: TextEdit[];
 	message?: string;
+	slashCommand?: string;
 }
 
 export const enum InlineChatResponseFeedbackKind {

@@ -11,8 +11,8 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleDiffViewerNext } from 'vs/editor/browser/widget/diffEditor.contribution';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleDiffViewerNext } from 'vs/editor/browser/widget/diffEditor/diffEditor.contribution';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'panelChat' | 'inlineChat'): string {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -45,7 +45,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'pane
 		content.push(localize('inlineChat.toolbar', "Use tab to reach conditional parts like commands, status, message responses and more."));
 	}
 	content.push(localize('chat.audioCues', "Audio cues can be changed via settings with a prefix of audioCues.chat. By default, if a request takes more than 4 seconds, you will hear an audio cue indicating that progress is still occurring."));
-	return content.join('\n');
+	return content.join('\n\n');
 }
 
 function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
@@ -56,13 +56,12 @@ function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, 
 	return format(noKbMsg, commandId);
 }
 
-export async function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor, type: 'panelChat' | 'inlineChat'): Promise<void> {
+export async function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat'): Promise<void> {
 	const widgetService = accessor.get(IChatWidgetService);
 	const accessibleViewService = accessor.get(IAccessibleViewService);
 	const inputEditor: ICodeEditor | undefined = type === 'panelChat' ? widgetService.lastFocusedWidget?.inputEditor : editor;
-	const editorUri = editor.getModel()?.uri;
 
-	if (!inputEditor || !editorUri) {
+	if (!inputEditor) {
 		return;
 	}
 	const domNode = inputEditor.getDomNode() ?? undefined;
@@ -74,6 +73,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type);
 	accessibleViewService.show({
+		id: type === 'panelChat' ? AccessibleViewProviderId.Chat : AccessibleViewProviderId.InlineChat,
 		verbositySettingKey: type === 'panelChat' ? AccessibilityVerbositySettingId.Chat : AccessibilityVerbositySettingId.InlineChat,
 		provideContent: () => helpText,
 		onClose: () => {
@@ -81,9 +81,11 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 				inputEditor.setPosition(cachedPosition);
 				inputEditor.focus();
 			} else if (type === 'inlineChat') {
-				InlineChatController.get(editor)?.focus();
+				if (editor) {
+					InlineChatController.get(editor)?.focus();
+				}
 			}
 		},
-		options: { type: AccessibleViewType.Help, ariaLabel: type === 'panelChat' ? localize('chat-help-label', "Chat accessibility help") : localize('inline-chat-label', "Inline chat accessibility help") }
+		options: { type: AccessibleViewType.Help }
 	});
 }

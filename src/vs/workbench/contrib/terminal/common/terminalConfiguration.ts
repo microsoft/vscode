@@ -106,11 +106,6 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'right',
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
-		[TerminalSettingId.TabFocusMode]: {
-			markdownDescription: localize('tabFocusMode', "Controls whether the terminal receives tabs or defers them to the workbench for navigation. When set, this overrides {0} when the terminal is focused.", '`#editor.tabFocusMode#`'),
-			type: ['boolean', 'null'],
-			default: null
-		},
 		[TerminalSettingId.DefaultLocation]: {
 			type: 'string',
 			enum: [TerminalLocationString.Editor, TerminalLocationString.TerminalView],
@@ -304,7 +299,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.TerminalTitleSeparator]: {
 			'type': 'string',
 			'default': ' - ',
-			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by {0} and {0}.", `\`${TerminalSettingId.TerminalTitle}\``, `\`${TerminalSettingId.TerminalDescription}\``)
+			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by {0} and {1}.", `\`#${TerminalSettingId.TerminalTitle}#\``, `\`#${TerminalSettingId.TerminalDescription}#\``)
 		},
 		[TerminalSettingId.TerminalTitle]: {
 			'type': 'string',
@@ -427,7 +422,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'warnonly'
 		},
 		[TerminalSettingId.EnvironmentChangesRelaunch]: {
-			markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extension want to contribute to their environment and have not been interacted with yet."),
+			markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extensions want to contribute to their environment and have not been interacted with yet."),
 			type: 'boolean',
 			default: true
 		},
@@ -546,7 +541,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'never'
 		},
 		[TerminalSettingId.CustomGlyphs]: {
-			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
+			markdownDescription: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
 			type: 'boolean',
 			default: true
 		},
@@ -607,8 +602,24 @@ const terminalConfiguration: IConfigurationNode = {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS, Windows support will light up automatically when ConPTY passes through the sequences. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
 			type: 'boolean',
-			default: true
+			default: false
 		},
+		[TerminalSettingId.FocusAfterRun]: {
+			markdownDescription: localize('terminal.integrated.focusAfterRun', "Controls whether the terminal, accessible buffer, or neither will be focused after `Terminal: Run Selected Text In Active Terminal` has been run."),
+			enum: ['terminal', 'accessible-buffer', 'none'],
+			default: 'none',
+			tags: ['accessibility'],
+			markdownEnumDescriptions: [
+				localize('terminal.integrated.focusAfterRun.terminal', "Always focus the terminal."),
+				localize('terminal.integrated.focusAfterRun.accessible-buffer', "Always focus the accessible buffer."),
+				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
+			]
+		},
+		[TerminalSettingId.AccessibleViewPreserveCursorPosition]: {
+			markdownDescription: localize('terminal.integrated.accessibleViewPreserveCursorPosition', "Preserve the cursor position on reopen of the terminal's accessible view rather than setting it to the bottom of the buffer."),
+			type: 'boolean',
+			default: false
+		}
 	}
 };
 
