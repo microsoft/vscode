@@ -6,7 +6,7 @@
 import { mapFind } from 'vs/base/common/arrays';
 import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, keepAlive, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
+import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, keepAlive, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -18,6 +18,7 @@ import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
+import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
 import { addPositions, lengthOfText } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
@@ -209,23 +210,11 @@ export class InlineCompletionsModel extends Disposable {
 
 		const suggestItem = this.selectedSuggestItem.read(reader);
 		if (suggestItem) {
-			const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.read(reader);
-			const candidateInlineCompletions = suggestWidgetInlineCompletions
-				? suggestWidgetInlineCompletions.inlineCompletions
-				: [this.selectedInlineCompletion.read(reader)].filter(isDefined);
-
 			const suggestCompletion = suggestItem.toSingleTextEdit().removeCommonPrefix(model);
-
-			const augmentedCompletion = mapFind(candidateInlineCompletions, completion => {
-				let r = completion.toSingleTextEdit(reader);
-				r = r.removeCommonPrefix(model, Range.fromPositions(r.range.getStartPosition(), suggestItem.range.getEndPosition()));
-				return r.augments(suggestCompletion) ? { edit: r, completion } : undefined;
-			});
+			const augmentedCompletion = this._computeAugmentedCompletion(suggestCompletion, reader);
 
 			const isSuggestionPreviewEnabled = this._suggestPreviewEnabled.read(reader);
-			if (!isSuggestionPreviewEnabled && !augmentedCompletion) {
-				return undefined;
-			}
+			if (!isSuggestionPreviewEnabled && !augmentedCompletion) { return undefined; }
 
 			const edit = augmentedCompletion?.edit ?? suggestCompletion;
 			const editPreviewLength = augmentedCompletion ? augmentedCompletion.edit.text.length - suggestCompletion.text.length : 0;
@@ -249,6 +238,22 @@ export class InlineCompletionsModel extends Disposable {
 			return ghostText ? { ghostText, inlineCompletion: item, suggestItem: undefined } : undefined;
 		}
 	});
+
+	private _computeAugmentedCompletion(suggestCompletion: SingleTextEdit, reader: IReader | undefined) {
+		const model = this.textModel;
+		const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.read(reader);
+		const candidateInlineCompletions = suggestWidgetInlineCompletions
+			? suggestWidgetInlineCompletions.inlineCompletions
+			: [this.selectedInlineCompletion.read(reader)].filter(isDefined);
+
+		const augmentedCompletion = mapFind(candidateInlineCompletions, completion => {
+			let r = completion.toSingleTextEdit(reader);
+			r = r.removeCommonPrefix(model, Range.fromPositions(r.range.getStartPosition(), suggestCompletion.range.getEndPosition()));
+			return r.augments(suggestCompletion) ? { edit: r, completion } : undefined;
+		});
+
+		return augmentedCompletion;
+	}
 
 	public readonly ghostText = derivedOpts({
 		equalityComparer: ghostTextOrReplacementEquals
@@ -423,5 +428,18 @@ export class InlineCompletionsModel extends Disposable {
 				text.length,
 			);
 		}
+	}
+
+	public handleSuggestAccepted(item: SuggestItemInfo) {
+		const itemEdit = item.toSingleTextEdit().removeCommonPrefix(this.textModel);
+		const augmentedCompletion = this._computeAugmentedCompletion(itemEdit, undefined);
+		if (!augmentedCompletion) { return; }
+
+		const inlineCompletion = augmentedCompletion.completion.inlineCompletion;
+		inlineCompletion.source.provider.handlePartialAccept?.(
+			inlineCompletion.source.inlineCompletions,
+			inlineCompletion.sourceInlineCompletion,
+			itemEdit.text.length,
+		);
 	}
 }

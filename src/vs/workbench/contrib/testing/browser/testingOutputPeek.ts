@@ -121,12 +121,12 @@ class MessageSubject {
 		};
 	}
 
-	constructor(public readonly resultId: string, test: TestResultItem, public readonly taskIndex: number, public readonly messageIndex: number) {
+	constructor(public readonly result: ITestResult, test: TestResultItem, public readonly taskIndex: number, public readonly messageIndex: number) {
 		this.test = test.item;
 		const messages = test.tasks[taskIndex].messages;
 		this.messageIndex = messageIndex;
 
-		const parts = { messageIndex, resultId, taskIndex, testExtId: test.item.extId };
+		const parts = { messageIndex, resultId: result.id, taskIndex, testExtId: test.item.extId };
 		this.expectedUri = buildTestUri({ ...parts, type: TestUriType.ResultExpectedOutput });
 		this.actualUri = buildTestUri({ ...parts, type: TestUriType.ResultActualOutput });
 		this.messageUri = buildTestUri({ ...parts, type: TestUriType.ResultMessage });
@@ -140,30 +140,27 @@ class TaskSubject {
 	public readonly outputUri: URI;
 	public readonly revealLocation: undefined;
 
-	constructor(public readonly resultId: string, public readonly taskIndex: number) {
-		this.outputUri = buildTestUri({ resultId, taskIndex, type: TestUriType.TaskOutput });
+	constructor(public readonly result: ITestResult, public readonly taskIndex: number) {
+		this.outputUri = buildTestUri({ resultId: result.id, taskIndex, type: TestUriType.TaskOutput });
 	}
 }
 
 class TestOutputSubject {
+	public readonly outputUri: URI;
 	public readonly revealLocation: undefined;
 
-	public get outputUri() {
-		return buildTestUri({ resultId: this.resultId, taskIndex: this.taskIndex, testExtId: this.test.item.extId, type: TestUriType.TestOutput });
-	}
-
-	constructor(public readonly resultId: string, public readonly taskIndex: number, public readonly task: ITestRunTask, public readonly test: TestResultItem) {
+	constructor(public readonly result: ITestResult, public readonly taskIndex: number, public readonly task: ITestRunTask, public readonly test: TestResultItem) {
+		this.outputUri = buildTestUri({ resultId: this.result.id, taskIndex: this.taskIndex, testExtId: this.test.item.extId, type: TestUriType.TestOutput });
 	}
 }
 
 type InspectSubject = MessageSubject | TaskSubject | TestOutputSubject;
 
-const equalsSubject = (a: InspectSubject, b: InspectSubject) =>
-	a.resultId === b.resultId && a.taskIndex === b.taskIndex && (
-		(a instanceof MessageSubject && b instanceof MessageSubject && a.message === b.message) ||
-		(a instanceof TaskSubject && b instanceof TaskSubject) ||
-		(a instanceof TestOutputSubject && b instanceof TestOutputSubject && a.test === b.test)
-	);
+const equalsSubject = (a: InspectSubject, b: InspectSubject) => (
+	(a instanceof MessageSubject && b instanceof MessageSubject && a.message === b.message) ||
+	(a instanceof TaskSubject && b instanceof TaskSubject && a.result === b.result && a.taskIndex === b.taskIndex) ||
+	(a instanceof TestOutputSubject && b instanceof TestOutputSubject && a.test === b.test && a.taskIndex === b.taskIndex)
+);
 
 /** Iterates through every message in every result */
 function* allMessages(results: readonly ITestResult[]) {
@@ -626,7 +623,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 
 		let found = false;
 		for (const { messageIndex, taskIndex, result, test } of allMessages(this.testResults.results)) {
-			if (subject instanceof TaskSubject && result.id === subject.resultId) {
+			if (subject instanceof TaskSubject && result.id === subject.result.id) {
 				found = true; // open the first message found in the current result
 			}
 
@@ -641,11 +638,11 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 				return;
 			}
 
-			if (subject instanceof TestOutputSubject && subject.test.item.extId === test.item.extId && subject.taskIndex === taskIndex && subject.resultId === result.id) {
+			if (subject instanceof TestOutputSubject && subject.test.item.extId === test.item.extId && subject.taskIndex === taskIndex && subject.result.id === result.id) {
 				found = true;
 			}
 
-			if (subject instanceof MessageSubject && subject.test.extId === test.item.extId && subject.messageIndex === messageIndex && subject.taskIndex === taskIndex && subject.resultId === result.id) {
+			if (subject instanceof MessageSubject && subject.test.extId === test.item.extId && subject.messageIndex === messageIndex && subject.taskIndex === taskIndex && subject.result.id === result.id) {
 				found = true;
 			}
 		}
@@ -663,20 +660,20 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		let previous: { messageIndex: number; taskIndex: number; result: ITestResult; test: TestResultItem } | undefined;
 		for (const m of allMessages(this.testResults.results)) {
 			if (subject instanceof TaskSubject) {
-				if (m.result.id === subject.resultId) {
+				if (m.result.id === subject.result.id) {
 					break;
 				}
 				continue;
 			}
 
 			if (subject instanceof TestOutputSubject) {
-				if (m.test.item.extId === subject.test.item.extId && m.result.id === subject.resultId && m.taskIndex === subject.taskIndex) {
+				if (m.test.item.extId === subject.test.item.extId && m.result.id === subject.result.id && m.taskIndex === subject.taskIndex) {
 					break;
 				}
 				continue;
 			}
 
-			if (subject.test.extId === m.test.item.extId && subject.messageIndex === m.messageIndex && subject.taskIndex === m.taskIndex && subject.resultId === m.result.id) {
+			if (subject.test.extId === m.test.item.extId && subject.messageIndex === m.messageIndex && subject.taskIndex === m.taskIndex && subject.result.id === m.result.id) {
 				break;
 			}
 
@@ -732,25 +729,29 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			return undefined;
 		}
 
+		const result = this.testResults.results.find(r => r.id === parts.resultId);
+		if (!result) {
+			return;
+		}
+
 		if (parts.type === TestUriType.TaskOutput) {
-			return new TaskSubject(parts.resultId, parts.taskIndex);
+			return new TaskSubject(result, parts.taskIndex);
 		}
 
 		if (parts.type === TestUriType.TestOutput) {
-			const result = this.testResults.results.find(r => r.id === parts.resultId);
-			const test = result?.getStateById(parts.testExtId);
-			const task = result?.tasks[parts.taskIndex];
+			const test = result.getStateById(parts.testExtId);
+			const task = result.tasks[parts.taskIndex];
 			if (!test || !task) { return; }
-			return new TestOutputSubject(parts.resultId, parts.taskIndex, task, test);
+			return new TestOutputSubject(result, parts.taskIndex, task, test);
 		}
 
-		const { resultId, testExtId, taskIndex, messageIndex } = parts;
-		const test = this.testResults.getResult(parts.resultId)?.getStateById(testExtId);
+		const { testExtId, taskIndex, messageIndex } = parts;
+		const test = result?.getStateById(testExtId);
 		if (!test || !test.tasks[parts.taskIndex]) {
 			return;
 		}
 
-		return new MessageSubject(resultId, test, taskIndex, messageIndex);
+		return new MessageSubject(result, test, taskIndex, messageIndex);
 	}
 }
 
@@ -758,7 +759,11 @@ class TestResultsViewContent extends Disposable {
 	private static lastSplitWidth?: number;
 
 	private readonly didReveal = this._register(new Emitter<{ subject: InspectSubject; preserveFocus: boolean }>());
-	private readonly clickMenu = this._register(new MutableDisposable<FloatingClickMenu>());
+	private readonly currentSubjectStore = this._register(new DisposableStore());
+	private messageContextKeyService!: IContextKeyService;
+	private contextKeyTestMessage!: IContextKey<string>;
+	private contextKeyResultOutdated!: IContextKey<boolean>;
+
 	private dimension?: dom.Dimension;
 	private splitView!: SplitView;
 	private messageContainer!: HTMLElement;
@@ -796,6 +801,10 @@ class TestResultsViewContent extends Disposable {
 			this._register(this.instantiationService.createInstance(TerminalMessagePeek, messageContainer, isInPeekView)),
 			this._register(this.instantiationService.createInstance(PlainTextMessagePeek, this.editor, messageContainer)),
 		];
+
+		this.messageContextKeyService = this._register(this.contextKeyService.createScoped(this.messageContainer));
+		this.contextKeyTestMessage = TestingContextKeys.testMessageContext.bindTo(this.messageContextKeyService);
+		this.contextKeyResultOutdated = TestingContextKeys.testResultOutdated.bindTo(this.messageContextKeyService);
 
 		const treeContainer = dom.append(containerElement, dom.$('.test-output-peek-tree'));
 		const tree = this._register(this.instantiationService.createInstance(
@@ -860,19 +869,43 @@ class TestResultsViewContent extends Disposable {
 		return this.contentProvidersUpdateLimiter.queue(async () => {
 			await Promise.all(this.contentProviders.map(p => p.update(opts.subject)));
 
-			if (opts.subject instanceof MessageSubject) {
-				const contextOverlay = this.contextKeyService.createOverlay([[TestingContextKeys.testMessageContext.key, opts.subject.contextValue]]);
-				this.clickMenu.value = this.instantiationService
-					.createChild(new ServiceCollection([IContextKeyService, contextOverlay]))
-					.createInstance(FloatingClickMenu, {
-						container: this.messageContainer,
-						menuId: MenuId.TestMessageContent,
-						getActionArg: () => (opts.subject as MessageSubject).context,
-					});
-			} else {
-				this.clickMenu.clear();
-			}
+			this.currentSubjectStore.clear();
+			this.populateFloatingClick(opts.subject);
 		});
+	}
+
+	private populateFloatingClick(subject: InspectSubject) {
+		if (!(subject instanceof MessageSubject)) {
+			return;
+		}
+
+		this.currentSubjectStore.add(toDisposable(() => {
+			this.contextKeyResultOutdated.reset();
+			this.contextKeyTestMessage.reset();
+		}));
+
+		this.contextKeyTestMessage.set(subject.contextValue || '');
+		if (subject.result instanceof LiveTestResult) {
+			this.contextKeyResultOutdated.set(subject.result.getStateById(subject.test.extId)?.retired ?? false);
+			this.currentSubjectStore.add(subject.result.onChange(ev => {
+				if (ev.item.item.extId === subject.test.extId) {
+					this.contextKeyResultOutdated.set(ev.item.retired ?? false);
+				}
+			}));
+		} else {
+			this.contextKeyResultOutdated.set(true);
+		}
+
+
+		this.currentSubjectStore.add(
+			this.instantiationService
+				.createChild(new ServiceCollection([IContextKeyService, this.messageContextKeyService]))
+				.createInstance(FloatingClickMenu, {
+					container: this.messageContainer,
+					menuId: MenuId.TestMessageContent,
+					getActionArg: () => (subject as MessageSubject).context,
+				})
+		);
 	}
 
 	public onLayoutBody(height: number, width: number) {
@@ -1049,10 +1082,7 @@ export class TestResultsView extends ViewPane {
 			return;
 		}
 
-		this.content.reveal({
-			preserveFocus,
-			subject: new TaskSubject(result.id, 0),
-		});
+		this.content.reveal({ preserveFocus, subject: new TaskSubject(result, 0) });
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -1062,7 +1092,7 @@ export class TestResultsView extends ViewPane {
 
 		const [lastResult] = this.resultService.results;
 		if (lastResult && lastResult.tasks.length) {
-			this.content.reveal({ preserveFocus: true, subject: new TaskSubject(lastResult.id, 0) });
+			this.content.reveal({ preserveFocus: true, subject: new TaskSubject(lastResult, 0) });
 		}
 	}
 
@@ -1329,7 +1359,6 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly isInPeekView: boolean,
-		@ITestResultService private readonly resultService: ITestResultService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkspaceContextService private readonly workspaceContext: IWorkspaceContextService,
@@ -1445,11 +1474,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 		doInitialWrite: (target: T, result: LiveTestResult) => Iterable<VSBuffer>;
 		doListenForMoreData: (target: T, result: LiveTestResult, terminal: IDetachedXtermTerminal) => IDisposable | undefined;
 	}) {
-		const result = this.resultService.getResult(opts.subject.resultId);
-		if (!result) {
-			return this.clear();
-		}
-
+		const result = opts.subject.result;
 		const target = opts.getTarget(result);
 		if (!target) {
 			return this.clear();
@@ -1639,12 +1664,18 @@ class TestResultElement implements ITreeElement {
 }
 
 class TestCaseElement implements ITreeElement {
-	public readonly changeEmitter = new Emitter<void>();
-	public readonly onDidChange = this.changeEmitter.event;
 	public readonly type = 'test';
 	public readonly context = this.test.item.extId;
 	public readonly id = `${this.results.id}/${this.test.item.extId}`;
 	public readonly description?: string;
+
+	public get onDidChange() {
+		if (!(this.results instanceof LiveTestResult)) {
+			return Event.None;
+		}
+
+		return Event.filter(this.results.onChange, e => e.item.item.extId === this.test.item.extId);
+	}
 
 	public get state() {
 		return this.test.tasks[this.taskIndex].state;
@@ -1663,7 +1694,7 @@ class TestCaseElement implements ITreeElement {
 	}
 
 	public get outputSubject() {
-		return new TestOutputSubject(this.results.id, this.taskIndex, this.task, this.test);
+		return new TestOutputSubject(this.results, this.taskIndex, this.task, this.test);
 	}
 
 	constructor(
@@ -1710,9 +1741,17 @@ class TestMessageElement implements ITreeElement {
 	public readonly uri: URI;
 	public readonly location?: IRichLocation;
 	public readonly description?: string;
-	public readonly onDidChange = Event.None;
 	public readonly contextValue?: string;
 	public readonly message: ITestMessage;
+
+	public get onDidChange() {
+		if (!(this.result instanceof LiveTestResult)) {
+			return Event.None;
+		}
+
+		// rerender when the test case changes so it gets retired events
+		return Event.filter(this.result.onChange, e => e.item.item.extId === this.test.item.extId);
+	}
 
 	public get context(): ITestMessageMenuArgs {
 		return {
@@ -1874,7 +1913,7 @@ class OutputPeekTree extends Disposable {
 			const disposable = new DisposableStore();
 			disposable.add(result.onNewTask(() => {
 				if (result.tasks.length === 1) {
-					this.requestReveal.fire(new TaskSubject(result.id, 0)); // reveal the first task in new runs
+					this.requestReveal.fire(new TaskSubject(result, 0)); // reveal the first task in new runs
 				}
 
 				if (this.tree.hasElement(resultNode)) {
@@ -1898,7 +1937,6 @@ class OutputPeekTree extends Disposable {
 						if (e.reason === TestResultItemChangeReason.NewMessage && e.message.type === TestMessageType.Error) {
 							this.tree.setChildren(itemNode, getTestChildren(result, e.item, index), { diffIdentityProvider });
 						}
-						itemNode.changeEmitter.fire();
 						return;
 					}
 
@@ -1954,10 +1992,10 @@ class OutputPeekTree extends Disposable {
 			if (subject instanceof TaskSubject) {
 				const resultItem = this.tree.getNode(null).children.find(c => {
 					if (c.element instanceof TaskElement) {
-						return c.element.results.id === subject.resultId && c.element.index === subject.taskIndex;
+						return c.element.results.id === subject.result.id && c.element.index === subject.taskIndex;
 					}
 					if (c.element instanceof TestResultElement) {
-						return c.element.id === subject.resultId;
+						return c.element.id === subject.result.id;
 					}
 					return false;
 				});
@@ -1993,7 +2031,7 @@ class OutputPeekTree extends Disposable {
 
 		this._register(this.tree.onDidOpen(async e => {
 			if (e.element instanceof TestMessageElement) {
-				this.requestReveal.fire(new MessageSubject(e.element.result.id, e.element.test, e.element.taskIndex, e.element.messageIndex));
+				this.requestReveal.fire(new MessageSubject(e.element.result, e.element.test, e.element.taskIndex, e.element.messageIndex));
 			}
 		}));
 
@@ -2164,7 +2202,7 @@ class TreeActionsProvider {
 				localize('testing.showResultOutput', "Show Result Output"),
 				ThemeIcon.asClassName(Codicon.terminal),
 				undefined,
-				() => this.requestReveal.fire(new TaskSubject(element.results.id, element.index)),
+				() => this.requestReveal.fire(new TaskSubject(element.results, element.index)),
 			));
 		}
 
@@ -2176,7 +2214,7 @@ class TreeActionsProvider {
 					localize('testing.showResultOutput', "Show Result Output"),
 					ThemeIcon.asClassName(Codicon.terminal),
 					undefined,
-					() => this.requestReveal.fire(new TaskSubject(element.value.id, 0)),
+					() => this.requestReveal.fire(new TaskSubject(element.value, 0)),
 				));
 			}
 
@@ -2199,10 +2237,15 @@ class TreeActionsProvider {
 			}
 		}
 
+		if (element instanceof TestCaseElement || element instanceof TestMessageElement) {
+			contextKeys.push(
+				[TestingContextKeys.testResultOutdated.key, element.test.retired],
+				...getTestItemContextOverlay(element.test, capabilities),
+			);
+		}
+
 		if (element instanceof TestCaseElement) {
 			const extId = element.test.item.extId;
-			contextKeys.push(...getTestItemContextOverlay(element.test, capabilities));
-
 			primary.push(new Action(
 				'testing.outputPeek.goToFile',
 				localize('testing.goToFile', "Go to Source"),
