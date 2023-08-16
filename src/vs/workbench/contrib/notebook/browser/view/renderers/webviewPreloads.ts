@@ -1362,6 +1362,38 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
+	const copyImage = async (image: HTMLImageElement, retries = 5) => {
+		if (!document.hasFocus() && retries > 0) {
+			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
+			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
+			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
+			setTimeout(() => { copyImage(image, retries - 1); }, 20);
+			return;
+		}
+
+		try {
+			await navigator.clipboard.write([new ClipboardItem({
+				'image/png': new Promise((resolve) => {
+					const canvas = document.createElement('canvas');
+					if (canvas !== null) {
+						canvas.width = image.naturalWidth;
+						canvas.height = image.naturalHeight;
+						const context = canvas.getContext('2d');
+						context?.drawImage(image, 0, 0);
+					}
+					canvas.toBlob((blob) => {
+						if (blob) {
+							resolve(blob);
+						}
+						canvas.remove();
+					}, 'image/png');
+				})
+			})]);
+		} catch (e) {
+			console.error('Could not copy image:', e);
+		}
+	};
+
 	window.addEventListener('message', async rawEvent => {
 		const event = rawEvent as ({ data: webviewMessages.ToWebviewMessage });
 
@@ -1460,6 +1492,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 						viewModel.updateAndRerender(cellId, outputId, content);
 					}
 				});
+				break;
+			}
+			case 'copyImage': {
+				const image = document.getElementById(event.data.outputId)?.querySelector('img');
+				if (image) {
+					await copyImage(image);
+				} else {
+					console.warn('Could not find image element to copy for output with id', event.data.outputId);
+				}
+
 				break;
 			}
 			case 'ack-dimension': {

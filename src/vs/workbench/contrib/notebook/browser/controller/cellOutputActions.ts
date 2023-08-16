@@ -12,6 +12,8 @@ import { NOTEBOOK_CELL_HAS_OUTPUTS } from 'vs/workbench/contrib/notebook/common/
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ILogService } from 'vs/platform/log/common/log';
 import { copyCellOutput } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export const COPY_OUTPUT_COMMAND_ID = 'notebook.cellOutput.copyToClipboard';
 
@@ -33,9 +35,17 @@ registerAction2(class CopyCellOutputAction extends NotebookAction {
 		const outputViewModel = context.outputViewModel;
 
 		const mimeType = outputViewModel.pickedMimeType?.mimeType;
-		const clipboardService = accessor.get(IClipboardService);
-		const logService = accessor.get(ILogService);
 
-		copyCellOutput(mimeType, outputViewModel, clipboardService, logService);
+		if (mimeType?.startsWith('image/')) {
+			const editorService = accessor.get(IEditorService);
+			const editor = editorService.activeEditorPane?.getControl() as INotebookEditor;
+			await editor.focusNotebookCell(outputViewModel.cellViewModel as ICellViewModel, 'output');
+			editor.copyOutputImage(outputViewModel);
+		} else {
+			const clipboardService = accessor.get(IClipboardService);
+			const logService = accessor.get(ILogService);
+
+			copyCellOutput(mimeType, outputViewModel, clipboardService, logService);
+		}
 	}
 });

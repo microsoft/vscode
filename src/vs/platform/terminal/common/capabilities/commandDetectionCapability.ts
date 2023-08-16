@@ -79,6 +79,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		return undefined;
 	}
+	get currentCommand(): ICurrentPartialCommand | undefined {
+		return this._currentCommand;
+	}
 	get cwd(): string | undefined { return this._cwd; }
 	private get _isInputting(): boolean {
 		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
