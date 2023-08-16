@@ -32,6 +32,7 @@
 		"vs/platform/files/browser/htmlFileSystemProvider.ts",
 		"vs/platform/files/browser/webFileSystemAccess.ts",
 		"vs/platform/telemetry/*",
-		"vs/platform/assignment/*"
+		"vs/platform/assignment/*",
+		"vs/platform/terminal/common/capabilities/"
 	]
 }

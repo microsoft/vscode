@@ -9,9 +9,14 @@ declare module 'vscode' {
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
+	export enum ChatVariableLevel {
+		Short = 1,
+		Medium = 2,
+		Full = 3
+	}
+
 	export interface ChatVariableValue {
-		// eslint-disable-next-line local/vscode-dts-literal-or-types, local/vscode-dts-string-type-literals
-		level: 'short' | 'medium' | 'full';
+		level: ChatVariableLevel;
 		value: string;
 		description?: string;
 	}

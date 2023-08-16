@@ -1,0 +1,35 @@
+[
+  1,
+  true,
+  undefined,
+  null,
+  123,
+  Symbol(heyo),
+  "hello",
+  { hello: "world" },
+  { a: [Circular] },
+  Map {
+    hello: 1,
+    goodbye: 2
+  },
+  Set {
+    1: 1,
+    2: 2,
+    3: 3
+  },
+  [Function helloWorld],
+  /hello/g,
+  [
+    "long stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong string",
+    "long stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong string",
+    "long stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong string",
+    "long stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong string",
+    "long stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong string",
+    "long stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong string",
+    "long stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong string",
+    "long stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong string",
+    "long stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong string",
+    "long stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong stringlong string"
+  ],
+  Range [1 -> 5]
+]
