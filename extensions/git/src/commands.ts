@@ -1631,7 +1631,12 @@ export class CommandCenter {
 			}
 		}
 
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+		let pick: string | undefined;
+		if (CommandCenter.getScmDiscardChangesUserConfig() === false) {
+			pick = yes;
+		}
+
+		pick = pick || await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
 			return;
@@ -1670,7 +1675,12 @@ export class CommandCenter {
 				: l10n.t('Discard {0} Tracked Files', trackedResources.length);
 
 			const yesAll = l10n.t('Discard All {0} Files', resources.length);
-			const pick = await window.showWarningMessage(message, { modal: true }, yesTracked, yesAll);
+
+			let pick: string | undefined;
+			if (CommandCenter.getScmDiscardChangesUserConfig() === false) {
+				pick = yesAll;
+			}
+			pick = pick || await window.showWarningMessage(message, { modal: true }, yesTracked, yesAll);
 
 			if (pick === yesTracked) {
 				resources = trackedResources;
@@ -1717,7 +1727,12 @@ export class CommandCenter {
 		const yes = resources.length === 1
 			? l10n.t('Discard 1 File')
 			: l10n.t('Discard All {0} Files', resources.length);
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		let pick: string | undefined;
+		if (CommandCenter.getScmDiscardChangesUserConfig() === false) {
+			pick = yes;
+		}
+		pick = pick || await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
 			return;
@@ -1729,7 +1744,12 @@ export class CommandCenter {
 	private async _cleanUntrackedChange(repository: Repository, resource: Resource): Promise<void> {
 		const message = l10n.t('Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.', path.basename(resource.resourceUri.fsPath));
 		const yes = l10n.t('Delete file');
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		let pick: string | undefined;
+		if (CommandCenter.getScmDiscardChangesUserConfig() === false) {
+			pick = yes;
+		}
+		pick = pick || await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
 			return;
@@ -1741,13 +1761,22 @@ export class CommandCenter {
 	private async _cleanUntrackedChanges(repository: Repository, resources: Resource[]): Promise<void> {
 		const message = l10n.t('Are you sure you want to DELETE {0} files?\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.', resources.length);
 		const yes = l10n.t('Delete Files');
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		let pick: string | undefined;
+		if (CommandCenter.getScmDiscardChangesUserConfig() === false) {
+			pick = yes;
+		}
+		pick = pick || await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
 			return;
 		}
 
 		await repository.clean(resources.map(r => r.resourceUri));
+	}
+
+	private static getScmDiscardChangesUserConfig(): boolean {
+		return workspace.getConfiguration('scm')['confirmDiscardChanges'];
 	}
 
 	private async smartCommit(

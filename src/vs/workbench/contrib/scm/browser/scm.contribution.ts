@@ -244,6 +244,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('autoReveal', "Controls whether the Source Control view should automatically reveal and select files when opening them."),
 			default: true
 		},
+		'scm.confirmDiscardChanges': {
+			type: 'boolean',
+			description: localize('confirmDiscardChanges', "Controls whether the Source Control view should ask for confirmation when discarding changes."),
+			default: true
+		},
 		'scm.inputFontFamily': {
 			type: 'string',
 			markdownDescription: localize('inputFontFamily', "Controls the font for the input message. Use `default` for the workbench user interface font family, `editor` for the `#editor.fontFamily#`'s value, or a custom font family."),
