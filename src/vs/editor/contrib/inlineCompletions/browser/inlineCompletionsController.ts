@@ -149,7 +149,7 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(this.editor.onDidBlurEditorWidget(() => {
 			// This is a hidden setting very useful for debugging
-			if (this.configurationService.getValue('editor.inlineSuggest.keepOnBlur') ||
+			if (this.contextKeyService.getContextKeyValue<boolean>('accessibleViewIsShown') || this.configurationService.getValue('editor.inlineSuggest.keepOnBlur') ||
 				editor.getOption(EditorOption.inlineSuggest).keepOnBlur) {
 				return;
 			}
@@ -208,9 +208,10 @@ export class InlineCompletionsController extends Disposable {
 	}
 
 	private provideScreenReaderUpdate(content: string): void {
+		const accessibleViewShowing = this.contextKeyService.getContextKeyValue<boolean>('accessibleViewIsShown');
 		const accessibleViewKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleView');
 		let hint: string | undefined;
-		if (accessibleViewKeybinding && this.editor.getOption(EditorOption.inlineCompletionsAccessibilityVerbose)) {
+		if (!accessibleViewShowing && accessibleViewKeybinding && this.editor.getOption(EditorOption.inlineCompletionsAccessibilityVerbose)) {
 			hint = localize('showAccessibleViewHint', "Inspect this in the accessible view ({0})", accessibleViewKeybinding.getAriaLabel());
 		}
 		hint ? alert(content + ', ' + hint) : alert(content);

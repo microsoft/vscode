@@ -282,39 +282,64 @@ export function alertFocusChange(index: number | undefined, length: number | und
 export class InlineCompletionsAccessibleViewContribution extends Disposable {
 	static ID: 'inlineCompletionsAccessibleViewContribution';
 	private _options: IAccessibleViewOptions = {
-		ariaLabel: localize('inlineCompletionsAccessibleView', "Inline Completions Accessible View"), language: 'typescript', type: AccessibleViewType.View
+		ariaLabel: localize('inlineCompletionsAccessibleView', "Inline Completions Accessible View"), type: AccessibleViewType.View
 	};
 	constructor() {
 		super();
 		this._register(AccessibleViewAction.addImplementation(95, 'inline-completions', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const codeEditorService = accessor.get(ICodeEditorService);
-			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
-			if (!editor) {
-				return false;
-			}
-			const model = InlineCompletionsController.get(editor)?.model.get();
-			const state = model?.state.get();
-			if (!state) {
-				return false;
-			}
-			const lineText = model?.textModel.getLineContent(state.ghostText.lineNumber);
-			if (!lineText) {
-				return false;
-			}
-			const content = state.ghostText.renderForScreenReader(lineText);
-			if (!content) {
-				return false;
-			}
-			accessibleViewService.show({
-				verbositySettingKey: AccessibilityVerbositySettingId.InlineCompletions,
-				provideContent() { return content; },
-				onClose() {
-					editor.focus();
-				},
-				options: this._options
-			});
-			return true;
+			const show = () => {
+				const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
+				if (!editor) {
+					return false;
+				}
+				const model = InlineCompletionsController.get(editor)?.model.get();
+				const state = model?.state.get();
+				if (!model || !state) {
+					return false;
+				}
+				const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
+				if (!lineText) {
+					return false;
+				}
+
+				const ghostText = state.ghostText.renderForScreenReader(lineText);
+				if (!ghostText) {
+					return false;
+				}
+				this._options.language = editor.getModel()?.getLanguageId() ?? undefined;
+				accessibleViewService.show({
+					verbositySettingKey: AccessibilityVerbositySettingId.InlineCompletions,
+					provideContent() { return lineText + ghostText; },
+					onClose() {
+						editor.focus();
+					},
+					next() {
+						model.next().then(() => show());
+					},
+					previous() {
+						model.previous().then(() => show());
+					},
+					actions: [
+						{
+							id: 'inlineCompletions.accept',
+							label: localize('inlineCompletions.accept', "Accept Completion"),
+							tooltip: localize('inlineCompletions.accept', "Accept Completion"),
+							run: () => {
+								alert('Accepted');
+								model.accept(editor);
+								editor.focus();
+							},
+							class: ThemeIcon.asClassName(Codicon.check),
+							enabled: true
+						}
+					],
+					options: this._options
+				});
+				return true;
+			};
+			return show();
 		}, ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible, EditorContextKeys.focus, EditorContextKeys.hasCodeActionsProvider)
 		)
 		);
