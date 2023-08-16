@@ -20,6 +20,7 @@ import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quic
 import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatQuickAccessProviderOptions } from 'vs/workbench/contrib/chat/browser/chatQuickAccess';
 import { IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
@@ -57,12 +58,18 @@ class QuickChatGlobalAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, query: string): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
 		const chatService = accessor.get(IChatService);
-		const commandService = accessor.get(ICommandService);
+		// const commandService = accessor.get(ICommandService);
 		// Grab the first provider and run its command
 		const info = chatService.getProviderInfos()[0];
 		if (info) {
-			await commandService.executeCommand(`workbench.action.openQuickChat.${info.id}`, query);
+			// await commandService.executeCommand(`workbench.action.openQuickChat.${info.id}`, query);
+			quickInputService.quickAccess.show(`chat ${query ?? ''}`, {
+				providerOptions: {
+					providerId: info.id,
+				} as ChatQuickAccessProviderOptions
+			});
 		}
 	}
 }
@@ -91,84 +98,90 @@ export function getQuickChatActionForProvider(id: string, label: string) {
 		}
 
 		override run(accessor: ServicesAccessor, query: string): void {
+
 			const quickInputService = accessor.get(IQuickInputService);
-			const chatService = accessor.get(IChatService);
-			const instantiationService = accessor.get(IInstantiationService);
-
-			// First things first, clear the existing timer that will dispose the session
-			clearTimeout(this._currentTimer);
-			this._currentTimer = undefined;
-
-			// If the input is already shown, hide it. This provides a toggle behavior of the quick pick
-			if (this._input !== undefined) {
-				this._input.hide();
-				return;
-			}
-
-			// Check if any providers are available. If not, show nothing
-			// This shouldn't be needed because of the precondition, but just in case
-			const providerInfo = chatService.getProviderInfos()[0];
-			if (!providerInfo) {
-				return;
-			}
-
-			const disposableStore = new DisposableStore();
-
-			//#region Setup quick pick
-
-			this._input = quickInputService.createQuickPick();
-			disposableStore.add(this._input);
-			this._input.hideInput = true;
-
-
-			const containerSession = dom.$('.interactive-session');
-			this._input.widget = containerSession;
-
-			this._currentChat ??= instantiationService.createInstance(QuickChat, {
-				providerId: providerInfo.id,
+			quickInputService.quickAccess.show(`chat ${query}`, {
+				providerOptions: {
+					providerId: id,
+				} as ChatQuickAccessProviderOptions
 			});
-			// show needs to come before the current chat rendering
-			this._input.show();
-			this._currentChat.render(containerSession);
+			// const chatService = accessor.get(IChatService);
+			// const instantiationService = accessor.get(IInstantiationService);
 
-			const clearButton = {
-				iconClass: ThemeIcon.asClassName(Codicon.clearAll),
-				tooltip: localize('clear', "Clear"),
-			};
-			this._input.buttons = [
-				clearButton,
-				{
-					iconClass: ThemeIcon.asClassName(Codicon.commentDiscussion),
-					tooltip: localize('openInChat', "Open In Chat View"),
-				}
-			];
-			this._input.title = providerInfo.displayName;
+			// // First things first, clear the existing timer that will dispose the session
+			// clearTimeout(this._currentTimer);
+			// this._currentTimer = undefined;
 
-			disposableStore.add(this._input.onDidHide(() => {
-				disposableStore.dispose();
-				this._input = undefined;
-				this._currentTimer = setTimeout(() => {
-					this._currentChat?.dispose();
-					this._currentChat = undefined;
-				}, 1000 * 30); // 30 seconds
-			}));
+			// // If the input is already shown, hide it. This provides a toggle behavior of the quick pick
+			// if (this._input !== undefined) {
+			// 	this._input.hide();
+			// 	return;
+			// }
 
-			disposableStore.add(this._input.onDidTriggerButton((e) => {
-				if (e === clearButton) {
-					this._currentChat?.clear();
-				} else {
-					this._currentChat?.openChatView();
-				}
-			}));
+			// // Check if any providers are available. If not, show nothing
+			// // This shouldn't be needed because of the precondition, but just in case
+			// const providerInfo = chatService.getProviderInfos().find(info => info.id === id);
+			// if (!providerInfo) {
+			// 	return;
+			// }
 
-			//#endregion
+			// const disposableStore = new DisposableStore();
 
-			this._currentChat.focus();
+			// //#region Setup quick pick
 
-			if (query) {
-				this._currentChat.setValue(query);
-				this._currentChat.acceptInput();
-			}
+			// this._input = quickInputService.createQuickPick();
+			// disposableStore.add(this._input);
+			// this._input.hideInput = true;
+
+
+			// const containerSession = dom.$('.interactive-session');
+			// this._input.widget = containerSession;
+
+			// this._currentChat ??= instantiationService.createInstance(QuickChat, {
+			// 	providerId: providerInfo.id,
+			// });
+			// // show needs to come before the current chat rendering
+			// this._input.show();
+			// this._currentChat.render(containerSession);
+
+			// const clearButton = {
+			// 	iconClass: ThemeIcon.asClassName(Codicon.clearAll),
+			// 	tooltip: localize('clear', "Clear"),
+			// };
+			// this._input.buttons = [
+			// 	clearButton,
+			// 	{
+			// 		iconClass: ThemeIcon.asClassName(Codicon.commentDiscussion),
+			// 		tooltip: localize('openInChat', "Open In Chat View"),
+			// 	}
+			// ];
+			// this._input.title = providerInfo.displayName;
+
+			// disposableStore.add(this._input.onDidHide(() => {
+			// 	disposableStore.dispose();
+			// 	this._input = undefined;
+			// 	this._currentTimer = setTimeout(() => {
+			// 		this._currentChat?.dispose();
+			// 		this._currentChat = undefined;
+			// 	}, 1000 * 30); // 30 seconds
+			// }));
+
+			// disposableStore.add(this._input.onDidTriggerButton((e) => {
+			// 	if (e === clearButton) {
+			// 		this._currentChat?.clear();
+			// 	} else {
+			// 		this._currentChat?.openChatView();
+			// 	}
+			// }));
+
+			// //#endregion
+
+			// this._currentChat.focus();
+
+			// if (query) {
+			// 	this._currentChat.setValue(query);
+			// 	this._currentChat.acceptInput();
+			// }
 		}
 	};
 }

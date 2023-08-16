@@ -57,6 +57,7 @@ import { CommandsQuickAccessProvider } from 'vs/workbench/contrib/quickaccess/br
 import { DEBUG_QUICK_ACCESS_PREFIX } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { TasksQuickAccessProvider } from 'vs/workbench/contrib/tasks/browser/tasksQuickAccess';
 import { Lazy } from 'vs/base/common/lazy';
+import { ChatQuickAccessProvider } from 'vs/workbench/contrib/chat/browser/chatQuickAccess';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
@@ -808,6 +809,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Acts as the ordering too
 		AddProvider(AnythingQuickAccessProvider.PREFIX);
+		AddProvider(ChatQuickAccessProvider.PREFIX);
 		AddProvider(CommandsQuickAccessProvider.PREFIX);
 		AddProvider(GotoSymbolQuickAccessProvider.PREFIX);
 		AddProvider(DEBUG_QUICK_ACCESS_PREFIX);

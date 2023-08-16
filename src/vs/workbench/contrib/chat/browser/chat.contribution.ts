@@ -52,6 +52,7 @@ import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ChatVariablesService, IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { registerChatFileTreeActions } from 'vs/workbench/contrib/chat/browser/actions/chatFileTreeActions';
+import 'vs/workbench/contrib/chat/browser/chatQuickAccess';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
