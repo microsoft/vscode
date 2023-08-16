@@ -14,7 +14,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import * as extHostProtocol from './extHost.protocol';
-import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
+import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty, isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
@@ -2491,7 +2491,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	private static _serializeRegExp(regExp: RegExp): extHostProtocol.IRegExpDto {
 		return {
 			pattern: regExp.source,
-			flags: regExpFlags(regExp),
+			flags: regExp.flags,
 		};
 	}
 
