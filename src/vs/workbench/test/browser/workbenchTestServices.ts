@@ -794,6 +794,8 @@ export class TestViewsService implements IViewsService {
 
 	onDidChangeViewVisibilityEmitter = new Emitter<{ id: string; visible: boolean }>();
 	onDidChangeViewVisibility = this.onDidChangeViewVisibilityEmitter.event;
+	onDidChangeFocusedViewEmitter = new Emitter<void>();
+	onDidChangeFocusedView = this.onDidChangeFocusedViewEmitter.event;
 	isViewVisible(id: string): boolean { return true; }
 	getActiveViewWithId<T extends IView>(id: string): T | null { return null; }
 	getViewWithId<T extends IView>(id: string): T | null { return null; }
@@ -801,6 +803,7 @@ export class TestViewsService implements IViewsService {
 	closeView(id: string): void { }
 	getViewProgressIndicator(id: string) { return null!; }
 	getActiveViewPaneContainerWithId(id: string) { return null; }
+	getFocusedViewName(): string { return ''; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
