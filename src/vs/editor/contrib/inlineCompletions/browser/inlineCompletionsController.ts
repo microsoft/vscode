@@ -80,7 +80,6 @@ export class InlineCompletionsController extends Disposable {
 		super();
 
 		this._register(new InlineCompletionContextKeys(this.contextKeyService, this.model));
-
 		this._register(Event.runAndSubscribe(editor.onDidChangeModel, () => transaction(tx => {
 			/** @description onDidChangeModel */
 			this.model.set(undefined, tx);
@@ -200,17 +199,21 @@ export class InlineCompletionsController extends Disposable {
 		}));
 
 		this._register(new InlineCompletionsHintsWidget(this.editor, this.model, this.instantiationService));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('accessibility.verbosity.inlineCompletions')) {
+				this.editor.updateOptions({ inlineCompletionsAccessibilityVerbose: this.configurationService.getValue('accessibility.verbosity.inlineCompletions') });
+			}
+		}));
+		this.editor.updateOptions({ inlineCompletionsAccessibilityVerbose: this.configurationService.getValue('accessibility.verbosity.inlineCompletions') });
 	}
 
 	private provideScreenReaderUpdate(content: string): void {
 		const accessibleViewKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleView');
-		if (this.configurationService.getValue('accessibility.verbosity.inlineCompletions')) {
-			let hint: string | undefined;
-			if (accessibleViewKeybinding) {
-				hint = localize('showAccessibleViewHint', "Inspect this in the accessible view ({0})", accessibleViewKeybinding.getAriaLabel());
-			}
-			hint ? alert(content + ', ' + hint) : alert(content);
+		let hint: string | undefined;
+		if (accessibleViewKeybinding && this.editor.getOption(EditorOption.inlineCompletionsAccessibilityVerbose)) {
+			hint = localize('showAccessibleViewHint', "Inspect this in the accessible view ({0})", accessibleViewKeybinding.getAriaLabel());
 		}
+		hint ? alert(content + ', ' + hint) : alert(content);
 	}
 
 	/**
