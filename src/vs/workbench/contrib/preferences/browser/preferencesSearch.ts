@@ -297,7 +297,7 @@ export class SettingMatches {
 	}
 }
 
-class RemoteSearchProviderKeyCache {
+class RemoteSearchKeysProvider {
 	private settingKeys: string[] = [];
 	private settingsRecord: Record<string, ISetting> = {};
 	private currentPreferencesModel: ISettingsEditorModel | undefined;
@@ -314,7 +314,7 @@ class RemoteSearchProviderKeyCache {
 		this.refresh();
 	}
 
-	refresh() {
+	private refresh() {
 		this.settingKeys = [];
 		this.settingsRecord = {};
 
@@ -348,51 +348,50 @@ export class RemoteSearchProvider implements ISearchProvider {
 	private static readonly SEMANTIC_SIMILARITY_THRESHOLD = 0.75;
 	private static readonly SEMANTIC_SIMILARITY_MAX_PICKS = 10;
 
-	private readonly _keysProvider: RemoteSearchProviderKeyCache;
+	private readonly _keysProvider: RemoteSearchKeysProvider;
 	private _filter: string = '';
 
 	constructor(
 		@ISemanticSimilarityService private readonly semanticSimilarityService: ISemanticSimilarityService,
 	) {
-		this._keysProvider = new RemoteSearchProviderKeyCache(semanticSimilarityService);
+		this._keysProvider = new RemoteSearchKeysProvider(semanticSimilarityService);
 	}
 
 	setFilter(filter: string) {
 		this._filter = cleanFilter(filter);
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken | undefined): Promise<ISearchResult | null> {
+	async searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken | undefined): Promise<ISearchResult | null> {
 		if (!this.semanticSimilarityService.isEnabled() || !this._filter) {
-			return Promise.resolve(null);
+			return null;
 		}
 
 		this._keysProvider.updateModel(preferencesModel);
 		const settingKeys = this._keysProvider.getSettingKeys();
 		const settingsRecord = this._keysProvider.getSettingsRecord();
 
-		return this.semanticSimilarityService.getSimilarityScore(this._filter, settingKeys, token ?? CancellationToken.None).then((scores) => {
-			const filterMatches: ISettingMatch[] = [];
-			const sortedIndices = scores.map((_, i) => i).sort((a, b) => scores[b] - scores[a]);
-			let numOfSmartPicks = 0;
-			for (const i of sortedIndices) {
-				const score = scores[i];
-				if (score < RemoteSearchProvider.SEMANTIC_SIMILARITY_THRESHOLD || numOfSmartPicks === RemoteSearchProvider.SEMANTIC_SIMILARITY_MAX_PICKS) {
-					break;
-				}
-
-				const pick = settingKeys[i];
-				filterMatches.push({
-					setting: settingsRecord[pick],
-					matches: [settingsRecord[pick].range],
-					matchType: SettingMatchType.RemoteMatch,
-					score
-				});
-				numOfSmartPicks++;
+		const scores = await this.semanticSimilarityService.getSimilarityScore(this._filter, settingKeys, token ?? CancellationToken.None);
+		const filterMatches: ISettingMatch[] = [];
+		const sortedIndices = scores.map((_, i) => i).sort((a, b) => scores[b] - scores[a]);
+		let numOfSmartPicks = 0;
+		for (const i of sortedIndices) {
+			const score = scores[i];
+			if (score < RemoteSearchProvider.SEMANTIC_SIMILARITY_THRESHOLD || numOfSmartPicks === RemoteSearchProvider.SEMANTIC_SIMILARITY_MAX_PICKS) {
+				break;
 			}
-			return {
-				filterMatches
-			};
-		});
+
+			const pick = settingKeys[i];
+			filterMatches.push({
+				setting: settingsRecord[pick],
+				matches: [settingsRecord[pick].range],
+				matchType: SettingMatchType.RemoteMatch,
+				score
+			});
+			numOfSmartPicks++;
+		}
+		return {
+			filterMatches
+		};
 	}
 }
 
