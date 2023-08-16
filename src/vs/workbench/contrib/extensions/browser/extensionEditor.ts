@@ -276,7 +276,7 @@ export class ExtensionEditor extends EditorPane {
 		const header = append(root, $('.header'));
 
 		const iconContainer = append(header, $('.icon-container'));
-		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { draggable: false }));
+		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { draggable: false, alt: '' }));
 		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer, true);
 
 		const details = append(header, $('.details'));
