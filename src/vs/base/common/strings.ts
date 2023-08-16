@@ -217,10 +217,6 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	return !!(match && regexp.lastIndex === 0);
 }
 
-export function regExpContainsBackreference(regexpValue: string): boolean {
-	return !!regexpValue.match(/([^\\]|^)(\\\\)*\\\d+/);
-}
-
 export function splitLines(str: string): string[] {
 	return str.split(/\r\n|\r|\n/);
 }
