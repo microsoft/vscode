@@ -410,7 +410,7 @@ class AccessibleView extends Disposable {
 	private _getAccessibleViewHelpDialogContent(providerHasSymbols?: boolean): string {
 		const navigationHint = this._getNavigationHint();
 		const goToSymbolHint = this._getGoToSymbolHint(providerHasSymbols);
-		const toolbarHint = localize('toolbar', "Navigate to the toolbar ({0} or Shift+Tab)");
+		const toolbarHint = localize('toolbar', "Navigate to the toolbar (Shift+Tab))");
 
 		let hint = localize('intro', "In the accessible view, you can:\n");
 		if (navigationHint) {
