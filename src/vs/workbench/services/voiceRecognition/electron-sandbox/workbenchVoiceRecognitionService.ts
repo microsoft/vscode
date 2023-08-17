@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IVoiceRecognitionService } from 'vs/platform/voiceRecognition/common/voiceRecognitionService';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { DeferredPromise } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
 export const IWorkbenchVoiceRecognitionService = createDecorator<IWorkbenchVoiceRecognitionService>('workbenchVoiceRecognitionService');
 
@@ -29,9 +28,32 @@ export interface IWorkbenchVoiceRecognitionService {
 	transcribe(cancellation: CancellationToken): Event<string>;
 }
 
-class BufferInputAudioNode extends AudioWorkletNode {
-	constructor(context: BaseAudioContext, options: AudioWorkletNodeOptions) {
-		super(context, 'buffer-input-audio-processor', options);
+class BufferedVoiceTranscriber extends AudioWorkletNode {
+
+	constructor(
+		context: BaseAudioContext,
+		options: AudioWorkletNodeOptions,
+		private readonly onDidTranscribe: Emitter<string>,
+		private readonly sharedProcessService: ISharedProcessService
+	) {
+		super(context, 'buffered-voice-transcriber', options);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.port.onmessage = e => {
+			if (typeof e.data === 'string') {
+				this.onDidTranscribe.fire(e.data);
+			}
+		};
+	}
+
+	async start(token: CancellationToken): Promise<void> {
+		const rawSharedProcessConnection = await this.sharedProcessService.createRawConnection();
+		token.onCancellationRequested(() => rawSharedProcessConnection.close());
+
+		this.port.postMessage('vscode:transferPortToAudioWorklet', [rawSharedProcessConnection]);
 	}
 }
 
@@ -39,8 +61,7 @@ class BufferInputAudioNode extends AudioWorkletNode {
 // - how to prevent data processing accumulation when processing is slow?
 // - how to make this a singleton service that enables ref-counting on multiple callers?
 // - cancellation should flow to the shared process
-// - voice module should directly transcribe the PCM32 data
-// - we should transfer the Float32Array directly without serialisation overhead maybe from AudioWorklet?
+// - voice module should directly transcribe the PCM32 data without wav+file conversion
 // - the audio worklet should be a TS file (try without any import/export?)
 
 export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
@@ -52,21 +73,20 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 	private static readonly AUDIO_CHANNELS = 1;
 
 	constructor(
-		@IVoiceRecognitionService private readonly voiceRecognitionService: IVoiceRecognitionService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService
 	) { }
 
 	transcribe(cancellation: CancellationToken): Event<string> {
-		const cts = new CancellationTokenSource(cancellation);
-		const emitter = new Emitter<string>();
-		cancellation.onCancellationRequested(() => emitter.dispose());
+		const onDidTranscribe = new Emitter<string>();
+		cancellation.onCancellationRequested(() => onDidTranscribe.dispose());
 
-		this.doTranscribe(emitter, cts.token);
+		this.doTranscribe(onDidTranscribe, cancellation);
 
-		return emitter.event;
+		return onDidTranscribe.event;
 	}
 
-	private async doTranscribe(emitter: Emitter<string>, token: CancellationToken): Promise<void> {
+	private async doTranscribe(onDidTranscribe: Emitter<string>, token: CancellationToken): Promise<void> {
 		return this.progressService.withProgress({
 			location: ProgressLocation.Window,
 			title: localize('voiceTranscription', "Voice Transcription"),
@@ -103,38 +123,20 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 				recordingDone.complete();
 			});
 
-			await audioContext.audioWorklet.addModule(FileAccess.asBrowserUri('vs/workbench/services/voiceRecognition/electron-sandbox/bufferInputAudioProcessor.js').toString(true));
+			await audioContext.audioWorklet.addModule(FileAccess.asBrowserUri('vs/workbench/services/voiceRecognition/electron-sandbox/bufferedVoiceTranscriber.js').toString(true));
 
-			const bufferInputAudioTarget = new BufferInputAudioNode(audioContext, {
+			const bufferedVoiceTranscriberTarget = new BufferedVoiceTranscriber(audioContext, {
 				channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
 				channelCountMode: 'explicit'
-			});
+			}, onDidTranscribe, this.sharedProcessService);
+			await bufferedVoiceTranscriberTarget.start(token);
 
-			microphoneSource.connect(bufferInputAudioTarget);
+			microphoneSource.connect(bufferedVoiceTranscriberTarget);
 
 			progress.report({ message: localize('voiceTranscriptionRecording', "Recording from microphone...") });
 
-			bufferInputAudioTarget.port.onmessage = async e => {
-				if (e.data instanceof Uint8Array) {
-					this.doTranscribeChunk(e.data, emitter, token);
-				}
-			};
-
 			return recordingDone.p;
 		});
-	}
-
-	private async doTranscribeChunk(data: Uint8Array, emitter: Emitter<string>, token: CancellationToken): Promise<void> {
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		const text = await this.voiceRecognitionService.transcribe(VSBuffer.wrap(data));
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		emitter.fire(text);
 	}
 }
 
