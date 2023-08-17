@@ -11,7 +11,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { accessibilityHelpIsShown, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 const accessibleViewMenu = {
@@ -28,7 +28,7 @@ class AccessibleViewNextAction extends Action2 {
 	constructor() {
 		super({
 			id: AccessibilityCommandId.ShowNext,
-			precondition: accessibleViewIsShown,
+			precondition: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.BracketRight,
 				weight: KeybindingWeight.WorkbenchContrib
@@ -49,7 +49,7 @@ class AccessibleViewPreviousAction extends Action2 {
 	constructor() {
 		super({
 			id: AccessibilityCommandId.ShowPrevious,
-			precondition: accessibleViewIsShown,
+			precondition: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.BracketLeft,
 				weight: KeybindingWeight.WorkbenchContrib
@@ -70,7 +70,7 @@ class AccessibleViewGoToSymbolAction extends Action2 {
 	constructor() {
 		super({
 			id: AccessibilityCommandId.GoToSymbol,
-			precondition: accessibleViewIsShown,
+			precondition: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewGoToSymbolSupported),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 				weight: KeybindingWeight.WorkbenchContrib + 10
@@ -134,8 +134,8 @@ class AccessibleViewDisableHintAction extends Action2 {
 	constructor() {
 		super({
 			id: AccessibilityCommandId.DisableVerbosityHint,
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown), accessibleViewVerbosityEnabled),
 			keybinding: {
-				when: ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown),
 				primary: KeyMod.Alt | KeyCode.F6,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
@@ -143,8 +143,7 @@ class AccessibleViewDisableHintAction extends Action2 {
 			menu: [commandPalette,
 				{
 					id: MenuId.AccessibleView,
-					group: 'navigation',
-					when: ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown)
+					group: 'navigation'
 				}],
 			title: localize('editor.action.accessibleViewDisableHint', "Disable Accessible View Hint")
 		});

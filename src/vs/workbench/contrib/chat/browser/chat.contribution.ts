@@ -212,7 +212,7 @@ class ChatAccessibleViewContribution extends Disposable {
 						alertFocusChange(responseIndex, length, 'previous');
 						renderAccessibleView(accessibleViewService, widgetService, codeEditorService);
 					},
-					options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), type: AccessibleViewType.View }
+					options: { type: AccessibleViewType.View }
 				});
 				return true;
 			}
