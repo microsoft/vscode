@@ -61,6 +61,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _detachedXterms = new Set<IXtermTerminal>();
 	private _terminalEditorActive: IContextKey<boolean>;
 	private readonly _terminalShellTypeContextKey: IContextKey<string>;
+
 	private _isShuttingDown: boolean = false;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
