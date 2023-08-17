@@ -345,8 +345,8 @@ class RemoteSearchKeysProvider {
 }
 
 export class RemoteSearchProvider implements ISearchProvider {
-	private static readonly SEMANTIC_SIMILARITY_THRESHOLD = 0.75;
-	private static readonly SEMANTIC_SIMILARITY_MAX_PICKS = 10;
+	private static readonly SEMANTIC_SIMILARITY_THRESHOLD = 0.73;
+	private static readonly SEMANTIC_SIMILARITY_MAX_PICKS = 15;
 
 	private readonly _keysProvider: RemoteSearchKeysProvider;
 	private _filter: string = '';
