@@ -474,8 +474,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
-	function focusFirstFocusableOrContainerInOutput(cellId: string) {
-		const cellOutputContainer = document.getElementById(cellId);
+	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string) {
+		const cellOutputContainer = document.getElementById(cellOrOutputId);
 		if (cellOutputContainer) {
 			if (cellOutputContainer.contains(document.activeElement)) {
 				return;
@@ -1523,7 +1523,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'focus-output':
-				focusFirstFocusableOrContainerInOutput(event.data.cellId);
+				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId);
 				break;
 			case 'decorations': {
 				let outputContainer = document.getElementById(event.data.cellId);
