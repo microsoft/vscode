@@ -43,12 +43,15 @@ const testLinks: ITestLink[] = [
 	{ link: 'foo', prefix: undefined, suffix: undefined, hasRow: false, hasCol: false },
 	{ link: 'foo:339', prefix: undefined, suffix: ':339', hasRow: true, hasCol: false },
 	{ link: 'foo:339:12', prefix: undefined, suffix: ':339:12', hasRow: true, hasCol: true },
+	{ link: 'foo:339.12', prefix: undefined, suffix: ':339.12', hasRow: true, hasCol: true },
 	{ link: 'foo 339', prefix: undefined, suffix: ' 339', hasRow: true, hasCol: false },
 	{ link: 'foo 339:12', prefix: undefined, suffix: ' 339:12', hasRow: true, hasCol: true },
+	{ link: 'foo 339.12', prefix: undefined, suffix: ' 339.12', hasRow: true, hasCol: true },
 
 	// Double quotes
 	{ link: '"foo",339', prefix: '"', suffix: '",339', hasRow: true, hasCol: false },
 	{ link: '"foo",339:12', prefix: '"', suffix: '",339:12', hasRow: true, hasCol: true },
+	{ link: '"foo",339.12', prefix: '"', suffix: '",339.12', hasRow: true, hasCol: true },
 	{ link: '"foo", line 339', prefix: '"', suffix: '", line 339', hasRow: true, hasCol: false },
 	{ link: '"foo", line 339, col 12', prefix: '"', suffix: '", line 339, col 12', hasRow: true, hasCol: true },
 	{ link: '"foo", line 339, column 12', prefix: '"', suffix: '", line 339, column 12', hasRow: true, hasCol: true },
@@ -67,6 +70,7 @@ const testLinks: ITestLink[] = [
 	// Single quotes
 	{ link: '\'foo\',339', prefix: '\'', suffix: '\',339', hasRow: true, hasCol: false },
 	{ link: '\'foo\',339:12', prefix: '\'', suffix: '\',339:12', hasRow: true, hasCol: true },
+	{ link: '\'foo\',339.12', prefix: '\'', suffix: '\',339.12', hasRow: true, hasCol: true },
 	{ link: '\'foo\', line 339', prefix: '\'', suffix: '\', line 339', hasRow: true, hasCol: false },
 	{ link: '\'foo\', line 339, col 12', prefix: '\'', suffix: '\', line 339, col 12', hasRow: true, hasCol: true },
 	{ link: '\'foo\', line 339, column 12', prefix: '\'', suffix: '\', line 339, column 12', hasRow: true, hasCol: true },

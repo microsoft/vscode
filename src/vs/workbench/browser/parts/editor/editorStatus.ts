@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
-import { areFunctions, assertIsDefined, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { areFunctions, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
@@ -579,7 +579,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private updateStatusBar(): void {
 		const activeInput = this.editorService.activeEditor;
 		const activeEditorPane = this.editorService.activeEditorPane;
-		const activeCodeEditor = activeEditorPane ? withNullAsUndefined(getCodeEditor(activeEditorPane.getControl())) : undefined;
+		const activeCodeEditor = activeEditorPane ? getCodeEditor(activeEditorPane.getControl()) ?? undefined : undefined;
 
 		// Update all states
 		this.onColumnSelectionModeChange(activeCodeEditor);
@@ -686,7 +686,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			const textModel = editorWidget.getModel();
 			if (textModel) {
 				const languageId = textModel.getLanguageId();
-				info.languageId = withNullAsUndefined(this.languageService.getLanguageName(languageId));
+				info.languageId = this.languageService.getLanguageName(languageId) ?? undefined;
 			}
 		}
 
@@ -817,7 +817,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (activeEditorPane) {
 			const activeResource = EditorResourceAccessor.getCanonicalUri(activeEditorPane.input, { supportSideBySide: SideBySideEditor.PRIMARY });
 			if (activeResource && isEqual(activeResource, resource)) {
-				const activeCodeEditor = withNullAsUndefined(getCodeEditor(activeEditorPane.getControl()));
+				const activeCodeEditor = getCodeEditor(activeEditorPane.getControl()) ?? undefined;
 
 				return this.onEncodingChange(activeEditorPane, activeCodeEditor); // only update if the encoding changed for the active resource
 			}
@@ -1036,7 +1036,7 @@ export class ChangeLanguageAction extends Action2 {
 		let currentLanguageId: string | undefined;
 		if (textModel) {
 			currentLanguageId = textModel.getLanguageId();
-			currentLanguageName = withNullAsUndefined(languageService.getLanguageName(currentLanguageId));
+			currentLanguageName = languageService.getLanguageName(currentLanguageId) ?? undefined;
 		}
 
 		let hasLanguageSupport = !!resource;
@@ -1110,7 +1110,7 @@ export class ChangeLanguageAction extends Action2 {
 
 		// User decided to configure settings for current language
 		if (pick === configureLanguageSettings) {
-			preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${withUndefinedAsNull(currentLanguageId)}]`, edit: true } });
+			preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${currentLanguageId ?? null}]`, edit: true } });
 			return;
 		}
 
@@ -1128,7 +1128,7 @@ export class ChangeLanguageAction extends Action2 {
 						const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 						if (resource) {
 							// Detect languages since we are in an untitled file
-							let languageId: string | undefined = withNullAsUndefined(languageService.guessLanguageIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
+							let languageId: string | undefined = languageService.guessLanguageIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)) ?? undefined;
 							if (!languageId || languageId === 'unknown') {
 								detectedLanguage = await languageDetectionService.detectLanguage(resource);
 								languageId = detectedLanguage;
@@ -1378,7 +1378,7 @@ export class ChangeEncodingAction extends Action2 {
 
 		const isReopenWithEncoding = (action === reopenWithEncodingPick);
 
-		const configuredEncoding = textResourceConfigurationService.getValue(withNullAsUndefined(resource), 'files.encoding');
+		const configuredEncoding = textResourceConfigurationService.getValue(resource ?? undefined, 'files.encoding');
 
 		let directMatchIndex: number | undefined;
 		let aliasMatchIndex: number | undefined;

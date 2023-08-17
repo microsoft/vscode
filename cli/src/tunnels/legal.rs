@@ -6,9 +6,14 @@ use crate::constants::{IS_INTERACTIVE_CLI, PRODUCT_NAME_LONG};
 use crate::state::{LauncherPaths, PersistedState};
 use crate::util::errors::{AnyError, MissingLegalConsent};
 use crate::util::input::prompt_yn;
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
-const LICENSE_TEXT: Option<&'static str> = option_env!("VSCODE_CLI_REMOTE_LICENSE_TEXT");
+lazy_static! {
+	static ref LICENSE_TEXT: Option<Vec<String>> =
+		option_env!("VSCODE_CLI_SERVER_LICENSE").and_then(|s| serde_json::from_str(s).unwrap());
+}
+
 const LICENSE_PROMPT: Option<&'static str> = option_env!("VSCODE_CLI_REMOTE_LICENSE_PROMPT");
 
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -20,8 +25,8 @@ pub fn require_consent(
 	paths: &LauncherPaths,
 	accept_server_license_terms: bool,
 ) -> Result<(), AnyError> {
-	match LICENSE_TEXT {
-		Some(t) => println!("{}", t.replace("\\n", "\r\n")),
+	match &*LICENSE_TEXT {
+		Some(t) => println!("{}", t.join("\r\n")),
 		None => return Ok(()),
 	}
 
