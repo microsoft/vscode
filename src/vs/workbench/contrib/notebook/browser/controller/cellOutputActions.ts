@@ -39,7 +39,7 @@ registerAction2(class CopyCellOutputAction extends NotebookAction {
 		if (mimeType?.startsWith('image/')) {
 			const editorService = accessor.get(IEditorService);
 			const editor = editorService.activeEditorPane?.getControl() as INotebookEditor;
-			await editor.focusNotebookCell(outputViewModel.cellViewModel as ICellViewModel, 'output');
+			await editor.focusNotebookCell(outputViewModel.cellViewModel as ICellViewModel, 'output', { skipReveal: true, outputId: outputViewModel.model.outputId });
 			editor.copyOutputImage(outputViewModel);
 		} else {
 			const clipboardService = accessor.get(IClipboardService);
