@@ -521,6 +521,7 @@ export class ExtensionEditor extends EditorPane {
 		template.builtin.style.display = extension.isBuiltin ? 'inherit' : 'none';
 
 		template.description.textContent = extension.description;
+		template.description.setAttribute('title', extension.description);
 
 		// subtitle
 		template.publisher.classList.toggle('clickable', !!extension.url);
