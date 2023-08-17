@@ -8,28 +8,63 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { searchRemoveIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { Match, MatchInNotebook, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
-import { getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
+import { IViewsService } from 'vs/workbench/common/views';
+import { searchOpenInFileIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { Match, MatchInNotebook, RenderableMatch, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
+import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
+import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { IPatternInfo, ITextQuery } from 'vs/workbench/services/search/common/search';
+import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
+import { IPatternInfo, ISearchConfigurationProperties, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
 
-export const TEXT_RESULT_QUICK_ACCESS_PREFIX = '%';
+export const TEXT_RESULT_QUICK_ACCESS_PREFIX = '% ';
+
+const DEFAULT_TEXT_QUERY_BUILDER_OPTIONS: ITextQueryBuilderOptions = {
+	_reason: 'searchView',
+	disregardIgnoreFiles: false,
+	disregardExcludeSettings: false,
+	onlyOpenEditors: false,
+	expandPatterns: true
+};
+
+const MAX_FILES_SHOWN = 30;
+const MAX_RESULTS_PER_FILE = 10;
+
 export class TextResultQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 	private queryBuilder: QueryBuilder;
 	private searchModel: SearchModel;
+
+
+	private _getTextQueryBuilderOptions(charsPerLine: number): ITextQueryBuilderOptions {
+		return {
+			...DEFAULT_TEXT_QUERY_BUILDER_OPTIONS,
+			... {
+				extraFileResources: this._instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
+				maxResults: this.searchConfig.maxResults ?? undefined,
+				isSmartCase: this.searchConfig.smartCase,
+			},
+
+			previewOptions: {
+				matchLines: 1,
+				charsPerLine
+			}
+		};
+	}
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@ILabelService private readonly _labelService: ILabelService
+		@ILabelService private readonly _labelService: ILabelService,
+		@IViewsService private readonly _viewsService: IViewsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super(TEXT_RESULT_QUICK_ACCESS_PREFIX, { canAcceptInBackground: true });
 
@@ -37,6 +72,9 @@ export class TextResultQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		this.searchModel = this._instantiationService.createInstance(SearchModel);
 	}
 
+	private get searchConfig(): ISearchConfigurationProperties {
+		return this._configurationService.getValue<ISearchConfigurationProperties>('search');
+	}
 
 	private async doSearch(contentPattern: string): Promise<SearchResult | undefined> {
 
@@ -48,11 +86,22 @@ export class TextResultQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		const content: IPatternInfo = {
 			pattern: contentPattern,
 		};
+		const charsPerLine = content.isRegExp ? 10000 : 1000;
 
-		const query: ITextQuery = this.queryBuilder.text(content, folderResources.map(folder => folder.uri));
+		const query: ITextQuery = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), this._getTextQueryBuilderOptions(charsPerLine));
 
 		await this.searchModel.search(query, undefined);
 		return this.searchModel.searchResult;
+	}
+
+	private moveToSearchViewlet(model: SearchModel, currentElem: RenderableMatch) {
+		const viewlet: SearchView | undefined = this._viewsService.getActiveViewWithId(VIEW_ID) as SearchView;
+		viewlet.importSearchResult(model);
+		const viewer: WorkbenchCompressibleObjectTree<RenderableMatch> | undefined = viewlet?.getControl();
+
+		viewer.setFocus([currentElem], getSelectionKeyboardEvent());
+		viewer.setSelection([currentElem], getSelectionKeyboardEvent());
+		viewer.reveal(currentElem);
 	}
 
 	protected async _getPicks(contentPattern: string, disposables: DisposableStore, token: CancellationToken): Promise<(IQuickPickSeparator | IPickerQuickAccessItem)[]> {
@@ -63,13 +112,29 @@ export class TextResultQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 			return [];
 		}
 
-		const picks: (IQuickPickSeparator | IPickerQuickAccessItem)[] = [];
+		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
-		let files = searchResult.matches();
-		files = files.length > 30 ? files.splice(0, 30) : files;
+		const matches = searchResult.matches();
+		const files = matches.length > MAX_FILES_SHOWN ? matches.splice(0, MAX_FILES_SHOWN) : matches;
 
-		for (let i = 0; i < files.length; i++) {
-			const fileMatch = files[i];
+		for (let fileIndex = 0; fileIndex < matches.length; fileIndex++) {
+			if (fileIndex === MAX_FILES_SHOWN) {
+
+				picks.push({
+					type: 'separator',
+				});
+
+				picks.push({
+					label: `$(ellipsis) See More Files`,
+					ariaLabel: `See More Files`,
+					accept: async () => {
+						this.moveToSearchViewlet(this.searchModel, matches[MAX_FILES_SHOWN]);
+					}
+				});
+				break;
+			}
+
+			const fileMatch = files[fileIndex];
 
 			const label = basenameOrAuthority(fileMatch.resource);
 			const description = this._labelService.getUriLabel(dirname(fileMatch.resource), { relative: true });
@@ -81,23 +146,35 @@ export class TextResultQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 				ariaLabel: label,
 				tooltip: description,
 				buttons: [{
-					iconClass: ThemeIcon.asClassName(searchRemoveIcon),
-					tooltip: localize('QuickSearchClose', "Close")
+					iconClass: ThemeIcon.asClassName(searchOpenInFileIcon),
+					tooltip: localize('QuickSearchOpenInFile', "Open File")
 				}],
 			});
 
 			const results: Match[] = fileMatch.matches() ?? [];
-			results.forEach(element => {
+			for (let matchIndex = 0; matchIndex < results.length; matchIndex++) {
+				const element = results[matchIndex];
+
+				if (matchIndex === MAX_RESULTS_PER_FILE) {
+					picks.push({
+						label: `  $(ellipsis) More`,
+						ariaLabel: `See More`,
+						accept: async () => {
+							this.moveToSearchViewlet(this.searchModel, element);
+						}
+					});
+					break;
+				}
 				const options = {
 					selection: getEditorSelectionFromMatch(element, this.searchModel),
 					revealIfVisible: true,
 					indexedCellOptions: element instanceof MatchInNotebook ? { cellIndex: element.cellIndex, selection: element.range } : undefined,
 				};
 				const preview = element.preview();
-				const previewText = (preview.before + preview.inside + preview.after).trim().substring(0, 999);
+				const previewText = '  ' + (preview.before + preview.inside + preview.after).trim().substring(0, 999);
 				const match: IMatch[] = [{
-					start: preview.before.length,
-					end: preview.before.length + preview.inside.length
+					start: preview.before.length + 2,
+					end: preview.before.length + preview.inside.length + 2
 				}];
 				picks.push({
 					label: `${previewText}`,
@@ -111,9 +188,10 @@ export class TextResultQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 							resource: fileMatch.resource,
 							options
 						}, ACTIVE_GROUP);
-					}
+					},
 				});
-			});
+			}
+
 		}
 
 		return picks;

@@ -42,6 +42,7 @@ import 'vs/workbench/contrib/search/browser/searchActionsNav';
 import 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
 import 'vs/workbench/contrib/search/browser/searchActionsSymbol';
 import 'vs/workbench/contrib/search/browser/searchActionsTopBar';
+import 'vs/workbench/contrib/search/browser/searchActionsTextQuickAccess';
 import { TEXT_RESULT_QUICK_ACCESS_PREFIX, TextResultQuickAccess } from 'vs/workbench/contrib/search/browser/quickTextResultMenu/textResultQuickAccess';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, InstantiationType.Delayed);

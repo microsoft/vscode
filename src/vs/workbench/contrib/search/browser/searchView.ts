@@ -319,6 +319,35 @@ export class SearchView extends ViewPane {
 		}
 	}
 
+	private refreshInputs() {
+		this.pauseSearching = true;
+		this.searchWidget.setValue(this.viewModel.searchResult.query?.contentPattern.pattern ?? '');
+		this.searchWidget.setReplaceAllActionState(false);
+		this.searchWidget.toggleReplace(true);
+		this.inputPatternIncludes.setOnlySearchInOpenEditors(this.viewModel.searchResult.query?.onlyOpenEditors || false);
+		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(!this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles || true);
+		this.searchIncludePattern.setValue('');
+		this.searchExcludePattern.setValue('');
+		this.pauseSearching = false;
+	}
+
+	public async importSearchResult(searchModel: SearchModel): Promise<void> {
+		this.viewModel.searchResult = searchModel.searchResult;
+		searchModel.instantiateNewSearchResult();
+
+		this.onSearchResultsChanged();
+
+		this.refreshInputs();
+
+		const collapseResults = this.searchConfig.collapseResults;
+		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
+			const onlyMatch = this.viewModel.searchResult.matches()[0];
+			if (onlyMatch.count() < 50) {
+				this.tree.expand(onlyMatch);
+			}
+		}
+	}
+
 	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 		this.container = dom.append(parent, dom.$('.search-view'));
@@ -431,7 +460,7 @@ export class SearchView extends ViewPane {
 			this.toggleQueryDetails(true, true, true);
 		}
 
-		this._register(this.viewModel.searchResult.onChange((event) => this.onSearchResultsChanged(event)));
+		this._register(this.viewModel.onSearchResultChanged((event) => this.onSearchResultsChanged(event)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => this.onVisibilityChanged(visible)));
 
@@ -837,7 +866,7 @@ export class SearchView extends ViewPane {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));
 		updateHasSomeCollapsible();
-		this._register(this.viewModel.searchResult.onChange(() => updateHasSomeCollapsible()));
+		this._register(this.viewModel.onSearchResultChanged(() => updateHasSomeCollapsible()));
 		this._register(this.tree.onDidChangeCollapseState(() => updateHasSomeCollapsible()));
 
 		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, DEBOUNCE_DELAY, true)(options => {
