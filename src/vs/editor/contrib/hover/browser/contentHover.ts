@@ -215,6 +215,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	public hide(): void {
+		console.log('Inside of hide of controller');
 		this._computer.anchor = null;
 		this._hoverOperation.cancel();
 		this._setCurrentResult(null);
@@ -792,6 +793,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	public hide(): void {
+		console.log('Inside of hide');
 		if (!this._visibleData) {
 			return;
 		}

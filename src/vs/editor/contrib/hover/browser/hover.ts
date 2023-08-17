@@ -213,6 +213,7 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && target.position) {
+			console.log('Before this._contentWidget?.hide() in _onEditorMouseMove');
 			this._contentWidget?.hide();
 			if (!this._glyphWidget) {
 				this._glyphWidget = new MarginHoverWidget(this._editor, this._languageService, this._openerService);
@@ -223,7 +224,19 @@ export class ModesHoverController implements IEditorContribution {
 		if (_sticky) {
 			return;
 		}
-		this._hideWidgets();
+		console.log('Before very last _hideWidgets inside of _onEditorMouseMove');
+		let mouseMoveEvent: IEditorMouseEvent | undefined;
+		const mouseMoveDisposable = this._editor.onMouseMove((e) => {
+			mouseMoveEvent = e;
+		});
+		setTimeout(() => {
+			// Find appropriate conditions
+			console.log('mouseMoveEvent : ', mouseMoveEvent);
+			if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID) {
+				this._hideWidgets();
+			}
+			mouseMoveDisposable.dispose();
+		}, 500);
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
@@ -243,6 +256,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
+		console.log('Inside of _hideWidgets at ', new Date());
 		if (_sticky) {
 			return;
 		}
@@ -252,6 +266,7 @@ export class ModesHoverController implements IEditorContribution {
 		this._hoverActivatedByColorDecoratorClick = false;
 		this._hoverClicked = false;
 		this._glyphWidget?.hide();
+		console.log('Before this._contentWidget?.hide() in _hideWidgets');
 		this._contentWidget?.hide();
 	}
 
