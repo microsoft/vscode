@@ -282,7 +282,6 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 		this._register(AccessibleViewAction.addImplementation(95, 'inline-completions', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const codeEditorService = accessor.get(ICodeEditorService);
-			const contextViewService = accessor.get(IContextViewService);
 			const show = () => {
 				const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 				if (!editor) {
@@ -311,12 +310,10 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 						editor.focus();
 					},
 					next() {
-						contextViewService.hideContextView();
-						setTimeout(() => model.next().then(() => show()), 50);
+						model.next().then(() => show());
 					},
 					previous() {
-						contextViewService.hideContextView();
-						setTimeout(() => model.previous().then(() => show()), 50);
+						model.previous().then(() => show());
 					},
 					actions: [
 						{
