@@ -62,8 +62,6 @@ class VoiceTranscriptionWorkletNode extends AudioWorkletNode {
 }
 
 // TODO@voice
-// - how to prevent data processing accumulation when processing is slow?
-// - how to make this a singleton service that enables ref-counting on multiple callers?
 // - voice module should directly transcribe the PCM32 data without wav+file conversion
 
 export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
