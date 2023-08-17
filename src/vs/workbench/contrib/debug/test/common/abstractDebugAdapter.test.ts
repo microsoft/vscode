@@ -5,9 +5,12 @@
 
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { MockDebugAdapter } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 
 suite('Debug - AbstractDebugAdapter', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('event ordering', () => {
 		let adapter: MockDebugAdapter;
 		let output: string[];
