@@ -2341,7 +2341,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		} else if (focusItem === 'output') {
 			this.focusElement(cell);
 
-
 			if (!this.hasEditorFocus()) {
 				this._list.focusView();
 			}
