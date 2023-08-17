@@ -371,6 +371,16 @@ export interface IShareableItemDto {
 	selection?: IRange;
 }
 
+export interface IRelatedContextItemDto {
+	readonly uri: UriComponents;
+	readonly range: IRange;
+}
+
+export interface IMappedEditsContextDto {
+	selections: ISelection[]; //FIXME@ulugbekna: is this serializable? should I use ISelection?
+	related: IRelatedContextItemDto[];
+}
+
 export interface ISignatureHelpProviderMetadataDto {
 	readonly triggerCharacters: readonly string[];
 	readonly retriggerCharacters: readonly string[];
@@ -1315,6 +1325,11 @@ export interface MainThreadShareShape extends IDisposable {
 	$unregisterShareProvider(handle: number): void;
 }
 
+export interface MainThreadMappedEditsShape extends IDisposable {
+	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$unregisterMappedEditsProvider(handle: number): void;
+}
+
 export interface MainThreadTaskShape extends IDisposable {
 	$createTaskId(task: tasks.ITaskDTO): Promise<string>;
 	$registerTaskProvider(handle: number, type: string): Promise<void>;
@@ -2098,6 +2113,10 @@ export interface ExtHostShareShape {
 	$provideShare(handle: number, shareableItem: IShareableItemDto, token: CancellationToken): Promise<UriComponents | string | undefined>;
 }
 
+export interface ExtHostMappedEditsShape {
+	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: IMappedEditsContextDto, token: CancellationToken): Promise<IWorkspaceEditDto | null>;
+}
+
 export interface ExtHostTaskShape {
 	$provideTasks(handle: number, validTypes: { [key: string]: boolean }): Promise<tasks.ITaskSetDTO>;
 	$resolveTask(handle: number, taskDTO: tasks.ITaskDTO): Promise<tasks.ITaskDTO | undefined>;
@@ -2623,6 +2642,7 @@ export const MainContext = {
 	MainThreadSCM: createProxyIdentifier<MainThreadSCMShape>('MainThreadSCM'),
 	MainThreadSearch: createProxyIdentifier<MainThreadSearchShape>('MainThreadSearch'),
 	MainThreadShare: createProxyIdentifier<MainThreadShareShape>('MainThreadShare'),
+	MainThreadMappedEdits: createProxyIdentifier<MainThreadMappedEditsShape>('MainThreadMappedEdits'),
 	MainThreadTask: createProxyIdentifier<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createProxyIdentifier<MainThreadWindowShape>('MainThreadWindow'),
 	MainThreadLabelService: createProxyIdentifier<MainThreadLabelServiceShape>('MainThreadLabelService'),
@@ -2700,6 +2720,7 @@ export const ExtHostContext = {
 	ExtHostChatSlashCommands: createProxyIdentifier<ExtHostChatSlashCommandsShape>('ExtHostChatSlashCommands'),
 	ExtHostChatVariables: createProxyIdentifier<ExtHostChatVariablesShape>('ExtHostChatVariables'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostChatProviderShape>('ExtHostChatProvider'),
+	ExtHostMappedEdits: createProxyIdentifier<ExtHostMappedEditsShape>('ExtHostMappedEdits'),
 	ExtHostSemanticSimilarity: createProxyIdentifier<ExtHostSemanticSimilarityShape>('ExtHostSemanticSimilarity'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),

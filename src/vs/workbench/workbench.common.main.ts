@@ -111,6 +111,7 @@ import 'vs/workbench/services/textMate/browser/textMateTokenizationFeature.contr
 import 'vs/workbench/services/userActivity/common/userActivityService';
 import 'vs/workbench/services/userActivity/browser/userActivityBrowser';
 import 'vs/workbench/services/issue/browser/issueTroubleshoot';
+import 'vs/workbench/services/mappedEdits/browser/mappedEditsService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';

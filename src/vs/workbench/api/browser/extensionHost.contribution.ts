@@ -86,6 +86,7 @@ import './mainThreadTimeline';
 import './mainThreadTesting';
 import './mainThreadSecretState';
 import './mainThreadShare';
+import './mainThreadMappedEdits';
 import './mainThreadProfilContentHandlers';
 import './mainThreadSemanticSimilarity';
 import './mainThreadIssueReporter';
