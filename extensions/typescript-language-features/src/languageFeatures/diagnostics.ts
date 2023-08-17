@@ -149,12 +149,40 @@ class DiagnosticSettings {
 	}
 }
 
+class DiagnosticsTelemetryManager {
+
+	private _diagnosticCodes: number[] = [];
+
+	constructor(private readonly _telemetryReporter: TelemetryReporter) { }
+
+	public addDiagnosticCodes(codes: number[]) {
+		this._diagnosticCodes.push(...codes);
+		this._diagnosticCodes.sort();
+	}
+
+	public sendDiagnosticsCodesTelemetry(): void {
+		/* __GDPR__
+				"typescript.diagnostics" : {
+					"owner": "@aiday-mar",
+					"diagnosticCodes" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+					"${include}": [
+						"${TypeScriptCommonProperties}"
+					]
+				}
+			*/
+		this._telemetryReporter.logTelemetry('typescript.diagnostics', {
+			diagnoticCodes: this._diagnosticCodes.join(', ')
+		});
+		this._diagnosticCodes = [];
+	}
+}
+
 export class DiagnosticsManager extends Disposable {
 	private readonly _diagnostics: ResourceMap<FileDiagnostics>;
 	private readonly _settings = new DiagnosticSettings();
 	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
 	private readonly _pendingUpdates: ResourceMap<any>;
-
+	private readonly _diagnosticsTelemetryManager: DiagnosticsTelemetryManager;
 	private readonly _updateDelay = 50;
 
 	constructor(
@@ -167,6 +195,7 @@ export class DiagnosticsManager extends Disposable {
 		this._pendingUpdates = new ResourceMap<any>(undefined, { onCaseInsensitiveFileSystem });
 
 		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
+		this._diagnosticsTelemetryManager = new DiagnosticsTelemetryManager(telemetryReporter);
 		this._register(vscode.workspace.onDidOpenTextDocument((document) => {
 			const diagnostics = this.getDiagnostics(document.uri);
 			const diagnoticCodes = diagnostics.reduce(function (result: number[], d: vscode.Diagnostic) {
@@ -177,20 +206,13 @@ export class DiagnosticsManager extends Disposable {
 					result.push(Number(code.value));
 				}
 				return result;
-			}, []).sort();
-			/* __GDPR__
-				"typescript.diagnostics" : {
-					"owner": "@aiday-mar",
-					"diagnosticCodes" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					"${include}": [
-						"${TypeScriptCommonProperties}"
-					]
-				}
-			*/
-			telemetryReporter.logTelemetry('typescript.diagnostics', {
-				diagnoticCodes: diagnoticCodes.join(', ')
-			});
+			}, []);
+			this._diagnosticsTelemetryManager.addDiagnosticCodes(diagnoticCodes);
 		}));
+	}
+
+	public sendDiagnosticsCodesTelemetry(): void {
+		this._diagnosticsTelemetryManager.sendDiagnosticsCodesTelemetry();
 	}
 
 	public override dispose() {
