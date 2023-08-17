@@ -154,7 +154,6 @@ export class DiagnosticsManager extends Disposable {
 	private readonly _settings = new DiagnosticSettings();
 	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
 	private readonly _pendingUpdates: ResourceMap<any>;
-	private readonly _telemetryReporter: TelemetryReporter;
 
 	private readonly _updateDelay = 50;
 
@@ -168,7 +167,30 @@ export class DiagnosticsManager extends Disposable {
 		this._pendingUpdates = new ResourceMap<any>(undefined, { onCaseInsensitiveFileSystem });
 
 		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
-		this._telemetryReporter = telemetryReporter;
+		this._register(vscode.workspace.onDidOpenTextDocument((document) => {
+			const diagnostics = this.getDiagnostics(document.uri);
+			const diagnoticCodes = diagnostics.reduce(function (result: number[], d: vscode.Diagnostic) {
+				const code = d.code;
+				if (typeof code === 'string' || typeof code === 'number') {
+					result.push(Number(code));
+				} else if (code !== undefined) {
+					result.push(Number(code.value));
+				}
+				return result;
+			}, []).sort();
+			/* __GDPR__
+				"typescript.diagnostics" : {
+					"owner": "@aiday-mar",
+					"diagnosticCodes" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+					"${include}": [
+						"${TypeScriptCommonProperties}"
+					]
+				}
+			*/
+			telemetryReporter.logTelemetry('typescript.diagnostics', {
+				diagnoticCodes: diagnoticCodes.join(', ')
+			});
+		}));
 	}
 
 	public override dispose() {
@@ -242,29 +264,7 @@ export class DiagnosticsManager extends Disposable {
 	}
 
 	public getDiagnostics(file: vscode.Uri): ReadonlyArray<vscode.Diagnostic> {
-		const diagnostics = this._currentDiagnostics.get(file) || [];
-		const diagnoticCodes = diagnostics.reduce(function (result: number[], d: vscode.Diagnostic) {
-			const code = d.code;
-			if (typeof code === 'string' || typeof code === 'number') {
-				result.push(Number(code));
-			} else if (code !== undefined) {
-				result.push(Number(code.value));
-			}
-			return result;
-		}, []).sort();
-		/* __GDPR__
-			"typescript.diagnostics" : {
-				"owner": "@aiday-mar",
-				"diagnosticCodes" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"${include}": [
-					"${TypeScriptCommonProperties}"
-				]
-			}
-		*/
-		this._telemetryReporter.logTelemetry('typescript.diagnostics', {
-			diagnoticCodes: diagnoticCodes.join(', ')
-		});
-		return diagnostics;
+		return this._currentDiagnostics.get(file) || [];
 	}
 
 	private scheduleDiagnosticsUpdate(file: vscode.Uri) {

@@ -468,6 +468,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 			this.serviceExited(!this.isRestarting);
 			this.isRestarting = false;
+
+			// TODO: on handle exit, we need to send the typescript errors that we have accumulated
+			console.log('on handle exit');
 		});
 
 		handle.onEvent(event => this.dispatchEvent(event));
@@ -579,6 +582,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		};
 	}
 
+	// TODO: service exited will close the client service, is this the one that we need to monitor?
 	private serviceExited(restart: boolean): void {
 		this.loadingIndicator.reset();
 
