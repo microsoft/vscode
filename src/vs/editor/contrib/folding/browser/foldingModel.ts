@@ -100,7 +100,9 @@ export class FoldingModel {
 
 	private _maxMarkerSeverity(startLineNumber: number, endLineNumber: number): MarkerSeverity | undefined {
 		let maxMarkerSeverity: MarkerSeverity | undefined;
-		const decorations = this._textModel.getLinesDecorations(startLineNumber, endLineNumber);
+
+		// Skip start line itself because any squigglies it has will remain visible
+		const decorations = this._textModel.getLinesDecorations(startLineNumber + 1, endLineNumber);
 		for (let index = 0; index < decorations.length; index++) {
 			const decoration = decorations[index];
 			if (decoration.options.className === 'squiggly-error') {
