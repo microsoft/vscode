@@ -3,36 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
-'use strict';
+declare class AudioWorkletProcessor {
 
-// @ts-ignore
+	readonly port: MessagePort;
+
+	process(inputs: [Float32Array[]], outputs: [Float32Array[]]): boolean;
+}
+
 class BufferedVoiceTranscriber extends AudioWorkletProcessor {
+
+	private static readonly BUFFER_TIMESPAN = 2000;
+
+	private startTime: number | undefined = undefined;
+
+	private allInputFloat32Array: Float32Array | undefined = undefined;
+	private currentInputFloat32Arrays: Float32Array[] = [];
+
+	private sharedProcessConnection: MessagePort | undefined = undefined;
 
 	constructor() {
 		super();
 
-		this.channelCount = 1;
-		this.bufferTimespan = 2000;
-		this.startTime = undefined;
-
-		this.allInputFloat32Array = undefined;
-		this.currentInputFloat32Arrays = []; // buffer over the duration of bufferTimespan
-
 		this.registerListeners();
 	}
 
-	registerListeners() {
-
-		// @ts-ignore
-		const port = this.port;
-		port.onmessage = event => {
+	private registerListeners() {
+		this.port.onmessage = event => {
 			if (event.data === 'vscode:transferSharedProcessConnection') {
 				this.sharedProcessConnection = event.ports[0];
 
 				this.sharedProcessConnection.onmessage = event => {
 					if (typeof event.data === 'string') {
-						port.postMessage(event.data);
+						this.port.postMessage(event.data);
 					}
 				};
 
@@ -41,22 +43,19 @@ class BufferedVoiceTranscriber extends AudioWorkletProcessor {
 		};
 	}
 
-	/**
-	 * @param {[[Float32Array]]} inputs
-	 */
-	process(inputs) {
+	override process(inputs: [Float32Array[]]): boolean {
 		if (this.startTime === undefined) {
 			this.startTime = Date.now();
 		}
 
 		const inputChannelData = inputs[0][0];
 		if ((!(inputChannelData instanceof Float32Array))) {
-			return;
+			return true;
 		}
 
 		this.currentInputFloat32Arrays.push(inputChannelData.slice(0));
 
-		if (Date.now() - this.startTime > this.bufferTimespan && this.sharedProcessConnection) {
+		if (Date.now() - this.startTime > BufferedVoiceTranscriber.BUFFER_TIMESPAN && this.sharedProcessConnection) {
 			const currentInputFloat32Arrays = this.currentInputFloat32Arrays;
 			this.currentInputFloat32Arrays = [];
 
@@ -70,11 +69,7 @@ class BufferedVoiceTranscriber extends AudioWorkletProcessor {
 		return true;
 	}
 
-	/**
-	 * @param {Float32Array[]} float32Arrays
-	 * @returns {Float32Array}
-	 */
-	joinFloat32Arrays(float32Arrays) {
+	private joinFloat32Arrays(float32Arrays: Float32Array[]): Float32Array {
 		const result = new Float32Array(float32Arrays.reduce((acc, curr) => acc + curr.length, 0));
 
 		let offset = 0;

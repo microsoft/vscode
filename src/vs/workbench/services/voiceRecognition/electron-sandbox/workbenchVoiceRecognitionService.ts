@@ -62,7 +62,6 @@ class BufferedVoiceTranscriber extends AudioWorkletNode {
 // - how to make this a singleton service that enables ref-counting on multiple callers?
 // - cancellation should flow to the shared process
 // - voice module should directly transcribe the PCM32 data without wav+file conversion
-// - the audio worklet should be a TS file (try without any import/export?)
 
 export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
 
