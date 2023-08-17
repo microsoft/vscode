@@ -66,7 +66,7 @@ import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/co
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 
 
 export const enum SettingsFocusContext {
@@ -160,7 +160,6 @@ export class SettingsEditor2 extends EditorPane {
 	private rootElement!: HTMLElement;
 	private headerContainer!: HTMLElement;
 	private bodyContainer!: HTMLElement;
-	private progressBar!: ProgressBar;
 	private searchWidget!: SuggestEnabledInput;
 	private countElement!: HTMLElement;
 	private controlsElement!: HTMLElement;
@@ -239,6 +238,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IProductService private readonly productService: IProductService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -573,7 +573,6 @@ export class SettingsEditor2 extends EditorPane {
 	 */
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
-		this.progressBar = new ProgressBar(this.headerContainer);
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 
@@ -1630,17 +1629,17 @@ export class SettingsEditor2 extends EditorPane {
 		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
 		return this.localSearchDelayer.trigger(async () => {
 			if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
-				this.progressBar.infinite();
+				const progressRunner = this.editorProgressService.show(true);
 				const result = await this.localFilterPreferences(query);
 				if (result && !result.exactMatch) {
 					this.remoteSearchThrottle.trigger(async () => {
 						if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
 							await this.remoteSearchPreferences(query, this.searchInProgress!.token);
 						}
-						this.progressBar.done();
+						progressRunner.done();
 					});
 				} else {
-					this.progressBar.done();
+					progressRunner.done();
 				}
 			}
 		});
@@ -1661,36 +1660,32 @@ export class SettingsEditor2 extends EditorPane {
 		]).then(() => { });
 	}
 
-	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
-		return this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider, token).then(result => {
-			if (token && token.isCancellationRequested) {
-				// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
-				return null;
-			}
-
-			if (!this.searchResultModel) {
-				this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
-				// Must be called before this.renderTree()
-				// to make sure the search results count is set.
-				this.searchResultModel.setResult(type, result);
-				this.tocTreeModel.currentSearchModel = this.searchResultModel;
-				this.onSearchModeToggled();
-			} else {
-				this.searchResultModel.setResult(type, result);
-				this.tocTreeModel.update();
-			}
-
-			if (type === SearchResultIdx.Local) {
-				this.tocTree.setFocus([]);
-				this.viewState.filterToCategory = undefined;
-				this.tocTree.expandAll();
-			}
-
-			this.settingsTree.scrollTop = 0;
-			this.refreshTOCTree();
-			this.renderTree(undefined, true);
-			return result;
-		});
+	private async filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
+		const result = await this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider, token);
+		if (token?.isCancellationRequested) {
+			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
+			return null;
+		}
+		if (!this.searchResultModel) {
+			this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
+			// Must be called before this.renderTree()
+			// to make sure the search results count is set.
+			this.searchResultModel.setResult(type, result);
+			this.tocTreeModel.currentSearchModel = this.searchResultModel;
+			this.onSearchModeToggled();
+		} else {
+			this.searchResultModel.setResult(type, result);
+			this.tocTreeModel.update();
+		}
+		if (type === SearchResultIdx.Local) {
+			this.tocTree.setFocus([]);
+			this.viewState.filterToCategory = undefined;
+			this.tocTree.expandAll();
+		}
+		this.settingsTree.scrollTop = 0;
+		this.refreshTOCTree();
+		this.renderTree(undefined, true);
+		return result;
 	}
 
 	private renderResultCountMessages() {
