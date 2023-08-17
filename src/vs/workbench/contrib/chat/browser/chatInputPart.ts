@@ -241,13 +241,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		toolbar.getElement().classList.add('interactive-execute-toolbar');
 		toolbar.context = <IChatExecuteActionContext>{ widget };
 
-		const toolbarSide = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputAndSideToolbar, MenuId.ChatInputSide, {
-			menuOptions: {
-				shouldForwardArgs: true
-			}
-		}));
-		toolbarSide.getElement().classList.add('chat-side-toolbar');
-		toolbarSide.context = <IChatExecuteActionContext>{ widget };
+		if (this.options.renderStyle === 'compact') {
+			const toolbarSide = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputAndSideToolbar, MenuId.ChatInputSide, {
+				menuOptions: {
+					shouldForwardArgs: true
+				}
+			}));
+			toolbarSide.getElement().classList.add('chat-side-toolbar');
+			toolbarSide.context = <IChatExecuteActionContext>{ widget };
+		}
 
 		this.inputModel = this.modelService.getModel(this.inputUri) || this.modelService.createModel('', null, this.inputUri, true);
 		this.inputModel.updateOptions({ bracketColorizationOptions: { enabled: false, independentColorPoolPerBracketType: false } });
