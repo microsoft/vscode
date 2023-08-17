@@ -9,14 +9,14 @@ import { RenderableMatch } from 'vs/workbench/contrib/search/browser/searchModel
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { category } from 'vs/workbench/contrib/search/browser/searchActionsBase';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { TEXT_RESULT_QUICK_ACCESS_PREFIX } from 'vs/workbench/contrib/search/browser/quickTextResultMenu/textResultQuickAccess';
+import { TEXT_SEARCH_QUICK_ACCESS_PREFIX } from 'vs/workbench/contrib/search/browser/quickTextSearch/textSearchQuickAccess';
 
 registerAction2(class TextSearchQuickAccessAction extends Action2 {
 
 	constructor(
 	) {
 		super({
-			id: Constants.QuickTextResultsActionId,
+			id: Constants.QuickTextSearchActionId,
 			title: {
 				value: nls.localize('quickTextSearch', "Quick Text Search"),
 				original: 'Quick Text Search'
@@ -34,6 +34,6 @@ registerAction2(class TextSearchQuickAccessAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, match: RenderableMatch | undefined): Promise<any> {
 		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show(TEXT_RESULT_QUICK_ACCESS_PREFIX);
+		quickInputService.quickAccess.show(TEXT_SEARCH_QUICK_ACCESS_PREFIX);
 	}
 });

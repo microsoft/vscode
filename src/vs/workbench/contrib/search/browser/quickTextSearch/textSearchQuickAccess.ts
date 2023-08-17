@@ -24,7 +24,7 @@ import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/commo
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { IPatternInfo, ISearchConfigurationProperties, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
 
-export const TEXT_RESULT_QUICK_ACCESS_PREFIX = '% ';
+export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '% ';
 
 const DEFAULT_TEXT_QUERY_BUILDER_OPTIONS: ITextQueryBuilderOptions = {
 	_reason: 'searchView',
@@ -37,10 +37,9 @@ const DEFAULT_TEXT_QUERY_BUILDER_OPTIONS: ITextQueryBuilderOptions = {
 const MAX_FILES_SHOWN = 30;
 const MAX_RESULTS_PER_FILE = 10;
 
-export class TextResultQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
+export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 	private queryBuilder: QueryBuilder;
 	private searchModel: SearchModel;
-
 
 	private _getTextQueryBuilderOptions(charsPerLine: number): ITextQueryBuilderOptions {
 		return {
@@ -66,7 +65,7 @@ export class TextResultQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
-		super(TEXT_RESULT_QUICK_ACCESS_PREFIX, { canAcceptInBackground: true });
+		super(TEXT_SEARCH_QUICK_ACCESS_PREFIX, { canAcceptInBackground: true });
 
 		this.queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		this.searchModel = this._instantiationService.createInstance(SearchModel);
