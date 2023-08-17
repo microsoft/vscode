@@ -85,7 +85,6 @@ export const enum AccessibleViewType {
 }
 
 export interface IAccessibleViewOptions {
-	ariaLabel: string;
 	readMoreUrl?: string;
 	/**
 	 * Defaults to markdown
@@ -330,23 +329,17 @@ class AccessibleView extends Disposable {
 			}
 			model.setLanguage(provider.options.language ?? 'markdown');
 			container.appendChild(this._editorContainer);
-			let ariaLabel = '';
 			let actionsHint = '';
 			const verbose = this._configurationService.getValue(provider.verbositySettingKey);
-			if (verbose && !showAccessibleViewHelp && (this._accessibleViewSupportsNavigation.get() || this._accessibleViewVerbosityEnabled.get() || this._accessibleViewGoToSymbolSupported.get())) {
+			const hasActions = this._accessibleViewSupportsNavigation.get() || this._accessibleViewVerbosityEnabled.get() || this._accessibleViewGoToSymbolSupported.get() || this._currentProvider?.actions;
+			if (verbose && !showAccessibleViewHelp && hasActions) {
 				actionsHint = localize('ariaAccessibleViewActions', "Use Shift+Tab to explore actions such as disabling this hint.");
 			}
+			let ariaLabel = provider.options.type === AccessibleViewType.Help ? localize('accessibility-help', "Accessibility Help") : localize('accessible-view', "Accessible View");
 			if (actionsHint && provider.options.type === AccessibleViewType.View) {
-				ariaLabel = provider.options.ariaLabel ? localize('actionsAriaKb', "{0}, {1}", provider.options.ariaLabel, actionsHint) : localize('accessible-view-hint', "Accessible View, {0}", actionsHint);
+				ariaLabel = localize('accessible-view-hint', "Accessible View, {0}", actionsHint);
 			} else if (actionsHint) {
-				ariaLabel = provider.options.ariaLabel ? localize('actionsAriaKb', "{0}, {1}", provider.options.ariaLabel, actionsHint) : localize('accessibility-help-hint', "Accessibility Help, {0}", actionsHint);
-			}
-			if (!ariaLabel) {
-				if (provider.options.type === AccessibleViewType.View) {
-					ariaLabel = provider.options.ariaLabel ? provider.options.ariaLabel : localize('accessible-view', "Accessible View");
-				} else {
-					ariaLabel = provider.options.ariaLabel ? provider.options.ariaLabel : localize('accessible-help', "Accessibility Help");
-				}
+				ariaLabel = localize('accessibility-help-hint', "Accessibility Help, {0}", actionsHint);
 			}
 			this._editorWidget.updateOptions({ ariaLabel });
 			this._editorWidget.focus();
@@ -430,10 +423,7 @@ class AccessibleView extends Disposable {
 		const accessibleViewHelpProvider: IAccessibleContentProvider = {
 			provideContent: () => this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
 			onClose: () => this.show(currentProvider),
-			options: {
-				ariaLabel: localize('accessibleViewHelp', "Accessible View Help"),
-				type: AccessibleViewType.Help,
-			},
+			options: { type: AccessibleViewType.Help },
 			verbositySettingKey: this._currentProvider.verbositySettingKey
 		};
 		this._contextViewService.hideContextView();

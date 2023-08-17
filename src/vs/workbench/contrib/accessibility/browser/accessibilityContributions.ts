@@ -62,7 +62,7 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 	onClose() {
 		this._editor.focus();
 	}
-	options: IAccessibleViewOptions = { type: AccessibleViewType.Help, ariaLabel: localize('editor-help', "editor accessibility help"), readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
+	options: IAccessibleViewOptions = { type: AccessibleViewType.Help, readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
 	verbositySettingKey = AccessibilityVerbositySettingId.Editor;
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -107,9 +107,7 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 
 export class HoverAccessibleViewContribution extends Disposable {
 	static ID: 'hoverAccessibleViewContribution';
-	private _options: IAccessibleViewOptions = {
-		ariaLabel: localize('hoverAccessibleView', "Hover Accessible View"), language: 'typescript', type: AccessibleViewType.View
-	};
+	private _options: IAccessibleViewOptions = { language: 'typescript', type: AccessibleViewType.View };
 	constructor() {
 		super();
 		this._register(AccessibleViewAction.addImplementation(95, 'hover', accessor => {
@@ -225,10 +223,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 						renderAccessibleView();
 					},
 					verbositySettingKey: AccessibilityVerbositySettingId.Notification,
-					options: {
-						ariaLabel: localize('notification', "Notification Accessible View"),
-						type: AccessibleViewType.View
-					},
+					options: { type: AccessibleViewType.View },
 					actions: getActionsFromNotification(notification)
 				});
 				return true;
@@ -281,9 +276,7 @@ export function alertFocusChange(index: number | undefined, length: number | und
 
 export class InlineCompletionsAccessibleViewContribution extends Disposable {
 	static ID: 'inlineCompletionsAccessibleViewContribution';
-	private _options: IAccessibleViewOptions = {
-		ariaLabel: localize('inlineCompletionsAccessibleView', "Inline Completions Accessible View"), type: AccessibleViewType.View
-	};
+	private _options: IAccessibleViewOptions = { type: AccessibleViewType.View };
 	constructor() {
 		super();
 		this._register(AccessibleViewAction.addImplementation(95, 'inline-completions', accessor => {
