@@ -15,7 +15,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { CHANGE_CELL_LANGUAGE, DETECT_CELL_LANGUAGE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { warningStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -49,10 +48,10 @@ class CellStatusBarLanguagePickerProvider implements INotebookCellStatusBarItemP
 				displayLanguage = this._languageService.getLanguageName(displayLanguage) ?? displayLanguage;
 			} else {
 				// add unregistered lanugage warning item
-				const searchTooltip = localize('notebook.cell.status.searchLanguageExtensions', "Unknown cell language '{0}' - Search for notebook extensions", cell.language);
-				statusBarItems.push(<INotebookCellStatusBarItem>{
-					text: `$(${warningStateIcon.id})`,
-					command: { id: 'workbench.extensions.search', arguments: [`@tag:${cell.language}`] },
+				const searchTooltip = localize('notebook.cell.status.searchLanguageExtensions', "Unknown cell language - Search for '{0}' extensions", cell.language);
+				statusBarItems.push({
+					text: `$(dialog-warning)`,
+					command: { id: 'workbench.extensions.search', arguments: [`@tag:${cell.language}`], title: 'Search Extensions' },
 					tooltip: searchTooltip,
 					alignment: CellStatusbarAlignment.Right,
 					priority: -Number.MAX_SAFE_INTEGER + 1
@@ -60,7 +59,7 @@ class CellStatusBarLanguagePickerProvider implements INotebookCellStatusBarItemP
 			}
 		}
 
-		statusBarItems.push(<INotebookCellStatusBarItem>{
+		statusBarItems.push({
 			text: displayLanguage,
 			command: CHANGE_CELL_LANGUAGE,
 			tooltip: localize('notebook.cell.status.language', "Select Cell Language Mode"),
