@@ -66,6 +66,7 @@ import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/co
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 
 
 export const enum SettingsFocusContext {
@@ -159,6 +160,7 @@ export class SettingsEditor2 extends EditorPane {
 	private rootElement!: HTMLElement;
 	private headerContainer!: HTMLElement;
 	private bodyContainer!: HTMLElement;
+	private progressBar!: ProgressBar;
 	private searchWidget!: SuggestEnabledInput;
 	private countElement!: HTMLElement;
 	private controlsElement!: HTMLElement;
@@ -566,8 +568,12 @@ export class SettingsEditor2 extends EditorPane {
 		this.searchWidget.updateAriaLabel(label);
 	}
 
+	/**
+	 * Render the header of the Settings editor, which includes the content above the splitview.
+	 */
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
+		this.progressBar = new ProgressBar(this.headerContainer);
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 
@@ -1622,19 +1628,20 @@ export class SettingsEditor2 extends EditorPane {
 
 		// Trigger the local search. If it didn't find an exact match, trigger the remote search.
 		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
-		return this.localSearchDelayer.trigger(() => {
+		return this.localSearchDelayer.trigger(async () => {
 			if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
-				return this.localFilterPreferences(query).then(result => {
-					if (result && !result.exactMatch) {
-						this.remoteSearchThrottle.trigger(() => {
-							return searchInProgress && !searchInProgress.token.isCancellationRequested ?
-								this.remoteSearchPreferences(query, this.searchInProgress!.token) :
-								Promise.resolve();
-						});
-					}
-				});
-			} else {
-				return Promise.resolve();
+				this.progressBar.infinite();
+				const result = await this.localFilterPreferences(query);
+				if (result && !result.exactMatch) {
+					this.remoteSearchThrottle.trigger(async () => {
+						if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
+							await this.remoteSearchPreferences(query, this.searchInProgress!.token);
+						}
+						this.progressBar.done();
+					});
+				} else {
+					this.progressBar.done();
+				}
 			}
 		});
 	}
