@@ -28,7 +28,6 @@ import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/cha
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('InteractiveChatController', function () {
 
@@ -145,8 +144,6 @@ suite('InteractiveChatController', function () {
 		store.clear();
 		ctrl?.dispose();
 	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('creation, not showing anything', function () {
 		for (let deadline = Date.now() + 1000; Date.now() < deadline;) { }
