@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import * as vscode from 'vscode';
 import { extractUriList, useDefaultPaste, validateLink } from './shared';
-
 
 class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 
