@@ -8,9 +8,10 @@ import { MessagePortMain, MessageEvent } from 'vs/base/parts/sandbox/node/electr
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IVoiceRecognitionService } from 'vs/platform/voiceRecognition/common/voiceRecognitionService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { TaskSequentializer } from 'vs/base/common/async';
 
-export class VoiceTranscriber extends Disposable {
+export class VoiceTranscriptionManager extends Disposable {
 
 	constructor(
 		private readonly onDidWindowConnectRaw: Event<MessagePortMain>,
@@ -24,32 +25,73 @@ export class VoiceTranscriber extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.onDidWindowConnectRaw(port => {
-			this.logService.info(`[voice] transcriber: new connection`);
-
-			const cts = new CancellationTokenSource();
-			this._register(toDisposable(() => cts.dispose(true)));
-
-			const portHandler = async (e: MessageEvent) => {
-				if (!(e.data instanceof Float32Array)) {
-					return;
-				}
-
-				const result = await this.voiceRecognitionService.transcribe(e.data, cts.token);
-
-				port.postMessage(result);
-			};
-
-			port.on('message', portHandler);
-			this._register(toDisposable(() => port.off('message', portHandler)));
-
-			port.start();
-			this._register(toDisposable(() => port.close()));
-
-			port.on('close', () => {
-				this.logService.info(`[voice] transcriber: closed connection`);
-
-				cts.dispose(true);
-			});
+			this._register(new VoiceTranscriber(port, this.voiceRecognitionService, this.logService));
 		}));
+	}
+}
+
+class VoiceTranscriber extends Disposable {
+
+	private readonly transcriptionSequentializer = new TaskSequentializer();
+
+	private requests = 0;
+
+	constructor(
+		private readonly port: MessagePortMain,
+		private readonly voiceRecognitionService: IVoiceRecognitionService,
+		private readonly logService: ILogService
+	) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.logService.info(`[voice] transcriber: new connection`);
+
+		const cts = new CancellationTokenSource();
+		this._register(toDisposable(() => cts.dispose(true)));
+
+		const requestHandler = (e: MessageEvent) => this.handleRequest(e, cts.token);
+		this.port.on('message', requestHandler);
+		this._register(toDisposable(() => this.port.off('message', requestHandler)));
+
+		this.port.start();
+		this._register(toDisposable(() => this.port.close()));
+
+		this.port.on('close', () => {
+			this.logService.info(`[voice] transcriber: closed connection`);
+
+			cts.dispose(true);
+			this.transcriptionSequentializer.cancelPending();
+		});
+	}
+
+	private async handleRequest(e: MessageEvent, cancellation: CancellationToken): Promise<void> {
+		if (!(e.data instanceof Float32Array)) {
+			return;
+		}
+
+		this.requests++;
+
+		if (!this.transcriptionSequentializer.hasPending()) {
+			this.transcriptionSequentializer.setPending(this.requests, this.transcribe(e.data, cancellation));
+		} else {
+			this.transcriptionSequentializer.setNext(() => this.transcribe(e.data, cancellation));
+		}
+	}
+
+	private async transcribe(channelData: Float32Array, cancellation: CancellationToken): Promise<void> {
+		if (cancellation.isCancellationRequested) {
+			return;
+		}
+
+		const result = await this.voiceRecognitionService.transcribe(channelData, cancellation);
+
+		if (cancellation.isCancellationRequested) {
+			return;
+		}
+
+		this.port.postMessage(result);
 	}
 }

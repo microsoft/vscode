@@ -116,7 +116,7 @@ import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IVoiceRecognitionService } from 'vs/platform/voiceRecognition/common/voiceRecognitionService';
 import { VoiceRecognitionService } from 'vs/platform/voiceRecognition/node/voiceRecognitionService';
-import { VoiceTranscriber } from 'vs/code/node/sharedProcess/contrib/voiceTranscriber';
+import { VoiceTranscriptionManager } from 'vs/code/node/sharedProcess/contrib/voiceTranscriber';
 import { SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
@@ -179,7 +179,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			instantiationService.createInstance(LocalizationsUpdater),
 			instantiationService.createInstance(ExtensionsContributions),
 			instantiationService.createInstance(UserDataProfilesCleaner),
-			instantiationService.createInstance(VoiceTranscriber, this.onDidWindowConnectRaw.event)
+			instantiationService.createInstance(VoiceTranscriptionManager, this.onDidWindowConnectRaw.event)
 		));
 	}
 
