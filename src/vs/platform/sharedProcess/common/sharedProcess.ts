@@ -9,12 +9,12 @@ export const SharedProcessLifecycle = {
 	initDone: 'vscode:shared-process->electron-main=init-done'
 };
 
-export const ChannelSharedProcessConnection = {
-	request: 'vscode:createChannelSharedProcessConnection',
-	response: 'vscode:createChannelSharedProcessConnectionResult'
+export const SharedProcessChannelConnection = {
+	request: 'vscode:createSharedProcessChannelConnection',
+	response: 'vscode:createSharedProcessChannelConnectionResult'
 };
 
-export const RawSharedProcessConnection = {
-	request: 'vscode:createRawSharedProcessConnection',
-	response: 'vscode:createRawSharedProcessConnectionResult'
+export const SharedProcessRawConnection = {
+	request: 'vscode:createSharedProcessRawConnection',
+	response: 'vscode:createSharedProcessRawConnectionResult'
 };

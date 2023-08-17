@@ -18,7 +18,7 @@ import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utility
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { parseSharedProcessDebugPort } from 'vs/platform/environment/node/environmentService';
 import { assertIsDefined } from 'vs/base/common/types';
-import { ChannelSharedProcessConnection, RawSharedProcessConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
+import { SharedProcessChannelConnection, SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
 
 export class SharedProcess extends Disposable {
 
@@ -43,10 +43,10 @@ export class SharedProcess extends Disposable {
 	private registerListeners(): void {
 
 		// Shared process channel connections from workbench windows
-		validatedIpcMain.on(ChannelSharedProcessConnection.request, (e, nonce: string) => this.onWindowConnection(e, nonce, ChannelSharedProcessConnection.response));
+		validatedIpcMain.on(SharedProcessChannelConnection.request, (e, nonce: string) => this.onWindowConnection(e, nonce, SharedProcessChannelConnection.response));
 
 		// Shared process raw connections from workbench windows
-		validatedIpcMain.on(RawSharedProcessConnection.request, (e, nonce: string) => this.onWindowConnection(e, nonce, RawSharedProcessConnection.response));
+		validatedIpcMain.on(SharedProcessRawConnection.request, (e, nonce: string) => this.onWindowConnection(e, nonce, SharedProcessRawConnection.response));
 
 		// Lifecycle
 		this._register(this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown()));

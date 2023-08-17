@@ -117,7 +117,7 @@ import { NativeEnvironmentService } from 'vs/platform/environment/node/environme
 import { IVoiceRecognitionService } from 'vs/platform/voiceRecognition/common/voiceRecognitionService';
 import { VoiceRecognitionService } from 'vs/platform/voiceRecognition/node/voiceRecognitionService';
 import { VoiceTranscriber } from 'vs/code/node/sharedProcess/contrib/voiceTranscriber';
-import { RawSharedProcessConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
+import { SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -439,14 +439,14 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		});
 	}
 
-	handled(e: MessageEvent): boolean {
+	handledClientConnection(e: MessageEvent): boolean {
 
 		// This filter on message port messages will look for
 		// attempts of a window to connect raw to the shared
 		// process to handle these connections separate from
 		// our IPC based protocol.
 
-		if (e.data !== RawSharedProcessConnection.response) {
+		if (e.data !== SharedProcessRawConnection.response) {
 			return false;
 		}
 

@@ -13,7 +13,7 @@ class BufferedVoiceTranscriber extends AudioWorkletProcessor {
 		super();
 
 		this.channelCount = 1;
-		this.bufferTimespan = 4000;
+		this.bufferTimespan = 2000;
 		this.startTime = undefined;
 
 		this.allInputFloat32Array = undefined;
@@ -27,16 +27,16 @@ class BufferedVoiceTranscriber extends AudioWorkletProcessor {
 		// @ts-ignore
 		const port = this.port;
 		port.onmessage = event => {
-			if (event.data === 'vscode:transferPortToAudioWorklet') {
-				this.sharedProcessPort = event.ports[0];
+			if (event.data === 'vscode:transferSharedProcessConnection') {
+				this.sharedProcessConnection = event.ports[0];
 
-				this.sharedProcessPort.onmessage = event => {
+				this.sharedProcessConnection.onmessage = event => {
 					if (typeof event.data === 'string') {
 						port.postMessage(event.data);
 					}
 				};
 
-				this.sharedProcessPort.start();
+				this.sharedProcessConnection.start();
 			}
 		};
 	}
@@ -56,14 +56,13 @@ class BufferedVoiceTranscriber extends AudioWorkletProcessor {
 
 		this.currentInputFloat32Arrays.push(inputChannelData.slice(0));
 
-		if (Date.now() - this.startTime > this.bufferTimespan && this.sharedProcessPort) {
+		if (Date.now() - this.startTime > this.bufferTimespan && this.sharedProcessConnection) {
 			const currentInputFloat32Arrays = this.currentInputFloat32Arrays;
 			this.currentInputFloat32Arrays = [];
 
 			this.allInputFloat32Array = this.joinFloat32Arrays(this.allInputFloat32Array ? [this.allInputFloat32Array, ...currentInputFloat32Arrays] : currentInputFloat32Arrays);
 
-			// @ts-ignore
-			this.sharedProcessPort.postMessage(this.allInputFloat32Array);
+			this.sharedProcessConnection.postMessage(this.allInputFloat32Array);
 
 			this.startTime = Date.now();
 		}

@@ -50,10 +50,10 @@ class BufferedVoiceTranscriber extends AudioWorkletNode {
 	}
 
 	async start(token: CancellationToken): Promise<void> {
-		const rawSharedProcessConnection = await this.sharedProcessService.createRawConnection();
-		token.onCancellationRequested(() => rawSharedProcessConnection.close());
+		const sharedProcessConnection = await this.sharedProcessService.createRawConnection();
+		token.onCancellationRequested(() => sharedProcessConnection.close());
 
-		this.port.postMessage('vscode:transferPortToAudioWorklet', [rawSharedProcessConnection]);
+		this.port.postMessage('vscode:transferSharedProcessConnection', [sharedProcessConnection]);
 	}
 }
 

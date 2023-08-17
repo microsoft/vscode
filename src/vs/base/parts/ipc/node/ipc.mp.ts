@@ -43,7 +43,7 @@ export interface IClientConnectionFilter {
 	 * @returns `true` if the event was handled
 	 * and should not be processed by the server.
 	 */
-	handled(e: MessageEvent): boolean;
+	handledClientConnection(e: MessageEvent): boolean;
 }
 
 /**
@@ -58,7 +58,7 @@ export class Server extends IPCServer {
 		const onCreateMessageChannel = new Emitter<MessagePortMain>();
 
 		process.parentPort.on('message', (e: MessageEvent) => {
-			if (filter?.handled(e)) {
+			if (filter?.handledClientConnection(e)) {
 				return;
 			}
 

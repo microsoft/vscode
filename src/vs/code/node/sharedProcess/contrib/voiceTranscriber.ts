@@ -35,6 +35,7 @@ export class VoiceTranscriber extends Disposable {
 			this._register(toDisposable(() => port.off('message', portHandler)));
 
 			port.start();
+			this._register(toDisposable(() => port.close()));
 		}));
 	}
 }
