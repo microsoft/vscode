@@ -126,7 +126,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		}, 75) : undefined;
 
 		this._model = (await this._stickyModelProvider.update(textModel, modelVersionId, token)) ?? this._model;
-
 		clearTimeout(resetHandle);
 	}
 
