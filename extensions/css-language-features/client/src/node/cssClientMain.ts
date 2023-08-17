@@ -10,6 +10,7 @@ import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient, Ba
 import { TextDecoder } from 'util';
 import { registerDropIntoEditorSupport } from './dropIntoEditor';
 import { registerPasteIntoEditorSupport } from './pasteIntoEditor';
+import { registerPasteLinkIntoEditorSupport } from './pasteUrlIntoEditor';
 let client: BaseLanguageClient | undefined;
 
 // this method is called when vs code is activated
@@ -53,5 +54,6 @@ function registerCssLanguageFeatures(): Disposable {
 		// Language features
 		registerDropIntoEditorSupport(selector),
 		registerPasteIntoEditorSupport(selector),
+		registerPasteLinkIntoEditorSupport(selector)
 	);
 }

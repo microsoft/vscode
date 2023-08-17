@@ -3,18 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+
 import * as vscode from 'vscode';
-import { Mimes, extractUriList, useDefaultPaste } from './shared';
+import { extractUriList, validateLink } from './shared';
 
-class PasteIntoEditorProvider implements vscode.DocumentPasteEditProvider {
-	readonly id = 'relativePath';
-	readonly pasteMimeTypes = ['text/uri-list'];
 
-	async provideDocumentPasteEdits(
-		document: vscode.TextDocument,
-		ranges: readonly vscode.Range[],
-		dataTransfer: vscode.DataTransfer,
-		token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
+class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
+
+	readonly id = 'insertMarkdownLink';
+	async provideDocumentPasteEdits(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
 		const enabled = vscode.workspace.getConfiguration('css', document).get('format.formatPastedFiles', true);
 		if (!enabled) {
 			return;
@@ -24,14 +21,9 @@ class PasteIntoEditorProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		if (useDefaultPaste(document, ranges[0])) {
-			return;
-		}
-
 		const edit = await this._getUriListPasteEdit(document, ranges, dataTransfer, token);
 		return edit ? { id: this.id, insertText: edit.insertText, label: edit.label, priority: edit.priority } : undefined;
 	}
-
 	private async _getUriListPasteEdit(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
 		if (token.isCancellationRequested) {
 			return undefined;
@@ -39,13 +31,24 @@ class PasteIntoEditorProvider implements vscode.DocumentPasteEditProvider {
 		if (!ranges) {
 			return undefined;
 		}
-
-		const urlList = await dataTransfer.get('text/uri-list')?.asString();
-		if (!urlList) {
+		if (!ranges) {
 			return undefined;
 		}
 
-		const snippet = await extractUriList(document, urlList);
+		const item = dataTransfer.get('text/plain');
+		const urlTextList = await item?.asString();
+
+		if (urlTextList === undefined) {
+			return;
+		}
+
+		if (!validateLink(urlTextList).isValid) {
+			return;
+		}
+		console.log('uriList', urlTextList);
+		const snippet = await extractUriList(document, urlTextList);
+		console.log('snippet', snippet?.snippet.value);
+
 		if (!snippet) {
 			return undefined;
 		}
@@ -59,11 +62,13 @@ class PasteIntoEditorProvider implements vscode.DocumentPasteEditProvider {
 }
 
 
-export function registerPasteIntoEditorSupport(selector: vscode.DocumentSelector) {
-	return vscode.languages.registerDocumentPasteEditProvider(selector, new PasteIntoEditorProvider(), {
+export function registerPasteLinkIntoEditorSupport(selector: vscode.DocumentSelector) {
+	return vscode.languages.registerDocumentPasteEditProvider(selector, new PasteLinkEditProvider(), {
 		pasteMimeTypes: [
-			'text/uri-list',
-			...Mimes,
+			'text/plain',
 		]
 	});
 }
+
+
+

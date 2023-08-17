@@ -16,6 +16,12 @@ const Schemes = Object.freeze({
 	notebookCell: 'vscode-notebook-cell',
 });
 
+export const externalUriSchemes = [
+	'http',
+	'https',
+	'mailto',
+];
+
 export const Mimes = new Set([
 	'text/plain',
 	'application/octet-stream',
@@ -30,7 +36,7 @@ export enum QuoteTypes {
 	Double = 'double',
 }
 
-export async function getQuoteTypeSetting(document: vscode.TextDocument): Promise<QuoteTypes> {
+export function getQuoteTypeSetting(document: vscode.TextDocument): QuoteTypes {
 	return vscode.workspace.getConfiguration('css', document).get<QuoteTypes>('format.formattedFileQuoteType', QuoteTypes.Single);
 }
 
@@ -48,7 +54,7 @@ export async function extractUriList(document: vscode.TextDocument, uriList: Str
 		return getRelativePath(documentDir, uri);
 	}));
 
-	const quoteType = await getQuoteTypeSetting(document);
+	const quoteType = getQuoteTypeSetting(document);
 	return createUriListSnippet(relativeUris, quoteType);
 }
 
@@ -83,4 +89,44 @@ function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
 
 function escapeQuotes(value: string, quoteType: QuoteTypes): string {
 	return quoteType === QuoteTypes.Single ? value.replace(/'/g, '\\\'') : value.replace(/"/g, '\\"');
+}
+
+export function validateLink(urlList: string): { isValid: boolean; cleanedUrlList: string } {
+	let isValid = false;
+	let uri = undefined;
+	const trimmedUrlList = urlList?.trim(); //remove leading and trailing whitespace and new lines
+	try {
+		uri = vscode.Uri.parse(trimmedUrlList);
+	} catch (error) {
+		return { isValid: false, cleanedUrlList: urlList };
+	}
+	const splitUrlList = trimmedUrlList.split(' ').filter(item => item !== ''); //split on spaces and remove empty strings
+	if (uri) {
+		isValid = splitUrlList.length === 1 && !splitUrlList[0].includes('\n') && externalUriSchemes.includes(vscode.Uri.parse(splitUrlList[0]).scheme) && !!vscode.Uri.parse(splitUrlList[0]).authority;
+	}
+	return { isValid, cleanedUrlList: splitUrlList[0] };
+}
+
+export function useDefaultPaste(document: vscode.TextDocument, positionOrRange?: vscode.Position | vscode.Range): boolean {
+	const regex = /\(".*"\)/g;
+	let useDefaultPaste = false;
+	const matches = [...document.getText().matchAll(regex)];
+	for (const match of matches) {
+		if (match.index !== undefined) {
+			if (positionOrRange instanceof vscode.Position) {
+				useDefaultPaste = positionOrRange.character > match.index && positionOrRange.character < match.index + match[0].length;
+			}
+			if (positionOrRange instanceof vscode.Range) {
+				const selectedRange: vscode.Range = new vscode.Range(
+					new vscode.Position(positionOrRange.start.line, document.offsetAt(positionOrRange.start)),
+					new vscode.Position(positionOrRange.end.line, document.offsetAt(positionOrRange.end))
+				);
+				useDefaultPaste = selectedRange.start.character > match.index && selectedRange.end.character < match.index + match[0].length;
+			}
+			if (useDefaultPaste) {
+				return false;
+			}
+		}
+	}
+	return true;
 }
