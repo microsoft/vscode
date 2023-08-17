@@ -15,6 +15,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { CHANGE_CELL_LANGUAGE, DETECT_CELL_LANGUAGE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { warningStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -38,19 +39,36 @@ class CellStatusBarLanguagePickerProvider implements INotebookCellStatusBarItemP
 			return;
 		}
 
-		const languageId = cell.cellKind === CellKind.Markup ?
-			'markdown' :
-			(this._languageService.getLanguageIdByLanguageName(cell.language) || cell.language);
-		const text = this._languageService.getLanguageName(languageId) || languageId;
-		const item = <INotebookCellStatusBarItem>{
-			text,
+		const statusBarItems: INotebookCellStatusBarItem[] = [];
+		let displayLanguage = cell.language;
+		if (cell.cellKind === CellKind.Markup) {
+			displayLanguage = 'markdown';
+		} else {
+			const registeredId = this._languageService.getLanguageIdByLanguageName(cell.language);
+			if (registeredId) {
+				displayLanguage = this._languageService.getLanguageName(displayLanguage) ?? displayLanguage;
+			} else {
+				// add unregistered lanugage warning item
+				const searchTooltip = localize('notebook.cell.status.searchLanguageExtensions', "Unknown cell language '{0}' - Search for notebook extensions", cell.language);
+				statusBarItems.push(<INotebookCellStatusBarItem>{
+					text: `$(${warningStateIcon.id})`,
+					command: { id: 'workbench.extensions.search', arguments: [`@tag:${cell.language}`] },
+					tooltip: searchTooltip,
+					alignment: CellStatusbarAlignment.Right,
+					priority: -Number.MAX_SAFE_INTEGER + 1
+				});
+			}
+		}
+
+		statusBarItems.push(<INotebookCellStatusBarItem>{
+			text: displayLanguage,
 			command: CHANGE_CELL_LANGUAGE,
 			tooltip: localize('notebook.cell.status.language', "Select Cell Language Mode"),
 			alignment: CellStatusbarAlignment.Right,
 			priority: -Number.MAX_SAFE_INTEGER
-		};
+		});
 		return {
-			items: [item]
+			items: statusBarItems
 		};
 	}
 }

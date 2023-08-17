@@ -22,6 +22,7 @@ export const clearIcon = registerIcon('notebook-clear', Codicon.clearAll, locali
 export const splitCellIcon = registerIcon('notebook-split-cell', Codicon.splitVertical, localize('splitCellIcon', 'Icon to split a cell in notebook editors.'));
 export const successStateIcon = registerIcon('notebook-state-success', Codicon.check, localize('successStateIcon', 'Icon to indicate a success state in notebook editors.'));
 export const errorStateIcon = registerIcon('notebook-state-error', Codicon.error, localize('errorStateIcon', 'Icon to indicate an error state in notebook editors.'));
+export const warningStateIcon = registerIcon('notebook-state-warning', Codicon.warning, localize('warningStateIcon', 'Icon to an item that may need attention.'));
 export const pendingStateIcon = registerIcon('notebook-state-pending', Codicon.clock, localize('pendingStateIcon', 'Icon to indicate a pending state in notebook editors.'));
 export const executingStateIcon = registerIcon('notebook-state-executing', Codicon.sync, localize('executingStateIcon', 'Icon to indicate an executing state in notebook editors.'));
 
