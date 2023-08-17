@@ -10,7 +10,7 @@ declare class AudioWorkletProcessor {
 	process(inputs: [Float32Array[]], outputs: [Float32Array[]]): boolean;
 }
 
-class BufferedVoiceTranscriber extends AudioWorkletProcessor {
+class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 
 	private static readonly BUFFER_TIMESPAN = 2000;
 
@@ -21,6 +21,8 @@ class BufferedVoiceTranscriber extends AudioWorkletProcessor {
 
 	private sharedProcessConnection: MessagePort | undefined = undefined;
 
+	private stopped: boolean = false;
+
 	constructor() {
 		super();
 
@@ -29,16 +31,32 @@ class BufferedVoiceTranscriber extends AudioWorkletProcessor {
 
 	private registerListeners() {
 		this.port.onmessage = event => {
-			if (event.data === 'vscode:transferSharedProcessConnection') {
-				this.sharedProcessConnection = event.ports[0];
+			switch (event.data) {
+				case 'vscode:startVoiceTranscription': {
+					this.sharedProcessConnection = event.ports[0];
 
-				this.sharedProcessConnection.onmessage = event => {
-					if (typeof event.data === 'string') {
-						this.port.postMessage(event.data);
-					}
-				};
+					this.sharedProcessConnection.onmessage = event => {
+						if (this.stopped) {
+							return;
+						}
 
-				this.sharedProcessConnection.start();
+						if (typeof event.data === 'string') {
+							this.port.postMessage(event.data);
+						}
+					};
+
+					this.sharedProcessConnection.start();
+					break;
+				}
+
+				case 'vscode:stopVoiceTranscription': {
+					this.stopped = true;
+
+					this.sharedProcessConnection?.close();
+					this.sharedProcessConnection = undefined;
+
+					break;
+				}
 			}
 		};
 	}
@@ -50,12 +68,12 @@ class BufferedVoiceTranscriber extends AudioWorkletProcessor {
 
 		const inputChannelData = inputs[0][0];
 		if ((!(inputChannelData instanceof Float32Array))) {
-			return true;
+			return !this.stopped;
 		}
 
 		this.currentInputFloat32Arrays.push(inputChannelData.slice(0));
 
-		if (Date.now() - this.startTime > BufferedVoiceTranscriber.BUFFER_TIMESPAN && this.sharedProcessConnection) {
+		if (Date.now() - this.startTime > VoiceTranscriptionWorklet.BUFFER_TIMESPAN && this.sharedProcessConnection) {
 			const currentInputFloat32Arrays = this.currentInputFloat32Arrays;
 			this.currentInputFloat32Arrays = [];
 
@@ -66,7 +84,7 @@ class BufferedVoiceTranscriber extends AudioWorkletProcessor {
 			this.startTime = Date.now();
 		}
 
-		return true;
+		return !this.stopped;
 	}
 
 	private joinFloat32Arrays(float32Arrays: Float32Array[]): Float32Array {
@@ -83,4 +101,4 @@ class BufferedVoiceTranscriber extends AudioWorkletProcessor {
 }
 
 // @ts-ignore
-registerProcessor('buffered-voice-transcriber', BufferedVoiceTranscriber);
+registerProcessor('voice-transcription-worklet', VoiceTranscriptionWorklet);

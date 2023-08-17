@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IVoiceRecognitionService } from 'vs/platform/voiceRecognition/common/voiceRecognitionService';
 
@@ -14,7 +15,7 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 		@ILogService private readonly logService: ILogService
 	) { }
 
-	async transcribe(channelData: Float32Array): Promise<string> {
+	async transcribe(channelData: Float32Array, cancellation: CancellationToken): Promise<string> {
 		this.logService.info(`[voice] transcribe(${channelData.length}): Begin`);
 
 		const modulePath = process.env.VSCODE_VOICE_MODULE_PATH;
@@ -23,7 +24,6 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 		}
 
 		const now = Date.now();
-		const conversionTime = Date.now() - now;
 
 		const voiceModule: { transcribe: (audioBuffer: { channelCount: 1; sampleRate: 16000; sampleSize: 16; channelData: Float32Array }, options: { language: string | 'auto'; suppressNonSpeechTokens: boolean }) => Promise<string> } = require.__$__nodeRequire(modulePath);
 
@@ -37,7 +37,7 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 			suppressNonSpeechTokens: true
 		});
 
-		this.logService.info(`[voice] transcribe(${channelData.length}): End (text: "${text}", took: ${Date.now() - now}ms total, ${conversionTime}ms uint8->float32 conversion)`);
+		this.logService.info(`[voice] transcribe(${channelData.length}): End (text: "${text}", took: ${Date.now() - now}ms)`);
 
 		return text;
 	}

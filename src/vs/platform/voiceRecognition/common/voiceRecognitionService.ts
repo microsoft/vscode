@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IVoiceRecognitionService = createDecorator<IVoiceRecognitionService>('voiceRecognitionService');
@@ -21,5 +22,5 @@ export interface IVoiceRecognitionService {
 	 * - 16khz sampling rate
 	 * - 16bit sample size
 	 */
-	transcribe(channelData: Float32Array): Promise<string>;
+	transcribe(channelData: Float32Array, cancellation: CancellationToken): Promise<string>;
 }

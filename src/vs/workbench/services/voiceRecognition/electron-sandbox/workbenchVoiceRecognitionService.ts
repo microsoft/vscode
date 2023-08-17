@@ -28,7 +28,7 @@ export interface IWorkbenchVoiceRecognitionService {
 	transcribe(cancellation: CancellationToken): Event<string>;
 }
 
-class BufferedVoiceTranscriber extends AudioWorkletNode {
+class VoiceTranscriptionWorkletNode extends AudioWorkletNode {
 
 	constructor(
 		context: BaseAudioContext,
@@ -36,7 +36,7 @@ class BufferedVoiceTranscriber extends AudioWorkletNode {
 		private readonly onDidTranscribe: Emitter<string>,
 		private readonly sharedProcessService: ISharedProcessService
 	) {
-		super(context, 'buffered-voice-transcriber', options);
+		super(context, 'voice-transcription-worklet', options);
 
 		this.registerListeners();
 	}
@@ -51,16 +51,19 @@ class BufferedVoiceTranscriber extends AudioWorkletNode {
 
 	async start(token: CancellationToken): Promise<void> {
 		const sharedProcessConnection = await this.sharedProcessService.createRawConnection();
-		token.onCancellationRequested(() => sharedProcessConnection.close());
 
-		this.port.postMessage('vscode:transferSharedProcessConnection', [sharedProcessConnection]);
+		token.onCancellationRequested(() => {
+			this.port.postMessage('vscode:stopVoiceTranscription');
+			this.disconnect();
+		});
+
+		this.port.postMessage('vscode:startVoiceTranscription', [sharedProcessConnection]);
 	}
 }
 
 // TODO@voice
 // - how to prevent data processing accumulation when processing is slow?
 // - how to make this a singleton service that enables ref-counting on multiple callers?
-// - cancellation should flow to the shared process
 // - voice module should directly transcribe the PCM32 data without wav+file conversion
 
 export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
@@ -85,8 +88,8 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 		return onDidTranscribe.event;
 	}
 
-	private async doTranscribe(onDidTranscribe: Emitter<string>, token: CancellationToken): Promise<void> {
-		return this.progressService.withProgress({
+	private doTranscribe(onDidTranscribe: Emitter<string>, token: CancellationToken): void {
+		this.progressService.withProgress({
 			location: ProgressLocation.Window,
 			title: localize('voiceTranscription', "Voice Transcription"),
 		}, async progress => {
@@ -116,21 +119,32 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 			const microphoneSource = audioContext.createMediaStreamSource(microphoneDevice);
 
 			token.onCancellationRequested(() => {
-				microphoneDevice.getTracks().forEach(track => track.stop());
+				for (const track of microphoneDevice.getTracks()) {
+					track.stop();
+				}
+
 				microphoneSource.disconnect();
 				audioContext.close();
 				recordingDone.complete();
 			});
 
-			await audioContext.audioWorklet.addModule(FileAccess.asBrowserUri('vs/workbench/services/voiceRecognition/electron-sandbox/bufferedVoiceTranscriber.js').toString(true));
+			await audioContext.audioWorklet.addModule(FileAccess.asBrowserUri('vs/workbench/services/voiceRecognition/electron-sandbox/voiceTranscriptionWorklet.js').toString(true));
 
-			const bufferedVoiceTranscriberTarget = new BufferedVoiceTranscriber(audioContext, {
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			const voiceTranscriptionTarget = new VoiceTranscriptionWorkletNode(audioContext, {
 				channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
 				channelCountMode: 'explicit'
 			}, onDidTranscribe, this.sharedProcessService);
-			await bufferedVoiceTranscriberTarget.start(token);
+			await voiceTranscriptionTarget.start(token);
 
-			microphoneSource.connect(bufferedVoiceTranscriberTarget);
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			microphoneSource.connect(voiceTranscriptionTarget);
 
 			progress.report({ message: localize('voiceTranscriptionRecording', "Recording from microphone...") });
 
