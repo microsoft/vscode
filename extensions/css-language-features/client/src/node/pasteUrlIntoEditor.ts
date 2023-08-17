@@ -5,7 +5,7 @@
 
 
 import * as vscode from 'vscode';
-import { extractUriList, validateLink } from './shared';
+import { extractUriList, useDefaultPaste, validateLink } from './shared';
 
 
 class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
@@ -18,6 +18,10 @@ class PasteLinkEditProvider implements vscode.DocumentPasteEditProvider {
 		}
 
 		if (token.isCancellationRequested) {
+			return;
+		}
+
+		if (useDefaultPaste(document, ranges[0])) {
 			return;
 		}
 
