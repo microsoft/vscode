@@ -149,6 +149,12 @@ export interface IDetachedXTermOptions {
 	processInfo: ITerminalProcessInfo;
 }
 
+/**
+ * A {@link ITerminalInstance}-like object that emulates a subset of
+ * capabilities. This instance is returned from {@link ITerminalService.createDetachedTerminal}
+ * to represent terminals that appear in other parts of the VS Code UI outside
+ * of the "Terminal" view or editors.
+ */
 export interface IDetachedTerminalInstance extends IDisposable {
 	readonly xterm: IDetachedXtermTerminal;
 	readonly capabilities: ITerminalCapabilityStore;
