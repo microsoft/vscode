@@ -146,7 +146,6 @@ suite('InteractiveChatController', function () {
 	});
 
 	test('creation, not showing anything', function () {
-		for (let deadline = Date.now() + 1000; Date.now() < deadline;) { }
 		ctrl = instaService.createInstance(TestController, editor);
 		assert.ok(ctrl);
 		assert.strictEqual(ctrl.getWidgetPosition(), undefined);
