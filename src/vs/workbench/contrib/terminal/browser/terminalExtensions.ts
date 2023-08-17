@@ -5,19 +5,22 @@
 
 import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITerminalContribution, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export type TerminalContributionCtor = IConstructorSignature<ITerminalContribution, [ITerminalInstance, ITerminalProcessManager, TerminalWidgetManager]>;
+export type DetachedTerminalContributionCtor = IConstructorSignature<ITerminalContribution, [IDetachedTerminalInstance, ITerminalProcessInfo, TerminalWidgetManager]>;
 
-export interface ITerminalContributionDescription {
-	readonly id: string;
-	readonly ctor: TerminalContributionCtor;
-}
+export type ITerminalContributionDescription = { readonly id: string } & (
+	| { readonly canRunInDetachedTerminals: false; readonly ctor: TerminalContributionCtor | DetachedTerminalContributionCtor }
+	| { readonly canRunInDetachedTerminals: true; readonly ctor: DetachedTerminalContributionCtor }
+);
 
-export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessManager, widgetManager: TerminalWidgetManager, ...services: Services): ITerminalContribution }): void {
-	TerminalContributionRegistry.INSTANCE.registerTerminalContribution(id, ctor);
+export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessManager, widgetManager: TerminalWidgetManager, ...services: Services): ITerminalContribution }, canRunInDetachedTerminals?: false): void;
+export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessInfo, widgetManager: TerminalWidgetManager, ...services: Services): ITerminalContribution }, canRunInDetachedTerminals: true): void;
+export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessManager, widgetManager: TerminalWidgetManager, ...services: Services): ITerminalContribution }, canRunInDetachedTerminals = false): void {
+	TerminalContributionRegistry.INSTANCE.registerTerminalContribution({ id, ctor, canRunInDetachedTerminals } as ITerminalContributionDescription);
 }
 
 export namespace TerminalExtensionsRegistry {
@@ -35,8 +38,8 @@ class TerminalContributionRegistry {
 	constructor() {
 	}
 
-	public registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessManager, widgetManager: TerminalWidgetManager, ...services: Services): ITerminalContribution }): void {
-		this._terminalContributions.push({ id, ctor: ctor as TerminalContributionCtor });
+	public registerTerminalContribution(description: ITerminalContributionDescription): void {
+		this._terminalContributions.push(description);
 	}
 
 	public getTerminalContributions(): ITerminalContributionDescription[] {
