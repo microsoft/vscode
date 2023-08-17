@@ -4,24 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { URI as uri } from 'vs/base/common/uri';
-import { DebugModel, Breakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { getExpandedBodySize, getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
-import { IBreakpointData, IBreakpointUpdateData, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
-import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
-import { OverviewRulerLane } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { URI as uri } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { OverviewRulerLane } from 'vs/editor/common/model';
 import { LanguageService } from 'vs/editor/common/services/languageService';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { MockDebugService } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
+import { getBreakpointMessageAndIcon, getExpandedBodySize } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { IBreakpointData, IBreakpointUpdateData, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
+import { Breakpoint, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
+import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
+import { MockDebugService, MockDebugStorage } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
-function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakpointData[]): void {
+function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakpointData[]) {
 	let eventCount = 0;
 	const toDispose = model.onDidChangeBreakpoints(e => {
 		assert.strictEqual(e?.sessionOnly, false);
@@ -37,21 +41,25 @@ function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakp
 			assert.strictEqual((e!.added![i] as Breakpoint).lineNumber, data[i].lineNumber);
 		}
 	});
-	model.addBreakpoints(uri, data);
+	const bps = model.addBreakpoints(uri, data);
 	assert.strictEqual(eventCount, 1);
+	return bps;
 }
 
 suite('Debug - Breakpoints', () => {
 	let model: DebugModel;
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 
 	setup(() => {
-		model = createMockDebugModel();
+		disposables = new DisposableStore();
+		model = createMockDebugModel(disposables);
 	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Breakpoints
 
@@ -175,7 +183,7 @@ suite('Debug - Breakpoints', () => {
 		const modelUri = uri.file('/myfolder/myfile.js');
 		addBreakpointsAndCheckEvents(model, modelUri, [{ lineNumber: 5, enabled: true, condition: 'x > 5' }, { lineNumber: 10, enabled: false }]);
 		const breakpoints = model.getBreakpoints();
-		const session = createTestSession(model);
+		const session = disposables.add(createTestSession(model));
 		const data = new Map<string, DebugProtocol.Breakpoint>();
 
 		assert.strictEqual(breakpoints[0].lineNumber, 5);
@@ -187,7 +195,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(breakpoints[0].lineNumber, 5);
 		assert.strictEqual(breakpoints[1].lineNumber, 50);
 
-		const session2 = createTestSession(model);
+		const session2 = disposables.add(createTestSession(model));
 		const data2 = new Map<string, DebugProtocol.Breakpoint>();
 		data2.set(breakpoints[0].getId(), { verified: true, line: 100 });
 		data2.set(breakpoints[1].getId(), { verified: true, line: 500 });
@@ -212,7 +220,7 @@ suite('Debug - Breakpoints', () => {
 
 	test('exception breakpoints', () => {
 		let eventCount = 0;
-		model.onDidChangeBreakpoints(() => eventCount++);
+		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 		model.setExceptionBreakpointsForSession("session-id-1", [{ filter: 'uncaught', label: 'UNCAUGHT', default: true }]);
 		assert.strictEqual(eventCount, 1);
 		let exceptionBreakpoints = model.getExceptionBreakpointsForSession("session-id-1");
@@ -245,7 +253,7 @@ suite('Debug - Breakpoints', () => {
 
 	test('exception breakpoints multiple sessions', () => {
 		let eventCount = 0;
-		model.onDidChangeBreakpoints(() => eventCount++);
+		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 
 		model.setExceptionBreakpointsForSession("session-id-4", [{ filter: 'uncaught', label: 'UNCAUGHT', default: true }, { filter: 'caught', label: 'CAUGHT' }]);
 		model.setExceptionBreakpointFallbackSession("session-id-4");
@@ -286,7 +294,7 @@ suite('Debug - Breakpoints', () => {
 
 	test('instruction breakpoints', () => {
 		let eventCount = 0;
-		model.onDidChangeBreakpoints(() => eventCount++);
+		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 		//address: string, offset: number, condition?: string, hitCondition?: string
 		model.addInstructionBreakpoint('0xCCCCFFFF', 0);
 
@@ -308,7 +316,7 @@ suite('Debug - Breakpoints', () => {
 
 	test('data breakpoints', () => {
 		let eventCount = 0;
-		model.onDidChangeBreakpoints(() => eventCount++);
+		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 
 		model.addDataBreakpoint('label', 'id', true, ['read'], 'read');
 		model.addDataBreakpoint('second', 'secondId', false, ['readWrite'], 'readWrite');
@@ -431,5 +439,32 @@ suite('Debug - Breakpoints', () => {
 
 		textModel.dispose();
 		instantiationService.dispose();
+	});
+
+	test('updates when storage changes', () => {
+		const storage1 = disposables.add(new TestStorageService());
+		const debugStorage1 = disposables.add(new MockDebugStorage(storage1));
+		const model1 = disposables.add(new DebugModel(debugStorage1, <any>{ isDirty: (e: any) => false }, mockUriIdentityService, new NullLogService()));
+
+		// 1. create breakpoints in the first model
+		const modelUri = uri.file('/myfolder/my file first.js');
+		const first = [
+			{ lineNumber: 1, enabled: true, condition: 'x > 5' },
+			{ lineNumber: 2, column: 4, enabled: false },
+		];
+
+		addBreakpointsAndCheckEvents(model1, modelUri, first);
+		debugStorage1.storeBreakpoints(model1);
+		const stored = storage1.get('debug.breakpoint', StorageScope.WORKSPACE);
+
+		// 2. hydrate a new model and ensure external breakpoints get applied
+		const storage2 = disposables.add(new TestStorageService());
+		const model2 = disposables.add(new DebugModel(disposables.add(new MockDebugStorage(storage2)), <any>{ isDirty: (e: any) => false }, mockUriIdentityService, new NullLogService()));
+		storage2.store('debug.breakpoint', stored, StorageScope.WORKSPACE, StorageTarget.USER, /* external= */ true);
+		assert.deepStrictEqual(model2.getBreakpoints().map(b => b.getId()), model1.getBreakpoints().map(b => b.getId()));
+
+		// 3. ensure non-external changes are ignored
+		storage2.store('debug.breakpoint', '[]', StorageScope.WORKSPACE, StorageTarget.USER, /* external= */ false);
+		assert.deepStrictEqual(model2.getBreakpoints().map(b => b.getId()), model1.getBreakpoints().map(b => b.getId()));
 	});
 });

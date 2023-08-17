@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatModel, ChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChat {
 	id: number; // TODO Maybe remove this and move to a subclass that only the provider knows about
@@ -25,6 +26,7 @@ export interface IChat {
 export interface IChatRequest {
 	session: IChat;
 	message: string | IChatReplyFollowup;
+	variables: Record<string, IChatRequestVariableValue[]>;
 }
 
 export interface IChatResponseErrorDetails {

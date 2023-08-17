@@ -20,11 +20,13 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditor = 'accessibility.verbosity.diffEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	InlineChat = 'accessibility.verbosity.inlineChat',
+	InlineCompletions = 'accessibility.verbosity.inlineCompletions',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
 	Notebook = 'accessibility.verbosity.notebook',
 	Editor = 'accessibility.verbosity.editor',
 	Hover = 'accessibility.verbosity.hover',
-	Notification = 'accessibility.verbosity.notification'
+	Notification = 'accessibility.verbosity.notification',
+	EditorUntitledHint = 'accessibility.verbosity.editor.untitledHint'
 }
 
 const baseProperty: object = {
@@ -54,6 +56,10 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints which describe how to use the feature when the input is focused'),
 			...baseProperty
 		},
+		[AccessibilityVerbositySettingId.InlineCompletions]: {
+			description: localize('verbosity.inlineCompletions.description', 'Provide information about how to access the inline completions hover and accessible view'),
+			...baseProperty
+		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
 			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused'),
 			...baseProperty
@@ -68,6 +74,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Notification]: {
 			description: localize('verbosity.notification', 'Provide information about how to open the notification in an accessible view.'),
+			...baseProperty
+		},
+		[AccessibilityVerbositySettingId.EditorUntitledHint]: {
+			description: localize('verbosity.editor.untitledhint', 'Provide information about relevant actions in an untitled text editor.'),
 			...baseProperty
 		},
 		[AccessibilitySettingId.UnfocusedViewOpacity]: {

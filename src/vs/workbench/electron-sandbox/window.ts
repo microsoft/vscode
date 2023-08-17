@@ -902,15 +902,16 @@ export class NativeWindow extends Disposable {
 							}
 						} : undefined;
 						let tunnel = await this.tunnelService.getExistingTunnel(portMappingRequest.address, portMappingRequest.port);
-						if (!tunnel) {
+						if (!tunnel || (typeof tunnel === 'string')) {
 							tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
 						}
-						if (tunnel) {
-							const addressAsUri = URI.parse(tunnel.localAddress);
-							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
+						if (tunnel && (typeof tunnel !== 'string')) {
+							const constTunnel = tunnel;
+							const addressAsUri = URI.parse(constTunnel.localAddress);
+							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: constTunnel.localAddress });
 							return {
 								resolved,
-								dispose: () => tunnel?.dispose(),
+								dispose: () => constTunnel.dispose(),
 							};
 						}
 					}

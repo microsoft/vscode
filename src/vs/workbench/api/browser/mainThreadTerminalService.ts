@@ -20,10 +20,9 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { TerminalEditorLocationOptions } from 'vscode';
 import { Promises } from 'vs/base/common/async';
-import { TerminalQuickFixType } from 'vs/workbench/api/common/extHostTypes';
 import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { ITerminalQuickFixService, ITerminalQuickFix } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
@@ -448,10 +447,12 @@ export function getOutputMatchForLines(lines: string[], outputMatcher: ITerminal
 }
 
 function parseQuickFix(id: string, source: string, fix: TerminalQuickFix): ITerminalQuickFix {
-	let type = TerminalQuickFixType.Command;
+	let type = TerminalQuickFixType.TerminalCommand;
 	if ('uri' in fix) {
 		fix.uri = URI.revive(fix.uri);
 		type = TerminalQuickFixType.Opener;
+	} else if ('id' in fix) {
+		type = TerminalQuickFixType.VscodeCommand;
 	}
 	return { id, type, source, ...fix };
 }

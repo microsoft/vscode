@@ -35,6 +35,9 @@ import { IAction } from 'vs/base/common/actions';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
+import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
@@ -198,7 +201,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 				notification.onDidClose(() => accessibleViewService.next());
 				accessibleViewService.show({
 					provideContent: () => {
-						return localize('notification.accessibleView', '{0} Source: {1}', message, notification.source);
+						return notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source) : localize('notification.accessibleView', '{0}', message);
 					},
 					onClose(): void {
 						focusList();
@@ -276,3 +279,72 @@ export function alertFocusChange(index: number | undefined, length: number | und
 	return;
 }
 
+export class InlineCompletionsAccessibleViewContribution extends Disposable {
+	static ID: 'inlineCompletionsAccessibleViewContribution';
+	private _options: IAccessibleViewOptions = {
+		ariaLabel: localize('inlineCompletionsAccessibleView', "Inline Completions Accessible View"), type: AccessibleViewType.View
+	};
+	constructor() {
+		super();
+		this._register(AccessibleViewAction.addImplementation(95, 'inline-completions', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const codeEditorService = accessor.get(ICodeEditorService);
+			const show = () => {
+				const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
+				if (!editor) {
+					return false;
+				}
+				const model = InlineCompletionsController.get(editor)?.model.get();
+				const state = model?.state.get();
+				if (!model || !state) {
+					return false;
+				}
+				const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
+				if (!lineText) {
+					return false;
+				}
+
+				const ghostText = state.ghostText.renderForScreenReader(lineText);
+				if (!ghostText) {
+					return false;
+				}
+				this._options.language = editor.getModel()?.getLanguageId() ?? undefined;
+				accessibleViewService.show({
+					verbositySettingKey: AccessibilityVerbositySettingId.InlineCompletions,
+					provideContent() { return lineText + ghostText; },
+					onClose() {
+						model.stop();
+						editor.focus();
+					},
+					next() {
+						model.next().then(() => show());
+					},
+					previous() {
+						model.previous().then(() => show());
+					},
+					actions: [
+						{
+							id: 'inlineCompletions.accept',
+							label: localize('inlineCompletions.accept', "Accept Completion"),
+							tooltip: localize('inlineCompletions.accept', "Accept Completion"),
+							run: () => {
+								model.accept(editor).then(() => {
+									alert('Accepted');
+									model.stop();
+									editor.focus();
+								});
+							},
+							class: ThemeIcon.asClassName(Codicon.check),
+							enabled: true
+						}
+					],
+					options: this._options
+				});
+				return true;
+			};
+			return show();
+		}, ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible, EditorContextKeys.focus, EditorContextKeys.hasCodeActionsProvider)
+		)
+		);
+	}
+}

@@ -22,7 +22,30 @@ import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { TerminalAccessibleContentProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
 import { AccessibleBufferWidget, NavigationType } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
+import { TextAreaSyncAddon } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/textAreaSyncAddon';
 import type { Terminal } from 'xterm';
+
+
+class TextAreaSyncContribution extends DisposableStore implements ITerminalContribution {
+	static readonly ID = 'terminal.textAreaSync';
+	static get(instance: ITerminalInstance): TextAreaSyncContribution | null {
+		return instance.getContribution<TextAreaSyncContribution>(TextAreaSyncContribution.ID);
+	}
+	constructor(
+		private readonly _instance: ITerminalInstance,
+		processManager: ITerminalProcessManager,
+		widgetManager: TerminalWidgetManager,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	) {
+		super();
+	}
+	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
+		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
+		xterm.raw.loadAddon(addon);
+		addon.activate(xterm.raw);
+	}
+}
+registerTerminalContribution(TextAreaSyncContribution.ID, TextAreaSyncContribution);
 
 class AccessibleBufferContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.accessible-buffer';
