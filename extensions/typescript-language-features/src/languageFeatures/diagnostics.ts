@@ -9,7 +9,6 @@ import * as arrays from '../utils/arrays';
 import { Disposable } from '../utils/dispose';
 import { ResourceMap } from '../utils/resourceMap';
 import { TelemetryReporter } from '../logging/telemetry';
-import { URI } from 'vscode-uri';
 import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
@@ -154,12 +153,12 @@ class DiagnosticSettings {
 class DiagnosticsTelemetryManager extends Disposable {
 
 	private readonly _diagnosticCodesMap = new Map<number, number>();
-	private readonly _diagnosticTimeoutsMap = new Map<URI, NodeJS.Timeout | undefined>();
-	private readonly _diagnosticSnapshotsMap = new Map<URI, readonly vscode.Diagnostic[]>();
+	private readonly _diagnosticTimeoutsMap = new Map<vscode.Uri, NodeJS.Timeout | undefined>();
+	private readonly _diagnosticSnapshotsMap = new Map<vscode.Uri, readonly vscode.Diagnostic[]>();
 
 	constructor(
 		private readonly _telemetryReporter: TelemetryReporter,
-		private readonly _getDiagnostics: (uri: URI) => readonly vscode.Diagnostic[]
+		private readonly _getDiagnostics: (uri: vscode.Uri) => readonly vscode.Diagnostic[]
 	) {
 		super();
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
@@ -182,7 +181,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 		this._sendTelemetryEvent();
 	}
 
-	private _updateDiagnosticCodesAfterTimeout(uri: URI | undefined, timeoutInMs: number) {
+	private _updateDiagnosticCodesAfterTimeout(uri: vscode.Uri | undefined, timeoutInMs: number) {
 		if (!uri) {
 			return;
 		}
@@ -191,7 +190,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 		this._diagnosticTimeoutsMap.set(uri, timeout);
 	}
 
-	private _updateDiagnosticCodes(uri: URI) {
+	private _updateDiagnosticCodes(uri: vscode.Uri) {
 		const previousDiagnostics = this._diagnosticSnapshotsMap.get(uri);
 		const currentDiagnostics = this._getDiagnostics(uri);
 		this._diagnosticSnapshotsMap.set(uri, currentDiagnostics);
