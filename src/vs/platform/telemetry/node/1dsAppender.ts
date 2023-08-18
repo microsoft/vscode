@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as httpsModule from 'https';
 import type { IPayloadData, IXHROverride } from '@microsoft/1ds-post-js';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -34,13 +35,14 @@ async function makeTelemetryRequest(options: IRequestOptions, requestService: IR
  * @param httpsModule The https node module
  * @returns An object containing the headers, statusCode, and responseData
  */
-function makeLegacyTelemetryRequest(options: IRequestOptions, httpsModule: typeof import('https')) {
+function makeLegacyTelemetryRequest(options: IRequestOptions, httpsModule: typeof import('https'), oncomplete: any) {
 	const httpsOptions = {
 		method: options.type,
 		headers: options.headers
 	};
 	const req = httpsModule.request(options.url ?? '', httpsOptions, res => {
 		res.on('data', function (responseData) {
+			oncomplete(res.statusCode ?? 200, res.headers as Record<string, any>, responseData.toString());
 			return {
 				headers: res.headers as Record<string, any>,
 				statusCode: res.statusCode ?? 200,
@@ -49,10 +51,14 @@ function makeLegacyTelemetryRequest(options: IRequestOptions, httpsModule: typeo
 		});
 		// On response with error send status of 0 and a blank response to oncomplete so we can retry events
 		res.on('error', function (err) {
-			throw err;
+			oncomplete(0, {});
 		});
 	});
-	req.write(options.data);
+	req.write(options.data, (err) => {
+		if (err) {
+			oncomplete(0, {});
+		}
+	});
 	req.end();
 	return;
 }
@@ -67,10 +73,7 @@ export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
 		defaultData: { [key: string]: any } | null,
 		iKeyOrClientFactory: string | (() => IAppInsightsCore), // allow factory function for testing
 	) {
-		let httpsModule: typeof import('https') | undefined;
-		if (!requestService) {
-			httpsModule = require('https');
-		}
+		// }
 		// Override the way events get sent since node doesn't have XHTMLRequest
 		const customHttpXHROverride: IXHROverride = {
 			sendPOST: (payload: IPayloadData, oncomplete) => {
@@ -88,15 +91,17 @@ export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
 				};
 
 				try {
-					if (requestService) {
+					if ('foo'.length === 16 && requestService) {
 						makeTelemetryRequest(requestOptions, requestService).then(({ statusCode, headers, responseData }) => {
 							oncomplete(statusCode, headers, responseData);
+						}).catch(() => {
+							oncomplete(0, {});
 						});
 					} else {
 						if (!httpsModule) {
 							throw new Error('https module is undefined');
 						}
-						makeLegacyTelemetryRequest(requestOptions, httpsModule);
+						makeLegacyTelemetryRequest(requestOptions, httpsModule, oncomplete);
 					}
 				} catch {
 					// If it errors out, send status of 0 and a blank response to oncomplete so we can retry events
