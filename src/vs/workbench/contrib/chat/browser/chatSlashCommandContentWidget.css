@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-slash-command-content-widget {
-	padding: 0 0.4em;
+	padding: 1px 3px;
 	border-radius: 3px;
-	background-color: var(--vscode-textCodeBlock-background);
-	color: var(--vscode-textLink-foreground);
+	background-color: var(--vscode-chat-slashCommandBackground);
+	color: var(--vscode-chat-slashCommandForeground);
 }

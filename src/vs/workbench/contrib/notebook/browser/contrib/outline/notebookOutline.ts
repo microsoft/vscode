@@ -314,6 +314,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		this._onDidChange.dispose();
 		this._dispoables.dispose();
 		this._entriesDisposables.dispose();
+		this._outlineProvider?.dispose();
 	}
 }
 

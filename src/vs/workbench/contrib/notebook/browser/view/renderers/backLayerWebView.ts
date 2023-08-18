@@ -1543,6 +1543,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return;
 	}
 
+	async copyImage(output: ICellOutputViewModel): Promise<void> {
+		this._sendMessageToWebview({
+			type: 'copyImage',
+			outputId: output.model.outputId
+		});
+	}
+
 	removeInsets(outputs: readonly ICellOutputViewModel[]): void {
 		if (this._disposed) {
 			return;
@@ -1599,7 +1606,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this.webview?.focus();
 	}
 
-	focusOutput(cellId: string, viewFocused: boolean) {
+	focusOutput(cellOrOutputId: string, viewFocused: boolean) {
 		if (this._disposed) {
 			return;
 		}
@@ -1610,7 +1617,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 		this._sendMessageToWebview({
 			type: 'focus-output',
-			cellId,
+			cellOrOutputId: cellOrOutputId,
 		});
 	}
 

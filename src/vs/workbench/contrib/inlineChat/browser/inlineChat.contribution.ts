@@ -14,13 +14,13 @@ import { IInlineChatSessionService, InlineChatSessionService } from 'vs/workbenc
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { InlineChatNotebookContribution } from 'vs/workbench/contrib/inlineChat/browser/inlineChatNotebook';
-import { AccessibilityVerbositySettingId, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { localize } from 'vs/nls';
 import { Extensions, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 
 registerSingleton(IInlineChatService, InlineChatServiceImpl, InstantiationType.Delayed);
 registerSingleton(IInlineChatSessionService, InlineChatSessionService, InstantiationType.Delayed);
@@ -86,7 +86,7 @@ class InlineChatAccessibleViewContribution extends Disposable {
 					controller.focus();
 				},
 
-				options: { ariaLabel: localize('inlineChatAccessibleView', "Inline Chat Accessible View"), type: AccessibleViewType.View }
+				options: { type: AccessibleViewType.View }
 			});
 			return true;
 		}, ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED)));

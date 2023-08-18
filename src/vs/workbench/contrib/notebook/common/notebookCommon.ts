@@ -218,6 +218,7 @@ export interface ICellOutput {
 	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
 	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
+	asDto(): IOutputDto;
 	bumpVersion(): void;
 }
 
@@ -796,6 +797,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly notebook: INotebookTextModel | undefined;
+	readonly hasErrorState: boolean;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
 	isModified(): boolean;
@@ -1012,8 +1014,10 @@ export function compressOutputItemStreams(outputs: Uint8Array[]) {
 		}
 	}
 
-	const didCompression = compressStreamBuffer(buffers);
-	const data = formatStreamText(VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer))));
+	let didCompression = compressStreamBuffer(buffers);
+	const concatenated = VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer)));
+	const data = formatStreamText(concatenated);
+	didCompression = didCompression || data.byteLength !== concatenated.byteLength;
 	return { data, didCompression };
 }
 
