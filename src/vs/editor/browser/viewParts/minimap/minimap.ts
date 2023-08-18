@@ -1203,7 +1203,6 @@ class InnerMinimap extends Disposable {
 	private readonly _shadow: FastDomNode<HTMLElement>;
 	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _decorationsCanvas: FastDomNode<HTMLCanvasElement>;
-	private readonly _sectionHeadersCanvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _sliderHorizontal: FastDomNode<HTMLElement>;
 	private readonly _pointerDownListener: IDisposable;
@@ -1255,12 +1254,6 @@ class InnerMinimap extends Disposable {
 		this._decorationsCanvas.setClassName('minimap-decorations-layer');
 		this._decorationsCanvas.setLeft(0);
 		this._domNode.appendChild(this._decorationsCanvas);
-
-		this._sectionHeadersCanvas = createFastDomNode(document.createElement('canvas'));
-		this._sectionHeadersCanvas.setPosition('absolute');
-		this._sectionHeadersCanvas.setClassName('minimap-section-headers-layer');
-		this._sectionHeadersCanvas.setLeft(0);
-		this._domNode.appendChild(this._sectionHeadersCanvas);
 
 		this._slider = createFastDomNode(document.createElement('div'));
 		this._slider.setPosition('absolute');
@@ -1434,11 +1427,6 @@ class InnerMinimap extends Disposable {
 		this._decorationsCanvas.domNode.width = this._model.options.canvasInnerWidth;
 		this._decorationsCanvas.domNode.height = this._model.options.canvasInnerHeight;
 
-		this._sectionHeadersCanvas.setWidth(this._model.options.canvasOuterWidth);
-		this._sectionHeadersCanvas.setHeight(this._model.options.canvasOuterHeight);
-		this._sectionHeadersCanvas.domNode.width = this._model.options.canvasInnerWidth;
-		this._sectionHeadersCanvas.domNode.height = this._model.options.canvasInnerHeight;
-
 		this._slider.setWidth(this._model.options.minimapWidth);
 	}
 
@@ -1467,10 +1455,12 @@ class InnerMinimap extends Disposable {
 	}
 	public onSelectionChanged(): boolean {
 		this._renderDecorations = true;
+		this._renderSectionHeaders = true;
 		return true;
 	}
 	public onDecorationsChanged(): boolean {
 		this._renderDecorations = true;
+		this._renderSectionHeaders = true;
 		return true;
 	}
 	public onSectionHeadersChanged(): boolean {
@@ -2132,7 +2122,7 @@ class InnerMinimap extends Disposable {
 		const backgroundFillHeight = sectionHeaderFontSize * 1.5;
 		const startY = layout.getYForLineNumber(layout.startLineNumber, minimapLineHeight);
 		const endY = layout.getYForLineNumber(layout.endLineNumber, minimapLineHeight) + sectionHeaderFontSize;
-		const { canvasInnerWidth, canvasInnerHeight } = this._model.options;
+		const { canvasInnerWidth } = this._model.options;
 
 		const backgroundColor = this._model.options.backgroundColor;
 		const backgroundFill = `rgb(${backgroundColor.r} ${backgroundColor.g} ${backgroundColor.b})`;
@@ -2140,8 +2130,7 @@ class InnerMinimap extends Disposable {
 		const foregroundFill = `rgb(${foregroundColor.r} ${foregroundColor.g} ${foregroundColor.b})`;
 		const separatorStroke = foregroundFill;
 
-		const canvasContext = this._sectionHeadersCanvas.domNode.getContext('2d')!;
-		canvasContext.clearRect(0, 0, canvasInnerWidth, canvasInnerHeight);
+		const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
 		canvasContext.font = sectionHeaderFontSize + 'px ' + this._model.options.sectionHeaderFontFamily;
 		canvasContext.strokeStyle = separatorStroke;
 		canvasContext.lineWidth = 0.2;
