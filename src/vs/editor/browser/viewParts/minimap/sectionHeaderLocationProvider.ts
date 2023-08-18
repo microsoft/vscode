@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { FoldingMarkers } from 'vs/editor/common/languages/languageConfiguration';
+import { escapeRegExpCharacters, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 
@@ -28,49 +26,33 @@ export interface SectionHeader {
 
 export class SectionHeaderLocationProvider {
 
-	private readonly disposables: DisposableStore;
+	private readonly commentRegExps: { [languageId: string]: CommentRegExps } = {};
 
 	constructor(
 		private readonly model: ITextModel,
 		private readonly showRegionSectionHeaders: boolean,
 		private readonly showMarkSectionHeaders: boolean,
 		private readonly languageConfigurationService: ILanguageConfigurationService,
-	) {
-		this.disposables = new DisposableStore();
-	}
+	) { }
 
 	/**
-	 * Find lines that have section headers and return them in a sparse array.
+	 * Find section headers in the model.
 	 *
 	 * @param startLineNumber the first line number to compute from, inclusive
 	 * @param endLineNumber the last line number to compute from, inclusive
-	 * @returns a sparse array where one-based index are populated with the header
-	 * on the corresponding line
+	 * @returns an array of section headers
 	 */
-	compute(startLineNumber: number, endLineNumber: number): SectionHeader[] | null {
-		const headers: SectionHeader[] = [];
+	compute(startLineNumber: number, endLineNumber: number): SectionHeader[] {
+		let headers: SectionHeader[] = [];
 		if (this.showRegionSectionHeaders) {
 			const regionHeaders = this._collectRegionHeaders(startLineNumber, endLineNumber);
-			for (const header of regionHeaders) {
-				headers[header.lineNumber] = header;
-			}
+			headers = headers.concat(regionHeaders);
 		}
 		if (this.showMarkSectionHeaders) {
-			const markHeaders = collectMarkHeaders(startLineNumber, endLineNumber, this.model);
-			for (const header of markHeaders) {
-				headers[header.lineNumber] = header;
-			}
+			const markHeaders = this._collectMarkHeaders(startLineNumber, endLineNumber);
+			headers = headers.concat(markHeaders);
 		}
 		return headers;
-	}
-
-	dispose() {
-		this.disposables.dispose();
-	}
-
-	private _getFoldingMarkers(languageId: string): FoldingMarkers | undefined {
-		const foldingRules = this.languageConfigurationService.getLanguageConfiguration(languageId).foldingRules;
-		return foldingRules?.markers;
 	}
 
 	private _collectRegionHeaders(startLineNumber: number, endLineNumber: number): SectionHeader[] {
@@ -78,7 +60,8 @@ export class SectionHeaderLocationProvider {
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 			this.model.tokenization.tokenizeIfCheap(lineNumber);
 			const languageId = this.model.getLanguageIdAtPosition(lineNumber, 0);
-			const markers = this._getFoldingMarkers(languageId);
+			const foldingRules = this.languageConfigurationService.getLanguageConfiguration(languageId).foldingRules;
+			const markers = foldingRules?.markers;
 			if (!markers) {
 				continue;
 			}
@@ -87,39 +70,107 @@ export class SectionHeaderLocationProvider {
 			const match = lineContent.match(markers.start);
 			if (match) {
 				const headerText = lineContent.substring(match[0].length).trim();
-				regionHeaders?.push({ header: headerText, lineNumber: lineNumber, hasSeparatorLine: false });
+				regionHeaders.push({ header: headerText, lineNumber: lineNumber, hasSeparatorLine: false });
 			}
 		}
 		return regionHeaders;
 	}
 
-}
+	private _collectMarkHeaders(startLineNumber: number, endLineNumber: number): SectionHeader[] {
+		const markHeaders: SectionHeader[] = [];
+		let inBlockComment = false;
+		for (let lineNumber = 1; lineNumber <= endLineNumber; lineNumber++) {
+			this.model.tokenization.tokenizeIfCheap(lineNumber);
+			const languageId = this.model.getLanguageIdAtPosition(lineNumber, 0);
+			const commentRegExps = this._getCommentRegExps(languageId);
+			if (!commentRegExps) {
+				continue;
+			}
 
-const markRegex = /^\s*MARK:\s*(-)?/m;
+			let lineContent = this.model.getLineContent(lineNumber);
 
-function collectMarkHeaders(startLineNumber: number, endLineNumber: number, model: ITextModel): SectionHeader[] {
-	const markHeaders: SectionHeader[] = [];
-	for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-		const nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
-		if (nonWhitespaceColumn === 0) {
-			continue;
-		}
-
-		model.tokenization.tokenizeIfCheap(lineNumber);
-		const tokens = model.tokenization.getLineTokens(lineNumber);
-		if (tokens.getCount() > 0) {
-			const firstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhitespaceColumn);
-			if (firstNonWhitespaceTokenIndex >= 0 && tokens.getStandardTokenType(firstNonWhitespaceTokenIndex) === StandardTokenType.Comment) {
-				const commentEndOffset = tokens.getEndOffset(firstNonWhitespaceTokenIndex);
-				const commentText = model.getLineContent(lineNumber);
-				const match = commentText.substring(commentEndOffset).match(markRegex);
+			if (lineNumber >= startLineNumber && !inBlockComment && commentRegExps.lineCommentRegExp) {
+				commentRegExps.lineCommentRegExp.lastIndex = 0;
+				const match = commentRegExps.lineCommentRegExp.exec(lineContent);
 				if (match) {
-					const headerText = commentText.substring(commentEndOffset + match[0].length).trim();
-					const hasSeparatorLine = !!match[1];
-					markHeaders.push({ header: headerText, lineNumber: lineNumber, hasSeparatorLine: hasSeparatorLine });
+					addMarkHeaderIfFound(lineContent, lineNumber, markHeaders);
 				}
 			}
+
+			if (commentRegExps.startBlockCommentRegExp) {
+				if (!inBlockComment) {
+					const startBlockMatch = lastMatch(lineContent, commentRegExps.startBlockCommentRegExp);
+					if (startBlockMatch) {
+						inBlockComment = true;
+						lineContent = lineContent.substring(startBlockMatch.index + startBlockMatch[0].length);
+					}
+				}
+
+				if (inBlockComment) {
+					commentRegExps.endBlockCommentRegExp!.lastIndex = 0;
+					const endBlockMatch = commentRegExps.endBlockCommentRegExp!.exec(lineContent);
+					if (endBlockMatch) {
+						inBlockComment = false;
+						lineContent = lineContent.substring(0, endBlockMatch.index);
+					}
+
+					if (lineNumber >= startLineNumber) {
+						addMarkHeaderIfFound(lineContent, lineNumber, markHeaders);
+					}
+				}
+			}
+
 		}
+		return markHeaders;
 	}
-	return markHeaders;
+
+	private _getCommentRegExps(languageId: string): CommentRegExps | undefined {
+		if (!this.commentRegExps[languageId]) {
+			const comments = this.languageConfigurationService.getLanguageConfiguration(languageId).comments;
+			if (!comments) {
+				return undefined;
+			}
+
+			const regExps: CommentRegExps = {};
+			if (!isFalsyOrWhitespace(comments.lineCommentToken)) {
+				// only match line comments at the start of the line
+				regExps.lineCommentRegExp = new RegExp('^\\s*' + escapeRegExpCharacters(comments.lineCommentToken!));
+			}
+			if (!isFalsyOrWhitespace(comments.blockCommentStartToken) && !isFalsyOrWhitespace(comments.blockCommentEndToken)) {
+				regExps.startBlockCommentRegExp = new RegExp(escapeRegExpCharacters(comments.blockCommentStartToken!), 'g');
+				regExps.endBlockCommentRegExp = new RegExp(escapeRegExpCharacters(comments.blockCommentEndToken!), 'g');
+			}
+			this.commentRegExps[languageId] = regExps;
+		}
+		return this.commentRegExps[languageId];
+	}
+
+}
+
+interface CommentRegExps {
+	lineCommentRegExp?: RegExp;
+	startBlockCommentRegExp?: RegExp;
+	endBlockCommentRegExp?: RegExp;
+}
+
+const markRegex = /\bMARK:\s*(-\s*)?(.+)$/;
+
+function lastMatch(lineContent: string, regExp: RegExp): RegExpExecArray | null {
+	regExp.lastIndex = 0;
+	let match: RegExpExecArray | null = null;
+	let result: RegExpExecArray | null;
+	do {
+		result = match;
+		match = regExp.exec(lineContent);
+	} while (match);
+	return result;
+}
+
+function addMarkHeaderIfFound(lineContent: string, lineNumber: number, sectionHeaders: SectionHeader[]) {
+	markRegex.lastIndex = 0;
+	const match = markRegex.exec(lineContent);
+	if (match) {
+		const headerText = match[2];
+		sectionHeaders.push({ header: headerText, lineNumber: lineNumber, hasSeparatorLine: !!match[1] });
+	}
 }

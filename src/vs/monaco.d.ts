@@ -4285,7 +4285,7 @@ declare namespace monaco.editor {
 		readonly minimapLineHeight: number;
 		readonly minimapShowRegionSectionHeaders: boolean;
 		readonly minimapShowMarkSectionHeaders: boolean;
-		readonly minimapSectionLabelFontSize: number;
+		readonly minimapSectionHeaderFontSize: number;
 		readonly minimapCanvasInnerWidth: number;
 		readonly minimapCanvasInnerHeight: number;
 		readonly minimapCanvasOuterWidth: number;

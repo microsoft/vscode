@@ -2219,7 +2219,7 @@ export interface EditorMinimapLayoutInfo {
 	readonly minimapLineHeight: number;
 	readonly minimapShowRegionSectionHeaders: boolean;
 	readonly minimapShowMarkSectionHeaders: boolean;
-	readonly minimapSectionLabelFontSize: number;
+	readonly minimapSectionHeaderFontSize: number;
 	readonly minimapCanvasInnerWidth: number;
 	readonly minimapCanvasInnerHeight: number;
 	readonly minimapCanvasOuterWidth: number;
@@ -2349,7 +2349,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				minimapLineHeight: 1,
 				minimapShowRegionSectionHeaders: false,
 				minimapShowMarkSectionHeaders: false,
-				minimapSectionLabelFontSize: 11,
+				minimapSectionHeaderFontSize: 9,
 				minimapCanvasInnerWidth: 0,
 				minimapCanvasInnerHeight: Math.floor(pixelRatio * outerHeight),
 				minimapCanvasOuterWidth: 0,
@@ -2510,7 +2510,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			minimapLineHeight,
 			minimapShowRegionSectionHeaders,
 			minimapShowMarkSectionHeaders,
-			minimapSectionLabelFontSize,
+			minimapSectionHeaderFontSize: minimapSectionLabelFontSize,
 			minimapCanvasInnerWidth,
 			minimapCanvasInnerHeight,
 			minimapCanvasOuterWidth,
@@ -3104,7 +3104,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					description: nls.localize('minimap.showMarkSectionHeaders', "Controls whether MARK: comments are shown as section headers in the minimap.")
 				},
 				'editor.minimap.sectionHeaderFontSize': {
-					type: 'boolean',
+					type: 'number',
 					default: defaults.sectionHeaderFontSize,
 					description: nls.localize('minimap.sectionHeaderFontSize', "Controls the font size of section headers in the minimap.")
 				}
