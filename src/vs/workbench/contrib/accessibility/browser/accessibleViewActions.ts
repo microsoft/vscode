@@ -160,7 +160,7 @@ registerAction2(AccessibleViewDisableHintAction);
 class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 	constructor() {
 		super({
-			id: AccessibilityCommandId.AccessibleViewAcceptInlineCompletionAction,
+			id: AccessibilityCommandId.AccessibleViewAcceptInlineCompletion,
 			precondition: ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibilityVerbositySettingId.InlineCompletions)),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.Slash,
