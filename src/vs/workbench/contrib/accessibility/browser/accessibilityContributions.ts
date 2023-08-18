@@ -301,6 +301,13 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 				if (!ghostText) {
 					return false;
 				}
+				const accept = () => {
+					model.accept(editor).then(() => {
+						alert('Accepted');
+						model.stop();
+						editor.focus();
+					});
+				};
 				this._options.language = editor.getModel()?.getLanguageId() ?? undefined;
 				accessibleViewService.show({
 					verbositySettingKey: AccessibilityVerbositySettingId.InlineCompletions,
@@ -315,17 +322,18 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 					previous() {
 						model.previous().then(() => show());
 					},
+					onKeyDown: (e) => {
+						if (e.ctrlKey && e.browserEvent.key === '/') {
+							accept();
+						}
+					},
 					actions: [
 						{
 							id: 'inlineCompletions.accept',
-							label: localize('inlineCompletions.accept', "Accept Completion"),
-							tooltip: localize('inlineCompletions.accept', "Accept Completion"),
+							label: localize('inlineCompletions.accept', "Accept Completion (Ctrl+/)"),
+							tooltip: localize('inlineCompletions.accept', "Accept Completion (Ctrl+/)"),
 							run: () => {
-								model.accept(editor).then(() => {
-									alert('Accepted');
-									model.stop();
-									editor.focus();
-								});
+								accept();
 							},
 							class: ThemeIcon.asClassName(Codicon.check),
 							enabled: true
