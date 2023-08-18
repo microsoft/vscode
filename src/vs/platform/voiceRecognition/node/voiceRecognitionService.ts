@@ -39,6 +39,7 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 
 		const modulePath = process.env.VSCODE_VOICE_MODULE_PATH;
 		if (!modulePath) {
+			this.logService.error(`[voice] transcribe(${channelData.length}): Voice recognition not yet supported`);
 			throw new Error('Voice recognition not yet supported!');
 		}
 
