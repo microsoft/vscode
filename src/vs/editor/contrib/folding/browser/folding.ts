@@ -908,13 +908,13 @@ class UnfoldAllRegionsAction extends FoldingAction<void> {
 	}
 }
 
-class FoldAllRegionsExceptAction extends FoldingAction<void> {
+class FoldAllExceptAction extends FoldingAction<void> {
 
 	constructor() {
 		super({
 			id: 'editor.foldAllExcept',
-			label: nls.localize('foldAllExcept.label', "Fold All Regions Except Selected"),
-			alias: 'Fold All Regions Except Selected',
+			label: nls.localize('foldAllExcept.label', "Fold All Except Selected"),
+			alias: 'Fold All Except Selected',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -931,13 +931,13 @@ class FoldAllRegionsExceptAction extends FoldingAction<void> {
 
 }
 
-class UnfoldAllRegionsExceptAction extends FoldingAction<void> {
+class UnfoldAllExceptAction extends FoldingAction<void> {
 
 	constructor() {
 		super({
 			id: 'editor.unfoldAllExcept',
-			label: nls.localize('unfoldAllExcept.label', "Unfold All Regions Except Selected"),
-			alias: 'Unfold All Regions Except Selected',
+			label: nls.localize('unfoldAllExcept.label', "Unfold All Except Selected"),
+			alias: 'Unfold All Except Selected',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -1194,8 +1194,8 @@ registerEditorAction(UnfoldAllAction);
 registerEditorAction(FoldAllBlockCommentsAction);
 registerEditorAction(FoldAllRegionsAction);
 registerEditorAction(UnfoldAllRegionsAction);
-registerEditorAction(FoldAllRegionsExceptAction);
-registerEditorAction(UnfoldAllRegionsExceptAction);
+registerEditorAction(FoldAllExceptAction);
+registerEditorAction(UnfoldAllExceptAction);
 registerEditorAction(ToggleFoldAction);
 registerEditorAction(GotoParentFoldAction);
 registerEditorAction(GotoPreviousFoldAction);
