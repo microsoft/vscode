@@ -183,7 +183,8 @@ export class ModesHoverController implements IEditorContribution {
 			// though the hover is not sticky, the color picker needs to.
 			return true;
 		}
-		if (this._isHoverSticky
+		if (
+			this._isHoverSticky
 			&& target.type === MouseTargetType.OVERLAY_WIDGET
 			&& target.detail === MarginHoverWidget.ID
 		) {
