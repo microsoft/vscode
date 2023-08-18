@@ -13,7 +13,7 @@ export type TerminalContributionCtor = IConstructorSignature<ITerminalContributi
 export type DetachedTerminalContributionCtor = IConstructorSignature<ITerminalContribution, [IDetachedTerminalInstance, ITerminalProcessInfo, TerminalWidgetManager]>;
 
 export type ITerminalContributionDescription = { readonly id: string } & (
-	| { readonly canRunInDetachedTerminals: false; readonly ctor: TerminalContributionCtor | DetachedTerminalContributionCtor }
+	| { readonly canRunInDetachedTerminals: false; readonly ctor: TerminalContributionCtor }
 	| { readonly canRunInDetachedTerminals: true; readonly ctor: DetachedTerminalContributionCtor }
 );
 
