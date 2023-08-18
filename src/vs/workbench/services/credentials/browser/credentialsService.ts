@@ -41,8 +41,7 @@ export class BrowserCredentialsService extends Disposable implements ICredential
 			this.credentialsProvider = remoteCredentialsService;
 			this._secretStoragePrefix = remoteCredentialsService.getSecretStoragePrefix();
 		} else {
-			// fall back to InMemoryCredentialsProvider if none was given to us. This should really only be used
-			// when running tests.
+			// fall back to InMemoryCredentialsProvider if none was given to us.
 			this.credentialsProvider = environmentService.options?.credentialsProvider ?? new InMemoryCredentialsProvider();
 			this._secretStoragePrefix = Promise.resolve(this.productService.urlProtocol);
 		}
