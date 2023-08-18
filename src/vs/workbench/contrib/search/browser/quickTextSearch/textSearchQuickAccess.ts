@@ -12,12 +12,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IViewsService } from 'vs/workbench/common/views';
 import { searchOpenInFileIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { Match, MatchInNotebook, RenderableMatch, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
+import { FileMatch, Match, MatchInNotebook, RenderableMatch, SearchModel, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
 import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -75,8 +75,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		return this._configurationService.getValue<ISearchConfigurationProperties>('search');
 	}
 
-	private async doSearch(contentPattern: string): Promise<SearchResult | undefined> {
-
+	private doSearch(contentPattern: string): {
+		syncResults: FileMatch[];
+		asyncResults: Promise<FileMatch[]>;
+	} | undefined {
 		if (contentPattern === '') {
 			return undefined;
 		}
@@ -89,8 +91,17 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 		const query: ITextQuery = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), this._getTextQueryBuilderOptions(charsPerLine));
 
-		await this.searchModel.search(query, undefined);
-		return this.searchModel.searchResult;
+		const result = this.searchModel.searchSync(query, undefined);
+
+		const getAsyncResults = async () => {
+			await result.asyncResults;
+			const res = this.searchModel.searchResult.matches().filter(e => !result.syncResults.has(e.resource));
+			return res;
+		};
+		return {
+			syncResults: this.searchModel.searchResult.matches(),
+			asyncResults: getAsyncResults()
+		};
 	}
 
 	private moveToSearchViewlet(model: SearchModel, currentElem: RenderableMatch) {
@@ -107,21 +118,13 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		viewer.reveal(currentElem);
 	}
 
-	protected async _getPicks(contentPattern: string, disposables: DisposableStore, token: CancellationToken): Promise<(IQuickPickSeparator | IPickerQuickAccessItem)[]> {
+	private _getPicksFromMatches(matches: FileMatch[], limit: number): (IQuickPickSeparator | IPickerQuickAccessItem)[] {
+		matches = matches.sort(searchComparer);
 
-		const searchResult = await this.doSearch(contentPattern);
-
-		if (!searchResult) {
-			return [];
-		}
-
+		const files = matches.length > limit ? matches.splice(0, limit) : matches;
 		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
-
-		const matches = searchResult.matches();
-		const files = matches.length > MAX_FILES_SHOWN ? matches.splice(0, MAX_FILES_SHOWN) : matches;
-
 		for (let fileIndex = 0; fileIndex < matches.length; fileIndex++) {
-			if (fileIndex === MAX_FILES_SHOWN) {
+			if (fileIndex === limit) {
 
 				picks.push({
 					type: 'separator',
@@ -131,7 +134,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 					label: `$(ellipsis) See More Files`,
 					ariaLabel: `See More Files`,
 					accept: async () => {
-						this.moveToSearchViewlet(this.searchModel, matches[MAX_FILES_SHOWN]);
+						this.moveToSearchViewlet(this.searchModel, matches[limit]);
 					}
 				});
 				break;
@@ -194,10 +197,37 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 					},
 				});
 			}
+		}
+		return picks;
+	}
+	protected _getPicks(contentPattern: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicks<IQuickPickItem> {
 
+		const allMatches = this.doSearch(contentPattern);
+
+		if (!allMatches) {
+			return {
+				picks: [],
+				additionalPicks: Promise.resolve([])
+			};
+		}
+		const matches = allMatches.syncResults;
+		const syncResult = this._getPicksFromMatches(matches, MAX_FILES_SHOWN);
+
+		if (matches.length >= MAX_FILES_SHOWN) {
+			return {
+				picks: syncResult,
+				additionalPicks: Promise.resolve([])
+			};
 		}
 
-		return picks;
+		const bleh = allMatches.asyncResults.then((asyncResults) => {
+			return this._getPicksFromMatches(asyncResults, MAX_FILES_SHOWN - matches.length);
+		});
+
+		return {
+			picks: syncResult,
+			additionalPicks: bleh
+		};
 
 	}
 }

@@ -73,9 +73,9 @@ export class SearchService extends Disposable implements ISearchService {
 		});
 	}
 
-	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void, notebookURIs?: ResourceSet): Promise<ISearchComplete> {
+	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void, notebookURIs?: ResourceSet, ignoreOpenEditors?: boolean): Promise<ISearchComplete> {
 		// Get local results from dirty/untitled
-		const localResults = this.getLocalResults(query);
+		const localResults = ignoreOpenEditors ? this.getLocalResults(query) : { results: new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri)), limitHit: false };
 
 		if (onProgress) {
 			arrays.coalesce([...localResults.results.values()]).forEach(onProgress);
@@ -404,7 +404,7 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
-	private getLocalResults(query: ITextQuery): { results: ResourceMap<IFileMatch | null>; limitHit: boolean } {
+	getLocalResults(query: ITextQuery): { results: ResourceMap<IFileMatch | null>; limitHit: boolean } {
 		const localResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		let limitHit = false;
 
