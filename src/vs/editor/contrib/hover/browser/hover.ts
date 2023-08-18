@@ -55,9 +55,8 @@ export class ModesHoverController implements IEditorContribution {
 	private _isHoverEnabled!: boolean;
 	private _isHoverSticky!: boolean;
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
-	private _mouseMovedOnTop: boolean = false;
-	private _calculatingIfShouldDisappear: boolean = false;
-	private _hideWidgetHoveredOutside: NodeJS.Timeout | undefined;
+	private _mouseWasOverWidget: boolean = false;
+	private _hideWidgetsTimeout: NodeJS.Timeout | undefined;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -155,7 +154,7 @@ export class ModesHoverController implements IEditorContribution {
 		}
 	}
 
-	private _mouseMovedOverWidget(mouseEvent: IEditorMouseEvent): boolean {
+	private _isMouseOverWidget(mouseEvent: IEditorMouseEvent): boolean {
 		const target = mouseEvent.target;
 		if (
 			this._isHoverSticky
@@ -206,17 +205,16 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		const mouseMovedOnTopOfWidget = this._mouseMovedOverWidget(mouseEvent);
-		if (mouseMovedOnTopOfWidget && this._calculatingIfShouldDisappear) {
-			clearTimeout(this._hideWidgetHoveredOutside);
-			this._calculatingIfShouldDisappear = false;
-			this._mouseMovedOnTop = false;
-		}
-		if (this._calculatingIfShouldDisappear) {
+		const mouseIsOverWidget = this._isMouseOverWidget(mouseEvent);
+		if (mouseIsOverWidget) {
+			if (this._hideWidgetsTimeout) {
+				clearTimeout(this._hideWidgetsTimeout);
+				this._hideWidgetsTimeout = undefined;
+			}
+			this._mouseWasOverWidget = mouseIsOverWidget;
 			return;
 		}
-		if (mouseMovedOnTopOfWidget && this._mouseMovedOnTop !== mouseMovedOnTopOfWidget) {
-			this._mouseMovedOnTop = mouseMovedOnTopOfWidget;
+		if (this._hideWidgetsTimeout) {
 			return;
 		}
 
@@ -251,13 +249,14 @@ export class ModesHoverController implements IEditorContribution {
 		if (_sticky) {
 			return;
 		}
-		if (this._mouseMovedOnTop) {
-			this._calculatingIfShouldDisappear = true;
-			this._hideWidgetHoveredOutside = setTimeout(() => {
+		if (this._mouseWasOverWidget) {
+			// The mouse just left the content widget and a timeout is trigerred to hide the widget
+			// This timeout will be cancelled if the mouse re-enters the content widget
+			this._hideWidgetsTimeout = setTimeout(() => {
 				this._hideWidgets();
-				this._calculatingIfShouldDisappear = false;
+				this._hideWidgetsTimeout = undefined;
 			}, 1000);
-			this._mouseMovedOnTop = false;
+			this._mouseWasOverWidget = false;
 		} else {
 			this._hideWidgets();
 		}
