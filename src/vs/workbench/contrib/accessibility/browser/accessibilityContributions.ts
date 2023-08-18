@@ -301,13 +301,6 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 				if (!ghostText) {
 					return false;
 				}
-				const accept = () => {
-					model.accept(editor).then(() => {
-						alert('Accepted');
-						model.stop();
-						editor.focus();
-					});
-				};
 				this._options.language = editor.getModel()?.getLanguageId() ?? undefined;
 				accessibleViewService.show({
 					verbositySettingKey: AccessibilityVerbositySettingId.InlineCompletions,
@@ -322,29 +315,12 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 					previous() {
 						model.previous().then(() => show());
 					},
-					onKeyDown: (e) => {
-						if (e.ctrlKey && e.browserEvent.key === '/') {
-							accept();
-						}
-					},
-					actions: [
-						{
-							id: 'inlineCompletions.accept',
-							label: localize('inlineCompletions.accept', "Accept Completion (Ctrl+/)"),
-							tooltip: localize('inlineCompletions.accept', "Accept Completion (Ctrl+/)"),
-							run: () => {
-								accept();
-							},
-							class: ThemeIcon.asClassName(Codicon.check),
-							enabled: true
-						}
-					],
 					options: this._options
 				});
 				return true;
-			};
+			}; ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible);
 			return show();
-		}, ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible, EditorContextKeys.focus, EditorContextKeys.hasCodeActionsProvider)
+		},
 		)
 		);
 	}
