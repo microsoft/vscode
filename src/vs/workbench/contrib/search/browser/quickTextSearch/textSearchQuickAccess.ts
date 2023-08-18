@@ -27,7 +27,7 @@ import { IPatternInfo, ISearchConfigurationProperties, ITextQuery, VIEW_ID } fro
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '% ';
 
 const DEFAULT_TEXT_QUERY_BUILDER_OPTIONS: ITextQueryBuilderOptions = {
-	_reason: 'searchView',
+	_reason: 'quickAccessSearch',
 	disregardIgnoreFiles: false,
 	disregardExcludeSettings: false,
 	onlyOpenEditors: false,
@@ -94,8 +94,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 	}
 
 	private moveToSearchViewlet(model: SearchModel, currentElem: RenderableMatch) {
+		this._viewsService.openView(VIEW_ID, false);
 		const viewlet: SearchView | undefined = this._viewsService.getActiveViewWithId(VIEW_ID) as SearchView;
 		viewlet.importSearchResult(model);
+
 		const viewer: WorkbenchCompressibleObjectTree<RenderableMatch> | undefined = viewlet?.getControl();
 
 		viewer.setFocus([currentElem], getSelectionKeyboardEvent());
