@@ -203,6 +203,9 @@ class MinimapOptions {
 			&& this.fontScale === other.fontScale
 			&& this.minimapLineHeight === other.minimapLineHeight
 			&& this.minimapCharWidth === other.minimapCharWidth
+			&& this.showRegionSectionHeaders === other.showRegionSectionHeaders
+			&& this.showMarkSectionHeaders === other.showMarkSectionHeaders
+			&& this.sectionHeaderFontSize === other.sectionHeaderFontSize
 			&& this.defaultBackgroundColor && this.defaultBackgroundColor.equals(other.defaultBackgroundColor)
 			&& this.backgroundColor && this.backgroundColor.equals(other.backgroundColor)
 			&& this.foregroundAlpha === other.foregroundAlpha
@@ -837,11 +840,10 @@ export class Minimap extends ViewPart implements IMinimapModel {
 
 		this._headerLocationProvider = new SectionHeaderLocationProvider(
 			context.viewModel.model,
-			this.options.showRegionSectionHeaders,
-			this.options.showMarkSectionHeaders,
 			this.languageConfigurationService);
 
-		this.sectionHeaders = this._headerLocationProvider.compute(1, this._context.viewModel.getLineCount());
+		this.sectionHeaders = this._headerLocationProvider.compute(1, this._context.viewModel.getLineCount(),
+			this.options.showRegionSectionHeaders, this.options.showMarkSectionHeaders);
 		this.sectionHeaders?.sort((a, b) => a.lineNumber - b.lineNumber);
 
 		this._actual = new InnerMinimap(context.theme, this);
@@ -863,7 +865,8 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		}
 		this.options = opts;
 		this._recreateLineSampling();
-		this.sectionHeaders = this._headerLocationProvider.compute(1, this._context.viewModel.getLineCount());
+		this.sectionHeaders = this._headerLocationProvider.compute(1, this._context.viewModel.getLineCount(),
+			this.options.showRegionSectionHeaders, this.options.showMarkSectionHeaders);
 		this.sectionHeaders?.sort((a, b) => a.lineNumber - b.lineNumber);
 		this._actual.onDidChangeOptions();
 		return true;
@@ -955,7 +958,8 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 	public override onTokensColorsChanged(e: viewEvents.ViewTokensColorsChangedEvent): boolean {
 		if (!this._onOptionsMaybeChanged()) {
-			this.sectionHeaders = this._headerLocationProvider.compute(1, this._context.viewModel.getLineCount());
+			this.sectionHeaders = this._headerLocationProvider.compute(1, this._context.viewModel.getLineCount(),
+				this.options.showRegionSectionHeaders, this.options.showMarkSectionHeaders);
 			this.sectionHeaders?.sort((a, b) => a.lineNumber - b.lineNumber);
 		}
 		return this._actual.onTokensColorsChanged();
@@ -1031,7 +1035,8 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	private _maybeChangeSectionHeaders(startLineNumber: number, endLineNumber: number): void {
 		let changed = this._removeSectionHeaders(startLineNumber, endLineNumber);
 
-		const sectionHeaders = this._headerLocationProvider.compute(startLineNumber, endLineNumber);
+		const sectionHeaders = this._headerLocationProvider.compute(startLineNumber, endLineNumber,
+			this.options.showRegionSectionHeaders, this.options.showMarkSectionHeaders);
 		sectionHeaders.forEach(sectionHeader => {
 			changed = true;
 			this.sectionHeaders.push(sectionHeader);
@@ -1046,7 +1051,8 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	private _maybeInsertSectionHeaders(startLineNumber: number, endLineNumber: number): void {
 		let changed = this._adjustSectionHeaders(startLineNumber, endLineNumber - startLineNumber + 1);
 
-		const sectionHeaders = this._headerLocationProvider.compute(startLineNumber, endLineNumber);
+		const sectionHeaders = this._headerLocationProvider.compute(startLineNumber, endLineNumber,
+			this.options.showRegionSectionHeaders, this.options.showMarkSectionHeaders);
 		sectionHeaders.forEach(sectionHeader => {
 			changed = true;
 			this.sectionHeaders.push(sectionHeader);
@@ -1455,6 +1461,7 @@ class InnerMinimap extends Disposable {
 	public onDidChangeOptions(): void {
 		this._lastRenderData = null;
 		this._buffers = null;
+		this._renderSectionHeaders = true;
 		this._applyLayout();
 		this._domNode.setClassName(this._getMinimapDomNodeClassName());
 	}
@@ -2131,11 +2138,12 @@ class InnerMinimap extends Disposable {
 		const backgroundFill = `rgb(${backgroundColor.r} ${backgroundColor.g} ${backgroundColor.b})`;
 		const foregroundColor = this._model.options.sectionHeaderFontColor;
 		const foregroundFill = `rgb(${foregroundColor.r} ${foregroundColor.g} ${foregroundColor.b})`;
-		const separatorFill = foregroundFill;
+		const separatorStroke = foregroundFill;
 
 		const canvasContext = this._sectionHeadersCanvas.domNode.getContext('2d')!;
 		canvasContext.clearRect(0, 0, canvasInnerWidth, canvasInnerHeight);
 		canvasContext.font = sectionHeaderFontSize + 'px ' + this._model.options.sectionHeaderFontFamily;
+		canvasContext.strokeStyle = separatorStroke;
 		canvasContext.lineWidth = 0.2;
 
 		// Render section headers
@@ -2156,7 +2164,6 @@ class InnerMinimap extends Disposable {
 				sectionHeader,
 				backgroundFill,
 				foregroundFill,
-				separatorFill,
 				canvasInnerWidth,
 				backgroundFillY,
 				backgroundFillHeight,
@@ -2170,7 +2177,6 @@ class InnerMinimap extends Disposable {
 		sectionHeader: SectionHeader,
 		backgroundFill: string,
 		foregroundFill: string,
-		separatorFill: string,
 		minimapWidth: number,
 		backgroundFillY: number,
 		backgroundFillHeight: number,
@@ -2186,7 +2192,6 @@ class InnerMinimap extends Disposable {
 		target.fillRect(0, backgroundFillY, minimapWidth, backgroundFillHeight);
 
 		if (sectionHeader.hasSeparatorLine) {
-			target.fillStyle = separatorFill;
 			target.beginPath();
 			target.moveTo(0, separatorY);
 			target.lineTo(minimapWidth, separatorY);

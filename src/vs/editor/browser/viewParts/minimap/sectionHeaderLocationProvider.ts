@@ -30,8 +30,6 @@ export class SectionHeaderLocationProvider {
 
 	constructor(
 		private readonly model: ITextModel,
-		private readonly showRegionSectionHeaders: boolean,
-		private readonly showMarkSectionHeaders: boolean,
 		private readonly languageConfigurationService: ILanguageConfigurationService,
 	) { }
 
@@ -40,15 +38,17 @@ export class SectionHeaderLocationProvider {
 	 *
 	 * @param startLineNumber the first line number to compute from, inclusive
 	 * @param endLineNumber the last line number to compute from, inclusive
+	 * @param showRegionSectionHeaders whether to show section headers from regions
+	 * @param showMarkSectionHeaders whether to show section headers from MARK comments
 	 * @returns an array of section headers
 	 */
-	compute(startLineNumber: number, endLineNumber: number): SectionHeader[] {
+	compute(startLineNumber: number, endLineNumber: number, showRegionSectionHeaders: boolean, showMarkSectionHeaders: boolean): SectionHeader[] {
 		let headers: SectionHeader[] = [];
-		if (this.showRegionSectionHeaders) {
+		if (showRegionSectionHeaders) {
 			const regionHeaders = this._collectRegionHeaders(startLineNumber, endLineNumber);
 			headers = headers.concat(regionHeaders);
 		}
-		if (this.showMarkSectionHeaders) {
+		if (showMarkSectionHeaders) {
 			const markHeaders = this._collectMarkHeaders(startLineNumber, endLineNumber);
 			headers = headers.concat(markHeaders);
 		}
