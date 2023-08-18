@@ -35,10 +35,15 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel }): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		let outputViewModel: ICellOutputViewModel | undefined;
+		const notebookEditor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 
+		if (!notebookEditor) {
+			return;
+		}
+
+		let outputViewModel: ICellOutputViewModel | undefined;
 		if ('outputId' in outputContext && typeof outputContext.outputId === 'string') {
-			outputViewModel = getOutputViewModelFromId(outputContext.outputId, editorService);
+			outputViewModel = getOutputViewModelFromId(outputContext.outputId, notebookEditor);
 		} else {
 			outputViewModel = outputContext.outputViewModel;
 		}
@@ -50,9 +55,9 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 		const mimeType = outputViewModel.pickedMimeType?.mimeType;
 
 		if (mimeType?.startsWith('image/')) {
-			const editor = editorService.activeEditorPane?.getControl() as INotebookEditor;
-			await editor.focusNotebookCell(outputViewModel.cellViewModel as ICellViewModel, 'output', { skipReveal: true, outputId: outputViewModel.model.outputId });
-			editor.copyOutputImage(outputViewModel);
+			const focusOptions = { skipReveal: true, outputId: outputViewModel.model.outputId };
+			await notebookEditor.focusNotebookCell(outputViewModel.cellViewModel as ICellViewModel, 'output', focusOptions);
+			notebookEditor.copyOutputImage(outputViewModel);
 		} else {
 			const clipboardService = accessor.get(IClipboardService);
 			const logService = accessor.get(ILogService);
@@ -63,8 +68,8 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 });
 
-function getOutputViewModelFromId(outputId: string, editorService: IEditorService): ICellOutputViewModel | undefined {
-	const notebookViewModel = getNotebookEditorFromEditorPane(editorService.activeEditorPane)?.getViewModel();
+function getOutputViewModelFromId(outputId: string, notebookEditor: INotebookEditor): ICellOutputViewModel | undefined {
+	const notebookViewModel = notebookEditor.getViewModel();
 	if (notebookViewModel) {
 		const codeCells = notebookViewModel.viewCells.filter(cell => cell.cellKind === CellKind.Code) as CodeCellViewModel[];
 		for (const cell of codeCells) {
