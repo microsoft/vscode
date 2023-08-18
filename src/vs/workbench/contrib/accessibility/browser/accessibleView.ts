@@ -367,8 +367,9 @@ class AccessibleView extends Disposable {
 				e.stopPropagation();
 			}
 		}));
-		disposableStore.add(addDisposableListener(this._toolbar.getElement(), 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'Escape') {
+		disposableStore.add(addDisposableListener(this._toolbar.getElement(), DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const keyboardEvent = new StandardKeyboardEvent(e);
+		        if (keyboardEvent.equals(KeyCode.Escape)) {
 				handleEscape(e);
 			}
 		}));
