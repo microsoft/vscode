@@ -5,15 +5,14 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
-import { IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IssueReporterData } from 'vs/platform/issue/common/issue';
 import { userAgent } from 'vs/base/common/platform';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class WebIssueService implements IWorkbenchIssueService {
@@ -22,7 +21,7 @@ export class WebIssueService implements IWorkbenchIssueService {
 	private readonly _handlers = new Map<string, IIssueUriRequestHandler>();
 
 	constructor(
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService
 	) { }
@@ -33,35 +32,37 @@ export class WebIssueService implements IWorkbenchIssueService {
 	}
 
 	async openReporter(options: Partial<IssueReporterData>): Promise<void> {
-		let repositoryUrl = this.productService.reportIssueUrl;
-		let selectedExtension: ILocalExtension | undefined;
-		if (options.extensionId) {
-			if (this._handlers.has(options.extensionId)) {
-				try {
-					const uri = await this.getIssueReporterUri(options.extensionId, CancellationToken.None);
-					repositoryUrl = uri.toString(true);
-				} catch (e) {
-					this.logService.error(e);
-				}
+		const extensionId = options.extensionId;
+		// If we don't have a extensionId, treat this as a Core issue
+		if (!extensionId) {
+			if (this.productService.reportIssueUrl) {
+				const uri = this.getIssueUriFromStaticContent(this.productService.reportIssueUrl);
+				dom.windowOpenNoOpener(uri);
+				return;
 			}
+			throw new Error(`No issue reporting URL configured for ${this.productService.nameLong}.`);
+		}
 
-			// if we don't have a handler, or the handler failed, try to get the extension's github url
-			if (!repositoryUrl) {
-				const extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-				selectedExtension = extensions.filter(ext => ext.identifier.id === options.extensionId)[0];
-				const extensionGitHubUrl = this.getExtensionGitHubUrl(selectedExtension);
-				if (extensionGitHubUrl) {
-					repositoryUrl = `${extensionGitHubUrl}/issues/new`;
-				}
+		// If we have a handler registered for this extension, use it instead of anything else
+		if (this._handlers.has(extensionId)) {
+			try {
+				const uri = await this.getIssueUriFromHandler(extensionId, CancellationToken.None);
+				dom.windowOpenNoOpener(uri);
+				return;
+			} catch (e) {
+				this.logService.error(e);
 			}
 		}
 
-		if (repositoryUrl) {
-			repositoryUrl = `${repositoryUrl}?body=${encodeURIComponent(await this.getIssueDescription(selectedExtension))}&labels=web`;
-			dom.windowOpenNoOpener(repositoryUrl);
-		} else {
-			throw new Error(`Unable to find issue reporting url for ${options.extensionId}`);
+		// if we don't have a handler, or the handler failed, try to get the extension's github url
+		const selectedExtension = this.extensionService.extensions.filter(ext => ext.identifier.value === options.extensionId)[0];
+		const extensionGitHubUrl = this.getExtensionGitHubUrl(selectedExtension);
+		if (!extensionGitHubUrl) {
+			throw new Error(`Unable to find issue reporting url for ${extensionId}`);
 		}
+
+		const uri = this.getIssueUriFromStaticContent(`${extensionGitHubUrl}/issues/new`, selectedExtension);
+		dom.windowOpenNoOpener(uri);
 	}
 
 	registerIssueUriRequestHandler(extensionId: string, handler: IIssueUriRequestHandler): IDisposable {
@@ -69,19 +70,24 @@ export class WebIssueService implements IWorkbenchIssueService {
 		return toDisposable(() => this._handlers.delete(extensionId));
 	}
 
-	private async getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<URI> {
+	private async getIssueUriFromHandler(extensionId: string, token: CancellationToken): Promise<string> {
 		const handler = this._handlers.get(extensionId);
 		if (!handler) {
 			throw new Error(`No handler registered for extension ${extensionId}`);
 		}
-		return handler.provideIssueUrl(token);
+		const result = await handler.provideIssueUrl(token);
+		return result.toString(true);
 	}
 
-	private getExtensionGitHubUrl(extension: ILocalExtension): string {
+	private getExtensionGitHubUrl(extension: IExtensionDescription): string {
+		if (extension.isBuiltin && this.productService.reportIssueUrl) {
+			return normalizeGitHubUrl(this.productService.reportIssueUrl);
+		}
+
 		let repositoryUrl = '';
 
-		const bugsUrl = extension?.manifest.bugs?.url;
-		const extensionUrl = extension?.manifest.repository?.url;
+		const bugsUrl = extension?.bugs?.url;
+		const extensionUrl = extension?.repository?.url;
 
 		// If given, try to match the extension's bug url
 		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
@@ -93,14 +99,16 @@ export class WebIssueService implements IWorkbenchIssueService {
 		return repositoryUrl;
 	}
 
-	private async getIssueDescription(extension: ILocalExtension | undefined): Promise<string> {
-		return `ADD ISSUE DESCRIPTION HERE
+	private getIssueUriFromStaticContent(baseUri: string, extension?: IExtensionDescription): string {
+		const issueDescription = `ADD ISSUE DESCRIPTION HERE
 
 Version: ${this.productService.version}
 Commit: ${this.productService.commit ?? 'unknown'}
 User Agent: ${userAgent ?? 'unknown'}
 Embedder: ${this.productService.embedderIdentifier ?? 'unknown'}
-${extension?.manifest.version ? `\nExtension version: ${extension.manifest.version}` : ''}
+${extension?.version ? `\nExtension version: ${extension.version}` : ''}
 <!-- generated by web issue reporter -->`;
+
+		return `${baseUri}?body=${encodeURIComponent(issueDescription)}&labels=web`;
 	}
 }

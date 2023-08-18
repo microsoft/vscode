@@ -7,16 +7,19 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { format } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShellIntegrationStatus, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { IAccessibleContentProvider, IAccessibleViewOptions } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Terminal } from 'xterm';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import type { Terminal } from 'xterm';
 
 export const enum ClassName {
-	AccessibleBuffer = 'terminal-accessibility-help',
 	Active = 'active',
 	EditorTextArea = 'textarea'
 }
@@ -26,18 +29,27 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 	private readonly _hasShellIntegration: boolean = false;
 
 	onClose() {
-		this._instance.focus();
+		if (this._contextKeyService.getContextKeyValue<boolean>(TerminalContextKeys.accessibleBufferFocus.key) === true) {
+			this._commandService.executeCommand(TerminalCommandId.FocusAccessibleBuffer);
+		} else {
+			this._instance.focus();
+		}
 		this.dispose();
 	}
-	options: IAccessibleViewOptions = { ariaLabel: localize('terminal-help-label', "terminal accessibility help") };
-	id: string = 'terminal';
+	options: IAccessibleViewOptions = {
+		type: AccessibleViewType.Help,
+		readMoreUrl: 'https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility'
+	};
+	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
 
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'focus'>,
 		_xterm: Pick<IXtermTerminal, 'getFont' | 'shellIntegration'> & { raw: Terminal },
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
 		this._hasShellIntegration = _xterm.shellIntegration.status === ShellIntegrationStatus.VSCode;
@@ -75,7 +87,6 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 		content.push(this._descriptionForCommand(TerminalCommandId.OpenDetectedLink, localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.'), localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.')));
 		content.push(this._descriptionForCommand(TerminalCommandId.NewWithProfile, localize('newWithProfile', 'The Create New Terminal (With Profile) ({0}) command allows for easy terminal creation using a specific profile.'), localize('newWithProfileNoKb', 'The Create New Terminal (With Profile) command allows for easy terminal creation using a specific profile and is currently not triggerable by a keybinding.')));
 		content.push(localize('accessibilitySettings', 'Access accessibility settings such as `terminal.integrated.tabFocusMode` via the Preferences: Open Accessibility Settings command.'));
-		content.push(localize('readMore', '[Read more about terminal accessibility](https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility)'));
 		return content.join('\n');
 	}
 }

@@ -36,7 +36,7 @@ declare namespace monaco {
 		/**
 		 * Create a trusted types policy (same API as window.trustedTypes.createPolicy)
 		 */
-		createTrustedTypesPolicy(
+		createTrustedTypesPolicy?(
 			policyName: string,
 			policyOptions?: ITrustedTypePolicyOptions,
 		): undefined | ITrustedTypePolicy;

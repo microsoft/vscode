@@ -54,7 +54,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 	private readonly _resolver: CodeActionKeybindingResolver;
 
-	#disposed = false;
+	private _disposed = false;
 
 	constructor(
 		editor: ICodeEditor,
@@ -89,12 +89,16 @@ export class CodeActionController extends Disposable implements IEditorContribut
 	}
 
 	override dispose() {
-		this.#disposed = true;
+		this._disposed = true;
 		super.dispose();
 	}
 
 	public showCodeActions(_trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
 		return this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: false });
+	}
+
+	public hideCodeActions(): void {
+		this._actionWidgetService.hide();
 	}
 
 	public manualTriggerAtCurrentPosition(
@@ -126,6 +130,10 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		}
 	}
 
+	public hideLightBulbWidget(): void {
+		this._lightBulbWidget.rawValue?.hide();
+	}
+
 	private async update(newState: CodeActionsState.State): Promise<void> {
 		if (newState.type !== CodeActionsState.Type.Triggered) {
 			this._lightBulbWidget.rawValue?.hide();
@@ -140,7 +148,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			return;
 		}
 
-		if (this.#disposed) {
+		if (this._disposed) {
 			return;
 		}
 

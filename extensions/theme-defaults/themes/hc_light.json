@@ -27,11 +27,7 @@
 			}
 		},
 		{
-			"name": "Comments",
-			"scope": [
-				"comment",
-				"string.quoted.docstring"
-			],
+			"scope": "comment",
 			"settings": {
 				"foreground": "#515151"
 			}
@@ -566,5 +562,8 @@
 				"foreground": "#800080"
 			}
 		}
-	]
+	],
+	"colors": {
+		"actionBar.toggledBackground": "#dddddd"
+	}
 }

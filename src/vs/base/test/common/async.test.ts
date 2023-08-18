@@ -155,6 +155,40 @@ suite('Async', () => {
 
 			return Promise.all(promises);
 		});
+
+		test('disposal after queueing', async () => {
+			let factoryCalls = 0;
+			const factory = async () => {
+				factoryCalls++;
+				return async.timeout(0);
+			};
+
+			const throttler = new async.Throttler();
+			const promises: Promise<any>[] = [];
+
+			promises.push(throttler.queue(factory));
+			promises.push(throttler.queue(factory));
+			throttler.dispose();
+
+			await Promise.all(promises);
+			assert.strictEqual(factoryCalls, 1);
+		});
+
+		test('disposal before queueing', async () => {
+			let factoryCalls = 0;
+			const factory = async () => {
+				factoryCalls++;
+				return async.timeout(0);
+			};
+
+			const throttler = new async.Throttler();
+			const promises: Promise<any>[] = [];
+
+			throttler.dispose();
+			assert.throws(() => promises.push(throttler.queue(factory)));
+			assert.strictEqual(factoryCalls, 0);
+			await Promise.all(promises);
+		});
 	});
 
 	suite('Delayer', function () {
@@ -220,6 +254,12 @@ suite('Async', () => {
 				} catch (err) {
 					// OK
 				}
+			});
+
+			test('trigger after dispose throws', async () => {
+				const throttledDelayer = new async.ThrottledDelayer<void>(100);
+				throttledDelayer.dispose();
+				await assert.rejects(() => throttledDelayer.trigger(async () => { }, 0));
 			});
 		});
 

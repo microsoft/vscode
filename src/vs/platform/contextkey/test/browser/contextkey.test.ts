@@ -83,7 +83,7 @@ suite('ContextKeyService', () => {
 		const disposables = new DisposableStore();
 		const configurationService: IConfigurationService = new TestConfigurationService();
 		const contextKeyService: IContextKeyService = disposables.add(new ContextKeyService(configurationService));
-		const instantiationService = new TestInstantiationService(new ServiceCollection(
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IConfigurationService, configurationService],
 			[IContextKeyService, contextKeyService],
 			[ITelemetryService, new class extends mock<ITelemetryService>() {
@@ -91,7 +91,7 @@ suite('ContextKeyService', () => {
 					//
 				}
 			}]
-		));
+		)));
 
 		const uri = URI.parse('test://abc');
 		contextKeyService.createKey<string>('notebookCellResource', undefined).set(uri.toString());
@@ -99,6 +99,7 @@ suite('ContextKeyService', () => {
 
 		const expr = ContextKeyExpr.in('notebookCellResource', 'jupyter.runByLineCells');
 		assert.deepStrictEqual(contextKeyService.contextMatchesRules(expr), true);
+		disposables.dispose();
 	});
 
 	test('suppress update event from parent when one key is overridden by child', () => {

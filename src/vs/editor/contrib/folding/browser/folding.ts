@@ -311,7 +311,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				if (!foldingModel) { // null if editor has been disposed, or folding turned off
 					return null;
 				}
-				const sw = new StopWatch(true);
+				const sw = new StopWatch();
 				const provider = this.getRangeProvider(foldingModel.textModel);
 				const foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => provider.compute(token));
 				return foldingRegionPromise.then(foldingRanges => {
@@ -407,7 +407,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		switch (e.target.type) {
 			case MouseTargetType.GUTTER_LINE_DECORATIONS: {
 				const data = e.target.detail;
-				const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
+				const offsetLeftInGutter = e.target.element!.offsetLeft;
 				const gutterOffsetX = data.offsetX - offsetLeftInGutter;
 
 				// const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
@@ -1269,4 +1269,3 @@ CommandsRegistry.registerCommand('_executeFoldingRangeProvider', async function 
 		rangeProvider.dispose();
 	}
 });
-

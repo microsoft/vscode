@@ -30,7 +30,10 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { isMacintosh } from 'vs/base/common/platform';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 
 const $ = dom.$;
 
@@ -59,6 +62,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private followupsDisposables = this._register(new DisposableStore());
 
 	private _inputEditor!: CodeEditorWidget;
+	private _inputEditorElement!: HTMLElement;
+
 	public get inputEditor() {
 		return this._inputEditor;
 	}
@@ -73,12 +78,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
+		private readonly options: { renderFollowups: boolean; renderStyle?: 'default' | 'compact' },
 		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 
@@ -95,8 +102,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _getAriaLabel(): string {
 		const verbose = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat);
 		if (verbose) {
-			const kbLabel = this.keybindingService.lookupKeybinding('chat.action.accessibilityHelp')?.getLabel();
-			return kbLabel ? localize('actions.chat.accessibiltyHelp', "Chat Input,  Type code here and press enter to run. Use {0} for Chat Accessibility Help.", kbLabel) : localize('chatInput.accessibilityHelpNoKb', "Chat Input,  Type code here and press Enter to run. Use the Chat Accessibility Help command for more information.");
+			const kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
+			return kbLabel ? localize('actions.chat.accessibiltyHelp', "Chat Input,  Type to ask questions or type / for topics, press enter to send out the request. Use {0} for Chat Accessibility Help.", kbLabel) : localize('chatInput.accessibilityHelpNoKb', "Chat Input,  Type code here and press Enter to run. Use the Chat Accessibility Help command for more information.");
 		}
 		return localize('chatInput', "Chat Input");
 	}
@@ -148,15 +155,33 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.history.add(editorValue);
 		}
 
-		this._inputEditor.focus();
+		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
+			this._acceptInputForVoiceover();
+		} else {
+			this._inputEditor.focus();
+			this._inputEditor.setValue('');
+		}
+	}
+
+	private _acceptInputForVoiceover(): void {
+		const domNode = this._inputEditor.getDomNode();
+		if (!domNode) {
+			return;
+		}
+		// Remove the input editor from the DOM temporarily to prevent VoiceOver
+		// from reading the cleared text (the request) to the user.
+		this._inputEditorElement.removeChild(domNode);
 		this._inputEditor.setValue('');
+		this._inputEditorElement.appendChild(domNode);
+		this._inputEditor.focus();
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this.container = dom.append(container, $('.interactive-input-part'));
-		this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
 
-		const inputContainer = dom.append(this.container, $('.interactive-input-and-toolbar'));
+		this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
+		const inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
+		const inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		CONTEXT_IN_CHAT_INPUT.bindTo(inputScopedContextKeyService).set(true);
@@ -168,21 +193,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			historyNavigationForwardsEnablement.set(enabled);
 		};
 
-		const options = getSimpleEditorOptions();
+		const options = getSimpleEditorOptions(this.configurationService);
 		options.readOnly = false;
 		options.ariaLabel = this._getAriaLabel();
 		options.fontFamily = DEFAULT_FONT_FAMILY;
 		options.fontSize = 13;
 		options.lineHeight = 20;
-		options.padding = { top: 8, bottom: 7 };
+		options.padding = this.options.renderStyle === 'compact' ? { top: 2, bottom: 2 } : { top: 8, bottom: 8 };
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };
 		options.suggest = { showIcons: false };
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 
-		const inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
-		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputEditorElement, options, getSimpleCodeEditorWidgetOptions()));
+		this._inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
+		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, getSimpleCodeEditorWidgetOptions()));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT);
@@ -216,6 +241,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		toolbar.getElement().classList.add('interactive-execute-toolbar');
 		toolbar.context = <IChatExecuteActionContext>{ widget };
 
+		if (this.options.renderStyle === 'compact') {
+			const toolbarSide = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputAndSideToolbar, MenuId.ChatInputSide, {
+				menuOptions: {
+					shouldForwardArgs: true
+				}
+			}));
+			toolbarSide.getElement().classList.add('chat-side-toolbar');
+			toolbarSide.context = <IChatExecuteActionContext>{ widget };
+		}
+
 		this.inputModel = this.modelService.getModel(this.inputUri) || this.modelService.createModel('', null, this.inputUri, true);
 		this.inputModel.updateOptions({ bracketColorizationOptions: { enabled: false, independentColorPoolPerBracketType: false } });
 		this._inputEditor.setModel(this.inputModel);
@@ -227,6 +262,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	async renderFollowups(items?: IChatReplyFollowup[]): Promise<void> {
+		if (!this.options.renderFollowups) {
+			return;
+		}
 		this.followupsDisposables.clear();
 		dom.clearNode(this.followupsContainer);
 
@@ -243,18 +281,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const followupsHeight = this.followupsContainer.offsetHeight;
 
 		const inputPartBorder = 1;
-		const inputPartPadding = 24;
-		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), height - followupsHeight - inputPartPadding - inputPartBorder, INPUT_EDITOR_MAX_HEIGHT);
+		const inputPartHorizontalPadding = 40;
+		const inputPartVerticalPadding = 24;
+		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), height - followupsHeight - inputPartHorizontalPadding - inputPartBorder, INPUT_EDITOR_MAX_HEIGHT);
 
 		const inputEditorBorder = 2;
-		const inputPartHeight = followupsHeight + inputEditorHeight + inputPartPadding + inputPartBorder + inputEditorBorder;
+		const inputPartHeight = followupsHeight + inputEditorHeight + inputPartVerticalPadding + inputPartBorder + inputEditorBorder;
 
 		const editorBorder = 2;
 		const editorPadding = 8;
 		const executeToolbarWidth = 25;
+		const sideToolbarWidth = this.options.renderStyle === 'compact' ? 20 : 0;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		this._inputEditor.layout({ width: width - inputPartPadding - editorBorder - editorPadding - executeToolbarWidth, height: inputEditorHeight });
+		this._inputEditor.layout({ width: width - inputPartHorizontalPadding - editorBorder - editorPadding - executeToolbarWidth - sideToolbarWidth, height: inputEditorHeight });
 
 		if (allowRecurse && initialEditorScrollWidth < 10) {
 			// This is probably the initial layout. Now that the editor is layed out with its correct width, it should report the correct contentHeight

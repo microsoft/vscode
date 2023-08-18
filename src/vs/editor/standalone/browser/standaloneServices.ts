@@ -1039,7 +1039,7 @@ class StandaloneContextMenuService extends ContextMenuService {
 
 class StandaloneAudioService implements IAudioCueService {
 	_serviceBrand: undefined;
-	async playAudioCue(cue: AudioCue, allowManyInParallel?: boolean | undefined): Promise<void> {
+	async playAudioCue(cue: AudioCue, options: {}): Promise<void> {
 	}
 
 	async playAudioCues(cues: AudioCue[]): Promise<void> {
@@ -1054,6 +1054,9 @@ class StandaloneAudioService implements IAudioCueService {
 	}
 
 	async playSound(cue: Sound, allowManyInParallel?: boolean | undefined): Promise<void> {
+	}
+	playAudioCueLoop(cue: AudioCue): IDisposable {
+		return toDisposable(() => { });
 	}
 }
 
@@ -1123,6 +1126,7 @@ export module StandaloneServices {
 	}
 
 	let initialized = false;
+	const onDidInitialize = new Emitter<void>();
 	export function initialize(overrides: IEditorOverrideServices): IInstantiationService {
 		if (initialized) {
 			return instantiationService;
@@ -1158,6 +1162,27 @@ export module StandaloneServices {
 			}
 		}
 
+		onDidInitialize.fire();
+
 		return instantiationService;
 	}
+
+	/**
+	 * Executes callback once services are initialized.
+	 */
+	export function withServices(callback: () => IDisposable): IDisposable {
+		if (initialized) {
+			return callback();
+		}
+
+		const disposable = new DisposableStore();
+
+		const listener = disposable.add(onDidInitialize.event(() => {
+			listener.dispose();
+			disposable.add(callback());
+		}));
+
+		return disposable;
+	}
+
 }

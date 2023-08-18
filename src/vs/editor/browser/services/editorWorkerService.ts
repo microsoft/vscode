@@ -17,7 +17,6 @@ import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker
 import { DiffAlgorithmName, IDiffComputationResult, IEditorWorkerService, ILineChange, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { regExpFlags } from 'vs/base/common/strings';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -143,7 +142,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 			if (!canSyncModel(this._modelService, resource)) {
 				return Promise.resolve(edits); // File too large
 			}
-			const sw = StopWatch.create(true);
+			const sw = StopWatch.create();
 			const result = this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits, pretty));
 			result.finally(() => this._logService.trace('FORMAT#computeMoreMinimalEdits', resource.toString(true), sw.elapsed()));
 			return Promise.race([result, timeout(1000).then(() => edits)]);
@@ -158,7 +157,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 			if (!canSyncModel(this._modelService, resource)) {
 				return Promise.resolve(edits); // File too large
 			}
-			const sw = StopWatch.create(true);
+			const sw = StopWatch.create();
 			const result = this._workerManager.withWorker().then(client => client.computeHumanReadableDiff(resource, edits,
 				{ ignoreTrimWhitespace: false, maxComputationTimeMs: 1000, computeMoves: false, })).catch((err) => {
 					onUnexpectedError(err);
@@ -582,7 +581,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	public async textualSuggest(resources: URI[], leadingWord: string | undefined, wordDefRegExp: RegExp): Promise<{ words: string[]; duration: number } | null> {
 		const proxy = await this._withSyncedResources(resources);
 		const wordDef = wordDefRegExp.source;
-		const wordDefFlags = regExpFlags(wordDefRegExp);
+		const wordDefFlags = wordDefRegExp.flags;
 		return proxy.textualSuggest(resources.map(r => r.toString()), leadingWord, wordDef, wordDefFlags);
 	}
 
@@ -594,7 +593,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 			}
 			const wordDefRegExp = this.languageConfigurationService.getLanguageConfiguration(model.getLanguageId()).getWordDefinition();
 			const wordDef = wordDefRegExp.source;
-			const wordDefFlags = regExpFlags(wordDefRegExp);
+			const wordDefFlags = wordDefRegExp.flags;
 			return proxy.computeWordRanges(resource.toString(), range, wordDef, wordDefFlags);
 		});
 	}
@@ -607,7 +606,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 			}
 			const wordDefRegExp = this.languageConfigurationService.getLanguageConfiguration(model.getLanguageId()).getWordDefinition();
 			const wordDef = wordDefRegExp.source;
-			const wordDefFlags = regExpFlags(wordDefRegExp);
+			const wordDefFlags = wordDefRegExp.flags;
 			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);
 		});
 	}

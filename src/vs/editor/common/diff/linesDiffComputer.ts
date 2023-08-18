@@ -102,6 +102,10 @@ export class LineRangeMapping {
 	public get changedLineCount() {
 		return Math.max(this.originalRange.length, this.modifiedRange.length);
 	}
+
+	public flip(): LineRangeMapping {
+		return new LineRangeMapping(this.modifiedRange, this.originalRange, this.innerChanges?.map(c => c.flip()));
+	}
 }
 
 /**
@@ -130,17 +134,26 @@ export class RangeMapping {
 	public toString(): string {
 		return `{${this.originalRange.toString()}->${this.modifiedRange.toString()}}`;
 	}
+
+	public flip(): RangeMapping {
+		return new RangeMapping(this.modifiedRange, this.originalRange);
+	}
 }
 
+// TODO@hediet: Make LineRangeMapping extend from this!
 export class SimpleLineRangeMapping {
 	constructor(
-		public readonly originalRange: LineRange,
-		public readonly modifiedRange: LineRange,
+		public readonly original: LineRange,
+		public readonly modified: LineRange,
 	) {
 	}
 
 	public toString(): string {
-		return `{${this.originalRange.toString()}->${this.modifiedRange.toString()}}`;
+		return `{${this.original.toString()}->${this.modified.toString()}}`;
+	}
+
+	public flip(): SimpleLineRangeMapping {
+		return new SimpleLineRangeMapping(this.modified, this.original);
 	}
 }
 
@@ -160,5 +173,9 @@ export class MovedText {
 	) {
 		this.lineRangeMapping = lineRangeMapping;
 		this.changes = changes;
+	}
+
+	public flip(): MovedText {
+		return new MovedText(this.lineRangeMapping.flip(), this.changes.map(c => c.flip()));
 	}
 }

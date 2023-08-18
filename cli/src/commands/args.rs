@@ -6,7 +6,7 @@
 use std::{fmt, path::PathBuf};
 
 use crate::{constants, log, options, tunnels::code_server::CodeServerArgs};
-use clap::{ValueEnum, Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use const_format::concatcp;
 
 const CLI_NAME: &str = concatcp!(constants::PRODUCT_NAME_LONG, " CLI");
@@ -174,7 +174,20 @@ pub enum Commands {
 
 	/// Runs the control server on process stdin/stdout
 	#[clap(hide = true)]
-	CommandShell,
+	CommandShell(CommandShellArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct CommandShellArgs {
+	/// Listen on a socket instead of stdin/stdout.
+	#[clap(long)]
+	pub on_socket: bool,
+	/// Listen on a port instead of stdin/stdout.
+	#[clap(long)]
+	pub on_port: bool,
+	/// Require the given token string to be given in the handshake.
+	#[clap(long)]
+	pub require_token: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -291,7 +304,7 @@ pub enum VersionSubcommand {
 #[derive(Args, Debug, Clone)]
 pub struct UseVersionArgs {
 	/// The version of the editor you want to use. Can be "stable", "insiders",
-	/// a version number, or an absolute path to an existing install.
+	/// or an absolute path to an existing install.
 	#[clap(value_name = "stable | insiders | x.y.z | path")]
 	pub name: String,
 
@@ -548,6 +561,7 @@ pub enum OutputFormat {
 #[derive(Args, Clone, Debug, Default)]
 pub struct ExistingTunnelArgs {
 	/// Name you'd like to assign preexisting tunnel to use to connect the tunnel
+	/// Old option, new code sohuld just use `--name`.
 	#[clap(long, hide = true)]
 	pub tunnel_name: Option<String>,
 
@@ -611,7 +625,7 @@ pub enum TunnelSubcommand {
 	/// Restarts any running tunnel on the system.
 	Restart,
 
-	/// Gets whether there is a tunnel running on the current machineiou.
+	/// Gets whether there is a tunnel running on the current machine.
 	Status,
 
 	/// Rename the name of this machine associated with port forwarding service.
@@ -626,6 +640,10 @@ pub enum TunnelSubcommand {
 	/// (Preview) Manages the tunnel when installed as a system service,
 	#[clap(subcommand)]
 	Service(TunnelServiceSubCommands),
+
+	/// (Preview) Forwards local port using the dev tunnel
+	#[clap(hide = true)]
+	ForwardInternal(TunnelForwardArgs),
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -649,12 +667,26 @@ pub struct TunnelServiceInstallArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+
+	/// Sets the machine name for port forwarding service
+	#[clap(long)]
+	pub name: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
 pub struct TunnelRenameArgs {
 	/// The name you'd like to rename your machine to.
 	pub name: String,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct TunnelForwardArgs {
+	/// One or more ports to forward.
+	pub ports: Vec<u16>,
+
+	/// Login args -- used for convenience so the forwarding call is a single action.
+	#[clap(flatten)]
+	pub login: LoginArgs,
 }
 
 #[derive(Subcommand, Debug, Clone)]
