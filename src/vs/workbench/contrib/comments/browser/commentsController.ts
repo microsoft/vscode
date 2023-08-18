@@ -30,7 +30,7 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
-import { COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/contrib/comments/browser/commentReply';
+import { COMMENTEDITOR_DECORATION_KEY, PendingComment } from 'vs/workbench/contrib/comments/browser/commentReply';
 import { Emitter } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Position } from 'vs/editor/common/core/position';
@@ -40,6 +40,8 @@ import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsVie
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { deepClone } from 'vs/base/common/objects';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 
 export const ID = 'editor.contrib.review';
 
@@ -302,7 +304,7 @@ const pendingNewCommentsKey = 'comments.pendingNewComments';
 const pendingEditsKey = 'comments.pendingEdits';
 interface PendingNewComments {
 	uri: URI;
-	cache: { [key: string]: { [key: string]: string } };
+	cache: { [key: string]: { [key: string]: PendingComment } };
 }
 
 interface PendingEdits {
@@ -326,7 +328,7 @@ export class CommentController implements IEditorContribution {
 	private _emptyThreadsToAddQueue: [Range | undefined, IEditorMouseEvent | undefined][] = [];
 	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
 	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
-	private _pendingNewCommentCache: { [key: string]: { [key: string]: string } };
+	private _pendingNewCommentCache: { [key: string]: { [key: string]: PendingComment } };
 	private _pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: string } } }; // owner -> threadId -> uniqueIdInThread -> pending comment
 	private _editorDisposables: IDisposable[] = [];
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
@@ -346,8 +348,9 @@ export class CommentController implements IEditorContribution {
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
-		this._pendingNewCommentCache = this.getPendingCommentsFromStore() ?? {};
-		this._pendingEditsCache = this.getPendingEditsFromStore() ?? {};
+		this._pendingNewCommentCache = {};
+		this._pendingEditsCache = {};
+		this.restorePendingCommentCache(this.getPendingCommentsFromStore() ?? {});
 		this._computePromise = null;
 		this._activeCursorHasCommentingRange = ActiveCursorHasCommentingRange.bindTo(contextKeyService);
 
@@ -414,27 +417,64 @@ export class CommentController implements IEditorContribution {
 		this.beginCompute();
 
 		this.globalToDispose.add(storageService.onWillSaveState(() => {
-			this.storePendingInfo();
+			// TODO: uncomment
+			// this.storePendingInfo();
 		}));
 		this.globalToDispose.add(storageService.onDidChangeValue(StorageScope.WORKSPACE, pendingNewCommentsKey, this.globalToDispose)(e => {
-			if (e.external) {
+			// TODO: uncomment
+			// if (e.external) {
+			// 	const pendingNewCommentCache = this.getPendingCommentsFromStore();
+			// 	if (pendingNewCommentCache) {
+			// 		this.restorePendingCommentCache(pendingNewCommentCache);
+			// 	}
+			// }
+		}));
+		this.globalToDispose.add(storageService.onDidChangeValue(StorageScope.WORKSPACE, pendingEditsKey, this.globalToDispose)(e => {
+			// TODO: uncomment
+			// if (e.external) {
+			// 	const pendingEditsCache = this.getPendingEditsFromStore();
+			// 	if (pendingEditsCache) {
+			// 		this.restorePendingEditsCache(pendingEditsCache);
+			// 	}
+			// }
+		}));
+		// TODO: comment out these test commands
+		CommandsRegistry.registerCommand({
+			id: 'comments.testCaptureCache',
+			handler: () => {
+				this.storePendingInfo();
+			}
+		});
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: 'comments.testCaptureCache',
+				title: nls.localize('comments.testCapture', "Capture Comment Cache"),
+				category: 'Comments'
+			}
+		});
+		CommandsRegistry.registerCommand({
+			id: 'comments.testRestoreCache',
+			handler: () => {
 				const pendingNewCommentCache = this.getPendingCommentsFromStore();
 				if (pendingNewCommentCache) {
 					this.restorePendingCommentCache(pendingNewCommentCache);
 				}
-			}
-		}));
-		this.globalToDispose.add(storageService.onDidChangeValue(StorageScope.WORKSPACE, pendingEditsKey, this.globalToDispose)(e => {
-			if (e.external) {
 				const pendingEditsCache = this.getPendingEditsFromStore();
 				if (pendingEditsCache) {
 					this.restorePendingEditsCache(pendingEditsCache);
 				}
 			}
-		}));
+		});
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: 'comments.testRestoreCache',
+				title: nls.localize('comments.testRestoreCache', "Restore Comment Cache"),
+				category: 'Comments'
+			}
+		});
 	}
 
-	private getPendingCommentsFromStore(): { [key: string]: { [key: string]: string } } | undefined {
+	private getPendingCommentsFromStore(): { [key: string]: { [key: string]: PendingComment } } | undefined {
 		const pendingNewComments: PendingNewComments[] = this.storageService.getObject(pendingNewCommentsKey, StorageScope.WORKSPACE, []);
 		return pendingNewComments.find(pendingNewCommentEntry => pendingNewCommentEntry.uri.toString() === this.model?.uri.toString())?.cache;
 	}
@@ -760,7 +800,17 @@ export class CommentController implements IEditorContribution {
 					return;
 				}
 
-				const pendingCommentText = this._pendingNewCommentCache[e.owner] && this._pendingNewCommentCache[e.owner][thread.threadId!];
+				let pendingCommentText = this._pendingNewCommentCache[e.owner] && this._pendingNewCommentCache[e.owner][thread.threadId!]?.comment;
+				if (thread.isTemplate && this._pendingNewCommentCache[e.owner] && pendingCommentText === undefined) {
+					const allPendingComments = Object.keys(this._pendingNewCommentCache[e.owner]);
+					for (const key of allPendingComments) {
+						// We have to do a range compare as each pending comment can have a different thread ID
+						if (Range.equalsRange(this._pendingNewCommentCache[e.owner][key].range, thread.range)) {
+							pendingCommentText = this._pendingNewCommentCache[e.owner][key].comment;
+							break;
+						}
+					}
+				}
 				const pendingEdits = this._pendingEditsCache[e.owner] && this._pendingEditsCache[e.owner][thread.threadId!];
 				this.displayCommentThread(e.owner, thread, pendingCommentText, pendingEdits);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
@@ -1034,7 +1084,7 @@ export class CommentController implements IEditorContribution {
 			info.threads.forEach(thread => {
 				let pendingComment: string | undefined = undefined;
 				if (providerCacheStore) {
-					pendingComment = providerCacheStore[thread.threadId!];
+					pendingComment = providerCacheStore[thread.threadId!]?.comment;
 				}
 
 				let pendingEdits: { [key: number]: string } | undefined = undefined;
@@ -1101,7 +1151,7 @@ export class CommentController implements IEditorContribution {
 		this.storageService.store(pendingEditsKey, pendingEdits, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
-	private restorePendingCommentCache(newValue: { [key: string]: { [key: string]: string } }) {
+	private restorePendingCommentCache(newValue: { [key: string]: { [key: string]: PendingComment } }) {
 		const owners = Object.keys(newValue);
 		for (const owner of owners) {
 			const threads = Object.keys(newValue[owner]);
@@ -1111,6 +1161,14 @@ export class CommentController implements IEditorContribution {
 				}
 				if (!this._pendingNewCommentCache[owner][thread]) {
 					this._pendingNewCommentCache[owner][thread] = newValue[owner][thread];
+					if (this.model) {
+						const widget = this._commentWidgets.find(widget => widget.owner === owner && Range.equalsRange(widget.commentThread.range, newValue[owner][thread].range));
+						if (widget) {
+							widget.setPendingComment(newValue[owner][thread].comment);
+						} else if (newValue[owner][thread].useTemplate) {
+							this.commentService.createCommentThreadTemplate(owner, this.model.uri, Range.lift(newValue[owner][thread].range));
+						}
+					}
 				}
 			}
 		}
@@ -1138,8 +1196,8 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
-	private collectCommentWidgetsCache(): { pendingNewCommentCache: { [key: string]: { [key: string]: string } }; pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: string } } } } {
-		const pendingNewCommentCache: { [key: string]: { [key: string]: string } } = deepClone(this._pendingNewCommentCache);
+	private collectCommentWidgetsCache(): { pendingNewCommentCache: { [key: string]: { [key: string]: PendingComment } }; pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: string } } } } {
+		const pendingNewCommentCache: { [key: string]: { [key: string]: PendingComment } } = deepClone(this._pendingNewCommentCache);
 		const pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: string } } } = deepClone(this._pendingEditsCache);
 		if (this._commentWidgets) {
 			this._commentWidgets.forEach(zone => {
@@ -1156,7 +1214,7 @@ export class CommentController implements IEditorContribution {
 						lastCommentBody = lastComment.body.value;
 					}
 				}
-				if (pendingNewComment && (pendingNewComment !== lastCommentBody)) {
+				if (pendingNewComment && (pendingNewComment.comment !== lastCommentBody)) {
 					if (!providerNewCommentCacheStore) {
 						pendingNewCommentCache[zone.owner] = {};
 					}
@@ -1183,10 +1241,16 @@ export class CommentController implements IEditorContribution {
 		return { pendingNewCommentCache, pendingEditsCache };
 	}
 
-	private removeCommentWidgetsAndStoreCache() {
+	private storeCache() {
 		const newCaches = this.collectCommentWidgetsCache();
 		this._pendingNewCommentCache = newCaches.pendingNewCommentCache;
 		this._pendingEditsCache = newCaches.pendingEditsCache;
+		this.restorePendingCommentCache(this.getPendingCommentsFromStore() ?? {});
+		this.restorePendingEditsCache(this.getPendingEditsFromStore() ?? {});
+	}
+
+	private removeCommentWidgetsAndStoreCache() {
+		this.storeCache();
 		if (this._commentWidgets) {
 			this._commentWidgets.forEach(zone => {
 				zone.dispose();

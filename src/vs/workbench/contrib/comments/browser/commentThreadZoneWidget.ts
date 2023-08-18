@@ -25,6 +25,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateBorderColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { PendingComment } from 'vs/workbench/contrib/comments/browser/commentReply';
 
 function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
 	return getCommentThreadStateBorderColor(thread, theme) ?? theme.getColor(peekViewBorder);
@@ -205,7 +206,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	public getPendingComments(): { newComment: string | undefined; edits: { [key: number]: string } } {
+	public getPendingComments(): { newComment: PendingComment | undefined; edits: { [key: number]: string } } {
 		return {
 			newComment: this._commentThreadWidget.getPendingComment(),
 			edits: this._commentThreadWidget.getPendingEdits()
@@ -460,6 +461,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		// Editor decorations should also be responsive to theme changes
 		this._commentThreadWidget.applyTheme(theme, fontInfo);
+	}
+
+	setPendingComment(pendingComment: string) {
+		this.expand();
+		this._commentThreadWidget.expandReplyAreaAndFocusCommentEditor(pendingComment);
 	}
 
 	override show(rangeOrPos: IRange | IPosition | undefined, heightInLines: number): void {

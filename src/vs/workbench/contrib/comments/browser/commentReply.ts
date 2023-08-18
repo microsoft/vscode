@@ -33,6 +33,7 @@ import { SimpleCommentEditor } from './simpleCommentEditor';
 const COMMENT_SCHEME = 'comment';
 let INMEM_MODEL_ID = 0;
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
+export type PendingComment = { comment: string; range: IRange; useTemplate: boolean };
 
 export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	commentEditor: ICodeEditor;
@@ -126,11 +127,14 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		}
 	}
 
-	public getPendingComment(): string | undefined {
+	public getPendingComment(): PendingComment | undefined {
 		const model = this.commentEditor.getModel();
 
 		if (model && model.getValueLength() > 0) { // checking length is cheap
-			return model.getValue();
+			const range = this._commentThread.range;
+			if (range) {
+				return { comment: model.getValue(), range: range as IRange, useTemplate: ((this._commentThread.comments === undefined) || (this._commentThread.comments.length === 0)) };
+			}
 		}
 
 		return undefined;
@@ -152,7 +156,9 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.commentEditor.focus();
 	}
 
-	public expandReplyAreaAndFocusCommentEditor() {
+	public expandReplyAreaAndFocusCommentEditor(pendingComment?: string) {
+		this._pendingComment = pendingComment;
+		this.commentEditor.setValue(pendingComment ?? '');
 		this.expandReplyArea();
 		this.commentEditor.focus();
 	}

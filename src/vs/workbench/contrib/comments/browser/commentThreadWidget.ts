@@ -13,7 +13,7 @@ import { IMarkdownRendererOptions } from 'vs/editor/contrib/markdownRenderer/bro
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { CommentReply } from 'vs/workbench/contrib/comments/browser/commentReply';
+import { CommentReply, PendingComment } from 'vs/workbench/contrib/comments/browser/commentReply';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentThreadBody } from 'vs/workbench/contrib/comments/browser/commentThreadBody';
 import { CommentThreadHeader } from 'vs/workbench/contrib/comments/browser/commentThreadHeader';
@@ -281,7 +281,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		return this._body.getPendingEdits();
 	}
 
-	getPendingComment(): string | undefined {
+	getPendingComment(): PendingComment | undefined {
 		if (this._commentReply) {
 			return this._commentReply.getPendingComment();
 		}
@@ -301,6 +301,11 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 	}
 
+	expandReplyAreaAndFocusCommentEditor(pendingComment?: string) {
+		this._commentReply?.expandReplyAreaAndFocusCommentEditor(pendingComment);
+	}
+
+
 	focusCommentEditor() {
 		this._commentReply?.focusCommentEditor();
 	}
@@ -313,7 +318,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		const activeComment = this._body.activeComment;
 		if (activeComment) {
 			return activeComment.submitComment();
-		} else if ((this._commentReply?.getPendingComment()?.length ?? 0) > 0) {
+		} else if ((this._commentReply?.getPendingComment()?.comment.length ?? 0) > 0) {
 			return this._commentReply?.submitComment();
 		}
 	}
