@@ -10,7 +10,7 @@ import { Disposable } from '../utils/dispose';
 import { ResourceMap } from '../utils/resourceMap';
 import { TelemetryReporter } from '../logging/telemetry';
 import { URI } from 'vscode-uri';
-import { diff } from 'semver';
+import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
 	if (a === b) {
@@ -151,18 +151,6 @@ class DiagnosticSettings {
 	}
 }
 
-/*
-const diagnostics = this.getDiagnostics(document.uri);
-			const diagnoticCodes = diagnostics.reduce(function (result: number[], d: vscode.Diagnostic) {
-				const code = d.code;
-				if (typeof code === 'string' || typeof code === 'number') {
-					result.push(Number(code));
-				} else if (code !== undefined) {
-					result.push(Number(code.value));
-				}
-				return result;
-			}, []);
-			*/
 class DiagnosticsTelemetryManager extends Disposable {
 
 	private readonly _timeOutDiagnosticMaps = new Map<URI, NodeJS.Timeout | undefined>();
@@ -245,6 +233,7 @@ export class DiagnosticsManager extends Disposable {
 
 	constructor(
 		owner: string,
+		configuration: TypeScriptServiceConfiguration,
 		telemetryReporter: TelemetryReporter,
 		onCaseInsensitiveFileSystem: boolean
 	) {
@@ -253,7 +242,7 @@ export class DiagnosticsManager extends Disposable {
 		this._pendingUpdates = new ResourceMap<any>(undefined, { onCaseInsensitiveFileSystem });
 
 		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
-		if (Math.random() * 1000 <= 1) {
+		if (Math.random() * 1000 <= 1 || configuration.enableDiagnosticsTelemetry) {
 			this._register(new DiagnosticsTelemetryManager(telemetryReporter, this.getDiagnostics));
 		}
 	}
