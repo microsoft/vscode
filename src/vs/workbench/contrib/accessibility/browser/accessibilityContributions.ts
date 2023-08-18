@@ -54,7 +54,7 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 				codeEditor = codeEditorService.getActiveCodeEditor()!;
 			}
 			accessibleViewService.show(instantiationService.createInstance(AccessibilityHelpProvider, codeEditor));
-		}));
+		}, EditorContextKeys.focus));
 	}
 }
 
