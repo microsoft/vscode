@@ -38,6 +38,7 @@ import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { addDisposableListener } from 'vs/base/browser/dom';
 
 const enum DIMENSIONS {
 	MAX_WIDTH = 600
@@ -346,21 +347,29 @@ class AccessibleView extends Disposable {
 		});
 		this._updateToolbar(provider.actions, provider.options.type);
 
+		const handleEscape = (e: KeyboardEvent | IKeyboardEvent): void => {
+			e.stopPropagation();
+			this._contextViewService.hideContextView();
+			this._updateContextKeys(provider, false);
+			// HACK: Delay to allow the context view to hide #186514
+			setTimeout(() => provider.onClose(), 100);
+		};
 		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyUp((e) => provider.onKeyDown?.(e)));
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Escape) {
-				e.stopPropagation();
-				this._contextViewService.hideContextView();
-				this._updateContextKeys(provider, false);
-				// HACK: Delay to allow the context view to hide #186514
-				setTimeout(() => provider.onClose(), 100);
+				handleEscape(e);
 			} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
 				const url: string = provider.options.readMoreUrl!;
 				alert(AccessibilityHelpNLS.openingDocs);
 				this._openerService.open(URI.parse(url));
 				e.preventDefault();
 				e.stopPropagation();
+			}
+		}));
+		disposableStore.add(addDisposableListener(this._toolbar.getElement(), 'keydown', (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				handleEscape(e);
 			}
 		}));
 		disposableStore.add(this._editorWidget.onDidBlurEditorWidget(() => {
