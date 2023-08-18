@@ -38,7 +38,8 @@ import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { addDisposableListener } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const enum DIMENSIONS {
 	MAX_WIDTH = 600
@@ -367,9 +368,9 @@ class AccessibleView extends Disposable {
 				e.stopPropagation();
 			}
 		}));
-		disposableStore.add(addDisposableListener(this._toolbar.getElement(), DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		disposableStore.add(addDisposableListener(this._toolbar.getElement(), EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const keyboardEvent = new StandardKeyboardEvent(e);
-		        if (keyboardEvent.equals(KeyCode.Escape)) {
+			if (keyboardEvent.equals(KeyCode.Escape)) {
 				handleEscape(e);
 			}
 		}));
