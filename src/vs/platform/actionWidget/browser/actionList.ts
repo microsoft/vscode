@@ -6,8 +6,8 @@ import * as dom from 'vs/base/browser/dom';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { matchesFuzzy2 } from 'vs/base/common/filters';
 import { Codicon } from 'vs/base/common/codicons';
+import { matchesFuzzy2 } from 'vs/base/common/filters';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
@@ -154,6 +154,15 @@ class AcceptSelectedEvent extends UIEvent {
 class PreviewSelectedEvent extends UIEvent {
 	constructor() { super('previewSelectedAction'); }
 }
+
+function getKeyboardNavigationLabel<T>(item: IActionListItem<T>): string | undefined {
+	// Filter out header vs. action
+	if (item.kind === 'action') {
+		return item.label;
+	}
+	return undefined;
+}
+
 export class ActionList<T> extends Disposable {
 
 	public readonly domNode: HTMLElement;
@@ -167,7 +176,6 @@ export class ActionList<T> extends Disposable {
 	private readonly _allMenuItemsFiltered: IActionFilteredItems[] = [];
 
 	private keypresses: string[] = [];
-	private timeout: number | null = null;
 
 	constructor(
 		user: string,
@@ -190,7 +198,8 @@ export class ActionList<T> extends Disposable {
 			new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService),
 			new HeaderRenderer(),
 		], {
-			keyboardSupport: false,
+			typeNavigationEnabled: true,
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel },
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === ActionListItemKind.Action) {
@@ -213,7 +222,6 @@ export class ActionList<T> extends Disposable {
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));
 		this._register(this._list.onDidChangeFocus(() => this._list.domFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
-		this._register(this._list.onKeyPress(e => this.onKeyPress(e)));
 
 		this._allMenuItems = items;
 		const menuItems = this._allMenuItems;
@@ -311,40 +319,6 @@ export class ActionList<T> extends Disposable {
 	private onListClick(e: IListMouseEvent<IActionListItem<T>>): void {
 		if (e.element && this.focusCondition(e.element)) {
 			this._list.setFocus([]);
-		}
-	}
-
-	private onKeyPress(e: KeyboardEvent) {
-		this.keypresses.push(e.key);
-		this.listFuzzyMatch(this.keypresses.join(''));
-
-		// Clear the previous timeout (if any)
-		if (this.timeout !== null) {
-			window.clearTimeout(this.timeout);
-		}
-
-		// Set a new timeout
-		this.timeout = window.setTimeout(() => { this.processKeyPresses(); }, 1000);
-
-	}
-
-	private processKeyPresses() {
-		this.keypresses = [];
-	}
-
-	private listFuzzyMatch(str: string) {
-		for (const menuItem of this._allMenuItemsFiltered) {
-			if (menuItem.label) {
-				const result = matchesFuzzy2(str, menuItem.label);
-				// Result is either null or an array of obj {start, end} for matches between str and menuItem.label
-				if (result) {
-					this._list.setFocus([menuItem.index]);
-					if (result[0].start === 0) {
-						// Breaks when finds first found instance of match [0,1+] to [0,1+]
-						break;
-					}
-				}
-			}
 		}
 	}
 }
