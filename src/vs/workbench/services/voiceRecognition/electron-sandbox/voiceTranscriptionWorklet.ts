@@ -15,13 +15,11 @@ class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 	private static readonly BUFFER_TIMESPAN = 2000;
 
 	private startTime: number | undefined = undefined;
+	private stopped: boolean = false;
 
-	private allInputFloat32Array: Float32Array | undefined = undefined;
-	private currentInputFloat32Arrays: Float32Array[] = [];
+	private buffer: Float32Array[] = [];
 
 	private sharedProcessConnection: MessagePort | undefined = undefined;
-
-	private stopped: boolean = false;
 
 	constructor() {
 		super();
@@ -71,32 +69,18 @@ class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 			return !this.stopped;
 		}
 
-		this.currentInputFloat32Arrays.push(inputChannelData.slice(0));
+		this.buffer.push(inputChannelData.slice(0));
 
 		if (Date.now() - this.startTime > VoiceTranscriptionWorklet.BUFFER_TIMESPAN && this.sharedProcessConnection) {
-			const currentInputFloat32Arrays = this.currentInputFloat32Arrays;
-			this.currentInputFloat32Arrays = [];
+			const buffer = this.buffer;
+			this.buffer = [];
 
-			this.allInputFloat32Array = this.joinFloat32Arrays(this.allInputFloat32Array ? [this.allInputFloat32Array, ...currentInputFloat32Arrays] : currentInputFloat32Arrays);
-
-			this.sharedProcessConnection.postMessage(this.allInputFloat32Array);
+			this.sharedProcessConnection.postMessage(buffer);
 
 			this.startTime = Date.now();
 		}
 
 		return !this.stopped;
-	}
-
-	private joinFloat32Arrays(float32Arrays: Float32Array[]): Float32Array {
-		const result = new Float32Array(float32Arrays.reduce((acc, curr) => acc + curr.length, 0));
-
-		let offset = 0;
-		for (const float32Array of float32Arrays) {
-			result.set(float32Array, offset);
-			offset += float32Array.length;
-		}
-
-		return result;
 	}
 }
 

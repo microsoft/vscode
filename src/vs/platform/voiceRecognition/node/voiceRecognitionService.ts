@@ -5,7 +5,26 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IVoiceRecognitionService } from 'vs/platform/voiceRecognition/common/voiceRecognitionService';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const IVoiceRecognitionService = createDecorator<IVoiceRecognitionService>('voiceRecognitionService');
+
+export interface IVoiceRecognitionService {
+
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Given a buffer of audio data, attempts to
+	 * transcribe the spoken words into text.
+	 *
+	 * @param channelData the raw audio data obtained
+	 * from the microphone as uncompressed PCM data:
+	 * - 1 channel (mono)
+	 * - 16khz sampling rate
+	 * - 16bit sample size
+	 */
+	transcribe(channelData: Float32Array, cancellation: CancellationToken): Promise<string>;
+}
 
 export class VoiceRecognitionService implements IVoiceRecognitionService {
 

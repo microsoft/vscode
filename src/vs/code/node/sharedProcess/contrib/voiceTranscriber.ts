@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { MessagePortMain, MessageEvent } from 'vs/base/parts/sandbox/node/electronTypes';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IVoiceRecognitionService } from 'vs/platform/voiceRecognition/common/voiceRecognitionService';
+import { IVoiceRecognitionService } from 'vs/platform/voiceRecognition/node/voiceRecognitionService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { TaskSequentializer } from 'vs/base/common/async';
@@ -35,6 +35,8 @@ class VoiceTranscriber extends Disposable {
 	private readonly transcriptionSequentializer = new TaskSequentializer();
 
 	private requests = 0;
+
+	private data: Float32Array | undefined = undefined;
 
 	constructor(
 		private readonly port: MessagePortMain,
@@ -68,16 +70,26 @@ class VoiceTranscriber extends Disposable {
 	}
 
 	private async handleRequest(e: MessageEvent, cancellation: CancellationToken): Promise<void> {
-		if (!(e.data instanceof Float32Array)) {
+		if (!(Array.isArray(e.data))) {
 			return;
 		}
+
+		const newData: Float32Array[] = [];
+		for (const channelData of e.data) {
+			if (channelData instanceof Float32Array) {
+				newData.push(channelData);
+			}
+		}
+
+		this.data = this.joinFloat32Arrays(this.data ? [this.data, ...newData] : newData);
+		const data = this.data.slice(0);
 
 		this.requests++;
 
 		if (!this.transcriptionSequentializer.hasPending()) {
-			this.transcriptionSequentializer.setPending(this.requests, this.transcribe(e.data, cancellation));
+			this.transcriptionSequentializer.setPending(this.requests, this.transcribe(data, cancellation));
 		} else {
-			this.transcriptionSequentializer.setNext(() => this.transcribe(e.data, cancellation));
+			this.transcriptionSequentializer.setNext(() => this.transcribe(data, cancellation));
 		}
 	}
 
@@ -93,5 +105,17 @@ class VoiceTranscriber extends Disposable {
 		}
 
 		this.port.postMessage(result);
+	}
+
+	private joinFloat32Arrays(float32Arrays: Float32Array[]): Float32Array {
+		const result = new Float32Array(float32Arrays.reduce((prev, curr) => prev + curr.length, 0));
+
+		let offset = 0;
+		for (const float32Array of float32Arrays) {
+			result.set(float32Array, offset);
+			offset += float32Array.length;
+		}
+
+		return result;
 	}
 }

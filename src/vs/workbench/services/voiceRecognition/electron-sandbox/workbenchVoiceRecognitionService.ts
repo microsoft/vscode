@@ -62,8 +62,7 @@ class VoiceTranscriptionWorkletNode extends AudioWorkletNode {
 }
 
 // TODO@voice
-// - voice module should directly transcribe the PCM32 data without wav+file conversion
-
+// - pass cancellation down into the node module via AbortSignal
 export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
 
 	declare readonly _serviceBrand: undefined;

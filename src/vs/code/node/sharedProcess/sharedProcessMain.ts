@@ -114,8 +114,7 @@ import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/plat
 import { RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IVoiceRecognitionService } from 'vs/platform/voiceRecognition/common/voiceRecognitionService';
-import { VoiceRecognitionService } from 'vs/platform/voiceRecognition/node/voiceRecognitionService';
+import { IVoiceRecognitionService, VoiceRecognitionService } from 'vs/platform/voiceRecognition/node/voiceRecognitionService';
 import { VoiceTranscriptionManager } from 'vs/code/node/sharedProcess/contrib/voiceTranscriber';
 import { SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
 
