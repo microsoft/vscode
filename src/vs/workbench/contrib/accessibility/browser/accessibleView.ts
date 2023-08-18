@@ -54,7 +54,7 @@ export interface IAccessibleContentProvider {
 	actions?: IAction[];
 	provideContent(): string;
 	onClose(): void;
-	onKeyDown?(e: IKeyboardEvent): void;
+	onKeyUp?(e: IKeyboardEvent): void;
 	previous?(): void;
 	next?(): void;
 	/**
@@ -355,7 +355,7 @@ class AccessibleView extends Disposable {
 			setTimeout(() => provider.onClose(), 100);
 		};
 		const disposableStore = new DisposableStore();
-		disposableStore.add(this._editorWidget.onKeyUp((e) => provider.onKeyDown?.(e)));
+		disposableStore.add(this._editorWidget.onKeyUp((e) => provider.onKeyUp?.(e)));
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Escape) {
 				handleEscape(e);
