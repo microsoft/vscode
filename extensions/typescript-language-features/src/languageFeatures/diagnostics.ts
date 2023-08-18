@@ -153,9 +153,9 @@ class DiagnosticSettings {
 
 class DiagnosticsTelemetryManager extends Disposable {
 
-	private readonly _timeOutDiagnosticMaps = new Map<URI, NodeJS.Timeout | undefined>();
-	private readonly _diagnosticsSnapshot = new Map<URI, readonly vscode.Diagnostic[]>();
 	private readonly _diagnosticCodesMap = new Map<number, number>();
+	private readonly _diagnosticTimeoutsMap = new Map<URI, NodeJS.Timeout | undefined>();
+	private readonly _diagnosticSnapshotsMap = new Map<URI, readonly vscode.Diagnostic[]>();
 
 	constructor(
 		private readonly _telemetryReporter: TelemetryReporter,
@@ -164,28 +164,37 @@ class DiagnosticsTelemetryManager extends Disposable {
 		super();
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
 			if (e.document.languageId === 'typescript') {
-				clearTimeout(this._timeOutDiagnosticMaps.get(e.document.uri));
-				const timeOut = setTimeout(() => { this._updateDiagnosticCodes(e.document.uri); }, 5000);
-				this._timeOutDiagnosticMaps.set(e.document.uri, timeOut);
+				this._updateDiagnosticCodesAfterTimeout(e.document.uri, 10000);
 			}
 		}));
 		this._register(vscode.workspace.onDidOpenTextDocument(e => {
 			if (e.languageId === 'typescript') {
-				this._timeOutDiagnosticMaps.set(e.uri, undefined);
+				this._updateDiagnosticCodesAfterTimeout(e.uri, 10000);
 			}
 		}));
 		this._register(vscode.workspace.onDidCloseTextDocument(e => {
 			if (e.languageId === 'typescript') {
-				this._timeOutDiagnosticMaps.delete(e.uri);
+				this._diagnosticTimeoutsMap.delete(e.uri);
 			}
 		}));
+		const activeUri = vscode.window.activeTextEditor?.document.uri;
+		this._updateDiagnosticCodesAfterTimeout(activeUri, 10000);
 		this._sendTelemetryEvent();
 	}
 
+	private _updateDiagnosticCodesAfterTimeout(uri: URI | undefined, timeoutInMs: number) {
+		if (!uri) {
+			return;
+		}
+		clearTimeout(this._diagnosticTimeoutsMap.get(uri));
+		const timeout = setTimeout(() => { this._updateDiagnosticCodes(uri); }, timeoutInMs);
+		this._diagnosticTimeoutsMap.set(uri, timeout);
+	}
+
 	private _updateDiagnosticCodes(uri: URI) {
-		const previousDiagnostics = this._diagnosticsSnapshot.get(uri);
+		const previousDiagnostics = this._diagnosticSnapshotsMap.get(uri);
 		const currentDiagnostics = this._getDiagnostics(uri);
-		this._diagnosticsSnapshot.set(uri, currentDiagnostics);
+		this._diagnosticSnapshotsMap.set(uri, currentDiagnostics);
 		const diagnosticsDiff = currentDiagnostics.filter((diagnostic) => !previousDiagnostics?.some((previousDiagnostic) => JSON.stringify(diagnostic) === JSON.stringify(previousDiagnostic)));
 		diagnosticsDiff.forEach((diagnostic) => {
 			const code = diagnostic.code;
@@ -219,7 +228,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 				});
 			}
 			this._sendTelemetryEvent();
-		}, 5 * 60 * 1000);
+		}, 5 * 60 * 1000); // 5 minutes
 	}
 }
 
@@ -243,7 +252,7 @@ export class DiagnosticsManager extends Disposable {
 
 		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
 		if (Math.random() * 1000 <= 1 || configuration.enableDiagnosticsTelemetry) {
-			this._register(new DiagnosticsTelemetryManager(telemetryReporter, this.getDiagnostics));
+			this._register(new DiagnosticsTelemetryManager(telemetryReporter, this.getDiagnostics.bind(this)));
 		}
 	}
 
