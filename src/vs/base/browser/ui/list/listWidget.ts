@@ -16,7 +16,7 @@ import { timeout } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
-import { matchesPrefix } from 'vs/base/common/filters';
+import { matchesFuzzy2, matchesPrefix } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
@@ -527,11 +527,27 @@ class TypeNavigationController<T> implements IDisposable {
 			const label = this.keyboardNavigationLabelProvider.getKeyboardNavigationLabel(this.view.element(index));
 			const labelStr = label && label.toString();
 
-			if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
-				this.previouslyFocused = start;
-				this.list.setFocus([index]);
-				this.list.reveal(index);
-				return;
+			if (this.list.options.typeNavigationEnabled) {
+				if (typeof labelStr !== 'undefined') {
+					const prefix = matchesPrefix(word, labelStr);
+					const fuzzy = matchesFuzzy2(word, labelStr);
+
+					// ensures that when fuzzy matching, it doesn't clash with prefix matching (1 input vs 1+ should be prefix and fuzzy respecitvely)
+					const fuzzyScore = fuzzy ? fuzzy[0].end - fuzzy[0].start : 0;
+					if (prefix || fuzzyScore > 1) {
+						this.previouslyFocused = start;
+						this.list.setFocus([index]);
+						this.list.reveal(index);
+						return;
+					}
+				}
+			} else {
+				if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
+					this.previouslyFocused = start;
+					this.list.setFocus([index]);
+					this.list.reveal(index);
+					return;
+				}
 			}
 		}
 	}
@@ -978,6 +994,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
 	readonly keyboardNavigationDelegate?: IKeyboardNavigationDelegate;
 	readonly keyboardSupport?: boolean;
+	readonly keyboardNavigationEnabled?: boolean;
 	readonly multipleSelectionController?: IMultipleSelectionController<T>;
 	readonly styleController?: (suffix: string) => IStyleController;
 	readonly accessibilityProvider?: IListAccessibilityProvider<T>;
