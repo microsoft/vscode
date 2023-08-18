@@ -10,6 +10,7 @@ import { Disposable } from '../utils/dispose';
 import { ResourceMap } from '../utils/resourceMap';
 import { TelemetryReporter } from '../logging/telemetry';
 import { URI } from 'vscode-uri';
+import { diff } from 'semver';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
 	if (a === b) {
@@ -165,14 +166,18 @@ const diagnostics = this.getDiagnostics(document.uri);
 class DiagnosticsTelemetryManager extends Disposable {
 
 	private readonly _timeOutDiagnosticMaps = new Map<URI, NodeJS.Timeout | undefined>();
+	private readonly _diagnosticsSnapshot = new Map<URI, readonly vscode.Diagnostic[]>();
 	private readonly _diagnosticCodesMap = new Map<number, number>();
 
-	constructor(private readonly _telemetryReporter: TelemetryReporter) {
+	constructor(
+		private readonly _telemetryReporter: TelemetryReporter,
+		private readonly _getDiagnostics: (uri: URI) => readonly vscode.Diagnostic[]
+	) {
 		super();
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
 			if (e.document.languageId === 'typescript') {
 				clearTimeout(this._timeOutDiagnosticMaps.get(e.document.uri));
-				const timeOut = setTimeout(() => { }, 5000);
+				const timeOut = setTimeout(() => { this._updateDiagnosticCodes(e.document.uri); }, 5000);
 				this._timeOutDiagnosticMaps.set(e.document.uri, timeOut);
 			}
 		}));
@@ -187,6 +192,21 @@ class DiagnosticsTelemetryManager extends Disposable {
 			}
 		}));
 		this._sendTelemetryEvent();
+	}
+
+	private _updateDiagnosticCodes(uri: URI) {
+		const previousDiagnostics = this._diagnosticsSnapshot.get(uri);
+		const currentDiagnostics = this._getDiagnostics(uri);
+		this._diagnosticsSnapshot.set(uri, currentDiagnostics);
+		const diagnosticsDiff = currentDiagnostics.filter((diagnostic) => !previousDiagnostics?.some((previousDiagnostic) => JSON.stringify(diagnostic) === JSON.stringify(previousDiagnostic)));
+		diagnosticsDiff.forEach((diagnostic) => {
+			const code = diagnostic.code;
+			if (typeof code === 'string' || typeof code === 'number') {
+				this._diagnosticCodesMap.set(Number(code), (this._diagnosticCodesMap.get(Number(code)) || 0) + 1);
+			} else if (code !== undefined) {
+				this._diagnosticCodesMap.set(Number(code.value), (this._diagnosticCodesMap.get(Number(code.value)) || 0) + 1);
+			}
+		});
 	}
 
 	private _sendTelemetryEvent() {
@@ -220,6 +240,7 @@ export class DiagnosticsManager extends Disposable {
 	private readonly _settings = new DiagnosticSettings();
 	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
 	private readonly _pendingUpdates: ResourceMap<any>;
+
 	private readonly _updateDelay = 50;
 
 	constructor(
@@ -233,7 +254,7 @@ export class DiagnosticsManager extends Disposable {
 
 		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
 		if (Math.random() * 1000 <= 1) {
-			this._register(new DiagnosticsTelemetryManager(telemetryReporter));
+			this._register(new DiagnosticsTelemetryManager(telemetryReporter, this.getDiagnostics));
 		}
 	}
 
