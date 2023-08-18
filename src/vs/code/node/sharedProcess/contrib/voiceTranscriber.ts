@@ -32,6 +32,8 @@ export class VoiceTranscriptionManager extends Disposable {
 
 class VoiceTranscriber extends Disposable {
 
+	private static MAX_DATA_LENGTH = 30 /* seconds */ * 16000 /* sampling rate */ * 16 /* bith depth */ * 1 /* channels */ / 8;
+
 	private readonly transcriptionSequentializer = new TaskSequentializer();
 
 	private requests = 0;
@@ -81,7 +83,14 @@ class VoiceTranscriber extends Disposable {
 			}
 		}
 
-		this.data = this.joinFloat32Arrays(this.data ? [this.data, ...newData] : newData);
+		const dataCandidate = this.joinFloat32Arrays(this.data ? [this.data, ...newData] : newData);
+
+		if (dataCandidate.length > VoiceTranscriber.MAX_DATA_LENGTH) {
+			this.logService.warn(`[voice] transcriber: refusing to accept more than 30s of audio data`);
+			return;
+		}
+
+		this.data = dataCandidate;
 		const data = this.data.slice(0);
 
 		this.requests++;

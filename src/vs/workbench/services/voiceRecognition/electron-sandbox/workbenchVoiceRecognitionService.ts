@@ -67,8 +67,8 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly AUDIO_SAMPLE_RATE = 16000;
-	private static readonly AUDIO_SAMPLE_SIZE = 16;
+	private static readonly AUDIO_SAMPLING_RATE = 16000;
+	private static readonly AUDIO_BIT_DEPTH = 16;
 	private static readonly AUDIO_CHANNELS = 1;
 
 	constructor(
@@ -96,8 +96,8 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 
 			const microphoneDevice = await navigator.mediaDevices.getUserMedia({
 				audio: {
-					sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_RATE,
-					sampleSize: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_SIZE,
+					sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLING_RATE,
+					sampleSize: WorkbenchVoiceRecognitionService.AUDIO_BIT_DEPTH,
 					channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
 					autoGainControl: true,
 					noiseSuppression: true
@@ -109,7 +109,7 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 			}
 
 			const audioContext = new AudioContext({
-				sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLE_RATE,
+				sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLING_RATE,
 				latencyHint: 'interactive'
 			});
 

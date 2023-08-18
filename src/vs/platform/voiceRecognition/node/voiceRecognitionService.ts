@@ -44,11 +44,11 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 
 		const now = Date.now();
 
-		const voiceModule: { transcribe: (audioBuffer: { channelCount: 1; sampleRate: 16000; sampleSize: 16; channelData: Float32Array }, options: { language: string | 'auto'; suppressNonSpeechTokens: boolean }) => Promise<string> } = require.__$__nodeRequire(modulePath);
+		const voiceModule: { transcribe: (audioBuffer: { channelCount: 1; samplingRate: 16000; bitDepth: 16; channelData: Float32Array }, options: { language: string | 'auto'; suppressNonSpeechTokens: boolean }) => Promise<string> } = require.__$__nodeRequire(modulePath);
 
 		const text = await voiceModule.transcribe({
-			sampleRate: 16000,
-			sampleSize: 16,
+			samplingRate: 16000,
+			bitDepth: 16,
 			channelCount: 1,
 			channelData
 		}, {
