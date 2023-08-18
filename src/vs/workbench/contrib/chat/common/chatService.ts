@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatModel, ChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChat {
 	id: number; // TODO Maybe remove this and move to a subclass that only the provider knows about
@@ -25,6 +26,7 @@ export interface IChat {
 export interface IChatRequest {
 	session: IChat;
 	message: string | IChatReplyFollowup;
+	variables: Record<string, IChatRequestVariableValue[]>;
 }
 
 export interface IChatResponseErrorDetails {
@@ -65,15 +67,8 @@ export interface IChatProvider {
 	removeRequest?(session: IChat, requestId: string): void;
 }
 
-export interface ISlashCommandProvider {
-	chatProviderId: string;
-	provideSlashCommands(token: CancellationToken): ProviderResult<ISlashCommand[]>;
-	resolveSlashCommand(command: string, token: CancellationToken): ProviderResult<string>;
-}
-
 export interface ISlashCommand {
 	command: string;
-	provider?: ISlashCommandProvider;
 	sortText?: string;
 	detail?: string;
 
@@ -208,7 +203,6 @@ export interface IChatService {
 
 	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
-	registerSlashCommandProvider(provider: ISlashCommandProvider): IDisposable;
 	getProviderInfos(): IChatProviderInfo[];
 	startSession(providerId: string, token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;

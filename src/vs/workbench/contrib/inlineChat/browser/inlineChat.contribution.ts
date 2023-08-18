@@ -18,7 +18,6 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { localize } from 'vs/nls';
 import { Extensions, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
@@ -87,7 +86,7 @@ class InlineChatAccessibleViewContribution extends Disposable {
 					controller.focus();
 				},
 
-				options: { ariaLabel: localize('inlineChatAccessibleView', "Inline Chat Accessible View"), type: AccessibleViewType.View }
+				options: { type: AccessibleViewType.View }
 			});
 			return true;
 		}, ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED)));

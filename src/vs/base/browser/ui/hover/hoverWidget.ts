@@ -96,6 +96,6 @@ export class HoverAction extends Disposable {
 	}
 }
 
-export function getHoverAriaLabel(shouldHaveHint?: boolean, keybinding?: string | null): string | undefined {
-	return shouldHaveHint ? localize('acessibleViewHint', "Inspect this in the accessible view with {0}.", keybinding) : localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.");
+export function getHoverAccessibleViewHint(shouldHaveHint?: boolean, keybinding?: string | null): string | undefined {
+	return shouldHaveHint && keybinding ? localize('acessibleViewHint', "Inspect this in the accessible view with {0}.", keybinding) : shouldHaveHint ? localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.") : '';
 }
