@@ -442,3 +442,12 @@
 .interactive-response-progress-tree.focused {
 	border-color: var(--vscode-focusBorder, transparent);
 }
+
+.interactive-item-container .value .interactive-response-placeholder-codicon .codicon {
+	color: var(--vscode-list-inactiveSelectionIconForeground);
+}
+
+.interactive-item-container .value .interactive-response-placeholder-content {
+	color: var(--vscode-list-inactiveSelectionIconForeground);
+	font-size: 12px;
+}

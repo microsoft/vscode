@@ -23,7 +23,7 @@ export interface IChatRequestModel {
 }
 
 export interface IResponse {
-	readonly value: (IMarkdownString | IChatResponseProgressFileTreeData)[];
+	readonly value: (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData)[];
 	onDidChangeValue: Event<void>;
 	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void;
 	asString(): string;
@@ -88,8 +88,10 @@ export class ChatRequestModel implements IChatRequestModel {
 	}
 }
 
-
-type ResponsePart = { string: IMarkdownString; resolving?: boolean } | { treeData: IChatResponseProgressFileTreeData; resolving?: boolean };
+export interface IPlaceholderMarkdownString extends IMarkdownString {
+	placeholder: boolean;
+}
+type ResponsePart = { string: IMarkdownString; placeholder?: boolean } | { treeData: IChatResponseProgressFileTreeData; placeholder?: boolean };
 export class Response implements IResponse {
 	private _onDidChangeValue = new Emitter<void>();
 	public get onDidChangeValue() {
@@ -99,11 +101,11 @@ export class Response implements IResponse {
 	// responseParts internally tracks all the response parts, including strings which are currently resolving, so that they can be updated when they do resolve
 	private _responseParts: ResponsePart[];
 	// responseData externally presents the response parts with consolidated contiguous strings (including strings which were previously resolving)
-	private _responseData: (IMarkdownString | IChatResponseProgressFileTreeData)[];
+	private _responseData: (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData)[];
 	// responseRepr externally presents the response parts with consolidated contiguous strings (excluding tree data)
 	private _responseRepr: string;
 
-	get value(): (IMarkdownString | IChatResponseProgressFileTreeData)[] {
+	get value(): (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData)[] {
 		return this._responseData;
 	}
 
@@ -127,7 +129,7 @@ export class Response implements IResponse {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
 
-			if (lastResponsePart.resolving === true || 'treeData' in lastResponsePart) {
+			if (lastResponsePart.placeholder === true || 'treeData' in lastResponsePart) {
 				// The last part is resolving or a tree data item, start a new part
 				this._responseParts.push({ string: new MarkdownString(responsePart) });
 			} else {
@@ -138,16 +140,16 @@ export class Response implements IResponse {
 			this._updateRepr(quiet);
 		} else if ('placeholder' in responsePart) {
 			// Add a new resolving part
-			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), resolving: true }) - 1;
+			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), placeholder: true }) - 1;
 			this._updateRepr(quiet);
 
 			responsePart.resolvedContent?.then((content) => {
 				// Replace the resolving part's content with the resolved response
 				if (typeof content === 'string') {
-					this._responseParts[responsePosition] = { string: new MarkdownString(content), resolving: true };
+					this._responseParts[responsePosition] = { string: new MarkdownString(content), placeholder: true };
 					this._updateRepr(quiet);
 				} else if (content.treeData) {
-					this._responseParts[responsePosition] = { treeData: content.treeData, resolving: true };
+					this._responseParts[responsePosition] = { treeData: content.treeData, placeholder: true };
 					this._updateRepr(quiet);
 				}
 			});
@@ -158,6 +160,8 @@ export class Response implements IResponse {
 		this._responseData = this._responseParts.map(part => {
 			if ('treeData' in part) {
 				return part.treeData;
+			} else if (part.placeholder) {
+				return { ...part.string, placeholder: true };
 			}
 			return part.string;
 		});

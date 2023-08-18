@@ -72,6 +72,7 @@ import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/f
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { distinct } from 'vs/base/common/arrays';
+import { IPlaceholderMarkdownString } from 'vs/workbench/contrib/chat/common/chatModel';
 
 const $ = dom.$;
 
@@ -412,11 +413,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					if (isInteractiveProgressTreeData(part)) {
 						partsToRender[index] = part;
 					} else {
-						const wordCountResult = this.getDataForProgressiveRender(element, part);
+						const wordCountResult = this.getDataForProgressiveRender(element, part, { renderedWordCount: 0, isFullyRendered: false, lastRenderTime: 0, isPlaceholder: isPlaceholderMarkdown(part) });
 						if (wordCountResult !== undefined) {
 							partsToRender[index] = {
 								renderedWordCount: wordCountResult.actualWordCount,
 								lastRenderTime: Date.now(),
+								isPlaceholder: isPlaceholderMarkdown(part),
 								isFullyRendered: wordCountResult.isFullString,
 							};
 							wordCountResults[index] = wordCountResult;
@@ -436,6 +438,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						partsToRender[index] = {
 							renderedWordCount: wordCountResult.actualWordCount,
 							lastRenderTime: Date.now(),
+							isPlaceholder: isPlaceholderMarkdown(part),
 							isFullyRendered: wordCountResult.isFullString,
 						};
 						wordCountResults[index] = wordCountResult;
@@ -466,7 +469,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
 					else if (!hasRenderedOneMarkdownBlock) {
 						const value = wordCountResults[index].value;
-						result = this.renderMarkdown(new MarkdownString(value), element, disposables, templateData, true);
+						result = partToRender.isPlaceholder
+							? this.renderPlaceholder(new MarkdownString(value), templateData)
+							: this.renderMarkdown(new MarkdownString(value), element, disposables, templateData, true);
 						hasRenderedOneMarkdownBlock = true;
 					}
 
@@ -549,6 +554,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
+	private renderPlaceholder(markdown: IMarkdownString, templateData: IChatListItemTemplate): IMarkdownRenderResult {
+		const codicon = $('.interactive-response-error-details', undefined, renderIcon({ id: 'sync~spin' }));
+		codicon.classList.add('interactive-response-placeholder-codicon');
+		const result = dom.append(templateData.value, codicon);
+
+		const content = $('span', undefined, markdown.value);
+		content.className = 'interactive-response-placeholder-content';
+		result.appendChild(content);
+
+		return { element: result, dispose: () => { } };
+	}
+
 	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, disposables: DisposableStore, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
 		const disposablesList: IDisposable[] = [];
 		let codeBlockIndex = 0;
@@ -620,7 +637,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return ref;
 	}
 
-	private getDataForProgressiveRender(element: IChatResponseViewModel, data: IMarkdownString, renderData: IChatResponseMarkdownRenderData = { renderedWordCount: 0, lastRenderTime: 0, isFullyRendered: false }): IWordCountResult | undefined {
+	private getDataForProgressiveRender(element: IChatResponseViewModel, data: IMarkdownString, renderData: IChatResponseMarkdownRenderData): IWordCountResult | undefined {
 		const rate = this.getProgressiveRenderRate(element);
 		const numWordsToRender = renderData.lastRenderTime === 0 ?
 			1 :
@@ -1185,4 +1202,8 @@ class ChatListTreeDataSource implements IAsyncDataSource<IChatResponseProgressFi
 
 function isInteractiveProgressTreeData(item: IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IMarkdownString): item is IChatResponseProgressFileTreeData {
 	return 'label' in item;
+}
+
+function isPlaceholderMarkdown(item: IPlaceholderMarkdownString | IMarkdownString): item is IPlaceholderMarkdownString {
+	return 'placeholder' in item;
 }
