@@ -32,6 +32,7 @@ interface IEditorLayoutProviderOpts {
 	readonly minimap: boolean;
 	readonly minimapSide: 'left' | 'right';
 	readonly minimapRenderCharacters: boolean;
+	readonly minimapSectionHeaderFontSize: number;
 	readonly minimapMaxColumn: number;
 	minimapSize?: 'proportional' | 'fill' | 'fit';
 	readonly pixelRatio: number;
@@ -57,7 +58,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scale: 1,
 			showRegionSectionHeaders: true,
 			showMarkSectionHeaders: true,
-			sectionHeaderFontSize: 11
+			sectionHeaderFontSize: input.minimapSectionHeaderFontSize
 		};
 		options._write(EditorOption.minimap, minimapOptions);
 		const scrollbarOptions: InternalEditorScrollbarOptions = {
@@ -123,6 +124,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: false,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 9,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
 		}, {
@@ -195,6 +197,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: false,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 9,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
 		}, {
@@ -267,6 +270,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: false,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 9,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
 		}, {
@@ -339,6 +343,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: false,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 9,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
 		}, {
@@ -411,6 +416,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: false,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 9,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
 		}, {
@@ -483,6 +489,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: false,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 9,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
 		}, {
@@ -555,6 +562,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: false,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 9,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
 		}, {
@@ -627,6 +635,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: false,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 9,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
 		}, {
@@ -699,6 +708,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: false,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 9,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
 		}, {
@@ -771,6 +781,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: false,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 9,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
 		}, {
@@ -843,6 +854,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: true,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 12,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
 		}, {
@@ -915,6 +927,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: true,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 14,
 			minimapMaxColumn: 150,
 			pixelRatio: 2,
 		}, {
@@ -987,6 +1000,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: true,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 14,
 			minimapMaxColumn: 150,
 			pixelRatio: 4,
 		}, {
@@ -1059,6 +1073,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: true,
 			minimapSide: 'left',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 14,
 			minimapMaxColumn: 150,
 			pixelRatio: 4,
 		}, {
@@ -1132,6 +1147,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: true,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 26,
 			minimapMaxColumn: 150,
 			minimapSize: 'fill',
 			pixelRatio: 2,
@@ -1206,6 +1222,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: true,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 9,
 			minimapMaxColumn: 150,
 			minimapSize: 'fill',
 			pixelRatio: 2,
@@ -1280,6 +1297,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: true,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 14,
 			minimapMaxColumn: 150,
 			minimapSize: 'fit',
 			pixelRatio: 2,
@@ -1354,6 +1372,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: true,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 9,
 			minimapMaxColumn: 150,
 			minimapSize: 'fit',
 			pixelRatio: 2,
@@ -1427,6 +1446,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimap: true,
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
+			minimapSectionHeaderFontSize: 14,
 			minimapMaxColumn: 120,
 			pixelRatio: 2
 		}, {
