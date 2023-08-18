@@ -57,7 +57,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _hidingDelay!: number;
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
 	private _mouseWasOverWidget: boolean = false;
-	private _hideWidgetsTimeout: NodeJS.Timeout | undefined;
+	private _hideWidgetsTimeout: any;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
