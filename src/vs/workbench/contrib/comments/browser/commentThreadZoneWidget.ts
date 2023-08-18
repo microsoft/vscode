@@ -7,7 +7,6 @@ import * as dom from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -171,7 +170,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		if (this._commentGlyph) {
-			return withNullAsUndefined(this._commentGlyph.getPosition().position);
+			return this._commentGlyph.getPosition().position ?? undefined;
 		}
 		return undefined;
 	}

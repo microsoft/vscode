@@ -17,14 +17,12 @@ import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/commo
 import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { TerminalEditorLocationOptions } from 'vscode';
 import { Promises } from 'vs/base/common/async';
-import { TerminalQuickFixType } from 'vs/workbench/api/common/extHostTypes';
 import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { ITerminalQuickFixService, ITerminalQuickFix } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
@@ -121,7 +119,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private async _updateDefaultProfile() {
-		const remoteAuthority = withNullAsUndefined(this._extHostContext.remoteAuthority);
+		const remoteAuthority = this._extHostContext.remoteAuthority ?? undefined;
 		const defaultProfile = this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority, os: this._os });
 		const defaultAutomationProfile = this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority, os: this._os, allowAutomationShell: true });
 		this._proxy.$acceptDefaultProfile(...await Promise.all([defaultProfile, defaultAutomationProfile]));
@@ -449,10 +447,12 @@ export function getOutputMatchForLines(lines: string[], outputMatcher: ITerminal
 }
 
 function parseQuickFix(id: string, source: string, fix: TerminalQuickFix): ITerminalQuickFix {
-	let type = TerminalQuickFixType.Command;
+	let type = TerminalQuickFixType.TerminalCommand;
 	if ('uri' in fix) {
 		fix.uri = URI.revive(fix.uri);
 		type = TerminalQuickFixType.Opener;
+	} else if ('id' in fix) {
+		type = TerminalQuickFixType.VscodeCommand;
 	}
 	return { id, type, source, ...fix };
 }

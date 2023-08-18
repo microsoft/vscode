@@ -19,7 +19,6 @@ import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
@@ -66,6 +65,8 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+
 
 export const enum SettingsFocusContext {
 	Search,
@@ -335,6 +336,20 @@ export class SettingsEditor2 extends EditorPane {
 		this.createBody(this.rootElement);
 		this.addCtrlAInterceptor(this.rootElement);
 		this.updateStyles();
+
+		this._register(registerNavigableContainer({
+			focusNotifiers: [this],
+			focusNextWidget: () => {
+				if (this.searchWidget.inputWidget.hasWidgetFocus()) {
+					this.focusTOC();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (!this.searchWidget.inputWidget.hasWidgetFocus()) {
+					this.focusSearch();
+				}
+			}
+		}));
 	}
 
 	override async setInput(input: SettingsEditor2Input, options: ISettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -395,7 +410,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.editorMemento.clearEditorState(this.input, this.group);
 		}
 
-		return withUndefinedAsNull(cachedState);
+		return cachedState ?? null;
 	}
 
 	override getViewState(): object | undefined {
@@ -830,7 +845,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
-			const element: SettingsTreeGroupElement | null = withUndefinedAsNull(e.elements?.[0]);
+			const element: SettingsTreeGroupElement | null = e.elements?.[0] ?? null;
 			if (this.tocFocusedElement === element) {
 				return;
 			}
@@ -839,7 +854,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.tocTree.setSelection(element ? [element] : []);
 			if (this.searchResultModel) {
 				if (this.viewState.filterToCategory !== element) {
-					this.viewState.filterToCategory = withNullAsUndefined(element);
+					this.viewState.filterToCategory = element ?? undefined;
 					// Force render in this case, because
 					// onDidClickSetting relies on the updated view.
 					this.renderTree(undefined, true);
@@ -937,7 +952,7 @@ export class SettingsEditor2 extends EditorPane {
 			if (classList && classList.contains('monaco-list') && classList.contains('settings-editor-tree')) {
 				this._currentFocusContext = SettingsFocusContext.SettingTree;
 				this.settingRowFocused.set(true);
-				this.treeFocusedElement ??= withUndefinedAsNull(this.settingsTree.firstVisibleElement);
+				this.treeFocusedElement ??= this.settingsTree.firstVisibleElement ?? null;
 				if (this.treeFocusedElement) {
 					this.treeFocusedElement.tabbable = true;
 				}
@@ -1685,6 +1700,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.searchResultLabel = null;
 				this.updateInputAriaLabel();
 				this.countElement.style.display = 'none';
+				this.countElement.innerText = '';
 				this.layout(this.dimension);
 			}
 

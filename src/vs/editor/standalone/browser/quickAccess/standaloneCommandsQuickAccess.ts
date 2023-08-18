@@ -10,7 +10,6 @@ import { ICommandQuickPick } from 'vs/platform/quickinput/browser/commandsQuickA
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -24,7 +23,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class StandaloneCommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
-	protected get activeTextEditorControl(): IEditor | undefined { return withNullAsUndefined(this.codeEditorService.getFocusedCodeEditor()); }
+	protected get activeTextEditorControl(): IEditor | undefined { return this.codeEditorService.getFocusedCodeEditor() ?? undefined; }
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,

@@ -5,7 +5,6 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -331,7 +330,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			try {
 				// Create variable resolver
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-				const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+				const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 				const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority), this._configurationResolverService);
 
 				// Re-resolve the environments and replace it on the state so local terminals use a fresh
@@ -376,10 +375,6 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			await this._environmentVariableService.mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
 		}
 		return env;
-	}
-
-	private _getWorkspaceId(): string {
-		return this._workspaceContextService.getWorkspace().id;
 	}
 
 	private _getWorkspaceName(): string {

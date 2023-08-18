@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-Rb9injxD1VMV/uzNjbZ78NhEoDuUnHcJBfN1KZ9nE7U=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-QA1gXilHYAUFCvp7MpjgcmyBCFzSKV0SpiecMU8aUVc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -86,11 +86,11 @@
 		defaultStyles.id = '_defaultStyles';
 		defaultStyles.textContent = `
 			html {
-				overscroll-behavior-x: none;
 				scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
 			}
 
 			body {
+				overscroll-behavior-x: none;
 				background-color: transparent;
 				color: var(--vscode-editor-foreground);
 				font-family: var(--vscode-font-family);

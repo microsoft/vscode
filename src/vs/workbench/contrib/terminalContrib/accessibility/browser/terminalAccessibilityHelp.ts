@@ -20,7 +20,6 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import type { Terminal } from 'xterm';
 
 export const enum ClassName {
-	AccessibleBuffer = 'terminal-accessibility-help',
 	Active = 'active',
 	EditorTextArea = 'textarea'
 }
@@ -39,7 +38,6 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 	}
 	options: IAccessibleViewOptions = {
 		type: AccessibleViewType.Help,
-		ariaLabel: localize('terminal-help-label', "terminal accessibility help"),
 		readMoreUrl: 'https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility'
 	};
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
