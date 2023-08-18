@@ -294,7 +294,7 @@ class AccessibleView extends Disposable {
 		if (!showAccessibleViewHelp) {
 			// don't overwrite the current provider
 			this._currentProvider = provider;
-			this._accessibleViewCurrentProviderId.set(provider.verbositySettingKey);
+			this._accessibleViewCurrentProviderId.set(provider.verbositySettingKey.replaceAll('accessibility.verbosity.', ''));
 		}
 		this._updateContextKeys(provider, true);
 		const value = this._configurationService.getValue(provider.verbositySettingKey);
