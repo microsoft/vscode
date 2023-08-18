@@ -8,7 +8,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { AccessibilitySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityWorkbenchSettingId, ViewDimUnfocusedOpacityProperties } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export class UnfocusedViewDimmingContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
@@ -22,24 +22,22 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 		this._register(toDisposable(() => elStyle.remove()));
 
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
-			if (e && !e.affectsConfiguration(AccessibilitySettingId.UnfocusedViewOpacity)) {
+			if (e && !e.affectsConfiguration(AccessibilityWorkbenchSettingId.ViewDimUnfocusedEnabled) && !e.affectsConfiguration(AccessibilityWorkbenchSettingId.ViewDimUnfocusedOpacity)) {
 				return;
-			}
-
-			let opacity: number;
-			const opacityConfig = configurationService.getValue(AccessibilitySettingId.UnfocusedViewOpacity);
-			if (typeof opacityConfig !== 'number') {
-				opacity = 1;
-			} else {
-				opacity = clamp(opacityConfig, 0.2, 1);
 			}
 
 			let cssTextContent = '';
 
-			// Only add the styles if the feature is used
-			if (opacity !== 1) {
-				const rules = new Set<string>();
+			const enabled = ensureBoolean(configurationService.getValue(AccessibilityWorkbenchSettingId.ViewDimUnfocusedEnabled), false);
+			if (enabled) {
+				const opacity = clamp(
+					ensureNumber(configurationService.getValue(AccessibilityWorkbenchSettingId.ViewDimUnfocusedOpacity), ViewDimUnfocusedOpacityProperties.Default),
+					ViewDimUnfocusedOpacityProperties.Minimum,
+					ViewDimUnfocusedOpacityProperties.Maximum
+				);
+
 				if (opacity !== 1) {
+					const rules = new Set<string>();
 					const filterRule = `filter: opacity(${opacity});`;
 					// Terminal tabs
 					rules.add(`.monaco-workbench .pane-body.integrated-terminal:not(:focus-within) .tabs-container { ${filterRule} }`);
@@ -49,11 +47,20 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .monaco-editor { ${filterRule} }`);
 					// Terminal editors
 					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .terminal-wrapper { ${filterRule} }`);
+					cssTextContent = [...rules].join('\n');
 				}
-				cssTextContent = [...rules].join('\n');
-			}
 
-			elStyle.textContent = cssTextContent;
+				elStyle.textContent = cssTextContent;
+			}
 		}));
 	}
+}
+
+
+function ensureBoolean(value: unknown, defaultValue: boolean): boolean {
+	return typeof value === 'boolean' ? value : defaultValue;
+}
+
+function ensureNumber(value: unknown, defaultValue: number): number {
+	return typeof value === 'number' ? value : defaultValue;
 }
