@@ -416,7 +416,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const plusCursor = (renderValue.value.match(/```\s*$/) ?
 					renderValue.value + '\n\n' :
 					renderValue.value) + ` ${ChatListItemRenderer.cursorCharacter}`;
-				const result = this.renderMarkdown(new MarkdownString(plusCursor), element, disposables, templateData, true);
+				const result = this.renderMarkdown(new MarkdownString(plusCursor, { supportThemeIcons: true }), element, disposables, templateData, true);
 				// Doing the progressive render
 				dom.clearNode(templateData.value);
 				templateData.value.appendChild(result.element);
