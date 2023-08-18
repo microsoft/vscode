@@ -1205,5 +1205,5 @@ function isInteractiveProgressTreeData(item: IChatResponseProgressFileTreeData |
 }
 
 function isPlaceholderMarkdown(item: IPlaceholderMarkdownString | IMarkdownString): item is IPlaceholderMarkdownString {
-	return 'placeholder' in item;
+	return 'isPlaceholder' in item;
 }

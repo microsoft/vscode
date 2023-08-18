@@ -89,8 +89,9 @@ export class ChatRequestModel implements IChatRequestModel {
 }
 
 export interface IPlaceholderMarkdownString extends IMarkdownString {
-	placeholder: boolean;
+	isPlaceholder: boolean;
 }
+
 type ResponsePart = { string: IMarkdownString; placeholder?: boolean } | { treeData: IChatResponseProgressFileTreeData; placeholder?: boolean };
 export class Response implements IResponse {
 	private _onDidChangeValue = new Emitter<void>();
