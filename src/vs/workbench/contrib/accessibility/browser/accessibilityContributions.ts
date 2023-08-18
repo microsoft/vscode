@@ -315,28 +315,12 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 					previous() {
 						model.previous().then(() => show());
 					},
-					actions: [
-						{
-							id: 'inlineCompletions.accept',
-							label: localize('inlineCompletions.accept', "Accept Completion"),
-							tooltip: localize('inlineCompletions.accept', "Accept Completion"),
-							run: () => {
-								model.accept(editor).then(() => {
-									alert('Accepted');
-									model.stop();
-									editor.focus();
-								});
-							},
-							class: ThemeIcon.asClassName(Codicon.check),
-							enabled: true
-						}
-					],
 					options: this._options
 				});
 				return true;
-			};
+			}; ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible);
 			return show();
-		}, ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible, EditorContextKeys.focus, EditorContextKeys.hasCodeActionsProvider)
+		},
 		)
 		);
 	}

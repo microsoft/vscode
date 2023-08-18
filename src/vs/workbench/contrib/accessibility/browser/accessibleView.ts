@@ -32,7 +32,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -101,6 +101,7 @@ class AccessibleView extends Disposable {
 	private _accessibleViewSupportsNavigation: IContextKey<boolean>;
 	private _accessibleViewVerbosityEnabled: IContextKey<boolean>;
 	private _accessibleViewGoToSymbolSupported: IContextKey<boolean>;
+	private _accessibleViewCurrentProviderId: IContextKey<string>;
 
 	get editorWidget() { return this._editorWidget; }
 	private _editorContainer: HTMLElement;
@@ -126,6 +127,7 @@ class AccessibleView extends Disposable {
 		this._accessibleViewSupportsNavigation = accessibleViewSupportsNavigation.bindTo(this._contextKeyService);
 		this._accessibleViewVerbosityEnabled = accessibleViewVerbosityEnabled.bindTo(this._contextKeyService);
 		this._accessibleViewGoToSymbolSupported = accessibleViewGoToSymbolSupported.bindTo(this._contextKeyService);
+		this._accessibleViewCurrentProviderId = accessibleViewCurrentProviderId.bindTo(this._contextKeyService);
 
 		this._editorContainer = document.createElement('div');
 		this._editorContainer.classList.add('accessible-view');
@@ -182,6 +184,7 @@ class AccessibleView extends Disposable {
 			onHide: () => {
 				if (!showAccessibleViewHelp) {
 					this._currentProvider = undefined;
+					this._accessibleViewCurrentProviderId.reset();
 				}
 			}
 		};
@@ -291,6 +294,7 @@ class AccessibleView extends Disposable {
 		if (!showAccessibleViewHelp) {
 			// don't overwrite the current provider
 			this._currentProvider = provider;
+			this._accessibleViewCurrentProviderId.set(provider.verbositySettingKey.replaceAll('accessibility.verbosity.', ''));
 		}
 		this._updateContextKeys(provider, true);
 		const value = this._configurationService.getValue(provider.verbositySettingKey);
