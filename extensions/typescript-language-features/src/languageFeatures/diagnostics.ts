@@ -9,6 +9,7 @@ import * as arrays from '../utils/arrays';
 import { Disposable } from '../utils/dispose';
 import { ResourceMap } from '../utils/resourceMap';
 import { TelemetryReporter } from '../logging/telemetry';
+import { URI } from 'vscode-uri';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
 	if (a === b) {
@@ -149,31 +150,68 @@ class DiagnosticSettings {
 	}
 }
 
-class DiagnosticsTelemetryManager {
+/*
+const diagnostics = this.getDiagnostics(document.uri);
+			const diagnoticCodes = diagnostics.reduce(function (result: number[], d: vscode.Diagnostic) {
+				const code = d.code;
+				if (typeof code === 'string' || typeof code === 'number') {
+					result.push(Number(code));
+				} else if (code !== undefined) {
+					result.push(Number(code.value));
+				}
+				return result;
+			}, []);
+			*/
+class DiagnosticsTelemetryManager extends Disposable {
 
-	private _diagnosticCodes: number[] = [];
+	private readonly _timeOutDiagnosticMaps = new Map<URI, NodeJS.Timeout | undefined>();
+	private readonly _diagnosticCodesMap = new Map<number, number>();
 
-	constructor(private readonly _telemetryReporter: TelemetryReporter) { }
-
-	public addDiagnosticCodes(codes: number[]) {
-		this._diagnosticCodes.push(...codes);
-		this._diagnosticCodes.sort();
+	constructor(private readonly _telemetryReporter: TelemetryReporter) {
+		super();
+		this._register(vscode.workspace.onDidChangeTextDocument(e => {
+			if (e.document.languageId === 'typescript') {
+				clearTimeout(this._timeOutDiagnosticMaps.get(e.document.uri));
+				const timeOut = setTimeout(() => { }, 5000);
+				this._timeOutDiagnosticMaps.set(e.document.uri, timeOut);
+			}
+		}));
+		this._register(vscode.workspace.onDidOpenTextDocument(e => {
+			if (e.languageId === 'typescript') {
+				this._timeOutDiagnosticMaps.set(e.uri, undefined);
+			}
+		}));
+		this._register(vscode.workspace.onDidCloseTextDocument(e => {
+			if (e.languageId === 'typescript') {
+				this._timeOutDiagnosticMaps.delete(e.uri);
+			}
+		}));
+		this._sendTelemetryEvent();
 	}
 
-	public sendDiagnosticsCodesTelemetry(): void {
-		/* __GDPR__
-				"typescript.diagnostics" : {
-					"owner": "@aiday-mar",
-					"diagnosticCodes" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					"${include}": [
-						"${TypeScriptCommonProperties}"
-					]
-				}
-			*/
-		this._telemetryReporter.logTelemetry('typescript.diagnostics', {
-			diagnoticCodes: this._diagnosticCodes.join(', ')
-		});
-		this._diagnosticCodes = [];
+	private _sendTelemetryEvent() {
+		setTimeout(() => {
+			if (this._diagnosticCodesMap.size > 0) {
+				let diagnosticCodes = '';
+				this._diagnosticCodesMap.forEach((value, key) => {
+					diagnosticCodes += `${key}:${value},`;
+				});
+				this._diagnosticCodesMap.clear();
+				/* __GDPR__
+					"typescript.diagnostics" : {
+						"owner": "@aiday-mar",
+						"diagnosticCodes" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+						"${include}": [
+							"${TypeScriptCommonProperties}"
+						]
+					}
+				*/
+				this._telemetryReporter.logTelemetry('typescript.diagnostics', {
+					diagnoticCodes: diagnosticCodes
+				});
+			}
+			this._sendTelemetryEvent();
+		}, 5 * 60 * 1000);
 	}
 }
 
@@ -182,7 +220,6 @@ export class DiagnosticsManager extends Disposable {
 	private readonly _settings = new DiagnosticSettings();
 	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
 	private readonly _pendingUpdates: ResourceMap<any>;
-	private readonly _diagnosticsTelemetryManager: DiagnosticsTelemetryManager;
 	private readonly _updateDelay = 50;
 
 	constructor(
@@ -195,24 +232,9 @@ export class DiagnosticsManager extends Disposable {
 		this._pendingUpdates = new ResourceMap<any>(undefined, { onCaseInsensitiveFileSystem });
 
 		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
-		this._diagnosticsTelemetryManager = new DiagnosticsTelemetryManager(telemetryReporter);
-		this._register(vscode.workspace.onDidOpenTextDocument((document) => {
-			const diagnostics = this.getDiagnostics(document.uri);
-			const diagnoticCodes = diagnostics.reduce(function (result: number[], d: vscode.Diagnostic) {
-				const code = d.code;
-				if (typeof code === 'string' || typeof code === 'number') {
-					result.push(Number(code));
-				} else if (code !== undefined) {
-					result.push(Number(code.value));
-				}
-				return result;
-			}, []);
-			this._diagnosticsTelemetryManager.addDiagnosticCodes(diagnoticCodes);
-		}));
-	}
-
-	public sendDiagnosticsCodesTelemetry(): void {
-		this._diagnosticsTelemetryManager.sendDiagnosticsCodesTelemetry();
+		if (Math.random() * 1000 <= 1) {
+			this._register(new DiagnosticsTelemetryManager(telemetryReporter));
+		}
 	}
 
 	public override dispose() {

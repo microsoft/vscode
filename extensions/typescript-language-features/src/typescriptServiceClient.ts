@@ -456,7 +456,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 			*/
 			this.logTelemetry('tsserver.exitWithCode', { code: code ?? undefined, signal: signal ?? undefined });
-			this.diagnosticsManager.sendDiagnosticsCodesTelemetry();
+
 
 			if (this.token !== mytoken) {
 				// this is coming from an old process
