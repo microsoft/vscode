@@ -382,7 +382,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	matchesAllTags(tagFilters?: Set<string>): boolean {
-		if (!tagFilters || !tagFilters.size) {
+		if (!tagFilters?.size) {
+			// This setting, which may have tags,
+			// matches against a query with no tags.
 			return true;
 		}
 
@@ -392,13 +394,15 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.inspectSelf();
 		}
 
-		if (this.tags) {
-			let hasFilteredTag = true;
+		if (this.tags?.size) {
+			let hasAllTagsInFilter = true;
 			tagFilters.forEach(tag => {
-				hasFilteredTag = hasFilteredTag && this.tags!.has(tag);
+				hasAllTagsInFilter &&= this.tags!.has(tag);
 			});
-			return hasFilteredTag;
+			return hasAllTagsInFilter;
 		} else {
+			// This setting has no tags,
+			// and doesn't match against a query with tags.
 			return false;
 		}
 	}
