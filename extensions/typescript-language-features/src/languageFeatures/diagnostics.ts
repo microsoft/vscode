@@ -153,8 +153,8 @@ class DiagnosticSettings {
 class DiagnosticsTelemetryManager extends Disposable {
 
 	private readonly _diagnosticCodesMap = new Map<number, number>();
-	private readonly _diagnosticTimeoutsMap = new Map<vscode.Uri, NodeJS.Timeout | undefined>();
 	private readonly _diagnosticSnapshotsMap = new Map<vscode.Uri, readonly vscode.Diagnostic[]>();
+	private _timeout: NodeJS.Timeout | undefined;
 
 	constructor(
 		private readonly _telemetryReporter: TelemetryReporter,
@@ -163,31 +163,21 @@ class DiagnosticsTelemetryManager extends Disposable {
 		super();
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
 			if (e.document.languageId === 'typescript') {
-				this._updateDiagnosticCodesAfterTimeout(e.document.uri);
+				this._updateDiagnosticCodesAfterTimeoutForUri(e.document.uri);
 			}
 		}));
-		this._register(vscode.workspace.onDidOpenTextDocument(e => {
-			if (e.languageId === 'typescript') {
-				this._updateDiagnosticCodesAfterTimeout(e.uri);
-			}
-		}));
-		this._register(vscode.workspace.onDidCloseTextDocument(e => {
-			if (e.languageId === 'typescript') {
-				this._diagnosticTimeoutsMap.delete(e.uri);
-			}
-		}));
-		const activeUri = vscode.window.activeTextEditor?.document.uri;
-		this._updateDiagnosticCodesAfterTimeout(activeUri);
-		this._sendTelemetryEvent();
+		this._updateAllDiagnosticCodesAfterTimeout();
+		this._registerTelemetryEventEmitter();
 	}
 
-	private _updateDiagnosticCodesAfterTimeout(uri: vscode.Uri | undefined) {
-		if (!uri) {
-			return;
-		}
-		clearTimeout(this._diagnosticTimeoutsMap.get(uri));
-		const timeout = setTimeout(() => { this._updateDiagnosticCodes(uri); }, 10000);
-		this._diagnosticTimeoutsMap.set(uri, timeout);
+	private _updateAllDiagnosticCodesAfterTimeout() {
+		const uris = vscode.workspace.textDocuments.map(doc => doc.uri);
+		uris.forEach(uri => setTimeout(() => { this._updateDiagnosticCodes(uri); }, 10000));
+	}
+
+	private _updateDiagnosticCodesAfterTimeoutForUri(uri: vscode.Uri) {
+		clearTimeout(this._timeout);
+		this._timeout = setTimeout(() => { this._updateDiagnosticCodes(uri); }, 10000);
 	}
 
 	private _updateDiagnosticCodes(uri: vscode.Uri) {
@@ -205,8 +195,8 @@ class DiagnosticsTelemetryManager extends Disposable {
 		});
 	}
 
-	private _sendTelemetryEvent() {
-		setTimeout(() => {
+	private _registerTelemetryEventEmitter() {
+		setInterval(() => {
 			if (this._diagnosticCodesMap.size > 0) {
 				let diagnosticCodes = '';
 				this._diagnosticCodesMap.forEach((value, key) => {
@@ -226,7 +216,6 @@ class DiagnosticsTelemetryManager extends Disposable {
 					diagnoticCodes: diagnosticCodes
 				});
 			}
-			this._sendTelemetryEvent();
 		}, 5 * 60 * 1000); // 5 minutes
 	}
 }
