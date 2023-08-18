@@ -2561,6 +2561,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		) {
 			this.element = document.createElement('div');
 			this.element.classList.add('output_container');
+			this.element.setAttribute('data-vscode-context', JSON.stringify({ 'preventDefaultContextMenuItems': true }));
 			this.element.style.position = 'absolute';
 			this.element.style.overflow = 'hidden';
 		}
