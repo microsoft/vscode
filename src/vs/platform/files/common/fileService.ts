@@ -1228,7 +1228,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		return new Promise((resolve, reject) => {
-			listenStream(stream, {
+			const l = listenStream(stream, {
 				onData: async chunk => {
 
 					// pause stream to perform async write operation
@@ -1248,8 +1248,14 @@ export class FileService extends Disposable implements IFileService {
 					// handler again before finishing.
 					setTimeout(() => stream.resume());
 				},
-				onError: error => reject(error),
-				onEnd: () => resolve()
+				onError: error => {
+					l.dispose();
+					reject(error);
+				},
+				onEnd: () => {
+					l.dispose();
+					resolve();
+				}
 			});
 		});
 	}

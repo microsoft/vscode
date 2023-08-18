@@ -35,8 +35,8 @@ export class DiffEditorEditors extends Disposable {
 	) {
 		super();
 
-		this.original = this._createLeftHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.originalEditor || {});
-		this.modified = this._createRightHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.modifiedEditor || {});
+		this.original = this._register(this._createLeftHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.originalEditor || {}));
+		this.modified = this._register(this._createRightHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.modifiedEditor || {}));
 
 		this._register(autorunHandleChanges({
 			createEmptyChangeSummary: () => ({} as IDiffEditorConstructionOptions),

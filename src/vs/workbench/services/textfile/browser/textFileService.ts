@@ -89,7 +89,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	private provideDecorations(): void {
 
 		// Text file model decorations
-		this.decorationsService.registerDecorationsProvider(new class extends Disposable implements IDecorationsProvider {
+		const provider = new class extends Disposable implements IDecorationsProvider {
 
 			readonly label = localize('textFileModelDecorations', "Text File Model Decorations");
 
@@ -160,7 +160,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 				return undefined;
 			}
-		}(this.files));
+		}(this.files);
+
+		this._register(provider);
+		this._register(this.decorationsService.registerDecorationsProvider(provider));
 	}
 
 	//#endregin
