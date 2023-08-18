@@ -163,12 +163,12 @@ class DiagnosticsTelemetryManager extends Disposable {
 		super();
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
 			if (e.document.languageId === 'typescript') {
-				this._updateDiagnosticCodesAfterTimeout(e.document.uri, 10000);
+				this._updateDiagnosticCodesAfterTimeout(e.document.uri);
 			}
 		}));
 		this._register(vscode.workspace.onDidOpenTextDocument(e => {
 			if (e.languageId === 'typescript') {
-				this._updateDiagnosticCodesAfterTimeout(e.uri, 10000);
+				this._updateDiagnosticCodesAfterTimeout(e.uri);
 			}
 		}));
 		this._register(vscode.workspace.onDidCloseTextDocument(e => {
@@ -177,16 +177,16 @@ class DiagnosticsTelemetryManager extends Disposable {
 			}
 		}));
 		const activeUri = vscode.window.activeTextEditor?.document.uri;
-		this._updateDiagnosticCodesAfterTimeout(activeUri, 10000);
+		this._updateDiagnosticCodesAfterTimeout(activeUri);
 		this._sendTelemetryEvent();
 	}
 
-	private _updateDiagnosticCodesAfterTimeout(uri: vscode.Uri | undefined, timeoutInMs: number) {
+	private _updateDiagnosticCodesAfterTimeout(uri: vscode.Uri | undefined) {
 		if (!uri) {
 			return;
 		}
 		clearTimeout(this._diagnosticTimeoutsMap.get(uri));
-		const timeout = setTimeout(() => { this._updateDiagnosticCodes(uri); }, timeoutInMs);
+		const timeout = setTimeout(() => { this._updateDiagnosticCodes(uri); }, 10000);
 		this._diagnosticTimeoutsMap.set(uri, timeout);
 	}
 
