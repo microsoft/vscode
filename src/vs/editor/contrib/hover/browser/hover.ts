@@ -55,6 +55,8 @@ export class ModesHoverController implements IEditorContribution {
 	private _isHoverEnabled!: boolean;
 	private _isHoverSticky!: boolean;
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
+	private _mouseMovedOnTop: boolean = false;
+	private _calculatingIfShouldDisappear: boolean = false;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -152,43 +154,62 @@ export class ModesHoverController implements IEditorContribution {
 		}
 	}
 
-	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
+	private _mouseMovedOnTopOfWidget(mouseEvent: IEditorMouseEvent): boolean {
 		const target = mouseEvent.target;
-
-		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
-			return;
-		}
-
-		if (this._isMouseDown && this._hoverClicked) {
-			return;
-		}
-
-		if (this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID) {
-			// mouse moved on top of content hover widget
-			return;
-		}
-
-		if (this._isHoverSticky && this._contentWidget?.containsNode(mouseEvent.event.browserEvent.view?.document.activeElement) && !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed) {
-			// selected text within content hover widget
-			return;
-		}
-
 		if (
-			!this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID
+			this._isHoverSticky
+			&& target.type === MouseTargetType.CONTENT_WIDGET
+			&& target.detail === ContentHoverWidget.ID
+		) {
+			// mouse moved on top of content hover widget
+			return true;
+		}
+		if (
+			this._isHoverSticky
+			&& this._contentWidget?.containsNode(mouseEvent.event.browserEvent.view?.document.activeElement)
+			&& !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed
+		) {
+			// selected text within content hover widget
+			return true;
+		}
+		if (
+			!this._isHoverSticky
+			&& target.type === MouseTargetType.CONTENT_WIDGET
+			&& target.detail === ContentHoverWidget.ID
 			&& this._contentWidget?.isColorPickerVisible
 		) {
 			// though the hover is not sticky, the color picker needs to.
-			return;
+			return true;
 		}
-
-		if (this._isHoverSticky && target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
+		if (this._isHoverSticky
+			&& target.type === MouseTargetType.OVERLAY_WIDGET
+			&& target.detail === MarginHoverWidget.ID
+		) {
 			// mouse moved on top of overlay hover widget
+			return true;
+		}
+		return false;
+	}
+
+	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
+		const target = mouseEvent.target;
+		if (this._calculatingIfShouldDisappear || this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
 			return;
 		}
-
+		if (this._isMouseDown && this._hoverClicked) {
+			return;
+		}
 		if (this._isHoverSticky && this._contentWidget?.isVisibleFromKeyboard) {
 			// Sticky mode is on and the hover has been shown via keyboard
 			// so moving the mouse has no effect
+			return;
+		}
+
+		const mouseMovedOnTopOfWidget = this._mouseMovedOnTopOfWidget(mouseEvent);
+		console.log('mouseMovedOnTopOfWidget : ', mouseMovedOnTopOfWidget);
+		if (mouseMovedOnTopOfWidget && this._mouseMovedOnTop !== mouseMovedOnTopOfWidget) {
+			console.log('updating mouse move on top');
+			this._mouseMovedOnTop = mouseMovedOnTopOfWidget;
 			return;
 		}
 
@@ -213,7 +234,7 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && target.position) {
-			console.log('Before this._contentWidget.hide() in _onEditorMouseMove');
+			console.log('Before this._contentWidget.hide() in _onEditorMouseMove at : ', new Date());
 			this._contentWidget?.hide();
 			if (!this._glyphWidget) {
 				this._glyphWidget = new MarginHoverWidget(this._editor, this._languageService, this._openerService);
@@ -228,15 +249,29 @@ export class ModesHoverController implements IEditorContribution {
 		const mouseMoveDisposable = this._editor.onMouseMove((e) => {
 			mouseMoveEvent = e;
 		});
-		setTimeout(() => {
-			// TODO: Find appropriate conditions
-			console.log('mouseMoveEvent : ', mouseMoveEvent);
-			if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID) {
-				console.log('Before very last _hideWidgets() inside of _onEditorMouseMove');
-				this._hideWidgets();
-			}
-			mouseMoveDisposable.dispose();
-		}, 500);
+
+		console.log('this._mouseMovedOnTop : ', this._mouseMovedOnTop);
+		if (this._mouseMovedOnTop) {
+			this._calculatingIfShouldDisappear = true;
+			setTimeout(() => {
+				// TODO: Find appropriate conditions
+				console.log('mouseMoveEvent after 500 ms : ', mouseMoveEvent, ' at : ', new Date());
+				const targetTimetout = mouseMoveEvent?.target;
+				console.log('targetTimetout : ', targetTimetout);
+				console.log('targetTimetout.type : ', targetTimetout?.type);
+
+				if (!mouseMoveEvent || !this._mouseMovedOnTopOfWidget(mouseMoveEvent)) {
+					console.log('*** Before _hideWidgets() inside of _onEditorMouseMove');
+					this._hideWidgets();
+				}
+				mouseMoveDisposable.dispose();
+				this._calculatingIfShouldDisappear = false;
+			}, 1000);
+			this._mouseMovedOnTop = false;
+		} else {
+			console.log('Before final hide widgets');
+			this._hideWidgets();
+		}
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
