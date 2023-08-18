@@ -85,7 +85,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		const content: IPatternInfo = {
 			pattern: contentPattern,
 		};
-		const charsPerLine = content.isRegExp ? 10000 : 1000;
+		const charsPerLine = content.isRegExp ? 10000 : 1000; // from https://github.com/microsoft/vscode/blob/e7ad5651ac26fa00a40aa1e4010e81b92f655569/src/vs/workbench/contrib/search/browser/searchView.ts#L1508
 
 		const query: ITextQuery = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), this._getTextQueryBuilderOptions(charsPerLine));
 
