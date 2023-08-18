@@ -38,7 +38,6 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 	}
 	options: IAccessibleViewOptions = {
 		type: AccessibleViewType.Help,
-		ariaLabel: localize('terminal-help-label', "terminal accessibility help"),
 		readMoreUrl: 'https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility'
 	};
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
