@@ -57,6 +57,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
 	private _mouseMovedOnTop: boolean = false;
 	private _calculatingIfShouldDisappear: boolean = false;
+	private _hideWidgetHoveredOutside: NodeJS.Timeout | undefined;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -193,7 +194,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 		const target = mouseEvent.target;
-		if (this._calculatingIfShouldDisappear || this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
+		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
 			return;
 		}
 		if (this._isMouseDown && this._hoverClicked) {
@@ -206,6 +207,15 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		const mouseMovedOnTopOfWidget = this._mouseMovedOnTopOfWidget(mouseEvent);
+		if (mouseMovedOnTopOfWidget && this._calculatingIfShouldDisappear) {
+			console.log('before clearing the timeout');
+			clearTimeout(this._hideWidgetHoveredOutside);
+			this._calculatingIfShouldDisappear = false;
+			this._mouseMovedOnTop = false;
+		}
+		if (this._calculatingIfShouldDisappear) {
+			return;
+		}
 		console.log('mouseMovedOnTopOfWidget : ', mouseMovedOnTopOfWidget);
 		if (mouseMovedOnTopOfWidget && this._mouseMovedOnTop !== mouseMovedOnTopOfWidget) {
 			console.log('updating mouse move on top');
@@ -245,25 +255,26 @@ export class ModesHoverController implements IEditorContribution {
 		if (_sticky) {
 			return;
 		}
-		let mouseMoveEvent: IEditorMouseEvent | undefined;
-		const mouseMoveDisposable = this._editor.onMouseMove((e) => {
-			mouseMoveEvent = e;
-		});
 
 		console.log('this._mouseMovedOnTop : ', this._mouseMovedOnTop);
+		console.log('mouseEvent : ', mouseEvent);
+
 		if (this._mouseMovedOnTop) {
 			this._calculatingIfShouldDisappear = true;
-			setTimeout(() => {
+
+			let mouseMoveEvent: IEditorMouseEvent | undefined;
+			const mouseMoveDisposable = this._editor.onMouseMove((e) => {
+				mouseMoveEvent = e;
+			});
+
+			this._hideWidgetHoveredOutside = setTimeout(() => {
 				// TODO: Find appropriate conditions
 				console.log('mouseMoveEvent after 500 ms : ', mouseMoveEvent, ' at : ', new Date());
 				const targetTimetout = mouseMoveEvent?.target;
 				console.log('targetTimetout : ', targetTimetout);
 				console.log('targetTimetout.type : ', targetTimetout?.type);
 
-				if (!mouseMoveEvent || !this._mouseMovedOnTopOfWidget(mouseMoveEvent)) {
-					console.log('*** Before _hideWidgets() inside of _onEditorMouseMove');
-					this._hideWidgets();
-				}
+				this._hideWidgets();
 				mouseMoveDisposable.dispose();
 				this._calculatingIfShouldDisappear = false;
 			}, 1000);
