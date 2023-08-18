@@ -36,7 +36,12 @@ class AccessibleViewNextAction extends Action2 {
 				primary: KeyMod.Alt | KeyCode.BracketRight,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			menu: [commandPalette, accessibleViewMenu],
+			menu: [
+				commandPalette,
+				{
+					...accessibleViewMenu,
+					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+				}],
 			icon: Codicon.chevronRight,
 			title: localize('editor.action.accessibleViewNext', "Show Next in Accessible View")
 		});
@@ -58,7 +63,13 @@ class AccessibleViewPreviousAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			icon: Codicon.chevronLeft,
-			menu: [commandPalette, accessibleViewMenu],
+			menu: [
+				commandPalette,
+				{
+					...accessibleViewMenu,
+					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+				}
+			],
 			title: localize('editor.action.accessibleViewPrevious', "Show Previous in Accessible View")
 		});
 	}
@@ -79,7 +90,13 @@ class AccessibleViewGoToSymbolAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib + 10
 			},
 			icon: Codicon.symbolField,
-			menu: [commandPalette, accessibleViewMenu],
+			menu: [
+				commandPalette,
+				{
+					...accessibleViewMenu,
+					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+				}
+			],
 			title: localize('editor.action.accessibleViewGoToSymbol', "Go To Symbol in Accessible View")
 		});
 	}
@@ -143,11 +160,14 @@ class AccessibleViewDisableHintAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			icon: Codicon.treeFilterClear,
-			menu: [commandPalette,
+			menu: [
+				commandPalette,
 				{
 					id: MenuId.AccessibleView,
-					group: 'navigation'
-				}],
+					group: 'navigation',
+					when: ContextKeyExpr.and(ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown), accessibleViewVerbosityEnabled),
+				}
+			],
 			title: localize('editor.action.accessibleViewDisableHint', "Disable Accessible View Hint")
 		});
 	}
