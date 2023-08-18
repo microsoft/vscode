@@ -2349,9 +2349,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
-			if (!options?.skipReveal) {
-				this._webview.focusOutput(cell.id, this._webviewFocused);
-			}
+			const focusElementId = options?.outputId ?? cell.id;
+			this._webview.focusOutput(focusElementId, this._webviewFocused);
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Output;
@@ -2791,6 +2790,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			const cellTop = this._list.getCellViewScrollTop(cell) + top;
 			this._webview.updateOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
 		});
+	}
+
+	async copyOutputImage(cellOutput: ICellOutputViewModel): Promise<void> {
+		this._webview?.copyImage(cellOutput);
 	}
 
 	removeInset(output: ICellOutputViewModel) {

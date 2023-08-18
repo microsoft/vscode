@@ -53,6 +53,21 @@
 	outline: 0 !important;
 }
 
+.xterm.dev-mode .xterm-helper-textarea {
+	z-index: 36 !important;
+	opacity: 1 !important;
+	left: 0 !important;
+	width: fit-content !important;
+}
+.monaco-workbench .xterm.dev-mode .xterm-helper-textarea:focus {
+	opacity: 1 !important;
+}
+
+.monaco-workbench .xterm .xterm-helper-textarea:focus {
+	/* Override the general vscode style applies `opacity:1!important` to textareas */
+	opacity: 0 !important;
+}
+
 .monaco-workbench .terminal-tab::before {
 	font-family: 'codicon' !important;
 	font-size: 16px !important;
@@ -246,11 +261,6 @@
 .monaco-workbench .pane-body.integrated-terminal .xterm .xterm-helpers {
 	position: absolute;
 	top: 0;
-}
-
-.monaco-workbench .xterm .xterm-helper-textarea:focus {
-	/* Override the general vscode style applies `opacity:1!important` to textareas */
-	opacity: 0 !important;
 }
 
 .monaco-workbench.vs-dark.mac .pane-body.integrated-terminal .terminal-groups-container:not(.alt-active) .terminal:not(.enable-mouse-events),

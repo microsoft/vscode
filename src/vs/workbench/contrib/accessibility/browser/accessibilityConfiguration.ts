@@ -10,6 +10,9 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
+export const accessibleViewSupportsNavigation = new RawContextKey<boolean>('accessibleViewSupportsNavigation', false, true);
+export const accessibleViewVerbosityEnabled = new RawContextKey<boolean>('accessibleViewVerbosityEnabled', false, true);
+export const accessibleViewGoToSymbolSupported = new RawContextKey<boolean>('accessibleViewGoToSymbolSupported', false, true);
 
 export const enum AccessibilitySettingId {
 	UnfocusedViewOpacity = 'accessibility.unfocusedViewOpacity'
@@ -20,6 +23,7 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditor = 'accessibility.verbosity.diffEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	InlineChat = 'accessibility.verbosity.inlineChat',
+	InlineCompletions = 'accessibility.verbosity.inlineCompletions',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
 	Notebook = 'accessibility.verbosity.notebook',
 	Editor = 'accessibility.verbosity.editor',
@@ -55,6 +59,10 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints which describe how to use the feature when the input is focused'),
 			...baseProperty
 		},
+		[AccessibilityVerbositySettingId.InlineCompletions]: {
+			description: localize('verbosity.inlineCompletions.description', 'Provide information about how to access the inline completions hover and accessible view'),
+			...baseProperty
+		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
 			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused'),
 			...baseProperty
@@ -76,7 +84,7 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilitySettingId.UnfocusedViewOpacity]: {
-			description: localize('unfocusedViewOpacity', 'The opacity fraction (0.2 to 1.0) to use for unfocused editors and terminals. This will dim inactive views to make the focused views more obvious.'),
+			description: localize('unfocusedViewOpacity', 'The opacity fraction (0.2 to 1.0) to use for unfocused editors and terminals. This will dim inactive views to make the focused view more obvious.'),
 			type: 'number',
 			minimum: 0.2,
 			maximum: 1,
