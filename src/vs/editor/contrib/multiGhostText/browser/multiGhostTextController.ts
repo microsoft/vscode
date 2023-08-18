@@ -6,7 +6,8 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { constObservable } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IPosition } from 'vs/editor/common/core/position';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { GhostTextWidget } from 'vs/editor/contrib/multiGhostText/browser/ghostTextWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,6 +26,7 @@ export class MultiGhostTextController extends Disposable {
 
 	private _widgets: [GhostTextWidget, GhostTextData][] = [];
 	private _selectedWidget: GhostTextWidget | undefined;
+	private _dontClear = false;
 
 	constructor(
 		public readonly editor: ICodeEditor,
@@ -133,7 +135,74 @@ export class MultiGhostTextController extends Disposable {
 		this._selectedWidget = previousWidget;
 	}
 
+	public acceptAll() {
+		this.editor.pushUndoStop();
+		let lineDelta = 0;
+		this._widgets.forEach(([widget, data]) => {
+			const position = Position.lift(data.position).with(data.position.lineNumber + lineDelta, data.position.column);
+			this.editor.executeEdits('acceptAll', [EditOperation.insert(position, data.text)]);
+			lineDelta += data.text.split('\n').length - 1;
+		});
+	}
+
+	public acceptSelected() {
+		if (this._selectedWidget === undefined) {
+			return;
+		}
+
+		const index = this._widgets.findIndex(([widget, data]) => {
+			return widget === this._selectedWidget;
+		});
+
+		if (index === -1) {
+			return;
+		}
+
+		const [widget, data] = this._widgets[index];
+
+		this._dontClear = true;
+		this.editor.pushUndoStop();
+		this.editor.executeEdits('acceptSelected', [EditOperation.insert(Position.lift(data.position), data.text)]);
+		widget.dispose();
+		this._widgets.splice(index, 1);
+
+		const lineDelta = data.text.split('\n').length - 1;
+		//all widgets after the selected widget should be recalculated
+		this._widgets.splice(index).forEach(([widget, data]) => {
+			widget.dispose();
+
+			const position = Position.lift(data.position).with(data.position.lineNumber + lineDelta, data.position.column);
+			const ghostText = new GhostText(position.lineNumber, [new GhostTextPart(position.column, data.text.split('\n'), false)]);
+			const gt = {
+				position: position,
+				text: data.text,
+			};
+			const instance = this.instantiationService.createInstance(GhostTextWidget, this.editor, {
+				ghostText: constObservable(ghostText),
+				minReservedLineCount: constObservable(0),
+				targetTextModel: constObservable(this.editor.getModel() ?? undefined),
+			});
+			this._widgets.push([instance, gt]);
+		});
+
+
+		//select next widget
+		if (this._widgets.length > 0) {
+			const nextIndex = index % this._widgets.length;
+			const nextWidget = this._widgets[nextIndex][0];
+			nextWidget.select();
+			this._selectedWidget = nextWidget;
+		} else {
+			this._selectedWidget = undefined;
+		}
+	}
+
 	public clear(): void {
+		if (this._dontClear) {
+			this._dontClear = false;
+			return;
+		}
+
 		this._widgets.forEach(([widget, data]) => {
 			widget.dispose();
 		});

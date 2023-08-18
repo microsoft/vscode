@@ -70,3 +70,47 @@ export class SelectPreviousGhostText extends EditorAction {
 		controller?.selectPrevious();
 	}
 }
+
+export class AcceptAllGhostText extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.multiGhostText.acceptAll',
+			label: 'Accept All Ghost Text',
+			alias: 'Accept All Ghost Text',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				weight: KeybindingWeight.EditorContrib + 1,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyY,
+				kbExpr: EditorContextKeys.writable,
+			},
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = MultiGhostTextController.get(editor);
+		controller?.acceptAll();
+	}
+}
+
+export class AcceptSelectedGhostText extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.multiGhostText.acceptSelected',
+			label: 'Accept Selected Ghost Text',
+			alias: 'Accept Selected Ghost Text',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				weight: KeybindingWeight.EditorContrib + 1,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyU,
+				kbExpr: EditorContextKeys.writable,
+			},
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = MultiGhostTextController.get(editor);
+		controller?.acceptSelected();
+	}
+}
+
+
