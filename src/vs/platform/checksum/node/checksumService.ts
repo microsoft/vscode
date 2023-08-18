@@ -20,16 +20,10 @@ export class ChecksumService implements IChecksumService {
 		return new Promise<string>((resolve, reject) => {
 			const hash = createHash('md5');
 
-			const l = listenStream(stream, {
+			listenStream(stream, {
 				onData: data => hash.update(data.buffer),
-				onError: error => {
-					l.dispose();
-					reject(error);
-				},
-				onEnd: () => {
-					l.dispose();
-					resolve(hash.digest('base64').replace(/=+$/, ''));
-				}
+				onError: error => reject(error),
+				onEnd: () => resolve(hash.digest('base64').replace(/=+$/, ''))
 			});
 		});
 	}

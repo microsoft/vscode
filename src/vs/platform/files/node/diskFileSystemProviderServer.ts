@@ -106,19 +106,16 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 
 				// Ensure to cancel the read operation when there is no more
 				// listener on the other side to prevent unneeded work.
-				cts.dispose(true);
+				cts.cancel();
 			}
 		});
 
 		const fileStream = this.provider.readFileStream(resource, opts, cts.token);
-		const l = listenStream(fileStream, {
+		listenStream(fileStream, {
 			onData: chunk => emitter.fire(VSBuffer.wrap(chunk)),
-			onError: error => {
-				l.dispose();
-				emitter.fire(error);
-			},
+			onError: error => emitter.fire(error),
 			onEnd: () => {
-				l.dispose();
+
 				// Forward event
 				emitter.fire('end');
 

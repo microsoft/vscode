@@ -60,14 +60,11 @@ export class TextFileSaveParticipant extends Disposable {
 			model.textEditorModel?.pushStackElement();
 		}, () => {
 			// user cancel
-			cts.cancel();
-		}).finally(() => {
-			cts.dispose();
+			cts.dispose(true);
 		});
 	}
 
 	override dispose(): void {
 		this.saveParticipants.splice(0, this.saveParticipants.length);
-		super.dispose();
 	}
 }

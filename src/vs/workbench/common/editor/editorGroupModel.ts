@@ -404,7 +404,7 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	private registerEditorListeners(editor: EditorInput): void {
-		const listeners = this._register(new DisposableStore());
+		const listeners = new DisposableStore();
 
 		// Re-emit disposal of editor input as our own event
 		listeners.add(Event.once(editor.onWillDispose)(() => {
