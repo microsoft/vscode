@@ -94,6 +94,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 	}
 
 	private moveToSearchViewlet(model: SearchModel, currentElem: RenderableMatch) {
+		// this function takes this._searchModel.searchResult and moves it to the search viewlet's search model.
+		// then, this._searchModel will construct a new (empty) SearchResult, and the search viewlet's search result will be disposed.
 		this._viewsService.openView(VIEW_ID, false);
 		const viewlet: SearchView | undefined = this._viewsService.getActiveViewWithId(VIEW_ID) as SearchView;
 		viewlet.importSearchResult(model);
