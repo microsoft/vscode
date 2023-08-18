@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ShowMultiGhostText } from 'vs/editor/contrib/multiGhostText/browser/commands';
+import { SelectNextGhostText, SelectPreviousGhostText, ShowMultiGhostText } from 'vs/editor/contrib/multiGhostText/browser/commands';
 import { MultiGhostTextController } from 'vs/editor/contrib/multiGhostText/browser/multiGhostTextController';
 
 registerEditorAction(ShowMultiGhostText);
+registerEditorAction(SelectNextGhostText);
+registerEditorAction(SelectPreviousGhostText);
 registerEditorContribution(MultiGhostTextController.ID, MultiGhostTextController, EditorContributionInstantiation.Eventually);
 
