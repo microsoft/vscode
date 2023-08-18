@@ -54,7 +54,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _hoverClicked: boolean;
 	private _isHoverEnabled!: boolean;
 	private _isHoverSticky!: boolean;
-	private _hidingTimeoutDelay!: number;
+	private _hidingDelay!: number;
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
 	private _mouseWasOverWidget: boolean = false;
 	private _hideWidgetsTimeout: NodeJS.Timeout | undefined;
@@ -90,7 +90,7 @@ export class ModesHoverController implements IEditorContribution {
 		const hoverOpts = this._editor.getOption(EditorOption.hover);
 		this._isHoverEnabled = hoverOpts.enabled;
 		this._isHoverSticky = hoverOpts.sticky;
-		this._hidingTimeoutDelay = hoverOpts.hidingTimeout;
+		this._hidingDelay = hoverOpts.hidingDelay;
 		if (this._isHoverEnabled) {
 			this._toUnhook.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
 			this._toUnhook.add(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
@@ -257,7 +257,7 @@ export class ModesHoverController implements IEditorContribution {
 			this._hideWidgetsTimeout = setTimeout(() => {
 				this._hideWidgets();
 				this._hideWidgetsTimeout = undefined;
-			}, this._hidingTimeoutDelay);
+			}, this._hidingDelay);
 			this._mouseWasOverWidget = false;
 		} else {
 			this._hideWidgets();

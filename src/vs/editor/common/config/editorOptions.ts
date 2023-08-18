@@ -2035,7 +2035,7 @@ export interface IEditorHoverOptions {
 	 * Controls how long the hover is visible after you hovered out of it.
 	 * Require sticky setting to be true.
 	 */
-	hidingTimeout?: number;
+	hidingDelay?: number;
 	/**
 	 * Should the hover be shown above the line if possible?
 	 * Defaults to false.
@@ -2054,7 +2054,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 		const defaults: EditorHoverOptions = {
 			enabled: true,
 			delay: 300,
-			hidingTimeout: 750,
+			hidingDelay: 750,
 			sticky: true,
 			above: true,
 		};
@@ -2078,11 +2078,11 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 					default: defaults.sticky,
 					description: nls.localize('hover.sticky', "Controls whether the hover should remain visible when mouse is moved over it.")
 				},
-				'editor.hover.hidingTimeout': {
+				'editor.hover.hidingDelay': {
 					type: 'integer',
 					minimum: 0,
-					default: defaults.hidingTimeout,
-					description: nls.localize('hover.hidingTimeout', "Controls how long the hover should remain visible after the mouse is hovered out of it in milliseconds. Requires `editor.hover.sticky` to be enabled.")
+					default: defaults.hidingDelay,
+					description: nls.localize('hover.hidingDelay', "Controls how long the hover should remain visible after the mouse is hovered out of it in milliseconds. Requires `editor.hover.sticky` to be enabled.")
 				},
 				'editor.hover.above': {
 					type: 'boolean',
@@ -2102,7 +2102,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
-			hidingTimeout: EditorIntOption.clampedInt(input.hidingTimeout, this.defaultValue.hidingTimeout, 0, 600000),
+			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),
 			above: boolean(input.above, this.defaultValue.above),
 		};
 	}

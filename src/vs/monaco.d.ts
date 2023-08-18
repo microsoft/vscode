@@ -4172,7 +4172,7 @@ declare namespace monaco.editor {
 		 * Controls how long the hover is visible after you hovered out of it.
 		 * Require sticky setting to be true.
 		 */
-		hidingTimeout?: number;
+		hidingDelay?: number;
 		/**
 		 * Should the hover be shown above the line if possible?
 		 * Defaults to false.
