@@ -2125,7 +2125,7 @@ class InnerMinimap extends Disposable {
 		const { canvasInnerWidth } = this._model.options;
 
 		const backgroundColor = this._model.options.backgroundColor;
-		const backgroundFill = `rgb(${backgroundColor.r} ${backgroundColor.g} ${backgroundColor.b})`;
+		const backgroundFill = `rgb(${backgroundColor.r} ${backgroundColor.g} ${backgroundColor.b} / .7)`;
 		const foregroundColor = this._model.options.sectionHeaderFontColor;
 		const foregroundFill = `rgb(${foregroundColor.r} ${foregroundColor.g} ${foregroundColor.b})`;
 		const separatorStroke = foregroundFill;
@@ -2170,7 +2170,7 @@ class InnerMinimap extends Disposable {
 		sectionHeader: SectionHeader,
 		maxWidth: number
 	): void {
-		if (sectionHeader.fittedHeader) {
+		if (sectionHeader.fittedHeader !== undefined) {
 			return;
 		}
 
@@ -2211,8 +2211,13 @@ class InnerMinimap extends Disposable {
 	): void {
 		const content = sectionHeader.fittedHeader!;
 
-		target.fillStyle = backgroundFill;
-		target.fillRect(0, backgroundFillY, minimapWidth, backgroundFillHeight);
+		if (content) {
+			target.fillStyle = backgroundFill;
+			target.fillRect(0, backgroundFillY, minimapWidth, backgroundFillHeight);
+
+			target.fillStyle = foregroundFill;
+			target.fillText(content, MINIMAP_GUTTER_WIDTH, textY);
+		}
 
 		if (sectionHeader.hasSeparatorLine) {
 			target.beginPath();
@@ -2221,9 +2226,6 @@ class InnerMinimap extends Disposable {
 			target.closePath();
 			target.stroke();
 		}
-
-		target.fillStyle = foregroundFill;
-		target.fillText(content, MINIMAP_GUTTER_WIDTH, textY);
 	}
 }
 

@@ -157,7 +157,7 @@ interface CommentRegExps {
 	endBlockCommentRegExp?: RegExp;
 }
 
-const markRegex = /\bMARK:\s*(-\s*)?(.+)$/;
+const markRegex = /\bMARK:\s*(-\s*)?(.*)$/;
 
 function lastMatch(lineContent: string, regExp: RegExp): RegExpExecArray | null {
 	regExp.lastIndex = 0;
