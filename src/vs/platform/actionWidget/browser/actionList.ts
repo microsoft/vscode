@@ -6,8 +6,8 @@ import * as dom from 'vs/base/browser/dom';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { matchesFuzzy2 } from 'vs/base/common/filters';
 import { Codicon } from 'vs/base/common/codicons';
+import { matchesFuzzy2 } from 'vs/base/common/filters';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
@@ -167,7 +167,11 @@ export class ActionList<T> extends Disposable {
 	private readonly _allMenuItemsFiltered: IActionFilteredItems[] = [];
 
 	private keypresses: string[] = [];
+	private previousKeypresses: string[] = [];
 	private timeout: number | null = null;
+	private matches: IActionFilteredItems[] = [];
+	private currentIndex: number = 0;
+	private currentLocation: number = 0;
 
 	constructor(
 		user: string,
@@ -316,7 +320,13 @@ export class ActionList<T> extends Disposable {
 
 	private onKeyPress(e: KeyboardEvent) {
 		this.keypresses.push(e.key);
-		this.listFuzzyMatch(this.keypresses.join(''));
+		const searched = this.keypresses.join('');
+
+		if (searched === this.previousKeypresses.join('')) {
+			this.listFuzzyMatch(searched, true);
+		} else {
+			this.listFuzzyMatch(searched);
+		}
 
 		// Clear the previous timeout (if any)
 		if (this.timeout !== null) {
@@ -324,27 +334,59 @@ export class ActionList<T> extends Disposable {
 		}
 
 		// Set a new timeout
-		this.timeout = window.setTimeout(() => { this.processKeyPresses(); }, 1000);
+		this.timeout = window.setTimeout(() => { this.processKeyPresses(); }, 500);
 
 	}
 
 	private processKeyPresses() {
+		this.previousKeypresses = this.keypresses;
 		this.keypresses = [];
 	}
 
-	private listFuzzyMatch(str: string) {
-		for (const menuItem of this._allMenuItemsFiltered) {
+	private listFuzzyMatch(str: string, sameInput?: boolean) {
+		const focus = this._list.getFocus();
+		const start = focus.length > 0 ? focus[0] : 0;
+		this.matches = sameInput ? this.matches : [];
+
+		if (!sameInput) {
+			this.currentLocation = 0;
+		}
+		for (let i = this.currentLocation; i < this._allMenuItemsFiltered.length; i++) {
+			const menuItem = this._allMenuItemsFiltered[i];
 			if (menuItem.label) {
 				const result = matchesFuzzy2(str, menuItem.label);
 				// Result is either null or an array of obj {start, end} for matches between str and menuItem.label
 				if (result) {
-					this._list.setFocus([menuItem.index]);
 					if (result[0].start === 0) {
-						// Breaks when finds first found instance of match [0,1+] to [0,1+]
-						break;
+						if (!this.matches.includes(menuItem)) {
+							this.matches.push(menuItem);
+						}
+
+						if (typeof sameInput === 'undefined') {
+							// Breaks when finds first found instance of match [0,1+] to [0,1+]
+							// instance where not the sameInput input as previous timeout
+							this.currentIndex = 0;
+							this._list.setFocus([menuItem.index]);
+							this.currentLocation = i + 1;
+							break;
+						} else if (sameInput) {
+							if (menuItem.index > start) {
+								this.currentLocation = i + 1;
+								break;
+							}
+						}
+					} else if (typeof sameInput === 'undefined') {
+						this._list.setFocus([menuItem.index]);
 					}
+
 				}
 			}
+		}
+
+
+		if (sameInput && this.matches.length > 0) {
+			this.currentIndex = (this.currentIndex + 1) % this.matches.length;
+			this._list.setFocus([this.matches[this.currentIndex].index]);
 		}
 	}
 }
