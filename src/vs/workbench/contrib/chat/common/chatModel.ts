@@ -92,7 +92,7 @@ export interface IPlaceholderMarkdownString extends IMarkdownString {
 	isPlaceholder: boolean;
 }
 
-type ResponsePart = { string: IMarkdownString; placeholder?: boolean } | { treeData: IChatResponseProgressFileTreeData; placeholder?: boolean };
+type ResponsePart = { string: IMarkdownString; isPlaceholder?: boolean } | { treeData: IChatResponseProgressFileTreeData; isPlaceholder?: boolean };
 export class Response implements IResponse {
 	private _onDidChangeValue = new Emitter<void>();
 	public get onDidChangeValue() {
@@ -130,7 +130,7 @@ export class Response implements IResponse {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
 
-			if (lastResponsePart.placeholder === true || 'treeData' in lastResponsePart) {
+			if (lastResponsePart.isPlaceholder === true || 'treeData' in lastResponsePart) {
 				// The last part is resolving or a tree data item, start a new part
 				this._responseParts.push({ string: new MarkdownString(responsePart) });
 			} else {
@@ -141,16 +141,16 @@ export class Response implements IResponse {
 			this._updateRepr(quiet);
 		} else if ('placeholder' in responsePart) {
 			// Add a new resolving part
-			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), placeholder: true }) - 1;
+			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), isPlaceholder: true }) - 1;
 			this._updateRepr(quiet);
 
 			responsePart.resolvedContent?.then((content) => {
 				// Replace the resolving part's content with the resolved response
 				if (typeof content === 'string') {
-					this._responseParts[responsePosition] = { string: new MarkdownString(content), placeholder: true };
+					this._responseParts[responsePosition] = { string: new MarkdownString(content), isPlaceholder: true };
 					this._updateRepr(quiet);
 				} else if (content.treeData) {
-					this._responseParts[responsePosition] = { treeData: content.treeData, placeholder: true };
+					this._responseParts[responsePosition] = { treeData: content.treeData, isPlaceholder: true };
 					this._updateRepr(quiet);
 				}
 			});
@@ -161,8 +161,8 @@ export class Response implements IResponse {
 		this._responseData = this._responseParts.map(part => {
 			if ('treeData' in part) {
 				return part.treeData;
-			} else if (part.placeholder) {
-				return { ...part.string, placeholder: true };
+			} else if (part.isPlaceholder) {
+				return { ...part.string, isPlaceholder: true };
 			}
 			return part.string;
 		});
