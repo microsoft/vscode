@@ -87,6 +87,7 @@ class AccessibleViewGoToSymbolAction extends Action2 {
 			precondition: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewGoToSymbolSupported),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period],
 				weight: KeybindingWeight.WorkbenchContrib + 10
 			},
 			icon: Codicon.symbolField,
