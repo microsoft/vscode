@@ -1021,7 +1021,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	async createDetachedTerminal(options: IDetachedXTermOptions): Promise<IDetachedTerminalInstance> {
 		const ctor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
-		const instance = this._instantiationService.createInstance(
+		const xterm = this._instantiationService.createInstance(
 			XtermTerminal,
 			ctor,
 			this._configHelper,
@@ -1035,13 +1035,16 @@ export class TerminalService extends Disposable implements ITerminalService {
 		);
 
 		if (options.readonly) {
-			instance.raw.attachCustomKeyEventHandler(() => false);
+			xterm.raw.attachCustomKeyEventHandler(() => false);
 		}
 
-		this._detachedXterms.add(instance);
-		instance.onDidDispose(() => this._detachedXterms.delete(instance));
+		this._detachedXterms.add(xterm);
+		const l = xterm.onDidDispose(() => {
+			this._detachedXterms.delete(xterm);
+			l.dispose();
+		});
 
-		return new DeatachedTerminal(instance, options, this._instantiationService);
+		return new DeatachedTerminal(xterm, options, this._instantiationService);
 	}
 
 	private async _resolveCwd(shellLaunchConfig: IShellLaunchConfig, splitActiveTerminal: boolean, options?: ICreateTerminalOptions): Promise<void> {
