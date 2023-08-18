@@ -4395,7 +4395,7 @@ declare namespace monaco.editor {
 		 */
 		showMarkSectionHeaders?: boolean;
 		/**
-		 * Font size of section headers. Defaults to 11.
+		 * Font size of section headers. Defaults to 9.
 		 */
 		sectionHeaderFontSize?: number;
 	}

@@ -3013,7 +3013,7 @@ export interface IEditorMinimapOptions {
 	 */
 	showMarkSectionHeaders?: boolean;
 	/**
-	 * Font size of section headers. Defaults to 11.
+	 * Font size of section headers. Defaults to 9.
 	 */
 	sectionHeaderFontSize?: number;
 }
@@ -3037,7 +3037,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			scale: 1,
 			showRegionSectionHeaders: true,
 			showMarkSectionHeaders: true,
-			sectionHeaderFontSize: 11,
+			sectionHeaderFontSize: 9,
 		};
 		super(
 			EditorOption.minimap, 'minimap', defaults,
