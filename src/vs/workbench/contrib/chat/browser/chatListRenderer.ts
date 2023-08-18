@@ -103,7 +103,6 @@ export interface IChatListItemRendererOptions {
 }
 
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
-	static readonly cursorCharacter = '\u258c';
 	static readonly ID = 'item';
 
 	private readonly codeBlocksByResponseId = new Map<string, IChatCodeBlockInfo[]>();
@@ -410,7 +409,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const renderedPart = renderedParts[index];
 				// Is this part completely new?
 				if (!renderedPart) {
-					if ('label' in part) {
+					if (isInteractiveProgressTreeData(part)) {
 						partsToRender[index] = part;
 					} else {
 						const wordCountResult = this.getDataForProgressiveRender(element, part);
@@ -425,13 +424,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 				}
 
-				// Did this part's type change from being a string to tree data?
-				else if ('label' in part && !('label' in renderedPart)) {
+				// Did this part go from being a placeholder string to resolved tree data?
+				else if (isInteractiveProgressTreeData(part) && !isInteractiveProgressTreeData(renderedPart)) {
 					partsToRender[index] = part;
 				}
 
 				// Did this part's content change?
-				else if (!('label' in part) && !('label' in renderedPart) && !renderedPart.isFullyRendered) {
+				else if (!isInteractiveProgressTreeData(part) && !isInteractiveProgressTreeData(renderedPart) && !renderedPart.isFullyRendered) {
 					const wordCountResult = this.getDataForProgressiveRender(element, part, renderedPart);
 					if (wordCountResult !== undefined) {
 						partsToRender[index] = {
@@ -460,7 +459,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 
 					let result;
-					if ('label' in partToRender) {
+					if (isInteractiveProgressTreeData(partToRender)) {
 						result = this.renderTreeData(partToRender, element, disposables, templateData, index);
 					}
 
@@ -948,28 +947,16 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 	}
 
 	private setText(newText: string): void {
-		let currentText = this.textModel.getLinesContent().join('\n');
+		const currentText = this.textModel.getLinesContent().join('\n');
 		if (newText === currentText) {
 			return;
-		}
-
-		let removedChars = 0;
-		if (currentText.endsWith(` ${ChatListItemRenderer.cursorCharacter}`)) {
-			removedChars = 2;
-		} else if (currentText.endsWith(ChatListItemRenderer.cursorCharacter)) {
-			removedChars = 1;
-		}
-
-		if (removedChars > 0) {
-			currentText = currentText.slice(0, currentText.length - removedChars);
 		}
 
 		if (newText.startsWith(currentText)) {
 			const text = newText.slice(currentText.length);
 			const lastLine = this.textModel.getLineCount();
 			const lastCol = this.textModel.getLineMaxColumn(lastLine);
-			const insertAtCol = lastCol - removedChars;
-			this.textModel.applyEdits([{ range: new Range(lastLine, insertAtCol, lastLine, lastCol), text }]);
+			this.textModel.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
 		} else {
 			// console.log(`Failed to optimize setText`);
 			this.textModel.setValue(newText);
@@ -1194,4 +1181,8 @@ class ChatListTreeDataSource implements IAsyncDataSource<IChatResponseProgressFi
 	async getChildren(element: IChatResponseProgressFileTreeData): Promise<Iterable<IChatResponseProgressFileTreeData>> {
 		return element.children ?? [];
 	}
+}
+
+function isInteractiveProgressTreeData(item: IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IMarkdownString): item is IChatResponseProgressFileTreeData {
+	return 'label' in item;
 }
