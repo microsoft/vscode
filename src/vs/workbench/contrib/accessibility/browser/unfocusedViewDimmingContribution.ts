@@ -11,15 +11,14 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { AccessibilityWorkbenchSettingId, ViewDimUnfocusedOpacityProperties } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export class UnfocusedViewDimmingContribution extends Disposable implements IWorkbenchContribution {
+	private _styleElement?: HTMLStyleElement;
+
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
-		const elStyle = document.createElement('style');
-		elStyle.className = 'accessibilityUnfocusedViewOpacity';
-		document.head.appendChild(elStyle);
-		this._register(toDisposable(() => elStyle.remove()));
+		this._register(toDisposable(() => this._removeStyleElement()));
 
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
 			if (e && !e.affectsConfiguration(AccessibilityWorkbenchSettingId.ViewDimUnfocusedEnabled) && !e.affectsConfiguration(AccessibilityWorkbenchSettingId.ViewDimUnfocusedOpacity)) {
@@ -50,9 +49,28 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 					cssTextContent = [...rules].join('\n');
 				}
 
-				elStyle.textContent = cssTextContent;
+			}
+
+			if (cssTextContent.length === 0) {
+				this._removeStyleElement();
+			} else {
+				this._getStyleElement().textContent = cssTextContent;
 			}
 		}));
+	}
+
+	private _getStyleElement(): HTMLStyleElement {
+		if (!this._styleElement) {
+			this._styleElement = document.createElement('style');
+			this._styleElement.className = 'accessibilityUnfocusedViewOpacity';
+			document.head.appendChild(this._styleElement);
+		}
+		return this._styleElement;
+	}
+
+	private _removeStyleElement(): void {
+		this._styleElement?.remove();
+		this._styleElement = undefined;
 	}
 }
 
