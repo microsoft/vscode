@@ -333,8 +333,7 @@ export class SearchView extends ViewPane {
 
 	public async importSearchResult(searchModel: SearchModel): Promise<void> {
 		// experimental: used by the quick access search to overwrite a search result
-		this.viewModel.searchResult = searchModel.searchResult;
-		searchModel.instantiateNewSearchResult();
+		searchModel.transferSearchResult(this.viewModel);
 
 		this.onSearchResultsChanged();
 		this.refreshInputs();
