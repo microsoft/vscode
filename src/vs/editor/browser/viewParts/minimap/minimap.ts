@@ -1211,7 +1211,7 @@ class InnerMinimap extends Disposable {
 	private _lastRenderData: RenderData | null;
 	private _selectionColor: Color | undefined;
 	private _renderDecorations: boolean = false;
-	private _renderSectionHeaders: boolean = false;
+	private _renderSectionHeaders: boolean = true;
 	private _gestureInProgress: boolean = false;
 	private _buffers: MinimapBuffers | null;
 
@@ -2140,7 +2140,7 @@ class InnerMinimap extends Disposable {
 
 		// Render section headers
 		for (const sectionHeader of this._model.sectionHeaders) {
-			const y = layout.getYForLineNumber(sectionHeader.lineNumber, minimapLineHeight) + minimapLineHeight;
+			const y = layout.getYForLineNumber(sectionHeader.lineNumber, minimapLineHeight) + sectionHeaderFontSize;
 			if (y < startY) {
 				continue;
 			}
@@ -2148,8 +2148,8 @@ class InnerMinimap extends Disposable {
 				break;
 			}
 
-			const backgroundFillY = y - backgroundFillHeight;
-			const separatorY = y - sectionHeaderFontSize;
+			const backgroundFillY = y - sectionHeaderFontSize;
+			const separatorY = backgroundFillY + 2;
 
 			InnerMinimap._renderSectionLabel(
 				canvasContext,
