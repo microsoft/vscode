@@ -2159,6 +2159,10 @@ class InnerMinimap extends Disposable {
 			const backgroundFillY = y - sectionHeaderFontSize;
 			const separatorY = backgroundFillY + 2;
 
+			InnerMinimap._fitSectionHeader(canvasContext,
+				sectionHeader,
+				canvasInnerWidth - MINIMAP_GUTTER_WIDTH);
+
 			InnerMinimap._renderSectionLabel(
 				canvasContext,
 				sectionHeader,
@@ -2172,6 +2176,39 @@ class InnerMinimap extends Disposable {
 		}
 	}
 
+	private static _fitSectionHeader(
+		target: CanvasRenderingContext2D,
+		sectionHeader: SectionHeader,
+		maxWidth: number
+	): void {
+		if (sectionHeader.fittedHeader) {
+			return;
+		}
+
+		const ellipsis = '…';
+		const width = target.measureText(sectionHeader.header).width;
+		const ellipsisWidth = target.measureText(ellipsis).width;
+
+		if (width <= maxWidth || width <= ellipsisWidth) {
+			sectionHeader.fittedHeader = sectionHeader.header;
+			return;
+		}
+
+		const len = sectionHeader.header.length;
+		const averageCharWidth = width / sectionHeader.header.length;
+		const maxCharCount = Math.floor((maxWidth - ellipsisWidth) / averageCharWidth) - 1;
+
+		// Find a halfway point that isn't after whitespace
+		let halfCharCount = Math.ceil(maxCharCount / 2);
+		while (halfCharCount > 0 && /\s/.test(sectionHeader.header[halfCharCount - 1])) {
+			--halfCharCount;
+		}
+
+		// Split with ellipsis
+		sectionHeader.fittedHeader = sectionHeader.header.substring(0, halfCharCount)
+			+ ellipsis + sectionHeader.header.substring(len - (maxCharCount - halfCharCount));
+	}
+
 	private static _renderSectionLabel(
 		target: CanvasRenderingContext2D,
 		sectionHeader: SectionHeader,
@@ -2183,10 +2220,7 @@ class InnerMinimap extends Disposable {
 		textY: number,
 		separatorY: number
 	): void {
-		const content = sectionHeader.header;
-		// TODO: maybe trim the content to fit with ellipses, see
-		// https://stackoverflow.com/questions/10508988/html-canvas-text-overflow-ellipsis
-		// https://stackoverflow.com/questions/831552/ellipsis-in-the-middle-of-a-text-mac-style
+		const content = sectionHeader.fittedHeader!;
 
 		target.fillStyle = backgroundFill;
 		target.fillRect(0, backgroundFillY, minimapWidth, backgroundFillHeight);

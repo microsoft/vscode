@@ -18,6 +18,10 @@ export interface SectionHeader {
 	 */
 	header: string;
 	/**
+	 * The header text fitted to the width of the minimap.
+	 */
+	fittedHeader?: string;
+	/**
 	 * Whether the section header includes a separator line.
 	 */
 	hasSeparatorLine: boolean;
