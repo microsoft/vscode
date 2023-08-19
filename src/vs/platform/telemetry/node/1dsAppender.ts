@@ -11,7 +11,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import * as https from 'https';
 import { AbstractOneDataSystemAppender, IAppInsightsCore } from 'vs/platform/telemetry/common/1dsAppender';
 
-type OnComleteFunc = (status: number, headers: { [headerName: string]: string }, response?: string) => void;
+type OnCompleteFunc = (status: number, headers: { [headerName: string]: string }, response?: string) => void;
 
 interface IResponseData {
 	headers: { [headerName: string]: string };
@@ -71,7 +71,7 @@ async function makeLegacyTelemetryRequest(options: IRequestOptions): Promise<IRe
 	return responsePromise;
 }
 
-async function sendPostAsync(requestService: IRequestService | undefined, payload: IPayloadData, oncomplete: OnComleteFunc) {
+async function sendPostAsync(requestService: IRequestService | undefined, payload: IPayloadData, oncomplete: OnCompleteFunc) {
 	const telemetryRequestData = typeof payload.data === 'string' ? payload.data : new TextDecoder().decode(payload.data);
 	const requestOptions: IRequestOptions = {
 		type: 'POST',
