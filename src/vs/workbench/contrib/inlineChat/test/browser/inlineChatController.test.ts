@@ -24,6 +24,7 @@ import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/co
 import { mock } from 'vs/base/test/common/mock';
 import { Emitter, Event } from 'vs/base/common/event';
 import { equals } from 'vs/base/common/arrays';
+import { timeout } from 'vs/base/common/async';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
@@ -113,11 +114,11 @@ suite('InteractiveChatController', function () {
 			}]
 		);
 
-		instaService = store.add(workbenchInstantiationService(undefined, store).createChild(serviceCollection));
-		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
+		instaService = workbenchInstantiationService(undefined, store).createChild(serviceCollection);
+		inlineChatSessionService = instaService.get(IInlineChatSessionService);
 
-		model = store.add(instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null));
-		editor = store.add(instantiateTestCodeEditor(instaService, model));
+		model = instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null);
+		editor = instantiateTestCodeEditor(instaService, model);
 
 		store.add(inlineChatService.addProvider({
 			debugName: 'Unit Test',
@@ -141,6 +142,8 @@ suite('InteractiveChatController', function () {
 	});
 
 	teardown(function () {
+		editor.dispose();
+		model.dispose();
 		store.clear();
 		ctrl?.dispose();
 	});
@@ -292,8 +295,19 @@ suite('InteractiveChatController', function () {
 					wholeRange: new Range(3, 1, 3, 3)
 				};
 			},
-			provideResponse(session, request) {
-				return new Promise<never>(() => { });
+			async provideResponse(session, request) {
+
+				// SLOW response
+				await timeout(50000);
+
+				return {
+					type: InlineChatResponseType.EditorEdit,
+					id: Math.random(),
+					edits: [{
+						range: new Range(1, 1, 1, 1), // EDIT happens outside of whole range
+						text: `${request.prompt}\n${request.prompt}`
+					}]
+				};
 			}
 		});
 		store.add(d);

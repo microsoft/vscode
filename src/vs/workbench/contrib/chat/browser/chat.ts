@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
+export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
 export const IChatAccessibilityService = createDecorator<IChatAccessibilityService>('chatAccessibilityService');
 
 export interface IChatWidgetService {
@@ -32,6 +33,13 @@ export interface IChatWidgetService {
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
 }
 
+export interface IQuickChatService {
+	readonly _serviceBrand: undefined;
+	toggle(providerId: string, query?: string): void;
+	focus(): void;
+	close(): void;
+	openInChatView(): void;
+}
 
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;

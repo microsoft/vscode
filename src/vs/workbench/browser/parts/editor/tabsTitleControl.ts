@@ -184,7 +184,7 @@ export class TabsTitleControl extends TitleControl {
 		this.updateTabSizing(false);
 
 		// Tabs Scrollbar
-		this.tabsScrollbar = this.createTabsScrollbar(this.tabsContainer);
+		this.tabsScrollbar = this._register(this.createTabsScrollbar(this.tabsContainer));
 		this.tabsAndActionsContainer.appendChild(this.tabsScrollbar.getDomNode());
 
 		// Tabs Container listeners
@@ -206,19 +206,19 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
-		const tabsScrollbar = this._register(new ScrollableElement(scrollable, {
+		const tabsScrollbar = new ScrollableElement(scrollable, {
 			horizontal: ScrollbarVisibility.Auto,
 			horizontalScrollbarSize: this.getTabsScrollbarSizing(),
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
 			useShadows: false
-		}));
+		});
 
-		this._register(tabsScrollbar.onScroll(e => {
+		tabsScrollbar.onScroll(e => {
 			if (e.scrollLeftChanged) {
 				scrollable.scrollLeft = e.scrollLeft;
 			}
-		}));
+		});
 
 		return tabsScrollbar;
 	}

@@ -315,14 +315,14 @@ suite('Stream', () => {
 		assert.strictEqual(consumed, undefined);
 	});
 
-	test('listenStream', async () => {
+	test('listenStream', () => {
 		const stream = newWriteableStream<string>(strings => strings.join());
 
 		let error = false;
 		let end = false;
 		let data = '';
 
-		const l = listenStream(stream, {
+		listenStream(stream, {
 			onData: d => {
 				data = d;
 			},
@@ -345,14 +345,10 @@ suite('Stream', () => {
 		assert.strictEqual(end, false);
 
 		stream.error(new Error());
-		await new Promise<void>(r => queueMicrotask(r));
 		assert.strictEqual(error, true);
 
 		stream.end('Final Bit');
-		await new Promise<void>(r => queueMicrotask(r));
 		assert.strictEqual(end, true);
-
-		l.dispose();
 	});
 
 	test('listenStream - dispose', () => {

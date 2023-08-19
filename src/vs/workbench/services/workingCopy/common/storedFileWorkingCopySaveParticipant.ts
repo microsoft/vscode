@@ -69,6 +69,5 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 
 	override dispose(): void {
 		this.saveParticipants.splice(0, this.saveParticipants.length);
-		super.dispose();
 	}
 }

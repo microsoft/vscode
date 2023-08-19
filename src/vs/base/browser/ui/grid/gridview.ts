@@ -705,7 +705,6 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this.splitviewSashResetDisposable.dispose();
 		this.childrenSashResetDisposable.dispose();
 		this.childrenChangeDisposable.dispose();
-		this.onDidScrollDisposable.dispose();
 		this.splitview.dispose();
 	}
 }
