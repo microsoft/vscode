@@ -9,10 +9,10 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_CHAT_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IWorkbenchVoiceRecognitionService } from 'vs/workbench/services/voiceRecognition/electron-sandbox/workbenchVoiceRecognitionService';
 
 const CONTEXT_CHAT_VOICE_INPUT_IN_PROGRESS = new RawContextKey<boolean>('chatVoiceInputInProgress', false, { type: 'boolean', description: localize('interactiveSessionVoiceInputInProgress', "True when there is voice input for chat in progress.") });
@@ -92,7 +92,7 @@ class StartChatVoiceInputAction extends Action2 {
 			icon: Codicon.record,
 			menu: {
 				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(CONTEXT_CHAT_VOICE_INPUT_IN_PROGRESS.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
+				when: CONTEXT_CHAT_VOICE_INPUT_IN_PROGRESS.negate(),
 				group: 'navigation',
 				order: -1
 			}
@@ -119,7 +119,7 @@ class StopChatVoiceInputAction extends Action2 {
 				value: localize('interactive.stopVoiceInput.label', "Stop Voice Input"),
 				original: 'Stop Voice Input'
 			},
-			icon: Codicon.stop,
+			icon: spinningLoading,
 			menu: {
 				id: MenuId.ChatExecute,
 				when: CONTEXT_CHAT_VOICE_INPUT_IN_PROGRESS,
