@@ -21,6 +21,7 @@ import { ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbenc
 import type { Terminal } from 'xterm';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
+import { localize } from 'vs/nls';
 
 const enum ClassName {
 	Active = 'active',
@@ -79,7 +80,8 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 			quickSuggestions: false,
 			renderWhitespace: 'none',
 			dropIntoEditor: { enabled: true },
-			readOnly: true
+			readOnly: true,
+			ariaLabel: localize('terminalAccessibleBuffer', "Terminal Buffer")
 		};
 		this._editorWidget = this.add(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions));
 		this._element.replaceChildren(this._editorContainer);

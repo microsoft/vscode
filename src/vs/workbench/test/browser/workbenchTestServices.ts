@@ -95,7 +95,7 @@ import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEdit
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
@@ -749,6 +749,7 @@ class TestHoverService implements IHoverService {
 		};
 		return this.currentHover;
 	}
+	showAndFocusLastHover(): void { }
 	hideHover(): void {
 		this.currentHover?.dispose();
 	}
@@ -793,6 +794,8 @@ export class TestViewsService implements IViewsService {
 
 	onDidChangeViewVisibilityEmitter = new Emitter<{ id: string; visible: boolean }>();
 	onDidChangeViewVisibility = this.onDidChangeViewVisibilityEmitter.event;
+	onDidChangeFocusedViewEmitter = new Emitter<void>();
+	onDidChangeFocusedView = this.onDidChangeFocusedViewEmitter.event;
 	isViewVisible(id: string): boolean { return true; }
 	getActiveViewWithId<T extends IView>(id: string): T | null { return null; }
 	getViewWithId<T extends IView>(id: string): T | null { return null; }
@@ -800,6 +803,7 @@ export class TestViewsService implements IViewsService {
 	closeView(id: string): void { }
 	getViewProgressIndicator(id: string) { return null!; }
 	getActiveViewPaneContainerWithId(id: string) { return null; }
+	getFocusedViewName(): string { return ''; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
@@ -1839,6 +1843,7 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	groups: readonly ITerminalGroup[] = [];
 	activeGroup: ITerminalGroup | undefined;
 	activeGroupIndex: number = 0;
+	lastAccessedMenu: 'inline-tab' | 'tab-list' = 'inline-tab';
 	onDidChangeActiveGroup = Event.None;
 	onDidDisposeGroup = Event.None;
 	onDidShow = Event.None;
@@ -1866,7 +1871,6 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	showPanel(focus?: boolean): Promise<void> { throw new Error('Method not implemented.'); }
 	hidePanel(): void { throw new Error('Method not implemented.'); }
 	focusTabs(): void { throw new Error('Method not implemented.'); }
-	showTabs(): void { throw new Error('Method not implemented.'); }
 	focusHover(): void { throw new Error('Method not implemented.'); }
 	setActiveInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	focusActiveInstance(): Promise<void> { throw new Error('Method not implemented.'); }
@@ -1932,6 +1936,7 @@ export class TestQuickInputService implements IQuickInputService {
 
 	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> { throw new Error('not implemented.'); }
 	createInputBox(): IInputBox { throw new Error('not implemented.'); }
+	createQuickWidget(): IQuickWidget { throw new Error('Method not implemented.'); }
 	focus(): void { throw new Error('not implemented.'); }
 	toggle(): void { throw new Error('not implemented.'); }
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void { throw new Error('not implemented.'); }

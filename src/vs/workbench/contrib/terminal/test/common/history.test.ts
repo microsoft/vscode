@@ -160,7 +160,7 @@ suite('Terminal history', () => {
 		});
 
 		if (!isWindows) {
-			suite('local', async () => {
+			suite('local', () => {
 				let originalEnvValues: { HOME: string | undefined };
 				setup(() => {
 					originalEnvValues = { HOME: env['HOME'] };
@@ -344,7 +344,7 @@ suite('Terminal history', () => {
 			instantiationService.dispose();
 		});
 
-		suite('local', async () => {
+		suite('local', () => {
 			let originalEnvValues: { HOME: string | undefined; APPDATA: string | undefined };
 			setup(() => {
 				originalEnvValues = { HOME: env['HOME'], APPDATA: env['APPDATA'] };

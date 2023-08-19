@@ -304,7 +304,7 @@ pub enum VersionSubcommand {
 #[derive(Args, Debug, Clone)]
 pub struct UseVersionArgs {
 	/// The version of the editor you want to use. Can be "stable", "insiders",
-	/// a version number, or an absolute path to an existing install.
+	/// or an absolute path to an existing install.
 	#[clap(value_name = "stable | insiders | x.y.z | path")]
 	pub name: String,
 
@@ -640,6 +640,10 @@ pub enum TunnelSubcommand {
 	/// (Preview) Manages the tunnel when installed as a system service,
 	#[clap(subcommand)]
 	Service(TunnelServiceSubCommands),
+
+	/// (Preview) Forwards local port using the dev tunnel
+	#[clap(hide = true)]
+	ForwardInternal(TunnelForwardArgs),
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -673,6 +677,16 @@ pub struct TunnelServiceInstallArgs {
 pub struct TunnelRenameArgs {
 	/// The name you'd like to rename your machine to.
 	pub name: String,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct TunnelForwardArgs {
+	/// One or more ports to forward.
+	pub ports: Vec<u16>,
+
+	/// Login args -- used for convenience so the forwarding call is a single action.
+	#[clap(flatten)]
+	pub login: LoginArgs,
 }
 
 #[derive(Subcommand, Debug, Clone)]

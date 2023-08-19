@@ -16,7 +16,7 @@ import * as nls from 'vs/nls';
 import {
 	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, ILocalExtension, InstallOperation,
 	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode,
-	InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService, InstallExtensionInfo
+	InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService, InstallExtensionInfo, EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -248,6 +248,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		allInstallExtensionTasks.push({ task: installExtensionTask, manifest });
 		let installExtensionHasDependents: boolean = false;
 
+		const hasPackExtensions = manifest.extensionPack && manifest.extensionPack.length > 0;
 		try {
 			if (installExtensionTaskOptions.donotIncludePackAndDependencies) {
 				this.logService.info('Installing the extension without checking dependencies and pack', installExtensionTask.identifier.id);
@@ -341,7 +342,13 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 								} catch (error) { /* ignore */ }
 							}
 						}
-						installResults.push({ local, identifier: task.identifier, operation: task.operation, source: task.source, context: installExtensionTaskOptions.context, profileLocation: task.profileLocation, applicationScoped: local.isApplicationScoped });
+
+						const context = installExtensionTaskOptions.context ?? {};
+						if (hasPackExtensions && task.identifier.id !== installExtensionTask.identifier.id) {
+							context[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT] = true;
+						}
+
+						installResults.push({ local, identifier: task.identifier, operation: task.operation, source: task.source, context: context, profileLocation: task.profileLocation, applicationScoped: local.isApplicationScoped });
 					} catch (error) {
 						if (!URI.isUri(task.source)) {
 							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', {

@@ -12,16 +12,15 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { IViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target: { sessionId: string } | { providerId: string } | { data: ISerializableChatData };
@@ -44,15 +43,12 @@ export class ChatEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatService private readonly chatService: IChatService,
 	) {
 		super(ChatEditorInput.EditorID, telemetryService, themeService, storageService);
 	}
 
 	public async clear() {
-		if (this.widget?.viewModel) {
-			this.chatService.clearSession(this.widget.viewModel.sessionId);
-		}
+		return this.instantiationService.invokeFunction(clearChatEditor);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -66,9 +62,10 @@ export class ChatEditor extends EditorPane {
 				{
 					listForeground: editorForeground,
 					listBackground: editorBackground,
-					inputEditorBackground: SIDE_BAR_BACKGROUND,
-					resultEditorBackground: SIDE_BAR_BACKGROUND
+					inputEditorBackground: inputBackground,
+					resultEditorBackground: editorBackground
 				}));
+		this._register(this.widget.onDidClear(() => this.clear()));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
 	}

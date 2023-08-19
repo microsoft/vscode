@@ -3888,6 +3888,10 @@ declare namespace monaco.editor {
 		 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
 		 */
 		tabFocusMode?: boolean;
+		/**
+		 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
+		 */
+		inlineCompletionsAccessibilityVerbose?: boolean;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -3907,6 +3911,16 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		renderSideBySide?: boolean;
+		/**
+		 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+		 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+		 */
+		renderSideBySideInlineBreakpoint?: number | undefined;
+		/**
+		 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+		 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+		 */
+		useInlineViewWhenSpaceIsLimited?: boolean;
 		/**
 		 * Timeout in milliseconds after which diff computation is cancelled.
 		 * Defaults to 5000.
@@ -4303,6 +4317,10 @@ declare namespace monaco.editor {
 		 * Model to choose for sticky scroll by default
 		 */
 		defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
+		/**
+		 * Define whether to scroll sticky scroll with editor horizontal scrollbae
+		 */
+		scrollWithEditor?: boolean;
 	}
 
 	/**
@@ -5010,7 +5028,8 @@ declare namespace monaco.editor {
 		layoutInfo = 142,
 		wrappingInfo = 143,
 		defaultColorDecorators = 144,
-		colorDecoratorsActivatedOn = 145
+		colorDecoratorsActivatedOn = 145,
+		inlineCompletionsAccessibilityVerbose = 146
 	}
 
 	export const EditorOptions: {
@@ -5134,6 +5153,7 @@ declare namespace monaco.editor {
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, Readonly<Required<ISuggestOptions>>>;
 		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, Readonly<Required<IInlineSuggestOptions>>>;
+		inlineCompletionsAccessibilityVerbose: IEditorOption<EditorOption.inlineCompletionsAccessibilityVerbose, boolean>;
 		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
 		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;
@@ -5412,6 +5432,10 @@ declare namespace monaco.editor {
 		 * If null is returned, the overlay widget is responsible to place itself.
 		 */
 		getPosition(): IOverlayWidgetPosition | null;
+		/**
+		 * The editor will ensure that the scroll width is >= than this value.
+		 */
+		getMinContentWidthInPx?(): number;
 	}
 
 	/**
@@ -5517,7 +5541,7 @@ declare namespace monaco.editor {
 		/**
 		 * The target element
 		 */
-		readonly element: Element | null;
+		readonly element: HTMLElement | null;
 		/**
 		 * The 'approximate' editor position
 		 */

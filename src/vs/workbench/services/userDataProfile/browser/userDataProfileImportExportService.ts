@@ -425,13 +425,13 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				if (source instanceof URI) {
 					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromTemplate', createProfileTelemetryData);
 					await this.importProfile(source, { mode: 'apply', name: result.name, useDefaultFlags });
+				} else if (isUserDataProfile(source)) {
+					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromProfile', createProfileTelemetryData);
+					await this.createFromProfile(source, result.name, { useDefaultFlags });
 				} else if (isUserDataProfileTemplate(source)) {
 					source.name = result.name;
 					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromExternalTemplate', createProfileTelemetryData);
 					await this.createAndSwitch(source, false, true, { useDefaultFlags }, localize('create profile', "Create Profile"));
-				} else if (source) {
-					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromProfile', createProfileTelemetryData);
-					await this.createFromProfile(source, result.name, { useDefaultFlags });
 				} else {
 					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createEmptyProfile', createProfileTelemetryData);
 					await this.userDataProfileManagementService.createAndEnterProfile(result.name, { useDefaultFlags });
@@ -471,11 +471,25 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 	}
 
-	async createFromProfile(profile: IUserDataProfile, name: string, options?: IUserDataProfileOptions): Promise<void> {
+	private async createFromProfile(profile: IUserDataProfile, name: string, options?: IUserDataProfileOptions): Promise<void> {
 		const userDataProfilesExportState = this.instantiationService.createInstance(UserDataProfileExportState, profile);
 		try {
 			const profileTemplate = await userDataProfilesExportState.getProfileTemplate(name, undefined);
-			await this.createAndSwitch(profileTemplate, false, true, options, localize('create profile', "Create Profile"));
+			await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				delay: 500,
+				sticky: true,
+			}, async progress => {
+				const reportProgress = (message: string) => progress.report({ message: localize('create from profile', "Create Profile: {0}", message) });
+				const profile = await this.doCreateProfile(profileTemplate, false, false, { useDefaultFlags: options?.useDefaultFlags }, reportProgress);
+				if (profile) {
+					reportProgress(localize('progress extensions', "Applying Extensions..."));
+					await this.instantiationService.createInstance(ExtensionsResource).copy(this.userDataProfileService.currentProfile, profile, false);
+
+					reportProgress(localize('switching profile', "Switching Profile..."));
+					await this.userDataProfileManagementService.switchProfile(profile);
+				}
+			});
 		} finally {
 			userDataProfilesExportState.dispose();
 		}
@@ -634,12 +648,12 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 					return that.progressService.withProgress({
 						location: IMPORT_PROFILE_PREVIEW_VIEW,
 					}, async progress => {
-						disposable.dispose();
 						view.setMessage(undefined);
 						const profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
 						if (profileTemplate.extensions) {
 							await that.instantiationService.createInstance(ExtensionsResource).apply(profileTemplate.extensions, importedProfile);
 						}
+						disposable.dispose();
 					});
 				}
 			}));
@@ -1129,9 +1143,9 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 			const children = await (<IProfileResourceTreeItem>element).getChildren();
 			if (children) {
 				for (const child of children) {
-					child.checkbox = child.parent.checkbox && child.checkbox
-						? { ...child.checkbox, isChecked: child.parent.checkbox.isChecked ? child.checkbox.isChecked : false }
-						: undefined;
+					if (child.parent.checkbox && child.checkbox) {
+						child.checkbox.isChecked = child.parent.checkbox.isChecked && child.checkbox.isChecked;
+					}
 				}
 			}
 			return children;
@@ -1213,7 +1227,10 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 	}
 
 	private isSelected(treeItem: IProfileResourceTreeItem): boolean {
-		return treeItem.checkbox?.isChecked ?? true;
+		if (treeItem.checkbox) {
+			return treeItem.checkbox.isChecked || !!treeItem.children?.some(child => child.checkbox?.isChecked);
+		}
+		return true;
 	}
 
 	protected abstract fetchRoots(): Promise<IProfileResourceTreeItem[]>;

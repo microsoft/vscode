@@ -9,7 +9,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
@@ -54,7 +54,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 		onClose: () => {
 			editor.focus();
 		},
-		options: { type: AccessibleViewType.HelpMenu, ariaLabel: 'Notebook accessibility help' }
+		options: { type: AccessibleViewType.Help }
 	});
 }
 
@@ -114,10 +114,7 @@ export function showAccessibleOutput(accessibleViewService: IAccessibleViewServi
 			notebookEditor?.setFocus(selections[0]);
 			activePane?.focus();
 		},
-		options: {
-			ariaLabel: localize('NotebookCellOutputAccessibleView', "Notebook Cell Output Accessible View"),
-			type: AccessibleViewType.View
-		}
+		options: { type: AccessibleViewType.View }
 	});
 	return true;
 }

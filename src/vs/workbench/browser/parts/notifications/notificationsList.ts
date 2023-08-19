@@ -8,17 +8,19 @@ import { localize } from 'vs/nls';
 import { isAncestor, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider, IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { assertAllDefined } from 'vs/base/common/types';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
 	readonly widgetAriaLabel?: string;
@@ -41,13 +43,8 @@ export class NotificationsList extends Disposable {
 		super();
 	}
 
-	show(focus?: boolean): void {
+	show(): void {
 		if (this.isVisible) {
-			if (focus) {
-				const list = assertIsDefined(this.list);
-				list.domFocus();
-			}
-
 			return; // already visible
 		}
 
@@ -58,12 +55,6 @@ export class NotificationsList extends Disposable {
 
 		// Make visible
 		this.isVisible = true;
-
-		// Focus
-		if (focus) {
-			const list = assertIsDefined(this.list);
-			list.domFocus();
-		}
 	}
 
 	private createNotificationsList(): void {
@@ -93,21 +84,7 @@ export class NotificationsList extends Disposable {
 				overrideStyles: {
 					listBackground: NOTIFICATIONS_BACKGROUND
 				},
-				accessibilityProvider: {
-					getAriaLabel(element: INotificationViewItem): string {
-						if (!element.source) {
-							return localize('notificationAriaLabel', "{0}, notification", element.message.raw);
-						}
-
-						return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", element.message.raw, element.source);
-					},
-					getWidgetAriaLabel(): string {
-						return options.widgetAriaLabel ?? localize('notificationsList', "Notifications List");
-					},
-					getRole(): AriaRole {
-						return 'dialog'; // https://github.com/microsoft/vscode/issues/82728
-					}
-				}
+				accessibilityProvider: this.instantiationService.createInstance(NotificationAccessibilityProvider, options)
 			}
 		));
 
@@ -233,8 +210,8 @@ export class NotificationsList extends Disposable {
 	}
 
 	focusFirst(): void {
-		if (!this.isVisible || !this.list) {
-			return; // hidden
+		if (!this.list) {
+			return; // not created yet
 		}
 
 		this.list.focusFirst();
@@ -242,8 +219,8 @@ export class NotificationsList extends Disposable {
 	}
 
 	hasFocus(): boolean {
-		if (!this.isVisible || !this.listContainer) {
-			return false; // hidden
+		if (!this.listContainer) {
+			return false; // not created yet
 		}
 
 		return isAncestor(document.activeElement, this.listContainer);
@@ -265,5 +242,31 @@ export class NotificationsList extends Disposable {
 		this.hide();
 
 		super.dispose();
+	}
+}
+
+class NotificationAccessibilityProvider implements IListAccessibilityProvider<INotificationViewItem> {
+	constructor(
+		private readonly _options: INotificationsListOptions,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) { }
+	getAriaLabel(element: INotificationViewItem): string {
+		let accessibleViewHint: string | undefined;
+		const keybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel();
+		if (this._configurationService.getValue('accessibility.verbosity.notification')) {
+			accessibleViewHint = keybinding ? localize('notificationAccessibleViewHint', "Inspect the response in the accessible view with {0}", keybinding) : localize('notificationAccessibleViewHintNoKb', "Inspect the response in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
+		}
+		if (!element.source) {
+			return accessibleViewHint ? localize('notificationAriaLabelHint', "{0}, notification, {1}", element.message.raw, accessibleViewHint) : localize('notificationAriaLabel', "{0}, notification", element.message.raw);
+		}
+
+		return accessibleViewHint ? localize('notificationWithSourceAriaLabelHint', "{0}, source: {1}, notification, {2}", element.message.raw, element.source, accessibleViewHint) : localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", element.message.raw, element.source);
+	}
+	getWidgetAriaLabel(): string {
+		return this._options.widgetAriaLabel ?? localize('notificationsList', "Notifications List");
+	}
+	getRole(): AriaRole {
+		return 'dialog'; // https://github.com/microsoft/vscode/issues/82728
 	}
 }

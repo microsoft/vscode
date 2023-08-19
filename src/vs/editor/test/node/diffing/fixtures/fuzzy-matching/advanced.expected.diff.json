@@ -9,22 +9,40 @@
 	},
 	"diffs": [
 		{
-			"originalRange": "[1,1)",
-			"modifiedRange": "[1,9)",
+			"originalRange": "[1,9)",
+			"modifiedRange": "[1,10)",
 			"innerChanges": [
 				{
-					"originalRange": "[1,1 -> 1,1]",
-					"modifiedRange": "[1,1 -> 9,1]"
-				}
-			]
-		},
-		{
-			"originalRange": "[2,9)",
-			"modifiedRange": "[10,10)",
-			"innerChanges": [
+					"originalRange": "[1,1 -> 2,1]",
+					"modifiedRange": "[1,1 -> 1,1]"
+				},
 				{
-					"originalRange": "[2,1 -> 9,1]",
-					"modifiedRange": "[10,1 -> 10,1]"
+					"originalRange": "[2,15 -> 2,15]",
+					"modifiedRange": "[1,15 -> 1,16]"
+				},
+				{
+					"originalRange": "[3,15 -> 3,15]",
+					"modifiedRange": "[2,15 -> 2,16]"
+				},
+				{
+					"originalRange": "[4,15 -> 4,15]",
+					"modifiedRange": "[3,15 -> 3,16]"
+				},
+				{
+					"originalRange": "[5,15 -> 5,15]",
+					"modifiedRange": "[4,15 -> 5,1]"
+				},
+				{
+					"originalRange": "[6,15 -> 6,15]",
+					"modifiedRange": "[6,15 -> 6,16]"
+				},
+				{
+					"originalRange": "[7,15 -> 7,15]",
+					"modifiedRange": "[7,15 -> 7,16]"
+				},
+				{
+					"originalRange": "[8,15 -> 8,15]",
+					"modifiedRange": "[8,15 -> 9,1]"
 				}
 			]
 		}
