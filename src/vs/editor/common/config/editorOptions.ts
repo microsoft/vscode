@@ -730,6 +730,11 @@ export interface IEditorOptions {
 	 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
 	 */
 	tabFocusMode?: boolean;
+
+	/**
+	 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
+	 */
+	inlineCompletionsAccessibilityVerbose?: boolean;
 }
 
 /**
@@ -5143,7 +5148,8 @@ export const enum EditorOption {
 	layoutInfo,
 	wrappingInfo,
 	defaultColorDecorators,
-	colorDecoratorsActivatedOn
+	colorDecoratorsActivatedOn,
+	inlineCompletionsAccessibilityVerbose
 }
 
 export const EditorOptions = {
@@ -5734,6 +5740,8 @@ export const EditorOptions = {
 	)),
 	suggest: register(new EditorSuggest()),
 	inlineSuggest: register(new InlineEditorSuggest()),
+	inlineCompletionsAccessibilityVerbose: register(new EditorBooleanOption(EditorOption.inlineCompletionsAccessibilityVerbose, 'inlineCompletionsAccessibilityVerbose', false,
+		{ description: nls.localize('inlineCompletionsAccessibilityVerbose', "Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.") })),
 	suggestFontSize: register(new EditorIntOption(
 		EditorOption.suggestFontSize, 'suggestFontSize',
 		0, 0, 1000,

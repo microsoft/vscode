@@ -75,6 +75,7 @@ import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
+import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -1145,6 +1146,15 @@ export interface ExtHostChatSlashCommandsShape {
 	$executeCommand(handle: number, requestId: number, prompt: string, context: { history: IChatMessage[] }, token: CancellationToken): Promise<any>;
 }
 
+export interface MainThreadChatVariablesShape extends IDisposable {
+	$registerVariable(handle: number, data: IChatVariableData): void;
+	$unregisterVariable(handle: number): void;
+}
+
+export interface ExtHostChatVariablesShape {
+	$resolveVariable(handle: number, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
+}
+
 export interface MainThreadInlineChatShape extends IDisposable {
 	$registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean): Promise<void>;
 	$handleProgressChunk(requestId: string, chunk: { message?: string; edits?: languages.TextEdit[] }): Promise<void>;
@@ -1177,6 +1187,7 @@ export interface IChatDto {
 
 export interface IChatRequestDto {
 	message: string | IChatReplyFollowup;
+	variables?: Record<string, IChatRequestVariableValue[]>;
 }
 
 export interface IChatResponseDto {
@@ -2445,7 +2456,7 @@ export interface TunnelDto {
 
 
 export interface ExtHostTunnelServiceShape {
-	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined>;
+	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | string | undefined>;
 	$closeTunnel(remote: { host: string; port: number }, silent?: boolean): Promise<void>;
 	$onDidTunnelsChange(): Promise<void>;
 	$registerCandidateFinder(enable: boolean): Promise<void>;
@@ -2567,6 +2578,7 @@ export const MainContext = {
 	MainThreadBulkEdits: createProxyIdentifier<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
 	MainThreadChatProvider: createProxyIdentifier<MainThreadChatProviderShape>('MainThreadChatProvider'),
 	MainThreadChatSlashCommands: createProxyIdentifier<MainThreadChatSlashCommandsShape>('MainThreadChatSlashCommands'),
+	MainThreadChatVariables: createProxyIdentifier<MainThreadChatVariablesShape>('MainThreadChatVariables'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createProxyIdentifier<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createProxyIdentifier<MainThreadCommentsShape>('MainThreadComments'),
@@ -2686,6 +2698,7 @@ export const ExtHostContext = {
 	ExtHostInlineChat: createProxyIdentifier<ExtHostInlineChatShape>('ExtHostInlineChatShape'),
 	ExtHostChat: createProxyIdentifier<ExtHostChatShape>('ExtHostChat'),
 	ExtHostChatSlashCommands: createProxyIdentifier<ExtHostChatSlashCommandsShape>('ExtHostChatSlashCommands'),
+	ExtHostChatVariables: createProxyIdentifier<ExtHostChatVariablesShape>('ExtHostChatVariables'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostChatProviderShape>('ExtHostChatProvider'),
 	ExtHostSemanticSimilarity: createProxyIdentifier<ExtHostSemanticSimilarityShape>('ExtHostSemanticSimilarity'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),

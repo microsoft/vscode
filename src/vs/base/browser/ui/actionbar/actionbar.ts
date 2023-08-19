@@ -51,6 +51,12 @@ export interface IActionBarOptions {
 	readonly preventLoopNavigation?: boolean;
 	readonly focusOnlyEnabledItems?: boolean;
 	readonly hoverDelegate?: IHoverDelegate;
+	/**
+	 * If true, toggled primary items are highlighted with a background color.
+	 * Some action bars exclusively use icon states, we don't want to enable this for them.
+	 * Thus, this is opt-in.
+	 */
+	readonly highlightToggledItems?: boolean;
 }
 
 export interface IActionOptions extends IActionViewItemOptions {
@@ -213,6 +219,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';
+		if (this.options.highlightToggledItems) {
+			this.actionsList.classList.add('highlight-toggled');
+		}
 		this.actionsList.setAttribute('role', this.options.ariaRole || 'toolbar');
 
 		if (this.options.ariaLabel) {
