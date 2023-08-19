@@ -29,6 +29,10 @@ export class QuickChatService implements IQuickChatService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
+	get enabled(): boolean {
+		return this.chatService.getProviderInfos().length > 0;
+	}
+
 	get focused(): boolean {
 		const widget = this._input?.widget as HTMLElement;
 		if (!widget) {
@@ -37,7 +41,7 @@ export class QuickChatService implements IQuickChatService {
 		return dom.isAncestor(document.activeElement, widget);
 	}
 
-	toggle(providerId: string, query?: string | undefined): void {
+	toggle(providerId?: string, query?: string | undefined): void {
 		// If the input is already shown, hide it. This provides a toggle behavior of the quick pick
 		if (this.focused) {
 			this.close();
@@ -46,7 +50,9 @@ export class QuickChatService implements IQuickChatService {
 
 		// Check if any providers are available. If not, show nothing
 		// This shouldn't be needed because of the precondition, but just in case
-		const providerInfo = this.chatService.getProviderInfos().find(info => info.id === providerId);
+		const providerInfo = providerId
+			? this.chatService.getProviderInfos().find(info => info.id === providerId)
+			: this.chatService.getProviderInfos()[0];
 		if (!providerInfo) {
 			return;
 		}
