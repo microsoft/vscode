@@ -15,7 +15,8 @@ import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { IWorkbenchVoiceRecognitionService } from 'vs/workbench/services/voiceRecognition/electron-sandbox/workbenchVoiceRecognitionService';
 
-const CONTEXT_CHAT_VOICE_INPUT_IN_PROGRESS = new RawContextKey<boolean>('chatVoiceInputInProgress', false, { type: 'boolean', description: localize('interactiveSessionVoiceInputInProgress', "True when there is voice input for chat in progress.") });
+const CONTEXT_CHAT_VOICE_INPUT_GETTING_READY = new RawContextKey<boolean>('chatVoiceInputGettingReady', false, { type: 'boolean', description: localize('chatVoiceInputGettingReady', "True when there is voice input for chat getting ready.") });
+const CONTEXT_CHAT_VOICE_INPUT_IN_PROGRESS = new RawContextKey<boolean>('chatVoiceInputInProgress', false, { type: 'boolean', description: localize('chatVoiceInputInProgress', "True when there is voice input for chat in progress.") });
 
 interface IChatVoiceInputActionContext {
 	readonly widget: IChatWidget;
@@ -38,6 +39,8 @@ class ChatVoiceInputSession {
 	}
 
 	private chatVoiceInputInProgressKey = CONTEXT_CHAT_VOICE_INPUT_IN_PROGRESS.bindTo(this.contextKeyService);
+	private chatVoiceInputGettingReadyKey = CONTEXT_CHAT_VOICE_INPUT_GETTING_READY.bindTo(this.contextKeyService);
+
 	private currentChatVoiceInputSession: DisposableStore | undefined = undefined;
 
 	constructor(
@@ -45,10 +48,10 @@ class ChatVoiceInputSession {
 		@IWorkbenchVoiceRecognitionService private readonly voiceRecognitionService: IWorkbenchVoiceRecognitionService
 	) { }
 
-	start(context: IChatVoiceInputActionContext): void {
+	async start(context: IChatVoiceInputActionContext): Promise<void> {
 		this.stop();
 
-		this.chatVoiceInputInProgressKey.set(true);
+		this.chatVoiceInputGettingReadyKey.set(true);
 		this.currentChatVoiceInputSession = new DisposableStore();
 
 		const cts = new CancellationTokenSource();
@@ -56,7 +59,15 @@ class ChatVoiceInputSession {
 
 		context.widget.focusInput();
 
-		this.currentChatVoiceInputSession.add(this.voiceRecognitionService.transcribe(cts.token)(text => {
+		const onDidTranscribe = await this.voiceRecognitionService.transcribe(cts.token);
+		if (cts.token.isCancellationRequested) {
+			return;
+		}
+
+		this.chatVoiceInputGettingReadyKey.set(false);
+		this.chatVoiceInputInProgressKey.set(true);
+
+		this.currentChatVoiceInputSession.add(onDidTranscribe(text => {
 			if (text) {
 				context.widget.updateInput(text);
 			}
@@ -75,6 +86,7 @@ class ChatVoiceInputSession {
 		this.currentChatVoiceInputSession.dispose();
 		this.currentChatVoiceInputSession = undefined;
 
+		this.chatVoiceInputGettingReadyKey.set(false);
 		this.chatVoiceInputInProgressKey.set(false);
 	}
 }
@@ -90,6 +102,7 @@ class StartChatVoiceInputAction extends Action2 {
 				original: 'Start Voice Input'
 			},
 			icon: Codicon.record,
+			precondition: CONTEXT_CHAT_VOICE_INPUT_GETTING_READY.negate(),
 			menu: {
 				id: MenuId.ChatExecute,
 				when: CONTEXT_CHAT_VOICE_INPUT_IN_PROGRESS.negate(),

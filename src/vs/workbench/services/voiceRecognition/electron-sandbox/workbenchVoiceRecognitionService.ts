@@ -25,7 +25,7 @@ export interface IWorkbenchVoiceRecognitionService {
 	 * @param cancellation a cancellation token to stop transcribing and
 	 * listening to the microphone.
 	 */
-	transcribe(cancellation: CancellationToken): Event<string>;
+	transcribe(cancellation: CancellationToken): Promise<Event<string>>;
 }
 
 class VoiceTranscriptionWorkletNode extends AudioWorkletNode {
@@ -76,16 +76,19 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService
 	) { }
 
-	transcribe(cancellation: CancellationToken): Event<string> {
+	async transcribe(cancellation: CancellationToken): Promise<Event<string>> {
 		const onDidTranscribe = new Emitter<string>();
 		cancellation.onCancellationRequested(() => onDidTranscribe.dispose());
 
-		this.doTranscribe(onDidTranscribe, cancellation);
+		await this.doTranscribe(onDidTranscribe, cancellation);
 
 		return onDidTranscribe.event;
 	}
 
-	private doTranscribe(onDidTranscribe: Emitter<string>, token: CancellationToken): void {
+	private doTranscribe(onDidTranscribe: Emitter<string>, token: CancellationToken): Promise<void> {
+		const recordingReady = new DeferredPromise<void>();
+		token.onCancellationRequested(() => recordingReady.complete());
+
 		this.progressService.withProgress({
 			location: ProgressLocation.Window,
 			title: localize('voiceTranscription', "Voice Transcription"),
@@ -116,13 +119,16 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 			const microphoneSource = audioContext.createMediaStreamSource(microphoneDevice);
 
 			token.onCancellationRequested(() => {
-				for (const track of microphoneDevice.getTracks()) {
-					track.stop();
-				}
+				try {
+					for (const track of microphoneDevice.getTracks()) {
+						track.stop();
+					}
 
-				microphoneSource.disconnect();
-				audioContext.close();
-				recordingDone.complete();
+					microphoneSource.disconnect();
+					audioContext.close();
+				} finally {
+					recordingDone.complete();
+				}
 			});
 
 			await audioContext.audioWorklet.addModule(FileAccess.asBrowserUri('vs/workbench/services/voiceRecognition/electron-sandbox/voiceTranscriptionWorklet.js').toString(true));
@@ -144,9 +150,12 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 			microphoneSource.connect(voiceTranscriptionTarget);
 
 			progress.report({ message: localize('voiceTranscriptionRecording', "Recording from microphone...") });
+			recordingReady.complete();
 
 			return recordingDone.p;
 		});
+
+		return recordingReady.p;
 	}
 }
 
