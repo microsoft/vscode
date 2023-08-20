@@ -7,13 +7,11 @@ import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 export const ASK_QUICK_QUESTION_ACTION_ID = 'workbench.action.quickchat.toggle';
 export function registerQuickChatActions() {
@@ -85,24 +83,13 @@ class QuickChatGlobalAction extends Action2 {
 				linux: {
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyI
 				}
-			},
-			menu: {
-				id: MenuId.LayoutControlMenu,
-				group: '0_workbench_toggles',
-				when: ContextKeyExpr.notEquals('config.chat.experimental.defaultMode', 'chatView'),
-				order: 0
 			}
 		});
 	}
 
 	override run(accessor: ServicesAccessor, query?: string): void {
-		const chatService = accessor.get(IChatService);
 		const quickChatService = accessor.get(IQuickChatService);
-		// Grab the first provider and run its command
-		const info = chatService.getProviderInfos()[0];
-		if (info) {
-			quickChatService.toggle(info.id, query);
-		}
+		quickChatService.toggle(undefined, query);
 	}
 }
 
