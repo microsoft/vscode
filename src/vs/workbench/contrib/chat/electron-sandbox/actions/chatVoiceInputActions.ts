@@ -67,9 +67,23 @@ class ChatVoiceInputSession {
 		this.chatVoiceInputGettingReadyKey.set(false);
 		this.chatVoiceInputInProgressKey.set(true);
 
+		let lastText: string | undefined = undefined;
+		let lastTextEqualCount = 0;
+
 		this.currentChatVoiceInputSession.add(onDidTranscribe(text => {
 			if (text) {
-				context.widget.updateInput(text);
+				if (lastText === text) {
+					lastTextEqualCount++;
+
+					if (lastTextEqualCount >= 2) {
+						context.widget.acceptInput();
+					}
+				} else {
+					lastTextEqualCount = 0;
+					lastText = text;
+
+					context.widget.updateInput(text);
+				}
 			}
 		}));
 
