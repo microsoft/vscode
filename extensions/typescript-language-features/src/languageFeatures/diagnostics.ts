@@ -159,7 +159,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 
 	constructor(
 		private readonly _telemetryReporter: TelemetryReporter,
-		private readonly _getDiagnostics: (uri: vscode.Uri) => readonly vscode.Diagnostic[]
+		private readonly _diagnosticsCollection: vscode.DiagnosticCollection,
 	) {
 		super();
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
@@ -173,8 +173,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 
 	private _updateAllDiagnosticCodesAfterTimeout() {
 		clearTimeout(this._timeout);
-		const uris = vscode.workspace.textDocuments.map(doc => doc.uri);
-		this._timeout = setTimeout(() => { uris.forEach((uri) => this._updateDiagnosticCodes(uri)); }, 5000);
+		this._timeout = setTimeout(() => this._updateDiagnosticCodes(), 5000);
 	}
 
 	private _increaseDiagnosticCodeCount(code: string | number | undefined) {
@@ -184,15 +183,16 @@ class DiagnosticsTelemetryManager extends Disposable {
 		this._diagnosticCodesMap.set(Number(code), (this._diagnosticCodesMap.get(Number(code)) || 0) + 1);
 	}
 
-	private _updateDiagnosticCodes(uri: vscode.Uri) {
-		const uriString = uri.toString();
-		const previousDiagnostics = this._diagnosticSnapshotsMap.get(uriString);
-		const currentDiagnostics = this._getDiagnostics(uri);
-		this._diagnosticSnapshotsMap.set(uriString, currentDiagnostics);
-		const diagnosticsDiff = currentDiagnostics.filter((diagnostic) => !previousDiagnostics?.some((previousDiagnostic) => equals(diagnostic, previousDiagnostic)));
-		diagnosticsDiff.forEach((diagnostic) => {
-			const code = diagnostic.code;
-			this._increaseDiagnosticCodeCount(typeof code === 'string' || typeof code === 'number' ? code : code?.value);
+	private _updateDiagnosticCodes() {
+		this._diagnosticsCollection.forEach((uri, diagnostics) => {
+			const uriString = uri.toString();
+			const previousDiagnostics = this._diagnosticSnapshotsMap.get(uriString);
+			this._diagnosticSnapshotsMap.set(uriString, diagnostics);
+			const diagnosticsDiff = diagnostics.filter((diagnostic) => !previousDiagnostics?.some((previousDiagnostic) => equals(diagnostic, previousDiagnostic)));
+			diagnosticsDiff.forEach((diagnostic) => {
+				const code = diagnostic.code;
+				this._increaseDiagnosticCodeCount(typeof code === 'string' || typeof code === 'number' ? code : code?.value);
+			});
 		});
 	}
 
@@ -242,7 +242,7 @@ export class DiagnosticsManager extends Disposable {
 		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
 		// Here we are selecting only 1 user out of 1000 to send telemetry diagnostics
 		if (Math.random() * 1000 <= 1 || configuration.enableDiagnosticsTelemetry) {
-			this._register(new DiagnosticsTelemetryManager(telemetryReporter, this.getDiagnostics.bind(this)));
+			this._register(new DiagnosticsTelemetryManager(telemetryReporter, this._currentDiagnostics));
 		}
 	}
 
