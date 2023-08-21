@@ -63,27 +63,15 @@ export class SettingsEditor {
 	async searchSettingsUI(query: string): Promise<void> {
 		await this.openUserSettingsUI();
 
-		// Retry the following in case the Settings editor reloads halfway in between,
-		// such as with https://github.com/microsoft/vscode/issues/190896
-		let tries = 0;
-		while (true) {
-			try {
-				await this.code.waitAndClick(SEARCH_BOX);
-				if (process.platform === 'darwin') {
-					await this.code.dispatchKeybinding('cmd+a');
-				} else {
-					await this.code.dispatchKeybinding('ctrl+a');
-				}
-				await this.code.dispatchKeybinding('Delete');
-				await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => !results || (results?.length === 1 && !results[0].textContent));
-				await this.code.waitForTypeInEditor('.settings-editor .suggest-input-container .monaco-editor textarea', query);
-				await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => results?.length === 1 && results[0].textContent.includes('Found'));
-				return;
-			} catch (e) {
-				if (++tries === 3) {
-					throw e;
-				}
-			}
+		await this.code.waitAndClick(SEARCH_BOX);
+		if (process.platform === 'darwin') {
+			await this.code.dispatchKeybinding('cmd+a');
+		} else {
+			await this.code.dispatchKeybinding('ctrl+a');
 		}
+		await this.code.dispatchKeybinding('Delete');
+		await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => !results || (results?.length === 1 && !results[0].textContent));
+		await this.code.waitForTypeInEditor('.settings-editor .suggest-input-container .monaco-editor textarea', query);
+		await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => results?.length === 1 && results[0].textContent.includes('Found'));
 	}
 }
