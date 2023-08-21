@@ -18,8 +18,10 @@ import { CharacterMapping, RenderLineInput, renderViewLine } from 'vs/editor/com
 
 export class StickyScrollWidgetState {
 	constructor(
-		readonly lineNumbers: number[],
-		readonly lastLineRelativePosition: number
+		readonly startLineNumbers: number[],
+		readonly endLineNumbers: number[],
+		readonly lastLineRelativePosition: number,
+		readonly showEndForLine: number | null = null
 	) { }
 }
 
@@ -102,11 +104,15 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		dom.clearNode(this._linesDomNode);
 		this._stickyLines = [];
 		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const futureWidgetHeight = state.lineNumbers.length * editorLineHeight + state.lastLineRelativePosition;
+		const futureWidgetHeight = state.startLineNumbers.length * editorLineHeight + state.lastLineRelativePosition;
 
 		if (futureWidgetHeight > 0) {
 			this._lastLineRelativePosition = state.lastLineRelativePosition;
-			this._lineNumbers = state.lineNumbers;
+			const lineNumbers = [...state.startLineNumbers];
+			if (state.showEndForLine !== null) {
+				lineNumbers[state.showEndForLine] = state.endLineNumbers[state.showEndForLine];
+			}
+			this._lineNumbers = lineNumbers;
 		} else {
 			this._lastLineRelativePosition = 0;
 			this._lineNumbers = [];

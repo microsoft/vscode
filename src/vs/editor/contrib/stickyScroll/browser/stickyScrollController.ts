@@ -81,7 +81,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(this._stickyScrollWidget);
 		this._register(this._stickyLineCandidateProvider);
 
-		this._widgetState = new StickyScrollWidgetState([], 0);
+		this._widgetState = new StickyScrollWidgetState([], [], 0);
 		this._readConfiguration();
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
 		this._register(this._editor.onDidChangeConfiguration(e => {
@@ -436,7 +436,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
 		if (stickyLineVersion === undefined || stickyLineVersion === model.getVersionId()) {
 			this._widgetState = this.findScrollWidgetState();
-			this._stickyScrollVisibleContextKey.set(!(this._widgetState.lineNumbers.length === 0));
+			this._stickyScrollVisibleContextKey.set(!(this._widgetState.startLineNumbers.length === 0));
 
 			if (!this._focused) {
 				this._stickyScrollWidget.setState(this._widgetState);
@@ -509,10 +509,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 		}
 		this._endLineNumbers = endLineNumbers;
-		if (this._showEndForLine !== null) {
-			startLineNumbers[this._showEndForLine] = endLineNumbers[this._showEndForLine];
-		}
-		return new StickyScrollWidgetState(startLineNumbers, lastLineRelativePosition);
+		return new StickyScrollWidgetState(startLineNumbers, endLineNumbers, lastLineRelativePosition, this._showEndForLine);
 	}
 
 	override dispose(): void {
