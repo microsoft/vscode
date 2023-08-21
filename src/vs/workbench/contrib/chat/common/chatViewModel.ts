@@ -59,7 +59,6 @@ export interface IChatRequestViewModel {
 export interface IChatResponseMarkdownRenderData {
 	renderedWordCount: number;
 	lastRenderTime: number;
-	isPlaceholder: boolean;
 	isFullyRendered: boolean;
 }
 

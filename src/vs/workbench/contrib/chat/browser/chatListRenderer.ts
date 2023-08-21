@@ -403,7 +403,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const currentResponseData = element.response.value;
 			element.renderData ??= { renderedParts: [] };
 			const renderedParts = element.renderData.renderedParts;
-			const wordCountResults: IWordCountResult[] = [];
+			const wordCountResults: (IWordCountResult & { isPlaceholder: boolean })[] = [];
 			const partsToRender: IChatResponseRenderData['renderedParts'] = [];
 
 			currentResponseData.forEach((part, index) => {
@@ -413,15 +413,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					if (isInteractiveProgressTreeData(part)) {
 						partsToRender[index] = part;
 					} else {
-						const wordCountResult = this.getDataForProgressiveRender(element, part, { renderedWordCount: 0, isFullyRendered: false, lastRenderTime: 0, isPlaceholder: isPlaceholderMarkdown(part) });
+						const wordCountResult = this.getDataForProgressiveRender(element, part, { renderedWordCount: 0, lastRenderTime: 0 });
 						if (wordCountResult !== undefined) {
 							partsToRender[index] = {
 								renderedWordCount: wordCountResult.actualWordCount,
 								lastRenderTime: Date.now(),
-								isPlaceholder: isPlaceholderMarkdown(part),
 								isFullyRendered: wordCountResult.isFullString,
 							};
-							wordCountResults[index] = wordCountResult;
+							wordCountResults[index] = { ...wordCountResult, isPlaceholder: isPlaceholderMarkdown(part) };
 						}
 					}
 				}
@@ -438,10 +437,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						partsToRender[index] = {
 							renderedWordCount: wordCountResult.actualWordCount,
 							lastRenderTime: Date.now(),
-							isPlaceholder: isPlaceholderMarkdown(part),
 							isFullyRendered: wordCountResult.isFullString,
 						};
-						wordCountResults[index] = wordCountResult;
+						wordCountResults[index] = { ...wordCountResult, isPlaceholder: isPlaceholderMarkdown(part) };
 					}
 				}
 			});
@@ -468,8 +466,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
 					else if (!hasRenderedOneMarkdownBlock) {
-						const value = wordCountResults[index].value;
-						result = partToRender.isPlaceholder
+						const { value, isPlaceholder } = wordCountResults[index];
+						result = isPlaceholder
 							? this.renderPlaceholder(new MarkdownString(value), templateData)
 							: this.renderMarkdown(new MarkdownString(value), element, disposables, templateData, true);
 						hasRenderedOneMarkdownBlock = true;
@@ -555,13 +553,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderPlaceholder(markdown: IMarkdownString, templateData: IChatListItemTemplate): IMarkdownRenderResult {
-		const codicon = $('.interactive-response-error-details', undefined, renderIcon({ id: 'sync~spin' }));
+		const codicon = $('.interactive-response-codicon-details', undefined, renderIcon({ id: 'sync~spin' }));
 		codicon.classList.add('interactive-response-placeholder-codicon');
 		const result = dom.append(templateData.value, codicon);
 
-		const content = $('span', undefined, markdown.value);
-		content.className = 'interactive-response-placeholder-content';
-		result.appendChild(content);
+		const content = this.renderer.render(markdown);
+		content.element.className = 'interactive-response-placeholder-content';
+		result.appendChild(content.element);
 
 		return { element: result, dispose: () => { } };
 	}
@@ -637,7 +635,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return ref;
 	}
 
-	private getDataForProgressiveRender(element: IChatResponseViewModel, data: IMarkdownString, renderData: IChatResponseMarkdownRenderData): IWordCountResult | undefined {
+	private getDataForProgressiveRender(element: IChatResponseViewModel, data: IMarkdownString, renderData: Pick<IChatResponseMarkdownRenderData, 'lastRenderTime' | 'renderedWordCount'>): IWordCountResult | undefined {
 		const rate = this.getProgressiveRenderRate(element);
 		const numWordsToRender = renderData.lastRenderTime === 0 ?
 			1 :

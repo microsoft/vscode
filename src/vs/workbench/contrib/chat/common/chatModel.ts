@@ -92,7 +92,7 @@ export interface IPlaceholderMarkdownString extends IMarkdownString {
 	isPlaceholder: boolean;
 }
 
-type ResponsePart = { string: IMarkdownString; isPlaceholder?: boolean } | { treeData: IChatResponseProgressFileTreeData; isPlaceholder?: boolean };
+type ResponsePart = { string: IMarkdownString; isPlaceholder?: boolean } | { treeData: IChatResponseProgressFileTreeData; isPlaceholder?: undefined };
 export class Response implements IResponse {
 	private _onDidChangeValue = new Emitter<void>();
 	public get onDidChangeValue() {
@@ -150,7 +150,7 @@ export class Response implements IResponse {
 					this._responseParts[responsePosition] = { string: new MarkdownString(content), isPlaceholder: true };
 					this._updateRepr(quiet);
 				} else if (content.treeData) {
-					this._responseParts[responsePosition] = { treeData: content.treeData, isPlaceholder: true };
+					this._responseParts[responsePosition] = { treeData: content.treeData };
 					this._updateRepr(quiet);
 				}
 			});
