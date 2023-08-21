@@ -1264,8 +1264,7 @@ export class QuickWidget extends QuickInput implements IQuickWidget {
 
 		const visibilities: Visibilities = {
 			title: !!this.title || !!this.step || !!this.buttons.length,
-			description: !!this.description || !!this.step,
-			progressBar: true
+			description: !!this.description || !!this.step
 		};
 
 		this.ui.setVisibilities(visibilities);
