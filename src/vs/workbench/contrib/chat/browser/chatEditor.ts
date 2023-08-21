@@ -20,7 +20,7 @@ import { Memento } from 'vs/workbench/common/memento';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { IViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target: { sessionId: string } | { providerId: string } | { data: ISerializableChatData };
@@ -43,15 +43,12 @@ export class ChatEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatService private readonly chatService: IChatService,
 	) {
 		super(ChatEditorInput.EditorID, telemetryService, themeService, storageService);
 	}
 
 	public async clear() {
-		if (this.widget?.viewModel) {
-			this.chatService.clearSession(this.widget.viewModel.sessionId);
-		}
+		return this.instantiationService.invokeFunction(clearChatEditor);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -68,6 +65,7 @@ export class ChatEditor extends EditorPane {
 					inputEditorBackground: inputBackground,
 					resultEditorBackground: editorBackground
 				}));
+		this._register(this.widget.onDidClear(() => this.clear()));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
 	}
