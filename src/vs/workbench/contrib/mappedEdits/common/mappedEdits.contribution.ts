@@ -6,44 +6,22 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import * as nls from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMappedEditsService, MappedEditsContext } from 'vs/workbench/services/mappedEdits/common/mappedEdits';
 
-class ExecuteMappedEditsProvider extends Action2 {
+CommandsRegistry.registerCommand('_executeMappedEditsProvider', async (accessor: ServicesAccessor, documentUri: URI, codeBlocks: string[], context: MappedEditsContext) => {
 
-	static readonly ID = '_executeMappedEditsProvider';
+	const mappedEditsService = accessor.get(IMappedEditsService);
+	const modelService = accessor.get(ITextModelService);
 
-	constructor() {
-		super({
-			id: ExecuteMappedEditsProvider.ID,
-			title: { value: nls.localize('executeMappedEditsProvider', "Execute Mapped Edits Provider"), original: '' },
-			f1: false,
-			description: {
-				description: nls.localize('executeMappedEditsProvider.description', "Executes Mapped Edits Provider and returns the corresponding WorkspaceEdit or null if no edits are provided."),
-				args: [
-					// FIXME@ulugbekna
-				]
-			}
-		});
-	}
+	const document = await modelService.createModelReference(documentUri);
 
-	async run(accessor: ServicesAccessor, documentUri: URI, codeBlocks: string[], context: MappedEditsContext) {
+	const cancellationTokenSource = new CancellationTokenSource();
 
-		const mappedEditsService = accessor.get(IMappedEditsService);
-		const modelService = accessor.get(ITextModelService);
+	const result = await mappedEditsService.provideMappedEdits(document.object.textEditorModel, codeBlocks, context, cancellationTokenSource.token);
 
-		const document = await modelService.createModelReference(documentUri);
+	document.dispose();
 
-		const cancellationTokenSource = new CancellationTokenSource();
-
-		const res = await mappedEditsService.provideMappedEdits(document.object.textEditorModel, codeBlocks, context, cancellationTokenSource.token);
-
-		document.dispose();
-
-		return res;
-	}
-}
-
-registerAction2(ExecuteMappedEditsProvider);
+	return result;
+});
