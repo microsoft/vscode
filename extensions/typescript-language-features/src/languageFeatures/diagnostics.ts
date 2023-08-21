@@ -177,6 +177,13 @@ class DiagnosticsTelemetryManager extends Disposable {
 		this._timeout = setTimeout(() => { uris.forEach((uri) => this._updateDiagnosticCodes(uri)); }, 5000);
 	}
 
+	private _increaseDiagnosticCodeCount(code: string | number | undefined) {
+		if (code === undefined) {
+			return;
+		}
+		this._diagnosticCodesMap.set(Number(code), (this._diagnosticCodesMap.get(Number(code)) || 0) + 1);
+	}
+
 	private _updateDiagnosticCodes(uri: vscode.Uri) {
 		const uriString = uri.toString();
 		const previousDiagnostics = this._diagnosticSnapshotsMap.get(uriString);
@@ -185,11 +192,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 		const diagnosticsDiff = currentDiagnostics.filter((diagnostic) => !previousDiagnostics?.some((previousDiagnostic) => equals(diagnostic, previousDiagnostic)));
 		diagnosticsDiff.forEach((diagnostic) => {
 			const code = diagnostic.code;
-			if (typeof code === 'string' || typeof code === 'number') {
-				this._diagnosticCodesMap.set(Number(code), (this._diagnosticCodesMap.get(Number(code)) || 0) + 1);
-			} else if (code !== undefined) {
-				this._diagnosticCodesMap.set(Number(code.value), (this._diagnosticCodesMap.get(Number(code.value)) || 0) + 1);
-			}
+			this._increaseDiagnosticCodeCount(typeof code === 'string' || typeof code === 'number' ? code : code?.value);
 		});
 	}
 
