@@ -130,9 +130,15 @@ class StartChatVoiceInputAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]): void {
-		const context = args[0];
+		const chatWidgetService = accessor.get(IChatWidgetService);
+
+		let context = args[0];
 		if (!isVoiceInputActionContext(context)) {
-			return;
+			if (chatWidgetService.lastFocusedWidget?.hasInputFocus()) {
+				context = { widget: chatWidgetService.lastFocusedWidget };
+			} else {
+				return;
+			}
 		}
 
 		ChatVoiceInputSession.getInstance(accessor.get(IInstantiationService)).start(context);

@@ -150,6 +150,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputEditor.focus();
 	}
 
+	hasFocus(): boolean {
+		return this._inputEditor.hasWidgetFocus();
+	}
+
 	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
 		const editorValue = this._inputEditor.getValue();
 		if (!query && editorValue) {
