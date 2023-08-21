@@ -10,16 +10,16 @@ import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Range } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
+import { IRange } from 'vs/editor/common/core/range';
 
 export interface RelatedContextItem {
 	readonly uri: URI;
-	readonly range: Range;
+	readonly range: IRange;
 }
 
 export interface MappedEditsContext {
-	selections: Selection[];
+	selections: ISelection[];
 
 	/**
 	 * If there's no context, the array should be empty. It's also empty until we figure out how to compute this or retrieve from an extension (eg, copilot chat)

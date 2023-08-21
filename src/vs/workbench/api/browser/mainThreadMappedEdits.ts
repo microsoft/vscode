@@ -6,7 +6,7 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
-import { ExtHostContext, ExtHostMappedEditsShape, IDocumentFilterDto, IMappedEditsContextDto, MainContext, MainThreadMappedEditsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostMappedEditsShape, IDocumentFilterDto, MainContext, MainThreadMappedEditsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IMappedEditsProvider, IMappedEditsService } from 'vs/workbench/services/mappedEdits/common/mappedEdits';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
