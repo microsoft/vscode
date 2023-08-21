@@ -39,7 +39,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 
 	static readonly ID = 'store.contrib.stickyScrollController';
 
-	private readonly _onDidChangeStickyScroll = this._store.add(new Emitter<void>());
+	private readonly _onDidChangeStickyScroll = this._register(new Emitter<void>());
 	public readonly onDidChangeStickyScroll = this._onDidChangeStickyScroll.event;
 
 	private readonly _editor: ICodeEditor;
@@ -58,7 +58,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	) {
 		super();
 		this._editor = editor;
-		this._sessionStore = new DisposableStore();
+		this._sessionStore = this._register(new DisposableStore());
 		this._updateSoon = this._register(new RunOnceScheduler(() => this.update(), 50));
 
 		this._register(this._editor.onDidChangeConfiguration(e => {
@@ -69,25 +69,22 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		this.readConfiguration();
 	}
 
-	override dispose(): void {
-		super.dispose();
-		this._sessionStore.dispose();
-	}
-
 	private readConfiguration() {
+
+		this._stickyModelProvider = null;
+		this._sessionStore.clear();
 
 		this._options = this._editor.getOption(EditorOption.stickyScroll);
 		if (!this._options.enabled) {
-			this._sessionStore.clear();
 			return;
 		}
 
-		this._stickyModelProvider = new StickyModelProvider(
+		this._stickyModelProvider = this._sessionStore.add(new StickyModelProvider(
 			this._editor,
 			this._languageConfigurationService,
 			this._languageFeaturesService,
 			this._options.defaultModel
-		);
+		));
 
 		this._sessionStore.add(this._editor.onDidChangeModel(() => this.update()));
 		this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this.update()));
