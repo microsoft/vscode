@@ -118,7 +118,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
 		const matches = searchResult.matches();
-		const files = matches.length > MAX_FILES_SHOWN ? matches.splice(0, MAX_FILES_SHOWN) : matches;
+		const files = matches.length > MAX_FILES_SHOWN ? matches.slice(0, MAX_FILES_SHOWN) : matches;
 
 		for (let fileIndex = 0; fileIndex < matches.length; fileIndex++) {
 			if (fileIndex === MAX_FILES_SHOWN) {
