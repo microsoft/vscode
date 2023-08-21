@@ -16,7 +16,7 @@ import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider } f
 import { IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IViewsService } from 'vs/workbench/common/views';
-import { searchOpenInFileIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { searchDetailsIcon, searchOpenInFileIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { FileMatch, Match, MatchInNotebook, RenderableMatch, SearchModel, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
 import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
@@ -121,8 +121,9 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 	private _getPicksFromMatches(matches: FileMatch[], limit: number): (IQuickPickSeparator | IPickerQuickAccessItem)[] {
 		matches = matches.sort(searchComparer);
 
-		const files = matches.length > limit ? matches.splice(0, limit) : matches;
+		const files = matches.length > limit ? matches.slice(0, limit) : matches;
 		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
+
 		for (let fileIndex = 0; fileIndex < matches.length; fileIndex++) {
 			if (fileIndex === limit) {
 
@@ -131,8 +132,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 				});
 
 				picks.push({
-					label: `$(ellipsis) See More Files`,
-					ariaLabel: `See More Files`,
+					label: 'See More Files',
+					iconClass: ThemeIcon.asClassName(searchDetailsIcon),
 					accept: async () => {
 						this.moveToSearchViewlet(this.searchModel, matches[limit]);
 					}
@@ -149,7 +150,6 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 			picks.push({
 				label,
 				type: 'separator',
-				ariaLabel: label,
 				tooltip: description,
 				buttons: [{
 					iconClass: ThemeIcon.asClassName(searchOpenInFileIcon),
@@ -163,8 +163,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 				if (matchIndex === MAX_RESULTS_PER_FILE) {
 					picks.push({
-						label: `  $(ellipsis) More`,
-						ariaLabel: `See More`,
+						label: 'More',
+						iconClass: ThemeIcon.asClassName(searchDetailsIcon),
 						accept: async () => {
 							this.moveToSearchViewlet(this.searchModel, element);
 						}

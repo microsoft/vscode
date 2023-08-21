@@ -1942,6 +1942,7 @@ export class SearchModel extends Disposable {
 
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
 	private searchCancelledForNewSearch: boolean = false;
+	private _searchResultChangedListener: IDisposable;
 
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
@@ -1953,13 +1954,7 @@ export class SearchModel extends Disposable {
 	) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
-		this._searchResult.onChange((e) => {
-			this._onSearchResultChanged.fire(e);
-		});
-	}
-
-	instantiateNewSearchResult(): void {
-		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
+		this._searchResultChangedListener = this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
 	}
 
 	isReplaceActive(): boolean {
@@ -2000,9 +1995,11 @@ export class SearchModel extends Disposable {
 
 	set searchResult(searchResult: SearchResult) {
 		this._searchResult.dispose();
+		this._searchResultChangedListener.dispose();
+
 		this._searchResult = searchResult;
 		this._searchResult.searchModel = this;
-		this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e));
+		this._searchResultChangedListener = this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
 	}
 
 	private async doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
@@ -2283,6 +2280,11 @@ export class SearchModel extends Disposable {
 		this.cancelSearch();
 		this.searchResult.dispose();
 		super.dispose();
+	}
+
+	transferSearchResult(other: SearchModel): void {
+		other.searchResult = this._searchResult;
+		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
 	}
 }
 
