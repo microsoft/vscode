@@ -27,6 +27,7 @@ const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
 				default: false
 			}
 		},
+		default: { 'onAutoSave': false },
 		description: nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")
 	},
 });
@@ -93,6 +94,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 						default: false
 					}
 				},
+				default: { 'onAutoSave': false },
 				description: nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title)
 			};
 		}
