@@ -63,7 +63,7 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatResponseMarkdownRenderData, IChatResponseRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
@@ -103,7 +103,6 @@ export interface IChatListItemRendererOptions {
 }
 
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
-	static readonly cursorCharacter = '\u258c';
 	static readonly ID = 'item';
 
 	private readonly codeBlocksByResponseId = new Map<string, IChatCodeBlockInfo[]>();
@@ -399,29 +398,92 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.basicRenderElement(element.response.value, element, index, templateData);
 			isFullyRendered = true;
 		} else {
-			const renderValue = this.getWordsForProgressiveRender(element);
-			isFullyRendered = !!element.renderData?.isFullyRendered;
+			// Figure out what we need to render in addition to what has already been rendered
+			const currentResponseData = element.response.value;
+			element.renderData ??= { renderedParts: [] };
+			const renderedParts = element.renderData.renderedParts;
+			const wordCountResults: IWordCountResult[] = [];
+			const partsToRender: IChatResponseRenderData['renderedParts'] = [];
+
+			currentResponseData.forEach((part, index) => {
+				const renderedPart = renderedParts[index];
+				// Is this part completely new?
+				if (!renderedPart) {
+					if (isInteractiveProgressTreeData(part)) {
+						partsToRender[index] = part;
+					} else {
+						const wordCountResult = this.getDataForProgressiveRender(element, part);
+						if (wordCountResult !== undefined) {
+							partsToRender[index] = {
+								renderedWordCount: wordCountResult.actualWordCount,
+								lastRenderTime: Date.now(),
+								isFullyRendered: wordCountResult.isFullString,
+							};
+							wordCountResults[index] = wordCountResult;
+						}
+					}
+				}
+
+				// Did this part go from being a placeholder string to resolved tree data?
+				else if (isInteractiveProgressTreeData(part) && !isInteractiveProgressTreeData(renderedPart)) {
+					partsToRender[index] = part;
+				}
+
+				// Did this part's content change?
+				else if (!isInteractiveProgressTreeData(part) && !isInteractiveProgressTreeData(renderedPart) && !renderedPart.isFullyRendered) {
+					const wordCountResult = this.getDataForProgressiveRender(element, part, renderedPart);
+					if (wordCountResult !== undefined) {
+						partsToRender[index] = {
+							renderedWordCount: wordCountResult.actualWordCount,
+							lastRenderTime: Date.now(),
+							isFullyRendered: wordCountResult.isFullString,
+						};
+						wordCountResults[index] = wordCountResult;
+					}
+				}
+			});
+
+			isFullyRendered = partsToRender.length === 0;
+
 			if (isFullyRendered && element.isComplete) {
 				// Response is done and content is rendered, so do a normal render
 				this.traceLayout('runProgressiveRender', `end progressive render, index=${index} and clearing renderData, response is complete, index=${index}`);
 				element.renderData = undefined;
 				disposables.clear();
 				this.basicRenderElement(element.response.value, element, index, templateData);
-			} else if (renderValue) {
-				element.renderData = {
-					renderedWordCount: renderValue.actualWordCount,
-					lastRenderTime: Date.now(),
-					isFullyRendered: renderValue.isFullString
-				};
+			} else if (!isFullyRendered) {
+				let hasRenderedOneMarkdownBlock = false;
+				partsToRender.forEach((partToRender, index) => {
+					if (!partToRender) {
+						return;
+					}
 
-				const plusCursor = (renderValue.value.match(/```\s*$/) ?
-					renderValue.value + '\n\n' :
-					renderValue.value) + ` ${ChatListItemRenderer.cursorCharacter}`;
-				const result = this.renderMarkdown(new MarkdownString(plusCursor), element, disposables, templateData, true);
-				// Doing the progressive render
-				dom.clearNode(templateData.value);
-				templateData.value.appendChild(result.element);
-				disposables.add(result);
+					let result;
+					if (isInteractiveProgressTreeData(partToRender)) {
+						result = this.renderTreeData(partToRender, element, disposables, templateData, index);
+					}
+
+					// Avoid doing progressive rendering for multiple markdown parts simultaneously
+					else if (!hasRenderedOneMarkdownBlock) {
+						const value = wordCountResults[index].value;
+						result = this.renderMarkdown(new MarkdownString(value), element, disposables, templateData, true);
+						hasRenderedOneMarkdownBlock = true;
+					}
+
+					if (!result) {
+						return;
+					}
+
+					// Doing the progressive render
+					renderedParts[index] = partToRender;
+					const existingElement = templateData.value.children[index];
+					if (existingElement) {
+						templateData.value.replaceChild(result.element, existingElement);
+					} else {
+						templateData.value.appendChild(result.element);
+					}
+					disposables.add(result);
+				});
 			} else {
 				// Nothing new to render, not done, keep waiting
 				return false;
@@ -435,7 +497,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
 		}
 
-		return !!isFullyRendered;
+		return isFullyRendered;
 	}
 
 	private renderTreeData(data: IChatResponseProgressFileTreeData, element: ChatTreeItem, disposables: DisposableStore, templateData: IChatListItemTemplate, treeDataIndex: number): { element: HTMLElement; dispose: () => void } {
@@ -558,8 +620,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return ref;
 	}
 
-	private getWordsForProgressiveRender(element: IChatResponseViewModel): IWordCountResult | undefined {
-		const renderData = element.renderData ?? { renderedWordCount: 0, lastRenderTime: 0 };
+	private getDataForProgressiveRender(element: IChatResponseViewModel, data: IMarkdownString, renderData: IChatResponseMarkdownRenderData = { renderedWordCount: 0, lastRenderTime: 0, isFullyRendered: false }): IWordCountResult | undefined {
 		const rate = this.getProgressiveRenderRate(element);
 		const numWordsToRender = renderData.lastRenderTime === 0 ?
 			1 :
@@ -571,7 +632,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return undefined;
 		}
 
-		return getNWords(element.response.asString(), numWordsToRender);
+		return getNWords(data.value, numWordsToRender);
 	}
 
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
@@ -886,28 +947,16 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 	}
 
 	private setText(newText: string): void {
-		let currentText = this.textModel.getLinesContent().join('\n');
+		const currentText = this.textModel.getLinesContent().join('\n');
 		if (newText === currentText) {
 			return;
-		}
-
-		let removedChars = 0;
-		if (currentText.endsWith(` ${ChatListItemRenderer.cursorCharacter}`)) {
-			removedChars = 2;
-		} else if (currentText.endsWith(ChatListItemRenderer.cursorCharacter)) {
-			removedChars = 1;
-		}
-
-		if (removedChars > 0) {
-			currentText = currentText.slice(0, currentText.length - removedChars);
 		}
 
 		if (newText.startsWith(currentText)) {
 			const text = newText.slice(currentText.length);
 			const lastLine = this.textModel.getLineCount();
 			const lastCol = this.textModel.getLineMaxColumn(lastLine);
-			const insertAtCol = lastCol - removedChars;
-			this.textModel.applyEdits([{ range: new Range(lastLine, insertAtCol, lastLine, lastCol), text }]);
+			this.textModel.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
 		} else {
 			// console.log(`Failed to optimize setText`);
 			this.textModel.setValue(newText);
@@ -1132,4 +1181,8 @@ class ChatListTreeDataSource implements IAsyncDataSource<IChatResponseProgressFi
 	async getChildren(element: IChatResponseProgressFileTreeData): Promise<Iterable<IChatResponseProgressFileTreeData>> {
 		return element.children ?? [];
 	}
+}
+
+function isInteractiveProgressTreeData(item: IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IMarkdownString): item is IChatResponseProgressFileTreeData {
+	return 'label' in item;
 }

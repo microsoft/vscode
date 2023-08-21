@@ -161,27 +161,27 @@ suite('Sticky Scroll Tests', () => {
 
 				editor.setScrollTop(1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [1]);
+				assert.deepStrictEqual(state.startLineNumbers, [1]);
 
 				editor.setScrollTop(lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [1]);
+				assert.deepStrictEqual(state.startLineNumbers, [1]);
 
 				editor.setScrollTop(4 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, []);
+				assert.deepStrictEqual(state.startLineNumbers, []);
 
 				editor.setScrollTop(8 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [7, 9]);
+				assert.deepStrictEqual(state.startLineNumbers, [7, 9]);
 
 				editor.setScrollTop(9 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [7, 9]);
+				assert.deepStrictEqual(state.startLineNumbers, [7, 9]);
 
 				editor.setScrollTop(10 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [7]);
+				assert.deepStrictEqual(state.startLineNumbers, [7]);
 
 				stickyScrollController.dispose();
 				stickyScrollController.stickyScrollCandidateProvider.dispose();
@@ -212,23 +212,23 @@ suite('Sticky Scroll Tests', () => {
 
 				editor.setScrollTop(1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [1]);
+				assert.deepStrictEqual(state.startLineNumbers, [1]);
 
 				editor.setScrollTop(lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, []);
+				assert.deepStrictEqual(state.startLineNumbers, []);
 
 				editor.setScrollTop(6 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [7, 9]);
+				assert.deepStrictEqual(state.startLineNumbers, [7, 9]);
 
 				editor.setScrollTop(7 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [7]);
+				assert.deepStrictEqual(state.startLineNumbers, [7]);
 
 				editor.setScrollTop(10 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, []);
+				assert.deepStrictEqual(state.startLineNumbers, []);
 
 				stickyScrollController.dispose();
 				stickyScrollController.stickyScrollCandidateProvider.dispose();
@@ -306,23 +306,23 @@ suite('Sticky Scroll Tests', () => {
 
 				editor.setScrollTop(1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [1, 2]);
+				assert.deepStrictEqual(state.startLineNumbers, [1, 2]);
 
 				editor.setScrollTop(lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [1, 2]);
+				assert.deepStrictEqual(state.startLineNumbers, [1, 2]);
 
 				editor.setScrollTop(2 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [1]);
+				assert.deepStrictEqual(state.startLineNumbers, [1]);
 
 				editor.setScrollTop(3 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [1]);
+				assert.deepStrictEqual(state.startLineNumbers, [1]);
 
 				editor.setScrollTop(4 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, []);
+				assert.deepStrictEqual(state.startLineNumbers, []);
 
 				stickyScrollController.dispose();
 				stickyScrollController.stickyScrollCandidateProvider.dispose();
