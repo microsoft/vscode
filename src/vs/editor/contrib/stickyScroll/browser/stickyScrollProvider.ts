@@ -120,7 +120,13 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		const textModel = this._editor.getModel();
 		const modelVersionId = textModel.getVersionId();
 
-		this._model = (await this._stickyModelProvider.update(textModel, modelVersionId, token)) ?? this._model;
+		const model = await this._stickyModelProvider.update(textModel, modelVersionId, token);
+		if (token.isCancellationRequested) {
+			// the computation was canceled, so do not overwrite the model
+			return;
+		}
+
+		this._model = model;
 	}
 
 	private updateIndex(index: number) {
