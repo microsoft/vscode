@@ -553,6 +553,7 @@
 		"--vscode-statusBarItem-errorForeground",
 		"--vscode-statusBarItem-focusBorder",
 		"--vscode-statusBarItem-hoverBackground",
+		"--vscode-statusBarItem-hoverForeground",
 		"--vscode-statusBarItem-prominentBackground",
 		"--vscode-statusBarItem-prominentForeground",
 		"--vscode-statusBarItem-prominentHoverBackground",
