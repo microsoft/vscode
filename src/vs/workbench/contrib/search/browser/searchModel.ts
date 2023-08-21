@@ -2038,24 +2038,23 @@ export class SearchModel extends Disposable {
 		syncResults: ResourceMap<IFileMatch | null>;
 	} {
 
-		const searchStart = Date.now();
-		const syncResults = this.searchService.getLocalResults(query).results;
-		[...syncResults.values()].forEach(p => {
-			if (p) {
-				progressEmitter.fire();
+		const onProgressCall = (p: ISearchProgressItem, sync = false) => {
+			progressEmitter.fire();
+			if (sync) {
 				this.onSearchProgressSync(p, searchInstanceID);
-
-				onProgress?.(p);
-			}
-		});
-		const getAsyncResults = async () => {
-			const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
-			const onProgressCall = (p: ISearchProgressItem) => {
-				progressEmitter.fire();
+			} else {
 				this.onSearchProgress(p, searchInstanceID);
+			}
 
-				onProgress?.(p);
-			};
+			onProgress?.(p);
+		};
+		const syncResults = this.searchService.getLocalResults(query).results;
+		[...syncResults.values()].forEach(p => { if (p) { onProgressCall(p, true); } });
+
+		const getAsyncResults = async () => {
+			const searchStart = Date.now();
+			const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
+
 			const notebookResult = await this.notebookSearchService.notebookSearch(query, this.currentCancelTokenSource.token, searchInstanceID, onProgressCall);
 			const currentResult = await this.searchService.textSearch(
 				searchQuery,
@@ -2102,11 +2101,11 @@ export class SearchModel extends Disposable {
 		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 150 : 0));
 
 		const req = this.doSearchSync(query, progressEmitter, this._searchQuery, searchInstanceID, onProgress);
-		const asyncResult = req.asyncResults;
-		const syncResult = req.syncResults;
+		const asyncResults = req.asyncResults;
+		const syncResults = req.syncResults;
 
 		if (onProgress) {
-			syncResult.forEach(p => {
+			syncResults.forEach(p => {
 				if (p) {
 					onProgress(p);
 				}
@@ -2115,7 +2114,7 @@ export class SearchModel extends Disposable {
 
 		const start = Date.now();
 
-		Promise.race([asyncResult, Event.toPromise(progressEmitter.event)]).finally(() => {
+		Promise.race([asyncResults, Event.toPromise(progressEmitter.event)]).finally(() => {
 			/* __GDPR__
 				"searchResultsFirstRender" : {
 					"owner": "roblourens",
@@ -2125,13 +2124,13 @@ export class SearchModel extends Disposable {
 			this.telemetryService.publicLog('searchResultsFirstRender', { duration: Date.now() - start });
 		});
 
-		asyncResult.then(
+		asyncResults.then(
 			value => this.onSearchCompleted(value, Date.now() - start, searchInstanceID),
 			e => this.onSearchError(e, Date.now() - start));
 		try {
 			return {
-				asyncResults: asyncResult,
-				syncResults: syncResult
+				asyncResults: asyncResults,
+				syncResults: syncResults
 			};
 		} finally {
 			/* __GDPR__
