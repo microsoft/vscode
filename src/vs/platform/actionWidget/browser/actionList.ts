@@ -215,7 +215,6 @@ export class ActionList<T> extends Disposable {
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));
 		this._register(this._list.onDidChangeFocus(() => this._list.domFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
-		// this._register(this._list.onKeyPress(e => this.onKeyPress(e)));
 
 		this._allMenuItems = items;
 		this._list.splice(0, this._list.length, this._allMenuItems);
