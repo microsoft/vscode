@@ -20,8 +20,8 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 export class QuickChatService implements IQuickChatService {
 	readonly _serviceBrand: undefined;
 
-	_input: IQuickWidget | undefined;
-	_currentChat: QuickChat | undefined;
+	private _input: IQuickWidget | undefined;
+	private _currentChat: QuickChat | undefined;
 
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -34,7 +34,7 @@ export class QuickChatService implements IQuickChatService {
 	}
 
 	get focused(): boolean {
-		const widget = this._input?.widget as HTMLElement;
+		const widget = this._input?.widget as HTMLElement | undefined;
 		if (!widget) {
 			return false;
 		}
@@ -45,7 +45,13 @@ export class QuickChatService implements IQuickChatService {
 		// If the input is already shown, hide it. This provides a toggle behavior of the quick pick
 		if (this.focused) {
 			this.close();
-			return;
+		} else {
+			this.open(providerId, query);
+		}
+	}
+	open(providerId?: string, query?: string | undefined): void {
+		if (this.focused) {
+			return this.focus();
 		}
 
 		// Check if any providers are available. If not, show nothing

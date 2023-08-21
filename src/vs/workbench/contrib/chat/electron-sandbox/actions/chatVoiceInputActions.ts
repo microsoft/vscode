@@ -13,7 +13,8 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
-import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
+import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IWorkbenchVoiceRecognitionService } from 'vs/workbench/services/voiceRecognition/electron-sandbox/workbenchVoiceRecognitionService';
 
 const CONTEXT_CHAT_VOICE_INPUT_GETTING_READY = new RawContextKey<boolean>('chatVoiceInputGettingReady', false, { type: 'boolean', description: localize('chatVoiceInputGettingReady', "True when there is voice input for chat getting ready.") });
@@ -116,6 +117,7 @@ class StartChatVoiceInputAction extends Action2 {
 				value: localize('interactive.voiceInput.label', "Start Voice Input"),
 				original: 'Start Voice Input'
 			},
+			category: CHAT_CATEGORY,
 			icon: Codicon.record,
 			precondition: CONTEXT_CHAT_VOICE_INPUT_GETTING_READY.negate(),
 			menu: {
@@ -127,7 +129,7 @@ class StartChatVoiceInputAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: any[]): void {
 		const context = args[0];
 		if (!isVoiceInputActionContext(context)) {
 			return;
@@ -147,6 +149,9 @@ class StopChatVoiceInputAction extends Action2 {
 				value: localize('interactive.stopVoiceInput.label', "Stop Voice Input"),
 				original: 'Stop Voice Input'
 			},
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: CONTEXT_CHAT_VOICE_INPUT_IN_PROGRESS,
 			icon: spinningLoading,
 			menu: {
 				id: MenuId.ChatExecute,
@@ -157,12 +162,41 @@ class StopChatVoiceInputAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
+	run(accessor: ServicesAccessor): void {
 		ChatVoiceInputSession.getInstance(accessor.get(IInstantiationService)).stop();
+	}
+}
+
+class StartVoiceQuickChatAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.startVoiceQuickChat';
+
+	constructor() {
+		super({
+			id: StartVoiceQuickChatAction.ID,
+			title: {
+				value: localize('interactive.startVoiceChat.label', "Start Voice Quick Chat"),
+				original: 'Start Voice Quick Chat'
+			},
+			category: CHAT_CATEGORY,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const quickChatService = accessor.get(IQuickChatService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+
+		quickChatService.open();
+
+		const widget = chatWidgetService.lastFocusedWidget;
+		if (widget) {
+			ChatVoiceInputSession.getInstance(accessor.get(IInstantiationService)).start({ widget });
+		}
 	}
 }
 
 export function registerChatVoiceInputActions() {
 	registerAction2(StartChatVoiceInputAction);
 	registerAction2(StopChatVoiceInputAction);
+	registerAction2(StartVoiceQuickChatAction);
 }

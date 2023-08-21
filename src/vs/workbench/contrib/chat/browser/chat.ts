@@ -38,6 +38,7 @@ export interface IQuickChatService {
 	enabled: boolean;
 	toggle(providerId?: string, query?: string): void;
 	focus(): void;
+	open(): void;
 	close(): void;
 	openInChatView(): void;
 }
