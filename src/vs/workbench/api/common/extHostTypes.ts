@@ -52,8 +52,9 @@ export enum TerminalOutputAnchor {
 }
 
 export enum TerminalQuickFixType {
-	Command = 0,
-	Opener = 1
+	TerminalCommand = 0,
+	Opener = 1,
+	Command = 3
 }
 
 @es5ClassCompat
@@ -4095,6 +4096,12 @@ export enum ChatMessageRole {
 	User = 1,
 	Assistant = 2,
 	Function = 3,
+}
+
+export enum ChatVariableLevel {
+	Short = 1,
+	Medium = 2,
+	Full = 3
 }
 
 export class ChatMessage implements vscode.ChatMessage {

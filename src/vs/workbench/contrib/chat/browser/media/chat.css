@@ -178,7 +178,50 @@
 	color: var(--vscode-textPreformat-foreground);
 }
 
-.interactive-session .interactive-input-and-toolbar {
+.interactive-item-container.interactive-item-compact {
+	padding: 8px 20px 0 20px;
+}
+
+.interactive-item-container.interactive-item-compact .header {
+	height: 16px;
+}
+
+.interactive-item-container.interactive-item-compact .header .avatar {
+	width: 16px;
+	height: 16px;
+}
+
+.interactive-item-container.interactive-item-compact .header .avatar .icon {
+	width: 16px;
+	height: 16px;
+}
+
+.interactive-item-container.interactive-item-compact .value {
+	min-height: 0;
+}
+
+.interactive-item-container.interactive-item-compact .value p {
+	margin: 0 0 8px 0;
+}
+
+.interactive-item-container.interactive-item-compact .value h1 {
+	margin: 8px 0;
+
+}
+
+.interactive-item-container.interactive-item-compact .value h2 {
+	margin: 8px 0;
+}
+
+.interactive-item-container.interactive-item-compact .value h3 {
+	margin: 8px 0;
+}
+
+.interactive-item-container.interactive-item-compact .value p {
+	margin: 0 0 8px 0;
+}
+
+.interactive-session .interactive-input-and-execute-toolbar {
 	display: flex;
 	box-sizing: border-box;
 	cursor: text;
@@ -192,16 +235,22 @@
 	justify-content: space-between;
 }
 
-.interactive-session .interactive-input-and-toolbar.focused {
+.interactive-session .interactive-input-and-side-toolbar {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.interactive-session .interactive-input-and-execute-toolbar.focused {
 	border-color: var(--vscode-focusBorder);
 }
 
-.interactive-session .interactive-input-and-toolbar .monaco-editor,
-.interactive-session .interactive-input-and-toolbar .monaco-editor .monaco-editor-background {
+.interactive-session .interactive-input-and-execute-toolbar .monaco-editor,
+.interactive-session .interactive-input-and-execute-toolbar .monaco-editor .monaco-editor-background {
 	background-color: var(--vscode-input-background) !important;
 }
 
-.interactive-session .interactive-input-and-toolbar .monaco-editor .cursors-layer {
+.interactive-session .interactive-input-and-execute-toolbar .monaco-editor .cursors-layer {
 	padding-left: 4px;
 }
 
@@ -267,6 +316,10 @@
 .interactive-item-container .interactive-result-editor-wrapper .monaco-editor,
 .interactive-item-container .interactive-result-editor-wrapper .monaco-editor .overflow-guard {
 	border-radius: 4px;
+}
+
+.interactive-item-container.interactive-item-compact .interactive-result-editor-wrapper {
+	margin: 0 0 8px 0;
 }
 
 .interactive-response .interactive-response-error-details {
@@ -358,4 +411,34 @@
 .interactive-item-container.filtered-response .value .rendered-markdown {
 	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
 	mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
+}
+
+/* #region Quick Chat */
+
+.quick-input-widget .interactive-session .interactive-input-part {
+	padding: 8px 6px 6px 6px;
+}
+
+.quick-input-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
+	bottom: 1px;
+}
+
+.quick-input-widget .interactive-session .interactive-input-and-execute-toolbar {
+	margin: 0;
+}
+
+/* #endregion */
+
+.interactive-response-progress-tree .monaco-tl-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.interactive-response-progress-tree {
+	margin: 16px 0px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-input-border, transparent);
+}
+
+.interactive-response-progress-tree.focused {
+	border-color: var(--vscode-focusBorder, transparent);
 }
