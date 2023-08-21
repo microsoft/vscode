@@ -57,7 +57,7 @@ export class ChatVariablesService implements IChatVariablesService {
 		let match: RegExpMatchArray | null;
 		while (match = regex.exec(prompt)) {
 			const candidate = match[2];
-			const data = this._resolver.get(candidate);
+			const data = this._resolver.get(candidate.toLowerCase());
 			if (data) {
 				jobs.push(data[1](prompt, token).then(value => {
 					if (value) {

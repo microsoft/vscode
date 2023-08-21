@@ -180,7 +180,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.container = dom.append(container, $('.interactive-input-part'));
 
 		this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
-		const inputContainer = dom.append(this.container, $('.interactive-input-and-toolbar'));
+		const inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
+		const inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		CONTEXT_IN_CHAT_INPUT.bindTo(inputScopedContextKeyService).set(true);
@@ -240,6 +241,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		toolbar.getElement().classList.add('interactive-execute-toolbar');
 		toolbar.context = <IChatExecuteActionContext>{ widget };
 
+		if (this.options.renderStyle === 'compact') {
+			const toolbarSide = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputAndSideToolbar, MenuId.ChatInputSide, {
+				menuOptions: {
+					shouldForwardArgs: true
+				}
+			}));
+			toolbarSide.getElement().classList.add('chat-side-toolbar');
+			toolbarSide.context = <IChatExecuteActionContext>{ widget };
+		}
+
 		this.inputModel = this.modelService.getModel(this.inputUri) || this.modelService.createModel('', null, this.inputUri, true);
 		this.inputModel.updateOptions({ bracketColorizationOptions: { enabled: false, independentColorPoolPerBracketType: false } });
 		this._inputEditor.setModel(this.inputModel);
@@ -280,9 +291,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorBorder = 2;
 		const editorPadding = 8;
 		const executeToolbarWidth = 25;
+		const sideToolbarWidth = this.options.renderStyle === 'compact' ? 20 : 0;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		this._inputEditor.layout({ width: width - inputPartHorizontalPadding - editorBorder - editorPadding - executeToolbarWidth, height: inputEditorHeight });
+		this._inputEditor.layout({ width: width - inputPartHorizontalPadding - editorBorder - editorPadding - executeToolbarWidth - sideToolbarWidth, height: inputEditorHeight });
 
 		if (allowRecurse && initialEditorScrollWidth < 10) {
 			// This is probably the initial layout. Now that the editor is layed out with its correct width, it should report the correct contentHeight
