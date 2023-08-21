@@ -19,9 +19,16 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 
 const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
 	'source.fixAll': {
-		type: 'boolean',
+		type: 'object',
+		properties: {
+			'onAutoSave': {
+				description: nls.localize('onAutoSave', "Allow code actions to run on autosave"),
+				type: 'boolean',
+				default: false
+			}
+		},
 		description: nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")
-	}
+	},
 });
 
 const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
@@ -30,7 +37,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 			type: 'object',
 			properties: codeActionsOnSaveDefaultProperties,
 			additionalProperties: {
-				type: 'boolean'
+				type: 'object'
 			},
 		},
 		{
@@ -78,7 +85,14 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		const newProperties: IJSONSchemaMap = { ...codeActionsOnSaveDefaultProperties };
 		for (const [sourceAction, props] of this.getSourceActions(codeActionContributions)) {
 			newProperties[sourceAction] = {
-				type: 'boolean',
+				type: 'object',
+				properties: {
+					'onAutoSave': {
+						description: nls.localize('onAutoSave', "Allow code actions to run on autosave"),
+						type: 'boolean',
+						default: false
+					}
+				},
 				description: nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title)
 			};
 		}
