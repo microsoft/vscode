@@ -394,17 +394,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.inspectSelf();
 		}
 
-		if (this.tags?.size) {
-			let hasAllTagsInFilter = true;
-			tagFilters.forEach(tag => {
-				hasAllTagsInFilter &&= this.tags!.has(tag);
-			});
-			return hasAllTagsInFilter;
-		} else {
-			// This setting has no tags,
-			// and doesn't match against a query with tags.
-			return false;
-		}
+		// Check that the filter tags are a subset of this setting's tags
+		return !!this.tags?.size &&
+			Array.from(tagFilters).every(tag => this.tags!.has(tag));
 	}
 
 	matchesScope(scope: SettingsTarget, isRemote: boolean): boolean {
