@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,8 +18,11 @@ import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
-export class QuickChatService implements IQuickChatService {
+export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;
+
+	private readonly _onDidClose = this._register(new Emitter<void>());
+	readonly onDidClose = this._onDidClose.event;
 
 	private _input: IQuickWidget | undefined;
 	private _currentChat: QuickChat | undefined;
@@ -27,7 +31,9 @@ export class QuickChatService implements IQuickChatService {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IChatService private readonly chatService: IChatService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) { }
+	) {
+		super();
+	}
 
 	get enabled(): boolean {
 		return this.chatService.getProviderInfos().length > 0;
@@ -84,6 +90,7 @@ export class QuickChatService implements IQuickChatService {
 		disposableStore.add(this._input.onDidHide(() => {
 			disposableStore.dispose();
 			this._input = undefined;
+			this._onDidClose.fire();
 		}));
 
 		this._currentChat.focus();

@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
+import { firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
@@ -15,6 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IWorkbenchVoiceRecognitionService } from 'vs/workbench/services/voiceRecognition/electron-sandbox/workbenchVoiceRecognitionService';
 
 const CONTEXT_CHAT_VOICE_INPUT_GETTING_READY = new RawContextKey<boolean>('chatVoiceInputGettingReady', false, { type: 'boolean', description: localize('chatVoiceInputGettingReady', "True when there is voice input for chat getting ready.") });
@@ -50,11 +53,14 @@ class ChatVoiceInputSession {
 		@IWorkbenchVoiceRecognitionService private readonly voiceRecognitionService: IWorkbenchVoiceRecognitionService
 	) { }
 
-	async start(context: IChatVoiceInputActionContext): Promise<void> {
+	async start(context: IChatVoiceInputActionContext, disposables?: IDisposable[]): Promise<void> {
 		this.stop();
 
 		this.chatVoiceInputGettingReadyKey.set(true);
 		this.currentChatVoiceInputSession = new DisposableStore();
+		for (const disposable of disposables ?? []) {
+			this.currentChatVoiceInputSession.add(disposable);
+		}
 
 		const cts = new CancellationTokenSource();
 		this.currentChatVoiceInputSession.add(toDisposable(() => cts.dispose(true)));
@@ -108,6 +114,7 @@ class ChatVoiceInputSession {
 }
 
 class StartChatVoiceInputAction extends Action2 {
+
 	static readonly ID = 'workbench.action.chat.startVoiceInput';
 
 	constructor() {
@@ -118,6 +125,7 @@ class StartChatVoiceInputAction extends Action2 {
 				original: 'Start Voice Input'
 			},
 			category: CHAT_CATEGORY,
+			f1: true,
 			icon: Codicon.record,
 			precondition: CONTEXT_CHAT_VOICE_INPUT_GETTING_READY.negate(),
 			menu: {
@@ -129,23 +137,33 @@ class StartChatVoiceInputAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
+		const chatService = accessor.get(IChatService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		let context = args[0];
 		if (!isVoiceInputActionContext(context)) {
 			if (chatWidgetService.lastFocusedWidget?.hasInputFocus()) {
 				context = { widget: chatWidgetService.lastFocusedWidget };
 			} else {
-				return;
+				const provider = firstOrDefault(chatService.getProviderInfos());
+				if (provider) {
+					context = { widget: await chatWidgetService.revealViewForProvider(provider.id) };
+				}
 			}
 		}
 
-		ChatVoiceInputSession.getInstance(accessor.get(IInstantiationService)).start(context);
+		if (!isVoiceInputActionContext(context)) {
+			return;
+		}
+
+		ChatVoiceInputSession.getInstance(instantiationService).start(context);
 	}
 }
 
 class StopChatVoiceInputAction extends Action2 {
+
 	static readonly ID = 'workbench.action.chat.stopVoiceInput';
 
 	constructor() {
@@ -173,15 +191,16 @@ class StopChatVoiceInputAction extends Action2 {
 	}
 }
 
-class StartVoiceQuickChatAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.startVoiceQuickChat';
+class VoiceQuickChatAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.voiceQuickChat';
 
 	constructor() {
 		super({
-			id: StartVoiceQuickChatAction.ID,
+			id: VoiceQuickChatAction.ID,
 			title: {
-				value: localize('interactive.startVoiceChat.label', "Start Voice Quick Chat"),
-				original: 'Start Voice Quick Chat'
+				value: localize('interactive.voiceQuickChat.label', "Quick Chat with Voice Input"),
+				original: 'Quick Chat with Voice Input'
 			},
 			category: CHAT_CATEGORY,
 			f1: true
@@ -191,12 +210,16 @@ class StartVoiceQuickChatAction extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const quickChatService = accessor.get(IQuickChatService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		quickChatService.open();
 
+		const disposables: IDisposable[] = [];
+		Event.once(quickChatService.onDidClose)(() => ChatVoiceInputSession.getInstance(instantiationService).stop(), undefined, disposables);
+
 		const widget = chatWidgetService.lastFocusedWidget;
 		if (widget) {
-			ChatVoiceInputSession.getInstance(accessor.get(IInstantiationService)).start({ widget });
+			ChatVoiceInputSession.getInstance(accessor.get(IInstantiationService)).start({ widget }, disposables);
 		}
 	}
 }
@@ -204,5 +227,5 @@ class StartVoiceQuickChatAction extends Action2 {
 export function registerChatVoiceInputActions() {
 	registerAction2(StartChatVoiceInputAction);
 	registerAction2(StopChatVoiceInputAction);
-	registerAction2(StartVoiceQuickChatAction);
+	registerAction2(VoiceQuickChatAction);
 }

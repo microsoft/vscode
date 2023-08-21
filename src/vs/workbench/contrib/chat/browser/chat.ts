@@ -35,7 +35,8 @@ export interface IChatWidgetService {
 
 export interface IQuickChatService {
 	readonly _serviceBrand: undefined;
-	enabled: boolean;
+	readonly onDidClose: Event<void>;
+	readonly enabled: boolean;
 	toggle(providerId?: string, query?: string): void;
 	focus(): void;
 	open(): void;
