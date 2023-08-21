@@ -26,7 +26,7 @@ import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeSer
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton } from './util';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
+import { disposableTimeout, ThrottledDelayer, Throttler } from 'vs/base/common/async';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
 import { ISplice } from 'vs/base/common/sequence';
@@ -1817,6 +1817,9 @@ class SCMInputWidget {
 	private validationHasFocus: boolean = false;
 	private _validationTimer: any;
 
+	private setInputThrottler = this.disposables.add(new Throttler());
+	private setInputPromise: Promise<void> | null = null;
+
 	// This is due to "Setup height change listener on next tick" above
 	// https://github.com/microsoft/vscode/issues/108067
 	private lastLayoutWasTrash = false;
@@ -1829,6 +1832,13 @@ class SCMInputWidget {
 	}
 
 	public async setInput(input: ISCMInput | undefined) {
+		return this.setInputThrottler.queue(() => {
+			this.setInputPromise = this._setInput(input).finally(() => this.setInputPromise = null);
+			return this.setInputPromise;
+		});
+	}
+
+	private async _setInput(input: ISCMInput | undefined) {
 		if (input === this.input) {
 			return;
 		}
@@ -2155,8 +2165,15 @@ class SCMInputWidget {
 			return;
 		}
 
-		this.inputEditor.focus();
-		this.editorContainer.classList.add('synthetic-focus');
+		if (this.setInputPromise !== null) {
+			this.setInputPromise.then(() => {
+				this.inputEditor.focus();
+				this.editorContainer.classList.add('synthetic-focus');
+			});
+		} else {
+			this.inputEditor.focus();
+			this.editorContainer.classList.add('synthetic-focus');
+		}
 	}
 
 	hasFocus(): boolean {
