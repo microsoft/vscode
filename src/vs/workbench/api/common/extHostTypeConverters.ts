@@ -45,6 +45,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/chatProvider';
+import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export namespace Command {
 
@@ -1799,20 +1800,22 @@ export namespace NotebookRendererScript {
 }
 
 export namespace TestMessage {
-	export function from(message: vscode.TestMessage): ITestErrorMessage.Serialized {
+	export function from(message: vscode.TestMessage2): ITestErrorMessage.Serialized {
 		return {
 			message: MarkdownString.fromStrict(message.message) || '',
 			type: TestMessageType.Error,
 			expected: message.expectedOutput,
 			actual: message.actualOutput,
+			contextValue: message.contextValue,
 			location: message.location && ({ range: Range.from(message.location.range), uri: message.location.uri }),
 		};
 	}
 
-	export function to(item: ITestErrorMessage.Serialized): vscode.TestMessage {
+	export function to(item: ITestErrorMessage.Serialized): vscode.TestMessage2 {
 		const message = new types.TestMessage(typeof item.message === 'string' ? item.message : MarkdownString.to(item.message));
 		message.actualOutput = item.actual;
 		message.expectedOutput = item.expected;
+		message.contextValue = item.contextValue;
 		message.location = item.location ? location.to(item.location) : undefined;
 		return message;
 	}
@@ -2197,6 +2200,48 @@ export namespace ChatMessageRole {
 		}
 	}
 }
+
+export namespace ChatVariable {
+	export function to(variable: IChatRequestVariableValue): vscode.ChatVariableValue {
+		return {
+			level: ChatVariableLevel.to(variable.level),
+			value: variable.value,
+			description: variable.description
+		};
+	}
+
+	export function from(variable: vscode.ChatVariableValue): IChatRequestVariableValue {
+		return {
+			level: ChatVariableLevel.from(variable.level),
+			value: variable.value,
+			description: variable.description
+		};
+	}
+}
+
+export namespace ChatVariableLevel {
+
+
+	export function to(level: 'short' | 'medium' | 'full'): vscode.ChatVariableLevel {
+		switch (level) {
+			case 'short': return types.ChatVariableLevel.Short;
+			case 'medium': return types.ChatVariableLevel.Medium;
+			case 'full':
+			default:
+				return types.ChatVariableLevel.Full;
+		}
+	}
+	export function from(level: vscode.ChatVariableLevel): 'short' | 'medium' | 'full' {
+		switch (level) {
+			case types.ChatVariableLevel.Short: return 'short';
+			case types.ChatVariableLevel.Medium: return 'medium';
+			case types.ChatVariableLevel.Full:
+			default:
+				return 'full';
+		}
+	}
+}
+
 
 export namespace TerminalQuickFix {
 	export function from(quickFix: vscode.TerminalQuickFixExecuteTerminalCommand | vscode.TerminalQuickFixOpener | vscode.Command, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.ITerminalQuickFixExecuteTerminalCommandDto | extHostProtocol.ITerminalQuickFixOpenerDto | extHostProtocol.ICommandDto | undefined {

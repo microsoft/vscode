@@ -24,6 +24,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IViewsService } from 'vs/workbench/common/views';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -53,7 +54,8 @@ export class WindowTitle extends Disposable {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IViewsService private readonly viewsService: IViewsService
 	) {
 		super();
 		this.registerListeners();
@@ -75,6 +77,7 @@ export class WindowTitle extends Disposable {
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.titleUpdater.schedule()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.titleUpdater.schedule()));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.titleUpdater.schedule()));
+		this._register(this.viewsService.onDidChangeFocusedView(() => this.titleUpdater.schedule()));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
@@ -237,6 +240,7 @@ export class WindowTitle extends Disposable {
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
 		const titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
+		const focusedView: string = this.viewsService.getFocusedViewName();
 
 		return template(titleTemplate, {
 			activeEditorShort,
@@ -254,6 +258,7 @@ export class WindowTitle extends Disposable {
 			appName,
 			remoteName,
 			profileName,
+			focusedView,
 			separator: { label: separator }
 		});
 	}

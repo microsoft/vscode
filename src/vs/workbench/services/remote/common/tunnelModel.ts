@@ -50,7 +50,7 @@ export interface Tunnel {
 }
 
 export function parseAddress(address: string): { host: string; port: number } | undefined {
-	const matches = address.match(/^([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*:)?([0-9]+)$/);
+	const matches = address.match(/^([a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*:)?([0-9]+)$/);
 	if (!matches) {
 		return undefined;
 	}
@@ -404,6 +404,8 @@ export class TunnelModel extends Disposable {
 	public readonly configPortsAttributes: PortsAttributes;
 	private restoreListener: DisposableStore | undefined = undefined;
 	private knownPortsRestoreValue: string | undefined;
+	private restoreComplete = false;
+	private onRestoreComplete: Emitter<void> = new Emitter();
 	private unrestoredExtensionTunnels: Map<string, Tunnel> = new Map();
 	private sessionCachedProperties: Map<string, Partial<TunnelProperties>> = new Map();
 
@@ -557,13 +559,14 @@ export class TunnelModel extends Disposable {
 				for (const tunnel of tunnels) {
 					const alreadyForwarded = mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.remoteHost, tunnel.remotePort);
 					// Extension forwarded ports should only be updated, not restored.
-					if ((tunnel.source.source === TunnelSource.User && !alreadyForwarded) || (tunnel.source.source === TunnelSource.Extension && alreadyForwarded)) {
-						await this.forward({
+					if ((tunnel.source.source !== TunnelSource.Extension && !alreadyForwarded) || (tunnel.source.source === TunnelSource.Extension && alreadyForwarded)) {
+						await this.doForward({
 							remote: { host: tunnel.remoteHost, port: tunnel.remotePort },
 							local: tunnel.localPort,
 							name: tunnel.name,
 							privacy: tunnel.privacy,
-							elevateIfNeeded: true
+							elevateIfNeeded: true,
+							source: tunnel.source
 						});
 					} else if (tunnel.source.source === TunnelSource.Extension && !alreadyForwarded) {
 						this.unrestoredExtensionTunnels.set(makeAddress(tunnel.remoteHost, tunnel.remotePort), tunnel);
@@ -571,6 +574,9 @@ export class TunnelModel extends Disposable {
 				}
 			}
 		}
+
+		this.restoreComplete = true;
+		this.onRestoreComplete.fire();
 
 		if (!this.restoreListener) {
 			// It's possible that at restore time the value hasn't synced.
@@ -588,7 +594,7 @@ export class TunnelModel extends Disposable {
 	@debounce(1000)
 	private async storeForwarded() {
 		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
-			const valueToStore = JSON.stringify(Array.from(this.forwarded.values()).filter(value => value.source.source !== TunnelSource.Auto));
+			const valueToStore = JSON.stringify(Array.from(this.forwarded.values()));
 			if (valueToStore !== this.knownPortsRestoreValue) {
 				this.knownPortsRestoreValue = valueToStore;
 				const key = await this.getStorageKey();
@@ -618,7 +624,14 @@ export class TunnelModel extends Disposable {
 		return this.dialogService.info(mismatchString);
 	}
 
-	async forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | undefined> {
+	async forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | string | undefined> {
+		if (!this.restoreComplete && this.environmentService.remoteAuthority) {
+			await Event.toPromise(this.onRestoreComplete.event);
+		}
+		return this.doForward(tunnelProperties, attributes);
+	}
+
+	private async doForward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | string | undefined> {
 		await this.extensionService.activateByEvent(ACTIVATION_EVENT);
 
 		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, tunnelProperties.remote.host, tunnelProperties.remote.port);
@@ -627,7 +640,7 @@ export class TunnelModel extends Disposable {
 				? (await this.getAttributes([tunnelProperties.remote]))?.get(tunnelProperties.remote.port)
 				: undefined);
 		const localPort = (tunnelProperties.local !== undefined) ? tunnelProperties.local : tunnelProperties.remote.port;
-
+		let noTunnelValue: string | undefined;
 		if (!existingTunnel) {
 			const authority = this.environmentService.remoteAuthority;
 			const addressProvider: IAddressProvider | undefined = authority ? {
@@ -639,7 +652,10 @@ export class TunnelModel extends Disposable {
 			tunnelProperties = this.mergeCachedAndUnrestoredProperties(key, tunnelProperties);
 
 			const tunnel = await this.tunnelService.openTunnel(addressProvider, tunnelProperties.remote.host, tunnelProperties.remote.port, undefined, localPort, (!tunnelProperties.elevateIfNeeded) ? attributes?.elevateIfNeeded : tunnelProperties.elevateIfNeeded, tunnelProperties.privacy, attributes?.protocol);
-			if (tunnel && tunnel.localAddress) {
+			if (typeof tunnel === 'string') {
+				// There was an error  while creating the tunnel.
+				noTunnelValue = tunnel;
+			} else if (tunnel && tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), tunnelProperties.remote.host, tunnelProperties.remote.port);
 				const protocol = (tunnel.protocol ?
 					((tunnel.protocol === TunnelProtocol.Https) ? TunnelProtocol.Https : TunnelProtocol.Http)
@@ -672,7 +688,7 @@ export class TunnelModel extends Disposable {
 			return this.mergeAttributesIntoExistingTunnel(existingTunnel, tunnelProperties, attributes);
 		}
 
-		return undefined;
+		return noTunnelValue;
 	}
 
 	private mergeCachedAndUnrestoredProperties(key: string, tunnelProperties: TunnelProperties): TunnelProperties {
@@ -717,7 +733,7 @@ export class TunnelModel extends Disposable {
 			}
 			case MergedAttributeAction.Reopen: {
 				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort, TunnelCloseReason.User);
-				await this.forward(tunnelProperties, attributes);
+				await this.doForward(tunnelProperties, attributes);
 			}
 		}
 
@@ -870,7 +886,7 @@ export class TunnelModel extends Disposable {
 		for (const forwarded of tunnels) {
 			const attributes = allAttributes.get(forwarded.remotePort);
 			if ((attributes?.protocol || (forwarded.protocol !== TunnelProtocol.Http)) && (attributes?.protocol !== forwarded.protocol)) {
-				await this.forward({
+				await this.doForward({
 					remote: { host: forwarded.remoteHost, port: forwarded.remotePort },
 					local: forwarded.localPort,
 					name: forwarded.name,

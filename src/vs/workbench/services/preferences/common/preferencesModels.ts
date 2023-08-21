@@ -95,6 +95,10 @@ abstract class AbstractSettingsModel extends EditorModel {
 				// Sort by match type if the match types are not the same.
 				// The priority of the match type is given by the SettingMatchType enum.
 				return b.matchType - a.matchType;
+			} else if (a.matchType === SettingMatchType.RemoteMatch) {
+				// The match types are the same and are RemoteMatch.
+				// Sort by score.
+				return b.score - a.score;
 			} else {
 				// The match types are the same.
 				if (a.setting.extensionInfo && b.setting.extensionInfo

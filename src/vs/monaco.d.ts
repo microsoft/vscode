@@ -3888,6 +3888,10 @@ declare namespace monaco.editor {
 		 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
 		 */
 		tabFocusMode?: boolean;
+		/**
+		 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
+		 */
+		inlineCompletionsAccessibilityVerbose?: boolean;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -5024,7 +5028,8 @@ declare namespace monaco.editor {
 		layoutInfo = 142,
 		wrappingInfo = 143,
 		defaultColorDecorators = 144,
-		colorDecoratorsActivatedOn = 145
+		colorDecoratorsActivatedOn = 145,
+		inlineCompletionsAccessibilityVerbose = 146
 	}
 
 	export const EditorOptions: {
@@ -5148,6 +5153,7 @@ declare namespace monaco.editor {
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, Readonly<Required<ISuggestOptions>>>;
 		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, Readonly<Required<IInlineSuggestOptions>>>;
+		inlineCompletionsAccessibilityVerbose: IEditorOption<EditorOption.inlineCompletionsAccessibilityVerbose, boolean>;
 		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
 		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;

@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock, mockObject } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -14,13 +16,24 @@ import { IDebugger } from 'vs/workbench/contrib/debug/common/debug';
 import { MockDebugAdapter } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 
 suite('RawDebugSession', () => {
+	let disposables: DisposableStore;
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function createTestObjects() {
 		const debugAdapter = new MockDebugAdapter();
 		const dbgr = mockObject<IDebugger>()({
 			type: 'mock-debug'
 		});
 
-		new RawDebugSession(
+		const session = new RawDebugSession(
 			debugAdapter,
 			dbgr as any as IDebugger,
 			'sessionId',
@@ -29,6 +42,9 @@ suite('RawDebugSession', () => {
 			new (mock<IOpenerService>()),
 			new (mock<INotificationService>()),
 			new (mock<IDialogService>()));
+		disposables.add(session);
+		disposables.add(debugAdapter);
+
 		return { debugAdapter, dbgr };
 	}
 

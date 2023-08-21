@@ -30,6 +30,11 @@ export interface IToolBarOptions {
 	moreIcon?: ThemeIcon;
 	allowContextMenu?: boolean;
 	skipTelemetry?: boolean;
+
+	/**
+	 * If true, toggled primary items are highlighted with a background color.
+	 */
+	highlightToggledItems?: boolean;
 }
 
 /**
@@ -66,6 +71,7 @@ export class ToolBar extends Disposable {
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
 			allowContextMenu: options.allowContextMenu,
+			highlightToggledItems: options.highlightToggledItems,
 			actionViewItemProvider: (action, viewItemOptions) => {
 				if (action.id === ToggleMenuAction.ID) {
 					this.toggleMenuActionViewItem = new DropdownMenuActionViewItem(
