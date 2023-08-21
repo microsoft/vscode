@@ -16,7 +16,7 @@ import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/q
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IViewsService } from 'vs/workbench/common/views';
-import { searchOpenInFileIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { searchDetailsIcon, searchOpenInFileIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { Match, MatchInNotebook, RenderableMatch, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
@@ -128,8 +128,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 				});
 
 				picks.push({
-					label: `$(ellipsis) See More Files`,
-					ariaLabel: `See More Files`,
+					label: 'See More Files',
+					iconClass: ThemeIcon.asClassName(searchDetailsIcon),
 					accept: async () => {
 						this.moveToSearchViewlet(this.searchModel, matches[MAX_FILES_SHOWN]);
 					}
@@ -146,7 +146,6 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 			picks.push({
 				label,
 				type: 'separator',
-				ariaLabel: label,
 				tooltip: description,
 				buttons: [{
 					iconClass: ThemeIcon.asClassName(searchOpenInFileIcon),
@@ -160,8 +159,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 				if (matchIndex === MAX_RESULTS_PER_FILE) {
 					picks.push({
-						label: `  $(ellipsis) More`,
-						ariaLabel: `See More`,
+						label: 'More',
+						iconClass: ThemeIcon.asClassName(searchDetailsIcon),
 						accept: async () => {
 							this.moveToSearchViewlet(this.searchModel, element);
 						}
