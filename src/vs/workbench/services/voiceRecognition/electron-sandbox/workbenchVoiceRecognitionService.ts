@@ -12,6 +12,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { DeferredPromise } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const IWorkbenchVoiceRecognitionService = createDecorator<IWorkbenchVoiceRecognitionService>('workbenchVoiceRecognitionService');
 
@@ -61,6 +62,8 @@ class VoiceTranscriptionWorkletNode extends AudioWorkletNode {
 	}
 }
 
+// TODO@voice
+// - add native module test to ensure module loads
 export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
 
 	declare readonly _serviceBrand: undefined;
@@ -71,7 +74,8 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 
 	constructor(
 		@IProgressService private readonly progressService: IProgressService,
-		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService
+		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
+		@INotificationService private readonly notificationService: INotificationService
 	) { }
 
 	async transcribe(cancellation: CancellationToken): Promise<Event<string>> {
@@ -92,65 +96,71 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 			title: localize('voiceTranscription', "Voice Transcription"),
 		}, async progress => {
 			const recordingDone = new DeferredPromise<void>();
+			try {
+				progress.report({ message: localize('voiceTranscriptionGettingReady', "Getting microphone ready...") });
 
-			progress.report({ message: localize('voiceTranscriptionGettingReady', "Getting microphone ready...") });
-
-			const microphoneDevice = await navigator.mediaDevices.getUserMedia({
-				audio: {
-					sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLING_RATE,
-					sampleSize: WorkbenchVoiceRecognitionService.AUDIO_BIT_DEPTH,
-					channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
-					autoGainControl: true,
-					noiseSuppression: true
-				}
-			});
-
-			if (token.isCancellationRequested) {
-				return;
-			}
-
-			const audioContext = new AudioContext({
-				sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLING_RATE,
-				latencyHint: 'interactive'
-			});
-
-			const microphoneSource = audioContext.createMediaStreamSource(microphoneDevice);
-
-			token.onCancellationRequested(() => {
-				try {
-					for (const track of microphoneDevice.getTracks()) {
-						track.stop();
+				const microphoneDevice = await navigator.mediaDevices.getUserMedia({
+					audio: {
+						sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLING_RATE,
+						sampleSize: WorkbenchVoiceRecognitionService.AUDIO_BIT_DEPTH,
+						channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
+						autoGainControl: true,
+						noiseSuppression: true
 					}
+				});
 
-					microphoneSource.disconnect();
-					audioContext.close();
-				} finally {
-					recordingDone.complete();
+				if (token.isCancellationRequested) {
+					return;
 				}
-			});
 
-			await audioContext.audioWorklet.addModule(FileAccess.asBrowserUri('vs/workbench/services/voiceRecognition/electron-sandbox/voiceTranscriptionWorklet.js').toString(true));
+				const audioContext = new AudioContext({
+					sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLING_RATE,
+					latencyHint: 'interactive'
+				});
 
-			if (token.isCancellationRequested) {
-				return;
+				const microphoneSource = audioContext.createMediaStreamSource(microphoneDevice);
+
+				token.onCancellationRequested(() => {
+					try {
+						for (const track of microphoneDevice.getTracks()) {
+							track.stop();
+						}
+
+						microphoneSource.disconnect();
+						audioContext.close();
+					} finally {
+						recordingDone.complete();
+					}
+				});
+
+				await audioContext.audioWorklet.addModule(FileAccess.asBrowserUri('vs/workbench/services/voiceRecognition/electron-sandbox/voiceTranscriptionWorklet.js').toString(true));
+
+				if (token.isCancellationRequested) {
+					return;
+				}
+
+				const voiceTranscriptionTarget = new VoiceTranscriptionWorkletNode(audioContext, {
+					channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
+					channelCountMode: 'explicit'
+				}, onDidTranscribe, this.sharedProcessService);
+				await voiceTranscriptionTarget.start(token);
+
+				if (token.isCancellationRequested) {
+					return;
+				}
+
+				microphoneSource.connect(voiceTranscriptionTarget);
+
+				progress.report({ message: localize('voiceTranscriptionRecording', "Recording from microphone...") });
+				recordingReady.complete();
+
+				return recordingDone.p;
+			} catch (error) {
+				this.notificationService.error(localize('voiceTranscriptionError', "Voice transcription failed: {0}", error.message));
+
+				recordingReady.error(error);
+				recordingDone.error(error);
 			}
-
-			const voiceTranscriptionTarget = new VoiceTranscriptionWorkletNode(audioContext, {
-				channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
-				channelCountMode: 'explicit'
-			}, onDidTranscribe, this.sharedProcessService);
-			await voiceTranscriptionTarget.start(token);
-
-			if (token.isCancellationRequested) {
-				return;
-			}
-
-			microphoneSource.connect(voiceTranscriptionTarget);
-
-			progress.report({ message: localize('voiceTranscriptionRecording', "Recording from microphone...") });
-			recordingReady.complete();
-
-			return recordingDone.p;
 		});
 
 		return recordingReady.p;
