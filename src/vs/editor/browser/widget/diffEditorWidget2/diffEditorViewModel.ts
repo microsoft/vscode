@@ -105,40 +105,36 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 
 		this._register(model.modified.onDidChangeContent((e) => {
 			const diff = this._diff.get();
-			if (!diff) {
-				return;
-			}
-
-			const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
-			const result = applyModifiedEdits(this._lastDiff!, textEdits, model.original, model.modified);
-			if (result) {
-				this._lastDiff = result;
-				transaction(tx => {
-					this._diff.set(DiffState.fromDiffResult(this._lastDiff!), tx);
-					updateUnchangedRegions(result, tx);
-					const currentSyncedMovedText = this.syncedMovedTexts.get();
-					this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
-				});
+			if (diff) {
+				const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
+				const result = applyModifiedEdits(this._lastDiff!, textEdits, model.original, model.modified);
+				if (result) {
+					this._lastDiff = result;
+					transaction(tx => {
+						this._diff.set(DiffState.fromDiffResult(this._lastDiff!), tx);
+						updateUnchangedRegions(result, tx);
+						const currentSyncedMovedText = this.syncedMovedTexts.get();
+						this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
+					});
+				}
 			}
 
 			debouncer.schedule();
 		}));
 		this._register(model.original.onDidChangeContent((e) => {
 			const diff = this._diff.get();
-			if (!diff) {
-				return;
-			}
-
-			const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
-			const result = applyOriginalEdits(this._lastDiff!, textEdits, model.original, model.modified);
-			if (result) {
-				this._lastDiff = result;
-				transaction(tx => {
-					this._diff.set(DiffState.fromDiffResult(this._lastDiff!), tx);
-					updateUnchangedRegions(result, tx);
-					const currentSyncedMovedText = this.syncedMovedTexts.get();
-					this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
-				});
+			if (diff) {
+				const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
+				const result = applyOriginalEdits(this._lastDiff!, textEdits, model.original, model.modified);
+				if (result) {
+					this._lastDiff = result;
+					transaction(tx => {
+						this._diff.set(DiffState.fromDiffResult(this._lastDiff!), tx);
+						updateUnchangedRegions(result, tx);
+						const currentSyncedMovedText = this.syncedMovedTexts.get();
+						this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
+					});
+				}
 			}
 
 			debouncer.schedule();
@@ -174,7 +170,6 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 
 			result = applyOriginalEdits(result, originalTextEditInfos, model.original, model.modified) ?? result;
 			result = applyModifiedEdits(result, modifiedTextEditInfos, model.original, model.modified) ?? result;
-
 
 			transaction(tx => {
 				updateUnchangedRegions(result, tx);
