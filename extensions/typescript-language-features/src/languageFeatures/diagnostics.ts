@@ -10,6 +10,7 @@ import { Disposable } from '../utils/dispose';
 import { ResourceMap } from '../utils/resourceMap';
 import { TelemetryReporter } from '../logging/telemetry';
 import { TypeScriptServiceConfiguration } from '../configuration/configuration';
+import { equals } from '../utils/objects';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
 	if (a === b) {
@@ -181,9 +182,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 		const previousDiagnostics = this._diagnosticSnapshotsMap.get(uriString);
 		const currentDiagnostics = this._getDiagnostics(uri);
 		this._diagnosticSnapshotsMap.set(uriString, currentDiagnostics);
-		const diagnosticsDiff = currentDiagnostics.filter((diagnostic) => !previousDiagnostics?.some((previousDiagnostic) => {
-			return diagnostic === previousDiagnostic;
-		}));
+		const diagnosticsDiff = currentDiagnostics.filter((diagnostic) => !previousDiagnostics?.some((previousDiagnostic) => equals(diagnostic, previousDiagnostic)));
 		diagnosticsDiff.forEach((diagnostic) => {
 			const code = diagnostic.code;
 			if (typeof code === 'string' || typeof code === 'number') {
