@@ -283,12 +283,6 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		// }
 
 		const textEditorModel = model.textEditorModel;
-
-		interface AutoSave {
-			onAutoSave: string;
-			value: boolean;
-		}
-
 		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: model.resource };
 		const setting = this.configurationService.getValue<{ [kind: string]: Object } | string[]>('editor.codeActionsOnSave', settingsOverrides);
 		if (!setting) {
@@ -298,11 +292,6 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		const settingItems: string[] = Array.isArray(setting)
 			? setting
 			: Object.keys(setting).filter(x => Object.values(setting[x])[0]);
-
-		const settingValues: Object[] = Array.isArray(setting)
-			? setting
-			: Object.values(setting).filter(x => setting);
-
 
 		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems);
 
