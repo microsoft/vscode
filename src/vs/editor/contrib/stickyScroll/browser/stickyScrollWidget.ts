@@ -5,7 +5,8 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./stickyScroll';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { getColumnOfNodeOffset } from 'vs/editor/browser/viewParts/lines/viewLine';
@@ -15,6 +16,9 @@ import { Position } from 'vs/editor/common/core/position';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { CharacterMapping, RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
+import { foldingCollapsedIcon, foldingExpandedIcon } from 'vs/editor/contrib/folding/browser/foldingDecorations';
+import { FoldingModel, toggleCollapseState } from 'vs/editor/contrib/folding/browser/foldingModel';
 
 export class StickyScrollWidgetState {
 	constructor(
@@ -28,6 +32,7 @@ const STICKY_LINE_INDEX_ATTR = 'data-sticky-line-index';
 
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
+	private readonly _disposableStore = new DisposableStore();
 	private readonly _rootDomNode: HTMLElement = document.createElement('div');
 	private readonly _lineNumbersDomNode: HTMLElement = document.createElement('div');
 	private readonly _linesDomNodeScrollable: HTMLElement = document.createElement('div');
@@ -123,15 +128,23 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth}px`;
 	}
 
-	private _renderRootNode(): void {
+	private async _renderRootNode(): Promise<void> {
 
 		if (!this._editor._getViewModel()) {
 			return;
 		}
 
+		// Folding
+		let foldingModel: FoldingModel | null = null;
+		const foldingController = FoldingController.get(this._editor);
+		if (foldingController) {
+			foldingModel = await foldingController.getFoldingModel();
+		}
+		// Folding
+
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (const [index, line] of this._lineNumbers.entries()) {
-			const { lineNumberHTMLNode, renderedStickyLine } = this._renderChildNode(index, line, layoutInfo);
+			const { lineNumberHTMLNode, renderedStickyLine } = this._renderChildNode(index, line, layoutInfo, foldingModel);
 			this._lineNumbersDomNode.appendChild(lineNumberHTMLNode);
 			this._linesDomNode.appendChild(renderedStickyLine.domNode);
 			this._stickyLines.push(renderedStickyLine);
@@ -154,7 +167,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.layoutOverlayWidget(this);
 	}
 
-	private _renderChildNode(index: number, line: number, layoutInfo: EditorLayoutInfo): { lineNumberHTMLNode: HTMLSpanElement; renderedStickyLine: RenderedStickyLine } {
+	private _renderChildNode(index: number, line: number, layoutInfo: EditorLayoutInfo, foldingModel: FoldingModel | null): { lineNumberHTMLNode: HTMLSpanElement; renderedStickyLine: RenderedStickyLine } {
 		const viewModel = this._editor._getViewModel();
 		const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
 		const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
@@ -212,6 +225,63 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
 		}
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
+
+		// Added for the folding toggle icons
+		innerLineNumberHTML.style.float = 'left';
+		if (foldingModel) {
+			const foldingRegions = foldingModel.regions;
+			const indexOfLine = foldingRegions.findRange(line);
+			const isCollapsed = foldingRegions.isCollapsed(indexOfLine);
+			const startLineNumber = foldingRegions.getStartLineNumber(indexOfLine);
+			const isFoldingLine = line === startLineNumber;
+
+			if (isFoldingLine) {
+				const divToUnfold = document.createElement('div');
+				divToUnfold.style.float = 'right';
+				if (isCollapsed) {
+					divToUnfold.className = ThemeIcon.asClassName(foldingCollapsedIcon);
+				} else {
+					divToUnfold.className = ThemeIcon.asClassName(foldingExpandedIcon);
+				}
+				divToUnfold.style.transition = 'opacity 250ms linear';
+				divToUnfold.style.opacity = '0';
+				divToUnfold.style.height = '0px';
+				divToUnfold.style.cursor = 'default';
+
+				divToUnfold.classList.add('unfold-icon');
+				lineNumberHTMLNode.append(divToUnfold);
+
+				let collapsed = isCollapsed;
+
+				this._disposableStore.add(dom.addDisposableListener(divToUnfold, dom.EventType.CLICK, () => {
+					console.log('line : ', line);
+
+					const scrollTop = this._editor.getTopForLineNumber(line) + 1;
+					console.log('scrollTop : ', scrollTop);
+					toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
+					collapsed = !collapsed;
+					// TODO: Likely a more complicated mathematical equation that involves finding the position given the new number of lines in the sticky widget
+					// there appears to be an error here, doesn't behave exactly as expected
+					// TODO: continuous rerendering of the arrow, which need not be rerendered if already in the right collapsed state
+					const newHeight = scrollTop; // - (collapsed ? 0 : 18);
+					console.log('newHeight : ', newHeight);
+					this._editor.setScrollTop(newHeight);
+				}));
+				this._disposableStore.add(dom.addDisposableListener(lineNumberHTMLNode, dom.EventType.MOUSE_OVER, () => {
+					divToUnfold.style.opacity = '1';
+					divToUnfold.style.height = '18px';
+					divToUnfold.style.width = '18px';
+					divToUnfold.style.cursor = 'pointer';
+				}));
+				this._disposableStore.add(dom.addDisposableListener(lineNumberHTMLNode, dom.EventType.MOUSE_OUT, () => {
+					divToUnfold.style.transition = 'opacity 250ms linear';
+					divToUnfold.style.opacity = '0';
+					divToUnfold.style.height = '0px';
+					divToUnfold.style.cursor = 'default';
+				}));
+			}
+		}
+		// Added with the folding toggle icons
 
 		this._editor.applyFontInfo(lineHTMLNode);
 		this._editor.applyFontInfo(innerLineNumberHTML);

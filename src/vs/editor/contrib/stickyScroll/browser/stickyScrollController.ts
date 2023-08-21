@@ -303,7 +303,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			sessionStore.clear();
 		}));
 		this._register(gesture.onExecute(async e => {
-			if (e.target.type !== MouseTargetType.OVERLAY_WIDGET || e.target.detail !== this._stickyScrollWidget.getId()) {
+			if (
+				e.target.type !== MouseTargetType.OVERLAY_WIDGET
+				|| e.target.detail !== this._stickyScrollWidget.getId()
+				|| e.target.element?.classList.contains('unfold-icon')
+			) {
 				// not hovering over our widget
 				return;
 			}
