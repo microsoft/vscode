@@ -33,6 +33,7 @@ export class QuickInputBox extends Disposable {
 		input.ariaHasPopup = 'menu';
 		input.ariaAutoComplete = 'list';
 		input.ariaExpanded = 'true';
+		input.ariaLabel = 'input';
 	}
 
 	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {

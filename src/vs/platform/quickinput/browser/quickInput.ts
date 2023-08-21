@@ -1075,7 +1075,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			if (this.title) {
 				ariaLabel += ` - ${this.title}`;
 			}
+			this.ui.inputBox.setAttribute('aria-label', ariaLabel!);
 		}
+
 		if (this.ui.list.ariaLabel !== ariaLabel) {
 			this.ui.list.ariaLabel = ariaLabel ?? null;
 		}
