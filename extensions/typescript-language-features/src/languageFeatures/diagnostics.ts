@@ -163,7 +163,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 		super();
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
 			if (e.document.languageId === 'typescript') {
-				this._updateDiagnosticCodesAfterTimeoutForUri(e.document.uri);
+				this._updateAllDiagnosticCodesAfterTimeout();
 			}
 		}));
 		this._updateAllDiagnosticCodesAfterTimeout();
@@ -171,13 +171,9 @@ class DiagnosticsTelemetryManager extends Disposable {
 	}
 
 	private _updateAllDiagnosticCodesAfterTimeout() {
-		const uris = vscode.workspace.textDocuments.map(doc => doc.uri);
-		uris.forEach(uri => setTimeout(() => { this._updateDiagnosticCodes(uri); }, 10000));
-	}
-
-	private _updateDiagnosticCodesAfterTimeoutForUri(uri: vscode.Uri) {
 		clearTimeout(this._timeout);
-		this._timeout = setTimeout(() => { this._updateDiagnosticCodes(uri); }, 10000);
+		const uris = vscode.workspace.textDocuments.map(doc => doc.uri);
+		this._timeout = setTimeout(() => { uris.forEach((uri) => this._updateDiagnosticCodes(uri)); }, 5000);
 	}
 
 	private _updateDiagnosticCodes(uri: vscode.Uri) {
@@ -185,7 +181,9 @@ class DiagnosticsTelemetryManager extends Disposable {
 		const previousDiagnostics = this._diagnosticSnapshotsMap.get(uriString);
 		const currentDiagnostics = this._getDiagnostics(uri);
 		this._diagnosticSnapshotsMap.set(uriString, currentDiagnostics);
-		const diagnosticsDiff = currentDiagnostics.filter((diagnostic) => !previousDiagnostics?.some((previousDiagnostic) => JSON.stringify(diagnostic) === JSON.stringify(previousDiagnostic)));
+		const diagnosticsDiff = currentDiagnostics.filter((diagnostic) => !previousDiagnostics?.some((previousDiagnostic) => {
+			return diagnostic === previousDiagnostic;
+		}));
 		diagnosticsDiff.forEach((diagnostic) => {
 			const code = diagnostic.code;
 			if (typeof code === 'string' || typeof code === 'number') {
