@@ -45,7 +45,19 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 
 		const now = Date.now();
 
-		const voiceModule: { transcribe: (audioBuffer: { channelCount: 1; samplingRate: 16000; bitDepth: 16; channelData: Float32Array }, options: { language: string | 'auto'; suppressNonSpeechTokens: boolean }) => Promise<string> } = require.__$__nodeRequire(modulePath);
+		const voiceModule: {
+			transcribe: (
+				audioBuffer: { channelCount: 1; samplingRate: 16000; bitDepth: 16; channelData: Float32Array },
+				options: {
+					language: string | 'auto';
+					suppressNonSpeechTokens: boolean;
+					signal: AbortSignal;
+				}
+			) => Promise<string>;
+		} = require.__$__nodeRequire(modulePath);
+
+		const abortController = new AbortController();
+		cancellation.onCancellationRequested(() => abortController.abort());
 
 		const text = await voiceModule.transcribe({
 			samplingRate: 16000,
@@ -54,7 +66,8 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 			channelData
 		}, {
 			language: 'en',
-			suppressNonSpeechTokens: true
+			suppressNonSpeechTokens: true,
+			signal: abortController.signal
 		});
 
 		this.logService.info(`[voice] transcribe(${channelData.length}): End (text: "${text}", took: ${Date.now() - now}ms)`);

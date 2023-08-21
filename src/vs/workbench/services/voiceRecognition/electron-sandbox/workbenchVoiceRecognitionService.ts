@@ -61,8 +61,6 @@ class VoiceTranscriptionWorkletNode extends AudioWorkletNode {
 	}
 }
 
-// TODO@voice
-// - pass cancellation down into the node module via AbortSignal
 export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
 
 	declare readonly _serviceBrand: undefined;

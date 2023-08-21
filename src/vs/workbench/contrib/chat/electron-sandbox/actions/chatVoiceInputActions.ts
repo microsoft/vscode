@@ -6,6 +6,7 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -72,7 +73,7 @@ class ChatVoiceInputSession {
 
 		this.currentChatVoiceInputSession.add(onDidTranscribe(text => {
 			if (text) {
-				if (lastText === text) {
+				if (lastText && equalsIgnoreCase(text, lastText)) {
 					lastTextEqualCount++;
 
 					if (lastTextEqualCount >= 2) {
