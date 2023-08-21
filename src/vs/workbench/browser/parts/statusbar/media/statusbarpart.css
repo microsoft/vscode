@@ -142,6 +142,7 @@
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {
 	text-decoration: none;
+	color: var(--vscode-statusBarItem-hoverForeground);
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a.disabled {
