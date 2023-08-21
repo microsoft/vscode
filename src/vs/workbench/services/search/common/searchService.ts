@@ -75,7 +75,7 @@ export class SearchService extends Disposable implements ISearchService {
 
 	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void, notebookURIs?: ResourceSet, ignoreOpenEditors?: boolean): Promise<ISearchComplete> {
 		// Get local results from dirty/untitled
-		const localResults = ignoreOpenEditors ? this.getLocalResults(query) : { results: new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri)), limitHit: false };
+		const localResults = ignoreOpenEditors ? { results: new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri)), limitHit: false } : this.getLocalResults(query);
 
 		if (onProgress) {
 			arrays.coalesce([...localResults.results.values()]).forEach(onProgress);
