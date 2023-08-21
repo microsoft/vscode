@@ -111,7 +111,7 @@ function createScreenReaderHelp(): IDisposable {
 			onClose: () => {
 				codeEditor.focus();
 			},
-			options: { type: AccessibleViewType.Help, ariaLabel: localize('chat-help-label', "Diff editor accessibility help") }
+			options: { type: AccessibleViewType.Help }
 		});
 	}, ContextKeyExpr.and(
 		ContextKeyEqualsExpr.create('diffEditorVersion', 2),

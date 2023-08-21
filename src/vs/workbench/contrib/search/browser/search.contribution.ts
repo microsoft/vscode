@@ -107,7 +107,11 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: AnythingQuickAccessProvider.PREFIX,
 	placeholder: nls.localize('anythingQuickAccessPlaceholder', "Search files by name (append {0} to go to line or {1} to go to symbol)", AbstractGotoLineQuickAccessProvider.PREFIX, GotoSymbolQuickAccessProvider.PREFIX),
 	contextKey: defaultQuickAccessContextKeyValue,
-	helpEntries: [{ description: nls.localize('anythingQuickAccess', "Go to File"), commandId: 'workbench.action.quickOpen' }]
+	helpEntries: [{
+		description: nls.localize('anythingQuickAccess', "Go to File"),
+		commandId: 'workbench.action.quickOpen',
+		commandCenterOrder: 10
+	}]
 });
 
 quickAccessRegistry.registerQuickAccessProvider({
