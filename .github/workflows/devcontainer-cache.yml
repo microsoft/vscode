@@ -40,4 +40,7 @@ jobs:
 
           df -h
           docker system df
+          docker system prune --all --force
+          df -h
+          docker system df
           .devcontainer/prebuilt/cache/build-cache-image.sh "${{ secrets.CONTAINER_IMAGE_REGISTRY }}/public/vscode/devcontainers/repos/microsoft/vscode" "${GIT_BRANCH}"
