@@ -153,7 +153,7 @@ class DiagnosticSettings {
 class DiagnosticsTelemetryManager extends Disposable {
 
 	private readonly _diagnosticCodesMap = new Map<number, number>();
-	private readonly _diagnosticSnapshotsMap = new Map<vscode.Uri, readonly vscode.Diagnostic[]>();
+	private readonly _diagnosticSnapshotsMap = new Map<string, readonly vscode.Diagnostic[]>();
 	private _timeout: NodeJS.Timeout | undefined;
 
 	constructor(
@@ -181,9 +181,10 @@ class DiagnosticsTelemetryManager extends Disposable {
 	}
 
 	private _updateDiagnosticCodes(uri: vscode.Uri) {
-		const previousDiagnostics = this._diagnosticSnapshotsMap.get(uri);
+		const uriString = uri.toString();
+		const previousDiagnostics = this._diagnosticSnapshotsMap.get(uriString);
 		const currentDiagnostics = this._getDiagnostics(uri);
-		this._diagnosticSnapshotsMap.set(uri, currentDiagnostics);
+		this._diagnosticSnapshotsMap.set(uriString, currentDiagnostics);
 		const diagnosticsDiff = currentDiagnostics.filter((diagnostic) => !previousDiagnostics?.some((previousDiagnostic) => JSON.stringify(diagnostic) === JSON.stringify(previousDiagnostic)));
 		diagnosticsDiff.forEach((diagnostic) => {
 			const code = diagnostic.code;
