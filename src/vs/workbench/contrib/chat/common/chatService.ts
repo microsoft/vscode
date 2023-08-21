@@ -178,6 +178,7 @@ export interface IChatDynamicRequest {
 export interface IChatCompleteResponse {
 	message: string;
 	errorDetails?: IChatResponseErrorDetails;
+	followups?: IChatFollowup[];
 }
 
 export interface IChatDetail {

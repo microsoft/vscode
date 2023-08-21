@@ -186,7 +186,8 @@ class QuickChat extends Disposable {
 					request.message as string,
 					{
 						message: request.response.response.asString(),
-						errorDetails: request.response.errorDetails
+						errorDetails: request.response.errorDetails,
+						followups: request.response.followups
 					});
 			} else if (request.message) {
 

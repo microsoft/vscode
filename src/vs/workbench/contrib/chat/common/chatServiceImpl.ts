@@ -669,6 +669,10 @@ export class ChatService extends Disposable implements IChatService {
 			session: model.session!,
 			errorDetails: response.errorDetails,
 		});
+		if (response.followups !== undefined) {
+			model.setFollowups(request, response.followups);
+		}
+		model.completeResponse(request);
 	}
 
 	cancelCurrentRequestForSession(sessionId: string): void {
