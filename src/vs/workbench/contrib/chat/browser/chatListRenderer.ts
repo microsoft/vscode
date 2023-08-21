@@ -1048,7 +1048,8 @@ class TreePool extends Disposable {
 				accessibilityProvider: {
 					getAriaLabel: (element: IChatResponseProgressFileTreeData) => element.label,
 					getWidgetAriaLabel: () => localize('treeAriaLabel', "File Tree")
-				}
+				},
+				alwaysConsumeMouseWheel: false
 			});
 
 		return tree;
