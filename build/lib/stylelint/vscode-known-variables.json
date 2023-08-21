@@ -557,6 +557,7 @@
 		"--vscode-statusBarItem-prominentBackground",
 		"--vscode-statusBarItem-prominentForeground",
 		"--vscode-statusBarItem-prominentHoverBackground",
+		"--vscode-statusBarItem-prominentHoverForeground",
 		"--vscode-statusBarItem-remoteBackground",
 		"--vscode-statusBarItem-remoteForeground",
 		"--vscode-statusBarItem-warningBackground",

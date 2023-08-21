@@ -149,6 +149,7 @@ declare module 'vscode' {
 		commandId: string;
 		args?: any[];
 		title: string; // supports codicon strings
+		when?: string;
 	}
 
 	export interface InteractiveSessionSlashCommand {
