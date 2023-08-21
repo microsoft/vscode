@@ -54,7 +54,7 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 				codeEditor = codeEditorService.getActiveCodeEditor()!;
 			}
 			accessibleViewService.show(instantiationService.createInstance(AccessibilityHelpProvider, codeEditor));
-		}));
+		}, EditorContextKeys.focus));
 	}
 }
 
@@ -282,6 +282,7 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 		this._register(AccessibleViewAction.addImplementation(95, 'inline-completions', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const codeEditorService = accessor.get(ICodeEditorService);
+			const contextViewService = accessor.get(IContextViewService);
 			const show = () => {
 				const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 				if (!editor) {
@@ -310,33 +311,19 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 						editor.focus();
 					},
 					next() {
-						model.next().then(() => show());
+						contextViewService.hideContextView();
+						setTimeout(() => model.next().then(() => show()), 50);
 					},
 					previous() {
-						model.previous().then(() => show());
+						contextViewService.hideContextView();
+						setTimeout(() => model.previous().then(() => show()), 50);
 					},
-					actions: [
-						{
-							id: 'inlineCompletions.accept',
-							label: localize('inlineCompletions.accept', "Accept Completion"),
-							tooltip: localize('inlineCompletions.accept', "Accept Completion"),
-							run: () => {
-								model.accept(editor).then(() => {
-									alert('Accepted');
-									model.stop();
-									editor.focus();
-								});
-							},
-							class: ThemeIcon.asClassName(Codicon.check),
-							enabled: true
-						}
-					],
 					options: this._options
 				});
 				return true;
-			};
+			}; ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible);
 			return show();
-		}, ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible, EditorContextKeys.focus, EditorContextKeys.hasCodeActionsProvider)
+		},
 		)
 		);
 	}

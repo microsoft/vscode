@@ -11,8 +11,11 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { accessibilityHelpIsShown, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 const accessibleViewMenu = {
 	id: MenuId.AccessibleView,
@@ -33,7 +36,12 @@ class AccessibleViewNextAction extends Action2 {
 				primary: KeyMod.Alt | KeyCode.BracketRight,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			menu: [commandPalette, accessibleViewMenu],
+			menu: [
+				commandPalette,
+				{
+					...accessibleViewMenu,
+					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+				}],
 			icon: Codicon.chevronRight,
 			title: localize('editor.action.accessibleViewNext', "Show Next in Accessible View")
 		});
@@ -55,7 +63,13 @@ class AccessibleViewPreviousAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			icon: Codicon.chevronLeft,
-			menu: [commandPalette, accessibleViewMenu],
+			menu: [
+				commandPalette,
+				{
+					...accessibleViewMenu,
+					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+				}
+			],
 			title: localize('editor.action.accessibleViewPrevious', "Show Previous in Accessible View")
 		});
 	}
@@ -73,10 +87,17 @@ class AccessibleViewGoToSymbolAction extends Action2 {
 			precondition: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewGoToSymbolSupported),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period],
 				weight: KeybindingWeight.WorkbenchContrib + 10
 			},
 			icon: Codicon.symbolField,
-			menu: [commandPalette, accessibleViewMenu],
+			menu: [
+				commandPalette,
+				{
+					...accessibleViewMenu,
+					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+				}
+			],
 			title: localize('editor.action.accessibleViewGoToSymbol', "Go To Symbol in Accessible View")
 		});
 	}
@@ -140,11 +161,14 @@ class AccessibleViewDisableHintAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			icon: Codicon.treeFilterClear,
-			menu: [commandPalette,
+			menu: [
+				commandPalette,
 				{
 					id: MenuId.AccessibleView,
-					group: 'navigation'
-				}],
+					group: 'navigation',
+					when: ContextKeyExpr.and(ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown), accessibleViewVerbosityEnabled),
+				}
+			],
 			title: localize('editor.action.accessibleViewDisableHint', "Disable Accessible View Hint")
 		});
 	}
@@ -153,3 +177,44 @@ class AccessibleViewDisableHintAction extends Action2 {
 	}
 }
 registerAction2(AccessibleViewDisableHintAction);
+
+class AccessibleViewAcceptInlineCompletionAction extends Action2 {
+	constructor() {
+		super({
+			id: AccessibilityCommandId.AccessibleViewAcceptInlineCompletion,
+			precondition: ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibilityVerbositySettingId.InlineCompletions)),
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyCode.Slash,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Slash },
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			icon: Codicon.check,
+			menu: [
+				commandPalette,
+				{
+					id: MenuId.AccessibleView,
+					group: 'navigation',
+					order: 0,
+					when: ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibilityVerbositySettingId.InlineCompletions))
+				}],
+			title: localize('editor.action.accessibleViewAcceptInlineCompletionAction', "Accept Inline Completion")
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
+		if (!editor) {
+			return;
+		}
+		const model = InlineCompletionsController.get(editor)?.model.get();
+		const state = model?.state.get();
+		if (!model || !state) {
+			return;
+		}
+		await model.accept(editor);
+		alert('Accepted');
+		model.stop();
+		editor.focus();
+	}
+}
+registerAction2(AccessibleViewAcceptInlineCompletionAction);

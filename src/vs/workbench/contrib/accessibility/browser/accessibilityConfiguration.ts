@@ -4,18 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
 export const accessibleViewSupportsNavigation = new RawContextKey<boolean>('accessibleViewSupportsNavigation', false, true);
 export const accessibleViewVerbosityEnabled = new RawContextKey<boolean>('accessibleViewVerbosityEnabled', false, true);
 export const accessibleViewGoToSymbolSupported = new RawContextKey<boolean>('accessibleViewGoToSymbolSupported', false, true);
+export const accessibleViewCurrentProviderId = new RawContextKey<string>('accessibleViewCurrentProviderId', undefined, undefined);
 
-export const enum AccessibilitySettingId {
-	UnfocusedViewOpacity = 'accessibility.unfocusedViewOpacity'
+/**
+ * Miscellaneous settings tagged with accessibility and implemented in the accessibility contrib but
+ * were better to live under workbench for discoverability.
+ */
+export const enum AccessibilityWorkbenchSettingId {
+	ViewDimUnfocusedEnabled = 'workbench.view.dimUnfocused.enabled',
+	ViewDimUnfocusedOpacity = 'workbench.view.dimUnfocused.opacity'
+}
+
+export const enum ViewDimUnfocusedOpacityProperties {
+	Default = 0.75,
+	Minimum = 0.2,
+	Maximum = 1
 }
 
 export const enum AccessibilityVerbositySettingId {
@@ -82,19 +95,33 @@ const configuration: IConfigurationNode = {
 		[AccessibilityVerbositySettingId.EditorUntitledHint]: {
 			description: localize('verbosity.editor.untitledhint', 'Provide information about relevant actions in an untitled text editor.'),
 			...baseProperty
-		},
-		[AccessibilitySettingId.UnfocusedViewOpacity]: {
-			description: localize('unfocusedViewOpacity', 'The opacity fraction (0.2 to 1.0) to use for unfocused editors and terminals. This will dim inactive views to make the focused views more obvious.'),
-			type: 'number',
-			minimum: 0.2,
-			maximum: 1,
-			default: 1,
-			tags: ['accessibility']
 		}
 	}
 };
 
 export function registerAccessibilityConfiguration() {
-	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-	configurationRegistry.registerConfiguration(configuration);
+	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	registry.registerConfiguration(configuration);
+
+	registry.registerConfiguration({
+		...workbenchConfigurationNodeBase,
+		properties: {
+			[AccessibilityWorkbenchSettingId.ViewDimUnfocusedEnabled]: {
+				description: localize('dimUnfocusedEnabled', 'Whether to dim unfocused editors and terminals, making the focused view more obvious.'),
+				type: 'boolean',
+				default: false,
+				tags: ['accessibility'],
+				scope: ConfigurationScope.MACHINE,
+			},
+			[AccessibilityWorkbenchSettingId.ViewDimUnfocusedOpacity]: {
+				description: localize('dimUnfocusedOpacity', 'The opacity fraction (0.2 to 1.0) to use for unfocused editors and terminals. This will only take effect when {0} is enabled.', `\`#${AccessibilityWorkbenchSettingId.ViewDimUnfocusedEnabled}#\``),
+				type: 'number',
+				minimum: ViewDimUnfocusedOpacityProperties.Minimum,
+				maximum: ViewDimUnfocusedOpacityProperties.Maximum,
+				default: ViewDimUnfocusedOpacityProperties.Default,
+				tags: ['accessibility'],
+				scope: ConfigurationScope.MACHINE,
+			}
+		}
+	});
 }
