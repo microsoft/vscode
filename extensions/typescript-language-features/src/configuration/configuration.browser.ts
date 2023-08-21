@@ -18,7 +18,11 @@ export class BrowserServiceConfigurationProvider extends BaseServiceConfiguratio
 	}
 
 	// On browsers, we don't run TSServer on Node
-	protected readNodePath(_configuration: vscode.WorkspaceConfiguration): string | null {
+	protected readLocalNodePath(_configuration: vscode.WorkspaceConfiguration): string | null {
+		return null;
+	}
+
+	protected override readGlobalNodePath(_configuration: vscode.WorkspaceConfiguration): string | null {
 		return null;
 	}
 }

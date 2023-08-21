@@ -7,6 +7,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { BaseServiceConfigurationProvider } from './configuration';
+import { RelativeWorkspacePathResolver } from '../utils/relativePathResolver';
 
 export class ElectronServiceConfigurationProvider extends BaseServiceConfigurationProvider {
 
@@ -36,17 +37,25 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 		return null;
 	}
 
-	protected readNodePath(configuration: vscode.WorkspaceConfiguration): string | null {
-		const configNodePath = configuration.get<string>('typescript.tsserver.nodePath');
-		if (configNodePath) {
-			let fixedPath = this.fixPathPrefixes(configNodePath);
+	protected readLocalNodePath(configuration: vscode.WorkspaceConfiguration): string | null {
+		const inspect = configuration.inspect('typescript.tsserver.nodePath');
+		if (inspect && typeof inspect.workspaceValue === 'string') {
+			const fixedPath = this.fixPathPrefixes(inspect.workspaceValue);
 			if (!path.isAbsolute(fixedPath)) {
-				const first = vscode.workspace.workspaceFolders?.[0];
-				if (first) {
-					fixedPath = vscode.Uri.joinPath(first.uri, fixedPath).fsPath;
-				} else {
-					return null;
-				}
+				const workspacePath = RelativeWorkspacePathResolver.asAbsoluteWorkspacePath(fixedPath);
+				return workspacePath || null;
+			}
+			return fixedPath;
+		}
+		return null;
+	}
+
+	protected readGlobalNodePath(configuration: vscode.WorkspaceConfiguration): string | null {
+		const inspect = configuration.inspect('typescript.tsserver.nodePath');
+		if (inspect && typeof inspect.globalValue === 'string') {
+			const fixedPath = this.fixPathPrefixes(inspect.globalValue);
+			if (path.isAbsolute(fixedPath)) {
+				return fixedPath;
 			}
 		}
 		return null;

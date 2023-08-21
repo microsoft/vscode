@@ -30,6 +30,7 @@ import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from 
 import Tracer from './logging/tracer';
 import { ProjectType, inferredProjectCompilerOptions } from './tsconfig';
 import { Schemes } from './configuration/schemes';
+import { NodeVersionManager } from './tsServer/nodeManager';
 
 
 export interface TsDiagnostics {
@@ -103,6 +104,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private _configuration: TypeScriptServiceConfiguration;
 	private readonly pluginPathsProvider: TypeScriptPluginPathsProvider;
 	private readonly _versionManager: TypeScriptVersionManager;
+	private readonly _nodeVersionManager: NodeVersionManager;
 
 	private readonly logger: Logger;
 	private readonly tracer: Tracer;
@@ -173,6 +175,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.restartTsServer();
 		}));
 
+		this._nodeVersionManager = this._register(new NodeVersionManager(this._configuration, context.workspaceState));
+		this._register(this._nodeVersionManager.onDidPickNewVersion(() => {
+			this.restartTsServer();
+		}));
+
 		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds, onCaseInsenitiveFileSystem);
 		this.onReady(() => { this.bufferSyncSupport.listen(); });
 
@@ -193,6 +200,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.versionProvider.updateConfiguration(this._configuration);
 			this._versionManager.updateConfiguration(this._configuration);
 			this.pluginPathsProvider.updateConfiguration(this._configuration);
+			this._nodeVersionManager.updateConfiguration(this._configuration);
 
 			if (this.serverState.type === ServerState.Type.Running) {
 				if (!this._configuration.implicitProjectConfiguration.isEqualTo(oldConfiguration.implicitProjectConfiguration)) {
@@ -388,7 +396,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		this.info(`Using tsserver from: ${version.path}`);
-		const nodePath = this.configuration.nodePath;
+		const nodePath = this.configuration.localNodePath;
 		if (nodePath) {
 			this.info(`Using Node install from ${nodePath} to run TS Server`);
 		}

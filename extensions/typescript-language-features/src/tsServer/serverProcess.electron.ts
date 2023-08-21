@@ -296,5 +296,5 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 }
 
 function getExecPath(configuration: TypeScriptServiceConfiguration): string | null {
-	return configuration.nodePath;
+	return configuration.localNodePath;
 }
