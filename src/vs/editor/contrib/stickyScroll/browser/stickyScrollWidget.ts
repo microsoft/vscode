@@ -140,7 +140,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return;
 		}
 		this._foldingIconStore.dispose();
-		const foldingModel: FoldingModel | null | undefined = await FoldingController.get(this._editor)?.getFoldingModel();
+		const foldingModel = await FoldingController.get(this._editor)?.getFoldingModel();
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const { lineNumberHTMLNode, renderedStickyLine } = this._renderChildNode(index, line, layoutInfo, foldingModel);
@@ -273,15 +273,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (!isFoldingScope) {
 			return;
 		}
-		const foldingIcon = document.createElement('div');
-		container.append(foldingIcon);
+		const foldingIcon = container.appendChild(document.createElement('div'));
 		const isRegionCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
-		if (isRegionCollapsed) {
-			foldingIcon.className = ThemeIcon.asClassName(foldingCollapsedIcon);
-		} else {
-			foldingIcon.className = ThemeIcon.asClassName(foldingExpandedIcon);
-		}
-		foldingIcon.classList.add('folding-icon');
+		foldingIcon.className = ThemeIcon.asClassName(isRegionCollapsed ? foldingCollapsedIcon : foldingExpandedIcon);
 		this._foldingIconStore.add(dom.addDisposableListener(foldingIcon, dom.EventType.CLICK, () => {
 			toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
 			const lineHeight = this._editor.getOption(EditorOption.lineHeight);

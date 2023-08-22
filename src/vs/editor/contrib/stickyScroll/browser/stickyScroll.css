@@ -33,7 +33,7 @@
 	background-color: inherit;
 }
 
-.monaco-editor .sticky-line-number .folding-icon {
+.monaco-editor .sticky-line-number .codicon {
 	width: 18px;
 	height: 18px;
 	float: right;
@@ -41,7 +41,7 @@
 	cursor: default;
 }
 
-.monaco-editor .sticky-line-number .folding-icon:hover {
+.monaco-editor .sticky-line-number .codicon:hover {
 	opacity: 1;
 	transition : opacity 250ms linear;
 	cursor: pointer;
