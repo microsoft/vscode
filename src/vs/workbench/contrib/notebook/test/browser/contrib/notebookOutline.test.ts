@@ -48,7 +48,7 @@ suite('Notebook Outline', function () {
 					return editor;
 				}
 				override onDidChangeModel: Event<void> = Event.None;
-			}, OutlineTarget.OutlinePane);
+			}, OutlineTarget.QuickPick);
 			return callback(outline, editor);
 		});
 
@@ -149,6 +149,29 @@ suite('Notebook Outline', function () {
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'h2');
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[1].label, 'h1');
+		});
+	});
+
+	test('Code cells', async function () {
+		await withNotebookOutline([
+			['myvar1 = 1/nmyvar2 = 2', 'python', CellKind.Code]
+		], outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'myvar1');
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[1].label, 'myvar2');
+		});
+	});
+
+	test('Markup and Code cells', async function () {
+		await withNotebookOutline([
+			['# Header', 'md', CellKind.Markup],
+			['myvar2 = 2', 'python', CellKind.Code]
+		], outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'Header');
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[1].label, 'myvar2');
 		});
 	});
 });
