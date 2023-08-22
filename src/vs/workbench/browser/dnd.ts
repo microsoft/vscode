@@ -430,7 +430,6 @@ export class CompositeDragAndDropObserver extends Disposable {
 			markAsSingleton(CompositeDragAndDropObserver.instance);
 		}
 
-
 		return CompositeDragAndDropObserver.instance;
 	}
 
