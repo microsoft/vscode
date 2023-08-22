@@ -10,7 +10,7 @@ import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contex
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IQuickInputService, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
-import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
@@ -142,10 +142,10 @@ class QuickChat extends Disposable {
 				ChatWidget,
 				{ resource: true, renderInputOnTop: true, renderStyle: 'compact' },
 				{
-					listForeground: editorForeground,
-					listBackground: editorBackground,
+					listForeground: quickInputForeground,
+					listBackground: quickInputBackground,
 					inputEditorBackground: inputBackground,
-					resultEditorBackground: editorBackground
+					resultEditorBackground: quickInputBackground
 				}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
