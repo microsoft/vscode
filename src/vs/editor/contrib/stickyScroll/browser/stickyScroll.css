@@ -33,6 +33,20 @@
 	background-color: inherit;
 }
 
+.monaco-editor .sticky-line-number .folding-icon {
+	width: 18px;
+	height: 18px;
+	float: right;
+	opacity: 0;
+	cursor: default;
+}
+
+.monaco-editor .sticky-line-number .folding-icon:hover {
+	opacity: 1;
+	transition : opacity 250ms linear;
+	cursor: pointer;
+}
+
 .monaco-editor .sticky-line-content {
 	width: var(--vscode-editorStickyScroll-scrollableWidth);
 	background-color: inherit;

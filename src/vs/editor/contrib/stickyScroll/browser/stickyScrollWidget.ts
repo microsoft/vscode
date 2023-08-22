@@ -34,7 +34,7 @@ const STICKY_LINE_INDEX_ATTR = 'data-sticky-line-index';
 
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
-	private readonly _disposableStore = new DisposableStore();
+	private readonly _foldingIconStore = new DisposableStore();
 	private readonly _rootDomNode: HTMLElement = document.createElement('div');
 	private readonly _lineNumbersDomNode: HTMLElement = document.createElement('div');
 	private readonly _linesDomNodeScrollable: HTMLElement = document.createElement('div');
@@ -265,6 +265,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	private _renderFoldingIconForLine(container: HTMLSpanElement, foldingModel: FoldingModel | null, index: number, line: number): void {
+		this._foldingIconStore.dispose();
 		if (!foldingModel) {
 			return;
 		}
@@ -276,47 +277,25 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (!isFoldingScope) {
 			return;
 		}
-
 		const foldingIcon = document.createElement('div');
 		container.append(foldingIcon);
-		foldingIcon.classList.add('unfold-icon');
-		foldingIcon.style.float = 'right';
 		const isRegionCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
 		if (isRegionCollapsed) {
 			foldingIcon.className = ThemeIcon.asClassName(foldingCollapsedIcon);
 		} else {
 			foldingIcon.className = ThemeIcon.asClassName(foldingExpandedIcon);
 		}
-
-		foldingIcon.style.opacity = '0';
-		foldingIcon.style.height = '0px';
-
-		this._disposableStore.add(dom.addDisposableListener(foldingIcon, dom.EventType.CLICK, () => {
+		foldingIcon.classList.add('folding-icon');
+		this._foldingIconStore.add(dom.addDisposableListener(foldingIcon, dom.EventType.CLICK, () => {
 			toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
-
 			const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-			const topOfStart = this._editor.getTopForLineNumber(startLineNumber) - lineHeight * (index) + 1;
-			const topOfEnd = this._editor.getTopForLineNumber(endLineNumber) - lineHeight * (index) + 1;
-			const newHeight = isRegionCollapsed ? topOfStart : topOfEnd;
-			this._editor.setScrollTop(newHeight);
+			const topOfStartLine = this._editor.getTopForLineNumber(startLineNumber) - lineHeight * index + 1;
+			const topOfEndLine = this._editor.getTopForLineNumber(endLineNumber) - lineHeight * index + 1;
+			this._editor.setScrollTop(isRegionCollapsed ? topOfStartLine : topOfEndLine);
 			const editorDomNode = this._editor.getDomNode();
 			if (editorDomNode) {
 				editorDomNode.style.cursor = 'pointer';
 			}
-		}));
-		this._disposableStore.add(dom.addDisposableListener(container, dom.EventType.MOUSE_OVER, () => {
-			console.log('inside of mouse over');
-			foldingIcon.style.opacity = '1';
-			foldingIcon.style.height = '18px';
-			foldingIcon.style.width = '18px';
-			foldingIcon.style.cursor = 'pointer';
-		}));
-		this._disposableStore.add(dom.addDisposableListener(container, dom.EventType.MOUSE_OUT, () => {
-			console.log('inside of mouse out');
-			foldingIcon.style.transition = 'opacity 250ms linear';
-			foldingIcon.style.opacity = '0';
-			foldingIcon.style.height = '0px';
-			foldingIcon.style.cursor = 'default';
 		}));
 	}
 
