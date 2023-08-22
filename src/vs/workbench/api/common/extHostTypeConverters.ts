@@ -2152,6 +2152,7 @@ export namespace ChatFollowup {
 				kind: 'command',
 				title: followup.title ?? '',
 				commandId: followup.commandId ?? '',
+				when: followup.when ?? '',
 				args: followup.args
 			};
 		} else {
