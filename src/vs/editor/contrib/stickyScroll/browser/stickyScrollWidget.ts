@@ -246,7 +246,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					divToUnfold.className = ThemeIcon.asClassName(foldingExpandedIcon);
 				}
 
-				console.log('inside of render child node for line : ', line);
 				// divToUnfold.style.transition = 'opacity 250ms linear';
 				divToUnfold.style.opacity = '0';
 				divToUnfold.style.height = '0px';
@@ -267,7 +266,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					// TODO: Likely a more complicated mathematical equation that involves finding the position given the new number of lines in the sticky widget
 					// there appears to be an error here, doesn't behave exactly as expected
 					// TODO: continuous rerendering of the arrow, which need not be rerendered if already in the right collapsed state
-					const newHeight = scrollTop; // - (collapsed ? 0 : 18);
+					console.log('collapsed : ', collapsed);
+					console.log('18 * (this._stickyLines.length - 1 - index) : ', 18 * (this._stickyLines.length - 1 - index));
+					// When collapsed we should go to scrollTop - 18 * (this._stickyLines.length - index)
+					const newHeight = scrollTop - 18 * (this._stickyLines.length - index);
 					console.log('newHeight : ', newHeight);
 					this._editor.setScrollTop(newHeight);
 					if (editorDomNode) {
@@ -282,7 +284,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					divToUnfold.style.cursor = 'pointer';
 				}));
 				this._disposableStore.add(dom.addDisposableListener(lineNumberHTMLNode, dom.EventType.MOUSE_OUT, () => {
-					console.log('inside of mouse out for line : ', line);
 					divToUnfold.style.transition = 'opacity 250ms linear';
 					divToUnfold.style.opacity = '0';
 					divToUnfold.style.height = '0px';
