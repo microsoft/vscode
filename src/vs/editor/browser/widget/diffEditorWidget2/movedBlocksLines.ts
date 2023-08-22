@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { booleanComparator, compareBy, findMaxIdxBy, findMinBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
+import { booleanComparator, compareBy, findMaxIdxBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, derived, keepAlive, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -12,7 +12,6 @@ import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditorWidget2/
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { OffsetRange, OffsetRangeSet } from 'vs/editor/common/core/offsetRange';
-import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
 
 export class MovedBlocksLinesPart extends Disposable {
 	public static readonly movedCodeBlockPadding = 4;
