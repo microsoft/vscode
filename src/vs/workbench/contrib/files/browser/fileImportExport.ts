@@ -715,7 +715,7 @@ export class FileDownload {
 				reject(canceled());
 			}));
 
-			disposables.add(listenStream(sourceStream, {
+			listenStream(sourceStream, {
 				onData: data => {
 					target.write(data.buffer);
 					this.reportProgress(contents.name, contents.size, data.byteLength, operation);
@@ -728,7 +728,7 @@ export class FileDownload {
 					disposables.dispose();
 					resolve();
 				}
-			}));
+			}, token);
 		});
 	}
 
