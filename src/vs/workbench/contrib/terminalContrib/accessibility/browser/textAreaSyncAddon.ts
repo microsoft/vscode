@@ -19,6 +19,9 @@ export interface ITextAreaData {
 export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 	private _terminal: Terminal | undefined;
 	private _listeners = this._register(new MutableDisposable<DisposableStore>());
+	private _currentCommand: string | undefined;
+	private _cursorX: number | undefined;
+
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
 		if (this._accessibilityService.isScreenReaderOptimized()) {
@@ -34,7 +37,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		super();
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
 			if (this._accessibilityService.isScreenReaderOptimized()) {
-				this._refreshTextArea();
+				this._syncTextArea();
 				this._setListeners();
 			} else {
 				this._listeners.clear();
@@ -45,78 +48,66 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 	private _setListeners(): void {
 		if (this._accessibilityService.isScreenReaderOptimized() && this._terminal?.textarea) {
 			this._listeners.value = new DisposableStore();
-			this._listeners.value.add(this._terminal.onCursorMove(() => this._refreshTextArea()));
-			this._listeners.value.add(addDisposableListener(this._terminal.textarea, 'focus', () => this._refreshTextArea()));
-			this._listeners.value.add(this._terminal.onData((e) => this._refreshTextArea()));
+			this._listeners.value.add(this._terminal.onCursorMove(() => this._syncTextArea()));
+			this._listeners.value.add(addDisposableListener(this._terminal.textarea, 'focus', () => this._syncTextArea()));
+			this._listeners.value.add(this._terminal.onData((e) => this._syncTextArea()));
 		}
 	}
 
 	@debounce(50)
-	private _refreshTextArea(): void {
-		if (!this._terminal) {
-			return;
-		}
+	private _syncTextArea(): void {
 		this._logService.debug('TextAreaSyncAddon#refreshTextArea');
-		const commandCapability = this._capabilities.get(TerminalCapability.CommandDetection);
-		const currentCommand = commandCapability?.currentCommand;
-		if (!currentCommand) {
-			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no currentCommand`);
-			return;
-		}
-		const buffer = this._terminal.buffer.active;
-		const line = buffer.getLine(buffer.cursorY)?.translateToString(true);
-		let commandStartX: number | undefined;
-		if (!line) {
-			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no line`);
-			return;
-		}
-		let content: string | undefined;
-		if (currentCommand.commandStartX !== undefined) {
-			// Left prompt
-			content = line.substring(currentCommand.commandStartX);
-			commandStartX = currentCommand.commandStartX;
-		} else if (currentCommand.commandRightPromptStartX !== undefined) {
-			// Right prompt
-			content = line.substring(0, currentCommand.commandRightPromptStartX);
-			commandStartX = 0;
-		} else {
-			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no commandStartX or commandRightPromptStartX`);
-		}
-
-		if (!content) {
-			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no content`);
-			const textArea = this._terminal.textarea;
-			if (textArea) {
-				textArea.value = '';
-			}
-			return;
-		}
-
-		if (commandStartX === undefined) {
-			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no commandStartX`);
-			return;
-		}
-
-		const textArea = this._terminal.textarea;
+		const textArea = this._terminal?.textarea;
 		if (!textArea) {
 			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no textarea`);
 			return;
 		}
 
-		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: content is "${content}"`);
-		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: textContent is "${textArea.textContent}"`);
-		if (content !== textArea.textContent) {
-			textArea.value = content;
-			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: textContent changed to "${content}"`);
+		this._updateCommandAndCursor();
+
+		if (this._currentCommand !== textArea.value) {
+			textArea.value = this._currentCommand || '';
+			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: text changed to "${this._currentCommand}"`);
+		} else if (!this._currentCommand) {
+			textArea.value = '';
+			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: text cleared`);
 		}
 
-		const cursorX = buffer.cursorX - commandStartX;
-		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: cursorX is ${cursorX}`);
-		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: selectionStart is ${textArea.selectionStart}`);
-		if (cursorX !== textArea.selectionStart) {
-			textArea.selectionStart = cursorX;
-			textArea.selectionEnd = cursorX;
-			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: selectionStart changed to ${cursorX}`);
+		if (this._cursorX !== textArea.selectionStart) {
+			textArea.selectionStart = this._cursorX ?? 0;
+			textArea.selectionEnd = this._cursorX ?? 0;
+			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: selection start/end changed to ${this._cursorX}`);
+		}
+	}
+
+	private _updateCommandAndCursor(): void {
+		if (!this._terminal) {
+			return;
+		}
+		const commandCapability = this._capabilities.get(TerminalCapability.CommandDetection);
+		const currentCommand = commandCapability?.currentCommand;
+		if (!currentCommand) {
+			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no current command`);
+			return;
+		}
+		const buffer = this._terminal.buffer.active;
+		const line = buffer.getLine(buffer.cursorY)?.translateToString(true);
+		if (!line) {
+			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no line`);
+			return;
+		}
+		if (currentCommand.commandStartX !== undefined) {
+			// Left prompt
+			this._currentCommand = line.substring(currentCommand.commandStartX);
+			this._cursorX = buffer.cursorX - currentCommand.commandStartX;
+		} else if (currentCommand.commandRightPromptStartX !== undefined) {
+			// Right prompt
+			this._currentCommand = line.substring(0, currentCommand.commandRightPromptStartX);
+			this._cursorX = buffer.cursorX;
+		} else {
+			this._currentCommand = undefined;
+			this._cursorX = undefined;
+			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: neither commandStartX nor commandRightPromptStartX`);
 		}
 	}
 }
