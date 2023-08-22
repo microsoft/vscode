@@ -48,6 +48,14 @@ export class OffsetRange {
 		return new OffsetRange(this.start + offset, this.endExclusive + offset);
 	}
 
+	public deltaStart(offset: number): OffsetRange {
+		return new OffsetRange(this.start + offset, this.endExclusive);
+	}
+
+	public deltaEnd(offset: number): OffsetRange {
+		return new OffsetRange(this.start, this.endExclusive + offset);
+	}
+
 	public get length(): number {
 		return this.endExclusive - this.start;
 	}
@@ -89,6 +97,10 @@ export class OffsetRange {
 			return new OffsetRange(start, end);
 		}
 		return undefined;
+	}
+
+	public slice<T>(arr: T[]): T[] {
+		return arr.slice(this.start, this.endExclusive);
 	}
 }
 

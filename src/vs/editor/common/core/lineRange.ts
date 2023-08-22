@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Range } from 'vs/editor/common/core/range';
 
 /**
@@ -238,6 +239,13 @@ export class LineRange {
 
 	public includes(lineNumber: number): boolean {
 		return this.startLineNumber <= lineNumber && lineNumber < this.endLineNumberExclusive;
+	}
+
+	/**
+	 * Converts this 1-based line range to a 0-based offset range (subtracts 1!).
+	 */
+	public toOffsetRange(): OffsetRange {
+		return new OffsetRange(this.startLineNumber - 1, this.endLineNumberExclusive - 1);
 	}
 }
 
