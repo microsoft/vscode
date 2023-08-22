@@ -92,6 +92,10 @@ export class NotebookStickyScroll extends Disposable {
 		return this.currentStickyLines.size * 22;
 	}
 
+	private setCurrentStickyLines(newStickyLines: Map<OutlineEntry, NotebookStickyLine>) {
+		this.currentStickyLines = newStickyLines;
+	}
+
 	constructor(
 		private readonly domNode: HTMLElement,
 		private readonly notebookEditor: INotebookEditor,
@@ -153,7 +157,9 @@ export class NotebookStickyScroll extends Disposable {
 		this.initializeContent();
 
 		this._disposables.add(this.notebookOutline.onDidChange(() => {
-			this.updateContent();
+			DOM.clearNode(this.domNode);
+			this.disposeCurrentStickyLines();
+			this.updateContent(computeContent(this.domNode, this.notebookEditor, this.notebookCellList, this.notebookOutline.entries));
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidAttachViewModel(() => {
@@ -162,18 +168,20 @@ export class NotebookStickyScroll extends Disposable {
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidScroll(() => {
-			this.updateContent();
+			DOM.clearNode(this.domNode);
+			this.disposeCurrentStickyLines();
+			this.updateContent(computeContent(this.domNode, this.notebookEditor, this.notebookCellList, this.notebookOutline.entries));
 		}));
 	}
 
-	private getVisibleOutlineEntry(visibleIndex: number): OutlineEntry | undefined {
+	static getVisibleOutlineEntry(visibleIndex: number, notebookOutlineEntries: OutlineEntry[]): OutlineEntry | undefined {
 		let left = 0;
-		let right = this.notebookOutline.entries.length - 1;
+		let right = notebookOutlineEntries.length - 1;
 		let bucket = -1;
 
 		while (left <= right) {
 			const mid = Math.floor((left + right) / 2);
-			if (this.notebookOutline.entries[mid].index < visibleIndex) {
+			if (notebookOutlineEntries[mid].index < visibleIndex) {
 				bucket = mid;
 				left = mid + 1;
 			} else {
@@ -182,7 +190,7 @@ export class NotebookStickyScroll extends Disposable {
 		}
 
 		if (bucket !== -1) {
-			const rootEntry = this.notebookOutline.entries[bucket];
+			const rootEntry = notebookOutlineEntries[bucket];
 			const flatList: OutlineEntry[] = [];
 			rootEntry.asFlatList(flatList);
 			return flatList.find(entry => entry.index === visibleIndex);
@@ -206,7 +214,7 @@ export class NotebookStickyScroll extends Disposable {
 		for (let i = visibleRange.start; i < visibleRange.end; i++) {
 			if (i === 0) { // don't show headers when you're viewing the top cell
 				this.updateDisplay();
-				this.currentStickyLines = new Map();
+				this.setCurrentStickyLines(new Map());
 				return;
 			}
 			const cell = this.notebookEditor.cellAt(i);
@@ -226,12 +234,12 @@ export class NotebookStickyScroll extends Disposable {
 					// store the bottom scroll position of this cell
 					sectionBottom = this.notebookCellList.getCellViewScrollBottom(cell);
 					// compute sticky scroll height
-					const entry = this.getVisibleOutlineEntry(i);
+					const entry = NotebookStickyScroll.getVisibleOutlineEntry(i, this.notebookOutline.entries);
 					if (!entry) {
 						return;
 					}
 					// using 22 instead of stickyscrollheight, as we don't necessarily render each line. 22 starts rendering sticky when we have space for at least 1 of them
-					const newStickyHeight = this.computeStickyHeight(entry!);
+					const newStickyHeight = NotebookStickyScroll.computeStickyHeight(entry!);
 					if (editorScrollTop + newStickyHeight < sectionBottom) {
 						trackedEntry = entry;
 						break;
@@ -243,7 +251,7 @@ export class NotebookStickyScroll extends Disposable {
 			} else {
 				// there is no next cell, so use the bottom of the editor as the sectionBottom, using scrolltop + height
 				sectionBottom = this.notebookEditor.scrollTop + this.notebookEditor.getLayoutInfo().scrollHeight;
-				trackedEntry = this.getVisibleOutlineEntry(i);
+				trackedEntry = NotebookStickyScroll.getVisibleOutlineEntry(i, this.notebookOutline.entries);
 				break;
 			}
 		} // cell loop close
@@ -254,129 +262,16 @@ export class NotebookStickyScroll extends Disposable {
 
 		const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
 		let newMap: Map<OutlineEntry, NotebookStickyLine> | undefined = new Map();
-		newMap = this.renderStickyLines(trackedEntry?.parent, this.domNode, linesToRender, newMap);
+		newMap = NotebookStickyScroll.renderStickyLines(trackedEntry?.parent, this.domNode, linesToRender, newMap, this.notebookEditor);
 		if (!newMap) {
 			newMap = new Map();
 		}
-		this.currentStickyLines = newMap;
+		this.setCurrentStickyLines(newMap);
 		this.updateDisplay();
 	}
 
-
-	private updateContent() {
-		// find first code cell in visible range. this marks the start of the first section
-		// find the last code cell in the first section of the visible range, store the bottom scroll position in a const sectionBottom
-		// compute sticky scroll height, and check if editorScrolltop + stickyScrollHeight < sectionBottom
-		// if that condition is true, break out of the loop with that cell as the tracked cell
-		// if that condition is false, continue to next cell
-
-		DOM.clearNode(this.domNode);
-		// iterate over current map and dispose each notebookstickyline
-		this.currentStickyLines.forEach((value) => {
-			value.dispose();
-		});
-
-		const editorScrollTop = this.notebookEditor.scrollTop;
-
-		// find last code cell of section, store bottom scroll position in sectionBottom
-		const visibleRange = this.notebookEditor.visibleRanges[0];
-		if (!visibleRange) {
-			this.updateDisplay();
-			this.currentStickyLines = new Map();
-			return;
-		}
-
-		let trackedEntry = undefined;
-		let sectionBottom = 0;
-		for (let i = visibleRange.start; i < visibleRange.end; i++) {
-			if (i === 0) { // don't show headers when you're viewing the top cell
-				this.updateDisplay();
-				this.currentStickyLines = new Map();
-				return;
-			}
-			const cell = this.notebookEditor.cellAt(i);
-			if (!cell) {
-				return;
-			}
-			if (cell.cellKind === CellKind.Markup) {
-				continue;
-			}
-
-			// if we are here, the cell is a code cell.
-			// check next cell, if markdown, that means this is the end of the section
-			const nextVisibleCell = this.notebookEditor.cellAt(i + 1);
-			if (nextVisibleCell && i + 1 < visibleRange.end) {
-				if (nextVisibleCell.cellKind === CellKind.Markup) {
-					// this is the end of the section
-					// store the bottom scroll position of this cell
-					sectionBottom = this.notebookCellList.getCellViewScrollBottom(cell);
-					// compute sticky scroll height
-					const entry = this.getVisibleOutlineEntry(i);
-					if (!entry) {
-						return;
-					}
-					// check if we can render this section of sticky
-					const currentSectionStickyHeight = this.computeStickyHeight(entry!);
-					if (editorScrollTop + currentSectionStickyHeight < sectionBottom) {
-						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
-						let newMap: Map<OutlineEntry, NotebookStickyLine> | undefined = new Map();
-						newMap = this.renderStickyLines(entry?.parent, this.domNode, linesToRender, newMap);
-						if (!newMap) {
-							newMap = new Map();
-						}
-						this.currentStickyLines = newMap;
-						break;
-					}
-
-					let nextSectionEntry = undefined;
-					for (let j = 1; j < visibleRange.end - i; j++) {
-						// find next code cell after this one
-						const cellCheck = this.notebookEditor.cellAt(i + j);
-						if (cellCheck && cellCheck.cellKind === CellKind.Code) {
-							nextSectionEntry = this.getVisibleOutlineEntry(i + j);
-							break;
-						}
-					}
-					const nextSectionStickyHeight = this.computeStickyHeight(nextSectionEntry!);
-
-					// this block of logic cleans transitions between two sections that share a parent.
-					// if the current section and the next section share a parent, then we can render the next section's sticky lines to avoid pop-in between
-					if (entry?.parent?.parent === nextSectionEntry?.parent) {
-						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 1;
-						let newMap: Map<OutlineEntry, NotebookStickyLine> | undefined = new Map();
-						newMap = this.renderStickyLines(nextSectionEntry?.parent, this.domNode, linesToRender, newMap);
-						if (!newMap) {
-							newMap = new Map();
-						}
-						this.currentStickyLines = newMap;
-						break;
-					} else if (Math.abs(currentSectionStickyHeight - nextSectionStickyHeight) > 22) { // only shrink sticky
-						const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
-						let newMap: Map<OutlineEntry, NotebookStickyLine> | undefined = new Map();
-						newMap = this.renderStickyLines(entry?.parent, this.domNode, linesToRender, newMap);
-						if (!newMap) {
-							newMap = new Map();
-						}
-						this.currentStickyLines = newMap;
-						break;
-					}
-				}
-			} else {
-				// there is no next cell, so use the bottom of the editor as the sectionBottom, using scrolltop + height
-				sectionBottom = this.notebookEditor.scrollTop + this.notebookEditor.getLayoutInfo().scrollHeight;
-				trackedEntry = this.getVisibleOutlineEntry(i);
-				const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
-
-				let newMap: Map<OutlineEntry, NotebookStickyLine> | undefined = new Map();
-				newMap = this.renderStickyLines(trackedEntry?.parent, this.domNode, linesToRender, newMap);
-				if (!newMap) {
-					newMap = new Map();
-				}
-				this.currentStickyLines = newMap;
-
-				break;
-			}
-		} // cell loop close
+	private updateContent(newMap: Map<OutlineEntry, NotebookStickyLine>) {
+		this.setCurrentStickyLines(newMap);
 		this.updateDisplay();
 	}
 
@@ -390,7 +285,7 @@ export class NotebookStickyScroll extends Disposable {
 		this.setTop();
 	}
 
-	private computeStickyHeight(entry: OutlineEntry) {
+	static computeStickyHeight(entry: OutlineEntry) {
 		let height = 0;
 		while (entry.parent) {
 			height += 22;
@@ -399,18 +294,18 @@ export class NotebookStickyScroll extends Disposable {
 		return height;
 	}
 
-	private renderStickyLines(entry: OutlineEntry | undefined, containerElement: HTMLElement, numLinesToRender: number, newMap: Map<OutlineEntry, NotebookStickyLine>) {
+	static renderStickyLines(entry: OutlineEntry | undefined, containerElement: HTMLElement, numLinesToRender: number, newMap: Map<OutlineEntry, NotebookStickyLine>, notebookEditor: INotebookEditor) {
 		const partial = false;
 		let currentEntry = entry;
 
 		const elementsToRender = [];
 		while (currentEntry) {
 			if (currentEntry.level === 7) {
-				// level 7 represents a comment in python, which we don't want to render
+				// level 7 represents a non-header entry, which we don't want to render
 				currentEntry = currentEntry.parent;
 				continue;
 			}
-			const lineToRender = this.createStickyElement(currentEntry, partial);
+			const lineToRender = NotebookStickyScroll.createStickyElement(currentEntry, partial, notebookEditor);
 			newMap.set(currentEntry, lineToRender);
 			elementsToRender.unshift(lineToRender);
 			currentEntry = currentEntry.parent;
@@ -429,27 +324,133 @@ export class NotebookStickyScroll extends Disposable {
 		return newMap;
 	}
 
-	private createStickyElement(entry: OutlineEntry, partial: boolean) {
+	static createStickyElement(entry: OutlineEntry, partial: boolean, notebookEditor: INotebookEditor) {
 		const stickyElement = document.createElement('div');
 		stickyElement.classList.add('notebook-sticky-scroll-line');
 		stickyElement.innerText = '#'.repeat(entry.level) + ' ' + entry.label;
 
-		// todo: partial line rendering for animater
-		if (partial) {
-			// const partialHeight = Math.floor(remainder * 22);
-			// stickyLine.style.height = `${partialHeight}px`;
-		}
+		// todo: partial line rendering for animation
+		// if (partial) {
+		// 	const partialHeight = Math.floor(remainder * 22);
+		// 	stickyLine.style.height = `${partialHeight}px`;
+		// }
 
-		return new NotebookStickyLine(stickyElement, entry, this.notebookEditor);
+		return new NotebookStickyLine(stickyElement, entry, notebookEditor);
+	}
+
+	private disposeCurrentStickyLines() {
+		this.currentStickyLines.forEach((value) => {
+			value.dispose();
+		});
 	}
 
 	override dispose() {
 		this._disposables.dispose();
-		this.currentStickyLines.forEach((value) => {
-			value.dispose();
-		});
+		this.disposeCurrentStickyLines();
 		super.dispose();
 	}
+}
+
+export function computeContent(domNode: HTMLElement, notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[]): Map<OutlineEntry, NotebookStickyLine> {
+	// find first code cell in visible range. this marks the start of the first section
+	// find the last code cell in the first section of the visible range, store the bottom scroll position in a const sectionBottom
+	// compute sticky scroll height, and check if editorScrolltop + stickyScrollHeight < sectionBottom
+	// if that condition is true, break out of the loop with that cell as the tracked cell
+	// if that condition is false, continue to next cell
+
+	const editorScrollTop = notebookEditor.scrollTop;
+
+	// find last code cell of section, store bottom scroll position in sectionBottom
+	const visibleRange = notebookEditor.visibleRanges[0];
+	if (!visibleRange) {
+		return new Map();
+	}
+
+	let trackedEntry = undefined;
+	let sectionBottom = 0;
+	for (let i = visibleRange.start; i < visibleRange.end; i++) {
+		if (i === 0) { // don't show headers when you're viewing the top cell
+			return new Map();
+		}
+		const cell = notebookEditor.cellAt(i);
+		if (!cell) {
+			return new Map();
+		}
+		if (cell.cellKind === CellKind.Markup) {
+			continue;
+		}
+
+		// if we are here, the cell is a code cell.
+		// check next cell, if markdown, that means this is the end of the section
+		const nextVisibleCell = notebookEditor.cellAt(i + 1);
+		if (nextVisibleCell && i + 1 < visibleRange.end) {
+			if (nextVisibleCell.cellKind === CellKind.Markup) {
+				// this is the end of the section
+				// store the bottom scroll position of this cell
+				sectionBottom = notebookCellList.getCellViewScrollBottom(cell);
+				// compute sticky scroll height
+				const entry = NotebookStickyScroll.getVisibleOutlineEntry(i, notebookOutlineEntries);
+				if (!entry) {
+					return new Map();
+				}
+				// check if we can render this section of sticky
+				const currentSectionStickyHeight = NotebookStickyScroll.computeStickyHeight(entry!);
+				if (editorScrollTop + currentSectionStickyHeight < sectionBottom) {
+					const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
+					let newMap: Map<OutlineEntry, NotebookStickyLine> | undefined = new Map();
+					newMap = NotebookStickyScroll.renderStickyLines(entry?.parent, domNode, linesToRender, newMap, notebookEditor);
+					if (!newMap) {
+						newMap = new Map();
+					}
+					return newMap;
+				}
+
+				let nextSectionEntry = undefined;
+				for (let j = 1; j < visibleRange.end - i; j++) {
+					// find next code cell after this one
+					const cellCheck = notebookEditor.cellAt(i + j);
+					if (cellCheck && cellCheck.cellKind === CellKind.Code) {
+						nextSectionEntry = NotebookStickyScroll.getVisibleOutlineEntry(i + j, notebookOutlineEntries);
+						break;
+					}
+				}
+				const nextSectionStickyHeight = NotebookStickyScroll.computeStickyHeight(nextSectionEntry!);
+
+				// this block of logic cleans transitions between two sections that share a parent.
+				// if the current section and the next section share a parent, then we can render the next section's sticky lines to avoid pop-in between
+				if (entry?.parent?.parent === nextSectionEntry?.parent) {
+					const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 1;
+					let newMap: Map<OutlineEntry, NotebookStickyLine> | undefined = new Map();
+					newMap = NotebookStickyScroll.renderStickyLines(nextSectionEntry?.parent, domNode, linesToRender, newMap, notebookEditor);
+					if (!newMap) {
+						newMap = new Map();
+					}
+					return newMap;
+				} else if (Math.abs(currentSectionStickyHeight - nextSectionStickyHeight) > 22) { // only shrink sticky
+					const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
+					let newMap: Map<OutlineEntry, NotebookStickyLine> | undefined = new Map();
+					newMap = NotebookStickyScroll.renderStickyLines(entry?.parent, domNode, linesToRender, newMap, notebookEditor);
+					if (!newMap) {
+						newMap = new Map();
+					}
+					return newMap;
+				}
+			}
+		} else {
+			// there is no next cell, so use the bottom of the editor as the sectionBottom, using scrolltop + height
+			sectionBottom = notebookEditor.scrollTop + notebookEditor.getLayoutInfo().scrollHeight;
+			trackedEntry = NotebookStickyScroll.getVisibleOutlineEntry(i, notebookOutlineEntries);
+			const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
+
+			let newMap: Map<OutlineEntry, NotebookStickyLine> | undefined = new Map();
+			newMap = NotebookStickyScroll.renderStickyLines(trackedEntry?.parent, domNode, linesToRender, newMap, notebookEditor);
+			if (!newMap) {
+				newMap = new Map();
+			}
+			return newMap;
+		}
+	} // for cell loop close
+	return new Map();
 }
 
 registerAction2(ToggleNotebookStickyScroll);
