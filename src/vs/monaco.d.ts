@@ -2460,6 +2460,7 @@ declare namespace monaco.editor {
 		 * Moves this line range by the given offset of line numbers.
 		 */
 		delta(offset: number): LineRange;
+		deltaLength(offset: number): LineRange;
 		/**
 		 * The number of lines this line range spans.
 		 */

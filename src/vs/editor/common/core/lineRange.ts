@@ -154,6 +154,10 @@ export class LineRange {
 		return new LineRange(this.startLineNumber + offset, this.endLineNumberExclusive + offset);
 	}
 
+	public deltaLength(offset: number): LineRange {
+		return new LineRange(this.startLineNumber, this.endLineNumberExclusive + offset);
+	}
+
 	/**
 	 * The number of lines this line range spans.
 	 */
