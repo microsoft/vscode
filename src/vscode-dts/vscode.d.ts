@@ -11449,7 +11449,7 @@ declare module 'vscode' {
 
 	export type EnvironmentVariableScope = {
 		/**
-		 * Any specific workspace folder to get collection for. If unspecified, collection applicable to all workspace folders is returned.
+		 * Any specific workspace folder to get collection for.
 		 */
 		workspaceFolder?: WorkspaceFolder;
 	};
