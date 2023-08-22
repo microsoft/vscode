@@ -43,7 +43,6 @@
 
 .monaco-editor .sticky-line-number .codicon:hover {
 	opacity: 1;
-	transition : opacity 250ms linear;
 	cursor: pointer;
 }
 

@@ -282,10 +282,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			const topOfStartLine = this._editor.getTopForLineNumber(startLineNumber) - lineHeight * index + 1;
 			const topOfEndLine = this._editor.getTopForLineNumber(endLineNumber) - lineHeight * index + 1;
 			this._editor.setScrollTop(isRegionCollapsed ? topOfStartLine : topOfEndLine);
-			const editorDomNode = this._editor.getDomNode();
-			if (editorDomNode) {
-				editorDomNode.style.cursor = 'pointer';
-			}
 		}));
 	}
 
