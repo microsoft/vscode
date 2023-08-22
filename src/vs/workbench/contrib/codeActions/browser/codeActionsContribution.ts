@@ -22,7 +22,7 @@ const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
 		type: 'string',
 		enum: ['always', 'never', 'explicit'],
 		enumDescriptions: ['Always triggers Code Actions on save', 'Never triggers Code Actions on save', 'Triggers Code Actions only when explicitly saved'],
-		default: 'always',
+		default: 'explicit',
 		description: nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")
 	},
 });
@@ -84,7 +84,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 				type: 'string',
 				enum: ['always', 'never', 'explicit'],
 				enumDescriptions: ['Always triggers Code Actions on save', 'Never triggers Code Actions on save', 'Triggers Code Actions only when explicitly saved'],
-				default: 'never',
+				default: 'explicit',
 				description: nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title)
 			};
 		}
