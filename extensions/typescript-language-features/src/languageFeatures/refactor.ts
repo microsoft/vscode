@@ -355,6 +355,7 @@ class InlinedCodeAction extends vscode.CodeAction {
 		public readonly refactor: Proto.ApplicableRefactorInfo,
 		public readonly action: Proto.RefactorActionInfo,
 		public readonly range: vscode.Range,
+		public readonly bonus?: vscode.Command,
 	) {
 		super(action.description, InlinedCodeAction.getKind(action));
 
@@ -399,6 +400,7 @@ class InlinedCodeAction extends vscode.CodeAction {
 					command: CompositeCommand.ID,
 					title: '',
 					arguments: coalesce([
+						this.bonus, // TODO: This should actually go second. Maybe?
 						this.command,
 						{
 							command: 'editor.action.rename',
@@ -406,7 +408,7 @@ class InlinedCodeAction extends vscode.CodeAction {
 								this.document.uri,
 								typeConverters.Position.fromLocation(response.body.renameLocation)
 							]]
-						}
+						},
 					])
 				};
 			}
@@ -456,8 +458,104 @@ class SelectCodeAction extends vscode.CodeAction {
 		};
 	}
 }
+class InferTypesAction extends vscode.CodeAction {
+	constructor(
+		document: vscode.TextDocument,
+		rangeOrSelection: vscode.Range | vscode.Selection
+	) {
+		const title = "Copilot REFACTOR: Infer and add types"
+		super(title, vscode.CodeActionKind.Refactor);
+		this.command = {
+			title,
+			command: EditorChatReplacementCommand.ID,
+			arguments: [<EditorChatReplacementCommand.Args>{ message: 'Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.', document, rangeOrSelection }]
+		};
+	}
+}
+class EditorChatReplacementCommand implements Command {
+	public static readonly ID = "_typescript.quickFix.editorChatReplacement";
+	public readonly id = EditorChatReplacementCommand.ID;
+	constructor(
+		private readonly client: ITypeScriptServiceClient,
+	) {
+	}
+	async execute({ message, document, rangeOrSelection }: EditorChatReplacementCommand.Args) {
+		// TODO: "this code" is not specific; might get better results with a more specific referent
+		// TODO: Doesn't work in JS files? Is this the span-finder's fault? Try falling back to startLine plus something.
+		// TODO: Need to emit jsdoc in JS files once it's working at all
+		// TODO: When there are "enough" types around, leave off the "Add separate interfaces when possible" because it's not helpful.
+		//       (brainstorming: enough non-primitives, or evidence of type aliases in the same file, or imported)
+		await editorChat(this.client, document, rangeOrSelection.start.line, message)
+	}
+}
+namespace EditorChatReplacementCommand {
+	export interface Args {
+		readonly message: string;
+		readonly document: vscode.TextDocument;
+		readonly rangeOrSelection: vscode.Range | vscode.Selection;
+	}
+}
+function findScopeEndLineFromNavTree(startLine: number, navigationTree: Proto.NavigationTree[]): vscode.Range | undefined {
+	for (const node of navigationTree) {
+		const range = typeConverters.Range.fromTextSpan(node.spans[0]);
+		if (startLine === range.start.line) {
+			return range;
+		} else if (startLine > range.start.line && startLine <= range.end.line && node.childItems) {
+			return findScopeEndLineFromNavTree(startLine, node.childItems);
+		}
+	}
+	return undefined;
+}
+async function editorChat(client: ITypeScriptServiceClient, document: vscode.TextDocument, startLine: number, message: string) {
+		const filepath = client.toOpenTsFilePath(document);
+		if (!filepath) {
+			return;
+		}
+		const response = await client.execute('navtree', { file: filepath }, nulToken);
+		if (response.type !== 'response' || !response.body?.childItems) {
+			return;
+		}
+		const initialRange = findScopeEndLineFromNavTree(startLine, response.body.childItems);
+		if (!initialRange) {
+			return;
+		}
 
-type TsCodeAction = InlinedCodeAction | MoveToFileCodeAction | SelectCodeAction;
+		await vscode.commands.executeCommand('vscode.editorChat.start', { initialRange, message, autoSend: true });
+}
+namespace ChatPanelFollowup {
+	export interface Args {
+		readonly prompt: string;
+		readonly document: vscode.TextDocument;
+		readonly range: vscode.Range;
+	}
+}
+class ChatPanelFollowup implements Command {
+	public readonly id = ChatPanelFollowup.ID;
+	public static readonly ID: string = '_typescript.refactor.chatPanelFollowUp';
+
+	constructor(private readonly client: ITypeScriptServiceClient) {
+	}
+
+	async execute({prompt, document, range }: ChatPanelFollowup.Args) {
+		const filepath = this.client.toOpenTsFilePath(document);
+		if (!filepath) {
+			return;
+		}
+		const response = await this.client.execute('navtree', { file: filepath }, nulToken);
+		if (response.type !== 'response' || !response.body?.childItems) {
+			return;
+		}
+		const startLine = range.start.line;
+		const enclosingRange = findScopeEndLineFromNavTree(startLine, response.body.childItems);
+		if (!enclosingRange) {
+			return;
+		}
+		console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+		vscode.interactive.sendInteractiveRequestToProvider('copilot', { message: prompt, autoSend: true, initialRange: enclosingRange } as any)
+	}
+}
+
+type TsCodeAction = InlinedCodeAction | MoveToFileCodeAction | SelectCodeAction | InferTypesAction;
 
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeAction> {
 
@@ -471,6 +569,8 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		commandManager.register(new CompositeCommand());
 		commandManager.register(new SelectRefactorCommand(this.client));
 		commandManager.register(new MoveToFileRefactorCommand(this.client, didApplyRefactoringCommand));
+		commandManager.register(new EditorChatReplacementCommand(this.client));
+		commandManager.register(new ChatPanelFollowup(this.client));
 	}
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
@@ -569,6 +669,9 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				}
 			}
 		}
+		if (true) {
+			yield new InferTypesAction(document, rangeOrSelection)
+		}
 	}
 
 	private refactorActionToCodeAction(
@@ -582,7 +685,21 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		if (action.name === 'Move to file') {
 			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
 		} else {
-			codeAction = new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection);
+			const aiQuickFixEnabled = vscode.workspace.getConfiguration('typescript', null).get('experimental.aiQuickFix');
+			let bonus: vscode.Command | undefined
+			if (aiQuickFixEnabled && action.name.startsWith("constant_")) {
+				// if (aiQuickFixEnabled) { console.log(action.name.startsWith("Extract"), action.name) } // constant_scope_0
+				// TODO: Swap this for a reference command like in quickfix
+				bonus = {
+					command: ChatPanelFollowup.ID,
+					arguments: [<ChatPanelFollowup.Args>{
+						prompt: 'Suggest 5 names for this code that sound kind of like Pokemon.',
+						range: rangeOrSelection,
+						document }],
+					title: ''
+				}
+			}
+			codeAction = new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, bonus);
 		}
 
 		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action, allActions);
