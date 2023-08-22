@@ -403,7 +403,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const currentResponseData = element.response.value;
 			element.renderData ??= { renderedParts: [] };
 			const renderedParts = element.renderData.renderedParts;
-			const wordCountResults: (IWordCountResult & { isPlaceholder: boolean })[] = [];
+			const wordCountResults: IWordCountResult[] = [];
 			const partsToRender: IChatResponseRenderData['renderedParts'] = [];
 
 			currentResponseData.forEach((part, index) => {
@@ -420,7 +420,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 								lastRenderTime: Date.now(),
 								isFullyRendered: wordCountResult.isFullString,
 							};
-							wordCountResults[index] = { ...wordCountResult, isPlaceholder: isPlaceholderMarkdown(part) };
+							wordCountResults[index] = wordCountResult;
 						}
 					}
 				}
@@ -439,7 +439,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							lastRenderTime: Date.now(),
 							isFullyRendered: wordCountResult.isFullString,
 						};
-						wordCountResults[index] = { ...wordCountResult, isPlaceholder: isPlaceholderMarkdown(part) };
+						wordCountResults[index] = wordCountResult;
 					}
 				}
 			});
@@ -466,7 +466,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
 					else if (!hasRenderedOneMarkdownBlock) {
-						const { value, isPlaceholder } = wordCountResults[index];
+						const { value } = wordCountResults[index];
+						const isPlaceholder = isPlaceholderMarkdown(currentResponseData[index]);
 						result = isPlaceholder
 							? this.renderPlaceholder(new MarkdownString(value), templateData)
 							: this.renderMarkdown(new MarkdownString(value), element, disposables, templateData, true);
@@ -1202,6 +1203,6 @@ function isInteractiveProgressTreeData(item: IChatResponseProgressFileTreeData |
 	return 'label' in item;
 }
 
-function isPlaceholderMarkdown(item: IPlaceholderMarkdownString | IMarkdownString): item is IPlaceholderMarkdownString {
+function isPlaceholderMarkdown(item: IPlaceholderMarkdownString | IMarkdownString | IChatResponseProgressFileTreeData): item is IPlaceholderMarkdownString {
 	return 'isPlaceholder' in item;
 }
