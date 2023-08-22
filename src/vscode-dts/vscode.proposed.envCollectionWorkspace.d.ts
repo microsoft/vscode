@@ -25,6 +25,10 @@ declare module 'vscode' {
 		 * including the global collection.
 		 *
 		 * @param scope The scope to which the environment variable collection applies to.
+		 *
+		 * If a scope parameter is omitted, collection applicable to all relevant scopes for that parameter is
+		 * returned. For instance, if the 'workspaceFolder' parameter is not specified, the collection that applies
+		 * across all workspace folders will be returned.
 		 */
 		getScoped(scope: EnvironmentVariableScope): EnvironmentVariableCollection;
 	}
