@@ -153,6 +153,9 @@ export interface IStatusbarStyleOverride {
 	readonly border?: ColorIdentifier;
 }
 
+export type StatusbarEntryKind = 'standard' | 'warning' | 'error' | 'prominent' | 'remote' | 'offline';
+export const StatusbarEntryKinds: StatusbarEntryKind[] = ['standard', 'warning', 'error', 'prominent', 'remote', 'offline'];
+
 /**
  * A declarative way of describing a status bar entry
  */
@@ -215,6 +218,11 @@ export interface IStatusbarEntry {
 	 * specified, `syncing` will be used.
 	 */
 	readonly showProgress?: boolean | 'syncing' | 'loading';
+
+	/**
+	 * The kind of status bar entry. This applies different colors to the entry.
+	 */
+	readonly kind?: StatusbarEntryKind;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {
