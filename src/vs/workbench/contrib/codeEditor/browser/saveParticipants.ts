@@ -284,14 +284,14 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 
 		const textEditorModel = model.textEditorModel;
 		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: model.resource };
-		const setting = this.configurationService.getValue<{ [kind: string]: Object } | string[]>('editor.codeActionsOnSave', settingsOverrides);
+		const setting = this.configurationService.getValue<{ [kind: string]: string } | string[]>('editor.codeActionsOnSave', settingsOverrides);
 		if (!setting) {
 			return undefined;
 		}
 
 		const settingItems: string[] = Array.isArray(setting)
 			? setting
-			: Object.keys(setting).filter(x => Object.values(setting[x])[0]);
+			: Object.keys(setting).filter(x => setting[x]);
 
 		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems);
 
@@ -317,11 +317,29 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		const excludedActions = Array.isArray(setting)
 			? []
 			: Object.keys(setting)
-				.filter(x => Object.values(setting[x])[0] === false)
+				.filter(x => setting[x] === 'never')
 				.map(x => new CodeActionKind(x));
 
+		const explicitActions = Array.isArray(setting)
+			? []
+			: Object.keys(setting)
+				.filter(x => setting[x] === 'explicit')
+				.map(x => new CodeActionKind(x));
+
+
 		progress.report({ message: localize('codeaction', "Quick Fixes") });
-		await this.applyOnSaveActions(textEditorModel, codeActionsOnSave, excludedActions, progress, token);
+
+		let filteredSaveList = codeActionsOnSave.filter(item => !excludedActions.some(matchKind => this.areCodeActionKindsEqual(item, matchKind)));
+
+		if (env.reason !== SaveReason.EXPLICIT) {
+			filteredSaveList = codeActionsOnSave.filter(item => !explicitActions.some(matchKind => this.areCodeActionKindsEqual(item, matchKind)));
+		}
+
+		await this.applyOnSaveActions(textEditorModel, filteredSaveList, excludedActions, progress, token);
+	}
+
+	private areCodeActionKindsEqual(obj1: CodeActionKind, obj2: CodeActionKind): boolean {
+		return obj1.value === obj2.value;
 	}
 
 	private createCodeActionsOnSave(settingItems: readonly string[]): CodeActionKind[] {
