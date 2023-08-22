@@ -28,7 +28,7 @@ declare module 'vscode' {
 	 */
 	export interface EnvironmentVariableMutator {
 		/**
-		 * Options applied to the mutator
+		 * Options applied to the mutator.
 		 */
 		readonly options: EnvironmentVariableMutatorOptions;
 	}
