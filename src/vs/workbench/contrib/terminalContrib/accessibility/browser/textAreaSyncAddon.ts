@@ -91,7 +91,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no content`);
 			const textArea = this._terminal.textarea;
 			if (textArea) {
-				textArea.textContent = '';
+				textArea.value = '';
 			}
 			return;
 		}
@@ -110,7 +110,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: content is "${content}"`);
 		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: textContent is "${textArea.textContent}"`);
 		if (content !== textArea.textContent) {
-			textArea.textContent = content;
+			textArea.value = content;
 			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: textContent changed to "${content}"`);
 		}
 
@@ -122,6 +122,5 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 			textArea.selectionEnd = cursorX;
 			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: selectionStart changed to ${cursorX}`);
 		}
-		// TODO: cursorY?
 	}
 }
