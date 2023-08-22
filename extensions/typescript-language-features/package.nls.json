@@ -213,5 +213,5 @@
 	"configuration.suggest.objectLiteralMethodSnippets.enabled": "Enable/disable snippet completions for methods in object literals. Requires using TypeScript 4.7+ in the workspace.",
 	"configuration.tsserver.web.projectWideIntellisense.enabled": "Enable/disable project-wide IntelliSense on web. Requires that VS Code is running in a trusted context.",
 	"configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors": "Suppresses semantic errors. This is needed when using external packages as these can't be included analyzed on web.",
-	"configuration.tsserver.nodePath": "Run TSServer on a custom Node install."
+	"configuration.tsserver.nodePath": "Run TS Server on a custom Node installation."
 }

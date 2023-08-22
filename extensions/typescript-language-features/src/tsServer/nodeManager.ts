@@ -86,30 +86,25 @@ export class NodeVersionManager extends Disposable {
 		const workspaceVersion = this.configuration.localNodePath;
 
 		if (workspaceVersion === null) {
-			throw new Error('Could not prompt to use workspace Node version because no workspace Node install is specified');
+			throw new Error('Could not prompt to use workspace Node installation because no workspace Node installation is specified');
 		}
 
-		const allowIt = vscode.l10n.t("Allow");
-		const dismissPrompt = vscode.l10n.t("Dismiss");
-		const alwaysAllow = vscode.l10n.t("Always allow");
-		const neverAllow = vscode.l10n.t("Never allow");
+		const allow = vscode.l10n.t("Allow");
+		const dismiss = vscode.l10n.t("Dismiss");
+		const neverAllow = vscode.l10n.t("Never in this workspace");
 
-		const result = await vscode.window.showInformationMessage(vscode.l10n.t("This workspace contains a Node install to run TS Server. Would you like to use the workspace Node install to run TS Server?"),
-			allowIt,
-			dismissPrompt,
-			alwaysAllow,
+		const result = await vscode.window.showInformationMessage(vscode.l10n.t("This workspace specifies a custom Node installation to run TS Server. Would you like to use this workspace's custom Node installation to run TS Server?"),
+			allow,
+			dismiss,
 			neverAllow
 		);
 
 		let version = undefined;
-		switch (result) {
-			case alwaysAllow:
-				await this.workspaceState.update(useWorkspaceNodeStorageKey, true);
-			case allowIt:
-				version = workspaceVersion;
-				break;
-			case neverAllow:
-				await this.workspaceState.update(useWorkspaceNodeStorageKey, false);
+		if (result === allow) {
+			await this.workspaceState.update(useWorkspaceNodeStorageKey, true);
+			version = workspaceVersion;
+		} else if (result === neverAllow) {
+			await this.workspaceState.update(useWorkspaceNodeStorageKey, false);
 		}
 		return version;
 	}

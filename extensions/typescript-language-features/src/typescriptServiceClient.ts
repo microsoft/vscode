@@ -398,7 +398,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.info(`Using tsserver from: ${version.path}`);
 		const nodePath = this._nodeVersionManager.currentVersion;
 		if (nodePath) {
-			this.info(`Using Node install from ${nodePath} to run TS Server`);
+			this.info(`Using Node installation from ${nodePath} to run TS Server`);
 		}
 
 		const apiVersion = version.apiVersion || API.defaultVersion;
