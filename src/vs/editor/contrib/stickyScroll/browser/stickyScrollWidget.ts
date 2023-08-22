@@ -228,6 +228,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 		// Added for the folding toggle icons
 		innerLineNumberHTML.style.float = 'left';
+
 		if (foldingModel) {
 			const foldingRegions = foldingModel.regions;
 			const indexOfLine = foldingRegions.findRange(line);
@@ -243,7 +244,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				} else {
 					divToUnfold.className = ThemeIcon.asClassName(foldingExpandedIcon);
 				}
-				divToUnfold.style.transition = 'opacity 250ms linear';
+
+				console.log('inside of render child node for line : ', line);
+				// divToUnfold.style.transition = 'opacity 250ms linear';
 				divToUnfold.style.opacity = '0';
 				divToUnfold.style.height = '0px';
 				divToUnfold.style.cursor = 'default';
@@ -274,6 +277,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					divToUnfold.style.cursor = 'pointer';
 				}));
 				this._disposableStore.add(dom.addDisposableListener(lineNumberHTMLNode, dom.EventType.MOUSE_OUT, () => {
+					console.log('inside of mouse out for line : ', line);
 					divToUnfold.style.transition = 'opacity 250ms linear';
 					divToUnfold.style.opacity = '0';
 					divToUnfold.style.height = '0px';
