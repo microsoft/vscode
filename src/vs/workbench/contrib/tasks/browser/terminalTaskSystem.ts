@@ -1112,6 +1112,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					shellLaunchConfig.args = await this._resolveVariables(variableResolver, shellOptions.args.slice());
 				}
 			}
+			const shellArgsSpecified: boolean = shellLaunchConfig.args !== undefined;
 			if (shellLaunchConfig.args === undefined) {
 				shellLaunchConfig.args = [];
 			}
@@ -1128,33 +1129,43 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					if ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath))) {
 						return undefined;
 					}
-					toAdd.push('/d', '/c');
+					if (!shellArgsSpecified) {
+						toAdd.push('/d', '/c');
+					}
 				} else if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
-					toAdd.push('-Command');
+					if (!shellArgsSpecified) {
+						toAdd.push('-Command');
+					}
 				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe')) {
 					windowsShellArgs = false;
-					toAdd.push('-c');
+					if (!shellArgsSpecified) {
+						toAdd.push('-c');
+					}
 				} else if (basename === 'wsl.exe') {
-					toAdd.push('-e');
+					if (!shellArgsSpecified) {
+						toAdd.push('-e');
+					}
 				}
 			} else {
-				// Under Mac remove -l to not start it as a login shell.
-				if (platform === Platform.Platform.Mac) {
-					// Background on -l on osx https://github.com/microsoft/vscode/issues/107563
-					// TODO: Handle by pulling the default terminal profile?
-					// const osxShellArgs = this._configurationService.inspect(TerminalSettingId.ShellArgsMacOs);
-					// if ((osxShellArgs.user === undefined) && (osxShellArgs.userLocal === undefined) && (osxShellArgs.userLocalValue === undefined)
-					// 	&& (osxShellArgs.userRemote === undefined) && (osxShellArgs.userRemoteValue === undefined)
-					// 	&& (osxShellArgs.userValue === undefined) && (osxShellArgs.workspace === undefined)
-					// 	&& (osxShellArgs.workspaceFolder === undefined) && (osxShellArgs.workspaceFolderValue === undefined)
-					// 	&& (osxShellArgs.workspaceValue === undefined)) {
-					// 	const index = shellArgs.indexOf('-l');
-					// 	if (index !== -1) {
-					// 		shellArgs.splice(index, 1);
-					// 	}
-					// }
+				if (!shellArgsSpecified) {
+					// Under Mac remove -l to not start it as a login shell.
+					if (platform === Platform.Platform.Mac) {
+						// Background on -l on osx https://github.com/microsoft/vscode/issues/107563
+						// TODO: Handle by pulling the default terminal profile?
+						// const osxShellArgs = this._configurationService.inspect(TerminalSettingId.ShellArgsMacOs);
+						// if ((osxShellArgs.user === undefined) && (osxShellArgs.userLocal === undefined) && (osxShellArgs.userLocalValue === undefined)
+						// 	&& (osxShellArgs.userRemote === undefined) && (osxShellArgs.userRemoteValue === undefined)
+						// 	&& (osxShellArgs.userValue === undefined) && (osxShellArgs.workspace === undefined)
+						// 	&& (osxShellArgs.workspaceFolder === undefined) && (osxShellArgs.workspaceFolderValue === undefined)
+						// 	&& (osxShellArgs.workspaceValue === undefined)) {
+						// 	const index = shellArgs.indexOf('-l');
+						// 	if (index !== -1) {
+						// 		shellArgs.splice(index, 1);
+						// 	}
+						// }
+					}
+					toAdd.push('-c');
 				}
-				toAdd.push('-c');
 			}
 			const combinedShellArgs = this._addAllArgument(toAdd, shellArgs);
 			combinedShellArgs.push(commandLine);
