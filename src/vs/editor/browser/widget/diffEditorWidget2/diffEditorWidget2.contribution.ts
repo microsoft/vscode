@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { findFocusedDiffEditor } from 'vs/editor/browser/widget/diffEditor.contribution';
@@ -23,6 +22,13 @@ export class ToggleCollapseUnchangedRegions extends Action2 {
 			title: { value: localize('toggleCollapseUnchangedRegions', "Toggle Collapse Unchanged Regions"), original: 'Toggle Collapse Unchanged Regions' },
 			icon: Codicon.map,
 			precondition: ContextKeyEqualsExpr.create('diffEditorVersion', 2),
+			toggled: ContextKeyExpr.has('config.diffEditor.experimental.collapseUnchangedRegions'),
+			menu: {
+				id: MenuId.EditorTitle,
+				order: 22,
+				group: 'navigation',
+				when: ContextKeyEqualsExpr.create('diffEditorVersion', 2),
+			},
 		});
 	}
 
@@ -34,34 +40,6 @@ export class ToggleCollapseUnchangedRegions extends Action2 {
 }
 
 registerAction2(ToggleCollapseUnchangedRegions);
-
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
-		id: new ToggleCollapseUnchangedRegions().desc.id,
-		title: localize('collapseUnchangedRegions', "Show Unchanged Regions"),
-		icon: Codicon.map
-	},
-	order: 22,
-	group: 'navigation',
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.has('config.diffEditor.experimental.collapseUnchangedRegions'),
-		ContextKeyEqualsExpr.create('diffEditorVersion', 2)
-	)
-});
-
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
-		id: new ToggleCollapseUnchangedRegions().desc.id,
-		title: localize('showUnchangedRegions', "Collapse Unchanged Regions"),
-		icon: ThemeIcon.modify(Codicon.map, 'disabled'),
-	},
-	order: 22,
-	group: 'navigation',
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.has('config.diffEditor.experimental.collapseUnchangedRegions').negate(),
-		ContextKeyEqualsExpr.create('diffEditorVersion', 2)
-	)
-});
 
 export class ToggleShowMovedCodeBlocks extends Action2 {
 	constructor() {
@@ -113,14 +91,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	)
 });
 
-/*
-TODO@hediet add this back once move detection is more polished.
-Users can still enable this via settings.json (config.diffEditor.experimental.showMoves).
-
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: new ToggleShowMovedCodeBlocks().desc.id,
-		title: localize('showMoves', "Show Moves"),
+		title: localize('showMoves', "Show Moved Code Blocks"),
 		icon: Codicon.move,
 		toggled: ContextKeyEqualsExpr.create('config.diffEditor.experimental.showMoves', true),
 	},
@@ -128,7 +102,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	group: '1_diff',
 	when: ContextKeyEqualsExpr.create('diffEditorVersion', 2)
 });
-*/
 
 const diffEditorCategory: ILocalizedString = {
 	value: localize('diffEditor', 'Diff Editor'),

@@ -13,16 +13,12 @@ declare module 'vscode' {
 	export interface EnvironmentVariableMutatorOptions {
 		/**
 		 * Apply to the environment just before the process is created.
-		 *
-		 * Defaults to true.
 		 */
 		applyAtProcessCreation?: boolean;
 
 		/**
 		 * Apply to the environment in the shell integration script. Note that this _will not_ apply
 		 * the mutator if shell integration is disabled or not working for some reason.
-		 *
-		 * Defaults to false.
 		 */
 		applyAtShellIntegration?: boolean;
 	}
@@ -39,17 +35,20 @@ declare module 'vscode' {
 
 	export interface EnvironmentVariableCollection extends Iterable<[variable: string, mutator: EnvironmentVariableMutator]> {
 		/**
-		 * @param options Options applied to the mutator.
+		 * @param options Options applied to the mutator, when not options are provided this will
+		 * default to `{ applyAtProcessCreation: true }`
 		 */
 		replace(variable: string, value: string, options?: EnvironmentVariableMutatorOptions): void;
 
 		/**
-		 * @param options Options applied to the mutator.
+		 * @param options Options applied to the mutator, when not options are provided this will
+		 * default to `{ applyAtProcessCreation: true }`
 		 */
 		append(variable: string, value: string, options?: EnvironmentVariableMutatorOptions): void;
 
 		/**
-		 * @param options Options applied to the mutator.
+		 * @param options Options applied to the mutator, when not options are provided this will
+		 * default to `{ applyAtProcessCreation: true }`
 		 */
 		prepend(variable: string, value: string, options?: EnvironmentVariableMutatorOptions): void;
 	}

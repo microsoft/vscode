@@ -52,8 +52,9 @@ export enum TerminalOutputAnchor {
 }
 
 export enum TerminalQuickFixType {
-	Command = 0,
-	Opener = 1
+	TerminalCommand = 0,
+	Opener = 1,
+	Command = 3
 }
 
 @es5ClassCompat
@@ -3884,15 +3885,13 @@ export class TestRunRequest implements vscode.TestRunRequest {
 	) { }
 }
 
-/** Back-compat for proposed API users */
-@es5ClassCompat
-export class TestRunRequest2 extends TestRunRequest { }
-
 @es5ClassCompat
 export class TestMessage implements vscode.TestMessage {
 	public expectedOutput?: string;
 	public actualOutput?: string;
 	public location?: vscode.Location;
+	/** proposed: */
+	public contextValue?: string;
 
 	public static diff(message: string | vscode.MarkdownString, expected: string, actual: string) {
 		const msg = new TestMessage(message);
@@ -4099,6 +4098,12 @@ export enum ChatMessageRole {
 	Function = 3,
 }
 
+export enum ChatVariableLevel {
+	Short = 1,
+	Medium = 2,
+	Full = 3
+}
+
 export class ChatMessage implements vscode.ChatMessage {
 
 	role: ChatMessageRole;
@@ -4109,6 +4114,17 @@ export class ChatMessage implements vscode.ChatMessage {
 		this.role = role;
 		this.content = content;
 	}
+}
+
+//#endregion
+
+//#region ai
+
+export enum RelatedInformationType {
+	SymbolInformation = 1,
+	CommandInformation = 2,
+	SearchInformation = 3,
+	SettingInformation = 4
 }
 
 //#endregion

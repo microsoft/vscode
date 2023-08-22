@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-// import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 
 /**
  * This function is called before test running and also again at the end of test running

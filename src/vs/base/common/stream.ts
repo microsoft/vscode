@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * The payload that flows in readable stream events.
@@ -567,17 +568,16 @@ export interface IStreamListener<T> {
 /**
  * Helper to listen to all events of a T stream in proper order.
  */
-export function listenStream<T>(stream: ReadableStreamEvents<T>, listener: IStreamListener<T>): IDisposable {
-	let destroyed = false;
+export function listenStream<T>(stream: ReadableStreamEvents<T>, listener: IStreamListener<T>, token?: CancellationToken): void {
 
 	stream.on('error', error => {
-		if (!destroyed) {
+		if (!token?.isCancellationRequested) {
 			listener.onError(error);
 		}
 	});
 
 	stream.on('end', () => {
-		if (!destroyed) {
+		if (!token?.isCancellationRequested) {
 			listener.onEnd();
 		}
 	});
@@ -586,12 +586,10 @@ export function listenStream<T>(stream: ReadableStreamEvents<T>, listener: IStre
 	// into flowing mode. As such it is important to
 	// add this listener last (DO NOT CHANGE!)
 	stream.on('data', data => {
-		if (!destroyed) {
+		if (!token?.isCancellationRequested) {
 			listener.onData(data);
 		}
 	});
-
-	return toDisposable(() => destroyed = true);
 }
 
 /**

@@ -14,8 +14,6 @@ steps:
       versionSpec: "18.x"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - template: ../distro/download-distro.yml
-
     # Install yarn as the ARM64 build agent is using vanilla Ubuntu
     - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
       - task: Npm@1
@@ -30,8 +28,7 @@ steps:
       workingDirectory: build
       displayName: Install pipeline build
 
-    - script: node .build/distro/cli-patches/index.js
-      displayName: Apply distro patches
+    - template: ../cli/cli-apply-patches.yml
 
   - task: Npm@1
     displayName: Download openssl prebuilt
@@ -56,13 +53,6 @@ steps:
       sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"
     displayName: Install musl build dependencies
 
-  - script: node build/azure-pipelines/cli/prepare.js
-    displayName: Prepare CLI build
-    env:
-      VSCODE_CLI_PREPARE_ROOT: $(Build.SourcesDirectory)/.build/distro
-      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-
   - template: ../cli/install-rust-posix.yml
     parameters:
       targets:
@@ -76,6 +66,7 @@ steps:
       parameters:
         VSCODE_CLI_TARGET: aarch64-unknown-linux-musl
         VSCODE_CLI_ARTIFACT: vscode_cli_alpine_arm64_cli
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_ENV:
           CXX_aarch64-unknown-linux-musl: musl-g++
           CC_aarch64-unknown-linux-musl: musl-gcc
@@ -88,6 +79,7 @@ steps:
       parameters:
         VSCODE_CLI_TARGET: x86_64-unknown-linux-musl
         VSCODE_CLI_ARTIFACT: vscode_cli_alpine_x64_cli
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_ENV:
           CXX_aarch64-unknown-linux-musl: musl-g++
           CC_aarch64-unknown-linux-musl: musl-gcc

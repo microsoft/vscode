@@ -23,6 +23,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ChatVariablesService, IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 class SimpleTestProvider extends Disposable implements IChatProvider {
 	private static sessionId = 0;
@@ -65,7 +66,8 @@ suite('Chat', () => {
 
 	suiteSetup(async () => {
 		instantiationService = new TestInstantiationService(new ServiceCollection(
-			[IChatSlashCommandService, new SyncDescriptor<any>(ChatSlashCommandService)]
+			[IChatSlashCommandService, new SyncDescriptor<any>(ChatSlashCommandService)],
+			[IChatVariablesService, new SyncDescriptor<any>(ChatVariablesService)]
 		));
 		instantiationService.stub(IStorageService, storageService = new TestStorageService());
 		instantiationService.stub(ILogService, new NullLogService());
