@@ -42,8 +42,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private _stickyLines: RenderedStickyLine[] = [];
 	private _lineNumbers: number[] = [];
-	private _startLineNumbers: number[] = [];
-	private _endLineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
 	private _minContentWidthInPx: number = 0;
 
@@ -120,13 +118,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				lineNumbers[state.showEndForLine] = state.endLineNumbers[state.showEndForLine];
 			}
 			this._lineNumbers = lineNumbers;
-			this._startLineNumbers = state.startLineNumbers;
-			this._endLineNumbers = state.endLineNumbers;
 		} else {
 			this._lastLineRelativePosition = 0;
 			this._lineNumbers = [];
-			this._startLineNumbers = [];
-			this._endLineNumbers = [];
 		}
 		this._renderRootNode();
 	}
@@ -250,6 +244,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			const indexOfLine = foldingRegions.findRange(line);
 			const isCollapsed = foldingRegions.isCollapsed(indexOfLine);
 			const startLineNumber = foldingRegions.getStartLineNumber(indexOfLine);
+			const endLineNumber = foldingRegions.getEndLineNumber(indexOfLine);
 			const isFoldingLine = line === startLineNumber;
 
 			if (isFoldingLine) {
@@ -271,11 +266,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 				this._disposableStore.add(dom.addDisposableListener(divToUnfold, dom.EventType.CLICK, () => {
 					collapsed = !collapsed;
-					const startLineToCalculate = this._startLineNumbers[index];
-					const endLineToCalculate = this._endLineNumbers[index];
 					toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
-					const topOfStart = this._editor.getTopForLineNumber(startLineToCalculate) - lineHeight * (index) + 1;
-					const topOfEnd = this._editor.getTopForLineNumber(endLineToCalculate) - lineHeight * (index + 1) + 1;
+
+					const topOfStart = this._editor.getTopForLineNumber(startLineNumber) - lineHeight * (index) + 1;
+					const topOfEnd = this._editor.getTopForLineNumber(endLineNumber) - lineHeight * (index) + 1;
 					const newHeight = collapsed ? topOfEnd : topOfStart;
 					this._editor.setScrollTop(newHeight);
 					if (editorDomNode) {
