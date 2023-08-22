@@ -942,21 +942,21 @@ class UnifiedEnvironmentVariableCollection {
 		if (this._extension && options) {
 			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
 		}
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace, options: options ?? {}, scope });
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace, options: options ?? { applyAtProcessCreation: true }, scope });
 	}
 
 	append(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
 		if (this._extension && options) {
 			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
 		}
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append, options: options ?? {}, scope });
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append, options: options ?? { applyAtProcessCreation: true }, scope });
 	}
 
 	prepend(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
 		if (this._extension && options) {
 			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
 		}
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend, options: options ?? {}, scope });
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend, options: options ?? { applyAtProcessCreation: true }, scope });
 	}
 
 	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator & { scope: vscode.EnvironmentVariableScope | undefined }): void {
@@ -965,22 +965,25 @@ class UnifiedEnvironmentVariableCollection {
 		}
 		const key = this.getKey(variable, mutator.scope);
 		const current = this.map.get(key);
+		const newOptions = mutator.options ? {
+			applyAtProcessCreation: mutator.options.applyAtProcessCreation ?? false,
+			applyAtShellIntegration: mutator.options.applyAtShellIntegration ?? false,
+		} : {
+			applyAtProcessCreation: true
+		};
 		if (
 			!current ||
 			current.value !== mutator.value ||
 			current.type !== mutator.type ||
-			current.options?.applyAtProcessCreation !== (mutator.options.applyAtProcessCreation ?? true) ||
-			current.options?.applyAtShellIntegration !== (mutator.options.applyAtShellIntegration ?? false) ||
+			current.options?.applyAtProcessCreation !== newOptions.applyAtProcessCreation ||
+			current.options?.applyAtShellIntegration !== newOptions.applyAtShellIntegration ||
 			current.scope?.workspaceFolder?.index !== mutator.scope?.workspaceFolder?.index
 		) {
 			const key = this.getKey(variable, mutator.scope);
 			const value: IEnvironmentVariableMutator = {
 				variable,
 				...mutator,
-				options: {
-					applyAtProcessCreation: mutator.options.applyAtProcessCreation ?? true,
-					applyAtShellIntegration: mutator.options.applyAtShellIntegration ?? false,
-				}
+				options: newOptions
 			};
 			this.map.set(key, value);
 			this._onDidChangeCollection.fire();
