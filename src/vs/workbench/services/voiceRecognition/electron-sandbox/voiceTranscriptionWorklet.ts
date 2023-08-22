@@ -12,7 +12,7 @@ declare class AudioWorkletProcessor {
 
 class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 
-	private static readonly BUFFER_TIMESPAN = 2000;
+	private static readonly BUFFER_TIMESPAN = 1000;
 
 	private startTime: number | undefined = undefined;
 	private stopped: boolean = false;
