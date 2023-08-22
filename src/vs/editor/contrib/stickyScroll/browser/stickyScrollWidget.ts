@@ -239,6 +239,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
 
+		const lineNumbersWidth = minimapSide === 'left' ? layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth : layoutInfo.contentLeft;
+		lineNumberHTMLNode.style.width = `${lineNumbersWidth}px`;
+
 		// Added for the folding toggle icons
 		innerLineNumberHTML.style.float = 'left';
 
@@ -267,16 +270,17 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				let collapsed = isCollapsed;
 
 				this._disposableStore.add(dom.addDisposableListener(divToUnfold, dom.EventType.CLICK, () => {
-					toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
 					collapsed = !collapsed;
-					const topOfStart = this._editor.getTopForLineNumber(this._startLineNumbers[index]) - lineHeight * (index) + 1;
-					const topOfEnd = this._editor.getTopForLineNumber(this._endLineNumbers[index]) - lineHeight * (index + 1) + 1;
+					const startLineToCalculate = this._startLineNumbers[index];
+					const endLineToCalculate = this._endLineNumbers[index];
+					toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
+					const topOfStart = this._editor.getTopForLineNumber(startLineToCalculate) - lineHeight * (index) + 1;
+					const topOfEnd = this._editor.getTopForLineNumber(endLineToCalculate) - lineHeight * (index + 1) + 1;
 					const newHeight = collapsed ? topOfEnd : topOfStart;
 					this._editor.setScrollTop(newHeight);
 					if (editorDomNode) {
 						editorDomNode.style.cursor = 'pointer';
 					}
-
 				}));
 				this._disposableStore.add(dom.addDisposableListener(lineNumberHTMLNode, dom.EventType.MOUSE_OVER, () => {
 					divToUnfold.style.opacity = '1';
