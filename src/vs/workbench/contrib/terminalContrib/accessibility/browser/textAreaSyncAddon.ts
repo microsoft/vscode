@@ -47,11 +47,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 			this._listeners.value = new DisposableStore();
 			this._listeners.value.add(this._terminal.onCursorMove(() => this._refreshTextArea()));
 			this._listeners.value.add(addDisposableListener(this._terminal.textarea, 'focus', () => this._refreshTextArea()));
-			this._listeners.value.add(this._terminal.onKey((e) => {
-				if (e.domEvent.key === 'UpArrow') {
-					this._refreshTextArea();
-				}
-			}));
+			this._listeners.value.add(this._terminal.onData((e) => this._refreshTextArea()));
 		}
 	}
 
