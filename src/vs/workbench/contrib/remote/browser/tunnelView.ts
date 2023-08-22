@@ -52,7 +52,7 @@ import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { STATUS_BAR_HOST_NAME_BACKGROUND } from 'vs/workbench/common/theme';
+import { STATUS_BAR_REMOTE_ITEM_BACKGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Attributes, CandidatePort, Tunnel, TunnelCloseReason, TunnelModel, TunnelSource, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, parseAddress } from 'vs/workbench/services/remote/common/tunnelModel';
@@ -1775,9 +1775,9 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 }));
 
 registerColor('ports.iconRunningProcessForeground', {
-	light: STATUS_BAR_HOST_NAME_BACKGROUND,
-	dark: STATUS_BAR_HOST_NAME_BACKGROUND,
-	hcDark: STATUS_BAR_HOST_NAME_BACKGROUND,
-	hcLight: STATUS_BAR_HOST_NAME_BACKGROUND
+	light: STATUS_BAR_REMOTE_ITEM_BACKGROUND,
+	dark: STATUS_BAR_REMOTE_ITEM_BACKGROUND,
+	hcDark: STATUS_BAR_REMOTE_ITEM_BACKGROUND,
+	hcLight: STATUS_BAR_REMOTE_ITEM_BACKGROUND
 }, nls.localize('portWithRunningProcess.foreground', "The color of the icon for a port that has an associated running process."));
 
