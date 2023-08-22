@@ -478,10 +478,10 @@ const newCommands: ApiCommand[] = [
 				(v: vscode.MappedEditsContext) => typeConverters.MappedEditsContext.from(v)
 			)
 		],
-		new ApiCommandResult<IWorkspaceEditDto, vscode.WorkspaceEdit>(
+		new ApiCommandResult<IWorkspaceEditDto | null, vscode.WorkspaceEdit | null>(
 			'A promise that resolves to a workspace edit or null',
 			(value) => {
-				return typeConverters.WorkspaceEdit.to(value);
+				return value ? typeConverters.WorkspaceEdit.to(value) : null;
 			})
 	),
 ];
