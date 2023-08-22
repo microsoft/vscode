@@ -370,7 +370,4 @@ import 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 // Share
 import 'vs/workbench/contrib/share/browser/share.contribution';
 
-// Ai
-import 'vs/workbench/contrib/aiRelatedInformation/common/aiRelatedInformation.contribution';
-
 //#endregion
