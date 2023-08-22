@@ -378,10 +378,10 @@
           "description": "%markdown.preview.doubleClickToSwitchToEditor.desc%",
           "scope": "resource"
         },
-        "markdown.preview.focusOnOpen": {
+        "markdown.preview.focusOnOpenToSide": {
           "type": "boolean",
           "default": true,
-          "description": "%markdown.preview.focusOnOpen.desc%",
+          "description": "%markdown.preview.focusOnOpenToSide.desc%",
           "scope": "resource"
         },
         "markdown.preview.openMarkdownLinks": {
