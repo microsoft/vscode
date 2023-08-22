@@ -1051,7 +1051,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 							const packageName: string = line.split(' ')[0].trim();
 							for (const module of GoModulesToLookFor) {
 								if (packageName.startsWith(module)) {
-									tags['workspace.go.mod.' + module] = true;
+									tags['workspace.go.mod.' + packageName] = true;
 								}
 							}
 						}
