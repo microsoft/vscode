@@ -52,6 +52,14 @@ export class NodeVersionManager extends Disposable {
 	private readonly _onDidPickNewVersion = this._register(new vscode.EventEmitter<void>());
 	public readonly onDidPickNewVersion = this._onDidPickNewVersion.event;
 
+	public get currentVersion(): string | undefined {
+		return this._currentVersion;
+	}
+
+	public reset(): void {
+		this._currentVersion = undefined;
+	}
+
 	public async updateConfiguration(nextConfiguration: TypeScriptServiceConfiguration) {
 		const oldConfiguration = this.configuration;
 		this.configuration = nextConfiguration;
@@ -72,10 +80,6 @@ export class NodeVersionManager extends Disposable {
 			}
 		}
 		this.updateActiveVersion(version);
-	}
-
-	public get currentVersion(): string | undefined {
-		return this._currentVersion;
 	}
 
 	private async promptUseWorkspaceNode(): Promise<string | undefined> {

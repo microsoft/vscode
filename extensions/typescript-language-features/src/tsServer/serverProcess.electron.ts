@@ -15,6 +15,7 @@ import type * as Proto from './protocol/protocol';
 import { TsServerLog, TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
+import { NodeVersionManager } from './nodeManager';
 
 
 const defaultSize: number = 8192;
@@ -255,6 +256,7 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 		kind: TsServerProcessKind,
 		configuration: TypeScriptServiceConfiguration,
 		versionManager: TypeScriptVersionManager,
+		nodeVersionManager: NodeVersionManager,
 		_tsserverLog: TsServerLog | undefined,
 	): TsServerProcess {
 		let tsServerPath = version.tsServerPath;
@@ -265,17 +267,13 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 			tsServerPath = versionManager.currentVersion.tsServerPath;
 		}
 
-		const execPath = getExecPath(configuration);
-		let useExecPath = !!execPath;
-		if (useExecPath && !fs.existsSync(execPath!)) {
+		let execPath = nodeVersionManager.currentVersion;
+		if (execPath && !fs.existsSync(execPath)) {
 			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn\'t point to a valid Node install. Falling back to bundled Node version.", execPath!));
-			useExecPath = false;
+			nodeVersionManager.reset();
+			execPath = nodeVersionManager.currentVersion;
 		}
-		const useIpc = !useExecPath && version.apiVersion?.gte(API.v460);
-
-		if (useExecPath) {
-			console.log(`Using custom node exec path '${execPath}', useIpc is '${useIpc}'.`); // >> TODO: do real logging
-		}
+		const useIpc = execPath && version.apiVersion?.gte(API.v460);
 
 		const runtimeArgs = [...args];
 		if (useIpc) {
@@ -285,16 +283,12 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 		const childProcess = child_process.fork(tsServerPath, runtimeArgs, {
 			silent: true,
 			cwd: undefined,
-			env: generatePatchedEnv(process.env, tsServerPath, useExecPath),
+			env: generatePatchedEnv(process.env, tsServerPath, !!execPath),
 			execArgv: getExecArgv(kind, configuration),
-			execPath: useExecPath ? execPath! : undefined,
+			execPath,
 			stdio: useIpc ? ['pipe', 'pipe', 'pipe', 'ipc'] : undefined,
 		});
 
 		return useIpc ? new IpcChildServerProcess(childProcess) : new StdioChildServerProcess(childProcess);
 	}
-}
-
-function getExecPath(configuration: TypeScriptServiceConfiguration): string | null {
-	return configuration.localNodePath;
 }
