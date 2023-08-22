@@ -78,6 +78,26 @@
 	border: 2px solid var(--vscode-diffEditor-move-border);
 }
 
+.monaco-editor .movedOriginal.currentMove, .monaco-editor .movedModified.currentMove {
+	border: 2px solid var(--vscode-diffEditor-moveActive-border);
+}
+
+.monaco-diff-editor .moved-blocks-lines path.currentMove {
+	stroke: var(--vscode-diffEditor-moveActive-border);
+}
+
+.monaco-diff-editor .moved-blocks-lines .arrow {
+	fill: var(--vscode-diffEditor-move-border);
+}
+
+.monaco-diff-editor .moved-blocks-lines .arrow.currentMove {
+	fill: var(--vscode-diffEditor-moveActive-border);
+}
+
+.monaco-diff-editor .moved-blocks-lines .arrow-rectangle {
+	fill: var(--vscode-editor-background);
+}
+
 .monaco-diff-editor .moved-blocks-lines {
 	position: absolute;
 	pointer-events: none;

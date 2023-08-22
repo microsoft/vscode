@@ -11,13 +11,14 @@ import { ISerializedLineRange, LineRange } from 'vs/editor/common/core/lineRange
 import { Range } from 'vs/editor/common/core/range';
 import { IDocumentDiff, IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
 import { LineRangeMapping, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { lineRangeMappingFromRangeMappings } from 'vs/editor/common/diff/standardLinesDiffComputer';
+import { StandardLinesDiffComputer, lineRangeMappingFromRangeMappings } from 'vs/editor/common/diff/standardLinesDiffComputer';
 import { IDiffEditorModel, IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextEditInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper';
 import { combineTextEditInfos } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos';
 import { lengthAdd, lengthDiffNonNegative, lengthGetLineCount, lengthOfRange, lengthToPosition, lengthZero, positionToLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { DiffEditorOptions } from './diffEditorOptions';
+import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 
 export class DiffEditorViewModel extends Disposable implements IDiffEditorViewModel {
 	private readonly _isDiffUpToDate = observableValue<boolean>('isDiffUpToDate', false);
@@ -147,6 +148,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			debouncer.cancel();
 			contentChangedSignal.read(reader);
 			documentDiffProviderOptionChanged.read(reader);
+			readHotReloadableExport(StandardLinesDiffComputer, reader);
 
 			this._isDiffUpToDate.set(false, undefined);
 
