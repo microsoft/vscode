@@ -20,7 +20,7 @@ export type GhostTextData = {
 };
 
 export class MultiGhostTextController extends Disposable {
-	static ID = 'editor.contrib.inlineCompletionsController';
+	static ID = 'editor.contrib.multiGhostTextController';
 
 	public static get(editor: ICodeEditor): MultiGhostTextController | null {
 		return editor.getContribution<MultiGhostTextController>(MultiGhostTextController.ID);
