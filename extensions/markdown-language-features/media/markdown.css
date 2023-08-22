@@ -106,10 +106,10 @@ sup {
 	line-height: 0;
 }
 
-ul ul,
-ul ol,
-ol ul,
-ol ol {
+ul ul:first-child,
+ul ol:first-child,
+ol ul:first-child,
+ol ol:first-child {
 	margin-bottom: 0;
 }
 
@@ -136,6 +136,10 @@ textarea:focus {
 
 p {
 	margin-bottom: 16px;
+}
+
+li p {
+	margin-bottom: 0.7em;
 }
 
 ul,
