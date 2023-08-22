@@ -497,7 +497,7 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.showMultiGhostText', '_showMultiGhostText', 'Show ghost text for multiple ranges',
 		[
-			new ApiCommandArgument<{ position: types.Position; text: string }[], { position: IPosition; text: string }[]>('ranges', 'The ranges to show ghost text for', v => Array.isArray(v) && v.every(v => typeof v === 'object' && types.Position.isPosition(v.position) && typeof v.text === 'string'), v => v.map(({ position, text }) => ({ position: typeConverters.Position.from(position), text }))),
+			new ApiCommandArgument<{ position: types.Position; text: string; removeRange: types.Range | undefined }[], { position: IPosition; text: string; removeRange: IRange | undefined }[]>('ranges', 'The ranges to show ghost text for', v => Array.isArray(v) && v.every(v => typeof v === 'object' && types.Position.isPosition(v.position) && typeof v.text === 'string' && (v.removeRange === undefined || types.Range.isRange(v.removeRange))), v => v.map(({ position, text, removeRange }) => ({ position: typeConverters.Position.from(position), text, removeRange: typeConverters.Range.from(removeRange) }))),
 		],
 		ApiCommandResult.Void
 	),

@@ -8,6 +8,7 @@ import { constObservable } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { GhostTextWidget } from 'vs/editor/contrib/multiGhostText/browser/ghostTextWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,6 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 export type GhostTextData = {
 	readonly position: IPosition;
 	readonly text: string;
+	readonly removeRange?: IRange;
 };
 
 export class MultiGhostTextController extends Disposable {
@@ -77,6 +79,7 @@ export class MultiGhostTextController extends Disposable {
 				ghostText: constObservable(ghostText),
 				minReservedLineCount: constObservable(0),
 				targetTextModel: constObservable(this.editor.getModel() ?? undefined),
+				removeRange: constObservable(gt.removeRange)
 			});
 			this._widgets.push([instance, gt]);
 
@@ -139,9 +142,16 @@ export class MultiGhostTextController extends Disposable {
 		this.editor.pushUndoStop();
 		let lineDelta = 0;
 		this._widgets.forEach(([widget, data]) => {
-			const position = Position.lift(data.position).with(data.position.lineNumber + lineDelta, data.position.column);
-			this.editor.executeEdits('acceptAll', [EditOperation.insert(position, data.text)]);
-			lineDelta += data.text.split('\n').length - 1;
+			if (data.removeRange) {
+				const range = new Range(data.removeRange.startLineNumber + lineDelta, data.removeRange.startColumn, data.removeRange.endLineNumber + lineDelta, data.removeRange.endColumn);
+				this.editor.executeEdits('acceptAll', [EditOperation.replace(range, data.text)]);
+				lineDelta += data.text.split('\n').length - 1 - (data.removeRange.endLineNumber - data.removeRange.startLineNumber);
+			}
+			else {
+				const position = new Position(data.position.lineNumber + lineDelta, data.position.column);
+				this.editor.executeEdits('acceptAll', [EditOperation.insert(position, data.text)]);
+				lineDelta += data.text.split('\n').length - 1;
+			}
 		});
 	}
 
@@ -161,26 +171,40 @@ export class MultiGhostTextController extends Disposable {
 		const [widget, data] = this._widgets[index];
 
 		this._dontClear = true;
+		let lineDelta = 0;
+
 		this.editor.pushUndoStop();
-		this.editor.executeEdits('acceptSelected', [EditOperation.insert(Position.lift(data.position), data.text)]);
+		if (data.removeRange) {
+			this.editor.executeEdits('acceptSelected', [EditOperation.replace(Range.lift(data.removeRange), data.text)]);
+			lineDelta = data.text.split('\n').length - 1 - (data.removeRange.endLineNumber - data.removeRange.startLineNumber);
+		}
+		else {
+			this.editor.executeEdits('acceptSelected', [EditOperation.insert(Position.lift(data.position), data.text)]);
+			lineDelta = data.text.split('\n').length - 1;
+		}
 		widget.dispose();
 		this._widgets.splice(index, 1);
-
-		const lineDelta = data.text.split('\n').length - 1;
 		//all widgets after the selected widget should be recalculated
 		this._widgets.splice(index).forEach(([widget, data]) => {
 			widget.dispose();
 
 			const position = Position.lift(data.position).with(data.position.lineNumber + lineDelta, data.position.column);
 			const ghostText = new GhostText(position.lineNumber, [new GhostTextPart(position.column, data.text.split('\n'), false)]);
+			const removeRange =
+				data.removeRange
+					? new Range(data.removeRange.startLineNumber + lineDelta, data.removeRange.startColumn, data.removeRange.endLineNumber + lineDelta, data.removeRange.endColumn)
+					: undefined;
+
 			const gt = {
 				position: position,
 				text: data.text,
+				removeRange: removeRange
 			};
 			const instance = this.instantiationService.createInstance(GhostTextWidget, this.editor, {
 				ghostText: constObservable(ghostText),
 				minReservedLineCount: constObservable(0),
 				targetTextModel: constObservable(this.editor.getModel() ?? undefined),
+				removeRange: constObservable(gt.removeRange)
 			});
 			this._widgets.push([instance, gt]);
 		});

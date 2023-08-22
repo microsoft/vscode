@@ -13,7 +13,7 @@ import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -29,6 +29,7 @@ export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;
 	readonly ghostText: IObservable<GhostText | GhostTextReplacement | undefined>;
 	readonly minReservedLineCount: IObservable<number>;
+	readonly removeRange?: IObservable<IRange | undefined>;
 }
 
 export class GhostTextWidget extends Disposable {
@@ -118,6 +119,8 @@ export class GhostTextWidget extends Disposable {
 
 		const hiddenRange = hiddenTextStartColumn !== undefined ? new ColumnRange(hiddenTextStartColumn, textBufferLine.length + 1) : undefined;
 
+		const removeRange = this.model.removeRange?.read(reader);
+
 		return {
 			replacedRange,
 			inlineTexts,
@@ -126,6 +129,7 @@ export class GhostTextWidget extends Disposable {
 			lineNumber: ghostText.lineNumber,
 			additionalReservedLineCount: this.model.minReservedLineCount.read(reader),
 			targetTextModel: textModel,
+			removeRange,
 		};
 	});
 
@@ -149,6 +153,15 @@ export class GhostTextWidget extends Disposable {
 			decorations.push({
 				range: uiState.hiddenRange.toRange(uiState.lineNumber),
 				options: { inlineClassName: 'ghost-text-hidden', description: 'ghost-text-hidden', }
+			});
+		}
+
+		if (uiState.removeRange) {
+			const className = this.isSelected.read(reader) ? 'ghost-text-remove-selected' : 'ghost-text-remove';
+
+			decorations.push({
+				range: uiState.removeRange,
+				options: { inlineClassName: className, description: 'ghost-text-remove', }
 			});
 		}
 
