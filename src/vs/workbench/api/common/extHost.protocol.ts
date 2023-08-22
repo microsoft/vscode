@@ -377,7 +377,7 @@ export interface IRelatedContextItemDto {
 }
 
 export interface IMappedEditsContextDto {
-	selections: ISelection[]; //FIXME@ulugbekna: is this serializable? should I use ISelection?
+	selections: ISelection[];
 	related: IRelatedContextItemDto[];
 }
 
@@ -436,6 +436,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$resolvePasteFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$resolveDocumentOnDropFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
+	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[]): void;
 }
 
 export interface MainThreadLanguagesShape extends IDisposable {
@@ -1325,11 +1326,6 @@ export interface MainThreadShareShape extends IDisposable {
 	$unregisterShareProvider(handle: number): void;
 }
 
-export interface MainThreadMappedEditsShape extends IDisposable {
-	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[]): void;
-	$unregisterMappedEditsProvider(handle: number): void;
-}
-
 export interface MainThreadTaskShape extends IDisposable {
 	$createTaskId(task: tasks.ITaskDTO): Promise<string>;
 	$registerTaskProvider(handle: number, type: string): Promise<void>;
@@ -2014,6 +2010,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
 	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentOnDropEditDto | undefined>;
+	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: IMappedEditsContextDto, token: CancellationToken): Promise<IWorkspaceEditDto | null>;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -2111,10 +2108,6 @@ export interface ExtHostQuickDiffShape {
 
 export interface ExtHostShareShape {
 	$provideShare(handle: number, shareableItem: IShareableItemDto, token: CancellationToken): Promise<UriComponents | string | undefined>;
-}
-
-export interface ExtHostMappedEditsShape {
-	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: IMappedEditsContextDto, token: CancellationToken): Promise<IWorkspaceEditDto | null>;
 }
 
 export interface ExtHostTaskShape {
@@ -2642,7 +2635,6 @@ export const MainContext = {
 	MainThreadSCM: createProxyIdentifier<MainThreadSCMShape>('MainThreadSCM'),
 	MainThreadSearch: createProxyIdentifier<MainThreadSearchShape>('MainThreadSearch'),
 	MainThreadShare: createProxyIdentifier<MainThreadShareShape>('MainThreadShare'),
-	MainThreadMappedEdits: createProxyIdentifier<MainThreadMappedEditsShape>('MainThreadMappedEdits'),
 	MainThreadTask: createProxyIdentifier<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createProxyIdentifier<MainThreadWindowShape>('MainThreadWindow'),
 	MainThreadLabelService: createProxyIdentifier<MainThreadLabelServiceShape>('MainThreadLabelService'),
@@ -2720,7 +2712,6 @@ export const ExtHostContext = {
 	ExtHostChatSlashCommands: createProxyIdentifier<ExtHostChatSlashCommandsShape>('ExtHostChatSlashCommands'),
 	ExtHostChatVariables: createProxyIdentifier<ExtHostChatVariablesShape>('ExtHostChatVariables'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostChatProviderShape>('ExtHostChatProvider'),
-	ExtHostMappedEdits: createProxyIdentifier<ExtHostMappedEditsShape>('ExtHostMappedEdits'),
 	ExtHostSemanticSimilarity: createProxyIdentifier<ExtHostSemanticSimilarityShape>('ExtHostSemanticSimilarity'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),

@@ -106,7 +106,6 @@ import { IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSo
 import { ExtHostShare } from 'vs/workbench/api/common/extHostShare';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import { ExtHostChatSlashCommands } from 'vs/workbench/api/common/extHostChatSlashCommand';
-import { ExtHostMappedEdits } from 'vs/workbench/api/common/extHostMappedEdits';
 import { ExtHostChatVariables } from 'vs/workbench/api/common/extHostChatVariables';
 
 export interface IExtensionRegistries {
@@ -211,7 +210,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostChatSlashCommands = rpcProtocol.set(ExtHostContext.ExtHostChatSlashCommands, new ExtHostChatSlashCommands(rpcProtocol, extHostChatProvider, extHostLogService));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
 	const extHostChat = rpcProtocol.set(ExtHostContext.ExtHostChat, new ExtHostChat(rpcProtocol, extHostLogService));
-	const extHostMappedEdits = rpcProtocol.set(ExtHostContext.ExtHostMappedEdits, new ExtHostMappedEdits(rpcProtocol, extHostDocuments, uriTransformer));
 	const extHostSemanticSimilarity = rpcProtocol.set(ExtHostContext.ExtHostSemanticSimilarity, new ExtHostSemanticSimilarity(rpcProtocol));
 	const extHostIssueReporter = rpcProtocol.set(ExtHostContext.ExtHostIssueReporter, new ExtHostIssueReporter(rpcProtocol));
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
@@ -1348,7 +1346,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerMappedEditsProvider(selector: vscode.DocumentSelector, provider: vscode.MappedEditsProvider) {
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
-				return extHostMappedEdits.registerMappedEditsProvider(selector, provider);
+				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
 			}
 		};
 

@@ -25,13 +25,14 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatCopyAction, IChatService, IChatUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { IMappedEditsService, RelatedContextItem } from 'vs/workbench/services/mappedEdits/common/mappedEdits';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { WorkspaceEdit, RelatedContextItem } from 'vs/editor/common/languages';
 
 export interface IChatCodeBlockActionContext {
 	code: string;
@@ -236,19 +237,33 @@ export function registerChatCodeBlockActions() {
 
 		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, chatCodeBlockActionContext: IChatCodeBlockActionContext) {
 			this.notifyUserAction(accessor, chatCodeBlockActionContext);
+
 			const bulkEditService = accessor.get(IBulkEditService);
 			const codeEditorService = accessor.get(ICodeEditorService);
-			const mappedEditsService = accessor.get(IMappedEditsService);
+
+			const mappedEditsProviders = accessor.get(ILanguageFeaturesService).mappedEditsProvider.ordered(activeModel);
 
 			// try applying workspace edit that was returned by a MappedEditsProvider, else simply insert at selection
 
-			const selections = codeEditor.getSelections() ?? [];
-			const mappedEditsContext = {
-				selections,
-				related: [] as RelatedContextItem[], // FIXME@ulugbekna: this needs to be populated but we don't yet have a way to get this info from extensions
-			};
-			const cancellationTokenSource = new CancellationTokenSource();
-			const workspaceEdit = await mappedEditsService.provideMappedEdits(activeModel, [chatCodeBlockActionContext.code], mappedEditsContext, cancellationTokenSource.token);
+			let workspaceEdit: WorkspaceEdit | null = null;
+
+			if (mappedEditsProviders.length > 0) {
+				const mostRelevantProvider = mappedEditsProviders[0];
+
+				const selections = codeEditor.getSelections() ?? [];
+				const mappedEditsContext = {
+					selections,
+					related: [] as RelatedContextItem[], // TODO@ulugbekna: we do have not yet decided what to populate this with
+				};
+				const cancellationTokenSource = new CancellationTokenSource();
+
+				workspaceEdit = await mostRelevantProvider.provideMappedEdits(
+					activeModel,
+					[chatCodeBlockActionContext.code],
+					mappedEditsContext,
+					cancellationTokenSource.token);
+			}
+
 			if (workspaceEdit) {
 				await bulkEditService.apply(workspaceEdit);
 			} else {

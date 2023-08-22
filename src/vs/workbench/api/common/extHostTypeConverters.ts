@@ -32,7 +32,6 @@ import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from 'vs/
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { getPrivateApiFor } from 'vs/workbench/api/common/extHostTestingPrivateApi';
-import type * as mappedEdits from 'vs/workbench/services/mappedEdits/common/mappedEdits';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/editor';
 import { IViewBadge } from 'vs/workbench/common/views';
 import { IChatFollowup, IChatReplyFollowup, IChatResponseCommandFollowup } from 'vs/workbench/contrib/chat/common/chatService';
@@ -1577,10 +1576,10 @@ export namespace MappedEditsContext {
 			v.related.every(e => e && typeof e === 'object' && URI.isUri(e.uri) && e.range instanceof types.Range));
 	}
 
-	export function from(context: vscode.MappedEditsContext): mappedEdits.MappedEditsContext {
+	export function from(extContext: vscode.MappedEditsContext): languages.MappedEditsContext {
 		return {
-			selections: context.selections.map(s => Selection.from(s)),
-			related: context.related.map(r => ({
+			selections: extContext.selections.map(s => Selection.from(s)),
+			related: extContext.related.map(r => ({
 				uri: URI.from(r.uri),
 				range: Range.from(r.range)
 			}))

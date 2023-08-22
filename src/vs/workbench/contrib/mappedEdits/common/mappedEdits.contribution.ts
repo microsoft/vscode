@@ -5,23 +5,47 @@
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMappedEditsService, MappedEditsContext } from 'vs/workbench/services/mappedEdits/common/mappedEdits';
+import * as languages from 'vs/editor/common/languages';
 
-CommandsRegistry.registerCommand('_executeMappedEditsProvider', async (accessor: ServicesAccessor, documentUri: URI, codeBlocks: string[], context: MappedEditsContext) => {
+CommandsRegistry.registerCommand(
+	'_executeMappedEditsProvider',
+	async (
+		accessor: ServicesAccessor,
+		documentUri: URI,
+		codeBlocks: string[],
+		context: languages.MappedEditsContext
+	): Promise<languages.WorkspaceEdit | null> => {
 
-	const mappedEditsService = accessor.get(IMappedEditsService);
-	const modelService = accessor.get(ITextModelService);
+		const modelService = accessor.get(ITextModelService);
+		const langFeaturesService = accessor.get(ILanguageFeaturesService);
 
-	const document = await modelService.createModelReference(documentUri);
+		const document = await modelService.createModelReference(documentUri);
 
-	const cancellationTokenSource = new CancellationTokenSource();
+		let result: languages.WorkspaceEdit | null = null;
 
-	const result = await mappedEditsService.provideMappedEdits(document.object.textEditorModel, codeBlocks, context, cancellationTokenSource.token);
+		try {
+			const providers = langFeaturesService.mappedEditsProvider.ordered(document.object.textEditorModel);
 
-	document.dispose();
+			if (providers.length > 0) {
+				const mostRelevantProvider = providers[0];
 
-	return result;
-});
+				const cancellationTokenSource = new CancellationTokenSource();
+
+				result = await mostRelevantProvider.provideMappedEdits(
+					document.object.textEditorModel,
+					codeBlocks,
+					context,
+					cancellationTokenSource.token
+				);
+			}
+		} finally {
+			document.dispose();
+		}
+
+		return result;
+	}
+);
