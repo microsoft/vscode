@@ -282,7 +282,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					// When collapsed we should go to scrollTop - 18 * (this._stickyLines.length - index)
 
 					const topOfStart = this._editor.getTopForLineNumber(this._startLineNumbers[index]) - lineHeight * (index) + 1;
-					const topOfEnd = this._editor.getTopForLineNumber(this._endLineNumbers[index]);
+					const topOfEnd = this._editor.getTopForLineNumber(this._endLineNumbers[index]) - lineHeight * (index + 1) + 1;
 					console.log('topOfStart : ', topOfStart);
 					console.log('topOfEnd : ', topOfEnd);
 
