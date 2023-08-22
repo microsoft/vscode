@@ -269,7 +269,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.clearNode(this.followupsContainer);
 
 		if (items && items.length > 0) {
-			this.followupsDisposables.add(new ChatFollowups(this.followupsContainer, items, undefined, followup => this._onDidAcceptFollowup.fire(followup)));
+			this.followupsDisposables.add(new ChatFollowups(this.followupsContainer, items, undefined, followup => this._onDidAcceptFollowup.fire(followup), this.contextKeyService));
 		}
 	}
 
