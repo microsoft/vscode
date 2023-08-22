@@ -243,6 +243,7 @@ export class LineRange {
 
 	/**
 	 * Converts this 1-based line range to a 0-based offset range (subtracts 1!).
+	 * @internal
 	 */
 	public toOffsetRange(): OffsetRange {
 		return new OffsetRange(this.startLineNumber - 1, this.endLineNumberExclusive - 1);

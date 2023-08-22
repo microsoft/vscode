@@ -2546,6 +2546,7 @@ declare namespace monaco.editor {
 		constructor(original: LineRange, modified: LineRange);
 		toString(): string;
 		flip(): SimpleLineRangeMapping;
+		join(other: SimpleLineRangeMapping): SimpleLineRangeMapping;
 	}
 	export interface IDimension {
 		width: number;
