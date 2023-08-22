@@ -258,10 +258,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					divToUnfold.className = ThemeIcon.asClassName(foldingExpandedIcon);
 				}
 
-				// divToUnfold.style.transition = 'opacity 250ms linear';
 				divToUnfold.style.opacity = '0';
 				divToUnfold.style.height = '0px';
-				// divToUnfold.style.cursor = 'default';
 
 				divToUnfold.classList.add('unfold-icon');
 				lineNumberHTMLNode.append(divToUnfold);
@@ -269,25 +267,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				let collapsed = isCollapsed;
 
 				this._disposableStore.add(dom.addDisposableListener(divToUnfold, dom.EventType.CLICK, () => {
-					console.log('line : ', line);
-
-					const scrollTop = this._editor.getTopForLineNumber(line) + 1;
-					console.log('scrollTop : ', scrollTop);
 					toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
 					collapsed = !collapsed;
-					// TODO: Likely a more complicated mathematical equation that involves finding the position given the new number of lines in the sticky widget
-					// there appears to be an error here, doesn't behave exactly as expected
-					// TODO: continuous rerendering of the arrow, which need not be rerendered if already in the right collapsed state
-					console.log('collapsed : ', collapsed);
-					// When collapsed we should go to scrollTop - 18 * (this._stickyLines.length - index)
-
 					const topOfStart = this._editor.getTopForLineNumber(this._startLineNumbers[index]) - lineHeight * (index) + 1;
 					const topOfEnd = this._editor.getTopForLineNumber(this._endLineNumbers[index]) - lineHeight * (index + 1) + 1;
-					console.log('topOfStart : ', topOfStart);
-					console.log('topOfEnd : ', topOfEnd);
-
 					const newHeight = collapsed ? topOfEnd : topOfStart;
-					console.log('newHeight : ', newHeight);
 					this._editor.setScrollTop(newHeight);
 					if (editorDomNode) {
 						editorDomNode.style.cursor = 'pointer';
