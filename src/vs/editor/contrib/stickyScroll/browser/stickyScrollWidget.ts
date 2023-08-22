@@ -42,6 +42,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private _stickyLines: RenderedStickyLine[] = [];
 	private _lineNumbers: number[] = [];
+	private _startLineNumbers: number[] = [];
+	private _endLineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
 	private _minContentWidthInPx: number = 0;
 
@@ -118,9 +120,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				lineNumbers[state.showEndForLine] = state.endLineNumbers[state.showEndForLine];
 			}
 			this._lineNumbers = lineNumbers;
+			this._startLineNumbers = state.startLineNumbers;
+			this._endLineNumbers = state.endLineNumbers;
 		} else {
 			this._lastLineRelativePosition = 0;
 			this._lineNumbers = [];
+			this._startLineNumbers = [];
+			this._endLineNumbers = [];
 		}
 		this._renderRootNode();
 	}
@@ -273,9 +279,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					// there appears to be an error here, doesn't behave exactly as expected
 					// TODO: continuous rerendering of the arrow, which need not be rerendered if already in the right collapsed state
 					console.log('collapsed : ', collapsed);
-					console.log('18 * (this._stickyLines.length - 1 - index) : ', 18 * (this._stickyLines.length - 1 - index));
 					// When collapsed we should go to scrollTop - 18 * (this._stickyLines.length - index)
-					const newHeight = scrollTop - 18 * (this._stickyLines.length - index);
+
+					const topOfStart = this._editor.getTopForLineNumber(this._startLineNumbers[index]) - lineHeight * (index) + 1;
+					const topOfEnd = this._editor.getTopForLineNumber(this._endLineNumbers[index]);
+					console.log('topOfStart : ', topOfStart);
+					console.log('topOfEnd : ', topOfEnd);
+
+					const newHeight = collapsed ? topOfEnd : topOfStart;
 					console.log('newHeight : ', newHeight);
 					this._editor.setScrollTop(newHeight);
 					if (editorDomNode) {
