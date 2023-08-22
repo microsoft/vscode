@@ -8,7 +8,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { isNumber } from 'vs/base/common/types';
@@ -84,29 +84,22 @@ export class SearchService extends Disposable implements ISearchService {
 		};
 	}
 
-	textSearchSplitSyncAsync(query: ITextQuery, token?: CancellationToken | undefined, onProgress?: ((result: ISearchProgressItem) => void) | undefined): { syncResults: ISearchComplete; asyncResults: Promise<ISearchComplete> } {
+	textSearchSplitSyncAsync(
+		query: ITextQuery,
+		token?: CancellationToken | undefined,
+		onProgress?: ((result: ISearchProgressItem) => void) | undefined,
+		notebookFilesToIgnore?: ResourceSet,
+		asyncNotebookFilesToIgnore?: Promise<ResourceSet>
+	): {
+		syncResults: ISearchComplete;
+		asyncResults: Promise<ISearchComplete>;
+	} {
 		// Get open editor results from dirty/untitled
 		const openEditorResults = this.getOpenEditorResults(query);
 
 		if (onProgress) {
-			arrays.coalesce([...openEditorResults.results.values()]).forEach(onProgress);
+			arrays.coalesce([...openEditorResults.results.values()]).filter(e => !(notebookFilesToIgnore && notebookFilesToIgnore.has(e.resource))).forEach(onProgress);
 		}
-
-		const onProviderProgress = (progress: ISearchProgressItem) => {
-			if (isFileMatch(progress)) {
-				// Match
-				if (!openEditorResults.results.has(progress.resource) && onProgress) { // don't override open editor results
-					onProgress(progress);
-				}
-			} else if (onProgress) {
-				// Progress
-				onProgress(<IProgressMessage>progress);
-			}
-
-			if (isProgressMessage(progress)) {
-				this.logService.debug('SearchService#search', progress.message);
-			}
-		};
 
 		const syncResults: ISearchComplete = {
 			results: arrays.coalesce([...openEditorResults.results.values()]),
@@ -114,9 +107,29 @@ export class SearchService extends Disposable implements ISearchService {
 			messages: []
 		};
 
+		const getAsyncResults = async () => {
+			const resolvedAsyncNotebookFilesToIgnore = await asyncNotebookFilesToIgnore ?? new ResourceSet();
+			const onProviderProgress = (progress: ISearchProgressItem) => {
+				if (isFileMatch(progress)) {
+					// Match
+					if (!openEditorResults.results.has(progress.resource) && !resolvedAsyncNotebookFilesToIgnore.has(progress.resource) && onProgress) { // don't override open editor results
+						onProgress(progress);
+					}
+				} else if (onProgress) {
+					// Progress
+					onProgress(<IProgressMessage>progress);
+				}
+
+				if (isProgressMessage(progress)) {
+					this.logService.debug('SearchService#search', progress.message);
+				}
+			};
+			return await this.doSearch(query, token, onProviderProgress);
+		};
+
 		return {
 			syncResults,
-			asyncResults: this.doSearch(query, token, onProviderProgress)
+			asyncResults: getAsyncResults()
 		};
 	}
 

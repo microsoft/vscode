@@ -36,9 +36,9 @@ import { CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel } from 'vs
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookSearchService } from 'vs/workbench/contrib/search/browser/notebookSearch';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { CellSearchModel, ICellMatch, contentMatchesToTextSearchMatches, isIFileMatchWithCells, rawCellPrefix, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
@@ -2007,49 +2007,47 @@ export class SearchModel extends Disposable {
 		asyncResults: Promise<ISearchComplete>;
 		syncResults: IFileMatch<URI>[];
 	} {
-		const generateOnProgress = (sync: boolean) => {
-			return (p: ISearchProgressItem) => {
-				progressEmitter.fire();
-				if (sync) {
-					this.onSearchProgressSync(p, searchInstanceID);
-				} else {
-					this.onSearchProgress(p, searchInstanceID);
-				}
-
-				onProgress?.(p);
-			};
+		const asyncGenerateOnProgress = async (p: ISearchProgressItem) => {
+			progressEmitter.fire();
+			this.onSearchProgress(p, searchInstanceID);
+			onProgress?.(p);
 		};
-		const asyncGenerateOnProgress = generateOnProgress(false);
-		const syncGenerateOnProgress = generateOnProgress(true);
 
+		const syncGenerateOnProgress = (p: ISearchProgressItem) => {
+			progressEmitter.fire();
+			this.onSearchProgressSync(p, searchInstanceID);
+			onProgress?.(p);
+		};
 		const tokenSource = this.currentCancelTokenSource = callerTokenSource ?? new CancellationTokenSource();
-		const notebookResult = this.notebookSearchService.notebookSearch(query, this.currentCancelTokenSource.token, searchInstanceID, asyncGenerateOnProgress);
+
+		const notebookResult = this.notebookSearchService.notebookSearch(query, tokenSource.token, searchInstanceID, onProgress);
 		const textResult = this.searchService.textSearchSplitSyncAsync(
 			searchQuery,
-			this.currentCancelTokenSource.token, asyncGenerateOnProgress);
+			this.currentCancelTokenSource.token, asyncGenerateOnProgress,
+			notebookResult.openFilesToScan,
+			notebookResult.allScannedFiles,
+		);
 
-		const syncResults = textResult.syncResults.results.filter(e => !notebookResult.openFilesToScan.has(e.resource));
+		const syncResults = textResult.syncResults.results;
 		syncResults.forEach(p => { if (p) { syncGenerateOnProgress(p); } });
 
 		const getAsyncResults = async (): Promise<ISearchComplete> => {
 			const searchStart = Date.now();
 
 			// resolve async parts of search
-			const [resolvedNotebookResult, resolvedTextResults] = await Promise.all([notebookResult.resultPromise, textResult.asyncResults]);
-			const allResults = [
-				...resolvedNotebookResult.completeData.results,
-				...resolvedTextResults.results.filter((e) => !resolvedNotebookResult.allScannedFiles.has(e.resource))
-			];
+			const allClosedEditorResults = await textResult.asyncResults;
+			const resolvedNotebookResults = await notebookResult.completeData;
 			tokenSource.dispose();
 			const searchLength = Date.now() - searchStart;
-			this.logService.trace(`whole search time | ${searchLength}ms`);
-			return {
-				results: allResults,
-				messages: resolvedTextResults.messages.concat(resolvedNotebookResult.completeData.messages),
-				limitHit: resolvedTextResults.limitHit || resolvedNotebookResult.completeData.limitHit,
-				exit: resolvedTextResults.exit,
-				stats: resolvedTextResults.stats,
+			const resolvedResult = <ISearchComplete>{
+				results: [...allClosedEditorResults.results, ...resolvedNotebookResults.results],
+				messages: [...allClosedEditorResults.messages, ...resolvedNotebookResults.messages],
+				limitHit: allClosedEditorResults.limitHit || resolvedNotebookResults.limitHit,
+				exit: allClosedEditorResults.exit,
+				stats: allClosedEditorResults.stats,
 			};
+			this.logService.trace(`whole search time | ${searchLength}ms`);
+			return resolvedResult;
 		};
 		return {
 			asyncResults: getAsyncResults(),

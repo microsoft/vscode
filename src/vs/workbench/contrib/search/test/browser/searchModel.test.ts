@@ -36,7 +36,7 @@ import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBr
 import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { INotebookSearchService } from 'vs/workbench/contrib/search/browser/notebookSearch';
+import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
 
 const nullEvent = new class {
 	id: number = -1;
@@ -212,9 +212,10 @@ suite('SearchModel', () => {
 	function notebookSearchServiceWithInfo(results: IFileMatchWithCells[], tokenSource: CancellationTokenSource | undefined): INotebookSearchService {
 		return <INotebookSearchService>{
 			_serviceBrand: undefined,
-			notebookSearch(query: ITextQuery, token: CancellationToken, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): {
+			notebookSearch(query: ITextQuery, token: CancellationToken | undefined, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): {
 				openFilesToScan: ResourceSet;
-				resultPromise: Promise<{ completeData: ISearchComplete; allScannedFiles: ResourceSet }>;
+				completeData: Promise<ISearchComplete>;
+				allScannedFiles: Promise<ResourceSet>;
 			} {
 				token?.onCancellationRequested(() => tokenSource?.cancel());
 				const localResults = new ResourceMap<IFileMatchWithCells | null>(uri => uri.path);
@@ -228,14 +229,12 @@ suite('SearchModel', () => {
 				}
 				return {
 					openFilesToScan: new ResourceSet([...localResults.keys()]),
-					resultPromise: Promise.resolve({
-						completeData: {
-							messages: [],
-							results: arrays.coalesce([...localResults.values()]),
-							limitHit: false
-						},
-						allScannedFiles: new ResourceSet([]),
-					})
+					completeData: Promise.resolve({
+						messages: [],
+						results: arrays.coalesce([...localResults.values()]),
+						limitHit: false
+					}),
+					allScannedFiles: Promise.resolve(new ResourceSet()),
 				};
 			}
 		};

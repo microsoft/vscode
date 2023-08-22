@@ -10,13 +10,14 @@ import { ITextQuery, ISearchProgressItem, ISearchComplete } from 'vs/workbench/s
 
 export const INotebookSearchService = createDecorator<INotebookSearchService>('notebookSearchService');
 
+
 export interface INotebookSearchService {
 
 	readonly _serviceBrand: undefined;
 
-
-	notebookSearch(query: ITextQuery, token: CancellationToken, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): {
+	notebookSearch(query: ITextQuery, token: CancellationToken | undefined, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): {
 		openFilesToScan: ResourceSet;
-		resultPromise: Promise<{ completeData: ISearchComplete; allScannedFiles: ResourceSet }>;
+		completeData: Promise<ISearchComplete>;
+		allScannedFiles: Promise<ResourceSet>;
 	};
 }

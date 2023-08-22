@@ -176,10 +176,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 					indexedCellOptions: element instanceof MatchInNotebook ? { cellIndex: element.cellIndex, selection: element.range } : undefined,
 				};
 				const preview = element.preview();
-				const previewText = '  ' + (preview.before + preview.inside + preview.after).trim().substring(0, 999);
+				const previewText = (preview.before + preview.inside + preview.after).trim().substring(0, 999);
 				const match: IMatch[] = [{
-					start: preview.before.length + 2,
-					end: preview.before.length + preview.inside.length + 2
+					start: preview.before.length,
+					end: preview.before.length + preview.inside.length
 				}];
 				picks.push({
 					label: `${previewText}`,
@@ -219,13 +219,11 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 			};
 		}
 
-		const bleh = allMatches.asyncResults.then((asyncResults) => {
-			return this._getPicksFromMatches(asyncResults, MAX_FILES_SHOWN - matches.length);
-		});
-
 		return {
 			picks: syncResult,
-			additionalPicks: bleh
+			additionalPicks: allMatches.asyncResults.then((asyncResults) => {
+				return this._getPicksFromMatches(asyncResults, MAX_FILES_SHOWN - matches.length);
+			})
 		};
 
 	}
