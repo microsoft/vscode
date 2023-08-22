@@ -218,6 +218,11 @@ class DiagnosticsTelemetryManager extends Disposable {
 			}
 		}, 5 * 60 * 1000); // 5 minutes
 	}
+
+	override dispose() {
+		super.dispose();
+		clearTimeout(this._timeout);
+	}
 }
 
 export class DiagnosticsManager extends Disposable {
