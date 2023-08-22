@@ -68,6 +68,8 @@ import 'vs/workbench/services/configuration/common/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/editor/browser/editorResolverService';
+import 'vs/workbench/services/aiEmbeddingVector/common/aiEmbeddingVectorService';
+import 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformationService';
 import 'vs/workbench/services/history/browser/historyService';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/services/keybinding/browser/keybindingService';
@@ -367,5 +369,8 @@ import 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 
 // Share
 import 'vs/workbench/contrib/share/browser/share.contribution';
+
+// Ai
+import 'vs/workbench/contrib/aiRelatedInformation/common/aiRelatedInformation.contribution';
 
 //#endregion
