@@ -228,9 +228,10 @@
 	margin: 0px 20px;
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 2px;
+	border-radius: 4px;
 	position: relative;
-	padding: 0 4px;
+	padding: 0 6px;
+	margin-bottom: 4px;
 	align-items: center;
 	justify-content: space-between;
 }

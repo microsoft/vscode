@@ -10,7 +10,7 @@ import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contex
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IQuickInputService, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
-import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
@@ -29,6 +29,10 @@ export class QuickChatService implements IQuickChatService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
+	get enabled(): boolean {
+		return this.chatService.getProviderInfos().length > 0;
+	}
+
 	get focused(): boolean {
 		const widget = this._input?.widget as HTMLElement;
 		if (!widget) {
@@ -37,7 +41,7 @@ export class QuickChatService implements IQuickChatService {
 		return dom.isAncestor(document.activeElement, widget);
 	}
 
-	toggle(providerId: string, query?: string | undefined): void {
+	toggle(providerId?: string, query?: string | undefined): void {
 		// If the input is already shown, hide it. This provides a toggle behavior of the quick pick
 		if (this.focused) {
 			this.close();
@@ -46,7 +50,9 @@ export class QuickChatService implements IQuickChatService {
 
 		// Check if any providers are available. If not, show nothing
 		// This shouldn't be needed because of the precondition, but just in case
-		const providerInfo = this.chatService.getProviderInfos().find(info => info.id === providerId);
+		const providerInfo = providerId
+			? this.chatService.getProviderInfos().find(info => info.id === providerId)
+			: this.chatService.getProviderInfos()[0];
 		if (!providerInfo) {
 			return;
 		}
@@ -136,10 +142,10 @@ class QuickChat extends Disposable {
 				ChatWidget,
 				{ resource: true, renderInputOnTop: true, renderStyle: 'compact' },
 				{
-					listForeground: editorForeground,
-					listBackground: editorBackground,
+					listForeground: quickInputForeground,
+					listBackground: quickInputBackground,
 					inputEditorBackground: inputBackground,
-					resultEditorBackground: editorBackground
+					resultEditorBackground: quickInputBackground
 				}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);

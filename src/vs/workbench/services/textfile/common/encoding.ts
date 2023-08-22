@@ -6,6 +6,7 @@
 import { Readable, ReadableStream, newWriteableStream, listenStream } from 'vs/base/common/stream';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { importAMDNodeModule } from 'vs/amdX';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -124,6 +125,8 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 
 		let decoder: IDecoderStream | undefined = undefined;
 
+		const cts = new CancellationTokenSource();
+
 		const createDecoder = async () => {
 			try {
 
@@ -158,14 +161,14 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 			} catch (error) {
 
 				// Stop handling anything from the source and target
-				sourceListener?.dispose();
+				cts.cancel();
 				target.destroy();
 
 				reject(error);
 			}
 		};
 
-		const sourceListener = listenStream(source, {
+		listenStream(source, {
 			onData: async chunk => {
 
 				// if the decoder is ready, we just write directly
@@ -205,7 +208,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 				// end the target with the remainders of the decoder
 				target.end(decoder?.end());
 			}
-		});
+		}, cts.token);
 	});
 }
 

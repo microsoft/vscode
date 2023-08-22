@@ -265,7 +265,7 @@ export class ViewZoneManager extends Disposable {
 				} else {
 					const delta = a.modifiedHeightInPx - a.originalHeightInPx;
 					if (delta > 0) {
-						if (syncedMovedText?.lineRangeMapping.original.contains(a.originalRange.endLineNumberExclusive - 1)) {
+						if (syncedMovedText?.lineRangeMapping.original.delta(-1).deltaLength(2).contains(a.originalRange.endLineNumberExclusive - 1)) {
 							continue;
 						}
 
@@ -276,7 +276,7 @@ export class ViewZoneManager extends Disposable {
 							showInHiddenAreas: true,
 						});
 					} else {
-						if (syncedMovedText?.lineRangeMapping.modified.contains(a.modifiedRange.endLineNumberExclusive - 1)) {
+						if (syncedMovedText?.lineRangeMapping.modified.delta(-1).deltaLength(2).contains(a.modifiedRange.endLineNumberExclusive - 1)) {
 							continue;
 						}
 

@@ -104,6 +104,7 @@ export interface IChatResponseCommandFollowup {
 	commandId: string;
 	args?: any[];
 	title: string; // supports codicon strings
+	when?: string;
 }
 
 export type IChatFollowup = IChatReplyFollowup | IChatResponseCommandFollowup;
