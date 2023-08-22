@@ -561,7 +561,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		content.element.className = 'interactive-response-placeholder-content';
 		result.appendChild(content.element);
 
-		return { element: result, dispose: () => { } };
+		return { element: result, dispose: () => content.dispose() };
 	}
 
 	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, disposables: DisposableStore, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
