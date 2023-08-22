@@ -79,6 +79,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly _options: DiffEditorOptions;
 	private readonly _editors: DiffEditorEditors;
 
+	private readonly movedBlocksLinesPart = observableValue<MovedBlocksLinesPart | undefined>('MovedBlocksLinesPart', undefined);
+
 	constructor(
 		private readonly _domElement: HTMLElement,
 		options: Readonly<IDiffEditorConstructionOptions>,
@@ -204,13 +206,15 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(keepAlive(this._layoutInfo, true));
 
-		this._register(new MovedBlocksLinesPart(
-			this.elements.root,
-			this._diffModel,
-			this._layoutInfo.map(i => i.originalEditor),
-			this._layoutInfo.map(i => i.modifiedEditor),
-			this._editors,
-		));
+		this._register(autorunWithStore((reader, store) => {
+			this.movedBlocksLinesPart.set(store.add(new (readHotReloadableExport(MovedBlocksLinesPart, reader))(
+				this.elements.root,
+				this._diffModel,
+				this._layoutInfo.map(i => i.originalEditor),
+				this._layoutInfo.map(i => i.modifiedEditor),
+				this._editors,
+			)), undefined);
+		}));
 
 		this._register(applyStyle(this.elements.overlay, {
 			width: this._layoutInfo.map((i, r) => i.originalEditor.width + (this._options.renderSideBySide.read(r) ? 0 : i.modifiedEditor.width)),
@@ -285,13 +289,15 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		const originalWidth = sashLeft ?? Math.max(5, this._editors.original.getLayoutInfo().decorationsLeft);
 		const modifiedWidth = width - originalWidth - (this._options.renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0);
 
-		this.elements.original.style.width = originalWidth + 'px';
+		const movedBlocksLinesWidth = this.movedBlocksLinesPart.read(reader)?.width.read(reader) ?? 0;
+		const originalWidthWithoutMovedBlockLines = originalWidth - movedBlocksLinesWidth;
+		this.elements.original.style.width = originalWidthWithoutMovedBlockLines + 'px';
 		this.elements.original.style.left = '0px';
 
 		this.elements.modified.style.width = modifiedWidth + 'px';
 		this.elements.modified.style.left = originalWidth + 'px';
 
-		this._editors.original.layout({ width: originalWidth, height });
+		this._editors.original.layout({ width: originalWidthWithoutMovedBlockLines, height });
 		this._editors.modified.layout({ width: modifiedWidth, height });
 
 		return {

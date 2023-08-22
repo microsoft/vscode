@@ -42,6 +42,8 @@ import 'vs/workbench/contrib/search/browser/searchActionsNav';
 import 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
 import 'vs/workbench/contrib/search/browser/searchActionsSymbol';
 import 'vs/workbench/contrib/search/browser/searchActionsTopBar';
+import 'vs/workbench/contrib/search/browser/searchActionsTextQuickAccess';
+import { TEXT_SEARCH_QUICK_ACCESS_PREFIX, TextSearchQuickAccess } from 'vs/workbench/contrib/search/browser/quickTextSearch/textSearchQuickAccess';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
@@ -107,7 +109,11 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: AnythingQuickAccessProvider.PREFIX,
 	placeholder: nls.localize('anythingQuickAccessPlaceholder', "Search files by name (append {0} to go to line or {1} to go to symbol)", AbstractGotoLineQuickAccessProvider.PREFIX, GotoSymbolQuickAccessProvider.PREFIX),
 	contextKey: defaultQuickAccessContextKeyValue,
-	helpEntries: [{ description: nls.localize('anythingQuickAccess', "Go to File"), commandId: 'workbench.action.quickOpen' }]
+	helpEntries: [{
+		description: nls.localize('anythingQuickAccess', "Go to File"),
+		commandId: 'workbench.action.quickOpen',
+		commandCenterOrder: 10
+	}]
 });
 
 quickAccessRegistry.registerQuickAccessProvider({
@@ -116,6 +122,14 @@ quickAccessRegistry.registerQuickAccessProvider({
 	placeholder: nls.localize('symbolsQuickAccessPlaceholder', "Type the name of a symbol to open."),
 	contextKey: 'inWorkspaceSymbolsPicker',
 	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), commandId: Constants.ShowAllSymbolsActionId }]
+});
+
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: TextSearchQuickAccess,
+	prefix: TEXT_SEARCH_QUICK_ACCESS_PREFIX,
+	contextKey: 'inTextSearchPicker',
+	placeholder: nls.localize('textSearchPickerPlaceholder', "Search for text in your workspace files."),
+	helpEntries: [{ description: nls.localize('textSearchPickerHelp', "Show All Text Results (experimental)"), commandId: Constants.QuickTextSearchActionId }]
 });
 
 // Configuration
