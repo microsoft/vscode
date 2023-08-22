@@ -163,7 +163,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 	) {
 		super();
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
-			if (e.document.languageId === 'typescript') {
+			if (e.document.languageId === 'typescript' || e.document.languageId === 'typescriptreact') {
 				this._updateAllDiagnosticCodesAfterTimeout();
 			}
 		}));
