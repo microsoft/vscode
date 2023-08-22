@@ -2002,73 +2002,53 @@ export class SearchModel extends Disposable {
 		this._searchResultChangedListener = this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
 	}
 
-	private async doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-		const searchStart = Date.now();
-		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
-		const onProgressCall = (p: ISearchProgressItem) => {
-			progressEmitter.fire();
-			this.onSearchProgress(p, searchInstanceID);
 
-			onProgress?.(p);
-		};
-		const notebookResult = await this.notebookSearchService.notebookSearch(query, this.currentCancelTokenSource.token, searchInstanceID, onProgressCall);
-		const currentResult = await this.searchService.textSearch(
-			searchQuery,
-			this.currentCancelTokenSource.token, onProgressCall,
-			notebookResult?.scannedFiles
-		);
-		tokenSource.dispose();
-		const searchLength = Date.now() - searchStart;
-		this.logService.trace(`whole search time | ${searchLength}ms`);
-		return {
-			results: currentResult.results.concat(notebookResult.completeData.results),
-			messages: currentResult.messages.concat(notebookResult.completeData.messages),
-			limitHit: currentResult.limitHit || notebookResult.completeData.limitHit,
-			exit: currentResult.exit,
-			stats: currentResult.stats,
-		};
-	}
-
-
-	private doSearchSync(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): {
+	private doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void, callerTokenSource?: CancellationTokenSource): {
 		asyncResults: Promise<ISearchComplete>;
-		syncResults: ResourceMap<IFileMatch | null>;
+		syncResults: IFileMatch<URI>[];
 	} {
+		const generateOnProgress = (sync: boolean) => {
+			return (p: ISearchProgressItem) => {
+				progressEmitter.fire();
+				if (sync) {
+					this.onSearchProgressSync(p, searchInstanceID);
+				} else {
+					this.onSearchProgress(p, searchInstanceID);
+				}
 
-		const onProgressCall = (p: ISearchProgressItem, sync = false) => {
-			progressEmitter.fire();
-			if (sync) {
-				this.onSearchProgressSync(p, searchInstanceID);
-			} else {
-				this.onSearchProgress(p, searchInstanceID);
-			}
-
-			onProgress?.(p);
+				onProgress?.(p);
+			};
 		};
-		const syncResults = this.searchService.getLocalResults(query).results;
-		[...syncResults.values()].forEach(p => { if (p) { onProgressCall(p, true); } });
+		const asyncGenerateOnProgress = generateOnProgress(false);
+		const syncGenerateOnProgress = generateOnProgress(true);
 
-		const getAsyncResults = async () => {
+		const tokenSource = this.currentCancelTokenSource = callerTokenSource ?? new CancellationTokenSource();
+		const notebookResult = this.notebookSearchService.notebookSearch(query, this.currentCancelTokenSource.token, searchInstanceID, asyncGenerateOnProgress);
+		const textResult = this.searchService.textSearchSplitSyncAsync(
+			searchQuery,
+			this.currentCancelTokenSource.token, asyncGenerateOnProgress);
+
+		const syncResults = textResult.syncResults.results.filter(e => !notebookResult.openFilesToScan.has(e.resource));
+		syncResults.forEach(p => { if (p) { syncGenerateOnProgress(p); } });
+
+		const getAsyncResults = async (): Promise<ISearchComplete> => {
 			const searchStart = Date.now();
-			const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
 
-			const notebookResult = await this.notebookSearchService.notebookSearch(query, this.currentCancelTokenSource.token, searchInstanceID, onProgressCall);
-			const currentResult = await this.searchService.textSearch(
-				searchQuery,
-				this.currentCancelTokenSource.token, onProgressCall,
-				notebookResult?.scannedFiles,
-				true
-			);
-
+			// resolve async parts of search
+			const [resolvedNotebookResult, resolvedTextResults] = await Promise.all([notebookResult.resultPromise, textResult.asyncResults]);
+			const allResults = [
+				...resolvedNotebookResult.completeData.results,
+				...resolvedTextResults.results.filter((e) => !resolvedNotebookResult.allScannedFiles.has(e.resource))
+			];
 			tokenSource.dispose();
 			const searchLength = Date.now() - searchStart;
 			this.logService.trace(`whole search time | ${searchLength}ms`);
 			return {
-				results: currentResult.results.concat(notebookResult.completeData.results),
-				messages: currentResult.messages.concat(notebookResult.completeData.messages),
-				limitHit: currentResult.limitHit || notebookResult.completeData.limitHit,
-				exit: currentResult.exit,
-				stats: currentResult.stats,
+				results: allResults,
+				messages: resolvedTextResults.messages.concat(resolvedNotebookResult.completeData.messages),
+				limitHit: resolvedTextResults.limitHit || resolvedNotebookResult.completeData.limitHit,
+				exit: resolvedTextResults.exit,
+				stats: resolvedTextResults.stats,
 			};
 		};
 		return {
@@ -2077,9 +2057,9 @@ export class SearchModel extends Disposable {
 		};
 	}
 
-	searchSync(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): {
+	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerTokenSource?: CancellationTokenSource): {
 		asyncResults: Promise<ISearchComplete>;
-		syncResults: ResourceMap<IFileMatch | null>;
+		syncResults: IFileMatch<URI>[];
 	} {
 		this.cancelSearch(true);
 
@@ -2097,7 +2077,7 @@ export class SearchModel extends Disposable {
 		// In search on type case, delay the streaming of results just a bit, so that we don't flash the only "local results" fast path
 		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 150 : 0));
 
-		const req = this.doSearchSync(query, progressEmitter, this._searchQuery, searchInstanceID, onProgress);
+		const req = this.doSearch(query, progressEmitter, this._searchQuery, searchInstanceID, onProgress, callerTokenSource);
 		const asyncResults = req.asyncResults;
 		const syncResults = req.syncResults;
 
@@ -2129,54 +2109,6 @@ export class SearchModel extends Disposable {
 				asyncResults: asyncResults,
 				syncResults: syncResults
 			};
-		} finally {
-			/* __GDPR__
-				"searchResultsFinished" : {
-					"owner": "roblourens",
-					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-				}
-			*/
-			this.telemetryService.publicLog('searchResultsFinished', { duration: Date.now() - start });
-		}
-	}
-
-	async search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-		this.cancelSearch(true);
-
-		this._searchQuery = query;
-		if (!this.searchConfig.searchOnType) {
-			this.searchResult.clear();
-		}
-		const searchInstanceID = Date.now().toString();
-
-		this._searchResult.query = this._searchQuery;
-
-		const progressEmitter = new Emitter<void>();
-		this._replacePattern = new ReplacePattern(this.replaceString, this._searchQuery.contentPattern);
-
-		// In search on type case, delay the streaming of results just a bit, so that we don't flash the only "local results" fast path
-		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 150 : 0));
-
-		const currentRequest = this.doSearch(query, progressEmitter, this._searchQuery, searchInstanceID, onProgress);
-
-		const start = Date.now();
-
-		Promise.race([currentRequest, Event.toPromise(progressEmitter.event)]).finally(() => {
-			/* __GDPR__
-				"searchResultsFirstRender" : {
-					"owner": "roblourens",
-					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-				}
-			*/
-			this.telemetryService.publicLog('searchResultsFirstRender', { duration: Date.now() - start });
-		});
-
-		currentRequest.then(
-			value => this.onSearchCompleted(value, Date.now() - start, searchInstanceID),
-			e => this.onSearchError(e, Date.now() - start));
-
-		try {
-			return await currentRequest;
 		} finally {
 			/* __GDPR__
 				"searchResultsFinished" : {
@@ -2292,7 +2224,7 @@ export type FileMatchOrMatch = FileMatch | Match;
 
 export type RenderableMatch = FolderMatch | FolderMatchWithResource | FileMatch | Match;
 
-export class SearchWorkbenchService implements ISearchWorkbenchService {
+export class SearchViewModelWorkbenchService implements ISearchViewModelWorkbenchService {
 
 	declare readonly _serviceBrand: undefined;
 	private _searchModel: SearchModel | null = null;
@@ -2308,9 +2240,9 @@ export class SearchWorkbenchService implements ISearchWorkbenchService {
 	}
 }
 
-export const ISearchWorkbenchService = createDecorator<ISearchWorkbenchService>('searchWorkbenchService');
+export const ISearchViewModelWorkbenchService = createDecorator<ISearchViewModelWorkbenchService>('searchViewModelWorkbenchService');
 
-export interface ISearchWorkbenchService {
+export interface ISearchViewModelWorkbenchService {
 	readonly _serviceBrand: undefined;
 
 	readonly searchModel: SearchModel;

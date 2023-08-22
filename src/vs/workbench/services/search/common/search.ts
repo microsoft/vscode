@@ -19,7 +19,6 @@ import * as paths from 'vs/base/common/path';
 import { isCancellationError } from 'vs/base/common/errors';
 import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
 import { isThenable } from 'vs/base/common/async';
-import { ResourceMap } from 'vs/base/common/map';
 
 export { TextSearchCompleteMessageType };
 
@@ -42,10 +41,10 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
  */
 export interface ISearchService {
 	readonly _serviceBrand: undefined;
-	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void, notebookURIs?: Set<URI>, ignoreOpenEditors?: boolean): Promise<ISearchComplete>;
+	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
+	textSearchSplitSyncAsync(query: ITextQuery, token?: CancellationToken | undefined, onProgress?: ((result: ISearchProgressItem) => void) | undefined): { syncResults: ISearchComplete; asyncResults: Promise<ISearchComplete> };
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
-	getLocalResults(query: ITextQuery): { results: ResourceMap<IFileMatch | null>; limitHit: boolean };
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
 }
 

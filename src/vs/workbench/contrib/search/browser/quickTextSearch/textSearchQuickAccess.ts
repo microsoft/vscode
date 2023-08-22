@@ -91,12 +91,11 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 		const query: ITextQuery = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), this._getTextQueryBuilderOptions(charsPerLine));
 
-		const result = this.searchModel.searchSync(query, undefined);
+		const result = this.searchModel.search(query, undefined);
 
 		const getAsyncResults = async () => {
 			await result.asyncResults;
-			const res = this.searchModel.searchResult.matches().filter(e => !result.syncResults.has(e.resource));
-			return res;
+			return this.searchModel.searchResult.matches().filter(e => result.syncResults.indexOf(e) === -1);
 		};
 		return {
 			syncResults: this.searchModel.searchResult.matches(),
@@ -132,7 +131,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 				});
 
 				picks.push({
-					label: 'See More Files',
+					label: localize('QuickSearchSeeMoreFiles', "See More Files"),
 					iconClass: ThemeIcon.asClassName(searchDetailsIcon),
 					accept: async () => {
 						this.moveToSearchViewlet(this.searchModel, matches[limit]);
@@ -163,7 +162,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 				if (matchIndex === MAX_RESULTS_PER_FILE) {
 					picks.push({
-						label: 'More',
+						label: localize('QuickSearchMore', "More"),
 						iconClass: ThemeIcon.asClassName(searchDetailsIcon),
 						accept: async () => {
 							this.moveToSearchViewlet(this.searchModel, element);
