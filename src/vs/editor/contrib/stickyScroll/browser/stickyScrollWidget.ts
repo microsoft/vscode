@@ -139,15 +139,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (!this._editor._getViewModel()) {
 			return;
 		}
-
-		// Folding
 		let foldingModel: FoldingModel | null = null;
 		const foldingController = FoldingController.get(this._editor);
 		if (foldingController) {
 			foldingModel = await foldingController.getFoldingModel();
 		}
-		// Folding
-
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const { lineNumberHTMLNode, renderedStickyLine } = this._renderChildNode(index, line, layoutInfo, foldingModel);
@@ -174,7 +170,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	private _renderChildNode(index: number, line: number, layoutInfo: EditorLayoutInfo, foldingModel: FoldingModel | null): { lineNumberHTMLNode: HTMLSpanElement; renderedStickyLine: RenderedStickyLine } {
-		const editorDomNode = this._editor.getDomNode();
 		const viewModel = this._editor._getViewModel();
 		const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
 		const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
@@ -216,6 +211,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const lineNumberHTMLNode = document.createElement('span');
 		lineNumberHTMLNode.className = 'sticky-line-number';
 		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
+		const lineNumbersWidth = minimapSide === 'left' ? layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth : layoutInfo.contentLeft;
+		lineNumberHTMLNode.style.width = `${lineNumbersWidth}px`;
 
 		const innerLineNumberHTML = document.createElement('span');
 		if (lineNumberOption.renderType === RenderLineNumbersType.On || lineNumberOption.renderType === RenderLineNumbersType.Interval && line % 10 === 0) {
@@ -226,71 +223,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		innerLineNumberHTML.className = 'sticky-line-number-inner';
 		innerLineNumberHTML.style.lineHeight = `${lineHeight}px`;
 		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
+		innerLineNumberHTML.style.float = 'left';
 		if (minimapSide === 'left') {
 			innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft - layoutInfo.minimap.minimapCanvasOuterWidth}px`;
 		} else if (minimapSide === 'right') {
 			innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
 		}
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
-
-		const lineNumbersWidth = minimapSide === 'left' ? layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth : layoutInfo.contentLeft;
-		lineNumberHTMLNode.style.width = `${lineNumbersWidth}px`;
-
-		// Added for the folding toggle icons
-		innerLineNumberHTML.style.float = 'left';
-
-		if (foldingModel) {
-			const foldingRegions = foldingModel.regions;
-			const indexOfLine = foldingRegions.findRange(line);
-			const isCollapsed = foldingRegions.isCollapsed(indexOfLine);
-			const startLineNumber = foldingRegions.getStartLineNumber(indexOfLine);
-			const endLineNumber = foldingRegions.getEndLineNumber(indexOfLine);
-			const isFoldingLine = line === startLineNumber;
-
-			if (isFoldingLine) {
-				const divToUnfold = document.createElement('div');
-				divToUnfold.style.float = 'right';
-				if (isCollapsed) {
-					divToUnfold.className = ThemeIcon.asClassName(foldingCollapsedIcon);
-				} else {
-					divToUnfold.className = ThemeIcon.asClassName(foldingExpandedIcon);
-				}
-
-				divToUnfold.style.opacity = '0';
-				divToUnfold.style.height = '0px';
-
-				divToUnfold.classList.add('unfold-icon');
-				lineNumberHTMLNode.append(divToUnfold);
-
-				let collapsed = isCollapsed;
-
-				this._disposableStore.add(dom.addDisposableListener(divToUnfold, dom.EventType.CLICK, () => {
-					collapsed = !collapsed;
-					toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
-
-					const topOfStart = this._editor.getTopForLineNumber(startLineNumber) - lineHeight * (index) + 1;
-					const topOfEnd = this._editor.getTopForLineNumber(endLineNumber) - lineHeight * (index) + 1;
-					const newHeight = collapsed ? topOfEnd : topOfStart;
-					this._editor.setScrollTop(newHeight);
-					if (editorDomNode) {
-						editorDomNode.style.cursor = 'pointer';
-					}
-				}));
-				this._disposableStore.add(dom.addDisposableListener(lineNumberHTMLNode, dom.EventType.MOUSE_OVER, () => {
-					divToUnfold.style.opacity = '1';
-					divToUnfold.style.height = '18px';
-					divToUnfold.style.width = '18px';
-					divToUnfold.style.cursor = 'pointer';
-				}));
-				this._disposableStore.add(dom.addDisposableListener(lineNumberHTMLNode, dom.EventType.MOUSE_OUT, () => {
-					divToUnfold.style.transition = 'opacity 250ms linear';
-					divToUnfold.style.opacity = '0';
-					divToUnfold.style.height = '0px';
-					divToUnfold.style.cursor = 'default';
-				}));
-			}
-		}
-		// Added with the folding toggle icons
 
 		this._editor.applyFontInfo(lineHTMLNode);
 		this._editor.applyFontInfo(innerLineNumberHTML);
@@ -317,10 +256,68 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
 		lineNumberHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
 
+		this._renderFoldingIconForLine(lineNumberHTMLNode, foldingModel, index, line);
+
 		return {
 			lineNumberHTMLNode,
 			renderedStickyLine: new RenderedStickyLine(line, lineHTMLNode, renderOutput.characterMapping)
 		};
+	}
+
+	private _renderFoldingIconForLine(container: HTMLSpanElement, foldingModel: FoldingModel | null, index: number, line: number): void {
+		if (!foldingModel) {
+			return;
+		}
+		const foldingRegions = foldingModel.regions;
+		const indexOfFoldingRegion = foldingRegions.findRange(line);
+		const startLineNumber = foldingRegions.getStartLineNumber(indexOfFoldingRegion);
+		const endLineNumber = foldingRegions.getEndLineNumber(indexOfFoldingRegion);
+		const isFoldingScope = line === startLineNumber;
+		if (!isFoldingScope) {
+			return;
+		}
+
+		const foldingIcon = document.createElement('div');
+		container.append(foldingIcon);
+		foldingIcon.classList.add('unfold-icon');
+		foldingIcon.style.float = 'right';
+		const isRegionCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
+		if (isRegionCollapsed) {
+			foldingIcon.className = ThemeIcon.asClassName(foldingCollapsedIcon);
+		} else {
+			foldingIcon.className = ThemeIcon.asClassName(foldingExpandedIcon);
+		}
+
+		foldingIcon.style.opacity = '0';
+		foldingIcon.style.height = '0px';
+
+		this._disposableStore.add(dom.addDisposableListener(foldingIcon, dom.EventType.CLICK, () => {
+			toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
+
+			const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+			const topOfStart = this._editor.getTopForLineNumber(startLineNumber) - lineHeight * (index) + 1;
+			const topOfEnd = this._editor.getTopForLineNumber(endLineNumber) - lineHeight * (index) + 1;
+			const newHeight = isRegionCollapsed ? topOfStart : topOfEnd;
+			this._editor.setScrollTop(newHeight);
+			const editorDomNode = this._editor.getDomNode();
+			if (editorDomNode) {
+				editorDomNode.style.cursor = 'pointer';
+			}
+		}));
+		this._disposableStore.add(dom.addDisposableListener(container, dom.EventType.MOUSE_OVER, () => {
+			console.log('inside of mouse over');
+			foldingIcon.style.opacity = '1';
+			foldingIcon.style.height = '18px';
+			foldingIcon.style.width = '18px';
+			foldingIcon.style.cursor = 'pointer';
+		}));
+		this._disposableStore.add(dom.addDisposableListener(container, dom.EventType.MOUSE_OUT, () => {
+			console.log('inside of mouse out');
+			foldingIcon.style.transition = 'opacity 250ms linear';
+			foldingIcon.style.opacity = '0';
+			foldingIcon.style.height = '0px';
+			foldingIcon.style.cursor = 'default';
+		}));
 	}
 
 	private _updateMinContentWidth() {
