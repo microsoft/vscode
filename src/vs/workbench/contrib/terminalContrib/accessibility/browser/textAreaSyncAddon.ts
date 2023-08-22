@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
@@ -18,9 +18,7 @@ export interface ITextAreaData {
 
 export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 	private _terminal: Terminal | undefined;
-	private _onCursorMoveListener = this._register(new MutableDisposable());
-	private _onDidFocusListener = this._register(new MutableDisposable());
-	private _onKeyListener = this._register(new MutableDisposable());
+	private _listeners = this._register(new MutableDisposable<DisposableStore>());
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
 		if (this._accessibilityService.isScreenReaderOptimized()) {
@@ -40,22 +38,20 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 				this._refreshTextArea();
 				this._setListeners();
 			} else {
-				this._onCursorMoveListener.clear();
-				this._onDidFocusListener.clear();
-				this._onKeyListener.clear();
+				this._listeners.clear();
 			}
 		}));
 	}
 
 	private _setListeners(): void {
 		if (this._accessibilityService.isScreenReaderOptimized() && this._terminal) {
-			this._onCursorMoveListener.value = this._terminal.onCursorMove(() => this._refreshTextArea());
-			this._onDidFocusListener.value = this._onDidFocus(() => this._refreshTextArea());
-			this._onKeyListener.value = this._terminal.onKey((e) => {
+			this._listeners.value?.add(this._terminal.onCursorMove(() => this._refreshTextArea()));
+			this._listeners.value?.add(this._onDidFocus(() => this._refreshTextArea()));
+			this._listeners.value?.add(this._terminal.onKey((e) => {
 				if (e.domEvent.key === 'UpArrow') {
 					this._refreshTextArea();
 				}
-			});
+			}));
 		}
 	}
 
@@ -113,7 +109,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: content is "${content}"`);
 		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: textContent is "${textArea.textContent}"`);
 		if (content !== textArea.textContent) {
-			textArea.textContent = content.trim();
+			textArea.textContent = content;
 			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: textContent changed to "${content}"`);
 		}
 
