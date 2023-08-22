@@ -26,6 +26,11 @@ export interface CommandInformationResult extends RelatedInformationResult {
 	command: string;
 }
 
+export interface SettingInformationResult extends RelatedInformationResult {
+	type: RelatedInformationType.SettingInformation;
+	setting: string;
+}
+
 export interface IAiRelatedInformationService {
 	readonly _serviceBrand: undefined;
 
