@@ -10,6 +10,7 @@ import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import type { Terminal, ITerminalAddon } from 'xterm';
 import { Event } from 'vs/base/common/event';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { debounce } from 'vs/base/common/decorators';
 
 export interface ITextAreaData {
 	content: string;
@@ -45,9 +46,10 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 
 	private _setListeners(): void {
 		if (this._accessibilityService.isScreenReaderOptimized() && this._terminal) {
-			this._listeners.value?.add(this._terminal.onCursorMove(() => this._refreshTextArea()));
-			this._listeners.value?.add(this._onDidFocus(() => this._refreshTextArea()));
-			this._listeners.value?.add(this._terminal.onKey((e) => {
+			this._listeners.value = new DisposableStore();
+			this._listeners.value.add(this._terminal.onCursorMove(() => this._refreshTextArea()));
+			this._listeners.value.add(this._onDidFocus(() => this._refreshTextArea()));
+			this._listeners.value.add(this._terminal.onKey((e) => {
 				if (e.domEvent.key === 'UpArrow') {
 					this._refreshTextArea();
 				}
@@ -55,6 +57,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
+	@debounce(50)
 	private _refreshTextArea(): void {
 		if (!this._terminal) {
 			return;
