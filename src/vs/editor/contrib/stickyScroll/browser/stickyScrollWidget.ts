@@ -168,6 +168,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	private _renderChildNode(index: number, line: number, layoutInfo: EditorLayoutInfo, foldingModel: FoldingModel | null): { lineNumberHTMLNode: HTMLSpanElement; renderedStickyLine: RenderedStickyLine } {
+		const editorDomNode = this._editor.getDomNode();
 		const viewModel = this._editor._getViewModel();
 		const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
 		const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
@@ -249,7 +250,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				// divToUnfold.style.transition = 'opacity 250ms linear';
 				divToUnfold.style.opacity = '0';
 				divToUnfold.style.height = '0px';
-				divToUnfold.style.cursor = 'default';
+				// divToUnfold.style.cursor = 'default';
 
 				divToUnfold.classList.add('unfold-icon');
 				lineNumberHTMLNode.append(divToUnfold);
@@ -269,6 +270,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					const newHeight = scrollTop; // - (collapsed ? 0 : 18);
 					console.log('newHeight : ', newHeight);
 					this._editor.setScrollTop(newHeight);
+					if (editorDomNode) {
+						editorDomNode.style.cursor = 'pointer';
+					}
+
 				}));
 				this._disposableStore.add(dom.addDisposableListener(lineNumberHTMLNode, dom.EventType.MOUSE_OVER, () => {
 					divToUnfold.style.opacity = '1';
