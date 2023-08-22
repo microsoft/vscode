@@ -43,4 +43,6 @@ jobs:
           docker system prune --all --force
           df -h
           docker system df
+          cat /etc/docker/daemon.json || true
+
           .devcontainer/prebuilt/cache/build-cache-image.sh "${{ secrets.CONTAINER_IMAGE_REGISTRY }}/public/vscode/devcontainers/repos/microsoft/vscode" "${GIT_BRANCH}"
