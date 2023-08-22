@@ -8,9 +8,8 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import type { Terminal, ITerminalAddon } from 'xterm';
-import { Event } from 'vs/base/common/event';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { debounce } from 'vs/base/common/decorators';
+import { addDisposableListener } from 'vs/base/browser/dom';
 
 export interface ITextAreaData {
 	content: string;
@@ -29,7 +28,6 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
-		private readonly _onDidFocus: Event<ITerminalInstance>,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService
 	) {
@@ -45,10 +43,10 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _setListeners(): void {
-		if (this._accessibilityService.isScreenReaderOptimized() && this._terminal) {
+		if (this._accessibilityService.isScreenReaderOptimized() && this._terminal?.textarea) {
 			this._listeners.value = new DisposableStore();
 			this._listeners.value.add(this._terminal.onCursorMove(() => this._refreshTextArea()));
-			this._listeners.value.add(this._onDidFocus(() => this._refreshTextArea()));
+			this._listeners.value.add(addDisposableListener(this._terminal.textarea, 'focus', () => this._refreshTextArea()));
 			this._listeners.value.add(this._terminal.onKey((e) => {
 				if (e.domEvent.key === 'UpArrow') {
 					this._refreshTextArea();
