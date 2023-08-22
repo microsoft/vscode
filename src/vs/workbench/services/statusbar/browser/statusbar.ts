@@ -191,12 +191,16 @@ export interface IStatusbarEntry {
 	readonly tooltip?: string | IMarkdownString | HTMLElement;
 
 	/**
-	 * An optional color to use for the entry
+	 * An optional color to use for the entry.
+	 *
+	 * @deprecated Use `kind` instead to support themable hover styles.
 	 */
 	readonly color?: string | ThemeColor;
 
 	/**
-	 * An optional background color to use for the entry
+	 * An optional background color to use for the entry.
+	 *
+	 * @deprecated Use `kind` instead to support themable hover styles.
 	 */
 	readonly backgroundColor?: string | ThemeColor;
 
