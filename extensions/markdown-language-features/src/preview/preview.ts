@@ -605,10 +605,11 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 		contributionProvider: MarkdownContributionProvider,
 		opener: MdLinkOpener,
 	): DynamicMarkdownPreview {
+		const preserveFocus = !vscode.workspace.getConfiguration('markdown.preview', input.resource).get<boolean>('focusOnOpen');
 		const webview = vscode.window.createWebviewPanel(
 			DynamicMarkdownPreview.viewType,
 			DynamicMarkdownPreview._getPreviewTitle(input.resource, input.locked),
-			previewColumn, { enableFindWidget: true, });
+			{ viewColumn: previewColumn, preserveFocus }, { enableFindWidget: true, });
 
 		webview.iconPath = contentProvider.iconPath;
 

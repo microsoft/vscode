@@ -378,6 +378,12 @@
           "description": "%markdown.preview.doubleClickToSwitchToEditor.desc%",
           "scope": "resource"
         },
+        "markdown.preview.focusOnOpen": {
+          "type": "boolean",
+          "default": true,
+          "description": "%markdown.preview.focusOnOpen.desc%",
+          "scope": "resource"
+        },
         "markdown.preview.openMarkdownLinks": {
           "type": "string",
           "default": "inPreview",
