@@ -139,11 +139,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (!this._editor._getViewModel()) {
 			return;
 		}
-		let foldingModel: FoldingModel | null = null;
-		const foldingController = FoldingController.get(this._editor);
-		if (foldingController) {
-			foldingModel = await foldingController.getFoldingModel();
-		}
+		this._foldingIconStore.dispose();
+		const foldingModel: FoldingModel | null | undefined = await FoldingController.get(this._editor)?.getFoldingModel();
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const { lineNumberHTMLNode, renderedStickyLine } = this._renderChildNode(index, line, layoutInfo, foldingModel);
@@ -169,7 +166,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.layoutOverlayWidget(this);
 	}
 
-	private _renderChildNode(index: number, line: number, layoutInfo: EditorLayoutInfo, foldingModel: FoldingModel | null): { lineNumberHTMLNode: HTMLSpanElement; renderedStickyLine: RenderedStickyLine } {
+	private _renderChildNode(index: number, line: number, layoutInfo: EditorLayoutInfo, foldingModel: FoldingModel | null | undefined): { lineNumberHTMLNode: HTMLSpanElement; renderedStickyLine: RenderedStickyLine } {
 		const viewModel = this._editor._getViewModel();
 		const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
 		const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
@@ -264,8 +261,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		};
 	}
 
-	private _renderFoldingIconForLine(container: HTMLSpanElement, foldingModel: FoldingModel | null, index: number, line: number): void {
-		this._foldingIconStore.dispose();
+	private _renderFoldingIconForLine(container: HTMLSpanElement, foldingModel: FoldingModel | null | undefined, index: number, line: number): void {
 		if (!foldingModel) {
 			return;
 		}
