@@ -5,7 +5,7 @@
 
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -25,7 +25,7 @@ export interface IChatRequestModel {
 export interface IResponse {
 	readonly value: (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData)[];
 	onDidChangeValue: Event<void>;
-	updateContent(responsePart: string | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void;
+	updateContent(responsePart: string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent?: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void;
 	asString(): string;
 }
 
@@ -125,17 +125,21 @@ export class Response implements IResponse {
 		return this._responseRepr;
 	}
 
-	updateContent(responsePart: string | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void {
-		if (typeof responsePart === 'string') {
+	updateContent(responsePart: string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void {
+		if (typeof responsePart === 'string' || isMarkdownString(responsePart)) {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
 
 			if (lastResponsePart.isPlaceholder === true || isCompleteInteractiveProgressTreeData(lastResponsePart)) {
 				// The last part is resolving or a tree data item, start a new part
-				this._responseParts.push({ string: new MarkdownString(responsePart) });
+				this._responseParts.push({ string: typeof responsePart === 'string' ? new MarkdownString(responsePart) : responsePart });
 			} else {
 				// Combine this part with the last, non-resolving string part
-				this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart) };
+				if (isMarkdownString(responsePart)) {
+					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart.value, responsePart) };
+				} else {
+					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart, lastResponsePart.string) };
+				}
 			}
 
 			this._updateRepr(quiet);
@@ -250,7 +254,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
-	updateContent(responsePart: string | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean) {
+	updateContent(responsePart: string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent?: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
 	}
 

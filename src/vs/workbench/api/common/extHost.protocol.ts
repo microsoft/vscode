@@ -1216,7 +1216,7 @@ export interface IChatResponseProgressFileTreeData {
 	children?: IChatResponseProgressFileTreeData[];
 }
 
-export type IChatResponseProgressDto = { content: string } | { requestId: string } | { placeholder: string } | { treeData: IChatResponseProgressFileTreeData };
+export type IChatResponseProgressDto = { content: string | IMarkdownString } | { requestId: string } | { placeholder: string } | { treeData: IChatResponseProgressFileTreeData };
 
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
