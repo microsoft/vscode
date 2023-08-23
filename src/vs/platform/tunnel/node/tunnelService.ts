@@ -134,7 +134,11 @@ export class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 			if (localSocket.localAddress) {
 				this._socketsDispose.delete(localSocket.localAddress);
 			}
-			remoteSocket.end();
+			if (remoteSocket instanceof NodeSocket) {
+				remoteSocket.socket.destroy();
+			} else {
+				remoteSocket.end();
+			}
 		});
 
 		if (remoteSocket instanceof NodeSocket) {
@@ -156,10 +160,6 @@ export class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		remoteSocket.onClose(() => localSocket.destroy());
 		remoteSocket.onEnd(() => localSocket.end());
 		remoteSocket.onData(d => localSocket.write(d.buffer));
-
-		localSocket.on('end', () => remoteSocket.end());
-		localSocket.on('close', () => remoteSocket.dispose());
-		localSocket.on('data', d => remoteSocket.write(VSBuffer.wrap(d)));
 		localSocket.resume();
 	}
 
