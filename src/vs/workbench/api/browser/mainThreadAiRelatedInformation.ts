@@ -7,9 +7,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { ExtHostAiRelatedInformationShape, ExtHostContext, MainContext, MainThreadAiRelatedInformationShape } from 'vs/workbench/api/common/extHost.protocol';
 import { RelatedInformationType } from 'vs/workbench/api/common/extHostTypes';
-import { IAiRelatedInformationProvider, IAiRelatedInformationService } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
+import { IAiRelatedInformationProvider, IAiRelatedInformationService, RelatedInformationResult } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { RelatedInformationResult } from 'vscode';
 
 @extHostNamedCustomer(MainContext.MainThreadAiRelatedInformation)
 export class MainThreadAiRelatedInformation extends Disposable implements MainThreadAiRelatedInformationShape {
@@ -29,13 +28,13 @@ export class MainThreadAiRelatedInformation extends Disposable implements MainTh
 		return this._aiRelatedInformationService.getRelatedInformation(query, types, CancellationToken.None);
 	}
 
-	$registerAiRelatedInformationProvider(handle: number, types: RelatedInformationType[]): void {
+	$registerAiRelatedInformationProvider(handle: number, type: RelatedInformationType): void {
 		const provider: IAiRelatedInformationProvider = {
-			provideAiRelatedInformation: (query, types, token) => {
-				return this._proxy.$provideAiRelatedInformation(handle, query, types, token);
+			provideAiRelatedInformation: (query, token) => {
+				return this._proxy.$provideAiRelatedInformation(handle, query, token);
 			},
 		};
-		this._registrations.set(handle, this._aiRelatedInformationService.registerAiRelatedInformationProvider(types, provider));
+		this._registrations.set(handle, this._aiRelatedInformationService.registerAiRelatedInformationProvider(type, provider));
 	}
 
 	$unregisterAiRelatedInformationProvider(handle: number): void {

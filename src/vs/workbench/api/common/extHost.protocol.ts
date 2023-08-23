@@ -1675,12 +1675,12 @@ export interface MainThreadSemanticSimilarityShape extends IDisposable {
 }
 
 export interface ExtHostAiRelatedInformationShape {
-	$provideAiRelatedInformation(handle: number, query: string, types: RelatedInformationType[], token: CancellationToken): Promise<RelatedInformationResult[]>;
+	$provideAiRelatedInformation(handle: number, query: string, token: CancellationToken): Promise<RelatedInformationResult[]>;
 }
 
 export interface MainThreadAiRelatedInformationShape {
 	$getAiRelatedInformation(query: string, types: RelatedInformationType[]): Promise<RelatedInformationResult[]>;
-	$registerAiRelatedInformationProvider(handle: number, types: RelatedInformationType[]): void;
+	$registerAiRelatedInformationProvider(handle: number, type: RelatedInformationType): void;
 	$unregisterAiRelatedInformationProvider(handle: number): void;
 }
 
