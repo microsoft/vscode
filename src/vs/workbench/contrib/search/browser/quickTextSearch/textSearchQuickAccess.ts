@@ -12,12 +12,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IViewsService } from 'vs/workbench/common/views';
 import { searchDetailsIcon, searchOpenInFileIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { Match, MatchInNotebook, RenderableMatch, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
+import { FileMatch, Match, MatchInNotebook, RenderableMatch, SearchModel, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
 import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -75,8 +75,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		return this._configurationService.getValue<ISearchConfigurationProperties>('search');
 	}
 
-	private async doSearch(contentPattern: string): Promise<SearchResult | undefined> {
-
+	private doSearch(contentPattern: string, token: CancellationToken): {
+		syncResults: FileMatch[];
+		asyncResults: Promise<FileMatch[]>;
+	} | undefined {
 		if (contentPattern === '') {
 			return undefined;
 		}
@@ -89,8 +91,16 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 		const query: ITextQuery = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), this._getTextQueryBuilderOptions(charsPerLine));
 
-		await this.searchModel.search(query, undefined);
-		return this.searchModel.searchResult;
+		const result = this.searchModel.search(query, undefined, token);
+
+		const getAsyncResults = async () => {
+			await result.asyncResults;
+			return this.searchModel.searchResult.matches().filter(e => result.syncResults.indexOf(e) === -1);
+		};
+		return {
+			syncResults: this.searchModel.searchResult.matches(),
+			asyncResults: getAsyncResults()
+		};
 	}
 
 	private moveToSearchViewlet(model: SearchModel, currentElem: RenderableMatch) {
@@ -107,31 +117,24 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		viewer.reveal(currentElem);
 	}
 
-	protected async _getPicks(contentPattern: string, disposables: DisposableStore, token: CancellationToken): Promise<(IQuickPickSeparator | IPickerQuickAccessItem)[]> {
+	private _getPicksFromMatches(matches: FileMatch[], limit: number): (IQuickPickSeparator | IPickerQuickAccessItem)[] {
+		matches = matches.sort(searchComparer);
 
-		const searchResult = await this.doSearch(contentPattern);
-
-		if (!searchResult) {
-			return [];
-		}
-
+		const files = matches.length > limit ? matches.slice(0, limit) : matches;
 		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
-		const matches = searchResult.matches();
-		const files = matches.length > MAX_FILES_SHOWN ? matches.slice(0, MAX_FILES_SHOWN) : matches;
-
 		for (let fileIndex = 0; fileIndex < matches.length; fileIndex++) {
-			if (fileIndex === MAX_FILES_SHOWN) {
+			if (fileIndex === limit) {
 
 				picks.push({
 					type: 'separator',
 				});
 
 				picks.push({
-					label: 'See More Files',
+					label: localize('QuickSearchSeeMoreFiles', "See More Files"),
 					iconClass: ThemeIcon.asClassName(searchDetailsIcon),
 					accept: async () => {
-						this.moveToSearchViewlet(this.searchModel, matches[MAX_FILES_SHOWN]);
+						this.moveToSearchViewlet(this.searchModel, matches[limit]);
 					}
 				});
 				break;
@@ -159,7 +162,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 				if (matchIndex === MAX_RESULTS_PER_FILE) {
 					picks.push({
-						label: 'More',
+						label: localize('QuickSearchMore', "More"),
 						iconClass: ThemeIcon.asClassName(searchDetailsIcon),
 						accept: async () => {
 							this.moveToSearchViewlet(this.searchModel, element);
@@ -173,10 +176,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 					indexedCellOptions: element instanceof MatchInNotebook ? { cellIndex: element.cellIndex, selection: element.range } : undefined,
 				};
 				const preview = element.preview();
-				const previewText = '  ' + (preview.before + preview.inside + preview.after).trim().substring(0, 999);
+				const previewText = (preview.before + preview.inside + preview.after).trim().substring(0, 999);
 				const match: IMatch[] = [{
-					start: preview.before.length + 2,
-					end: preview.before.length + preview.inside.length + 2
+					start: preview.before.length,
+					end: preview.before.length + preview.inside.length
 				}];
 				picks.push({
 					label: `${previewText}`,
@@ -193,10 +196,29 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 					},
 				});
 			}
+		}
+		return picks;
+	}
+	protected _getPicks(contentPattern: string, disposables: DisposableStore, token: CancellationToken): Picks<IQuickPickItem> | Promise<Picks<IQuickPickItem> | FastAndSlowPicks<IQuickPickItem>> | FastAndSlowPicks<IQuickPickItem> | null {
 
+		const allMatches = this.doSearch(contentPattern, token);
+
+		if (!allMatches) {
+			return null;
+		}
+		const matches = allMatches.syncResults;
+		const syncResult = this._getPicksFromMatches(matches, MAX_FILES_SHOWN);
+
+		if (matches.length >= MAX_FILES_SHOWN) {
+			return syncResult;
 		}
 
-		return picks;
+		return {
+			picks: syncResult,
+			additionalPicks: allMatches.asyncResults.then((asyncResults) => {
+				return this._getPicksFromMatches(asyncResults, MAX_FILES_SHOWN - matches.length);
+			})
+		};
 
 	}
 }
