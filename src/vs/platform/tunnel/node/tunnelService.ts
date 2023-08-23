@@ -9,7 +9,6 @@ import { BROWSER_RESTRICTED_PORTS, findFreePortFaster } from 'vs/base/node/ports
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 
 import { Barrier } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import { ISocket } from 'vs/base/parts/ipc/common/ipc.net';
