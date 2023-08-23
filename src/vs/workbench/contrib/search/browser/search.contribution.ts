@@ -134,7 +134,6 @@ quickAccessRegistry.registerQuickAccessProvider({
 			description: nls.localize('textSearchPickerHelp', "Search for Text (Experimental)"),
 			commandId: Constants.QuickTextSearchActionId,
 			commandCenterOrder: 65,
-			commandCenterLabel: nls.localize('textSearchPickerHelp', "Search for Text (Experimental)"),
 		}
 	]
 });
