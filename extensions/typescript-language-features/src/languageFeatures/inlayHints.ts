@@ -77,7 +77,7 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 		return response.body.map(hint => {
 			const result = new vscode.InlayHint(
 				Position.fromLocation(hint.position),
-				this.convertInlayHintText(model.uri, hint),
+				this.convertInlayHintText(hint),
 				hint.kind && fromProtocolInlayHintKind(hint.kind)
 			);
 			result.paddingLeft = hint.whitespaceBefore;
@@ -86,19 +86,18 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 		});
 	}
 
-	private convertInlayHintText(resource: vscode.Uri, tsHint: Proto.InlayHintItem): string | vscode.InlayHintLabelPart[] {
+	private convertInlayHintText(tsHint: Proto.InlayHintItem): string | vscode.InlayHintLabelPart[] {
 		if (tsHint.displayParts) {
 			return tsHint.displayParts.map((part): vscode.InlayHintLabelPart => {
 				const out = new vscode.InlayHintLabelPart(part.text);
 				if (part.span) {
-					out.location = Location.fromTextSpan(resource, part.span);
+					out.location = Location.fromTextSpan(this.client.toResource(part.span.file), part.span);
 				}
 				return out;
 			});
 		}
 
 		return tsHint.text;
-
 	}
 }
 
