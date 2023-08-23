@@ -786,9 +786,9 @@ export class NativeWindow extends Disposable {
 	private setupOpenHandlers(): void {
 
 		// Block window.open() calls
-		window.open = function (): Window | null {
-			throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
-		};
+		// window.open = function (): Window | null {
+		// 	throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
+		// };
 
 		// Handle external open() calls
 		this.openerService.setDefaultExternalOpener({

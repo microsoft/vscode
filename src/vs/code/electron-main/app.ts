@@ -368,20 +368,20 @@ export class CodeApplication extends Disposable {
 		//
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
-		app.on('web-contents-created', (event, contents) => {
+		// app.on('web-contents-created', (event, contents) => {
 
-			contents.on('will-navigate', event => {
-				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
+		// 	contents.on('will-navigate', event => {
+		// 		this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
 
-				event.preventDefault();
-			});
+		// 		event.preventDefault();
+		// 	});
 
-			contents.setWindowOpenHandler(({ url }) => {
-				this.nativeHostMainService?.openExternal(undefined, url);
+		// 	contents.setWindowOpenHandler(({ url }) => {
+		// 		this.nativeHostMainService?.openExternal(undefined, url);
 
-				return { action: 'deny' };
-			});
-		});
+		// 		return { action: 'deny' };
+		// 	});
+		// });
 
 		//#endregion
 

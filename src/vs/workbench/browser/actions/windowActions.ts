@@ -283,7 +283,7 @@ class ToggleFullScreenAction extends Action2 {
 		super({
 			id: 'workbench.action.toggleFullScreen',
 			title: {
-				value: localize('toggleFullScreen', "Toggle Full Screen"),
+				value: localize('toggleFullScreen', "Pop Editor Out"),
 				mnemonicTitle: localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
 				original: 'Toggle Full Screen'
 			},
@@ -306,10 +306,31 @@ class ToggleFullScreenAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		const hostService = accessor.get(IHostService);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const refs = window.open('about:blank');
 
-		return hostService.toggleFullScreen();
+		const childWindow = refs?.window as Window;
+		childWindow.document.body.append(document.getElementsByClassName(`editor-container`)[0]);
+
+		// Copy style sheets over from the initial document
+		// so that the player looks the same.
+		[...document.styleSheets].forEach((styleSheet) => {
+			try {
+				const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join('');
+				const style = document.createElement('style');
+
+				style.textContent = cssRules;
+				childWindow.document.head.appendChild(style);
+			} catch (e) {
+				const link = document.createElement('link');
+
+				link.rel = 'stylesheet';
+				link.type = styleSheet.type;
+				(link as any).media = styleSheet.media;
+				(link as any).href = styleSheet.href;
+				childWindow.document.head.appendChild(link);
+			}
+		});
 	}
 }
 
