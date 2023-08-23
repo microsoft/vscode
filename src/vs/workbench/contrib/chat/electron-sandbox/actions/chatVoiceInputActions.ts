@@ -76,28 +76,43 @@ class ChatVoiceInputSession {
 		this.chatVoiceInputInProgressKey.set(true);
 
 		let lastText: string | undefined = undefined;
-		let lastTextEqualCount = 0;
+		let lastTextSimilarCount = 0;
 
 		this.currentChatVoiceInputSession.add(onDidTranscribe(text => {
 			if (text) {
-				if (lastText && equalsIgnoreCase(text, lastText)) {
-					lastTextEqualCount++;
-
-					if (lastTextEqualCount >= 2) {
-						context.widget.acceptInput();
-					}
+				if (lastText && this.isSimilarTranscription(text, lastText)) {
+					lastTextSimilarCount++;
 				} else {
-					lastTextEqualCount = 0;
+					lastTextSimilarCount = 0;
 					lastText = text;
+				}
 
+				if (lastTextSimilarCount >= 2) {
+					context.widget.acceptInput();
+				} else {
 					context.widget.updateInput(text);
 				}
+
 			}
 		}));
 
 		this.currentChatVoiceInputSession.add(context.widget.onDidAcceptInput(() => {
 			this.stop();
 		}));
+	}
+
+	private isSimilarTranscription(textA: string, textB: string): boolean {
+
+		// Attempt to compare the 2 strings in a way to see
+		// if they are similar or not. As such we:
+		// - ignore trailing punctuation
+		// - collapse all whitespace
+		// - compare case insensitive
+
+		return equalsIgnoreCase(
+			textA.replace(/[.,;:!?]+$/, '').replace(/\s+/g, ''),
+			textB.replace(/[.,;:!?]+$/, '').replace(/\s+/g, '')
+		);
 	}
 
 	stop(): void {
