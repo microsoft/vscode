@@ -19,6 +19,7 @@
     "fileSearchProvider",
     "findTextInFiles",
     "fsChunks",
+    "mappedEditsProvider",
     "notebookCellExecutionState",
     "notebookDeprecated",
     "notebookLiveShare",
@@ -40,10 +41,10 @@
     "envShellEvent",
     "testCoverage",
     "testObserver",
+    "testMessageContextValue",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
-    "treeItemCheckbox",
 	"treeViewActiveItem",
     "treeViewReveal",
     "workspaceTrust",
@@ -214,7 +215,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "16.x"
+    "@types/node": "18.x"
   },
   "repository": {
     "type": "git",

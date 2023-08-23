@@ -250,6 +250,10 @@ export interface IOverlayWidget {
 	 * If null is returned, the overlay widget is responsible to place itself.
 	 */
 	getPosition(): IOverlayWidgetPosition | null;
+	/**
+	 * The editor will ensure that the scroll width is >= than this value.
+	 */
+	getMinContentWidthInPx?(): number;
 }
 
 /**
@@ -354,7 +358,7 @@ export interface IBaseMouseTarget {
 	/**
 	 * The target element
 	 */
-	readonly element: Element | null;
+	readonly element: HTMLElement | null;
 	/**
 	 * The 'approximate' editor position
 	 */
@@ -1263,9 +1267,9 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 */
 	revealFirstDiff(): unknown;
 
-	diffReviewNext(): void;
+	accessibleDiffViewerNext(): void;
 
-	diffReviewPrev(): void;
+	accessibleDiffViewerPrev(): void;
 }
 
 /**

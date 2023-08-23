@@ -2971,7 +2971,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			if (!globTasksDetected && groupTasks.length === 0) {
-				groupTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build, true);
+				groupTasks = await this._findWorkspaceTasksInGroup(taskGroup, true);
 			}
 
 			const handleMultipleTasks = (areGlobTasks: boolean) => {
@@ -3114,48 +3114,44 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private _runRestartTaskCommand(arg?: any): void {
-		const runQuickPick = (promise?: Promise<Task[]>) => {
-			this._showQuickPick(promise || this.getActiveTasks(),
+	private async _runRestartTaskCommand(arg?: any): Promise<void> {
+
+		const activeTasks = await this.getActiveTasks();
+
+		if (activeTasks.length === 1) {
+			this._restart(activeTasks[0]);
+			return;
+		}
+
+		if (this.inTerminal()) {
+			// try dispatching using task identifier
+			const identifier = this._getTaskIdentifier(arg);
+			if (identifier !== undefined) {
+				for (const task of activeTasks) {
+					if (task.matches(identifier)) {
+						this._restart(task);
+						return;
+					}
+				}
+			}
+			// show quick pick with active tasks
+			const entry = await this._showQuickPick(
+				activeTasks,
 				nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
 				{
 					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
 					task: null
 				},
-				false, true
-			).then(entry => {
-				const task: Task | undefined | null = entry ? entry.task : undefined;
-				if (task === undefined || task === null) {
-					return;
-				}
-				this._restart(task);
-			});
-		};
-		if (this.inTerminal()) {
-			const identifier = this._getTaskIdentifier(arg);
-			let promise: Promise<Task[]>;
-			if (identifier !== undefined) {
-				promise = this.getActiveTasks();
-				promise.then((tasks) => {
-					for (const task of tasks) {
-						if (task.matches(identifier)) {
-							this._restart(task);
-							return;
-						}
-					}
-					runQuickPick(promise);
-				});
-			} else {
-				runQuickPick();
+				false,
+				true
+			);
+			if (entry && entry.task) {
+				this._restart(entry.task);
 			}
 		} else {
-			this.getActiveTasks().then((activeTasks) => {
-				if (activeTasks.length === 0) {
-					return;
-				}
-				const task = activeTasks[0];
-				this._restart(task);
-			});
+			if (activeTasks.length > 0) {
+				this._restart(activeTasks[0]);
+			}
 		}
 	}
 

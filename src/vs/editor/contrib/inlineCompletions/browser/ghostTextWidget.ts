@@ -46,7 +46,8 @@ export class GhostTextWidget extends Disposable {
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 	}
 
-	private readonly uiState = derived('uiState', reader => {
+	private readonly uiState = derived(reader => {
+		/** @description uiState */
 		if (this.isDisposed.read(reader)) {
 			return undefined;
 		}
@@ -125,7 +126,8 @@ export class GhostTextWidget extends Disposable {
 		};
 	});
 
-	private readonly decorations = derived('decorations', reader => {
+	private readonly decorations = derived(reader => {
+		/** @description decorations */
 		const uiState = this.uiState.read(reader);
 		if (!uiState) {
 			return [];
@@ -165,7 +167,8 @@ export class GhostTextWidget extends Disposable {
 		new AdditionalLinesWidget(
 			this.editor,
 			this.languageService.languageIdCodec,
-			derived('lines', (reader) => {
+			derived(reader => {
+				/** @description lines */
 				const uiState = this.uiState.read(reader);
 				return uiState ? {
 					lineNumber: uiState.lineNumber,
@@ -204,7 +207,8 @@ class AdditionalLinesWidget extends Disposable {
 	) {
 		super();
 
-		this._register(autorun('update view zone', reader => {
+		this._register(autorun(reader => {
+			/** @description update view zone */
 			const lines = this.lines.read(reader);
 			this.editorOptionsChanged.read(reader);
 

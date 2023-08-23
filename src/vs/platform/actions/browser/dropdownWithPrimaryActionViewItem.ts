@@ -18,6 +18,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export interface IDropdownWithPrimaryActionViewItemOptions {
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
@@ -43,10 +44,11 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@INotificationService _notificationService: INotificationService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IThemeService _themeService: IThemeService
+		@IThemeService _themeService: IThemeService,
+		@IAccessibilityService _accessibilityService: IAccessibilityService
 	) {
 		super(null, primaryAction);
-		this._primaryAction = new MenuEntryActionViewItem(primaryAction, undefined, _keybindingService, _notificationService, _contextKeyService, _themeService, _contextMenuProvider);
+		this._primaryAction = new MenuEntryActionViewItem(primaryAction, undefined, _keybindingService, _notificationService, _contextKeyService, _themeService, _contextMenuProvider, _accessibilityService);
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: true,
 			classNames: className ? ['codicon', 'codicon-chevron-down', className] : ['codicon', 'codicon-chevron-down'],

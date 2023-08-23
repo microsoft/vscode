@@ -38,6 +38,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
+import { ISelection } from 'vs/editor/common/core/selection';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -63,6 +64,7 @@ const enum Message {
 }
 
 export interface InlineChatRunOptions {
+	initialSelection?: ISelection;
 	initialRange?: IRange;
 	message?: string;
 	autoSend?: boolean;
@@ -98,7 +100,7 @@ export class InlineChatController implements IEditorContribution {
 
 	private _messages = this._store.add(new Emitter<Message>());
 
-	private readonly _sessionStore: DisposableStore = new DisposableStore();
+	private readonly _sessionStore: DisposableStore = this._store.add(new DisposableStore());
 	private readonly _stashedSession: MutableDisposable<StashedSession> = this._store.add(new MutableDisposable());
 	private _activeSession?: Session;
 	private _strategy?: EditModeStrategy;
@@ -144,6 +146,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	dispose(): void {
+		this._strategy?.dispose();
 		this._stashedSession.clear();
 		this.finishExistingSession();
 		this._store.dispose();
@@ -156,6 +159,10 @@ export class InlineChatController implements IEditorContribution {
 		} else {
 			this._logService.trace(`[IE] (editor:${this._editor.getId()})${message}`, ...more);
 		}
+	}
+
+	getMessage(): string | undefined {
+		return this._zone.value.widget.responseContent;
 	}
 
 	getId(): string {
@@ -184,6 +191,9 @@ export class InlineChatController implements IEditorContribution {
 			await this._currentRun;
 		}
 		this._stashedSession.clear();
+		if (options.initialSelection) {
+			this._editor.setSelection(options.initialSelection);
+		}
 		this._currentRun = this._nextState(State.CREATE_SESSION, options);
 		await this._currentRun;
 		this._currentRun = undefined;
@@ -307,7 +317,7 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
-		this._zone.value.widget.onDidChangeInput(_ => {
+		this._sessionStore.add(this._zone.value.widget.onDidChangeInput(_ => {
 			const start = this._zone.value.position;
 			if (!start || !this._zone.value.widget.hasFocus() || !this._zone.value.widget.value || !this._editor.hasModel()) {
 				return;
@@ -318,7 +328,7 @@ export class InlineChatController implements IEditorContribution {
 				return;
 			}
 			this._editor.revealLine(nextLine, ScrollType.Smooth);
-		});
+		}));
 
 		this._showWidget(true, options.position);
 
@@ -407,7 +417,7 @@ export class InlineChatController implements IEditorContribution {
 			msgListener.dispose();
 		}
 
-		this._zone.value.widget.selectAll();
+		this._zone.value.widget.selectAll(false);
 
 		if (message & (Message.CANCEL_INPUT | Message.CANCEL_SESSION)) {
 			return State.CANCEL;

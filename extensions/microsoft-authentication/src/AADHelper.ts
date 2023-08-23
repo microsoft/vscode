@@ -310,9 +310,7 @@ export class AzureActiveDirectoryService {
 		}
 
 		try {
-			const session = await this.createSessionWithLocalServer(scopeData);
-			this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
-			return session;
+			return await this.createSessionWithLocalServer(scopeData);
 		} catch (e) {
 			this._logger.error(`Error creating session for scopes: ${scopeData.scopeStr} Error: ${e}`);
 
@@ -354,6 +352,7 @@ export class AzureActiveDirectoryService {
 		}
 
 		const session = await this.exchangeCodeForSession(codeToExchange, codeVerifier, scopeData);
+		this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
 		return session;
 	}
 
@@ -690,6 +689,7 @@ export class AzureActiveDirectoryService {
 					}
 
 					const session = await this.exchangeCodeForSession(code, verifier, scopeData);
+					this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
 					resolve(session);
 				} catch (err) {
 					reject(err);
@@ -716,6 +716,7 @@ export class AzureActiveDirectoryService {
 				if (code) {
 					inputBox.dispose();
 					const session = await this.exchangeCodeForSession(code, verifier, scopeData);
+					this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
 					resolve(session);
 				}
 			});

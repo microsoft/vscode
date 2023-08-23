@@ -43,7 +43,7 @@
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/node": "16.x",
+    "@types/node": "18.x",
     "@types/semver": "^5.5.0"
   },
   "scripts": {
@@ -145,7 +145,7 @@
       "properties": {
         "typescript.experimental.aiQuickFix": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%typescript.experimental.aiQuickFix%",
           "scope": "resource"
         },

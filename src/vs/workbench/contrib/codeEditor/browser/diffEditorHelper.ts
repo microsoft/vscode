@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { autorunWithStore, observableFromEvent } from 'vs/base/common/observable';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { DiffReviewNext, DiffReviewPrev } from 'vs/editor/browser/widget/diffEditor.contribution';
+import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from 'vs/editor/browser/widget/diffEditor.contribution';
 import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
 import { EmbeddedDiffEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
+import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { AccessibilityHelpAction, AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { localize } from 'vs/nls';
-import { observableFromEvent } from 'vs/base/common/observable';
-import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
+import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
 	public static readonly ID = 'editor.contrib.diffEditorHelper';
@@ -43,10 +43,11 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 			const computationResult = observableFromEvent(e => this._diffEditor.onDidUpdateDiff(e), () => this._diffEditor.getDiffComputationResult());
 			const onlyWhiteSpaceChange = computationResult.map(r => r && !r.identical && r.changes2.length === 0);
 
-			this._register(autorunWithStore2('update state', (reader, store) => {
+			this._register(autorunWithStore((reader, store) => {
+				/** @description update state */
 				if (onlyWhiteSpaceChange.read(reader)) {
 					const helperWidget = store.add(this._instantiationService.createInstance(
-						FloatingClickWidget,
+						FloatingEditorClickWidget,
 						this._diffEditor.getModifiedEditor(),
 						localize('hintWhitespace', "Show Whitespace Differences"),
 						null
@@ -86,8 +87,8 @@ function createScreenReaderHelp(): IDisposable {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const keybindingService = accessor.get(IKeybindingService);
 
-		const next = keybindingService.lookupKeybinding(DiffReviewNext.id)?.getAriaLabel();
-		const previous = keybindingService.lookupKeybinding(DiffReviewPrev.id)?.getAriaLabel();
+		const next = keybindingService.lookupKeybinding(AccessibleDiffViewerNext.id)?.getAriaLabel();
+		const previous = keybindingService.lookupKeybinding(AccessibleDiffViewerPrev.id)?.getAriaLabel();
 
 		if (!(editorService.activeTextEditorControl instanceof DiffEditorWidget2)) {
 			return;
@@ -110,7 +111,7 @@ function createScreenReaderHelp(): IDisposable {
 			onClose: () => {
 				codeEditor.focus();
 			},
-			options: { type: AccessibleViewType.HelpMenu, ariaLabel: localize('chat-help-label', "Diff editor accessibility help") }
+			options: { type: AccessibleViewType.Help }
 		});
 	}, ContextKeyExpr.and(
 		ContextKeyEqualsExpr.create('diffEditorVersion', 2),

@@ -109,7 +109,7 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		}
 	}
 
-	toJSON(): IOutputDto {
+	asDto(): IOutputDto {
 		return {
 			// data: this._data,
 			metadata: this._rawOutput.metadata,
@@ -118,5 +118,8 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		};
 	}
 
+	bumpVersion() {
+		this._versionId = this._versionId + 1;
+	}
 
 }
