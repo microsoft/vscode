@@ -316,12 +316,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private basicRenderElement(markdownValue: (IMarkdownString | IChatResponseProgressFileTreeData)[], element: ChatTreeItem, index: number, templateData: IChatListItemTemplate) {
+	private basicRenderElement(value: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData>, element: ChatTreeItem, index: number, templateData: IChatListItemTemplate) {
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete);
 
 		dom.clearNode(templateData.value);
 		let fileTreeIndex = 0;
-		for (const data of markdownValue) {
+		for (const data of value) {
 			const result = 'value' in data
 				? this.renderMarkdown(data, element, templateData.elementDisposables, templateData, fillInIncompleteTokens)
 				: this.renderTreeData(data, element, templateData.elementDisposables, templateData, fileTreeIndex++);
@@ -577,8 +577,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const toRender = usedSlashCommand ? markdown.value.slice(usedSlashCommand.command.length + 2) : markdown.value;
 		markdown = new MarkdownString(toRender, {
 			isTrusted: {
-				enabledCommands: ['vscode.open']
-			},
+				// Disable all other config options except isTrusted
+				enabledCommands: typeof markdown.isTrusted === 'object' ? markdown.isTrusted?.enabledCommands : [] ?? []
+			}
 		});
 
 		const codeblocks: IChatCodeBlockInfo[] = [];
