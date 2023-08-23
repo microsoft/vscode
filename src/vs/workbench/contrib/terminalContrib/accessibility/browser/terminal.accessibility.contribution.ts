@@ -193,8 +193,7 @@ registerTerminalAction({
 			weight: KeybindingWeight.WorkbenchContrib + 2
 		},
 		{
-			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-			mac: { primary: KeyMod.Alt | KeyCode.UpArrow },
+			primary: KeyMod.Alt | KeyCode.UpArrow,
 			when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 			weight: KeybindingWeight.WorkbenchContrib + 2
 		}
