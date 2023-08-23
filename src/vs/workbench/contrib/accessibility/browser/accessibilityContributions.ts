@@ -310,10 +310,12 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 						editor.focus();
 					},
 					next() {
-						model.next().then(() => show());
+						model.next();
+						setTimeout(() => show(), 50);
 					},
 					previous() {
-						model.previous().then(() => show());
+						model.previous();
+						setTimeout(() => show(), 50);
 					},
 					options: this._options
 				});
