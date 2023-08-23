@@ -903,8 +903,8 @@ export class SearchView extends ViewPane {
 			}
 
 			let editable = false;
-			if (focus instanceof MatchInNotebook) {
-				editable = !focus.isWebviewMatch();
+			if (focus instanceof Match) {
+				editable = (focus instanceof MatchInNotebook) ? !focus.isWebviewMatch() : true;
 			} else if (focus instanceof FileMatch) {
 				editable = !focus.hasOnlyReadOnlyMatches();
 			} else if (focus instanceof FolderMatch) {
