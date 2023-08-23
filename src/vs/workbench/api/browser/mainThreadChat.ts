@@ -11,6 +11,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostChatShape, ExtHostContext, IChatRequestDto, IChatResponseProgressDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChat, IChatDynamicRequest, IChatProgress, IChatRequest, IChatResponse, IChatResponseProgressFileTreeData, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
@@ -141,7 +142,7 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			// Complete an existing deferred promise with resolved content
 			const responsePartId = `${id}_${responsePartHandle}`;
 			const deferredContentPromise = this._activeResponsePartPromises.get(responsePartId);
-			if (deferredContentPromise && 'treeData' in progress) {
+			if (deferredContentPromise && isCompleteInteractiveProgressTreeData(progress)) {
 				const withRevivedUris = revive<{ treeData: IChatResponseProgressFileTreeData }>(progress);
 				deferredContentPromise.complete(withRevivedUris);
 				this._activeResponsePartPromises.delete(responsePartId);
@@ -152,8 +153,8 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			return;
 		}
 
-		// No need to support standalone tree data that's not attached to a placeholder
-		if ('treeData' in progress) {
+		// No need to support standalone tree data that's not attached to a placeholder in API
+		if (isCompleteInteractiveProgressTreeData(progress)) {
 			return;
 		}
 

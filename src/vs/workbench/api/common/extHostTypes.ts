@@ -4117,3 +4117,14 @@ export class ChatMessage implements vscode.ChatMessage {
 }
 
 //#endregion
+
+//#region ai
+
+export enum RelatedInformationType {
+	SymbolInformation = 1,
+	CommandInformation = 2,
+	SearchInformation = 3,
+	SettingInformation = 4
+}
+
+//#endregion

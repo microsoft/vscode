@@ -25,7 +25,7 @@ export interface IChatRequestModel {
 export interface IResponse {
 	readonly value: (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData)[];
 	onDidChangeValue: Event<void>;
-	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void;
+	updateContent(responsePart: string | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void;
 	asString(): string;
 }
 
@@ -114,7 +114,7 @@ export class Response implements IResponse {
 		this._responseData = Array.isArray(value) ? value : [value];
 		this._responseParts = Array.isArray(value) ? value.map((v) => ('value' in v ? { string: v } : { treeData: v })) : [{ string: value }];
 		this._responseRepr = this._responseParts.map((part) => {
-			if ('treeData' in part) {
+			if (isCompleteInteractiveProgressTreeData(part)) {
 				return '';
 			}
 			return part.string.value;
@@ -125,12 +125,12 @@ export class Response implements IResponse {
 		return this._responseRepr;
 	}
 
-	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void {
+	updateContent(responsePart: string | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void {
 		if (typeof responsePart === 'string') {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
 
-			if (lastResponsePart.isPlaceholder === true || 'treeData' in lastResponsePart) {
+			if (lastResponsePart.isPlaceholder === true || isCompleteInteractiveProgressTreeData(lastResponsePart)) {
 				// The last part is resolving or a tree data item, start a new part
 				this._responseParts.push({ string: new MarkdownString(responsePart) });
 			} else {
@@ -154,12 +154,14 @@ export class Response implements IResponse {
 					this._updateRepr(quiet);
 				}
 			});
+		} else if (isCompleteInteractiveProgressTreeData(responsePart)) {
+			this._responseParts.push(responsePart);
 		}
 	}
 
 	private _updateRepr(quiet?: boolean) {
 		this._responseData = this._responseParts.map(part => {
-			if ('treeData' in part) {
+			if (isCompleteInteractiveProgressTreeData(part)) {
 				return part.treeData;
 			} else if (part.isPlaceholder) {
 				return { ...part.string, isPlaceholder: true };
@@ -168,7 +170,7 @@ export class Response implements IResponse {
 		});
 
 		this._responseRepr = this._responseParts.map(part => {
-			if ('treeData' in part) {
+			if (isCompleteInteractiveProgressTreeData(part)) {
 				return '';
 			}
 			return part.string.value;
@@ -248,7 +250,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
-	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean) {
+	updateContent(responsePart: string | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
 	}
 
@@ -552,7 +554,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if ('content' in progress) {
 			request.response.updateContent(progress.content, quiet);
-		} else if ('placeholder' in progress) {
+		} else if ('placeholder' in progress || isCompleteInteractiveProgressTreeData(progress)) {
 			request.response.updateContent(progress, quiet);
 		} else {
 			request.setProviderRequestId(progress.requestId);
@@ -696,4 +698,8 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	public get avatarIconUri(): URI | undefined {
 		return this.session.responderAvatarIconUri;
 	}
+}
+
+export function isCompleteInteractiveProgressTreeData(item: unknown): item is { treeData: IChatResponseProgressFileTreeData } {
+	return typeof item === 'object' && !!item && 'treeData' in item;
 }

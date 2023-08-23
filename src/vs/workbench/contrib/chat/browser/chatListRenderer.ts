@@ -350,7 +350,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						}
 					});
 					return this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
-				}));
+				},
+				templateData.contextKeyService));
 		}
 
 		element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
@@ -366,7 +367,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					templateData.value,
 					item,
 					undefined,
-					followup => this._onDidClickFollowup.fire(followup)));
+					followup => this._onDidClickFollowup.fire(followup),
+					templateData.contextKeyService));
 			} else {
 				const result = this.renderMarkdown(item as IMarkdownString, element, templateData.elementDisposables, templateData);
 				for (const codeElement of result.element.querySelectorAll('code')) {
@@ -1064,7 +1066,8 @@ class TreePool extends Disposable {
 				accessibilityProvider: {
 					getAriaLabel: (element: IChatResponseProgressFileTreeData) => element.label,
 					getWidgetAriaLabel: () => localize('treeAriaLabel', "File Tree")
-				}
+				},
+				alwaysConsumeMouseWheel: false
 			});
 
 		return tree;
