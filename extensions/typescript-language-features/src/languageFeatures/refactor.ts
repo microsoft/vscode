@@ -684,23 +684,29 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		if (action.name === 'Move to file') {
 			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
 		} else {
-			const aiQuickFixEnabled = vscode.workspace.getConfiguration('typescript', null).get('experimental.aiQuickFix');
 			let bonus: vscode.Command | undefined
-			if (aiQuickFixEnabled && action.name.startsWith("constant_")) {
-				// if (aiQuickFixEnabled) { console.log(action.name.startsWith("Extract"), action.name) } // constant_scope_0
-				console.log(JSON.stringify(rangeOrSelection))
-				bonus = {
-					command: ChatPanelFollowup.ID,
-					arguments: [<ChatPanelFollowup.Args>{
-						prompt: `Suggest 5 names for the expression
-						\`\`\`
-						${document.getText(rangeOrSelection)}.
-						\`\`\`
-						`,
-						range: rangeOrSelection,
-						expand: 'navtree-function',
-						document }],
-					title: ''
+			if (vscode.workspace.getConfiguration('typescript', null).get('experimental.aiQuickFix')) {
+				const actionPrefix = action.name.startsWith("constant_")
+					|| action.name.startsWith("function_")
+					|| action.name.startsWith("Extract to")
+				if (actionPrefix) {
+					const kind = action.name.startsWith("constant_") ? "expression"
+						: action.name.startsWith("function_") ? "function"
+						: action.name.startsWith("Extract to") ? "type"
+						: "code";
+					bonus = {
+						command: ChatPanelFollowup.ID,
+						arguments: [<ChatPanelFollowup.Args>{
+							prompt: `Suggest 5 names for the ${kind}
+							\`\`\`
+							${document.getText(rangeOrSelection)}.
+							\`\`\`
+							`,
+							range: rangeOrSelection,
+							expand: 'navtree-function',
+							document }],
+						title: ''
+					}
 				}
 			}
 			codeAction = new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, bonus);
