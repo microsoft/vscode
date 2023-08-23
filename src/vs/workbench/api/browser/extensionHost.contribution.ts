@@ -19,6 +19,9 @@ import { StatusBarItemsExtensionPoint } from 'vs/workbench/api/browser/statusBar
 // --- mainThread participants
 import './mainThreadLocalization';
 import './mainThreadBulkEdits';
+import './mainThreadChatProvider';
+import './mainThreadChatSlashCommands';
+import './mainThreadChatVariables';
 import './mainThreadCodeInsets';
 import './mainThreadCLICommands';
 import './mainThreadClipboard';
@@ -73,7 +76,7 @@ import './mainThreadNotebookDocumentsAndEditors';
 import './mainThreadNotebookRenderers';
 import './mainThreadNotebookSaveParticipant';
 import './mainThreadInteractive';
-import './mainThreadInteractiveEditor';
+import './mainThreadInlineChat';
 import './mainThreadChat';
 import './mainThreadTask';
 import './mainThreadLabelService';
@@ -85,6 +88,8 @@ import './mainThreadSecretState';
 import './mainThreadShare';
 import './mainThreadProfilContentHandlers';
 import './mainThreadSemanticSimilarity';
+import './mainThreadAiRelatedInformation';
+import './mainThreadAiEmbeddingVector';
 import './mainThreadIssueReporter';
 
 export class ExtensionPoints implements IWorkbenchContribution {

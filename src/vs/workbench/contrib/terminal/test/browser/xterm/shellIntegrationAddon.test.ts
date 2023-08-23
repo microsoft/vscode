@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 import { strictEqual, deepStrictEqual, deepEqual } from 'assert';
 import * as sinon from 'sinon';
 import { parseKeyValueAssignment, parseMarkSequence, deserializeMessage, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { importAMDNodeModule } from 'vs/amdX';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 
 class TestShellIntegrationAddon extends ShellIntegrationAddon {
@@ -30,16 +30,16 @@ suite('ShellIntegrationAddon', () => {
 	let shellIntegrationAddon: TestShellIntegrationAddon;
 	let capabilities: ITerminalCapabilityStore;
 
-	setup(() => {
-		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
-		const instantiationService = new TestInstantiationService();
-		instantiationService.stub(ILogService, NullLogService);
-		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon, '', true, undefined);
+	setup(async () => {
+
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
+		shellIntegrationAddon = new TestShellIntegrationAddon('', true, undefined, new NullLogService());
 		xterm.loadAddon(shellIntegrationAddon);
 		capabilities = shellIntegrationAddon.capabilities;
 	});
 
-	suite('cwd detection', async () => {
+	suite('cwd detection', () => {
 		test('should activate capability on the cwd sequence (OSC 633 ; P ; Cwd=<cwd> ST)', async () => {
 			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
 			await writeP(xterm, 'foo');
@@ -70,7 +70,7 @@ suite('ShellIntegrationAddon', () => {
 			}
 		});
 
-		suite('detect `SetCwd` sequence: `OSC 7; scheme://cwd ST`', async () => {
+		suite('detect `SetCwd` sequence: `OSC 7; scheme://cwd ST`', () => {
 			test('should accept well-formatted URLs', async () => {
 				type TestCase = [title: string, input: string, expected: string];
 				const cases: TestCase[] = [
@@ -133,7 +133,7 @@ suite('ShellIntegrationAddon', () => {
 		});
 	});
 
-	suite('command tracking', async () => {
+	suite('command tracking', () => {
 		test('should activate capability on the prompt start sequence (OSC 633 ; A ST)', async () => {
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
 			await writeP(xterm, 'foo');
@@ -212,7 +212,7 @@ suite('ShellIntegrationAddon', () => {
 			mock.verify();
 		});
 	});
-	suite('BufferMarkCapability', async () => {
+	suite('BufferMarkCapability', () => {
 		test('SetMark', async () => {
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
 			await writeP(xterm, 'foo');

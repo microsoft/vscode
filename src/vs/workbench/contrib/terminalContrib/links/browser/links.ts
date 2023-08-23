@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBufferLine, IBufferRange, Terminal } from 'xterm';
+import type { IBufferLine, IBufferRange, Terminal } from 'xterm';
 import { URI } from 'vs/base/common/uri';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IParsedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Event } from 'vs/base/common/event';
+import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
+import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 
 export const ITerminalLinkProviderService = createDecorator<ITerminalLinkProviderService>('terminalLinkProviderService');
 export interface ITerminalLinkProviderService {
@@ -80,6 +82,16 @@ export interface ITerminalSimpleLink {
 	 * The URI of the link if it has been resolved.
 	 */
 	uri?: URI;
+
+	/**
+	 * The location or selection range of the link.
+	 */
+	selection?: ITextEditorSelection;
+
+	/**
+	 * Whether to trim a trailing colon at the end of a path.
+	 */
+	disableTrimColon?: boolean;
 
 	/**
 	 * A hover label to override the default for the type.

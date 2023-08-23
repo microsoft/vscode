@@ -26,6 +26,7 @@
 		"list.activeSelectionIconForeground": "#FFF",
 		"terminal.inactiveSelectionBackground": "#3A3D41",
 		"widget.border": "#303031",
+		"actionBar.toggledBackground": "#383a49"
 	},
 	"tokenColors": [
 		{
@@ -57,11 +58,7 @@
 			}
 		},
 		{
-			"name": "Comments",
-			"scope": [
-				"comment",
-				"string.quoted.docstring"
-			],
+			"scope": "comment",
 			"settings": {
 				"foreground": "#6A9955"
 			}

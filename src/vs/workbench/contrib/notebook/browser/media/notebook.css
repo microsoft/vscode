@@ -29,6 +29,10 @@
 	z-index: 600 !important;
 }
 
+.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .overlayWidgets {
+	z-index: 638 !important;
+}
+
 .monaco-workbench .notebookOverlay .cell-list-container .overflowingContentWidgets > div.parameter-hints-widget {
 	z-index: 639 !important;
 }
@@ -41,9 +45,8 @@
 	z-index: 641 !important;
 }
 
-/** Temporary fix, similar to microsoft/vscode-internalbacklog#4152 */
-.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .zone-widget.interactive-editor-widget {
-	z-index: 640 !important;
+.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .zone-widget.interactive-editor-widget .interactive-editor .markdownMessage {
+	white-space: normal;
 }
 
 .monaco-workbench .notebookOverlay .cell-list-container {
@@ -416,6 +419,7 @@
 
 /** Selected cell background */
 .notebookOverlay .monaco-list.selection-multiple .markdown-cell-row.selected,
+.notebookOverlay .monaco-list.selection-multiple .markdown-cell-row.selected .cell-focus-indicator-bottom,
 .notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-top,
 .notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-left,
 .notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-right,

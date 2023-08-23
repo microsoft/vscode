@@ -8,9 +8,17 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancelablePromise, createCancelablePromise, raceCancellablePromises, timeout } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { ILogService } from 'vs/platform/log/common/log';
 
+/**
+ * @deprecated Use `IAiRelatedInformationService` instead.
+ */
 export const ISemanticSimilarityService = createDecorator<ISemanticSimilarityService>('ISemanticSimilarityService');
 
+/**
+ * @deprecated Use `IAiRelatedInformationService` instead.
+ */
 export interface ISemanticSimilarityService {
 	readonly _serviceBrand: undefined;
 
@@ -29,6 +37,8 @@ export class SemanticSimilarityService implements ISemanticSimilarityService {
 	static readonly DEFAULT_TIMEOUT = 1000 * 10; // 10 seconds
 
 	private readonly _providers: ISemanticSimilarityProvider[] = [];
+
+	constructor(@ILogService private readonly logService: ILogService) { }
 
 	isEnabled(): boolean {
 		return this._providers.length > 0;
@@ -50,6 +60,8 @@ export class SemanticSimilarityService implements ISemanticSimilarityService {
 		if (this._providers.length === 0) {
 			throw new Error('No semantic similarity providers registered');
 		}
+
+		const stopwatch = StopWatch.create();
 
 		const cancellablePromises: Array<CancelablePromise<number[]>> = [];
 
@@ -83,8 +95,13 @@ export class SemanticSimilarityService implements ISemanticSimilarityService {
 			throw new Error('Semantic similarity provider timed out');
 		}));
 
-		const result = await raceCancellablePromises(cancellablePromises);
-		return result;
+		try {
+			const result = await raceCancellablePromises(cancellablePromises);
+			return result;
+		} finally {
+			stopwatch.stop();
+			this.logService.trace(`[SemanticSimilarityService]: getSimilarityScore took ${stopwatch.elapsed()}ms`);
+		}
 	}
 }
 

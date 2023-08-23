@@ -31,13 +31,13 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
+import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
-const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
+export const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 
 registerAction2(class EditCellAction extends NotebookCellAction {
 	constructor() {
@@ -49,7 +49,9 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_CELL_LIST_FOCUSED,
 						ContextKeyExpr.not(InputFocusedContextKey),
-						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)),
+						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+						EditorContextKeys.hoverFocused.toNegated()
+					),
 					primary: KeyCode.Enter,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -74,8 +76,8 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 
 		await context.notebookEditor.focusNotebookCell(context.cell, 'editor');
 		const foundEditor: ICodeEditor | undefined = context.cell ? findTargetCellEditor(context, context.cell) : undefined;
-		if (foundEditor && foundEditor.hasTextFocus() && InteractiveEditorController.get(foundEditor)?.getWidgetPosition()?.lineNumber === foundEditor.getPosition()?.lineNumber) {
-			InteractiveEditorController.get(foundEditor)?.focus();
+		if (foundEditor && foundEditor.hasTextFocus() && InlineChatController.get(foundEditor)?.getWidgetPosition()?.lineNumber === foundEditor.getPosition()?.lineNumber) {
+			InlineChatController.get(foundEditor)?.focus();
 		}
 	}
 });
@@ -288,7 +290,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation/execute',
-					order: 0
+					order: 10
 				}
 			],
 			icon: icons.clearIcon

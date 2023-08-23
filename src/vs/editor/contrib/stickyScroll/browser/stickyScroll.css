@@ -3,23 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .sticky-line {
-	color: var(--vscode-editorLineNumber-foreground);
+.monaco-editor .sticky-widget {
 	overflow: hidden;
+}
+
+.monaco-editor .sticky-widget-line-numbers {
+	float: left;
+	background-color: inherit;
+}
+
+.monaco-editor .sticky-widget-lines-scrollable {
+	display: inline-block;
+	position: absolute;
+	overflow: hidden;
+	width: var(--vscode-editorStickyScroll-scrollableWidth);
+	background-color: inherit;
+}
+
+.monaco-editor .sticky-widget-lines {
+	position: absolute;
+	background-color: inherit;
+}
+
+.monaco-editor .sticky-line-number, .monaco-editor .sticky-line-content {
+	color: var(--vscode-editorLineNumber-foreground);
 	white-space: nowrap;
 	display: inline-block;
-}
-
-.monaco-editor .sticky-line-number {
-	text-align: right;
-	float: left;
-}
-
-.monaco-editor .sticky-line-root {
+	position: absolute;
 	background-color: inherit;
-	overflow: hidden;
+}
+
+.monaco-editor .sticky-line-content {
+	width: var(--vscode-editorStickyScroll-scrollableWidth);
+	background-color: inherit;
 	white-space: nowrap;
-	width: 100%;
+}
+
+.monaco-editor .sticky-line-number-inner {
+	display: block;
+	text-align: right;
 }
 
 .monaco-editor.hc-black .sticky-widget,
@@ -27,7 +49,7 @@
 	border-bottom: 1px solid var(--vscode-contrastBorder);
 }
 
-.monaco-editor .sticky-line-root:hover {
+.monaco-editor .sticky-line-content:hover {
 	background-color: var(--vscode-editorStickyScrollHover-background);
 	cursor: pointer;
 }

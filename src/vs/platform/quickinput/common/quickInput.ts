@@ -28,7 +28,6 @@ export interface IQuickPickItem {
 	type?: 'item';
 	id?: string;
 	label: string;
-	meta?: string;
 	ariaLabel?: string;
 	description?: string;
 	detail?: string;
@@ -40,6 +39,8 @@ export interface IQuickPickItem {
 	 */
 	keybinding?: ResolvedKeybinding;
 	iconClasses?: readonly string[];
+	iconPath?: { dark: URI; light?: URI };
+	iconClass?: string;
 	italic?: boolean;
 	strikethrough?: boolean;
 	highlights?: IQuickPickItemHighlights;
@@ -213,13 +214,18 @@ export interface IQuickInput extends IDisposable {
 	description: string | undefined;
 
 	/**
-	 * Should be an HTMLElement (TODO: move this entire file into browser)
+	 * Should be an HTMLElement.
+	 * @deprecated Use an IQuickWidget instead
 	 */
 	widget: any | undefined;
 
 	step: number | undefined;
 
 	totalSteps: number | undefined;
+
+	buttons: ReadonlyArray<IQuickInputButton>;
+
+	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
 	enabled: boolean;
 
@@ -232,6 +238,15 @@ export interface IQuickInput extends IDisposable {
 	show(): void;
 
 	hide(): void;
+
+	didHide(reason?: QuickInputHideReason): void;
+}
+
+export interface IQuickWidget extends IQuickInput {
+	/**
+	 * Should be an HTMLElement (TODO: move this entire file into browser)
+	 */
+	widget: any | undefined;
 }
 
 export interface IQuickPickWillAcceptEvent {
@@ -296,10 +311,6 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	customHover: string | undefined;
 
-	buttons: ReadonlyArray<IQuickInputButton>;
-
-	readonly onDidTriggerButton: Event<IQuickInputButton>;
-
 	readonly onDidTriggerItemButton: Event<IQuickPickItemButtonEvent<T>>;
 
 	readonly onDidTriggerSeparatorButton: Event<IQuickPickSeparatorButtonEvent>;
@@ -350,6 +361,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	validationMessage: string | undefined;
 
+	severity: Severity;
+
 	inputHasFocus(): boolean;
 
 	focusOnInput(): void;
@@ -360,6 +373,11 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 * be presented.
 	 */
 	hideInput: boolean;
+
+	/**
+	 * Allows to control if the count for the items should be shown
+	 */
+	hideCountBadge: boolean;
 
 	hideCheckAll: boolean;
 
@@ -404,16 +422,6 @@ export interface IInputBox extends IQuickInput {
 	 * Event called when the user submits the input.
 	 */
 	readonly onDidAccept: Event<void>;
-
-	/**
-	 * Buttons to show in addition to user input submission.
-	 */
-	buttons: ReadonlyArray<IQuickInputButton>;
-
-	/**
-	 * Event called when a button is selected.
-	 */
-	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
 	/**
 	 * Text show below the input box.
@@ -546,9 +554,14 @@ export interface IQuickInputService {
 	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T>;
 
 	/**
-	 * Provides raw access to the quick input controller.
+	 * Provides raw access to the input box controller.
 	 */
 	createInputBox(): IInputBox;
+
+	/**
+	 * Provides raw access to the quick widget controller.
+	 */
+	createQuickWidget(): IQuickWidget;
 
 	/**
 	 * Moves focus into quick input.

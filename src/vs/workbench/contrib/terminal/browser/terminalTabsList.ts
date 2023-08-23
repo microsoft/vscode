@@ -17,8 +17,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ITerminalBackend, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalBackend, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -46,7 +46,7 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
@@ -97,7 +97,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
 				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
-				additionalScrollHeight: TerminalTabsListSizes.TabHeight,
+				paddingBottom: TerminalTabsListSizes.TabHeight,
 				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop),
 				openOnSingleClick: true
 			},
@@ -196,8 +196,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			}
 		});
 		if (!this._decorationsProvider) {
-			this._decorationsProvider = instantiationService.createInstance(TabDecorationsProvider);
-			decorationsService.registerDecorationsProvider(this._decorationsProvider);
+			this._decorationsProvider = this.disposables.add(instantiationService.createInstance(TabDecorationsProvider));
+			this.disposables.add(decorationsService.registerDecorationsProvider(this._decorationsProvider));
 		}
 		this.refresh();
 	}
@@ -480,12 +480,12 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
 		// If the instance is within the selection, split all selected
 		const actions = [
-			new Action(TerminalCommandId.SplitInstance, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
+			new Action(TerminalCommandId.SplitActiveTab, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
 				this._runForSelectionOrInstance(instance, async e => {
 					this._terminalService.createTerminal({ location: { parentTerminal: e } });
 				});
 			}),
-			new Action(TerminalCommandId.KillInstance, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
+			new Action(TerminalCommandId.KillActiveTab, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
 				this._runForSelectionOrInstance(instance, e => this._terminalService.safeDisposeTerminal(e));
 			})
 		];
@@ -737,18 +737,17 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	}
 }
 
-class TabDecorationsProvider implements IDecorationsProvider {
+class TabDecorationsProvider extends Disposable implements IDecorationsProvider {
 	readonly label: string = localize('label', "Terminal");
-	private readonly _onDidChange = new Emitter<URI[]>();
+
+	private readonly _onDidChange = this._register(new Emitter<URI[]>());
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
-		this._terminalService.onDidChangeInstancePrimaryStatus(e => this._onDidChange.fire([e.resource]));
-	}
-
-	get onDidChange(): Event<URI[]> {
-		return this._onDidChange.event;
+		super();
+		this._register(this._terminalService.onDidChangeInstancePrimaryStatus(e => this._onDidChange.fire([e.resource])));
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
@@ -771,9 +770,5 @@ class TabDecorationsProvider implements IDecorationsProvider {
 			letter: primaryStatus.icon,
 			tooltip: primaryStatus.tooltip
 		};
-	}
-
-	dispose(): void {
-		this.dispose();
 	}
 }

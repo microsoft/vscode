@@ -650,9 +650,9 @@ export class TextAreaInput extends Disposable {
 	}
 }
 
-class ClipboardEventUtils {
+export const ClipboardEventUtils = {
 
-	public static getTextData(clipboardData: DataTransfer): [string, ClipboardStoredMetadata | null] {
+	getTextData(clipboardData: DataTransfer): [string, ClipboardStoredMetadata | null] {
 		const text = clipboardData.getData(Mimes.text);
 		let metadata: ClipboardStoredMetadata | null = null;
 		const rawmetadata = clipboardData.getData('vscode-editor-data');
@@ -674,16 +674,16 @@ class ClipboardEventUtils {
 		}
 
 		return [text, metadata];
-	}
+	},
 
-	public static setTextData(clipboardData: DataTransfer, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
+	setTextData(clipboardData: DataTransfer, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
 		clipboardData.setData(Mimes.text, text);
 		if (typeof html === 'string') {
 			clipboardData.setData('text/html', html);
 		}
 		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
 	}
-}
+};
 
 export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrapper {
 

@@ -209,7 +209,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		private _nonce: string,
 		private readonly _disableTelemetry: boolean | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
-		@ILogService private readonly _logService: ILogService
+		private readonly _logService: ILogService
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -234,6 +234,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.SetCwd, data => this._doHandleSetCwd(data)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.SetWindowsFriendlyCwd, data => this._doHandleSetWindowsFriendlyCwd(data)));
 		this._ensureCapabilitiesOrAddFailureTelemetry();
+	}
+
+	getMarkerId(terminal: Terminal, vscodeMarkerId: string) {
+		this._createOrGetBufferMarkDetection(terminal).getMark(vscodeMarkerId);
 	}
 
 	private _handleFinalTermSequence(data: string): boolean {
@@ -500,7 +504,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	protected _createOrGetCwdDetection(): ICwdDetectionCapability {
 		let cwdDetection = this.capabilities.get(TerminalCapability.CwdDetection);
 		if (!cwdDetection) {
-			cwdDetection = new CwdDetectionCapability();
+			cwdDetection = this._register(new CwdDetectionCapability());
 			this.capabilities.add(TerminalCapability.CwdDetection, cwdDetection);
 		}
 		return cwdDetection;
@@ -509,7 +513,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	protected _createOrGetCommandDetection(terminal: Terminal): ICommandDetectionCapability {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 		if (!commandDetection) {
-			commandDetection = new CommandDetectionCapability(terminal, this._logService);
+			commandDetection = this._register(new CommandDetectionCapability(terminal, this._logService));
 			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		}
 		return commandDetection;
@@ -518,7 +522,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	protected _createOrGetBufferMarkDetection(terminal: Terminal): IBufferMarkCapability {
 		let bufferMarkDetection = this.capabilities.get(TerminalCapability.BufferMarkDetection);
 		if (!bufferMarkDetection) {
-			bufferMarkDetection = new BufferMarkCapability(terminal);
+			bufferMarkDetection = this._register(new BufferMarkCapability(terminal));
 			this.capabilities.add(TerminalCapability.BufferMarkDetection, bufferMarkDetection);
 		}
 		return bufferMarkDetection;

@@ -41,6 +41,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IAction } from 'vs/base/common/actions';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { ParameterHintsController } from 'vs/editor/contrib/parameterHints/browser/parameterHints';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
@@ -60,6 +61,8 @@ import { isEqual } from 'vs/base/common/resources';
 import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import 'vs/css!./interactiveEditor';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { deepClone } from 'vs/base/common/objects';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -78,38 +81,39 @@ export interface InteractiveEditorOptions extends ITextEditorOptions {
 }
 
 export class InteractiveEditor extends EditorPane {
-	#rootElement!: HTMLElement;
-	#styleElement!: HTMLStyleElement;
-	#notebookEditorContainer!: HTMLElement;
-	#notebookWidget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
-	#inputCellContainer!: HTMLElement;
-	#inputFocusIndicator!: HTMLElement;
-	#inputRunButtonContainer!: HTMLElement;
-	#inputEditorContainer!: HTMLElement;
-	#codeEditorWidget!: CodeEditorWidget;
-	// #inputLineCount = 1;
-	#notebookWidgetService: INotebookEditorService;
-	#instantiationService: IInstantiationService;
-	#languageService: ILanguageService;
-	#contextKeyService: IContextKeyService;
-	#notebookKernelService: INotebookKernelService;
-	#keybindingService: IKeybindingService;
-	#menuService: IMenuService;
-	#contextMenuService: IContextMenuService;
-	#editorGroupService: IEditorGroupsService;
-	#notebookExecutionStateService: INotebookExecutionStateService;
-	#extensionService: IExtensionService;
-	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
-	#lastLayoutDimensions?: { readonly dimension: DOM.Dimension; readonly position: DOM.IDomPosition };
-	#notebookOptions: NotebookOptions;
-	#editorMemento: IEditorMemento<InteractiveEditorViewState>;
-	#groupListener = this._register(new DisposableStore());
-	#runbuttonToolbar: ToolBar | undefined;
+	private _rootElement!: HTMLElement;
+	private _styleElement!: HTMLStyleElement;
+	private _notebookEditorContainer!: HTMLElement;
+	private _notebookWidget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
+	private _inputCellContainer!: HTMLElement;
+	private _inputFocusIndicator!: HTMLElement;
+	private _inputRunButtonContainer!: HTMLElement;
+	private _inputEditorContainer!: HTMLElement;
+	private _codeEditorWidget!: CodeEditorWidget;
+	private _notebookWidgetService: INotebookEditorService;
+	private _instantiationService: IInstantiationService;
+	private _languageService: ILanguageService;
+	private _contextKeyService: IContextKeyService;
+	private _configurationService: IConfigurationService;
+	private _notebookKernelService: INotebookKernelService;
+	private _keybindingService: IKeybindingService;
+	private _menuService: IMenuService;
+	private _contextMenuService: IContextMenuService;
+	private _editorGroupService: IEditorGroupsService;
+	private _notebookExecutionStateService: INotebookExecutionStateService;
+	private _extensionService: IExtensionService;
+	private _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
+	private _lastLayoutDimensions?: { readonly dimension: DOM.Dimension; readonly position: DOM.IDomPosition };
+	private _editorOptions: IEditorOptions;
+	private _notebookOptions: NotebookOptions;
+	private _editorMemento: IEditorMemento<InteractiveEditorViewState>;
+	private _groupListener = this._register(new DisposableStore());
+	private _runbuttonToolbar: ToolBar | undefined;
 
-	#onDidFocusWidget = this._register(new Emitter<void>());
-	override get onDidFocus(): Event<void> { return this.#onDidFocusWidget.event; }
-	#onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
-	readonly onDidChangeSelection = this.#onDidChangeSelection.event;
+	private _onDidFocusWidget = this._register(new Emitter<void>());
+	override get onDidFocus(): Event<void> { return this._onDidFocusWidget.event; }
+	private _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
+	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -122,7 +126,7 @@ export class InteractiveEditor extends EditorPane {
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
 		@ILanguageService languageService: ILanguageService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
@@ -136,61 +140,68 @@ export class InteractiveEditor extends EditorPane {
 			themeService,
 			storageService
 		);
-		this.#instantiationService = instantiationService;
-		this.#notebookWidgetService = notebookWidgetService;
-		this.#contextKeyService = contextKeyService;
-		this.#notebookKernelService = notebookKernelService;
-		this.#languageService = languageService;
-		this.#keybindingService = keybindingService;
-		this.#menuService = menuService;
-		this.#contextMenuService = contextMenuService;
-		this.#editorGroupService = editorGroupService;
-		this.#notebookExecutionStateService = notebookExecutionStateService;
-		this.#extensionService = extensionService;
+		this._instantiationService = instantiationService;
+		this._notebookWidgetService = notebookWidgetService;
+		this._contextKeyService = contextKeyService;
+		this._configurationService = configurationService;
+		this._notebookKernelService = notebookKernelService;
+		this._languageService = languageService;
+		this._keybindingService = keybindingService;
+		this._menuService = menuService;
+		this._contextMenuService = contextMenuService;
+		this._editorGroupService = editorGroupService;
+		this._notebookExecutionStateService = notebookExecutionStateService;
+		this._extensionService = extensionService;
 
-		this.#notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, dragAndDropEnabled: false });
-		this.#editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+		this._editorOptions = this._computeEditorOptions();
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor') || e.affectsConfiguration('notebook')) {
+				this._editorOptions = this._computeEditorOptions();
+			}
+		}));
+		this._notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScroll: false, dragAndDropEnabled: false });
+		this._editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
-		this._register(this.#keybindingService.onDidUpdateKeybindings(this.#updateInputDecoration, this));
-		this._register(this.#notebookExecutionStateService.onDidChangeExecution((e) => {
-			if (e.type === NotebookExecutionType.cell && isEqual(e.notebook, this.#notebookWidget.value?.viewModel?.notebookDocument.uri)) {
-				const cell = this.#notebookWidget.value?.getCellByHandle(e.cellHandle);
+		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateInputDecoration, this));
+		this._register(this._notebookExecutionStateService.onDidChangeExecution((e) => {
+			if (e.type === NotebookExecutionType.cell && isEqual(e.notebook, this._notebookWidget.value?.viewModel?.notebookDocument.uri)) {
+				const cell = this._notebookWidget.value?.getCellByHandle(e.cellHandle);
 				if (cell && e.changed?.state) {
-					this.#scrollIfNecessary(cell);
+					this._scrollIfNecessary(cell);
 				}
 			}
 		}));
 	}
 
-	get #inputCellContainerHeight() {
+	private get inputCellContainerHeight() {
 		return 19 + 2 + INPUT_CELL_VERTICAL_PADDING * 2 + INPUT_EDITOR_PADDING * 2;
 	}
 
-	get #inputCellEditorHeight() {
+	private get inputCellEditorHeight() {
 		return 19 + INPUT_EDITOR_PADDING * 2;
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this.#rootElement = DOM.append(parent, DOM.$('.interactive-editor'));
-		this.#rootElement.style.position = 'relative';
-		this.#notebookEditorContainer = DOM.append(this.#rootElement, DOM.$('.notebook-editor-container'));
-		this.#inputCellContainer = DOM.append(this.#rootElement, DOM.$('.input-cell-container'));
-		this.#inputCellContainer.style.position = 'absolute';
-		this.#inputCellContainer.style.height = `${this.#inputCellContainerHeight}px`;
-		this.#inputFocusIndicator = DOM.append(this.#inputCellContainer, DOM.$('.input-focus-indicator'));
-		this.#inputRunButtonContainer = DOM.append(this.#inputCellContainer, DOM.$('.run-button-container'));
-		this.#setupRunButtonToolbar(this.#inputRunButtonContainer);
-		this.#inputEditorContainer = DOM.append(this.#inputCellContainer, DOM.$('.input-editor-container'));
-		this.#createLayoutStyles();
+		this._rootElement = DOM.append(parent, DOM.$('.interactive-editor'));
+		this._rootElement.style.position = 'relative';
+		this._notebookEditorContainer = DOM.append(this._rootElement, DOM.$('.notebook-editor-container'));
+		this._inputCellContainer = DOM.append(this._rootElement, DOM.$('.input-cell-container'));
+		this._inputCellContainer.style.position = 'absolute';
+		this._inputCellContainer.style.height = `${this.inputCellContainerHeight}px`;
+		this._inputFocusIndicator = DOM.append(this._inputCellContainer, DOM.$('.input-focus-indicator'));
+		this._inputRunButtonContainer = DOM.append(this._inputCellContainer, DOM.$('.run-button-container'));
+		this._setupRunButtonToolbar(this._inputRunButtonContainer);
+		this._inputEditorContainer = DOM.append(this._inputCellContainer, DOM.$('.input-editor-container'));
+		this._createLayoutStyles();
 	}
 
-	#setupRunButtonToolbar(runButtonContainer: HTMLElement) {
-		const menu = this._register(this.#menuService.createMenu(MenuId.InteractiveInputExecute, this.#contextKeyService));
-		this.#runbuttonToolbar = this._register(new ToolBar(runButtonContainer, this.#contextMenuService, {
-			getKeyBinding: action => this.#keybindingService.lookupKeybinding(action.id),
+	private _setupRunButtonToolbar(runButtonContainer: HTMLElement) {
+		const menu = this._register(this._menuService.createMenu(MenuId.InteractiveInputExecute, this._contextKeyService));
+		this._runbuttonToolbar = this._register(new ToolBar(runButtonContainer, this._contextMenuService, {
+			getKeyBinding: action => this._keybindingService.lookupKeybinding(action.id),
 			actionViewItemProvider: action => {
-				return createActionViewItem(this.#instantiationService, action);
+				return createActionViewItem(this._instantiationService, action);
 			},
 			renderDropdownAsChildElement: true
 		}));
@@ -200,18 +211,18 @@ export class InteractiveEditor extends EditorPane {
 		const result = { primary, secondary };
 
 		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result);
-		this.#runbuttonToolbar.setActions([...primary, ...secondary]);
+		this._runbuttonToolbar.setActions([...primary, ...secondary]);
 	}
 
-	#createLayoutStyles(): void {
-		this.#styleElement = DOM.createStyleSheet(this.#rootElement);
+	private _createLayoutStyles(): void {
+		this._styleElement = DOM.createStyleSheet(this._rootElement);
 		const styleSheets: string[] = [];
 
 		const {
 			focusIndicator,
 			codeCellLeftMargin,
 			cellRunGutter
-		} = this.#notebookOptions.getLayoutConfiguration();
+		} = this._notebookOptions.getLayoutConfiguration();
 		const leftMargin = codeCellLeftMargin + cellRunGutter;
 
 		styleSheets.push(`
@@ -255,11 +266,36 @@ export class InteractiveEditor extends EditorPane {
 			}
 		`);
 
-		this.#styleElement.textContent = styleSheets.join('\n');
+		this._styleElement.textContent = styleSheets.join('\n');
+	}
+
+	private _computeEditorOptions(): IEditorOptions {
+		let overrideIdentifier: string | undefined = undefined;
+		if (this._codeEditorWidget) {
+			overrideIdentifier = this._codeEditorWidget.getModel()?.getLanguageId();
+		}
+		const editorOptions = deepClone(this._configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier }));
+		const editorOptionsOverride = getSimpleEditorOptions(this._configurationService);
+		const computed = Object.freeze({
+			...editorOptions,
+			...editorOptionsOverride,
+			...{
+				glyphMargin: true,
+				padding: {
+					top: INPUT_EDITOR_PADDING,
+					bottom: INPUT_EDITOR_PADDING
+				},
+				hover: {
+					enabled: true
+				}
+			}
+		});
+
+		return computed;
 	}
 
 	protected override saveState(): void {
-		this.#saveEditorViewState(this.input);
+		this._saveEditorViewState(this.input);
 		super.saveState();
 	}
 
@@ -269,39 +305,39 @@ export class InteractiveEditor extends EditorPane {
 			return undefined;
 		}
 
-		this.#saveEditorViewState(input);
-		return this.#loadNotebookEditorViewState(input);
+		this._saveEditorViewState(input);
+		return this._loadNotebookEditorViewState(input);
 	}
 
-	#saveEditorViewState(input: EditorInput | undefined): void {
-		if (this.group && this.#notebookWidget.value && input instanceof InteractiveEditorInput) {
-			if (this.#notebookWidget.value.isDisposed) {
+	private _saveEditorViewState(input: EditorInput | undefined): void {
+		if (this.group && this._notebookWidget.value && input instanceof InteractiveEditorInput) {
+			if (this._notebookWidget.value.isDisposed) {
 				return;
 			}
 
-			const state = this.#notebookWidget.value.getEditorViewState();
-			const editorState = this.#codeEditorWidget.saveViewState();
-			this.#editorMemento.saveEditorState(this.group, input.notebookEditorInput.resource, {
+			const state = this._notebookWidget.value.getEditorViewState();
+			const editorState = this._codeEditorWidget.saveViewState();
+			this._editorMemento.saveEditorState(this.group, input.notebookEditorInput.resource, {
 				notebook: state,
 				input: editorState
 			});
 		}
 	}
 
-	#loadNotebookEditorViewState(input: InteractiveEditorInput): InteractiveEditorViewState | undefined {
+	private _loadNotebookEditorViewState(input: InteractiveEditorInput): InteractiveEditorViewState | undefined {
 		let result: InteractiveEditorViewState | undefined;
 		if (this.group) {
-			result = this.#editorMemento.loadEditorState(this.group, input.notebookEditorInput.resource);
+			result = this._editorMemento.loadEditorState(this.group, input.notebookEditorInput.resource);
 		}
 		if (result) {
 			return result;
 		}
 		// when we don't have a view state for the group/input-tuple then we try to use an existing
 		// editor for the same resource.
-		for (const group of this.#editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+		for (const group of this._editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			if (group.activeEditorPane !== this && group.activeEditorPane === this && group.activeEditor?.matches(input)) {
-				const notebook = this.#notebookWidget.value?.getEditorViewState();
-				const input = this.#codeEditorWidget.saveViewState();
+				const notebook = this._notebookWidget.value?.getEditorViewState();
+				const input = this._codeEditorWidget.saveViewState();
 				return {
 					notebook,
 					input
@@ -317,13 +353,13 @@ export class InteractiveEditor extends EditorPane {
 
 		// there currently is a widget which we still own so
 		// we need to hide it before getting a new widget
-		this.#notebookWidget.value?.onWillHide();
+		this._notebookWidget.value?.onWillHide();
 
-		this.#codeEditorWidget?.dispose();
+		this._codeEditorWidget?.dispose();
 
-		this.#widgetDisposableStore.clear();
+		this._widgetDisposableStore.clear();
 
-		this.#notebookWidget = <IBorrowValue<NotebookEditorWidget>>this.#instantiationService.invokeFunction(this.#notebookWidgetService.retrieveWidget, group, notebookInput, {
+		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, notebookInput, {
 			isEmbedded: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
@@ -346,22 +382,10 @@ export class InteractiveEditor extends EditorPane {
 				ModesHoverController.ID,
 				MarkerController.ID
 			]),
-			options: this.#notebookOptions
+			options: this._notebookOptions
 		});
 
-		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, {
-			...getSimpleEditorOptions(),
-			...{
-				glyphMargin: true,
-				padding: {
-					top: INPUT_EDITOR_PADDING,
-					bottom: INPUT_EDITOR_PADDING
-				},
-				hover: {
-					enabled: true
-				}
-			}
-		}, {
+		this._codeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this._inputEditorContainer, this._editorOptions, {
 			...{
 				isSimpleWidget: false,
 				contributions: EditorExtensionsRegistry.getSomeEditorContributions([
@@ -369,6 +393,7 @@ export class InteractiveEditor extends EditorPane {
 					SelectionClipboardContributionID,
 					ContextMenuController.ID,
 					SuggestController.ID,
+					ParameterHintsController.ID,
 					SnippetController2.ID,
 					TabCompletionController.ID,
 					ModesHoverController.ID,
@@ -377,105 +402,109 @@ export class InteractiveEditor extends EditorPane {
 			}
 		});
 
-		if (this.#lastLayoutDimensions) {
-			this.#notebookEditorContainer.style.height = `${this.#lastLayoutDimensions.dimension.height - this.#inputCellContainerHeight}px`;
-			this.#notebookWidget.value!.layout(new DOM.Dimension(this.#lastLayoutDimensions.dimension.width, this.#lastLayoutDimensions.dimension.height - this.#inputCellContainerHeight), this.#notebookEditorContainer);
+		if (this._lastLayoutDimensions) {
+			this._notebookEditorContainer.style.height = `${this._lastLayoutDimensions.dimension.height - this.inputCellContainerHeight}px`;
+			this._notebookWidget.value!.layout(new DOM.Dimension(this._lastLayoutDimensions.dimension.width, this._lastLayoutDimensions.dimension.height - this.inputCellContainerHeight), this._notebookEditorContainer);
 			const {
 				codeCellLeftMargin,
 				cellRunGutter
-			} = this.#notebookOptions.getLayoutConfiguration();
+			} = this._notebookOptions.getLayoutConfiguration();
 			const leftMargin = codeCellLeftMargin + cellRunGutter;
-			const maxHeight = Math.min(this.#lastLayoutDimensions.dimension.height / 2, this.#inputCellEditorHeight);
-			this.#codeEditorWidget.layout(this.#validateDimension(this.#lastLayoutDimensions.dimension.width - leftMargin - INPUT_CELL_HORIZONTAL_PADDING_RIGHT, maxHeight));
-			this.#inputFocusIndicator.style.height = `${this.#inputCellEditorHeight}px`;
-			this.#inputCellContainer.style.top = `${this.#lastLayoutDimensions.dimension.height - this.#inputCellContainerHeight}px`;
-			this.#inputCellContainer.style.width = `${this.#lastLayoutDimensions.dimension.width}px`;
+			const maxHeight = Math.min(this._lastLayoutDimensions.dimension.height / 2, this.inputCellEditorHeight);
+			this._codeEditorWidget.layout(this._validateDimension(this._lastLayoutDimensions.dimension.width - leftMargin - INPUT_CELL_HORIZONTAL_PADDING_RIGHT, maxHeight));
+			this._inputFocusIndicator.style.height = `${this.inputCellEditorHeight}px`;
+			this._inputCellContainer.style.top = `${this._lastLayoutDimensions.dimension.height - this.inputCellContainerHeight}px`;
+			this._inputCellContainer.style.width = `${this._lastLayoutDimensions.dimension.width}px`;
 		}
 
 		await super.setInput(input, options, context, token);
 		const model = await input.resolve();
-		if (this.#runbuttonToolbar) {
-			this.#runbuttonToolbar.context = input.resource;
+		if (this._runbuttonToolbar) {
+			this._runbuttonToolbar.context = input.resource;
 		}
 
 		if (model === null) {
-			throw new Error('?');
+			throw new Error('The Interactive Window model could not be resolved');
 		}
 
-		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);
+		this._notebookWidget.value?.setParentContextKeyService(this._contextKeyService);
 
-		const viewState = options?.viewState ?? this.#loadNotebookEditorViewState(input);
-		await this.#extensionService.whenInstalledExtensionsRegistered();
-		await this.#notebookWidget.value!.setModel(model.notebook, viewState?.notebook);
-		model.notebook.setCellCollapseDefault(this.#notebookOptions.getCellCollapseDefault());
-		this.#notebookWidget.value!.setOptions({
+		const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		await this._notebookWidget.value!.setModel(model.notebook, viewState?.notebook);
+		model.notebook.setCellCollapseDefault(this._notebookOptions.getCellCollapseDefault());
+		this._notebookWidget.value!.setOptions({
 			isReadOnly: true
 		});
-		this.#widgetDisposableStore.add(this.#notebookWidget.value!.onDidResizeOutput((cvm) => {
-			this.#scrollIfNecessary(cvm);
+		this._widgetDisposableStore.add(this._notebookWidget.value!.onDidResizeOutput((cvm) => {
+			this._scrollIfNecessary(cvm);
 		}));
-		this.#widgetDisposableStore.add(this.#notebookWidget.value!.onDidFocusWidget(() => this.#onDidFocusWidget.fire()));
-		this.#widgetDisposableStore.add(this.#notebookOptions.onDidChangeOptions(e => {
+		this._widgetDisposableStore.add(this._notebookWidget.value!.onDidFocusWidget(() => this._onDidFocusWidget.fire()));
+		this._widgetDisposableStore.add(this._notebookOptions.onDidChangeOptions(e => {
 			if (e.compactView || e.focusIndicator) {
 				// update the styling
-				this.#styleElement?.remove();
-				this.#createLayoutStyles();
+				this._styleElement?.remove();
+				this._createLayoutStyles();
 			}
 
-			if (this.#lastLayoutDimensions && this.isVisible()) {
-				this.layout(this.#lastLayoutDimensions.dimension, this.#lastLayoutDimensions.position);
+			if (this._lastLayoutDimensions && this.isVisible()) {
+				this.layout(this._lastLayoutDimensions.dimension, this._lastLayoutDimensions.position);
 			}
 
 			if (e.interactiveWindowCollapseCodeCells) {
-				model.notebook.setCellCollapseDefault(this.#notebookOptions.getCellCollapseDefault());
+				model.notebook.setCellCollapseDefault(this._notebookOptions.getCellCollapseDefault());
 			}
 		}));
 
-		const editorModel = await input.resolveInput(this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID);
-		this.#codeEditorWidget.setModel(editorModel);
+		const languageId = this._notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? input.language ?? PLAINTEXT_LANGUAGE_ID;
+		const editorModel = await input.resolveInput(languageId);
+		editorModel.setLanguage(languageId);
+		this._codeEditorWidget.setModel(editorModel);
 		if (viewState?.input) {
-			this.#codeEditorWidget.restoreViewState(viewState.input);
+			this._codeEditorWidget.restoreViewState(viewState.input);
 		}
+		this._editorOptions = this._computeEditorOptions();
+		this._codeEditorWidget.updateOptions(this._editorOptions);
 
-		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidFocusEditorWidget(() => this.#onDidFocusWidget.fire()));
-		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidContentSizeChange(e => {
+		this._widgetDisposableStore.add(this._codeEditorWidget.onDidFocusEditorWidget(() => this._onDidFocusWidget.fire()));
+		this._widgetDisposableStore.add(this._codeEditorWidget.onDidContentSizeChange(e => {
 			if (!e.contentHeightChanged) {
 				return;
 			}
 
-			if (this.#lastLayoutDimensions) {
-				this.#layoutWidgets(this.#lastLayoutDimensions.dimension, this.#lastLayoutDimensions.position);
+			if (this._lastLayoutDimensions) {
+				this._layoutWidgets(this._lastLayoutDimensions.dimension, this._lastLayoutDimensions.position);
 			}
 		}));
 
-		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeCursorPosition(e => this.#onDidChangeSelection.fire({ reason: this.#toEditorPaneSelectionChangeReason(e) })));
-		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeModelContent(() => this.#onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.EDIT })));
+		this._widgetDisposableStore.add(this._codeEditorWidget.onDidChangeCursorPosition(e => this._onDidChangeSelection.fire({ reason: this._toEditorPaneSelectionChangeReason(e) })));
+		this._widgetDisposableStore.add(this._codeEditorWidget.onDidChangeModelContent(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.EDIT })));
 
 
-		this.#widgetDisposableStore.add(this.#notebookKernelService.onDidChangeNotebookAffinity(this.#syncWithKernel, this));
-		this.#widgetDisposableStore.add(this.#notebookKernelService.onDidChangeSelectedNotebooks(this.#syncWithKernel, this));
+		this._widgetDisposableStore.add(this._notebookKernelService.onDidChangeNotebookAffinity(this._syncWithKernel, this));
+		this._widgetDisposableStore.add(this._notebookKernelService.onDidChangeSelectedNotebooks(this._syncWithKernel, this));
 
-		this.#widgetDisposableStore.add(this.themeService.onDidColorThemeChange(() => {
+		this._widgetDisposableStore.add(this.themeService.onDidColorThemeChange(() => {
 			if (this.isVisible()) {
-				this.#updateInputDecoration();
+				this._updateInputDecoration();
 			}
 		}));
 
-		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeModelContent(() => {
+		this._widgetDisposableStore.add(this._codeEditorWidget.onDidChangeModelContent(() => {
 			if (this.isVisible()) {
-				this.#updateInputDecoration();
+				this._updateInputDecoration();
 			}
 		}));
 
-		const cursorAtBoundaryContext = INTERACTIVE_INPUT_CURSOR_BOUNDARY.bindTo(this.#contextKeyService);
+		const cursorAtBoundaryContext = INTERACTIVE_INPUT_CURSOR_BOUNDARY.bindTo(this._contextKeyService);
 		if (input.resource && input.historyService.has(input.resource)) {
 			cursorAtBoundaryContext.set('top');
 		} else {
 			cursorAtBoundaryContext.set('none');
 		}
 
-		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeCursorPosition(({ position }) => {
-			const viewModel = this.#codeEditorWidget._getViewModel()!;
+		this._widgetDisposableStore.add(this._codeEditorWidget.onDidChangeCursorPosition(({ position }) => {
+			const viewModel = this._codeEditorWidget._getViewModel()!;
 			const lastLineNumber = viewModel.getLineCount();
 			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
 			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
@@ -497,22 +526,22 @@ export class InteractiveEditor extends EditorPane {
 			}
 		}));
 
-		this.#widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
+		this._widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
 			const value = editorModel!.getValue();
 			if (this.input?.resource && value !== '') {
 				(this.input as InteractiveEditorInput).historyService.replaceLast(this.input.resource, value);
 			}
 		}));
 
-		this.#syncWithKernel();
+		this._syncWithKernel();
 	}
 
 	override setOptions(options: INotebookEditorOptions | undefined): void {
-		this.#notebookWidget.value?.setOptions(options);
+		this._notebookWidget.value?.setOptions(options);
 		super.setOptions(options);
 	}
 
-	#toEditorPaneSelectionChangeReason(e: ICursorPositionChangedEvent): EditorPaneSelectionChangeReason {
+	private _toEditorPaneSelectionChangeReason(e: ICursorPositionChangedEvent): EditorPaneSelectionChangeReason {
 		switch (e.source) {
 			case TextEditorSelectionSource.PROGRAMMATIC: return EditorPaneSelectionChangeReason.PROGRAMMATIC;
 			case TextEditorSelectionSource.NAVIGATION: return EditorPaneSelectionChangeReason.NAVIGATION;
@@ -521,106 +550,108 @@ export class InteractiveEditor extends EditorPane {
 		}
 	}
 
-	#cellAtBottom(cell: ICellViewModel): boolean {
-		const visibleRanges = this.#notebookWidget.value?.visibleRanges || [];
-		const cellIndex = this.#notebookWidget.value?.getCellIndex(cell);
+	private _cellAtBottom(cell: ICellViewModel): boolean {
+		const visibleRanges = this._notebookWidget.value?.visibleRanges || [];
+		const cellIndex = this._notebookWidget.value?.getCellIndex(cell);
 		if (cellIndex === Math.max(...visibleRanges.map(range => range.end - 1))) {
 			return true;
 		}
 		return false;
 	}
 
-	#scrollIfNecessary(cvm: ICellViewModel) {
-		const index = this.#notebookWidget.value!.getCellIndex(cvm);
-		if (index === this.#notebookWidget.value!.getLength() - 1) {
+	private _scrollIfNecessary(cvm: ICellViewModel) {
+		const index = this._notebookWidget.value!.getCellIndex(cvm);
+		if (index === this._notebookWidget.value!.getLength() - 1) {
 			// If we're already at the bottom or auto scroll is enabled, scroll to the bottom
-			if (this.configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowAlwaysScrollOnNewCell) || this.#cellAtBottom(cvm)) {
-				this.#notebookWidget.value!.scrollToBottom();
+			if (this._configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowAlwaysScrollOnNewCell) || this._cellAtBottom(cvm)) {
+				this._notebookWidget.value!.scrollToBottom();
 			}
 		}
 	}
 
-
-	#syncWithKernel() {
-		const notebook = this.#notebookWidget.value?.textModel;
-		const textModel = this.#codeEditorWidget.getModel();
+	private _syncWithKernel() {
+		const notebook = this._notebookWidget.value?.textModel;
+		const textModel = this._codeEditorWidget.getModel();
 
 		if (notebook && textModel) {
-			const info = this.#notebookKernelService.getMatchingKernel(notebook);
+			const info = this._notebookKernelService.getMatchingKernel(notebook);
 			const selectedOrSuggested = info.selected
 				?? (info.suggestions.length === 1 ? info.suggestions[0] : undefined)
 				?? (info.all.length === 1 ? info.all[0] : undefined);
 
 			if (selectedOrSuggested) {
 				const language = selectedOrSuggested.supportedLanguages[0];
-				const newMode = language ? this.#languageService.createById(language).languageId : PLAINTEXT_LANGUAGE_ID;
-				textModel.setLanguage(newMode);
+				// All kernels will initially list plaintext as the supported language before they properly initialized.
+				if (language && language !== 'plaintext') {
+					const newMode = this._languageService.createById(language).languageId;
+					textModel.setLanguage(newMode);
+				}
 
-				NOTEBOOK_KERNEL.bindTo(this.#contextKeyService).set(selectedOrSuggested.id);
+				NOTEBOOK_KERNEL.bindTo(this._contextKeyService).set(selectedOrSuggested.id);
 			}
 		}
 
-		this.#updateInputDecoration();
+		this._updateInputDecoration();
 	}
 
 	layout(dimension: DOM.Dimension, position: DOM.IDomPosition): void {
-		this.#rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
-		this.#rootElement.classList.toggle('narrow-width', dimension.width < 600);
-		const editorHeightChanged = dimension.height !== this.#lastLayoutDimensions?.dimension.height;
-		this.#lastLayoutDimensions = { dimension, position };
+		this._rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
+		this._rootElement.classList.toggle('narrow-width', dimension.width < 600);
+		const editorHeightChanged = dimension.height !== this._lastLayoutDimensions?.dimension.height;
+		this._lastLayoutDimensions = { dimension, position };
 
-		if (!this.#notebookWidget.value) {
+		if (!this._notebookWidget.value) {
 			return;
 		}
 
-		if (editorHeightChanged && this.#codeEditorWidget) {
-			SuggestController.get(this.#codeEditorWidget)?.cancelSuggestWidget();
+		if (editorHeightChanged && this._codeEditorWidget) {
+			SuggestController.get(this._codeEditorWidget)?.cancelSuggestWidget();
 		}
 
-		this.#notebookEditorContainer.style.height = `${this.#lastLayoutDimensions.dimension.height - this.#inputCellContainerHeight}px`;
-		this.#layoutWidgets(dimension, position);
+		this._notebookEditorContainer.style.height = `${this._lastLayoutDimensions.dimension.height - this.inputCellContainerHeight}px`;
+		this._layoutWidgets(dimension, position);
 	}
 
-	#layoutWidgets(dimension: DOM.Dimension, position: DOM.IDomPosition) {
-		const contentHeight = this.#codeEditorWidget.hasModel() ? this.#codeEditorWidget.getContentHeight() : this.#inputCellEditorHeight;
+	private _layoutWidgets(dimension: DOM.Dimension, position: DOM.IDomPosition) {
+		const contentHeight = this._codeEditorWidget.hasModel() ? this._codeEditorWidget.getContentHeight() : this.inputCellEditorHeight;
 		const maxHeight = Math.min(dimension.height / 2, contentHeight);
 		const {
 			codeCellLeftMargin,
 			cellRunGutter
-		} = this.#notebookOptions.getLayoutConfiguration();
+		} = this._notebookOptions.getLayoutConfiguration();
 		const leftMargin = codeCellLeftMargin + cellRunGutter;
 
 		const inputCellContainerHeight = maxHeight + INPUT_CELL_VERTICAL_PADDING * 2;
-		this.#notebookEditorContainer.style.height = `${dimension.height - inputCellContainerHeight}px`;
+		this._notebookEditorContainer.style.height = `${dimension.height - inputCellContainerHeight}px`;
 
-		this.#notebookWidget.value!.layout(dimension.with(dimension.width, dimension.height - inputCellContainerHeight), this.#notebookEditorContainer, position);
-		this.#codeEditorWidget.layout(this.#validateDimension(dimension.width - leftMargin - INPUT_CELL_HORIZONTAL_PADDING_RIGHT, maxHeight));
-		this.#inputFocusIndicator.style.height = `${contentHeight}px`;
-		this.#inputCellContainer.style.top = `${dimension.height - inputCellContainerHeight}px`;
-		this.#inputCellContainer.style.width = `${dimension.width}px`;
+		this._notebookWidget.value!.layout(dimension.with(dimension.width, dimension.height - inputCellContainerHeight), this._notebookEditorContainer, position);
+		this._codeEditorWidget.layout(this._validateDimension(dimension.width - leftMargin - INPUT_CELL_HORIZONTAL_PADDING_RIGHT, maxHeight));
+		this._inputFocusIndicator.style.height = `${contentHeight}px`;
+		this._inputCellContainer.style.top = `${dimension.height - inputCellContainerHeight}px`;
+		this._inputCellContainer.style.width = `${dimension.width}px`;
 	}
 
-	#validateDimension(width: number, height: number) {
+	private _validateDimension(width: number, height: number) {
 		return new DOM.Dimension(Math.max(0, width), Math.max(0, height));
 	}
 
-	#updateInputDecoration(): void {
-		if (!this.#codeEditorWidget) {
+	private _updateInputDecoration(): void {
+		if (!this._codeEditorWidget) {
 			return;
 		}
 
-		if (!this.#codeEditorWidget.hasModel()) {
+		if (!this._codeEditorWidget.hasModel()) {
 			return;
 		}
 
-		const model = this.#codeEditorWidget.getModel();
+		const model = this._codeEditorWidget.getModel();
 
 		const decorations: IDecorationOptions[] = [];
 
 		if (model?.getValueLength() === 0) {
 			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
 			const languageId = model.getLanguageId();
-			const keybinding = this.#keybindingService.lookupKeybinding('interactive.execute', this.#contextKeyService)?.getLabel();
+			const keybinding = this._keybindingService.lookupKeybinding('interactive.execute', this._contextKeyService)?.getLabel();
 			const text = nls.localize('interactiveInputPlaceHolder', "Type '{0}' code here and press {1} to run", languageId, keybinding ?? 'ctrl+enter');
 			decorations.push({
 				range: {
@@ -638,50 +669,51 @@ export class InteractiveEditor extends EditorPane {
 			});
 		}
 
-		this.#codeEditorWidget.setDecorationsByType('interactive-decoration', DECORATION_KEY, decorations);
+		this._codeEditorWidget.setDecorationsByType('interactive-decoration', DECORATION_KEY, decorations);
 	}
 
 	override focus() {
-		this.#codeEditorWidget.focus();
+		this._notebookWidget.value?.onShow();
+		this._codeEditorWidget.focus();
 	}
 
 	focusHistory() {
-		this.#notebookWidget.value!.focus();
+		this._notebookWidget.value!.focus();
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 		if (group) {
-			this.#groupListener.clear();
-			this.#groupListener.add(group.onWillCloseEditor(e => this.#saveEditorViewState(e.editor)));
+			this._groupListener.clear();
+			this._groupListener.add(group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
 		}
 
 		if (!visible) {
-			this.#saveEditorViewState(this.input);
-			if (this.input && this.#notebookWidget.value) {
-				this.#notebookWidget.value.onWillHide();
+			this._saveEditorViewState(this.input);
+			if (this.input && this._notebookWidget.value) {
+				this._notebookWidget.value.onWillHide();
 			}
 		}
 	}
 
 	override clearInput() {
-		if (this.#notebookWidget.value) {
-			this.#saveEditorViewState(this.input);
-			this.#notebookWidget.value.onWillHide();
+		if (this._notebookWidget.value) {
+			this._saveEditorViewState(this.input);
+			this._notebookWidget.value.onWillHide();
 		}
 
-		this.#codeEditorWidget?.dispose();
+		this._codeEditorWidget?.dispose();
 
-		this.#notebookWidget = { value: undefined };
-		this.#widgetDisposableStore.clear();
+		this._notebookWidget = { value: undefined };
+		this._widgetDisposableStore.clear();
 
 		super.clearInput();
 	}
 
 	override getControl(): { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } {
 		return {
-			notebookEditor: this.#notebookWidget.value,
-			codeEditor: this.#codeEditorWidget
+			notebookEditor: this._notebookWidget.value,
+			codeEditor: this._codeEditorWidget
 		};
 	}
 }

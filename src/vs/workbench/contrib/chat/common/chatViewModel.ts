@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatRequestModel, IChatResponseModel, IChatModel, IChatWelcomeMessageContent } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatResponseErrorDetails, IChatReplyFollowup, IChatResponseCommandFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatRequestModel, IChatResponseModel, IChatModel, IChatWelcomeMessageContent, IResponse, Response } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatResponseErrorDetails, IChatReplyFollowup, IChatResponseCommandFollowup, InteractiveSessionVoteDirection, IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
@@ -56,10 +56,14 @@ export interface IChatRequestViewModel {
 	currentRenderedHeight: number | undefined;
 }
 
-export interface IChatResponseRenderData {
+export interface IChatResponseMarkdownRenderData {
 	renderedWordCount: number;
 	lastRenderTime: number;
 	isFullyRendered: boolean;
+}
+
+export interface IChatResponseRenderData {
+	renderedParts: (IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData)[];
 }
 
 export interface IChatLiveUpdateData {
@@ -78,7 +82,7 @@ export interface IChatResponseViewModel {
 	readonly providerResponseId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly response: IMarkdownString;
+	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly isPlaceholder: boolean;
@@ -253,9 +257,9 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.avatarIconUri;
 	}
 
-	get response(): IMarkdownString {
+	get response(): IResponse {
 		if (this._isPlaceholder) {
-			return new MarkdownString(localize('thinking', "Thinking") + '\u2026');
+			return new Response(new MarkdownString(localize('thinking', "Thinking") + '\u2026'));
 		}
 
 		return this._model.response;
@@ -305,13 +309,13 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	) {
 		super();
 
-		this._isPlaceholder = !_model.response.value && !_model.isComplete;
+		this._isPlaceholder = !_model.response.asString() && !_model.isComplete;
 
 		if (!_model.isComplete) {
 			this._contentUpdateTimings = {
 				loadingStartTime: Date.now(),
 				lastUpdateTime: Date.now(),
-				wordCountAfterLastUpdate: this._isPlaceholder ? 0 : countWords(_model.response.value), // don't count placeholder text
+				wordCountAfterLastUpdate: this._isPlaceholder ? 0 : countWords(_model.response.asString()), // don't count placeholder text
 				impliedWordLoadRate: 0
 			};
 		}
@@ -324,11 +328,12 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			if (this._contentUpdateTimings) {
 				// This should be true, if the model is changing
 				const now = Date.now();
-				const wordCount = countWords(_model.response.value);
+				const wordCount = countWords(_model.response.asString());
 				const timeDiff = now - this._contentUpdateTimings!.loadingStartTime;
 				const impliedWordLoadRate = wordCount / (timeDiff / 1000);
+				const renderedWordCount = this.renderData?.renderedParts.reduce((acc, part) => acc += ('label' in part ? 0 : part.renderedWordCount), 0);
 				if (!this.isComplete) {
-					this.trace('onDidChange', `Update- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${this.renderData?.renderedWordCount} words are rendered.`);
+					this.trace('onDidChange', `Update- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${renderedWordCount} words are rendered.`);
 					this._contentUpdateTimings = {
 						loadingStartTime: this._contentUpdateTimings!.loadingStartTime,
 						lastUpdateTime: now,
@@ -336,7 +341,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 						impliedWordLoadRate
 					};
 				} else {
-					this.trace(`onDidChange`, `Done- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${this.renderData?.renderedWordCount} words are rendered.`);
+					this.trace(`onDidChange`, `Done- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${renderedWordCount} words are rendered.`);
 				}
 			} else {
 				this.logService.warn('ChatResponseViewModel#onDidChange: got model update but contentUpdateTimings is not initialized');
@@ -344,10 +349,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 			// new data -> new id, new content to render
 			this._modelChangeCount++;
-			if (this.renderData) {
-				this.renderData.isFullyRendered = false;
-				this.renderData.lastRenderTime = Date.now();
-			}
 
 			this._onDidChange.fire();
 		}));
@@ -368,4 +369,5 @@ export interface IChatWelcomeMessageViewModel {
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly content: IChatWelcomeMessageContent[];
+	currentRenderedHeight?: number;
 }

@@ -50,6 +50,7 @@ suite('ExtHostTreeView', function () {
 	let tree: { [key: string]: any };
 	let labels: { [key: string]: string };
 	let nodes: { [key: string]: { key: string } };
+	let instantiationService: TestInstantiationService;
 
 	setup(() => {
 		tree = {
@@ -70,7 +71,7 @@ suite('ExtHostTreeView', function () {
 		// Use IInstantiationService to get typechecking when instantiating
 		let inst: IInstantiationService;
 		{
-			const instantiationService = new TestInstantiationService();
+			instantiationService = new TestInstantiationService();
 			inst = instantiationService;
 		}
 
@@ -92,6 +93,10 @@ suite('ExtHostTreeView', function () {
 		testObject.createTreeView('testNodeWithHighlightsTreeProvider', { treeDataProvider: aNodeWithHighlightedLabelTreeDataProvider() }, extensionsDescription);
 
 		return loadCompleteTree('testNodeTreeProvider');
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	test('construct node tree', () => {

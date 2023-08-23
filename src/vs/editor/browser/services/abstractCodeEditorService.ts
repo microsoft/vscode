@@ -786,7 +786,7 @@ class DecorationCSSRules {
 	}
 
 	/**
-	 * Build the CSS for decorations styled via `glpyhMarginClassName`.
+	 * Build the CSS for decorations styled via `glyphMarginClassName`.
 	 */
 	private getCSSTextForModelDecorationGlyphMarginClassName(opts: IThemeDecorationRenderOptions | undefined): string {
 		if (!opts) {

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ErrorReporter, OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
+import { ErrorReporter, NATIVE_CLI_COMMANDS, OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 
 function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): NativeParsedArgs {
 	const onMultipleValues = (id: string, val: string) => {
@@ -21,14 +21,14 @@ function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): Nativ
 	};
 	const getSubcommandReporter = (command: string) => ({
 		onUnknownOption: (id: string) => {
-			if (command !== 'tunnel') {
+			if (!(NATIVE_CLI_COMMANDS as readonly string[]).includes(command)) {
 				console.warn(localize('unknownSubCommandOption', "Warning: '{0}' is not in the list of known options for subcommand '{1}'", id, command));
 			}
 		},
 		onMultipleValues,
 		onEmptyValue,
 		onDeprecatedOption,
-		getSubcommandReporter: command !== 'tunnel' ? getSubcommandReporter : undefined
+		getSubcommandReporter: (NATIVE_CLI_COMMANDS as readonly string[]).includes(command) ? getSubcommandReporter : undefined
 	});
 	const errorReporter: ErrorReporter = {
 		onUnknownOption: (id) => {
@@ -42,7 +42,7 @@ function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): Nativ
 
 	const args = parseArgs(cmdLineArgs, OPTIONS, reportWarnings ? errorReporter : undefined);
 	if (args.goto) {
-		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:CHARACTER))`.")));
+		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}:?$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:CHARACTER))`.")));
 	}
 
 	return args;

@@ -48,6 +48,14 @@ export class OffsetRange {
 		return new OffsetRange(this.start + offset, this.endExclusive + offset);
 	}
 
+	public deltaStart(offset: number): OffsetRange {
+		return new OffsetRange(this.start + offset, this.endExclusive);
+	}
+
+	public deltaEnd(offset: number): OffsetRange {
+		return new OffsetRange(this.start, this.endExclusive + offset);
+	}
+
 	public get length(): number {
 		return this.endExclusive - this.start;
 	}
@@ -89,5 +97,67 @@ export class OffsetRange {
 			return new OffsetRange(start, end);
 		}
 		return undefined;
+	}
+
+	public slice<T>(arr: T[]): T[] {
+		return arr.slice(this.start, this.endExclusive);
+	}
+}
+
+export class OffsetRangeSet {
+	private readonly _sortedRanges: OffsetRange[] = [];
+
+	public addRange(range: OffsetRange): void {
+		let i = 0;
+		while (i < this._sortedRanges.length && this._sortedRanges[i].endExclusive < range.start) {
+			i++;
+		}
+		let j = i;
+		while (j < this._sortedRanges.length && this._sortedRanges[j].start <= range.endExclusive) {
+			j++;
+		}
+		if (i === j) {
+			this._sortedRanges.splice(i, 0, range);
+		} else {
+			const start = Math.min(range.start, this._sortedRanges[i].start);
+			const end = Math.max(range.endExclusive, this._sortedRanges[j - 1].endExclusive);
+			this._sortedRanges.splice(i, j - i, new OffsetRange(start, end));
+		}
+	}
+
+	public toString(): string {
+		return this._sortedRanges.map(r => r.toString()).join(', ');
+	}
+
+	/**
+	 * Returns of there is a value that is contained in this instance and the given range.
+	 */
+	public intersectsStrict(other: OffsetRange): boolean {
+		// TODO use binary search
+		let i = 0;
+		while (i < this._sortedRanges.length && this._sortedRanges[i].endExclusive <= other.start) {
+			i++;
+		}
+		return i < this._sortedRanges.length && this._sortedRanges[i].start < other.endExclusive;
+	}
+
+	public intersectWithRange(other: OffsetRange): OffsetRangeSet {
+		// TODO use binary search + slice
+		const result = new OffsetRangeSet();
+		for (const range of this._sortedRanges) {
+			const intersection = range.intersect(other);
+			if (intersection) {
+				result.addRange(intersection);
+			}
+		}
+		return result;
+	}
+
+	public intersectWithRangeLength(other: OffsetRange): number {
+		return this.intersectWithRange(other).length;
+	}
+
+	public get length(): number {
+		return this._sortedRanges.reduce((prev, cur) => prev + cur.length, 0);
 	}
 }

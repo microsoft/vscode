@@ -1,7 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
+      versionSpec: "18.x"
 
   - task: DownloadPipelineArtifact@0
     displayName: "Download Pipeline Artifact"
@@ -27,15 +27,13 @@ steps:
       sudo apt-get install -y yarn
 
       # Define variables
-      REPO="$(pwd)"
-      SNAP_ROOT="$REPO/.build/linux/snap/$(VSCODE_ARCH)"
+      SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
 
       # Install build dependencies
       (cd build && yarn)
 
       # Unpack snap tarball artifact, in order to preserve file perms
-      SNAP_TARBALL_PATH="$REPO/.build/linux/snap-tarball/snap-$(VSCODE_ARCH).tar.gz"
-      (cd .build/linux && tar -xzf $SNAP_TARBALL_PATH)
+      (cd .build/linux && tar -xzf snap-tarball/snap-$(VSCODE_ARCH).tar.gz)
 
       # Create snap package
       BUILD_VERSION="$(date +%s)"

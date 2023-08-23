@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Range } from 'vs/editor/common/core/range';
 
 /**
@@ -12,6 +13,24 @@ import { Range } from 'vs/editor/common/core/range';
 export class LineRange {
 	public static fromRange(range: Range): LineRange {
 		return new LineRange(range.startLineNumber, range.endLineNumber);
+	}
+
+	public static subtract(a: LineRange, b: LineRange | undefined): LineRange[] {
+		if (!b) {
+			return [a];
+		}
+		if (a.startLineNumber < b.startLineNumber && b.endLineNumberExclusive < a.endLineNumberExclusive) {
+			return [
+				new LineRange(a.startLineNumber, b.startLineNumber),
+				new LineRange(b.endLineNumberExclusive, a.endLineNumberExclusive)
+			];
+		} else if (b.startLineNumber <= a.startLineNumber && a.endLineNumberExclusive <= b.endLineNumberExclusive) {
+			return [];
+		} else if (b.endLineNumberExclusive < a.endLineNumberExclusive) {
+			return [new LineRange(Math.max(b.endLineNumberExclusive, a.startLineNumber), a.endLineNumberExclusive)];
+		} else {
+			return [new LineRange(a.startLineNumber, Math.min(b.startLineNumber, a.endLineNumberExclusive))];
+		}
 	}
 
 	/**
@@ -88,6 +107,13 @@ export class LineRange {
 	}
 
 	/**
+	 * @internal
+	 */
+	public static deserialize(lineRange: ISerializedLineRange): LineRange {
+		return new LineRange(lineRange[0], lineRange[1]);
+	}
+
+	/**
 	 * The start line number.
 	 */
 	public readonly startLineNumber: number;
@@ -127,6 +153,10 @@ export class LineRange {
 	 */
 	public delta(offset: number): LineRange {
 		return new LineRange(this.startLineNumber + offset, this.endLineNumberExclusive + offset);
+	}
+
+	public deltaLength(offset: number): LineRange {
+		return new LineRange(this.startLineNumber, this.endLineNumberExclusive + offset);
 	}
 
 	/**
@@ -185,4 +215,39 @@ export class LineRange {
 	public toExclusiveRange(): Range {
 		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive, 1);
 	}
+
+	public mapToLineArray<T>(f: (lineNumber: number) => T): T[] {
+		const result: T[] = [];
+		for (let lineNumber = this.startLineNumber; lineNumber < this.endLineNumberExclusive; lineNumber++) {
+			result.push(f(lineNumber));
+		}
+		return result;
+	}
+
+	public forEach(f: (lineNumber: number) => void): void {
+		for (let lineNumber = this.startLineNumber; lineNumber < this.endLineNumberExclusive; lineNumber++) {
+			f(lineNumber);
+		}
+	}
+
+	/**
+	 * @internal
+	 */
+	public serialize(): ISerializedLineRange {
+		return [this.startLineNumber, this.endLineNumberExclusive];
+	}
+
+	public includes(lineNumber: number): boolean {
+		return this.startLineNumber <= lineNumber && lineNumber < this.endLineNumberExclusive;
+	}
+
+	/**
+	 * Converts this 1-based line range to a 0-based offset range (subtracts 1!).
+	 * @internal
+	 */
+	public toOffsetRange(): OffsetRange {
+		return new OffsetRange(this.startLineNumber - 1, this.endLineNumberExclusive - 1);
+	}
 }
+
+export type ISerializedLineRange = [startLineNumber: number, endLineNumberExclusive: number];

@@ -46,6 +46,8 @@ import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollable
 import { DomEmitter } from 'vs/base/browser/event';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { FileAccess } from 'vs/base/common/network';
+import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 class CommentsActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context: any[]): Promise<void> {
@@ -131,6 +133,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this.createHeader(this._commentDetailsContainer);
 		this._body = document.createElement(`div`);
 		this._body.classList.add('comment-body', MOUSE_CURSOR_TEXT_CSS_CLASS_NAME);
+		if (configurationService.getValue<ICommentsConfiguration | undefined>(COMMENTS_SECTION)?.maxHeight !== false) {
+			this._body.classList.add('comment-body-max-height');
+		}
 
 		this.createScroll(this._commentDetailsContainer, this._body);
 		this.updateCommentBody(this.comment.body);
@@ -686,8 +691,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 
 	private onContextMenu(e: MouseEvent) {
+		const event = new StandardMouseEvent(e);
+
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => e,
+			getAnchor: () => event,
 			menuId: MenuId.CommentThreadCommentContext,
 			menuActionOptions: { shouldForwardArgs: true },
 			contextKeyService: this._contextKeyService,

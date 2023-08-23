@@ -16,7 +16,7 @@ import { timeout } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
-import { matchesPrefix } from 'vs/base/common/filters';
+import { matchesFuzzy2, matchesPrefix } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
@@ -27,6 +27,7 @@ import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./list';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
 import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListView } from './listView';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -129,11 +130,22 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
 		const diff = elements.length - deleteCount;
 		const end = start + deleteCount;
-		const sortedIndexes = [
-			...this.sortedIndexes.filter(i => i < start),
-			...elements.map((hasTrait, i) => hasTrait ? i + start : -1).filter(i => i !== -1),
-			...this.sortedIndexes.filter(i => i >= end).map(i => i + diff)
-		];
+		const sortedIndexes: number[] = [];
+		let i = 0;
+
+		while (i < this.sortedIndexes.length && this.sortedIndexes[i] < start) {
+			sortedIndexes.push(this.sortedIndexes[i++]);
+		}
+
+		for (let j = 0; j < elements.length; j++) {
+			if (elements[j]) {
+				sortedIndexes.push(j + start);
+			}
+		}
+
+		while (i < this.sortedIndexes.length && this.sortedIndexes[i] >= end) {
+			sortedIndexes.push(this.sortedIndexes[i++] + diff);
+		}
 
 		const length = this.length + diff;
 
@@ -226,12 +238,16 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 
 	splice(start: number, deleteCount: number, elements: T[]): void {
 		if (!this.identityProvider) {
-			return this.trait.splice(start, deleteCount, elements.map(() => false));
+			return this.trait.splice(start, deleteCount, new Array(elements.length).fill(false));
 		}
 
 		const pastElementsWithTrait = this.trait.get().map(i => this.identityProvider!.getId(this.view.element(i)).toString());
-		const elementsWithTrait = elements.map(e => pastElementsWithTrait.indexOf(this.identityProvider!.getId(e).toString()) > -1);
+		if (pastElementsWithTrait.length === 0) {
+			return this.trait.splice(start, deleteCount, new Array(elements.length).fill(false));
+		}
 
+		const pastElementsWithTraitSet = new Set(pastElementsWithTrait);
+		const elementsWithTrait = elements.map(e => pastElementsWithTraitSet.has(this.identityProvider!.getId(e).toString()));
 		this.trait.splice(start, deleteCount, elementsWithTrait);
 	}
 }
@@ -511,11 +527,27 @@ class TypeNavigationController<T> implements IDisposable {
 			const label = this.keyboardNavigationLabelProvider.getKeyboardNavigationLabel(this.view.element(index));
 			const labelStr = label && label.toString();
 
-			if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
-				this.previouslyFocused = start;
-				this.list.setFocus([index]);
-				this.list.reveal(index);
-				return;
+			if (this.list.options.typeNavigationEnabled) {
+				if (typeof labelStr !== 'undefined') {
+					const prefix = matchesPrefix(word, labelStr);
+					const fuzzy = matchesFuzzy2(word, labelStr);
+
+					// ensures that when fuzzy matching, it doesn't clash with prefix matching (1 input vs 1+ should be prefix and fuzzy respecitvely)
+					const fuzzyScore = fuzzy ? fuzzy[0].end - fuzzy[0].start : 0;
+					if (prefix || fuzzyScore > 1) {
+						this.previouslyFocused = start;
+						this.list.setFocus([index]);
+						this.list.reveal(index);
+						return;
+					}
+				}
+			} else {
+				if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
+					this.previouslyFocused = start;
+					this.list.setFocus([index]);
+					this.list.reveal(index);
+					return;
+				}
 			}
 		}
 	}
@@ -962,6 +994,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
 	readonly keyboardNavigationDelegate?: IKeyboardNavigationDelegate;
 	readonly keyboardSupport?: boolean;
+	readonly keyboardNavigationEnabled?: boolean;
 	readonly multipleSelectionController?: IMultipleSelectionController<T>;
 	readonly styleController?: (suffix: string) => IStyleController;
 	readonly accessibilityProvider?: IListAccessibilityProvider<T>;
@@ -976,12 +1009,13 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly scrollByPage?: boolean;
-	readonly additionalScrollHeight?: number;
 	readonly transformOptimization?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly scrollableElementChangeOptions?: ScrollableElementChangeOptions;
 	readonly alwaysConsumeMouseWheel?: boolean;
 	readonly initialSize?: Dimension;
+	readonly paddingTop?: number;
+	readonly paddingBottom?: number;
 }
 
 export interface IListStyles {
@@ -1338,7 +1372,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		const fromMouse = this.disposables.add(Event.chain(this.view.onContextMenu))
 			.filter(_ => !didJustPressContextMenuKey)
-			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.pageX + 1, y: browserEvent.pageY }, browserEvent }))
+			.map(({ element, index, browserEvent }) => ({ element, index, anchor: new StandardMouseEvent(browserEvent), browserEvent }))
 			.event;
 
 		return Event.any<IListContextMenuEvent<T>>(fromKeyDown, fromKeyUp, fromMouse);

@@ -13,11 +13,18 @@ export interface ILinesDiffComputer {
 export interface ILinesDiffComputerOptions {
 	readonly ignoreTrimWhitespace: boolean;
 	readonly maxComputationTimeMs: number;
+	readonly computeMoves: boolean;
 }
 
 export class LinesDiff {
 	constructor(
 		readonly changes: readonly LineRangeMapping[],
+
+		/**
+		 * Sorted by original line ranges.
+		 * The original line ranges and the modified line ranges must be disjoint (but can be touching).
+		 */
+		readonly moves: readonly MovedText[],
 
 		/**
 		 * Indicates if the time out was reached.
@@ -32,7 +39,7 @@ export class LinesDiff {
  * Maps a line range in the original text model to a line range in the modified text model.
  */
 export class LineRangeMapping {
-	public static inverse(mapping: LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): LineRangeMapping[] {
+	public static inverse(mapping: readonly LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): LineRangeMapping[] {
 		const result: LineRangeMapping[] = [];
 		let lastOriginalEndLineNumber = 1;
 		let lastModifiedEndLineNumber = 1;
@@ -95,6 +102,10 @@ export class LineRangeMapping {
 	public get changedLineCount() {
 		return Math.max(this.originalRange.length, this.modifiedRange.length);
 	}
+
+	public flip(): LineRangeMapping {
+		return new LineRangeMapping(this.modifiedRange, this.originalRange, this.innerChanges?.map(c => c.flip()));
+	}
 }
 
 /**
@@ -122,5 +133,56 @@ export class RangeMapping {
 
 	public toString(): string {
 		return `{${this.originalRange.toString()}->${this.modifiedRange.toString()}}`;
+	}
+
+	public flip(): RangeMapping {
+		return new RangeMapping(this.modifiedRange, this.originalRange);
+	}
+}
+
+// TODO@hediet: Make LineRangeMapping extend from this!
+export class SimpleLineRangeMapping {
+	constructor(
+		public readonly original: LineRange,
+		public readonly modified: LineRange,
+	) {
+	}
+
+	public toString(): string {
+		return `{${this.original.toString()}->${this.modified.toString()}}`;
+	}
+
+	public flip(): SimpleLineRangeMapping {
+		return new SimpleLineRangeMapping(this.modified, this.original);
+	}
+
+	public join(other: SimpleLineRangeMapping): SimpleLineRangeMapping {
+		return new SimpleLineRangeMapping(
+			this.original.join(other.original),
+			this.modified.join(other.modified),
+		);
+	}
+}
+
+export class MovedText {
+	public readonly lineRangeMapping: SimpleLineRangeMapping;
+
+	/**
+	 * The diff from the original text to the moved text.
+	 * Must be contained in the original/modified line range.
+	 * Can be empty if the text didn't change (only moved).
+	 */
+	public readonly changes: readonly LineRangeMapping[];
+
+	constructor(
+		lineRangeMapping: SimpleLineRangeMapping,
+		changes: readonly LineRangeMapping[],
+	) {
+		this.lineRangeMapping = lineRangeMapping;
+		this.changes = changes;
+	}
+
+	public flip(): MovedText {
+		return new MovedText(this.lineRangeMapping.flip(), this.changes.map(c => c.flip()));
 	}
 }

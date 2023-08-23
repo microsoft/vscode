@@ -307,6 +307,10 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		return range.getStartPosition();
 	}
 
+	hasFocus() {
+		return this.domNode.contains(dom.getActiveElement());
+	}
+
 	protected _isShowing: boolean = false;
 
 	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {

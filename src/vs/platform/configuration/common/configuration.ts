@@ -99,6 +99,15 @@ export interface IConfigurationValue<T> {
 	readonly overrideIdentifiers?: string[];
 }
 
+export function isConfigured<T>(configValue: IConfigurationValue<T>): configValue is IConfigurationValue<T> & { value: T } {
+	return configValue.applicationValue !== undefined ||
+		configValue.userValue !== undefined ||
+		configValue.userLocalValue !== undefined ||
+		configValue.userRemoteValue !== undefined ||
+		configValue.workspaceValue !== undefined ||
+		configValue.workspaceFolderValue !== undefined;
+}
+
 export interface IConfigurationUpdateOptions {
 	/**
 	 * If `true`, do not notifies the error to user by showing the message box. Default is `false`.

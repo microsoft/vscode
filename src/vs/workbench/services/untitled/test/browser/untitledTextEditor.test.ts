@@ -53,6 +53,7 @@ suite('Untitled text editors', () => {
 
 		assert.ok(input1.hasCapability(EditorInputCapabilities.Untitled));
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(!input1.isReadonly());
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.Singleton));
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.RequiresTrust));
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.Scratchpad));
@@ -541,10 +542,14 @@ suite('Untitled text editors', () => {
 		assert.strictEqual(input.getName(), '123456789012345678901234567890123456789');
 		assert.strictEqual(model.name, '123456789012345678901234567890123456789');
 
-		assert.strictEqual(counter, 6);
+		model.textEditorModel?.setValue('hello\u202Eworld'); // do not allow RTL in names (#190133)
+		assert.strictEqual(input.getName(), 'helloworld');
+		assert.strictEqual(model.name, 'helloworld');
+
+		assert.strictEqual(counter, 7);
 
 		model.textEditorModel?.setValue('Hello\nWorld');
-		assert.strictEqual(counter, 7);
+		assert.strictEqual(counter, 8);
 
 		function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): ISingleEditOperation {
 			const range = new Range(
@@ -562,7 +567,7 @@ suite('Untitled text editors', () => {
 		}
 
 		model.textEditorModel?.applyEdits([createSingleEditOp('hello', 2, 2)]);
-		assert.strictEqual(counter, 7); // change was not on first line
+		assert.strictEqual(counter, 8); // change was not on first line
 
 		input.dispose();
 		model.dispose();
