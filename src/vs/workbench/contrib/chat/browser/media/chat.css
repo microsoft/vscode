@@ -443,3 +443,18 @@
 .interactive-response-progress-tree.focused {
 	border-color: var(--vscode-focusBorder, transparent);
 }
+
+.interactive-item-container .value .interactive-response-placeholder-codicon .codicon {
+	color: var(--vscode-editorGhostText-foreground);
+}
+
+.interactive-item-container .value .interactive-response-placeholder-content {
+	color: var(--vscode-editorGhostText-foreground);
+	font-size: 12px;
+}
+
+.interactive-response  .interactive-response-codicon-details {
+	display: flex;
+	align-items: start;
+	gap: 6px;
+}
