@@ -170,6 +170,9 @@ export class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		remoteSocket.on('error', () => {
 			localSocket.destroy();
 		});
+
+		remoteSocket.pipe(localSocket);
+		localSocket.pipe(remoteSocket);
 	}
 }
 
