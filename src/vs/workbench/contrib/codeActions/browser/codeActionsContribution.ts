@@ -17,14 +17,18 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { CodeActionsExtensionPoint, ContributedCodeAction } from 'vs/workbench/contrib/codeActions/common/codeActionsExtensionPoint';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
-const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
-	'source.fixAll': {
+const onSaveSchemaEntry = (description: string): IJSONSchema => {
+	return {
 		type: 'string',
 		enum: ['always', 'never', 'explicit'],
-		enumDescriptions: ['Always triggers Code Actions on save', 'Never triggers Code Actions on save', 'Triggers Code Actions only when explicitly saved'],
+		enumDescriptions: [nls.localize('alwaysSave', 'Always triggers Code Actions on save'), nls.localize('neverSave', 'Never triggers Code Actions on save'), nls.localize('explicitSave', 'Triggers Code Actions only when explicitly saved')],
 		default: 'explicit',
-		description: nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")
-	},
+		description: description
+	};
+};
+
+const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
+	'source.fixAll': onSaveSchemaEntry(nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")),
 });
 
 const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
@@ -80,13 +84,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 	private updateConfigurationSchema(codeActionContributions: readonly CodeActionsExtensionPoint[]) {
 		const newProperties: IJSONSchemaMap = { ...codeActionsOnSaveDefaultProperties };
 		for (const [sourceAction, props] of this.getSourceActions(codeActionContributions)) {
-			newProperties[sourceAction] = {
-				type: 'string',
-				enum: ['always', 'never', 'explicit'],
-				enumDescriptions: ['Always triggers Code Actions on save', 'Never triggers Code Actions on save', 'Triggers Code Actions only when explicitly saved'],
-				default: 'explicit',
-				description: nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title)
-			};
+			newProperties[sourceAction] = onSaveSchemaEntry(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title));
 		}
 		codeActionsOnSaveSchema.properties = newProperties;
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration)
