@@ -944,23 +944,14 @@ class UnifiedEnvironmentVariableCollection {
 	}
 
 	replace(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
-		if (this._extension && options) {
-			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
-		}
 		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace, options: options ?? { applyAtProcessCreation: true }, scope });
 	}
 
 	append(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
-		if (this._extension && options) {
-			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
-		}
 		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append, options: options ?? { applyAtProcessCreation: true }, scope });
 	}
 
 	prepend(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
-		if (this._extension && options) {
-			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
-		}
 		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend, options: options ?? { applyAtProcessCreation: true }, scope });
 	}
 

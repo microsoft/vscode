@@ -52,8 +52,7 @@
     "telemetry",
     "windowActivity",
     "interactiveUserActions",
-    "envCollectionWorkspace",
-    "envCollectionOptions"
+    "envCollectionWorkspace"
   ],
   "private": true,
   "activationEvents": [],
