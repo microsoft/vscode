@@ -166,8 +166,7 @@ registerTerminalAction({
 			weight: KeybindingWeight.WorkbenchContrib + 2
 		},
 		{
-			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-			mac: { primary: KeyMod.Alt | KeyCode.DownArrow },
+			primary: KeyMod.Alt | KeyCode.DownArrow,
 			when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 			weight: KeybindingWeight.WorkbenchContrib + 2
 		}
