@@ -91,14 +91,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	)
 });
 
-/*
-TODO@hediet add this back once move detection is more polished.
-Users can still enable this via settings.json (config.diffEditor.experimental.showMoves).
-
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: new ToggleShowMovedCodeBlocks().desc.id,
-		title: localize('showMoves', "Show Moves"),
+		title: localize('showMoves', "Show Moved Code Blocks"),
 		icon: Codicon.move,
 		toggled: ContextKeyEqualsExpr.create('config.diffEditor.experimental.showMoves', true),
 	},
@@ -106,7 +102,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	group: '1_diff',
 	when: ContextKeyEqualsExpr.create('diffEditorVersion', 2)
 });
-*/
 
 const diffEditorCategory: ILocalizedString = {
 	value: localize('diffEditor', 'Diff Editor'),

@@ -756,7 +756,7 @@ export class InlineChatWidget {
 					this._slashCommandContentWidget.show();
 
 					// inject detail when otherwise empty
-					if (firstLine === `/${command.command} `) {
+					if (firstLine === `/${command.command}`) {
 						newDecorations.push({
 							range: new Range(1, withSlash.length + 1, 1, withSlash.length + 2),
 							options: {
