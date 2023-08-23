@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult, FileOperation, FileOperationEvent, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult, FileOperation, FileOperationEvent } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, APPLY_ALL_PROFILES_SETTING } from 'vs/workbench/services/configuration/common/configuration';
@@ -259,7 +259,7 @@ class FileServiceBasedConfiguration extends Disposable {
 		const resolveContents = async (resources: URI[]): Promise<(string | undefined)[]> => {
 			return Promise.all(resources.map(async resource => {
 				try {
-					const content = await this.fileService.readFile(resource, this.fileService.hasCapability(resource, FileSystemProviderCapabilities.FileAtomicRead) ? { atomic: true } : undefined);
+					const content = await this.fileService.readFile(resource, { atomic: true });
 					return content.value.toString();
 				} catch (error) {
 					this.logService.trace(`Error while resolving configuration file '${resource.toString()}': ${errors.getErrorMessage(error)}`);
@@ -494,7 +494,7 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	}
 
 	async resolveContent(): Promise<string> {
-		const content = await this.fileService.readFile(this.configurationResource, this.fileService.hasCapability(this.configurationResource, FileSystemProviderCapabilities.FileAtomicRead) ? { atomic: true } : undefined);
+		const content = await this.fileService.readFile(this.configurationResource, { atomic: true });
 		return content.value.toString();
 	}
 
@@ -764,7 +764,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 	}
 
 	async resolveContent(workspaceIdentifier: IWorkspaceIdentifier): Promise<string> {
-		const content = await this.fileService.readFile(workspaceIdentifier.configPath, this.fileService.hasCapability(workspaceIdentifier.configPath, FileSystemProviderCapabilities.FileAtomicRead) ? { atomic: true } : undefined);
+		const content = await this.fileService.readFile(workspaceIdentifier.configPath, { atomic: true });
 		return content.value.toString();
 	}
 
