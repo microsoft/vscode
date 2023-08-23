@@ -548,7 +548,7 @@ suite('Files - TextFileEditorModel', () => {
 	test('Update Dirty', async function () {
 		let eventCounter = 0;
 
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
 		model.setDirty(true);
 		assert.ok(!model.isDirty()); // needs to be resolved

@@ -67,21 +67,19 @@ export function createTextBufferFactoryFromStream(stream: ITextStream | VSBuffer
 
 		let done = false;
 
-		const l = listenStream<string | VSBuffer>(stream, {
+		listenStream<string | VSBuffer>(stream, {
 			onData: chunk => {
 				builder.acceptChunk((typeof chunk === 'string') ? chunk : chunk.toString());
 			},
 			onError: error => {
 				if (!done) {
 					done = true;
-					l.dispose();
 					reject(error);
 				}
 			},
 			onEnd: () => {
 				if (!done) {
 					done = true;
-					l.dispose();
 					resolve(builder.finish());
 				}
 			}

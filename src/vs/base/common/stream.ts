@@ -520,14 +520,13 @@ export function consumeStream<T, R = T>(stream: ReadableStreamEvents<T>, reducer
 	return new Promise((resolve, reject) => {
 		const chunks: T[] = [];
 
-		const l = listenStream(stream, {
+		listenStream(stream, {
 			onData: chunk => {
 				if (reducer) {
 					chunks.push(chunk);
 				}
 			},
 			onError: error => {
-				l.dispose();
 				if (reducer) {
 					reject(error);
 				} else {
@@ -535,7 +534,6 @@ export function consumeStream<T, R = T>(stream: ReadableStreamEvents<T>, reducer
 				}
 			},
 			onEnd: () => {
-				l.dispose();
 				if (reducer) {
 					resolve(reducer(chunks));
 				} else {
@@ -572,9 +570,6 @@ export interface IStreamListener<T> {
  */
 export function listenStream<T>(stream: ReadableStreamEvents<T>, listener: IStreamListener<T>, token?: CancellationToken): void {
 
-	// error and end events are in the next microtask so that a stream that is
-	// closed synchronously (e.g from a memory `toStream`) can get its disposable
-	// and destroy the stream.
 	stream.on('error', error => {
 		if (!token?.isCancellationRequested) {
 			listener.onError(error);
@@ -695,16 +690,10 @@ export function toReadable<T>(t: T): Readable<T> {
 export function transform<Original, Transformed>(stream: ReadableStreamEvents<Original>, transformer: ITransformer<Original, Transformed>, reducer: IReducer<Transformed>): ReadableStream<Transformed> {
 	const target = newWriteableStream<Transformed>(reducer);
 
-	const l = listenStream(stream, {
+	listenStream(stream, {
 		onData: data => target.write(transformer.data(data)),
-		onError: error => {
-			l.dispose();
-			target.error(transformer.error ? transformer.error(error) : error);
-		},
-		onEnd: () => {
-			l.dispose();
-			target.end();
-		}
+		onError: error => target.error(transformer.error ? transformer.error(error) : error),
+		onEnd: () => target.end()
 	});
 
 	return target;
@@ -749,7 +738,7 @@ export function prefixedStream<T>(prefix: T, stream: ReadableStream<T>, reducer:
 
 	const target = newWriteableStream<T>(reducer);
 
-	const l = listenStream(stream, {
+	listenStream(stream, {
 		onData: data => {
 
 			// Handle prefix only once
@@ -761,12 +750,8 @@ export function prefixedStream<T>(prefix: T, stream: ReadableStream<T>, reducer:
 
 			return target.write(data);
 		},
-		onError: error => {
-			l.dispose();
-			target.error(error);
-		},
+		onError: error => target.error(error),
 		onEnd: () => {
-			l.dispose();
 
 			// Handle prefix only once
 			if (!prefixHandled) {
