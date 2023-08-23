@@ -291,10 +291,10 @@ export class NotebookSearchService implements INotebookSearchService {
 					regex: query.contentPattern.isRegExp,
 					wholeWord: query.contentPattern.isWordMatch,
 					caseSensitive: query.contentPattern.isCaseSensitive,
-					includeMarkupInput: query.contentPattern.notebookInfo?.isInNotebookMarkdownInput,
-					includeMarkupPreview: query.contentPattern.notebookInfo?.isInNotebookMarkdownPreview,
-					includeCodeInput: query.contentPattern.notebookInfo?.isInNotebookCellInput,
-					includeOutput: query.contentPattern.notebookInfo?.isInNotebookCellOutput,
+					includeMarkupInput: query.contentPattern.notebookInfo?.isInNotebookMarkdownInput ?? true,
+					includeMarkupPreview: query.contentPattern.notebookInfo?.isInNotebookMarkdownPreview ?? true,
+					includeCodeInput: query.contentPattern.notebookInfo?.isInNotebookCellInput ?? true,
+					includeOutput: query.contentPattern.notebookInfo?.isInNotebookCellOutput ?? true,
 				}, token, false, true, searchID);
 
 

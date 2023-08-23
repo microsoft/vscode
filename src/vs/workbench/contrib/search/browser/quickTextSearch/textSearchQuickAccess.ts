@@ -12,7 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
-import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -75,7 +75,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		return this._configurationService.getValue<ISearchConfigurationProperties>('search');
 	}
 
-	private doSearch(contentPattern: string): {
+	private doSearch(contentPattern: string, token: CancellationToken): {
 		syncResults: FileMatch[];
 		asyncResults: Promise<FileMatch[]>;
 	} | undefined {
@@ -91,7 +91,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 		const query: ITextQuery = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), this._getTextQueryBuilderOptions(charsPerLine));
 
-		const result = this.searchModel.search(query, undefined);
+		const result = this.searchModel.search(query, undefined, token);
 
 		const getAsyncResults = async () => {
 			await result.asyncResults;
@@ -199,24 +199,18 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		}
 		return picks;
 	}
-	protected _getPicks(contentPattern: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicks<IQuickPickItem> {
+	protected _getPicks(contentPattern: string, disposables: DisposableStore, token: CancellationToken): Picks<IQuickPickItem> | Promise<Picks<IQuickPickItem> | FastAndSlowPicks<IQuickPickItem>> | FastAndSlowPicks<IQuickPickItem> | null {
 
-		const allMatches = this.doSearch(contentPattern);
+		const allMatches = this.doSearch(contentPattern, token);
 
 		if (!allMatches) {
-			return {
-				picks: [],
-				additionalPicks: Promise.resolve([])
-			};
+			return null;
 		}
 		const matches = allMatches.syncResults;
 		const syncResult = this._getPicksFromMatches(matches, MAX_FILES_SHOWN);
 
 		if (matches.length >= MAX_FILES_SHOWN) {
-			return {
-				picks: syncResult,
-				additionalPicks: Promise.resolve([])
-			};
+			return syncResult;
 		}
 
 		return {

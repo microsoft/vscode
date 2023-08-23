@@ -2003,7 +2003,7 @@ export class SearchModel extends Disposable {
 	}
 
 
-	private doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void, callerTokenSource?: CancellationTokenSource): {
+	private doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
 		asyncResults: Promise<ISearchComplete>;
 		syncResults: IFileMatch<URI>[];
 	} {
@@ -2015,12 +2015,12 @@ export class SearchModel extends Disposable {
 
 		const syncGenerateOnProgress = (p: ISearchProgressItem) => {
 			progressEmitter.fire();
-			this.onSearchProgressSync(p, searchInstanceID);
+			this.onSearchProgress(p, searchInstanceID, true);
 			onProgress?.(p);
 		};
-		const tokenSource = this.currentCancelTokenSource = callerTokenSource ?? new CancellationTokenSource();
+		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource(callerToken);
 
-		const notebookResult = this.notebookSearchService.notebookSearch(query, tokenSource.token, searchInstanceID, onProgress);
+		const notebookResult = this.notebookSearchService.notebookSearch(query, tokenSource.token, searchInstanceID, syncGenerateOnProgress);
 		const textResult = this.searchService.textSearchSplitSyncAsync(
 			searchQuery,
 			this.currentCancelTokenSource.token, asyncGenerateOnProgress,
@@ -2055,7 +2055,7 @@ export class SearchModel extends Disposable {
 		};
 	}
 
-	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerTokenSource?: CancellationTokenSource): {
+	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
 		asyncResults: Promise<ISearchComplete>;
 		syncResults: IFileMatch<URI>[];
 	} {
@@ -2075,7 +2075,7 @@ export class SearchModel extends Disposable {
 		// In search on type case, delay the streaming of results just a bit, so that we don't flash the only "local results" fast path
 		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 150 : 0));
 
-		const req = this.doSearch(query, progressEmitter, this._searchQuery, searchInstanceID, onProgress, callerTokenSource);
+		const req = this.doSearch(query, progressEmitter, this._searchQuery, searchInstanceID, onProgress, callerToken);
 		const asyncResults = req.asyncResults;
 		const syncResults = req.syncResults;
 
@@ -2172,24 +2172,23 @@ export class SearchModel extends Disposable {
 		}
 	}
 
-	private async onSearchProgress(p: ISearchProgressItem, searchInstanceID: string) {
+	private onSearchProgress(p: ISearchProgressItem, searchInstanceID: string, sync = true) {
 		if ((<IFileMatch>p).resource) {
 			this._resultQueue.push(<IFileMatch>p);
-			await this._startStreamDelay;
-			if (this._resultQueue.length) {
-				this._searchResult.add(this._resultQueue, searchInstanceID, true);
-				this._resultQueue.length = 0;
+			if (sync) {
+				if (this._resultQueue.length) {
+					this._searchResult.add(this._resultQueue, searchInstanceID, true);
+					this._resultQueue.length = 0;
+				}
+			} else {
+				this._startStreamDelay.then(() => {
+					if (this._resultQueue.length) {
+						this._searchResult.add(this._resultQueue, searchInstanceID, true);
+						this._resultQueue.length = 0;
+					}
+				});
 			}
-		}
-	}
 
-	private onSearchProgressSync(p: ISearchProgressItem, searchInstanceID: string) {
-		if ((<IFileMatch>p).resource) {
-			this._resultQueue.push(<IFileMatch>p);
-			if (this._resultQueue.length) {
-				this._searchResult.add(this._resultQueue, searchInstanceID, true);
-				this._resultQueue.length = 0;
-			}
 		}
 	}
 
