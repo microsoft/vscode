@@ -44,6 +44,8 @@ export type OptionDescriptions<T> = {
 	Subcommand<T[P]>
 };
 
+export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web'] as const;
+
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'tunnel': {
 		type: 'subcommand',
@@ -64,6 +66,15 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 					}
 				}
 			}
+		}
+	},
+	'serve-web': {
+		type: 'subcommand',
+		description: 'Make the current machine accessible from vscode.dev or other machines through a secure tunnel',
+		options: {
+			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
+			'disable-telemetry': { type: 'boolean' },
+			'telemetry-level': { type: 'string' },
 		}
 	},
 
