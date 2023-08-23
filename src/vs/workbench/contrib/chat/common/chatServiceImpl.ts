@@ -22,10 +22,11 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData, isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatRequest, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService, IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
+import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedChatKey = 'interactive.sessions';
@@ -151,6 +152,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
+		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService
 	) {
 		super();
 
@@ -451,6 +453,9 @@ export class ChatService extends Disposable implements IChatService {
 					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progress.content.length} chars`);
 				} else if ('placeholder' in progress) {
 					this.trace('sendRequest', `Provider returned placeholder for session ${model.sessionId}, ${progress.placeholder}`);
+				} else if (isCompleteInteractiveProgressTreeData(progress)) {
+					// This isn't exposed in API
+					this.trace('sendRequest', `Provider returned tree data for session ${model.sessionId}, ${progress.treeData.label}`);
 				} else {
 					this.trace('sendRequest', `Provider returned id for session ${model.sessionId}, ${progress.requestId}`);
 				}
@@ -496,7 +501,17 @@ export class ChatService extends Disposable implements IChatService {
 				rawResponse = { session: model.session! };
 
 			} else {
-				rawResponse = await provider.provideReply({ session: model.session!, message: resolvedCommand }, progressCallback, token);
+				const request: IChatRequest = {
+					session: model.session!,
+					message: resolvedCommand,
+					variables: {}
+				};
+
+				if (typeof request.message === 'string') {
+					request.variables = await this.chatVariablesService.resolveVariables(request.message, token);
+				}
+
+				rawResponse = await provider.provideReply(request, progressCallback, token);
 			}
 
 			if (token.isCancellationRequested) {
@@ -650,13 +665,22 @@ export class ChatService extends Disposable implements IChatService {
 
 		await model.waitForInitialization();
 		const request = model.addRequest(message);
-		model.acceptResponseProgress(request, {
-			content: response.message,
-		}, true);
+		if (typeof response.message === 'string') {
+			model.acceptResponseProgress(request, { content: response.message });
+		} else {
+			for (const part of response.message) {
+				const progress = isMarkdownString(part) ? { content: part.value } : { treeData: part };
+				model.acceptResponseProgress(request, progress, true);
+			}
+		}
 		model.setResponse(request, {
 			session: model.session!,
 			errorDetails: response.errorDetails,
 		});
+		if (response.followups !== undefined) {
+			model.setFollowups(request, response.followups);
+		}
+		model.completeResponse(request);
 	}
 
 	cancelCurrentRequestForSession(sessionId: string): void {

@@ -201,7 +201,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 		const font = this._configHelper.getFont(undefined, true);
@@ -961,7 +961,7 @@ export function getXtermScaledDimensions(font: ITerminalFont, width: number, hei
 
 function vscodeToXtermLogLevel(logLevel: LogLevel): XtermLogLevel {
 	switch (logLevel) {
-		case LogLevel.Trace:
+		case LogLevel.Trace: return 'trace';
 		case LogLevel.Debug: return 'debug';
 		case LogLevel.Info: return 'info';
 		case LogLevel.Warning: return 'warn';

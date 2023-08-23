@@ -153,6 +153,9 @@ export interface IStatusbarStyleOverride {
 	readonly border?: ColorIdentifier;
 }
 
+export type StatusbarEntryKind = 'standard' | 'warning' | 'error' | 'prominent' | 'remote' | 'offline';
+export const StatusbarEntryKinds: StatusbarEntryKind[] = ['standard', 'warning', 'error', 'prominent', 'remote', 'offline'];
+
 /**
  * A declarative way of describing a status bar entry
  */
@@ -188,12 +191,16 @@ export interface IStatusbarEntry {
 	readonly tooltip?: string | IMarkdownString | HTMLElement;
 
 	/**
-	 * An optional color to use for the entry
+	 * An optional color to use for the entry.
+	 *
+	 * @deprecated Use `kind` instead to support themable hover styles.
 	 */
 	readonly color?: string | ThemeColor;
 
 	/**
-	 * An optional background color to use for the entry
+	 * An optional background color to use for the entry.
+	 *
+	 * @deprecated Use `kind` instead to support themable hover styles.
 	 */
 	readonly backgroundColor?: string | ThemeColor;
 
@@ -215,6 +222,11 @@ export interface IStatusbarEntry {
 	 * specified, `syncing` will be used.
 	 */
 	readonly showProgress?: boolean | 'syncing' | 'loading';
+
+	/**
+	 * The kind of status bar entry. This applies different colors to the entry.
+	 */
+	readonly kind?: StatusbarEntryKind;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

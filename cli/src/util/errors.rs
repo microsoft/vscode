@@ -108,16 +108,6 @@ impl StatusError {
 	}
 }
 
-// When the user has not consented to the licensing terms in using the Launcher
-#[derive(Debug)]
-pub struct MissingLegalConsent(pub String);
-
-impl std::fmt::Display for MissingLegalConsent {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "{}", self.0)
-	}
-}
-
 // When the provided connection token doesn't match the one used to set up the original VS Code Server
 // This is most likely due to a new user joining.
 #[derive(Debug)]
@@ -314,20 +304,6 @@ impl std::fmt::Display for ServerHasClosed {
 }
 
 #[derive(Debug)]
-pub struct UpdatesNotConfigured(pub String);
-
-impl UpdatesNotConfigured {
-	pub fn no_url() -> Self {
-		UpdatesNotConfigured("no service url".to_owned())
-	}
-}
-
-impl std::fmt::Display for UpdatesNotConfigured {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Update service is not configured: {}", self.0)
-	}
-}
-#[derive(Debug)]
 pub struct ServiceAlreadyRegistered();
 
 impl std::fmt::Display for ServiceAlreadyRegistered {
@@ -517,10 +493,28 @@ pub enum CodeError {
 	KeyringTimeout,
 	#[error("no host is connected to the tunnel relay")]
 	NoTunnelEndpoint,
+	#[error("could not parse `host`: {0}")]
+	InvalidHostAddress(std::net::AddrParseError),
+	#[error("could not start server on the given host/port: {0}")]
+	CouldNotListenOnInterface(hyper::Error),
+	#[error(
+		"Run this command again with --accept-server-license-terms to indicate your agreement."
+	)]
+	NeedsInteractiveLegalConsent,
+	#[error("Sorry, you cannot use this CLI without accepting the terms.")]
+	DeniedLegalConset,
+	#[error("The server is not yet downloaded, try again shortly.")]
+	ServerNotYetDownloaded,
+	#[error("An error was encountered downloading the server, please retry: {0}")]
+	ServerDownloadError(String),
+	#[error("Updates are are not available: {0}")]
+	UpdatesNotConfigured(&'static str),
+	// todo: can be specialized when update service is moved to CodeErrors
+	#[error("Could not check for update: {0}")]
+	UpdateCheckFailed(String),
 }
 
 makeAnyError!(
-	MissingLegalConsent,
 	MismatchConnectionToken,
 	DevTunnelError,
 	StatusError,
@@ -543,7 +537,6 @@ makeAnyError!(
 	ServerHasClosed,
 	ServiceAlreadyRegistered,
 	WindowsNeedsElevation,
-	UpdatesNotConfigured,
 	CorruptDownload,
 	MissingHomeDirectory,
 	OAuthError,

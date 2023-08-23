@@ -2460,6 +2460,7 @@ declare namespace monaco.editor {
 		 * Moves this line range by the given offset of line numbers.
 		 */
 		delta(offset: number): LineRange;
+		deltaLength(offset: number): LineRange;
 		/**
 		 * The number of lines this line range spans.
 		 */
@@ -2545,6 +2546,7 @@ declare namespace monaco.editor {
 		constructor(original: LineRange, modified: LineRange);
 		toString(): string;
 		flip(): SimpleLineRangeMapping;
+		join(other: SimpleLineRangeMapping): SimpleLineRangeMapping;
 	}
 	export interface IDimension {
 		width: number;
@@ -3888,6 +3890,10 @@ declare namespace monaco.editor {
 		 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
 		 */
 		tabFocusMode?: boolean;
+		/**
+		 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
+		 */
+		inlineCompletionsAccessibilityVerbose?: boolean;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -5024,7 +5030,8 @@ declare namespace monaco.editor {
 		layoutInfo = 142,
 		wrappingInfo = 143,
 		defaultColorDecorators = 144,
-		colorDecoratorsActivatedOn = 145
+		colorDecoratorsActivatedOn = 145,
+		inlineCompletionsAccessibilityVerbose = 146
 	}
 
 	export const EditorOptions: {
@@ -5148,6 +5155,7 @@ declare namespace monaco.editor {
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, Readonly<Required<ISuggestOptions>>>;
 		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, Readonly<Required<IInlineSuggestOptions>>>;
+		inlineCompletionsAccessibilityVerbose: IEditorOption<EditorOption.inlineCompletionsAccessibilityVerbose, boolean>;
 		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
 		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;
@@ -7883,6 +7891,30 @@ declare namespace monaco.languages {
 	export interface DocumentRangeSemanticTokensProvider {
 		getLegend(): SemanticTokensLegend;
 		provideDocumentRangeSemanticTokens(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
+	}
+
+	export interface RelatedContextItem {
+		readonly uri: Uri;
+		readonly range: IRange;
+	}
+
+	export interface MappedEditsContext {
+		selections: ISelection[];
+		related: RelatedContextItem[];
+	}
+
+	export interface MappedEditsProvider {
+		/**
+		 * Provider maps code blocks from the chat into a workspace edit.
+		 *
+		 * @param document The document to provide mapped edits for.
+		 * @param codeBlocks Code blocks that come from an LLM's reply.
+		 * 						"Insert at cursor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
+		 * @param context The context for providing mapped edits.
+		 * @param token A cancellation token.
+		 * @returns A provider result of text edits.
+		 */
+		provideMappedEdits(document: editor.ITextModel, codeBlocks: string[], context: MappedEditsContext, token: CancellationToken): Promise<WorkspaceEdit | null>;
 	}
 
 	export interface ILanguageExtensionPoint {

@@ -22,11 +22,13 @@ import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions
 import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
 import { InlineCompletionsModel, VersionIdChangeReason } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { SuggestWidgetAdaptor } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
+import { localize } from 'vs/nls';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class InlineCompletionsController extends Disposable {
 	static ID = 'editor.contrib.inlineCompletionsController';
@@ -73,11 +75,11 @@ export class InlineCompletionsController extends Disposable {
 		@ILanguageFeatureDebounceService private readonly debounceService: ILanguageFeatureDebounceService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IAudioCueService private readonly audioCueService: IAudioCueService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 
 		this._register(new InlineCompletionContextKeys(this.contextKeyService, this.model));
-
 		this._register(Event.runAndSubscribe(editor.onDidChangeModel, () => transaction(tx => {
 			/** @description onDidChangeModel */
 			this.model.set(undefined, tx);
@@ -147,7 +149,7 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(this.editor.onDidBlurEditorWidget(() => {
 			// This is a hidden setting very useful for debugging
-			if (this.configurationService.getValue('editor.inlineSuggest.keepOnBlur') ||
+			if (this.contextKeyService.getContextKeyValue<boolean>('accessibleViewIsShown') || this.configurationService.getValue('editor.inlineSuggest.keepOnBlur') ||
 				editor.getOption(EditorOption.inlineSuggest).keepOnBlur) {
 				return;
 			}
@@ -190,13 +192,29 @@ export class InlineCompletionsController extends Disposable {
 				const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
 				this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-						alert(state.ghostText.renderForScreenReader(lineText));
+						this.provideScreenReaderUpdate(state.ghostText.renderForScreenReader(lineText));
 					}
 				});
 			}
 		}));
 
 		this._register(new InlineCompletionsHintsWidget(this.editor, this.model, this.instantiationService));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('accessibility.verbosity.inlineCompletions')) {
+				this.editor.updateOptions({ inlineCompletionsAccessibilityVerbose: this.configurationService.getValue('accessibility.verbosity.inlineCompletions') });
+			}
+		}));
+		this.editor.updateOptions({ inlineCompletionsAccessibilityVerbose: this.configurationService.getValue('accessibility.verbosity.inlineCompletions') });
+	}
+
+	private provideScreenReaderUpdate(content: string): void {
+		const accessibleViewShowing = this.contextKeyService.getContextKeyValue<boolean>('accessibleViewIsShown');
+		const accessibleViewKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleView');
+		let hint: string | undefined;
+		if (!accessibleViewShowing && accessibleViewKeybinding && this.editor.getOption(EditorOption.inlineCompletionsAccessibilityVerbose)) {
+			hint = localize('showAccessibleViewHint', "Inspect this in the accessible view ({0})", accessibleViewKeybinding.getAriaLabel());
+		}
+		hint ? alert(content + ', ' + hint) : alert(content);
 	}
 
 	/**

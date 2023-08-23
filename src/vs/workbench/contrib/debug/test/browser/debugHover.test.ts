@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { findExpressionInStackFrame } from 'vs/workbench/contrib/debug/browser/debugHover';
 import type { IExpression, IScope } from 'vs/workbench/contrib/debug/common/debug';
@@ -13,9 +15,20 @@ import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callS
 import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
 
 suite('Debug - Hover', () => {
+	let disposables: DisposableStore;
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('find expression in stack frame', async () => {
-		const model = createMockDebugModel();
-		const session = createTestSession(model);
+		const model = createMockDebugModel(disposables);
+		const session = disposables.add(createTestSession(model));
 
 		const thread = new class extends Thread {
 			public override getCallStack(): StackFrame[] {

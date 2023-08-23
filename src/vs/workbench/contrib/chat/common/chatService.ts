@@ -5,11 +5,13 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatModel, ChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChat {
 	id: number; // TODO Maybe remove this and move to a subclass that only the provider knows about
@@ -25,6 +27,7 @@ export interface IChat {
 export interface IChatRequest {
 	session: IChat;
 	message: string | IChatReplyFollowup;
+	variables: Record<string, IChatRequestVariableValue[]>;
 }
 
 export interface IChatResponseErrorDetails {
@@ -49,7 +52,7 @@ export interface IChatResponseProgressFileTreeData {
 }
 
 export type IChatProgress =
-	{ content: string } | { requestId: string } | { placeholder: string; resolvedContent: Promise<string | { treeData: IChatResponseProgressFileTreeData }> };
+	{ content: string } | { requestId: string } | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent: Promise<string | { treeData: IChatResponseProgressFileTreeData }> };
 
 export interface IPersistedChatState { }
 export interface IChatProvider {
@@ -102,6 +105,7 @@ export interface IChatResponseCommandFollowup {
 	commandId: string;
 	args?: any[];
 	title: string; // supports codicon strings
+	when?: string;
 }
 
 export type IChatFollowup = IChatReplyFollowup | IChatResponseCommandFollowup;
@@ -174,8 +178,9 @@ export interface IChatDynamicRequest {
 }
 
 export interface IChatCompleteResponse {
-	message: string;
+	message: string | (IMarkdownString | IChatResponseProgressFileTreeData)[];
 	errorDetails?: IChatResponseErrorDetails;
+	followups?: IChatFollowup[];
 }
 
 export interface IChatDetail {

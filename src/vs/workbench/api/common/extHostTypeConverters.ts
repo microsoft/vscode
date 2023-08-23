@@ -45,6 +45,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/chatProvider';
+import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export namespace Command {
 
@@ -1562,6 +1563,30 @@ export namespace LanguageSelector {
 	}
 }
 
+export namespace MappedEditsContext {
+
+	export function is(v: unknown): v is vscode.MappedEditsContext {
+		return (!!v &&
+			typeof v === 'object' &&
+			'selections' in v &&
+			Array.isArray(v.selections) &&
+			v.selections.every(s => s instanceof types.Selection) &&
+			'related' in v &&
+			Array.isArray(v.related) &&
+			v.related.every(e => e && typeof e === 'object' && URI.isUri(e.uri) && e.range instanceof types.Range));
+	}
+
+	export function from(extContext: vscode.MappedEditsContext): languages.MappedEditsContext {
+		return {
+			selections: extContext.selections.map(s => Selection.from(s)),
+			related: extContext.related.map(r => ({
+				uri: URI.from(r.uri),
+				range: Range.from(r.range)
+			}))
+		};
+	}
+}
+
 export namespace NotebookRange {
 
 	export function from(range: vscode.NotebookRange): ICellRange {
@@ -2151,6 +2176,7 @@ export namespace ChatFollowup {
 				kind: 'command',
 				title: followup.title ?? '',
 				commandId: followup.commandId ?? '',
+				when: followup.when ?? '',
 				args: followup.args
 			};
 		} else {
@@ -2199,6 +2225,48 @@ export namespace ChatMessageRole {
 		}
 	}
 }
+
+export namespace ChatVariable {
+	export function to(variable: IChatRequestVariableValue): vscode.ChatVariableValue {
+		return {
+			level: ChatVariableLevel.to(variable.level),
+			value: variable.value,
+			description: variable.description
+		};
+	}
+
+	export function from(variable: vscode.ChatVariableValue): IChatRequestVariableValue {
+		return {
+			level: ChatVariableLevel.from(variable.level),
+			value: variable.value,
+			description: variable.description
+		};
+	}
+}
+
+export namespace ChatVariableLevel {
+
+
+	export function to(level: 'short' | 'medium' | 'full'): vscode.ChatVariableLevel {
+		switch (level) {
+			case 'short': return types.ChatVariableLevel.Short;
+			case 'medium': return types.ChatVariableLevel.Medium;
+			case 'full':
+			default:
+				return types.ChatVariableLevel.Full;
+		}
+	}
+	export function from(level: vscode.ChatVariableLevel): 'short' | 'medium' | 'full' {
+		switch (level) {
+			case types.ChatVariableLevel.Short: return 'short';
+			case types.ChatVariableLevel.Medium: return 'medium';
+			case types.ChatVariableLevel.Full:
+			default:
+				return 'full';
+		}
+	}
+}
+
 
 export namespace TerminalQuickFix {
 	export function from(quickFix: vscode.TerminalQuickFixExecuteTerminalCommand | vscode.TerminalQuickFixOpener | vscode.Command, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.ITerminalQuickFixExecuteTerminalCommandDto | extHostProtocol.ITerminalQuickFixOpenerDto | extHostProtocol.ICommandDto | undefined {
