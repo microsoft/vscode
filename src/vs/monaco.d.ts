@@ -7893,6 +7893,30 @@ declare namespace monaco.languages {
 		provideDocumentRangeSemanticTokens(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 	}
 
+	export interface RelatedContextItem {
+		readonly uri: Uri;
+		readonly range: IRange;
+	}
+
+	export interface MappedEditsContext {
+		selections: ISelection[];
+		related: RelatedContextItem[];
+	}
+
+	export interface MappedEditsProvider {
+		/**
+		 * Provider maps code blocks from the chat into a workspace edit.
+		 *
+		 * @param document The document to provide mapped edits for.
+		 * @param codeBlocks Code blocks that come from an LLM's reply.
+		 * 						"Insert at cursor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
+		 * @param context The context for providing mapped edits.
+		 * @param token A cancellation token.
+		 * @returns A provider result of text edits.
+		 */
+		provideMappedEdits(document: editor.ITextModel, codeBlocks: string[], context: MappedEditsContext, token: CancellationToken): Promise<WorkspaceEdit | null>;
+	}
+
 	export interface ILanguageExtensionPoint {
 		id: string;
 		extensions?: string[];
