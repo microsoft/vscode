@@ -41,6 +41,7 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 	protected _listeners: IDisposable[] = [];
 
 	private readonly _focusedContextKey?: IContextKey<boolean>;
+	private readonly _focusedLastLineContextKey?: IContextKey<boolean>;
 	private readonly _focusTracker?: dom.IFocusTracker;
 
 	constructor(
@@ -48,6 +49,7 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		protected readonly _instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource'>,
 		protected readonly _xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal },
 		private _focusContextKey: RawContextKey<boolean> | undefined,
+		private _focusLastLineContextKey: RawContextKey<boolean> | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -87,11 +89,22 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		this._element.replaceChildren(this._editorContainer);
 		this._xtermElement.insertAdjacentElement('beforebegin', this._element);
 
-		if (this._focusContextKey) {
+		if (this._focusContextKey && this._focusLastLineContextKey) {
 			this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
 			this._focusedContextKey = this._focusContextKey.bindTo(this._contextKeyService);
-			this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey?.set(true)));
-			this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey?.reset()));
+			this._focusedLastLineContextKey = this._focusLastLineContextKey.bindTo(this._contextKeyService);
+			this.add(this._focusTracker.onDidFocus(() => {
+				this._focusedContextKey?.set(true);
+				this._focusedLastLineContextKey?.set(this._editorWidget.getSelection()?.positionLineNumber === this._editorWidget.getModel()?.getLineCount());
+			}));
+			this.add(this._focusTracker.onDidBlur(() => {
+				this._focusedContextKey?.reset();
+				this._focusedLastLineContextKey?.reset();
+			}));
+			this._editorWidget.onDidChangeCursorPosition(() => {
+				console.log(this._editorWidget.getSelection()?.positionLineNumber === this._editorWidget.getModel()?.getLineCount());
+				this._focusedLastLineContextKey?.set(this._editorWidget.getSelection()?.positionLineNumber === this._editorWidget.getModel()?.getLineCount());
+			});
 		}
 
 		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this.layout()));
