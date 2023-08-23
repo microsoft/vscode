@@ -1217,7 +1217,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				matches: matches ? matches : createMatches(element.filterData),
 				strikethrough: treeItemLabel?.strikethrough,
 				disabledCommand: !commandEnabled,
-				labelEscapeNewLines: true
+				labelEscapeNewLines: true,
+				forceLabel: !!node.label
 			});
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, {
