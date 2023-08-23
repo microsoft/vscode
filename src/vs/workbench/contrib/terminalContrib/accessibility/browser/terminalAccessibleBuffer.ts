@@ -93,7 +93,12 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 	}
 
 	private _getEditorLineForCommand(command: ITerminalCommand | ICurrentPartialCommand): number | undefined {
-		let line = 'marker' in command ? command.marker?.line : 'commandStartMarker' in command ? command.commandStartMarker?.line : undefined;
+		let line: number | undefined;
+		if ('marker' in command) {
+			line = command.marker?.line;
+		} else if ('commandStartMarker' in command) {
+			line = command.commandStartMarker?.line;
+		}
 		if (line === undefined || line < 0) {
 			return;
 		}
