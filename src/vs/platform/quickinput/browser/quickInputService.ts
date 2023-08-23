@@ -78,6 +78,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 					openerService.open(content, { allowCommands: true, fromUserGesture: true });
 				});
 			},
+			colorSchemeDelegate: () => this.themeService.getColorTheme().type,
 			returnFocus: () => host.focus(),
 			createList: <T>(
 				user: string,
@@ -225,8 +226,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			pickerGroup: {
 				pickerGroupBorder: asCssVariable(pickerGroupBorder),
 				pickerGroupForeground: asCssVariable(pickerGroupForeground),
-			},
-			colorScheme: this.themeService.getColorTheme().type
+			}
 		};
 	}
 }

@@ -40,6 +40,7 @@ export interface IQuickInputOptions {
 	backKeybindingLabel(): string | undefined;
 	setContextKey(id?: string): void;
 	linkOpenerDelegate(content: string): void;
+	colorSchemeDelegate(): ColorScheme;
 	returnFocus(): void;
 	createList<T>(
 		user: string,
@@ -62,7 +63,6 @@ export interface IQuickInputStyles {
 	readonly keybindingLabel: IKeybindingLabelStyles;
 	readonly list: IListStyles;
 	readonly pickerGroup: { pickerGroupBorder: string | undefined; pickerGroupForeground: string | undefined };
-	readonly colorScheme: ColorScheme;
 }
 
 export interface IQuickInputWidgetStyles {

@@ -234,7 +234,7 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 
 	static readonly ID = 'listelement';
 
-	constructor(private readonly colorScheme: ColorScheme) { }
+	constructor(private readonly colorSchemeDelegate: () => ColorScheme) { }
 
 	get templateId() {
 		return ListElementRenderer.ID;
@@ -299,7 +299,7 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
 
 		if (element.item?.iconPath) {
-			const icon = isDark(this.colorScheme) ? element.item.iconPath.dark : (element.item.iconPath.light ?? element.item.iconPath.dark);
+			const icon = isDark(this.colorSchemeDelegate()) ? element.item.iconPath.dark : (element.item.iconPath.light ?? element.item.iconPath.dark);
 			const iconUrl = URI.revive(icon);
 			data.icon.className = 'quick-input-list-icon';
 			data.icon.style.backgroundImage = dom.asCSSUrl(iconUrl);
@@ -464,7 +464,7 @@ export class QuickInputList {
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
-		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(this.options.styles.colorScheme)], {
+		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(this.options.colorSchemeDelegate)], {
 			identityProvider: {
 				getId: element => {
 					// always prefer item over separator because if item is defined, it must be the main item type
