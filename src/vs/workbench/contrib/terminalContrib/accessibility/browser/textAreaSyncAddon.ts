@@ -91,23 +91,22 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 		const buffer = this._terminal.buffer.active;
-		const line = buffer.getLine(buffer.cursorY)?.translateToString(true);
+		const lineNumber = currentCommand.commandStartMarker?.line;
+		if (!lineNumber) {
+			return;
+		}
+		const line = buffer.getLine(lineNumber)?.translateToString(true);
 		if (!line) {
 			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no line`);
 			return;
 		}
-		if (currentCommand.commandStartX !== undefined) {
-			// Left prompt
+		if (!!currentCommand.commandStartX) {
 			this._currentCommand = line.substring(currentCommand.commandStartX);
 			this._cursorX = buffer.cursorX - currentCommand.commandStartX;
-		} else if (currentCommand.commandRightPromptStartX !== undefined) {
-			// Right prompt
-			this._currentCommand = line.substring(0, currentCommand.commandRightPromptStartX);
-			this._cursorX = buffer.cursorX;
 		} else {
 			this._currentCommand = undefined;
 			this._cursorX = undefined;
-			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: neither commandStartX nor commandRightPromptStartX`);
+			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no commandStartX`);
 		}
 	}
 }
