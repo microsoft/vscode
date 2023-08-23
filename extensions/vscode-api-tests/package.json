@@ -51,7 +51,6 @@
     "telemetry",
     "windowActivity",
     "interactiveUserActions",
-    "envCollectionWorkspace",
     "envCollectionOptions"
   ],
   "private": true,
