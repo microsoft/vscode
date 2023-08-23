@@ -1894,7 +1894,7 @@ export class SearchView extends ViewPane {
 			pinned,
 			selection,
 			revealIfVisible: true,
-			indexedCellOptions: element instanceof MatchInNotebook ? { cellIndex: element.cellIndex, selection: element.range } : undefined,
+			indexedCellOptions: element instanceof MatchInNotebook ? { index: element.cellIndex, selection: element.range() } : undefined,
 		};
 
 		try {
