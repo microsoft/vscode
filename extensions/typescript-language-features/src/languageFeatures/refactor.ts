@@ -527,7 +527,10 @@ namespace ChatPanelFollowup {
 		readonly prompt: string;
 		readonly document: vscode.TextDocument;
 		readonly range: vscode.Range;
+		readonly expand: Expand;
 	}
+	// assuming there is an ast to walk, I'm convinced I can do a more consistent job than the navtree code.
+	export type Expand = 'none' | 'navtree-function' | 'statement' | 'ast-statement'
 }
 class ChatPanelFollowup implements Command {
 	public readonly id = ChatPanelFollowup.ID;
@@ -536,7 +539,7 @@ class ChatPanelFollowup implements Command {
 	constructor(private readonly client: ITypeScriptServiceClient) {
 	}
 
-	async execute({prompt, document, range }: ChatPanelFollowup.Args) {
+	async execute({ prompt, document, range, expand }: ChatPanelFollowup.Args) {
 		const filepath = this.client.toOpenTsFilePath(document);
 		if (!filepath) {
 			return;
@@ -545,12 +548,8 @@ class ChatPanelFollowup implements Command {
 		if (response.type !== 'response' || !response.body?.childItems) {
 			return;
 		}
-		const startLine = range.start.line;
-		const enclosingRange = findScopeEndLineFromNavTree(startLine, response.body.childItems);
-		if (!enclosingRange) {
-			return;
-		}
-		console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+		const enclosingRange = expand === 'navtree-function' && findScopeEndLineFromNavTree(range.start.line, response.body.childItems) || range;
+		console.log(JSON.stringify(enclosingRange))
 		vscode.interactive.sendInteractiveRequestToProvider('copilot', { message: prompt, autoSend: true, initialRange: enclosingRange } as any)
 	}
 }
@@ -689,12 +688,17 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			let bonus: vscode.Command | undefined
 			if (aiQuickFixEnabled && action.name.startsWith("constant_")) {
 				// if (aiQuickFixEnabled) { console.log(action.name.startsWith("Extract"), action.name) } // constant_scope_0
-				// TODO: Swap this for a reference command like in quickfix
+				console.log(JSON.stringify(rangeOrSelection))
 				bonus = {
 					command: ChatPanelFollowup.ID,
 					arguments: [<ChatPanelFollowup.Args>{
-						prompt: 'Suggest 5 names for this code that sound kind of like Pokemon.',
+						prompt: `Suggest 5 names for the expression
+						\`\`\`
+						${document.getText(rangeOrSelection)}.
+						\`\`\`
+						`,
 						range: rangeOrSelection,
+						expand: 'navtree-function',
 						document }],
 					title: ''
 				}
