@@ -95,13 +95,13 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		if (!lineNumber) {
 			return;
 		}
-		const line = buffer.getLine(lineNumber)?.translateToString(true);
-		if (!line) {
+		const commandLine = buffer.getLine(lineNumber)?.translateToString(true);
+		if (!commandLine) {
 			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no line`);
 			return;
 		}
 		if (!!currentCommand.commandStartX) {
-			this._currentCommand = line.substring(currentCommand.commandStartX);
+			this._currentCommand = commandLine.substring(currentCommand.commandStartX);
 			this._cursorX = buffer.cursorX - currentCommand.commandStartX;
 		} else {
 			this._currentCommand = undefined;
