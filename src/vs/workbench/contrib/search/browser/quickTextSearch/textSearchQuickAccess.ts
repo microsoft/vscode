@@ -230,6 +230,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 	protected _getPicks(contentPattern: string, disposables: DisposableStore, token: CancellationToken): Picks<IQuickPickItem> | Promise<Picks<IQuickPickItem> | FastAndSlowPicks<IQuickPickItem>> | FastAndSlowPicks<IQuickPickItem> | null {
 
+		if (contentPattern === '') {
+			this.searchModel.searchResult.clear();
+			return [];
+		}
 		const allMatches = this.doSearch(contentPattern, token);
 
 		if (!allMatches) {
