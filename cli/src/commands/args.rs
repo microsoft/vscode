@@ -185,6 +185,9 @@ pub struct ServeWebArgs {
 	/// Host to listen on, defaults to 'localhost'
 	#[clap(long)]
 	pub host: Option<String>,
+	// The path to a socket file for the server to listen to.
+	#[clap(long)]
+	pub socket_path: Option<String>,
 	/// Port to listen on. If 0 is passed a random free port is picked.
 	#[clap(long, default_value_t = 8000)]
 	pub port: u16,
