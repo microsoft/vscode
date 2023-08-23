@@ -91,7 +91,7 @@ export class MainThreadManagedSockets extends Disposable implements MainThreadMa
 	}
 }
 
-class MainThreadManagedSocket extends ManagedSocket {
+export class MainThreadManagedSocket extends ManagedSocket {
 	public static connect(
 		socketId: number,
 		proxy: ExtHostManagedSocketsShape,
