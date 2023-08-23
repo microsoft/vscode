@@ -166,17 +166,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._textModelDisposables.clear();
 		this._textModel = m;
 		if (this._textModel) {
-			// Init language from text model
-			// The language defined in the cell might not be supported in the editor so the text model might be using the default fallback
-			// If so let's not modify the language
-			if (!(this._languageService.isRegisteredLanguageId(this.language) === false && (this._textModel.getLanguageId() === PLAINTEXT_LANGUAGE_ID || this._textModel.getLanguageId() === 'jupyter'))) {
-				this.language = this._textModel.getLanguageId();
-			}
+			this.setRegisteredLanguage(this._languageService, this._textModel.getLanguageId(), this.language);
 
 			// Listen to language changes on the model
-			this._textModelDisposables.add(this._textModel.onDidChangeLanguage(e => {
-				this.language = e.newLanguage;
-			}));
+			this._textModelDisposables.add(this._textModel.onDidChangeLanguage((e) => this.setRegisteredLanguage(this._languageService, e.newLanguage, this.language)));
 			this._textModelDisposables.add(this._textModel.onWillDispose(() => this.textModel = undefined));
 			this._textModelDisposables.add(this._textModel.onDidChangeContent(() => {
 				if (this._textModel) {
@@ -188,6 +181,18 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 			this._textModel._overwriteVersionId(this._versionId);
 			this._textModel._overwriteAlternativeVersionId(this._versionId);
+		}
+	}
+
+	private setRegisteredLanguage(languageService: ILanguageService, newLanguage: string, currentLanguage: string) {
+		// The language defined in the cell might not be supported in the editor so the text model might be using the default fallback
+		// If so let's not modify the language
+		const isFallBackLanguage = (newLanguage === PLAINTEXT_LANGUAGE_ID || newLanguage === 'jupyter');
+		if (!languageService.isRegisteredLanguageId(currentLanguage) && isFallBackLanguage) {
+			// notify to display warning, but don't change the language
+			this._onDidChangeLanguage.fire(currentLanguage);
+		} else {
+			this.language = newLanguage;
 		}
 	}
 

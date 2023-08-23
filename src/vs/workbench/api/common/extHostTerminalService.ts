@@ -51,8 +51,13 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
 	registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
-	getEnvironmentVariableCollection(extension: IExtensionDescription, scope?: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableCollection;
+	getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection;
 }
+
+interface IEnvironmentVariableCollection extends vscode.EnvironmentVariableCollection {
+	getScoped(scope: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableCollection;
+}
+
 export interface ITerminalInternalOptions {
 	isFeatureTerminal?: boolean;
 	useShellEnvironment?: boolean;
@@ -850,13 +855,13 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return index;
 	}
 
-	public getEnvironmentVariableCollection(extension: IExtensionDescription, scope?: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableCollection {
+	public getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection {
 		let collection = this._environmentVariableCollections.get(extension.identifier.value);
 		if (!collection) {
 			collection = new UnifiedEnvironmentVariableCollection(extension);
 			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
 		}
-		return collection.getScopedEnvironmentVariableCollection(scope);
+		return collection.getScopedEnvironmentVariableCollection(undefined);
 	}
 
 	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: UnifiedEnvironmentVariableCollection): void {
@@ -923,7 +928,7 @@ class UnifiedEnvironmentVariableCollection {
 		this.map = new Map(serialized);
 	}
 
-	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection {
+	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): IEnvironmentVariableCollection {
 		if (this._extension && scope) {
 			// TODO: This should be removed when the env var extension API(s) are stabilized
 			checkProposedApiEnabled(this._extension, 'envCollectionWorkspace');
@@ -942,21 +947,21 @@ class UnifiedEnvironmentVariableCollection {
 		if (this._extension && options) {
 			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
 		}
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace, options: options ?? {}, scope });
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace, options: options ?? { applyAtProcessCreation: true }, scope });
 	}
 
 	append(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
 		if (this._extension && options) {
 			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
 		}
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append, options: options ?? {}, scope });
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append, options: options ?? { applyAtProcessCreation: true }, scope });
 	}
 
 	prepend(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
 		if (this._extension && options) {
 			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
 		}
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend, options: options ?? {}, scope });
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend, options: options ?? { applyAtProcessCreation: true }, scope });
 	}
 
 	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator & { scope: vscode.EnvironmentVariableScope | undefined }): void {
@@ -965,22 +970,25 @@ class UnifiedEnvironmentVariableCollection {
 		}
 		const key = this.getKey(variable, mutator.scope);
 		const current = this.map.get(key);
+		const newOptions = mutator.options ? {
+			applyAtProcessCreation: mutator.options.applyAtProcessCreation ?? false,
+			applyAtShellIntegration: mutator.options.applyAtShellIntegration ?? false,
+		} : {
+			applyAtProcessCreation: true
+		};
 		if (
 			!current ||
 			current.value !== mutator.value ||
 			current.type !== mutator.type ||
-			current.options?.applyAtProcessCreation !== (mutator.options.applyAtProcessCreation ?? true) ||
-			current.options?.applyAtShellIntegration !== (mutator.options.applyAtShellIntegration ?? false) ||
+			current.options?.applyAtProcessCreation !== newOptions.applyAtProcessCreation ||
+			current.options?.applyAtShellIntegration !== newOptions.applyAtShellIntegration ||
 			current.scope?.workspaceFolder?.index !== mutator.scope?.workspaceFolder?.index
 		) {
 			const key = this.getKey(variable, mutator.scope);
 			const value: IEnvironmentVariableMutator = {
 				variable,
 				...mutator,
-				options: {
-					applyAtProcessCreation: mutator.options.applyAtProcessCreation ?? true,
-					applyAtShellIntegration: mutator.options.applyAtShellIntegration ?? false,
-				}
+				options: newOptions
 			};
 			this.map.set(key, value);
 			this._onDidChangeCollection.fire();
@@ -1066,7 +1074,7 @@ class UnifiedEnvironmentVariableCollection {
 	}
 }
 
-class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
+class ScopedEnvironmentVariableCollection implements IEnvironmentVariableCollection {
 	public get persistent(): boolean { return this.collection.persistent; }
 	public set persistent(value: boolean) {
 		this.collection.persistent = value;
@@ -1081,7 +1089,7 @@ class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableC
 	) {
 	}
 
-	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined) {
+	getScoped(scope: vscode.EnvironmentVariableScope | undefined) {
 		return this.collection.getScopedEnvironmentVariableCollection(scope);
 	}
 

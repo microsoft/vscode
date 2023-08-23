@@ -940,7 +940,7 @@ export class FolderMatch extends Disposable {
 		protected _index: number,
 		protected _query: ITextQuery,
 		private _parent: SearchResult | FolderMatch,
-		private _searchModel: SearchModel,
+		private _searchResult: SearchResult,
 		private _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -957,7 +957,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	get searchModel(): SearchModel {
-		return this._searchModel;
+		return this._searchResult.searchModel;
 	}
 
 	get showHighlights(): boolean {
@@ -1033,7 +1033,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	public createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextQuery, baseWorkspaceFolder: FolderMatchWorkspaceRoot): FolderMatchWithResource {
-		const folderMatch = this.instantiationService.createInstance(FolderMatchWithResource, resource, id, index, query, this, this._searchModel, baseWorkspaceFolder);
+		const folderMatch = this.instantiationService.createInstance(FolderMatchWithResource, resource, id, index, query, this, this._searchResult, baseWorkspaceFolder);
 		this.configureIntermediateMatch(folderMatch);
 		this.doAddFolder(folderMatch);
 		return folderMatch;
@@ -1313,13 +1313,13 @@ export class FolderMatchWithResource extends FolderMatch {
 
 	protected _normalizedResource: Lazy<URI>;
 
-	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: SearchResult | FolderMatch, _searchModel: SearchModel, _closestRoot: FolderMatchWorkspaceRoot | null,
+	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: SearchResult | FolderMatch, _searchResult: SearchResult, _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
-		super(_resource, _id, _index, _query, _parent, _searchModel, _closestRoot, replaceService, instantiationService, labelService, uriIdentityService);
+		super(_resource, _id, _index, _query, _parent, _searchResult, _closestRoot, replaceService, instantiationService, labelService, uriIdentityService);
 		this._normalizedResource = new Lazy(() => this.uriIdentityService.extUri.removeTrailingPathSeparator(this.uriIdentityService.extUri.normalizePath(
 			this.resource)));
 	}
@@ -1337,13 +1337,13 @@ export class FolderMatchWithResource extends FolderMatch {
  * FolderMatchWorkspaceRoot => folder for workspace root
  */
 export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
-	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: SearchResult, _searchModel: SearchModel,
+	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: SearchResult,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
-		super(_resource, _id, _index, _query, _parent, _searchModel, null, replaceService, instantiationService, labelService, uriIdentityService);
+		super(_resource, _id, _index, _query, _parent, _parent, null, replaceService, instantiationService, labelService, uriIdentityService);
 	}
 
 	private normalizedUriParent(uri: URI): URI {
@@ -1409,14 +1409,14 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
  * FolderMatch => required resource (normal folder node)
  */
 export class FolderMatchNoRoot extends FolderMatch {
-	constructor(_id: string, _index: number, _query: ITextQuery, _parent: SearchResult | FolderMatch, _searchModel: SearchModel,
+	constructor(_id: string, _index: number, _query: ITextQuery, _parent: SearchResult,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 
 	) {
-		super(null, _id, _index, _query, _parent, _searchModel, null, replaceService, instantiationService, labelService, uriIdentityService);
+		super(null, _id, _index, _query, _parent, _parent, null, replaceService, instantiationService, labelService, uriIdentityService);
 	}
 
 	createAndConfigureFileMatch(rawFileMatch: IFileMatch, searchInstanceID: string): FileMatch {
@@ -1570,7 +1570,7 @@ function createParentList(element: RenderableMatch): RenderableMatch[] {
 export class SearchResult extends Disposable {
 
 	private _onChange = this._register(new PauseableEmitter<IChangeEvent>({
-		merge: this.mergeEvents
+		merge: mergeSearchResultEvents
 	}));
 	readonly onChange: Event<IChangeEvent> = this._onChange.event;
 	private _folderMatches: FolderMatchWorkspaceRoot[] = [];
@@ -1585,7 +1585,7 @@ export class SearchResult extends Disposable {
 	private _onDidChangeModelListener: IDisposable | undefined;
 
 	constructor(
-		private _searchModel: SearchModel,
+		public searchModel: SearchModel,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -1685,27 +1685,6 @@ export class SearchResult extends Disposable {
 		this._query = query;
 	}
 
-	private mergeEvents(events: IChangeEvent[]): IChangeEvent {
-		const retEvent: IChangeEvent = {
-			elements: [],
-			added: false,
-			removed: false,
-		};
-		events.forEach((e) => {
-			if (e.added) {
-				retEvent.added = true;
-			}
-
-			if (e.removed) {
-				retEvent.removed = true;
-			}
-
-			retEvent.elements = retEvent.elements.concat(e.elements);
-		});
-
-		return retEvent;
-	}
-
 	private onDidAddNotebookEditorWidget(widget: NotebookEditorWidget): void {
 
 		this._onWillChangeModelListener?.dispose();
@@ -1744,20 +1723,17 @@ export class SearchResult extends Disposable {
 	}
 
 	private _createBaseFolderMatch(resource: URI | null, id: string, index: number, query: ITextQuery): FolderMatch {
-		let folderMatch;
+		let folderMatch: FolderMatch;
 		if (resource) {
-			folderMatch = this.instantiationService.createInstance(FolderMatchWorkspaceRoot, resource, id, index, query, this, this._searchModel);
+			folderMatch = this.instantiationService.createInstance(FolderMatchWorkspaceRoot, resource, id, index, query, this);
 		} else {
-			folderMatch = this.instantiationService.createInstance(FolderMatchNoRoot, id, index, query, this, this._searchModel);
+			folderMatch = this.instantiationService.createInstance(FolderMatchNoRoot, id, index, query, this);
 		}
 		const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
 		folderMatch.onDispose(() => disposable.dispose());
 		return folderMatch;
 	}
 
-	get searchModel(): SearchModel {
-		return this._searchModel;
-	}
 
 	add(allRaw: IFileMatch[], searchInstanceID: string, silent: boolean = false): void {
 		// Split up raw into a list per folder so we can do a batch add per folder.
@@ -1959,8 +1935,14 @@ export class SearchModel extends Disposable {
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
 
+	private readonly _onSearchResultChanged = this._register(new PauseableEmitter<IChangeEvent>({
+		merge: mergeSearchResultEvents
+	}));
+	readonly onSearchResultChanged: Event<IChangeEvent> = this._onSearchResultChanged.event;
+
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
 	private searchCancelledForNewSearch: boolean = false;
+	private _searchResultChangedListener: IDisposable;
 
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
@@ -1972,6 +1954,7 @@ export class SearchModel extends Disposable {
 	) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
+		this._searchResultChangedListener = this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
 	}
 
 	isReplaceActive(): boolean {
@@ -2008,6 +1991,15 @@ export class SearchModel extends Disposable {
 
 	get searchResult(): SearchResult {
 		return this._searchResult;
+	}
+
+	set searchResult(searchResult: SearchResult) {
+		this._searchResult.dispose();
+		this._searchResultChangedListener.dispose();
+
+		this._searchResult = searchResult;
+		this._searchResult.searchModel = this;
+		this._searchResultChangedListener = this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
 	}
 
 	private async doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
@@ -2167,6 +2159,11 @@ export class SearchModel extends Disposable {
 		this.cancelSearch();
 		this.searchResult.dispose();
 		super.dispose();
+	}
+
+	transferSearchResult(other: SearchModel): void {
+		other.searchResult = this._searchResult;
+		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
 	}
 }
 
@@ -2343,3 +2340,25 @@ function getFileMatches(matches: (FileMatch | FolderMatchWithResource)[]): FileM
 	return fileMatches.concat(folderMatches.map(e => e.allDownstreamFileMatches()).flat());
 }
 
+
+
+function mergeSearchResultEvents(events: IChangeEvent[]): IChangeEvent {
+	const retEvent: IChangeEvent = {
+		elements: [],
+		added: false,
+		removed: false,
+	};
+	events.forEach((e) => {
+		if (e.added) {
+			retEvent.added = true;
+		}
+
+		if (e.removed) {
+			retEvent.removed = true;
+		}
+
+		retEvent.elements = retEvent.elements.concat(e.elements);
+	});
+
+	return retEvent;
+}
