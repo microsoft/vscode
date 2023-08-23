@@ -80,6 +80,10 @@ export class QuickInputBox extends Disposable {
 		this.findInput.inputBox.setPlaceHolder(placeholder);
 	}
 
+	setAriaLabel(ariaLabel: string | undefined): void {
+		this.findInput.inputBox.setAriaLabel(ariaLabel || this.placeholder);
+	}
+
 	get password() {
 		return this.findInput.inputBox.inputElement.type === 'password';
 	}
