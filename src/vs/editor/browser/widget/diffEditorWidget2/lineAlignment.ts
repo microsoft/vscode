@@ -103,7 +103,7 @@ export class ViewZoneManager extends Disposable {
 
 		const alignmentsSyncedMovedText = derived<ILineRangeAlignment[] | null>((reader) => {
 			/** @description alignments */
-			const syncedMovedText = this._diffModel.read(reader)?.syncedMovedTexts.read(reader);
+			const syncedMovedText = this._diffModel.read(reader)?.movedTextToCompare.read(reader);
 			if (!syncedMovedText) { return null; }
 			state.read(reader);
 			const mappings = syncedMovedText.changes.map(c => new DiffMapping(c));
@@ -171,7 +171,7 @@ export class ViewZoneManager extends Disposable {
 
 			const modLineHeight = this._editors.modified.getOption(EditorOption.lineHeight);
 
-			const syncedMovedText = this._diffModel.read(reader)?.syncedMovedTexts.read(reader);
+			const syncedMovedText = this._diffModel.read(reader)?.movedTextToCompare.read(reader);
 
 			const mightContainNonBasicASCII = this._editors.original.getModel()?.mightContainNonBasicASCII() ?? false;
 			const mightContainRTL = this._editors.original.getModel()?.mightContainRTL() ?? false;
@@ -424,7 +424,7 @@ export class ViewZoneManager extends Disposable {
 
 		this._register(autorun(reader => {
 			/** @description update editor top offsets */
-			const m = this._diffModel.read(reader)?.syncedMovedTexts.read(reader);
+			const m = this._diffModel.read(reader)?.movedTextToCompare.read(reader);
 
 			let deltaOrigToMod = 0;
 			if (m) {

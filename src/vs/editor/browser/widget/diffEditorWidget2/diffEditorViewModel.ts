@@ -48,7 +48,21 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	}
 	);
 
-	public readonly syncedMovedTexts = observableValue<MovedText | undefined>('syncedMovedText', undefined);
+	public readonly movedTextToCompare = observableValue<MovedText | undefined>('movedTextToCompare', undefined);
+
+	private readonly _activeMovedText = observableValue<MovedText | undefined>('activeMovedText', undefined);
+	private readonly _hoveredMovedText = observableValue<MovedText | undefined>('hoveredMovedText', undefined);
+
+
+	public readonly activeMovedText = derived(r => this.movedTextToCompare.read(r) ?? this._hoveredMovedText.read(r) ?? this._activeMovedText.read(r));
+
+	public setActiveMovedText(movedText: MovedText | undefined): void {
+		this._activeMovedText.set(movedText, undefined);
+	}
+
+	public setHoveredMovedText(movedText: MovedText | undefined): void {
+		this._hoveredMovedText.set(movedText, undefined);
+	}
 
 	constructor(
 		public readonly model: IDiffEditorModel,
@@ -114,8 +128,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 					transaction(tx => {
 						this._diff.set(DiffState.fromDiffResult(this._lastDiff!), tx);
 						updateUnchangedRegions(result, tx);
-						const currentSyncedMovedText = this.syncedMovedTexts.get();
-						this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
+						const currentSyncedMovedText = this.movedTextToCompare.get();
+						this.movedTextToCompare.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
 					});
 				}
 			}
@@ -132,8 +146,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 					transaction(tx => {
 						this._diff.set(DiffState.fromDiffResult(this._lastDiff!), tx);
 						updateUnchangedRegions(result, tx);
-						const currentSyncedMovedText = this.syncedMovedTexts.get();
-						this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
+						const currentSyncedMovedText = this.movedTextToCompare.get();
+						this.movedTextToCompare.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
 					});
 				}
 			}
@@ -180,8 +194,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				const state = DiffState.fromDiffResult(result);
 				this._diff.set(state, tx);
 				this._isDiffUpToDate.set(true, tx);
-				const currentSyncedMovedText = this.syncedMovedTexts.get();
-				this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
+				const currentSyncedMovedText = this.movedTextToCompare.get();
+				this.movedTextToCompare.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
 			});
 		}));
 	}

@@ -111,6 +111,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			isEmbeddedDiffEditorKey.set(this._options.isInEmbeddedEditor.read(reader));
 		}));
 
+		const comparingMovedCodeKey = EditorContextKeys.comparingMovedCode.bindTo(this._contextKeyService);
+		this._register(autorun(reader => {
+			/** @description update comparingMovedCodeKey */
+			comparingMovedCodeKey.set(!!this._diffModel.read(reader)?.movedTextToCompare.read(reader));
+		}));
+
 		const diffEditorRenderSideBySideInlineBreakpointReachedContextKeyValue = EditorContextKeys.diffEditorRenderSideBySideInlineBreakpointReached.bindTo(this._contextKeyService);
 		this._register(autorun(reader => {
 			/** @description update accessibleDiffViewerVisible context key */
@@ -221,19 +227,6 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			visibility: derived(reader => /** @description visibility */(this._options.collapseUnchangedRegions.read(reader) && this._diffModel.read(reader)?.diff.read(reader)?.mappings.length === 0)
 				? 'visible' : 'hidden'
 			),
-		}));
-
-		this._register(this._editors.original.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
-			if (!m) { return; }
-			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.original.contains(e.position.lineNumber));
-			m.syncedMovedTexts.set(movedText, undefined);
-		}));
-		this._register(this._editors.modified.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
-			if (!m) { return; }
-			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.modified.contains(e.position.lineNumber));
-			m.syncedMovedTexts.set(movedText, undefined);
 		}));
 
 		// Revert change when an arrow is clicked.
@@ -517,6 +510,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			}
 		}
 		destination.focus();
+	}
+
+	exitCompareMove(): void {
+		const model = this._diffModel.get();
+		if (!model) { return; }
+		model.movedTextToCompare.set(undefined, undefined);
 	}
 }
 
