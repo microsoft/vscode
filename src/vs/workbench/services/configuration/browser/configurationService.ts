@@ -47,7 +47,7 @@ import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/envir
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
-	return userDataProfile.isDefault
+	return (userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings)
 		? hasRemote ? LOCAL_MACHINE_SCOPES : undefined
 		: hasRemote ? LOCAL_MACHINE_PROFILE_SCOPES : PROFILE_SCOPES;
 }
