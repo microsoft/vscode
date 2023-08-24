@@ -34,13 +34,15 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	activeTerminal: vscode.Terminal | undefined;
 	terminals: vscode.Terminal[];
 
-	onDidCloseTerminal: Event<vscode.Terminal>;
-	onDidOpenTerminal: Event<vscode.Terminal>;
-	onDidChangeActiveTerminal: Event<vscode.Terminal | undefined>;
-	onDidChangeTerminalDimensions: Event<vscode.TerminalDimensionsChangeEvent>;
-	onDidChangeTerminalState: Event<vscode.Terminal>;
-	onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
-	onDidChangeShell: Event<string>;
+	readonly onDidCloseTerminal: Event<vscode.Terminal>;
+	readonly onDidOpenTerminal: Event<vscode.Terminal>;
+	readonly onDidChangeActiveTerminal: Event<vscode.Terminal | undefined>;
+	readonly onDidChangeTerminalDimensions: Event<vscode.TerminalDimensionsChangeEvent>;
+	readonly onDidChangeTerminalState: Event<vscode.Terminal>;
+	readonly onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
+	readonly onWillExecuteTerminalCommand: Event<vscode.TerminalWillExecuteCommandEvent>;
+	readonly onDidExecuteTerminalCommand: Event<vscode.TerminalExecuteCommandEvent>;
+	readonly onDidChangeShell: Event<string>;
 
 	createTerminal(name?: string, shellPath?: string, shellArgs?: readonly string[] | string): vscode.Terminal;
 	createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal;
@@ -393,8 +395,15 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	readonly onDidChangeTerminalDimensions = this._onDidChangeTerminalDimensions.event;
 	protected readonly _onDidChangeTerminalState = new Emitter<vscode.Terminal>();
 	readonly onDidChangeTerminalState = this._onDidChangeTerminalState.event;
-	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
-	get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData.event; }
+	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent> = new Emitter<vscode.TerminalDataWriteEvent>({
+		onWillAddFirstListener: () => this._proxy.$startSendingDataEvents(),
+		onDidRemoveLastListener: () => this._proxy.$stopSendingDataEvents()
+	});
+	readonly onDidWriteTerminalData = this._onDidWriteTerminalData.event;
+	protected readonly _onWillExecuteCommand = new Emitter<vscode.TerminalWillExecuteCommandEvent>();
+	readonly onWillExecuteTerminalCommand = this._onWillExecuteCommand.event;
+	protected readonly _onDidExecuteCommand = new Emitter<vscode.TerminalExecuteCommandEvent>();
+	readonly onDidExecuteTerminalCommand = this._onDidExecuteCommand.event;
 	protected readonly _onDidChangeShell = new Emitter<string>();
 	readonly onDidChangeShell = this._onDidChangeShell.event;
 
@@ -406,10 +415,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
 		this._bufferer = new TerminalDataBufferer(this._proxy.$sendProcessData);
-		this._onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
-			onWillAddFirstListener: () => this._proxy.$startSendingDataEvents(),
-			onDidRemoveLastListener: () => this._proxy.$stopSendingDataEvents()
-		});
 		this._proxy.$registerProcessSupport(supportsProcesses);
 		this._register({
 			dispose: () => {

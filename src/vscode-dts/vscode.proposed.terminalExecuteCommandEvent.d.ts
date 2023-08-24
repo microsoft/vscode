@@ -7,13 +7,17 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/145234
 
+	export interface TerminalWillExecuteCommandEvent {
+		terminal: Terminal;
+		command: TerminalCommand<Thenable<TerminalExecuteCommandResult>>;
+	}
+
 	export interface TerminalExecuteCommandEvent {
 		terminal: Terminal;
 		command: TerminalCommand<TerminalExecuteCommandResult>;
 	}
 
-	// NOTE: The generic here is for the future executeCommand function where the result isn't available.
-	export interface TerminalCommand<T extends TerminalExecuteCommandResult | Promise<TerminalExecuteCommandResult>> {
+	export interface TerminalCommand<T extends TerminalExecuteCommandResult | Thenable<TerminalExecuteCommandResult>> {
 		/**
 		 * The {@link Terminal} the command was executed in.
 		 */
@@ -50,7 +54,7 @@ declare module 'vscode' {
 		 * An event that is emitted when a terminal with shell integration activated has started
 		 * executing a command.
 		 */
-		export const onWillExecuteTerminalCommand: Event<Thenable<TerminalExecuteCommandEvent>>;
+		export const onWillExecuteTerminalCommand: Event<TerminalWillExecuteCommandEvent>;
 		/**
 		 * An event that is emitted when a terminal with shell integration activated has completed
 		 * executing a command.
