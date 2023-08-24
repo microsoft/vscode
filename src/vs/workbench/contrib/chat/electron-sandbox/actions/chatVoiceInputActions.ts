@@ -25,6 +25,7 @@ import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/in
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { isExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when there is voice input for chat getting ready.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when there is voice input for chat in progress.") });
@@ -298,25 +299,23 @@ class StartVoiceChatAction extends Action2 {
 	async run(accessor: ServicesAccessor, context: unknown): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const chatService = accessor.get(IChatService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const commandService = accessor.get(ICommandService);
 
 		let controller = getController(context);
 		if (!controller) {
 
 			// Without a controller, this action potentially executed from
 			// a global keybinding, and thus we have to find the chat
-			// input that is currently focussed, or fallback to opening one
+			// input that is currently focussed, or have a fallback
 
 			// 1.) a chat input widget has focus
-			{
-				if (chatWidgetService.lastFocusedWidget?.hasInputFocus()) {
-					controller = chatWidgetService.lastFocusedWidget;
-				}
+			if (chatWidgetService.lastFocusedWidget?.hasInputFocus()) {
+				controller = chatWidgetService.lastFocusedWidget;
 			}
 
 			// 2.) a inline chat input widget has focus
-			{
+			if (!controller) {
 				const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
 				if (activeCodeEditor) {
 					const chatInput = InlineChatController.get(activeCodeEditor);
@@ -326,12 +325,9 @@ class StartVoiceChatAction extends Action2 {
 				}
 			}
 
-			// 3.) open a chat view
-			{
-				const provider = firstOrDefault(chatService.getProviderInfos());
-				if (provider) {
-					controller = await chatWidgetService.revealViewForProvider(provider.id);
-				}
+			// 3.) open a quick chat view
+			if (!controller) {
+				return commandService.executeCommand(QuickVoiceChatAction.ID);
 			}
 		}
 
