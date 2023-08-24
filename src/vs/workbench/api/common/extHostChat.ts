@@ -232,6 +232,10 @@ export class ExtHostChat implements ExtHostChatShape {
 						const [progressHandle, progressContent] = res;
 						this._proxy.$acceptResponseProgress(handle, sessionId, progressContent, progressHandle ?? undefined);
 					});
+				} else if ('content' in progress) {
+					this._proxy.$acceptResponseProgress(handle, sessionId, {
+						content: typeof progress.content === 'string' ? progress.content : typeConvert.MarkdownString.from(progress.content)
+					});
 				} else {
 					this._proxy.$acceptResponseProgress(handle, sessionId, progress);
 				}

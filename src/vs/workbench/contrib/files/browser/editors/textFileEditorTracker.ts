@@ -47,7 +47,7 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 		this._register(this.hostService.onDidChangeFocus(hasFocus => hasFocus ? this.reloadVisibleTextFileEditors() : undefined));
 
 		// Lifecycle
-		this.lifecycleService.onDidShutdown(() => this.dispose());
+		this._register(this.lifecycleService.onDidShutdown(() => this.dispose()));
 	}
 
 	//#region Text File: Ensure every dirty text and untitled file is opened in an editor

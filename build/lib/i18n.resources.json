@@ -59,6 +59,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/mappedEdits",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/comments",
 			"project": "vscode-workbench"
 		},

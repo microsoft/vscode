@@ -212,4 +212,10 @@ impl LauncherPaths {
 			)
 		})
 	}
+
+	/// Suggested path for web server storage
+	pub fn web_server_storage(&self) -> PathBuf {
+		self.root.join("serve-web")
+	}
+
 }

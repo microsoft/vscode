@@ -224,7 +224,7 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 					}
 
 					// The first element will cause the root to be hidden
-					const affectsRootElement = toRemove.parent?.children.size === 1;
+					const affectsRootElement = toRemove.depth === 1 && toRemove.parent?.children.size === 1;
 					this.changedParents.add(affectsRootElement ? null : toRemove.parent);
 
 					const queue: Iterable<TestExplorerTreeElement>[] = [[toRemove]];
@@ -302,7 +302,7 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 		this.items.set(treeElement.test.item.extId, treeElement);
 
 		// The first element will cause the root to be shown
-		const affectsRootElement = treeElement.parent?.children.size === 1;
+		const affectsRootElement = treeElement.depth === 1 && treeElement.parent?.children.size === 1;
 		this.changedParents.add(affectsRootElement ? null : treeElement.parent);
 
 		if (treeElement.depth === 0 || isCollapsedInSerializedTestTree(this.lastState, treeElement.test.item.extId) === false) {

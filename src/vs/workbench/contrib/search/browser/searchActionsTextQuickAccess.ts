@@ -18,8 +18,8 @@ registerAction2(class TextSearchQuickAccessAction extends Action2 {
 		super({
 			id: Constants.QuickTextSearchActionId,
 			title: {
-				value: nls.localize('quickTextSearch', "Quick Text Search"),
-				original: 'Quick Text Search'
+				value: nls.localize('quickTextSearch', "Quick Text Search (Experimental)"),
+				original: 'Quick Text Search (Experimental)'
 			},
 			category,
 			menu: [{

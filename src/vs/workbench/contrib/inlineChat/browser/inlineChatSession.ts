@@ -385,6 +385,8 @@ export interface IInlineChatSessionService {
 	//
 
 	recordings(): readonly Recording[];
+
+	dispose(): void;
 }
 
 type SessionData = {
