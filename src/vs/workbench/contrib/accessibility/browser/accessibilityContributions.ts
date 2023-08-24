@@ -101,7 +101,7 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 		} else {
 			content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb));
 		}
-		return content.join('\n');
+		return content.join('\n\n');
 	}
 }
 
