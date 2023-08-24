@@ -204,7 +204,8 @@ export class ContentHoverController extends Disposable {
 			return;
 		}
 		if (hoverResult && hoverResult.messages.length === 0) {
-			hoverResult = null;
+			// keep the last hover open until hidden if this hover result is empty
+			return;
 		}
 		this._currentResult = hoverResult;
 		if (this._currentResult) {
