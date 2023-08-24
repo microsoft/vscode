@@ -149,7 +149,7 @@ class QuickChat extends Disposable {
 				}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
-		this.widget.setDynamicChatTreeItemLayout(2, 600);
+		this.widget.setDynamicChatTreeItemLayout(2, 900);
 		this.updateModel();
 		if (this._currentQuery) {
 			this.widget.inputEditor.setSelection({
