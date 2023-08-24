@@ -860,7 +860,7 @@ export class SearchView extends ViewPane {
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				},
-				additionalScrollHeight: SearchDelegate.ITEM_HEIGHT
+				paddingBottom: SearchDelegate.ITEM_HEIGHT
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));
