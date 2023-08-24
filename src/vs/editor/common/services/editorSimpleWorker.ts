@@ -20,7 +20,7 @@ import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
-import { DiffComputer, IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { DiffComputer, IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
