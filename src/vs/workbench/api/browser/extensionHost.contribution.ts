@@ -88,6 +88,8 @@ import './mainThreadSecretState';
 import './mainThreadShare';
 import './mainThreadProfilContentHandlers';
 import './mainThreadSemanticSimilarity';
+import './mainThreadAiRelatedInformation';
+import './mainThreadAiEmbeddingVector';
 import './mainThreadIssueReporter';
 
 export class ExtensionPoints implements IWorkbenchContribution {

@@ -1,4 +1,5 @@
 # vscode-wasm-typescript
+
 Language server host for typescript using vscode's sync-api in the browser
 
 ## TODOs
@@ -22,33 +23,33 @@ Language server host for typescript using vscode's sync-api in the browser
   - LATER: Turns out you can skip the existing server by depending on tsserverlibrary instead of tsserver.
 - [x] figure out a webpack-native way to generate tsserver.web.js if possible
 - [x] path rewriting is pretty loosey-goosey; likely to be incorrect some of the time
-   - invert the logic from TypeScriptServiceClient.normalizedPath for requests
-   - invert the function from webServer.ts for responses (maybe)
-   - something with getWorkspaceRootForResource (or anything else that checks `resouce.scheme`)
+  - invert the logic from TypeScriptServiceClient.normalizedPath for requests
+  - invert the function from webServer.ts for responses (maybe)
+  - something with getWorkspaceRootForResource (or anything else that checks `resouce.scheme`)
 - [x] put files one level down from virtual root
 - [x] fill in missing environment files like lib.dom.d.ts
-   - toResource's isWeb branch *probably* knows where to find this, just need to put it in the virtual FS
-   - I guess during setup in serverProcess.browser.ts.
-   - Not sure whether it needs to have the data or just a fs entry.
-   - Wait, I don't know how files get added to the FS normally.
+  - toResource's isWeb branch *probably* knows where to find this, just need to put it in the virtual FS
+  - I guess during setup in serverProcess.browser.ts.
+  - Not sure whether it needs to have the data or just a fs entry.
+  - Wait, I don't know how files get added to the FS normally.
 - [x] cancellation should only retain one cancellation checker
-   - the one that matches the current request id
-   - but that means tracking (or retrieving from tsserver) the request id (aka seq?)
-   - and correctly setting/resetting it on the cancellation token too.
-   - I looked at the tsserver code. I think the web case is close to the single-pipe node case,
+  - the one that matches the current request id
+  - but that means tracking (or retrieving from tsserver) the request id (aka seq?)
+  - and correctly setting/resetting it on the cancellation token too.
+  - I looked at the tsserver code. I think the web case is close to the single-pipe node case,
      so I just require that requestId is set in order to call the *current* cancellation checker.
-   - Any incoming message with a cancellation checker will overwrite the current one.
+  - Any incoming message with a cancellation checker will overwrite the current one.
 - [x] Cancellation code in vscode is suspiciously prototypey.
-   - Specifically, it adds the vscode-wasm cancellation to original cancellation code, but should actually switch to the former for web only.
-   - looks like `isWeb()` is a way to check for being on the web
+  - Specifically, it adds the vscode-wasm cancellation to original cancellation code, but should actually switch to the former for web only.
+  - looks like `isWeb()` is a way to check for being on the web
 - [x] create multiple watchers
-   - on-demand instead of watching everything and checking on watch firing
+  - on-demand instead of watching everything and checking on watch firing
 - [x] get file watching to work
-   - it could *already* work, I just don't know how to test it
-   - look at extensions/markdown-language-features/src/client/fileWatchingManager.ts to see if I can use that
-   - later: it is OK. its main difference is that you can watch files in not-yet-created directories, and it maintains
+  - it could *already* work, I just don't know how to test it
+  - look at extensions/markdown-language-features/src/client/fileWatchingManager.ts to see if I can use that
+  - later: it is OK. its main difference is that you can watch files in not-yet-created directories, and it maintains
      a web of directory watches that then check whether the file is eventually created.
-   - even later: well, it works even though it is similar to my code.
+  - even later: well, it works even though it is similar to my code.
      I'm not sure what is different.
 - [x] copy fileWatchingManager.ts to web/ ; there's no sharing code between extensions
 - [x] Find out scheme the web actually uses instead of vscode-test-web (or switch over entirely to isWeb)
@@ -106,6 +107,7 @@ Language server host for typescript using vscode's sync-api in the browser
   - so I can just redo whatever that did and it'll be fine
 
 ### Done
+
 - [x] need to update 0.2 -> 0.7.* API (once it's working properly)
 - [x] including reshuffling the webpack hack if needed
 - [x] need to use the settings recommended by Sheetal
@@ -113,7 +115,7 @@ Language server host for typescript using vscode's sync-api in the browser
 - [x] sync-api-client says fs is rooted at memfs:/sample-folder; the protocol 'memfs:' is confusing our file parsing I think
 - [x] nothing ever seems to find tsconfig.json
 - [x] messages aren't actually coming through, just the message from the first request
-     - fixed by simplifying the listener setup for now
+  - fixed by simplifying the listener setup for now
 - [x] once messages work, you can probably log by postMessage({ type: 'log', body: "some logging text" })
 - [x] implement realpath, modifiedtime, resolvepath, then turn semantic mode on
 - [x] file watching implemented with saved map of filename to callback, and forwarding
@@ -125,6 +127,7 @@ Language server host for typescript using vscode's sync-api in the browser
 ## Notes
 
 messages received by extension AND host use paths like ^/memfs/ts-nul-authority/sample-folder/file.ts
+
 - problem: pretty sure the extension doesn't know what to do with that: it's not putting down error spans in file.ts
 - question: why is the extension requesting quickinfo in that URI format? And it works! (probably because the result is a tooltip, not an in-file span)
 - problem: weird concatenations with memfs:/ in the middle
@@ -140,15 +143,14 @@ but readFile is getting called with things like memfs:/sample-folder/memfs:/type
      watchDirectory with /sample-folder/^ and directoryExists with /sample-folder/^/memfs/ts-nul-authority/sample-folder/workspaces/
      watchFile with /sample-folder/memfs:/sample-folder/memfs:/lib.es2020.full.d.ts
 
-### LATER:
+### LATER
 
 OK, so the paths that tsserver has look like this: ^/scheme/mount/whatever.ts
 but the paths the filesystem has look like this: scheme:/whatever.ts (not sure about 'mount', that's only when cloning from the fs)
 so you have to shave off the scheme that the host combined with the path and put on the scheme that the vfs is using.
 
-### LATER 2:
+### LATER 2
 
 Some commands ask for getExecutingFilePath or getCurrentDirectory and cons up a path themselves.
 This works, because URI.from({ scheme, path }) matches what the fs has in it
 Problem: In *some* messages (all?), vscode then refers to /x.ts and ^/vscode-test-web/mount/x.ts (or ^/memfs/ts-nul-authority/x.ts)
-

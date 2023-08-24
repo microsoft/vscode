@@ -34,6 +34,10 @@ export class OffsetRange {
 		return new OffsetRange(start, endExclusive);
 	}
 
+	public static ofLength(length: number): OffsetRange {
+		return new OffsetRange(0, length);
+	}
+
 	constructor(public readonly start: number, public readonly endExclusive: number) {
 		if (start > endExclusive) {
 			throw new BugIndicatingError(`Invalid range: ${this.toString()}`);
@@ -46,6 +50,14 @@ export class OffsetRange {
 
 	public delta(offset: number): OffsetRange {
 		return new OffsetRange(this.start + offset, this.endExclusive + offset);
+	}
+
+	public deltaStart(offset: number): OffsetRange {
+		return new OffsetRange(this.start + offset, this.endExclusive);
+	}
+
+	public deltaEnd(offset: number): OffsetRange {
+		return new OffsetRange(this.start, this.endExclusive + offset);
 	}
 
 	public get length(): number {
@@ -89,5 +101,97 @@ export class OffsetRange {
 			return new OffsetRange(start, end);
 		}
 		return undefined;
+	}
+
+	public slice<T>(arr: T[]): T[] {
+		return arr.slice(this.start, this.endExclusive);
+	}
+
+	/**
+	 * Returns the given value if it is contained in this instance, otherwise the closest value that is contained.
+	 * The range must not be empty.
+	 */
+	public clip(value: number): number {
+		if (this.isEmpty) {
+			throw new BugIndicatingError(`Invalid clipping range: ${this.toString()}`);
+		}
+		return Math.max(this.start, Math.min(this.endExclusive - 1, value));
+	}
+
+	/**
+	 * Returns `r := value + k * length` such that `r` is contained in this range.
+	 * The range must not be empty.
+	 *
+	 * E.g. `[5, 10).clipCyclic(10) === 5`, `[5, 10).clipCyclic(11) === 6` and `[5, 10).clipCyclic(4) === 9`.
+	 */
+	public clipCyclic(value: number): number {
+		if (this.isEmpty) {
+			throw new BugIndicatingError(`Invalid clipping range: ${this.toString()}`);
+		}
+		if (value < this.start) {
+			return this.endExclusive - ((this.start - value) % this.length);
+		}
+		if (value >= this.endExclusive) {
+			return this.start + ((value - this.start) % this.length);
+		}
+		return value;
+	}
+}
+
+export class OffsetRangeSet {
+	private readonly _sortedRanges: OffsetRange[] = [];
+
+	public addRange(range: OffsetRange): void {
+		let i = 0;
+		while (i < this._sortedRanges.length && this._sortedRanges[i].endExclusive < range.start) {
+			i++;
+		}
+		let j = i;
+		while (j < this._sortedRanges.length && this._sortedRanges[j].start <= range.endExclusive) {
+			j++;
+		}
+		if (i === j) {
+			this._sortedRanges.splice(i, 0, range);
+		} else {
+			const start = Math.min(range.start, this._sortedRanges[i].start);
+			const end = Math.max(range.endExclusive, this._sortedRanges[j - 1].endExclusive);
+			this._sortedRanges.splice(i, j - i, new OffsetRange(start, end));
+		}
+	}
+
+	public toString(): string {
+		return this._sortedRanges.map(r => r.toString()).join(', ');
+	}
+
+	/**
+	 * Returns of there is a value that is contained in this instance and the given range.
+	 */
+	public intersectsStrict(other: OffsetRange): boolean {
+		// TODO use binary search
+		let i = 0;
+		while (i < this._sortedRanges.length && this._sortedRanges[i].endExclusive <= other.start) {
+			i++;
+		}
+		return i < this._sortedRanges.length && this._sortedRanges[i].start < other.endExclusive;
+	}
+
+	public intersectWithRange(other: OffsetRange): OffsetRangeSet {
+		// TODO use binary search + slice
+		const result = new OffsetRangeSet();
+		for (const range of this._sortedRanges) {
+			const intersection = range.intersect(other);
+			if (intersection) {
+				result.addRange(intersection);
+			}
+		}
+		return result;
+	}
+
+	public intersectWithRangeLength(other: OffsetRange): number {
+		return this.intersectWithRange(other).length;
+	}
+
+	public get length(): number {
+		return this._sortedRanges.reduce((prev, cur) => prev + cur.length, 0);
 	}
 }

@@ -55,15 +55,14 @@ function describeEnvironmentChanges(collection: IMergedEnvironmentVariableCollec
 		content += '\n';
 		const globalDescription = globalDescriptions.get(ext);
 		if (globalDescription) {
-			content += `\n${globalDescription}`;
+			content += `\n${globalDescription}\n`;
 		}
 		const workspaceDescription = workspaceDescriptions.get(ext);
 		if (workspaceDescription) {
 			// Only show '(workspace)' suffix if there is already a description for the extension.
 			const workspaceSuffix = globalDescription ? ` (${localize('ScopedEnvironmentContributionInfo', 'workspace')})` : '';
-			content += `\n${workspaceDescription}${workspaceSuffix}`;
+			content += `\n${workspaceDescription}${workspaceSuffix}\n`;
 		}
-		content += '\n';
 
 		for (const mutator of coll.map.values()) {
 			if (filterScope(mutator, scope) === false) {

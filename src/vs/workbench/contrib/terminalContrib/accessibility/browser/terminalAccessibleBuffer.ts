@@ -14,6 +14,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -91,9 +92,14 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 		this._resetPosition();
 	}
 
-	private _getEditorLineForCommand(command: ITerminalCommand): number | undefined {
-		let line = command.marker?.line;
-		if (line === undefined || !command.command.length || line < 0) {
+	private _getEditorLineForCommand(command: ITerminalCommand | ICurrentPartialCommand): number | undefined {
+		let line: number | undefined;
+		if ('marker' in command) {
+			line = command.marker?.line;
+		} else if ('commandStartMarker' in command) {
+			line = command.commandStartMarker?.line;
+		}
+		if (line === undefined || line < 0) {
 			return;
 		}
 		line = this._bufferTracker.bufferToEditorLineMapping.get(line);
@@ -104,7 +110,9 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 	}
 
 	private _getCommandsWithEditorLine(): ICommandWithEditorLine[] | undefined {
-		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
+		const commands = capability?.commands;
+		const currentCommand = capability?.currentCommand;
 		if (!commands?.length) {
 			return;
 		}
@@ -115,6 +123,12 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 				continue;
 			}
 			result.push({ command, lineNumber });
+		}
+		if (currentCommand) {
+			const lineNumber = this._getEditorLineForCommand(currentCommand);
+			if (!!lineNumber) {
+				result.push({ command: currentCommand, lineNumber });
+			}
 		}
 		return result;
 	}
@@ -135,7 +149,7 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 				{
 					label: localize('terminal.integrated.symbolQuickPick.labelNoExitCode', '{0}', command.command),
 					lineNumber,
-					exitCode: command.exitCode
+					exitCode: 'exitCode' in command ? command.exitCode : undefined
 				});
 		}
 		const quickPick = this._quickInputService.createQuickPick<IAccessibleBufferQuickPickItem>();
@@ -261,5 +275,5 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 	}
 }
 
-interface ICommandWithEditorLine { command: ITerminalCommand; lineNumber: number }
+interface ICommandWithEditorLine { command: ITerminalCommand | ICurrentPartialCommand; lineNumber: number }
 

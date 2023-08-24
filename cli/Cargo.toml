@@ -37,7 +37,7 @@ libc = "0.2.144"
 tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "2621784a9ad72aa39500372391332a14bad581a3", default-features = false, features = ["connections"] }
 keyring = { version = "2.0.3", default-features = false, features = ["linux-secret-service-rt-tokio-crypto-openssl"] }
 dialoguer = "0.10.4"
-hyper = "0.14.26"
+hyper = { version = "0.14.26", features = ["server", "http1", "runtime"] }
 indicatif = "0.17.4"
 tempfile = "3.5.0"
 clap_lex = "0.5.0"
