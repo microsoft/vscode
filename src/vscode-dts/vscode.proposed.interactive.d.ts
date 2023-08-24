@@ -121,7 +121,7 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveProgressContent {
-		content: string;
+		content: string | MarkdownString;
 	}
 
 	export interface InteractiveProgressId {

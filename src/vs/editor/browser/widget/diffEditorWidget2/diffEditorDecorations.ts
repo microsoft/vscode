@@ -34,13 +34,13 @@ export class DiffEditorDecorations extends Disposable {
 			return null;
 		}
 
-		const currentMove = this._diffModel.read(reader)!.syncedMovedTexts.read(reader);
+		const movedTextToCompare = this._diffModel.read(reader)!.movedTextToCompare.read(reader);
 		const renderIndicators = this._options.renderIndicators.read(reader);
 		const showEmptyDecorations = this._options.showEmptyDecorations.read(reader);
 
 		const originalDecorations: IModelDeltaDecoration[] = [];
 		const modifiedDecorations: IModelDeltaDecoration[] = [];
-		if (!currentMove) {
+		if (!movedTextToCompare) {
 			for (const m of diff.mappings) {
 				if (!m.lineRangeMapping.originalRange.isEmpty) {
 					originalDecorations.push({ range: m.lineRangeMapping.originalRange.toInclusiveRange()!, options: renderIndicators ? diffLineDeleteDecorationBackgroundWithIndicator : diffLineDeleteDecorationBackground });
@@ -68,14 +68,14 @@ export class DiffEditorDecorations extends Disposable {
 					}
 				}
 
-				if (!m.lineRangeMapping.modifiedRange.isEmpty && this._options.shouldRenderRevertArrows.read(reader) && !currentMove) {
+				if (!m.lineRangeMapping.modifiedRange.isEmpty && this._options.shouldRenderRevertArrows.read(reader) && !movedTextToCompare) {
 					modifiedDecorations.push({ range: Range.fromPositions(new Position(m.lineRangeMapping.modifiedRange.startLineNumber, 1)), options: arrowRevertChange });
 				}
 			}
 		}
 
-		if (currentMove) {
-			for (const m of currentMove.changes) {
+		if (movedTextToCompare) {
+			for (const m of movedTextToCompare.changes) {
 				const fullRangeOriginal = m.originalRange.toInclusiveRange();
 				if (fullRangeOriginal) {
 					originalDecorations.push({ range: fullRangeOriginal, options: renderIndicators ? diffLineDeleteDecorationBackgroundWithIndicator : diffLineDeleteDecorationBackground });
@@ -91,12 +91,13 @@ export class DiffEditorDecorations extends Disposable {
 				}
 			}
 		}
+		const activeMovedText = this._diffModel.read(reader)!.activeMovedText.read(reader);
 
 		for (const m of diff.movedTexts) {
 			originalDecorations.push({
 				range: m.lineRangeMapping.original.toInclusiveRange()!, options: {
 					description: 'moved',
-					blockClassName: 'movedOriginal' + (m === currentMove ? ' currentMove' : ''),
+					blockClassName: 'movedOriginal' + (m === activeMovedText ? ' currentMove' : ''),
 					blockPadding: [MovedBlocksLinesPart.movedCodeBlockPadding, 0, MovedBlocksLinesPart.movedCodeBlockPadding, MovedBlocksLinesPart.movedCodeBlockPadding],
 				}
 			});
@@ -104,7 +105,7 @@ export class DiffEditorDecorations extends Disposable {
 			modifiedDecorations.push({
 				range: m.lineRangeMapping.modified.toInclusiveRange()!, options: {
 					description: 'moved',
-					blockClassName: 'movedModified' + (m === currentMove ? ' currentMove' : ''),
+					blockClassName: 'movedModified' + (m === activeMovedText ? ' currentMove' : ''),
 					blockPadding: [4, 0, 4, 4],
 				}
 			});

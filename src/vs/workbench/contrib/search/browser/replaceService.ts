@@ -11,7 +11,7 @@ import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService, MatchInNotebook } from 'vs/workbench/contrib/search/browser/searchModel';
+import { Match, FileMatch, FileMatchOrMatch, ISearchViewModelWorkbenchService, MatchInNotebook } from 'vs/workbench/contrib/search/browser/searchModel';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -63,7 +63,7 @@ class ReplacePreviewModel extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IReplaceService private readonly replaceService: IReplaceService,
-		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService
+		@ISearchViewModelWorkbenchService private readonly searchWorkbenchService: ISearchViewModelWorkbenchService
 	) {
 		super();
 	}

@@ -52,7 +52,7 @@ export interface IChatResponseProgressFileTreeData {
 }
 
 export type IChatProgress =
-	{ content: string } | { requestId: string } | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent: Promise<string | { treeData: IChatResponseProgressFileTreeData }> };
+	{ content: string | IMarkdownString } | { requestId: string } | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> };
 
 export interface IPersistedChatState { }
 export interface IChatProvider {

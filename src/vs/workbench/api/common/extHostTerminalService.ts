@@ -929,10 +929,6 @@ class UnifiedEnvironmentVariableCollection {
 	}
 
 	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): IEnvironmentVariableCollection {
-		if (this._extension && scope) {
-			// TODO: This should be removed when the env var extension API(s) are stabilized
-			checkProposedApiEnabled(this._extension, 'envCollectionWorkspace');
-		}
 		const scopedCollectionKey = this.getScopeKey(scope);
 		let scopedCollection = this.scopedCollections.get(scopedCollectionKey);
 		if (!scopedCollection) {

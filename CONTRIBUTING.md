@@ -104,6 +104,6 @@ If you believe the bot got something wrong, please open a new issue and let us k
 If you are interested in writing code to fix issues,
 please see [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) in the wiki.
 
-# Thank You!
+## Thank You
 
 Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.

@@ -370,7 +370,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _readConfiguration() {
 		const options = this._editor.getOption(EditorOption.stickyScroll);
-
 		if (options.enabled === false) {
 			this._editor.removeOverlayWidget(this._stickyScrollWidget);
 			this._sessionStore.clear();
@@ -429,10 +428,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private _renderStickyScroll() {
-		if (!(this._editor.hasModel())) {
+		const model = this._editor.getModel();
+		if (!model || model.isTooLargeForTokenization()) {
+			this._stickyScrollWidget.setState(undefined);
 			return;
 		}
-		const model = this._editor.getModel();
 		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
 		if (stickyLineVersion === undefined || stickyLineVersion === model.getVersionId()) {
 			this._widgetState = this.findScrollWidgetState();
