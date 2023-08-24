@@ -215,6 +215,7 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		// Nothing
+		// adding nothing
 	}
 
 	async participate(model: ITextFileEditorModel, env: { reason: SaveReason }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
