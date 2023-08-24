@@ -25,7 +25,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/browser/editorNavigationQuickAccess';
-import { IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
+import { IOutlineService, IQuickPickOutlineElement, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -162,27 +162,8 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 				}
 			}));
 
-			const entries = outline.config.quickPickDataSource.getQuickPickElements();
-
-			const items: IGotoSymbolQuickPickItem[] = entries.map((entry, idx) => {
-				return {
-					kind: SymbolKind.File,
-					index: idx,
-					score: 0,
-					label: entry.label,
-					description: entry.description,
-					ariaLabel: entry.ariaLabel,
-					iconClasses: entry.iconClasses
-				};
-			});
-
-			disposables.add(picker.onDidAccept(() => {
-				picker.hide();
-				const [entry] = picker.selectedItems;
-				if (entry && entries[entry.index]) {
-					outline.reveal(entries[entry.index].element, {}, false);
-				}
-			}));
+			let items: IGotoSymbolQuickPickItem[] = [];
+			let elements: IQuickPickOutlineElement<any>[] = [];
 
 			const updatePickerItems = () => {
 				const filteredItems = items.filter(item => {
@@ -208,6 +189,31 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 					picker.items = filteredItems;
 				}
 			};
+
+			outline.config.quickPickDataSource.getQuickPickElements().then(entries => {
+				elements = entries;
+				items = entries.map((entry, idx) => {
+					return {
+						kind: SymbolKind.File,
+						index: idx,
+						score: 0,
+						label: entry.label,
+						description: entry.description,
+						ariaLabel: entry.ariaLabel,
+						iconClasses: entry.iconClasses
+					};
+				});
+				updatePickerItems();
+			});
+
+			disposables.add(picker.onDidAccept(() => {
+				picker.hide();
+				const [entry] = picker.selectedItems;
+				if (entry && elements[entry.index]) {
+					outline.reveal(elements[entry.index].element, {}, false);
+				}
+			}));
+
 			updatePickerItems();
 			disposables.add(picker.onDidChangeValue(updatePickerItems));
 
@@ -216,8 +222,8 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 
 			disposables.add(picker.onDidChangeActive(() => {
 				const [entry] = picker.activeItems;
-				if (entry && entries[entry.index]) {
-					previewDisposable.value = outline.preview(entries[entry.index].element);
+				if (entry && elements[entry.index]) {
+					previewDisposable.value = outline.preview(elements[entry.index].element);
 				} else {
 					previewDisposable.clear();
 				}

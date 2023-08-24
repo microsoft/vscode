@@ -28,11 +28,12 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { CellRevealType, INotebookEditorOptions, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
-import { NotebookCellOutlineProvider, OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
+import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigCollapseItemsValues, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
+import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
 
 
 class NotebookOutlineTemplate {
@@ -145,13 +146,13 @@ class NotebookOutlineVirtualDelegate implements IListVirtualDelegate<OutlineEntr
 class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 
 	constructor(
-		private _getEntries: () => OutlineEntry[],
+		private _getEntries: () => Promise<OutlineEntry[]>,
 		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
-	getQuickPickElements(): IQuickPickOutlineElement<OutlineEntry>[] {
+	async getQuickPickElements(): Promise<IQuickPickOutlineElement<OutlineEntry>[]> {
 		const bucket: OutlineEntry[] = [];
-		for (const entry of this._getEntries()) {
+		for (const entry of await this._getEntries()) {
 			entry.asFlatList(bucket);
 		}
 		const result: IQuickPickOutlineElement<OutlineEntry>[] = [];
@@ -264,7 +265,10 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 					return result;
 				}
 			},
-			quickPickDataSource: instantiationService.createInstance(NotebookQuickPickProvider, () => (this._outlineProvider?.entries ?? [])),
+			quickPickDataSource: instantiationService.createInstance(NotebookQuickPickProvider, async () => {
+				await this._outlineProvider?.init();
+				return this._outlineProvider?.entries ?? [];
+			}),
 			treeDataSource,
 			delegate,
 			renderers,

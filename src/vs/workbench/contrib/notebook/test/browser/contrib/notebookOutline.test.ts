@@ -64,102 +64,113 @@ suite('Notebook Outline', function () {
 	test('special characters in heading', async function () {
 		await withNotebookOutline([
 			['# Hellö & Hällo', 'md', CellKind.Markup]
-		], outline => {
+		], async outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'Hellö & Hällo');
+			const elements = await outline.config.quickPickDataSource.getQuickPickElements();
+			assert.deepStrictEqual(elements.length, 1);
+			assert.deepStrictEqual(elements[0].label, 'Hellö & Hällo');
 		});
 
 		await withNotebookOutline([
 			['# bo<i>ld</i>', 'md', CellKind.Markup]
-		], outline => {
+		], async outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'bold');
+			const elements = await outline.config.quickPickDataSource.getQuickPickElements();
+			assert.deepStrictEqual(elements.length, 1);
+			assert.deepStrictEqual(elements[0].label, 'bold');
 		});
 	});
 
 	test('Notebook falsely detects "empty cells"', async function () {
 		await withNotebookOutline([
 			['  的时代   ', 'md', CellKind.Markup]
-		], outline => {
+		], async outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '的时代');
+			const elements = await outline.config.quickPickDataSource.getQuickPickElements();
+			assert.deepStrictEqual(elements.length, 1);
+			assert.deepStrictEqual(elements[0].label, '的时代');
 		});
 
 		await withNotebookOutline([
 			['   ', 'md', CellKind.Markup]
-		], outline => {
+		], async outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'empty cell');
+			const elements = await outline.config.quickPickDataSource.getQuickPickElements();
+			assert.deepStrictEqual(elements.length, 1);
+			assert.deepStrictEqual(elements[0].label, 'empty cell');
 		});
 
 		await withNotebookOutline([
 			['+++++[]{}--)(0  ', 'md', CellKind.Markup]
-		], outline => {
+		], async outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '+++++[]{}--)(0');
+			const elements = await outline.config.quickPickDataSource.getQuickPickElements();
+			assert.deepStrictEqual(elements.length, 1);
+			assert.deepStrictEqual(elements[0].label, '+++++[]{}--)(0');
 		});
 
 		await withNotebookOutline([
 			['+++++[]{}--)(0 Hello **&^ ', 'md', CellKind.Markup]
-		], outline => {
+		], async outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '+++++[]{}--)(0 Hello **&^');
+			const elements = await outline.config.quickPickDataSource.getQuickPickElements();
+			assert.deepStrictEqual(elements.length, 1);
+			assert.deepStrictEqual(elements[0].label, '+++++[]{}--)(0 Hello **&^');
 		});
 
 		await withNotebookOutline([
 			['!@#$\n Überschrïft', 'md', CellKind.Markup]
-		], outline => {
+		], async outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '!@#$');
+			const elements = await outline.config.quickPickDataSource.getQuickPickElements();
+			assert.deepStrictEqual(elements.length, 1);
+			assert.deepStrictEqual(elements[0].label, '!@#$');
 		});
 	});
 
 	test('Heading text defines entry label', async function () {
 		return await withNotebookOutline([
 			['foo\n # h1', 'md', CellKind.Markup]
-		], outline => {
+		], async outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'h1');
+			const elements = await outline.config.quickPickDataSource.getQuickPickElements();
+			assert.deepStrictEqual(elements.length, 1);
+			assert.deepStrictEqual(elements[0].label, 'h1');
 		});
 	});
 
 	test('Notebook outline ignores markdown headings #115200', async function () {
 		await withNotebookOutline([
 			['## h2 \n# h1', 'md', CellKind.Markup]
-		], outline => {
+		], async outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'h2');
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[1].label, 'h1');
+			const elements = await outline.config.quickPickDataSource.getQuickPickElements();
+			assert.deepStrictEqual(elements.length, 2);
+			assert.deepStrictEqual(elements[0].label, 'h2');
+			assert.deepStrictEqual(elements[1].label, 'h1');
 		});
 
 		await withNotebookOutline([
 			['## h2', 'md', CellKind.Markup],
 			['# h1', 'md', CellKind.Markup]
-		], outline => {
+		], async outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'h2');
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[1].label, 'h1');
+			const elements = await outline.config.quickPickDataSource.getQuickPickElements();
+			assert.deepStrictEqual(elements.length, 2);
+			assert.deepStrictEqual(elements[0].label, 'h2');
+			assert.deepStrictEqual(elements[1].label, 'h1');
 		});
 	});
 
 	test('Code cells', async function () {
 		await withNotebookOutline([
 			['myvar1 = 1/nmyvar2 = 2', 'python', CellKind.Code]
-		], outline => {
+		], async outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'myvar1');
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[1].label, 'myvar2');
+			const elements = await outline.config.quickPickDataSource.getQuickPickElements();
+			assert.deepStrictEqual(elements.length, 2);
+			assert.deepStrictEqual(elements[0].label, 'myvar1');
+			assert.deepStrictEqual(elements[1].label, 'myvar2');
 		});
 	});
 
@@ -167,11 +178,12 @@ suite('Notebook Outline', function () {
 		await withNotebookOutline([
 			['# Header', 'md', CellKind.Markup],
 			['myvar2 = 2', 'python', CellKind.Code]
-		], outline => {
+		], async outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'Header');
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[1].label, 'myvar2');
+			const elements = await outline.config.quickPickDataSource.getQuickPickElements();
+			assert.deepStrictEqual(elements.length, 2);
+			assert.deepStrictEqual(elements[0].label, 'Header');
+			assert.deepStrictEqual(elements[1].label, 'myvar2');
 		});
 	});
 });
