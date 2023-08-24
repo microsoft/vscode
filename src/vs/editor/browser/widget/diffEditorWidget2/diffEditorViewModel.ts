@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ISettableObservable, ITransaction, autorunWithStore, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
 import { ISerializedLineRange, LineRange } from 'vs/editor/common/core/lineRange';
@@ -19,6 +19,7 @@ import { combineTextEditInfos } from 'vs/editor/common/model/bracketPairsTextMod
 import { lengthAdd, lengthDiffNonNegative, lengthGetLineCount, lengthOfRange, lengthToPosition, lengthZero, positionToLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export class DiffEditorViewModel extends Disposable implements IDiffEditorViewModel {
 	private readonly _isDiffUpToDate = observableValue<boolean>('isDiffUpToDate', false);
@@ -64,12 +65,16 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		this._hoveredMovedText.set(movedText, undefined);
 	}
 
+	private readonly _cancellationTokenSource = new CancellationTokenSource();
+
 	constructor(
 		public readonly model: IDiffEditorModel,
 		private readonly _options: DiffEditorOptions,
 		documentDiffProvider: IDocumentDiffProvider,
 	) {
 		super();
+
+		this._register(toDisposable(() => this._cancellationTokenSource.cancel()));
 
 		const contentChangedSignal = observableSignal('contentChangedSignal');
 		const debouncer = this._register(new RunOnceScheduler(() => contentChangedSignal.trigger(undefined), 200));
@@ -182,7 +187,11 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				ignoreTrimWhitespace: this._options.ignoreTrimWhitespace.read(reader),
 				maxComputationTimeMs: this._options.maxComputationTimeMs.read(reader),
 				computeMoves: this._options.showMoves.read(reader),
-			});
+			}, this._cancellationTokenSource.token);
+
+			if (this._cancellationTokenSource.token.isCancellationRequested) {
+				return;
+			}
 
 			result = applyOriginalEdits(result, originalTextEditInfos, model.original, model.modified) ?? result;
 			result = applyModifiedEdits(result, modifiedTextEditInfos, model.original, model.modified) ?? result;
