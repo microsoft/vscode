@@ -236,7 +236,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			return;
 		}
 
-		const multiplexer = this._terminalService.createInstanceCapabilityEventMultiplexer(TerminalCapability.CommandDetection, capability => capability.onCommandFinished);
+		const multiplexer = this._terminalService.onInstanceCapabilityEvent(TerminalCapability.CommandDetection, capability => capability.onCommandFinished);
 		multiplexer.event(e => {
 			this._onDidExecuteCommand(e.instance.instanceId, {
 				commandLine: e.data.command,
