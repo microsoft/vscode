@@ -40,7 +40,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IChange, ICharChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange, ICharChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
