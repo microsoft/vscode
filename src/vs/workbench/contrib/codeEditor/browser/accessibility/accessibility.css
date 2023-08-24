@@ -11,7 +11,7 @@
 	border: 2px solid var(--vscode-focusBorder);
 	border-radius: 6px;
 	margin-top: -1px;
-	z-index: 2550;
+	z-index: 2540;
 }
 
 .accessible-view-container .actions-container {
