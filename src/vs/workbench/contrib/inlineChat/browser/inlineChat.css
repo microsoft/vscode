@@ -42,7 +42,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 2px 2px 2px 4px;
+	padding: 2px 2px 2px 6px;
 	background-color: var(--vscode-inlineChatInput-background);
 	cursor: text;
 }

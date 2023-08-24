@@ -103,7 +103,7 @@ export class ViewZoneManager extends Disposable {
 
 		const alignmentsSyncedMovedText = derived<ILineRangeAlignment[] | null>((reader) => {
 			/** @description alignments */
-			const syncedMovedText = this._diffModel.read(reader)?.syncedMovedTexts.read(reader);
+			const syncedMovedText = this._diffModel.read(reader)?.movedTextToCompare.read(reader);
 			if (!syncedMovedText) { return null; }
 			state.read(reader);
 			const mappings = syncedMovedText.changes.map(c => new DiffMapping(c));
@@ -171,7 +171,7 @@ export class ViewZoneManager extends Disposable {
 
 			const modLineHeight = this._editors.modified.getOption(EditorOption.lineHeight);
 
-			const syncedMovedText = this._diffModel.read(reader)?.syncedMovedTexts.read(reader);
+			const syncedMovedText = this._diffModel.read(reader)?.movedTextToCompare.read(reader);
 
 			const mightContainNonBasicASCII = this._editors.original.getModel()?.mightContainNonBasicASCII() ?? false;
 			const mightContainRTL = this._editors.original.getModel()?.mightContainRTL() ?? false;
@@ -265,7 +265,7 @@ export class ViewZoneManager extends Disposable {
 				} else {
 					const delta = a.modifiedHeightInPx - a.originalHeightInPx;
 					if (delta > 0) {
-						if (syncedMovedText?.lineRangeMapping.original.contains(a.originalRange.endLineNumberExclusive - 1)) {
+						if (syncedMovedText?.lineRangeMapping.original.delta(-1).deltaLength(2).contains(a.originalRange.endLineNumberExclusive - 1)) {
 							continue;
 						}
 
@@ -276,7 +276,7 @@ export class ViewZoneManager extends Disposable {
 							showInHiddenAreas: true,
 						});
 					} else {
-						if (syncedMovedText?.lineRangeMapping.modified.contains(a.modifiedRange.endLineNumberExclusive - 1)) {
+						if (syncedMovedText?.lineRangeMapping.modified.delta(-1).deltaLength(2).contains(a.modifiedRange.endLineNumberExclusive - 1)) {
 							continue;
 						}
 
@@ -424,7 +424,7 @@ export class ViewZoneManager extends Disposable {
 
 		this._register(autorun(reader => {
 			/** @description update editor top offsets */
-			const m = this._diffModel.read(reader)?.syncedMovedTexts.read(reader);
+			const m = this._diffModel.read(reader)?.movedTextToCompare.read(reader);
 
 			let deltaOrigToMod = 0;
 			if (m) {

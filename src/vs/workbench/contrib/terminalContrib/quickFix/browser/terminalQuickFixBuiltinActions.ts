@@ -5,7 +5,6 @@
 
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalQuickFixInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixExecuteTerminalCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 
 export const GitCommandLineRegex = /git/;
@@ -88,7 +87,7 @@ export function gitTwoDashes(): ITerminalQuickFixInternalOptions {
 		}
 	};
 }
-export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalQuickFixInternalOptions {
+export function freePort(runCallback: (port: string, commandLine: string) => Promise<void>): ITerminalQuickFixInternalOptions {
 	return {
 		id: 'Free Port',
 		type: 'internal',
@@ -114,9 +113,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 				label,
 				enabled: true,
 				source: QuickFixSource.Builtin,
-				run: async () => {
-					await terminalInstance?.freePortKillProcess?.(port, matchResult.commandLine);
-				}
+				run: () => runCallback(port, matchResult.commandLine)
 			};
 		}
 	};
