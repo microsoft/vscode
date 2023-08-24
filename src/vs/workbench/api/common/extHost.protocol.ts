@@ -372,6 +372,16 @@ export interface IShareableItemDto {
 	selection?: IRange;
 }
 
+export interface IRelatedContextItemDto {
+	readonly uri: UriComponents;
+	readonly range: IRange;
+}
+
+export interface IMappedEditsContextDto {
+	selections: ISelection[];
+	related: IRelatedContextItemDto[];
+}
+
 export interface ISignatureHelpProviderMetadataDto {
 	readonly triggerCharacters: readonly string[];
 	readonly retriggerCharacters: readonly string[];
@@ -427,6 +437,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$resolvePasteFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$resolveDocumentOnDropFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
+	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[]): void;
 }
 
 export interface MainThreadLanguagesShape extends IDisposable {
@@ -1205,7 +1216,7 @@ export interface IChatResponseProgressFileTreeData {
 	children?: IChatResponseProgressFileTreeData[];
 }
 
-export type IChatResponseProgressDto = { content: string } | { requestId: string } | { placeholder: string } | { treeData: IChatResponseProgressFileTreeData };
+export type IChatResponseProgressDto = { content: string | IMarkdownString } | { requestId: string } | { placeholder: string } | { treeData: IChatResponseProgressFileTreeData };
 
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
@@ -1664,12 +1675,12 @@ export interface MainThreadSemanticSimilarityShape extends IDisposable {
 }
 
 export interface ExtHostAiRelatedInformationShape {
-	$provideAiRelatedInformation(handle: number, query: string, types: RelatedInformationType[], token: CancellationToken): Promise<RelatedInformationResult[]>;
+	$provideAiRelatedInformation(handle: number, query: string, token: CancellationToken): Promise<RelatedInformationResult[]>;
 }
 
 export interface MainThreadAiRelatedInformationShape {
 	$getAiRelatedInformation(query: string, types: RelatedInformationType[]): Promise<RelatedInformationResult[]>;
-	$registerAiRelatedInformationProvider(handle: number, types: RelatedInformationType[]): void;
+	$registerAiRelatedInformationProvider(handle: number, type: RelatedInformationType): void;
 	$unregisterAiRelatedInformationProvider(handle: number): void;
 }
 
@@ -2019,6 +2030,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
 	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentOnDropEditDto | undefined>;
+	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: IMappedEditsContextDto, token: CancellationToken): Promise<IWorkspaceEditDto | null>;
 }
 
 export interface ExtHostQuickOpenShape {
