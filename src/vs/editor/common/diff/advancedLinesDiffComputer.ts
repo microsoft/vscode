@@ -311,7 +311,7 @@ export class AdvancedLinesDiffComputer implements ILinesDiffComputer {
 			const modifiedDist = current.modified.startLineNumber - last.modified.endLineNumberExclusive;
 			const currentMoveAfterLast = originalDist >= 0 && modifiedDist >= 0;
 
-			if (currentMoveAfterLast && originalDist <= 1 && modifiedDist <= 1) {
+			if (currentMoveAfterLast && originalDist + modifiedDist <= 2) {
 				joinedMoves[joinedMoves.length - 1] = last.join(current);
 				continue;
 			}

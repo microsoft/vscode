@@ -57,7 +57,7 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITerminalService _terminalService: ITerminalService
 	) {
-		super(ClassName.AccessibleBuffer, _instance, _xterm, TerminalContextKeys.accessibleBufferFocus, _instantiationService, _modelService, _configurationService, _contextKeyService, _terminalService);
+		super(ClassName.AccessibleBuffer, _instance, _xterm, TerminalContextKeys.accessibleBufferFocus, TerminalContextKeys.accessibleBufferOnLastLine, _instantiationService, _modelService, _configurationService, _contextKeyService, _terminalService);
 		this._bufferTracker = _instantiationService.createInstance(BufferContentTracker, _xterm);
 		this.element.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		this.updateEditor();
