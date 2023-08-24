@@ -84,6 +84,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			updateScrollLeftPosition();
 			this._updateWidgetWidth();
 		}));
+		this._register(this._foldingIconStore);
 		updateScrollLeftPosition();
 
 		this._register(this._editor.onDidLayoutChange((e) => {
@@ -136,10 +137,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private async _renderRootNode(): Promise<void> {
 
+		this._foldingIconStore.clear();
 		if (!this._editor._getViewModel()) {
 			return;
 		}
-		this._foldingIconStore.dispose();
 		const foldingModel = await FoldingController.get(this._editor)?.getFoldingModel();
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (const [index, line] of this._lineNumbers.entries()) {
