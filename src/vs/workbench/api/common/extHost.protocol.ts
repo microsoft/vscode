@@ -2091,14 +2091,23 @@ export interface TerminalCommandMatchResultDto {
 	};
 }
 
+export interface ITerminalCommandDto {
+	commandLine: string;
+	cwd: URI | string | undefined;
+	result: {
+		exitCode: number | undefined;
+		output: string;
+	};
+}
+
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number, exitCode: number | undefined, exitReason: TerminalExitReason): void;
 	$acceptTerminalOpened(id: number, extHostTerminalId: string | undefined, name: string, shellLaunchConfig: IShellLaunchConfigDto): void;
 	$acceptActiveTerminalChanged(id: number | null): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
 	$acceptTerminalProcessData(id: number, data: string): void;
-	$acceptWillExecuteCommand(id: number, command: any): void;
-	$acceptDidExecuteCommand(id: number, command: any): void;
+	$acceptWillExecuteCommand(id: number, command: ITerminalCommandDto): void;
+	$acceptDidExecuteCommand(id: number, command: ITerminalCommandDto): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;

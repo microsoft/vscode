@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier, TerminalQuickFix } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier, TerminalQuickFix, ITerminalCommandDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,6 +23,7 @@ import { Promises } from 'vs/base/common/async';
 import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { ICommandDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
@@ -228,18 +229,65 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._dataEventTracker.clear();
 	}
 
+	private _commandEventListeners = new MutableDisposable();
+
 	public $startSendingCommandEvents(): void {
-		// TODO: Impl
 		this._logService.info('$startSendingCommandEvents');
-		setInterval(() => {
-			this._onWillExecuteCommand(this._terminalService.instances[0]!.instanceId, null);
-			this._onDidExecuteCommand(this._terminalService.instances[0]!.instanceId, null);
-		}, 3000);
+		if (this._commandEventListeners.value) {
+			return;
+		}
+
+		// TODO: Add instance event multiplexer helper to service
+		const store = new DisposableStore();
+		this._commandEventListeners.value = store;
+		for (const instance of this._terminalService.instances) {
+			// TODO: Track instance listeners in a map so disposed ones don't keep piling up?
+			store.add(this._initInstanceCommandListeners(instance));
+		}
+		store.add(this._terminalService.onDidCreateInstance(instance => {
+			store.add(this._initInstanceCommandListeners(instance));
+		}));
+	}
+
+	private _initInstanceCommandListeners(instance: ITerminalInstance): IDisposable {
+		const store = new DisposableStore();
+		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+
+		const that = this;
+		function attachListener(commandDetection: ICommandDetectionCapability): IDisposable {
+			return commandDetection.onCommandFinished(e => {
+				that._onDidExecuteCommand(instance.instanceId, {
+					commandLine: e.command,
+					// TODO: Convert to URI if possible
+					cwd: e.cwd,
+					result: {
+						exitCode: e.exitCode,
+						output: e.getOutput() ?? ''
+					}
+				});
+			});
+		}
+
+		if (commandDetection) {
+			store.add(attachListener(commandDetection));
+		}
+		store.add(instance.capabilities.onDidAddCapability(capability => {
+			if (capability === TerminalCapability.CommandDetection) {
+				const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+				if (commandDetection) {
+					store.add(attachListener(commandDetection));
+				}
+			}
+		}));
+
+		// TODO: Handle remove
+
+		return store;
 	}
 
 	public $stopSendingCommandEvents(): void {
 		this._logService.info('$stopSendingCommandEvents');
-		// TODO: Impl
+		this._commandEventListeners.clear();
 	}
 
 	public $startLinkProvider(): void {
@@ -320,10 +368,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptTerminalProcessData(terminalId, data);
 	}
 
-	private _onWillExecuteCommand(terminalId: number, command: any): void {
-		this._proxy.$acceptWillExecuteCommand(terminalId, command);
-	}
-	private _onDidExecuteCommand(terminalId: number, command: any): void {
+	// private _onWillExecuteCommand(terminalId: number, command: ITerminalCommandDto): void {
+	// 	this._proxy.$acceptWillExecuteCommand(terminalId, command);
+	// }
+
+	private _onDidExecuteCommand(terminalId: number, command: ITerminalCommandDto): void {
 		this._proxy.$acceptDidExecuteCommand(terminalId, command);
 	}
 

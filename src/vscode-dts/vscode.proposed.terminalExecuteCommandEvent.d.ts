@@ -44,7 +44,8 @@ declare module 'vscode' {
 		exitCode: number;
 		/**
 		 * The output of the command when it has finished executing. This is the plain text shown in
-		 * the terminal buffer and does not include raw escape sequences..
+		 * the terminal buffer and does not include raw escape sequences. Depending on the shell
+		 * setup, this may include the command line as part of the output.
 		 */
 		output: string;
 	}
