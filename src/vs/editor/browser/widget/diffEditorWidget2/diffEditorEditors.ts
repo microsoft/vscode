@@ -50,6 +50,8 @@ export class DiffEditorEditors extends Disposable {
 			/** @description update editor options */
 			_options.editorOptions.read(reader);
 
+			this._options.renderSideBySide.read(reader);
+
 			this.modified.updateOptions(this._adjustOptionsForRightHandSide(reader, changeSummary));
 			this.original.updateOptions(this._adjustOptionsForLeftHandSide(reader, changeSummary));
 		}));
@@ -93,7 +95,11 @@ export class DiffEditorEditors extends Disposable {
 			result.wordWrapOverride1 = 'off';
 			result.wordWrapOverride2 = 'off';
 			result.stickyScroll = { enabled: false };
+
+			// Disable unicode highlighting for the original side in inline mode, as they are not shown anyway.
+			result.unicodeHighlight = { nonBasicASCII: false, ambiguousCharacters: false, invisibleCharacters: false };
 		} else {
+			result.unicodeHighlight = this._options.editorOptions.get().unicodeHighlight;
 			result.wordWrapOverride1 = this._options.diffWordWrap.get();
 		}
 		if (changedOptions.originalAriaLabel) {
