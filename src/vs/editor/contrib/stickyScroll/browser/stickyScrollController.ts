@@ -430,6 +430,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _renderStickyScroll() {
 		const model = this._editor.getModel();
 		if (!model || model.isTooLargeForTokenization()) {
+			this._stickyScrollWidget.setState(undefined);
 			return;
 		}
 		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
