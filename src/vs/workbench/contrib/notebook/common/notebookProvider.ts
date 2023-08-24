@@ -20,6 +20,7 @@ export interface NotebookEditorDescriptor {
 	readonly priority: RegisteredEditorPriority;
 	readonly providerDisplayName: string;
 	readonly exclusive: boolean;
+	readonly externalEditor?: boolean;
 }
 
 export class NotebookProviderInfo {
@@ -30,6 +31,7 @@ export class NotebookProviderInfo {
 	readonly priority: RegisteredEditorPriority;
 	readonly providerDisplayName: string;
 	readonly exclusive: boolean;
+	readonly externalEditor: boolean;
 
 	private _selectors: NotebookSelector[];
 	get selectors() {
@@ -57,6 +59,7 @@ export class NotebookProviderInfo {
 			transientOutputs: false,
 			cellContentMetadata: {}
 		};
+		this.externalEditor = !!descriptor.externalEditor;
 	}
 
 	update(args: { selectors?: NotebookSelector[]; options?: TransientOptions }) {
