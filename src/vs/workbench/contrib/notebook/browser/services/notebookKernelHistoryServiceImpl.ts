@@ -97,6 +97,8 @@ export class NotebookKernelHistoryService extends Disposable implements INoteboo
 					for (const entry of kernels.entries) {
 						linkedMap.set(entry, entry, Touch.AsOld);
 					}
+
+					this._mostRecentKernelsMap[viewType] = linkedMap;
 				}
 			} catch (e) {
 				console.error('Deserialize notebook kernel history failed', e);
