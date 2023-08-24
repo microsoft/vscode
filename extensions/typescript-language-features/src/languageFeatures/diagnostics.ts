@@ -156,6 +156,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 	private readonly _diagnosticCodesMap = new Map<number, number>();
 	private readonly _diagnosticSnapshotsMap = new ResourceMap<readonly vscode.Diagnostic[]>(uri => uri.toString(), { onCaseInsensitiveFileSystem: false });
 	private _timeout: NodeJS.Timeout | undefined;
+	private _telemetryEmitter: NodeJS.Timer | undefined;
 
 	constructor(
 		private readonly _telemetryReporter: TelemetryReporter,
@@ -196,7 +197,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 	}
 
 	private _registerTelemetryEventEmitter() {
-		setInterval(() => {
+		this._telemetryEmitter = setInterval(() => {
 			if (this._diagnosticCodesMap.size > 0) {
 				let diagnosticCodes = '';
 				this._diagnosticCodesMap.forEach((value, key) => {
@@ -222,6 +223,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 	override dispose() {
 		super.dispose();
 		clearTimeout(this._timeout);
+		clearInterval(this._telemetryEmitter);
 	}
 }
 
