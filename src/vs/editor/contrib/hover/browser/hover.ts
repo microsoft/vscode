@@ -213,9 +213,6 @@ export class ModesHoverController implements IEditorContribution {
 			this._mouseWasOverWidget = mouseIsOverWidget;
 			return;
 		}
-		if (this._hideWidgetsTimeout) {
-			return;
-		}
 
 		const target = mouseEvent.target;
 		const mouseOnDecorator = target.element?.classList.contains('colorpicker-color-decoration');
@@ -246,7 +243,7 @@ export class ModesHoverController implements IEditorContribution {
 			this._glyphWidget.startShowingAt(target.position.lineNumber);
 			return;
 		}
-		if (_sticky) {
+		if (this._hideWidgetsTimeout || _sticky) {
 			return;
 		}
 		if (this._mouseWasOverWidget) {
@@ -257,9 +254,9 @@ export class ModesHoverController implements IEditorContribution {
 				this._hideWidgetsTimeout = undefined;
 			}, this._hidingDelay);
 			this._mouseWasOverWidget = false;
-		} else {
-			this._hideWidgets();
+			return;
 		}
+		this._hideWidgets();
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
