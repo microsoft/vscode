@@ -86,6 +86,10 @@
 	stroke: var(--vscode-diffEditor-moveActive-border);
 }
 
+.monaco-diff-editor .moved-blocks-lines path {
+	pointer-events: visiblestroke;
+}
+
 .monaco-diff-editor .moved-blocks-lines .arrow {
 	fill: var(--vscode-diffEditor-move-border);
 }
@@ -120,4 +124,16 @@
 
 .monaco-editor .fold-unchanged {
 	cursor: pointer;
+}
+
+.monaco-diff-editor .diff-moved-code-block {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: -4px;
+}
+
+.monaco-diff-editor .diff-moved-code-block .action-bar .action-label.codicon {
+	width: 12px;
+	height: 12px;
+	font-size: 12px;
 }

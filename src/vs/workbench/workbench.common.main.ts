@@ -228,6 +228,9 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 // Merge Editor
 import 'vs/workbench/contrib/mergeEditor/browser/mergeEditor.contribution';
 
+// Mapped Edits
+import 'vs/workbench/contrib/mappedEdits/common/mappedEdits.contribution';
+
 // Commands
 import 'vs/workbench/contrib/commands/common/commands.contribution';
 

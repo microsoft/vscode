@@ -185,8 +185,9 @@ class QuickChat extends Disposable {
 				this.chatService.addCompleteRequest(widget.viewModel.sessionId,
 					request.message as string,
 					{
-						message: request.response.response.asString(),
-						errorDetails: request.response.errorDetails
+						message: request.response.response.value,
+						errorDetails: request.response.errorDetails,
+						followups: request.response.followups
 					});
 			} else if (request.message) {
 

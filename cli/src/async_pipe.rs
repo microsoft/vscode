@@ -6,6 +6,8 @@
 use crate::{constants::APPLICATION_NAME, util::errors::CodeError};
 use async_trait::async_trait;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpListener;
 use uuid::Uuid;
@@ -44,7 +46,7 @@ cfg_if::cfg_if! {
 	} else {
 		use tokio::{time::sleep, io::ReadBuf};
 		use tokio::net::windows::named_pipe::{ClientOptions, ServerOptions, NamedPipeClient, NamedPipeServer};
-		use std::{time::Duration, pin::Pin, task::{Context, Poll}, io};
+		use std::{time::Duration, io};
 		use pin_project::pin_project;
 
 		#[pin_project(project = AsyncPipeProj)]
@@ -170,6 +172,57 @@ cfg_if::cfg_if! {
 
 		pub fn socket_stream_split(pipe: AsyncPipe) -> (AsyncPipeReadHalf, AsyncPipeWriteHalf) {
 			tokio::io::split(pipe)
+		}
+	}
+}
+
+impl AsyncPipeListener {
+	pub fn into_pollable(self) -> PollableAsyncListener {
+		PollableAsyncListener {
+			listener: Some(self),
+			write_fut: tokio_util::sync::ReusableBoxFuture::new(make_accept_fut(None)),
+		}
+	}
+}
+
+pub struct PollableAsyncListener {
+	listener: Option<AsyncPipeListener>,
+	write_fut: tokio_util::sync::ReusableBoxFuture<
+		'static,
+		(AsyncPipeListener, Result<AsyncPipe, CodeError>),
+	>,
+}
+
+async fn make_accept_fut(
+	data: Option<AsyncPipeListener>,
+) -> (AsyncPipeListener, Result<AsyncPipe, CodeError>) {
+	match data {
+		Some(mut l) => {
+			let c = l.accept().await;
+			(l, c)
+		}
+		None => unreachable!("this future should not be pollable in this state"),
+	}
+}
+
+impl hyper::server::accept::Accept for PollableAsyncListener {
+	type Conn = AsyncPipe;
+	type Error = CodeError;
+
+	fn poll_accept(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context<'_>,
+	) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
+		if let Some(l) = self.listener.take() {
+			self.write_fut.set(make_accept_fut(Some(l)))
+		}
+
+		match self.write_fut.poll(cx) {
+			Poll::Ready((l, cnx)) => {
+				self.listener = Some(l);
+				Poll::Ready(Some(cnx))
+			}
+			Poll::Pending => Poll::Pending,
 		}
 	}
 }

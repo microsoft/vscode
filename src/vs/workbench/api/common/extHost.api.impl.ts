@@ -1332,9 +1332,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'aiRelatedInformation');
 				return extHostAiRelatedInformation.getRelatedInformation(extension, query, types);
 			},
-			registerRelatedInformationProvider(types: vscode.RelatedInformationType[], provider: vscode.RelatedInformationProvider) {
+			registerRelatedInformationProvider(type: vscode.RelatedInformationType, provider: vscode.RelatedInformationProvider) {
 				checkProposedApiEnabled(extension, 'aiRelatedInformation');
-				return extHostAiRelatedInformation.registerRelatedInformationProvider(extension, types, provider);
+				return extHostAiRelatedInformation.registerRelatedInformationProvider(extension, type, provider);
 			},
 			registerEmbeddingVectorProvider(model: string, provider: vscode.EmbeddingVectorProvider) {
 				checkProposedApiEnabled(extension, 'aiRelatedInformation');
@@ -1356,9 +1356,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatRequestAccess');
 				return extHostChatProvider.requestChatResponseProvider(extension.identifier, id);
 			},
-			registerVariable(name, description, resolver) {
+			registerVariable(name: string, description: string, resolver: vscode.ChatVariableResolver) {
 				checkProposedApiEnabled(extension, 'chatVariables');
 				return extHostChatVariables.registerVariableResolver(extension, name, description, resolver);
+			},
+			registerMappedEditsProvider(selector: vscode.DocumentSelector, provider: vscode.MappedEditsProvider) {
+				checkProposedApiEnabled(extension, 'mappedEditsProvider');
+				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
 			}
 		};
 

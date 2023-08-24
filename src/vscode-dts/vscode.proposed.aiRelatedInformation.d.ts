@@ -7,13 +7,6 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/190909
 
-	export interface SearchResult {
-		// from Andrea
-		preview: string;
-		resource: Uri;
-		location: Range;
-	}
-
 	export enum RelatedInformationType {
 		SymbolInformation = 1,
 		CommandInformation = 2,
@@ -21,33 +14,27 @@ declare module 'vscode' {
 		SettingInformation = 4
 	}
 
-	export interface RelatedInformationResult {
+	interface RelatedInformationBaseResult {
 		type: RelatedInformationType;
 		weight: number;
 	}
 
-	export interface SymbolInformationResult extends RelatedInformationResult {
-		type: RelatedInformationType.SymbolInformation;
-		symbolInformation: SymbolInformation;
-	}
+	// TODO: Symbols and Search
 
-	export interface CommandInformationResult extends RelatedInformationResult {
+	export interface CommandInformationResult extends RelatedInformationBaseResult {
 		type: RelatedInformationType.CommandInformation;
 		command: string;
 	}
 
-	export interface SettingInformationResult extends RelatedInformationResult {
+	export interface SettingInformationResult extends RelatedInformationBaseResult {
 		type: RelatedInformationType.SettingInformation;
 		setting: string;
 	}
 
-	export interface SearchInformationResult extends RelatedInformationResult {
-		type: RelatedInformationType.SearchInformation;
-		searchResult: SearchResult;
-	}
+	export type RelatedInformationResult = CommandInformationResult | SettingInformationResult;
 
 	export interface RelatedInformationProvider {
-		provideRelatedInformation(query: string, types: RelatedInformationType[], token: CancellationToken): ProviderResult<RelatedInformationResult[]>;
+		provideRelatedInformation(query: string, token: CancellationToken): ProviderResult<RelatedInformationResult[]>;
 	}
 
 	export interface EmbeddingVectorProvider {
@@ -56,7 +43,7 @@ declare module 'vscode' {
 
 	export namespace ai {
 		export function getRelatedInformation(query: string, types: RelatedInformationType[], token: CancellationToken): Thenable<RelatedInformationResult[]>;
-		export function registerRelatedInformationProvider(types: RelatedInformationType[], provider: RelatedInformationProvider): Disposable;
+		export function registerRelatedInformationProvider(type: RelatedInformationType, provider: RelatedInformationProvider): Disposable;
 		export function registerEmbeddingVectorProvider(model: string, provider: EmbeddingVectorProvider): Disposable;
 	}
 }
