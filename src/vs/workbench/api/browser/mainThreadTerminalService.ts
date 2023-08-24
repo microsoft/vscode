@@ -42,6 +42,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _profileProviders = new Map<string, IDisposable>();
 	private readonly _quickFixProviders = new Map<string, IDisposable>();
 	private readonly _dataEventTracker = new MutableDisposable<TerminalDataEventTracker>();
+	private readonly _sendCommandEventListener = new MutableDisposable();
 	/**
 	 * A single shared terminal link provider for the exthost. When an ext registers a link
 	 * provider, this is registered with the terminal on the renderer side and all links are
@@ -229,8 +230,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._dataEventTracker.clear();
 	}
 
-	private _sendCommandEventListener = new MutableDisposable();
-
 	public $startSendingCommandEvents(): void {
 		this._logService.info('$startSendingCommandEvents');
 		if (this._sendCommandEventListener.value) {
@@ -238,8 +237,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 
 		const multiplexer = this._terminalService.createInstanceCapabilityEventMultiplexer(TerminalCapability.CommandDetection, capability => capability.onCommandFinished);
-		this._sendCommandEventListener.value = multiplexer;
-
 		multiplexer.event(e => {
 			this._onDidExecuteCommand(e.instance.instanceId, {
 				commandLine: e.data.command,
@@ -251,6 +248,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 				}
 			});
 		});
+		this._sendCommandEventListener.value = multiplexer;
 	}
 
 	public $stopSendingCommandEvents(): void {

@@ -274,6 +274,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	/**
 	 * Creates a capability event listener that listens to capabilities on all instances,
 	 * dynamically adding and removing instances and capabilities as needed.
+	 * @param capabilityId The capability type to listen to an event on.
 	 * @param getEvent Maps the capability to the event.
 	 */
 	createInstanceCapabilityEventMultiplexer<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): { dispose(): void; event: Event<{ instance: ITerminalInstance; data: K }> };
