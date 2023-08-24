@@ -267,12 +267,7 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 			tsServerPath = versionManager.currentVersion.tsServerPath;
 		}
 
-		let execPath = nodeVersionManager.currentVersion;
-		if (execPath && !fs.existsSync(execPath)) {
-			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn\'t point to a valid Node installation. Falling back to bundled Node.", execPath!));
-			nodeVersionManager.reset();
-			execPath = nodeVersionManager.currentVersion;
-		}
+		const execPath = nodeVersionManager.currentVersion;
 
 		const env = generatePatchedEnv(process.env, tsServerPath, !!execPath);
 		const runtimeArgs = [...args];

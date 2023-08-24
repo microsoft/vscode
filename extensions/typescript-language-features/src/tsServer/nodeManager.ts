@@ -10,6 +10,9 @@ import { Disposable } from '../utils/dispose';
 
 
 const useWorkspaceNodeStorageKey = 'typescript.useWorkspaceNode';
+const lastKnownWorkspaceNodeStorageKey = 'typescript.lastKnownWorkspaceNode';
+type UseWorkspaceNodeState = undefined | boolean;
+type LastKnownWorkspaceNodeState = undefined | string;
 
 export class NodeVersionManager extends Disposable {
 	private _currentVersion: string | undefined;
@@ -22,27 +25,31 @@ export class NodeVersionManager extends Disposable {
 
 		this._currentVersion = this.configuration.globalNodePath || undefined;
 		if (vscode.workspace.isTrusted) {
-			if (this.configuration.localNodePath) {
-				if (this.useWorkspaceNodeSetting === undefined) {
+			const workspaceVersion = this.configuration.localNodePath;
+			if (workspaceVersion) {
+				const useWorkspaceNode = this.canUseWorkspaceNode(workspaceVersion);
+				if (useWorkspaceNode === undefined) {
 					setImmediate(() => {
 						this.promptAndSetWorkspaceNode();
 					});
 				}
-				else if (this.useWorkspaceNodeSetting) {
-					this._currentVersion = this.configuration.localNodePath;
+				else if (useWorkspaceNode) {
+					this._currentVersion = workspaceVersion;
 				}
 			}
 		}
 		else {
 			this._disposables.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
-				if (this.configuration.localNodePath) {
-					if (this.useWorkspaceNodeSetting === undefined) {
+				const workspaceVersion = this.configuration.localNodePath;
+				if (workspaceVersion) {
+					const useWorkspaceNode = this.canUseWorkspaceNode(workspaceVersion);
+					if (useWorkspaceNode === undefined) {
 						setImmediate(() => {
 							this.promptAndSetWorkspaceNode();
 						});
 					}
-					else if (this.useWorkspaceNodeSetting) {
-						this.updateActiveVersion(this.configuration.localNodePath);
+					else if (useWorkspaceNode) {
+						this.updateActiveVersion(workspaceVersion);
 					}
 				}
 			}));
@@ -56,10 +63,6 @@ export class NodeVersionManager extends Disposable {
 		return this._currentVersion;
 	}
 
-	public reset(): void {
-		this._currentVersion = undefined;
-	}
-
 	public async updateConfiguration(nextConfiguration: TypeScriptServiceConfiguration) {
 		const oldConfiguration = this.configuration;
 		this.configuration = nextConfiguration;
@@ -71,12 +74,14 @@ export class NodeVersionManager extends Disposable {
 
 	private async computeNewVersion() {
 		let version = this.configuration.globalNodePath || undefined;
-		if (vscode.workspace.isTrusted && this.configuration.localNodePath) {
-			if (this.useWorkspaceNodeSetting === undefined) {
-				version = await this.promptUseWorkspaceNode();
+		const workspaceVersion = this.configuration.localNodePath;
+		if (vscode.workspace.isTrusted && workspaceVersion) {
+			const useWorkspaceNode = this.canUseWorkspaceNode(workspaceVersion);
+			if (useWorkspaceNode === undefined) {
+				version = await this.promptUseWorkspaceNode() || version;
 			}
-			else if (this.useWorkspaceNodeSetting) {
-				version = this.configuration.localNodePath;
+			else if (useWorkspaceNode) {
+				version = workspaceVersion;
 			}
 		}
 		this.updateActiveVersion(version);
@@ -84,27 +89,32 @@ export class NodeVersionManager extends Disposable {
 
 	private async promptUseWorkspaceNode(): Promise<string | undefined> {
 		const workspaceVersion = this.configuration.localNodePath;
-
 		if (workspaceVersion === null) {
 			throw new Error('Could not prompt to use workspace Node installation because no workspace Node installation is specified');
 		}
 
-		const allow = vscode.l10n.t("Allow");
-		const dismiss = vscode.l10n.t("Dismiss");
-		const neverAllow = vscode.l10n.t("Never in this workspace");
+		const allow = vscode.l10n.t("Yes");
+		const disallow = vscode.l10n.t("No");
+		const dismiss = vscode.l10n.t("Not now");
 
-		const result = await vscode.window.showInformationMessage(vscode.l10n.t("This workspace specifies a custom Node installation to run TS Server. Would you like to use this workspace's custom Node installation to run TS Server?"),
+		const result = await vscode.window.showInformationMessage(vscode.l10n.t("This workspace wants to use the Node installation at '{0}' to run TS Server. Would you like to use it?", workspaceVersion),
 			allow,
+			disallow,
 			dismiss,
-			neverAllow
 		);
 
 		let version = undefined;
-		if (result === allow) {
-			await this.workspaceState.update(useWorkspaceNodeStorageKey, true);
-			version = workspaceVersion;
-		} else if (result === neverAllow) {
-			await this.workspaceState.update(useWorkspaceNodeStorageKey, false);
+		switch (result) {
+			case allow:
+				await this.setUseWorkspaceNodeState(true, workspaceVersion);
+				version = workspaceVersion;
+				break;
+			case disallow:
+				await this.setUseWorkspaceNodeState(false, workspaceVersion);
+				break;
+			case dismiss:
+				await this.setUseWorkspaceNodeState(undefined, workspaceVersion);
+				break;
 		}
 		return version;
 	}
@@ -124,7 +134,16 @@ export class NodeVersionManager extends Disposable {
 		}
 	}
 
-	private get useWorkspaceNodeSetting(): boolean | undefined {
-		return this.workspaceState.get<boolean>(useWorkspaceNodeStorageKey);
+	private canUseWorkspaceNode(nodeVersion: string): boolean | undefined {
+		const lastKnownWorkspaceNode = this.workspaceState.get<LastKnownWorkspaceNodeState>(lastKnownWorkspaceNodeStorageKey);
+		if (lastKnownWorkspaceNode === nodeVersion) {
+			return this.workspaceState.get<UseWorkspaceNodeState>(useWorkspaceNodeStorageKey);
+		}
+		return undefined;
+	}
+
+	private async setUseWorkspaceNodeState(allow: boolean | undefined, nodeVersion: string) {
+		await this.workspaceState.update(lastKnownWorkspaceNodeStorageKey, nodeVersion);
+		await this.workspaceState.update(useWorkspaceNodeStorageKey, allow);
 	}
 }
