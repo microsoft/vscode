@@ -47,33 +47,41 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 
 		const now = Date.now();
 
-		const voiceModule: {
-			transcribe: (
-				audioBuffer: { channelCount: 1; samplingRate: 16000; bitDepth: 16; channelData: Float32Array },
-				options: {
-					language: string | 'auto';
-					suppressNonSpeechTokens: boolean;
-					signal: AbortSignal;
-				}
-			) => Promise<string>;
-		} = require.__$__nodeRequire(modulePath);
+		this.logService.info(`[voice] transcribe(${channelData.length}): Getting module from ${modulePath}`);
 
-		const abortController = new AbortController();
-		cancellation.onCancellationRequested(() => abortController.abort());
+		try {
+			const voiceModule: {
+				transcribe: (
+					audioBuffer: { channelCount: 1; samplingRate: 16000; bitDepth: 16; channelData: Float32Array },
+					options: {
+						language: string | 'auto';
+						suppressNonSpeechTokens: boolean;
+						signal: AbortSignal;
+					}
+				) => Promise<string>;
+			} = require.__$__nodeRequire(modulePath);
 
-		const text = await voiceModule.transcribe({
-			samplingRate: 16000,
-			bitDepth: 16,
-			channelCount: 1,
-			channelData
-		}, {
-			language: 'en',
-			suppressNonSpeechTokens: true,
-			signal: abortController.signal
-		});
+			const abortController = new AbortController();
+			cancellation.onCancellationRequested(() => abortController.abort());
 
-		this.logService.info(`[voice] transcribe(${channelData.length}): End (text: "${text}", took: ${Date.now() - now}ms)`);
+			const text = await voiceModule.transcribe({
+				samplingRate: 16000,
+				bitDepth: 16,
+				channelCount: 1,
+				channelData
+			}, {
+				language: 'en',
+				suppressNonSpeechTokens: true,
+				signal: abortController.signal
+			});
 
-		return text;
+			this.logService.info(`[voice] transcribe(${channelData.length}): End (text: "${text}", took: ${Date.now() - now}ms)`);
+
+			return text;
+		} catch (error) {
+			this.logService.error(`[voice] transcribe(${channelData.length}): Failed (error: "${error}", took: ${Date.now() - now}ms)`);
+
+			throw error;
+		}
 	}
 }
