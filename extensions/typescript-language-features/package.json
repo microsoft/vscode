@@ -1132,7 +1132,7 @@
         "typescript.tsserver.maxTsServerMemory": {
           "type": "number",
           "default": 3072,
-          "description": "%configuration.tsserver.maxTsServerMemory%",
+          "markdownDescription": "%configuration.tsserver.maxTsServerMemory%",
           "scope": "window"
         },
         "typescript.tsserver.experimental.enableProjectDiagnostics": {
