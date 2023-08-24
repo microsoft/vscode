@@ -48,8 +48,8 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		private readonly _className: string,
 		protected readonly _instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource'>,
 		protected readonly _xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal },
-		private rawFocusContextKey: RawContextKey<boolean>,
-		private rawFocusLastLineContextKey: RawContextKey<boolean>,
+		rawFocusContextKey: RawContextKey<boolean>,
+		rawFocusLastLineContextKey: RawContextKey<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -90,8 +90,8 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		this._xtermElement.insertAdjacentElement('beforebegin', this._element);
 
 		this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
-		this._focusedContextKey = this.rawFocusContextKey.bindTo(this._contextKeyService);
-		this._focusedLastLineContextKey = this.rawFocusLastLineContextKey.bindTo(this._contextKeyService);
+		this._focusedContextKey = rawFocusContextKey.bindTo(this._contextKeyService);
+		this._focusedLastLineContextKey = rawFocusLastLineContextKey.bindTo(this._contextKeyService);
 		this.add(this._focusTracker.onDidFocus(() => {
 			this._focusedContextKey?.set(true);
 			this._focusedLastLineContextKey?.set(this._editorWidget.getSelection()?.positionLineNumber === this._editorWidget.getModel()?.getLineCount());
