@@ -117,7 +117,7 @@ export class InlineCompletionsController extends Disposable {
 		this._register(editor.onDidChangeCursorPosition(e => transaction(tx => {
 			/** @description onDidChangeCursorPosition */
 			this.updateObservables(tx, VersionIdChangeReason.Other);
-			if (e.reason === CursorChangeReason.Explicit) {
+			if (e.reason === CursorChangeReason.Explicit || e.source === 'api') {
 				this.model.get()?.stop(tx);
 			}
 		})));
