@@ -64,6 +64,7 @@ class VoiceTranscriptionWorkletNode extends AudioWorkletNode {
 
 // TODO@voice
 // - add native module test to ensure module loads
+// - allow to cancel voice recording from window progress
 export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
 
 	declare readonly _serviceBrand: undefined;
