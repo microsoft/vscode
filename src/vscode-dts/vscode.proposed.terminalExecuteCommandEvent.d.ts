@@ -9,10 +9,15 @@ declare module 'vscode' {
 
 	export interface TerminalExecuteCommandEvent {
 		terminal: Terminal;
-		command: TerminalCommand;
+		command: TerminalCommand<TerminalExecuteCommandResult>;
 	}
 
-	export interface TerminalCommand {
+	// NOTE: The generic here is for the future executeCommand function where the result isn't available.
+	export interface TerminalCommand<T extends TerminalExecuteCommandResult | Promise<TerminalExecuteCommandResult>> {
+		/**
+		 * The {@link Terminal} the command was executed in.
+		 */
+		terminal: Terminal;
 		/**
 		 * The full command line that was executed, including both the command and the arguments.
 		 */
@@ -25,7 +30,7 @@ declare module 'vscode' {
 		/**
 		 * The result of the command.
 		 */
-		result: Thenable<TerminalExecuteCommandResult>;
+		result: T;
 	}
 
 	export interface TerminalExecuteCommandResult {
@@ -42,9 +47,14 @@ declare module 'vscode' {
 
 	export namespace window {
 		/**
-		 * An event that is emitted when a terminal with shell integration activated executes a
-		 * command.
+		 * An event that is emitted when a terminal with shell integration activated has started
+		 * executing a command.
 		 */
-		export const onWillExecuteTerminalCommand: Event<TerminalExecuteCommandEvent>;
+		export const onWillExecuteTerminalCommand: Event<Thenable<TerminalExecuteCommandEvent>>;
+		/**
+		 * An event that is emitted when a terminal with shell integration activated has completed
+		 * executing a command.
+		 */
+		export const onDidExecuteTerminalCommand: Event<TerminalExecuteCommandEvent>;
 	}
 }
