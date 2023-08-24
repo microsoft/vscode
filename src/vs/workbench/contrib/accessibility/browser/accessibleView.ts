@@ -187,6 +187,7 @@ class AccessibleView extends Disposable {
 				if (!showAccessibleViewHelp) {
 					this._currentProvider = undefined;
 					this._accessibleViewCurrentProviderId.reset();
+					this._updateContextKeys(provider!, false);
 				}
 			}
 		};
@@ -267,6 +268,7 @@ class AccessibleView extends Disposable {
 			this._editorWidget.revealLine(index + 1);
 			this._editorWidget.setSelection({ startLineNumber: index + 1, startColumn: 1, endLineNumber: index + 1, endColumn: 1 });
 		}
+		this._updateContextKeys(provider, true);
 	}
 
 	disableHint(): void {
@@ -280,10 +282,10 @@ class AccessibleView extends Disposable {
 	private _updateContextKeys(provider: IAccessibleContentProvider, shown: boolean): void {
 		if (provider.options.type === AccessibleViewType.Help) {
 			this._accessiblityHelpIsShown.set(shown);
-			this._accessibleViewIsShown.set(!shown);
+			this._accessibleViewIsShown.reset();
 		} else {
 			this._accessibleViewIsShown.set(shown);
-			this._accessiblityHelpIsShown.set(!shown);
+			this._accessiblityHelpIsShown.reset();
 		}
 		if (provider.next && provider.previous) {
 			this._accessibleViewSupportsNavigation.set(true);
