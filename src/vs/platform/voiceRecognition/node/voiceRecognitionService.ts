@@ -6,6 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export const IVoiceRecognitionService = createDecorator<IVoiceRecognitionService>('voiceRecognitionService');
 
@@ -31,14 +32,15 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IProductService private readonly productService: IProductService
 	) { }
 
 	async transcribe(channelData: Float32Array, cancellation: CancellationToken): Promise<string> {
 		this.logService.info(`[voice] transcribe(${channelData.length}): Begin`);
 
-		const modulePath = process.env.VSCODE_VOICE_MODULE_PATH;
-		if (!modulePath) {
+		const modulePath = process.env.VSCODE_VOICE_MODULE_PATH; // TODO@bpasero package
+		if (!modulePath || this.productService.quality === 'stable') {
 			this.logService.error(`[voice] transcribe(${channelData.length}): Voice recognition not yet supported`);
 			throw new Error('Voice recognition not yet supported!');
 		}

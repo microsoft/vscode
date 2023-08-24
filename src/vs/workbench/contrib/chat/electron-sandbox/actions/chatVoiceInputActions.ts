@@ -26,6 +26,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { isExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import product from 'vs/platform/product/common/product';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when there is voice input for chat getting ready.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when there is voice input for chat in progress.") });
@@ -374,10 +376,12 @@ class StopVoiceChatAction extends Action2 {
 }
 
 export function registerChatVoiceInputActions() {
-	registerAction2(VoiceChatInChatViewAction);
-	registerAction2(QuickVoiceChatAction);
-	registerAction2(InlineVoiceChatAction);
+	if (typeof process.env.VSCODE_VOICE_MODULE_PATH === 'string' && product.quality !== 'stable') { // TODO@bpasero package
+		registerAction2(VoiceChatInChatViewAction);
+		registerAction2(QuickVoiceChatAction);
+		registerAction2(InlineVoiceChatAction);
 
-	registerAction2(StartVoiceChatAction);
-	registerAction2(StopVoiceChatAction);
+		registerAction2(StartVoiceChatAction);
+		registerAction2(StopVoiceChatAction);
+	}
 }
