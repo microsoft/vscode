@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { findFocusedDiffEditor } from 'vs/editor/browser/widget/diffEditor.contribution';
@@ -128,3 +129,29 @@ export class SwitchSide extends EditorAction2 {
 }
 
 registerAction2(SwitchSide);
+
+export class ExitCompareMove extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'diffEditor.exitCompareMove',
+			title: { value: localize('exitCompareMove', "Exit Compare Move"), original: 'Exit Compare Move' },
+			icon: Codicon.close,
+			precondition: EditorContextKeys.comparingMovedCode,
+			f1: false,
+			category: diffEditorCategory,
+			keybinding: {
+				weight: 10000,
+				primary: KeyCode.Escape,
+			}
+		});
+	}
+
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]): void {
+		const diffEditor = findFocusedDiffEditor(accessor);
+		if (diffEditor instanceof DiffEditorWidget2) {
+			diffEditor.exitCompareMove();
+		}
+	}
+}
+
+registerAction2(ExitCompareMove);

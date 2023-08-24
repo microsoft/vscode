@@ -3,15 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { h } from 'vs/base/browser/dom';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
 import { booleanComparator, compareBy, findMaxIdxBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
+import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, derived, keepAlive, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
+import { IObservable, autorun, autorunWithStore, constObservable, derived, derivedWithStore, keepAlive, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
+import { PlaceholderViewZone, ViewZoneOverlayWidget, applyStyle, applyViewZones } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { OffsetRange, OffsetRangeSet } from 'vs/editor/common/core/offsetRange';
+import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
+import { localize } from 'vs/nls';
 
 export class MovedBlocksLinesPart extends Disposable {
 	public static readonly movedCodeBlockPadding = 4;
@@ -51,9 +59,50 @@ export class MovedBlocksLinesPart extends Disposable {
 		}));
 
 		this._register(keepAlive(this._state, true));
+
+		const movedBlockViewZones = derived(reader => {
+			const model = this._diffModel.read(reader);
+			const d = model?.diff.read(reader);
+			if (!d) { return []; }
+			return d.movedTexts.map(move => ({
+				move,
+				original: new PlaceholderViewZone(constObservable(move.lineRangeMapping.original.startLineNumber - 1), 18),
+				modified: new PlaceholderViewZone(constObservable(move.lineRangeMapping.modified.startLineNumber - 1), 18),
+			}));
+		});
+
+		this._register(applyViewZones(this._editors.original, movedBlockViewZones.map(zones => zones.map(z => z.original))));
+		this._register(applyViewZones(this._editors.modified, movedBlockViewZones.map(zones => zones.map(z => z.modified))));
+
+		this._register(autorunWithStore((reader, store) => {
+			const blocks = movedBlockViewZones.read(reader);
+			for (const b of blocks) {
+				store.add(new MovedBlockOverlayWidget(this._editors.original, b.original, b.move, 'original', this._diffModel.get()!));
+				store.add(new MovedBlockOverlayWidget(this._editors.modified, b.modified, b.move, 'modified', this._diffModel.get()!));
+			}
+		}));
+
+		this._register(this._editors.original.onDidChangeCursorPosition(e => {
+			const m = this._diffModel.get();
+			if (!m) { return; }
+			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.original.contains(e.position.lineNumber));
+			if (movedText !== m.movedTextToCompare.get()) {
+				m.movedTextToCompare.set(undefined, undefined);
+			}
+			m.setActiveMovedText(movedText);
+		}));
+		this._register(this._editors.modified.onDidChangeCursorPosition(e => {
+			const m = this._diffModel.get();
+			if (!m) { return; }
+			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.modified.contains(e.position.lineNumber));
+			if (movedText !== m.movedTextToCompare.get()) {
+				m.movedTextToCompare.set(undefined, undefined);
+			}
+			m.setActiveMovedText(movedText);
+		}));
 	}
 
-	private readonly _state = derived(reader => {
+	private readonly _state = derivedWithStore('state', (reader, store) => {
 		/** @description update moved blocks lines */
 
 		this._element.replaceChildren();
@@ -125,21 +174,35 @@ export class MovedBlocksLinesPart extends Disposable {
 			rect.setAttribute('height', `${rectHeight}`);
 			this._element.appendChild(rect);
 
+			const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
 			const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-			if (line.move === model.syncedMovedTexts.read(reader)) {
-				path.classList.add('currentMove');
-			}
+
 			path.setAttribute('d', `M ${0} ${line.from} L ${verticalY} ${line.from} L ${verticalY} ${line.to} L ${right - arrowWidth} ${line.to}`);
 			path.setAttribute('fill', 'none');
-			this._element.appendChild(path);
+			g.appendChild(path);
 
 			const arrowRight = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
 			arrowRight.classList.add('arrow');
-			if (line.move === model.syncedMovedTexts.read(reader)) {
-				arrowRight.classList.add('currentMove');
-			}
+
+			store.add(autorun(reader => {
+				path.classList.toggle('currentMove', line.move === model.activeMovedText.read(reader));
+				arrowRight.classList.toggle('currentMove', line.move === model.activeMovedText.read(reader));
+			}));
+
 			arrowRight.setAttribute('points', `${right - arrowWidth},${line.to - arrowHeight / 2} ${right},${line.to} ${right - arrowWidth},${line.to + arrowHeight / 2}`);
-			this._element.appendChild(arrowRight);
+			g.appendChild(arrowRight);
+
+			this._element.appendChild(g);
+
+			/*
+			TODO@hediet
+			path.addEventListener('mouseenter', () => {
+				model.setHoveredMovedText(line.move);
+			});
+			path.addEventListener('mouseleave', () => {
+				model.setHoveredMovedText(undefined);
+			});*/
 
 			idx++;
 		}
@@ -182,5 +245,86 @@ class LinesLayout {
 
 	getTrackCount(): number {
 		return this._trackCount;
+	}
+}
+
+class MovedBlockOverlayWidget extends ViewZoneOverlayWidget {
+	private readonly _nodes = h('div.diff-moved-code-block', { style: { marginRight: '4px' } }, [
+		h('div.text-content@textContent'),
+		h('div.action-bar@actionBar'),
+	]);
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		_viewZone: PlaceholderViewZone,
+		private readonly _move: MovedText,
+		private readonly _kind: 'original' | 'modified',
+		private readonly _diffModel: DiffEditorViewModel,
+	) {
+		const root = h('div.diff-hidden-lines-widget');
+		super(_editor, _viewZone, root.root);
+		root.root.appendChild(this._nodes.root);
+
+		const editorLayout = observableFromEvent(this._editor.onDidLayoutChange, () => this._editor.getLayoutInfo());
+
+		this._register(applyStyle(this._nodes.root, {
+			paddingRight: editorLayout.map(l => l.verticalScrollbarWidth)
+		}));
+
+		let text: string;
+
+		if (_move.changes.length > 0) {
+			text = this._kind === 'original' ? localize(
+				'codeMovedToWithChanges',
+				'Code moved with changes to line {0}-{1}',
+				this._move.lineRangeMapping.modified.startLineNumber,
+				this._move.lineRangeMapping.modified.endLineNumberExclusive
+			) : localize(
+				'codeMovedFromWithChanges',
+				'Code moved with changes from line {0}-{1}',
+				this._move.lineRangeMapping.original.startLineNumber,
+				this._move.lineRangeMapping.original.endLineNumberExclusive
+			);
+		} else {
+			text = this._kind === 'original' ? localize(
+				'codeMovedTo',
+				'Code moved to line {0}-{1}',
+				this._move.lineRangeMapping.modified.startLineNumber,
+				this._move.lineRangeMapping.modified.endLineNumberExclusive
+			) : localize(
+				'codeMovedFrom',
+				'Code moved from line {0}-{1}',
+				this._move.lineRangeMapping.original.startLineNumber,
+				this._move.lineRangeMapping.original.endLineNumberExclusive
+			);
+		}
+
+		const actionBar = this._register(new ActionBar(this._nodes.actionBar, {
+			highlightToggledItems: true,
+		}));
+
+		const caption = new Action(
+			'',
+			text,
+			'',
+			false,
+		);
+		actionBar.push(caption, { icon: false, label: true });
+
+		const actionCompare = new Action(
+			'',
+			'Compare',
+			ThemeIcon.asClassName(Codicon.compareChanges),
+			true,
+			() => {
+				this._editor.focus();
+				this._diffModel.movedTextToCompare.set(this._diffModel.movedTextToCompare.get() ? undefined : this._move, undefined);
+			},
+		);
+		this._register(autorun(reader => {
+			const isActive = this._diffModel.movedTextToCompare.read(reader) === _move;
+			actionCompare.checked = isActive;
+		}));
+		actionBar.push(actionCompare, { icon: true, label: false });
 	}
 }
