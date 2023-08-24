@@ -145,7 +145,7 @@ export class MovedBlocksLinesPart extends Disposable {
 
 		lines.sort(tieBreakComparators(
 			compareBy(l => l.fromWithoutScroll > l.toWithoutScroll, booleanComparator),
-			compareBy(l => -l.fromWithoutScroll, numberComparator)
+			compareBy(l => l.fromWithoutScroll > l.toWithoutScroll ? l.fromWithoutScroll : -l.toWithoutScroll, numberComparator)
 		));
 
 		const layout = LinesLayout.compute(lines.map(l => l.range));
