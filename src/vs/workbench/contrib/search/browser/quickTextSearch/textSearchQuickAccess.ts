@@ -15,9 +15,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
 import { IKeyMods, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
 import { searchDetailsIcon, searchOpenInFileIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
@@ -78,14 +78,21 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 	private get configuration() {
 		const editorConfig = this._configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor;
 		const searchConfig = this._configurationService.getValue<IWorkbenchSearchConfiguration>().search;
-		const quickAccessConfig = this._configurationService.getValue<IWorkbenchQuickAccessConfiguration>().workbench.quickOpen;
 
 		return {
 			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview,
-			preserveInput: quickAccessConfig.preserveInput,
+			preserveInput: searchConfig.experimental.quickAccess.preserveInput,
 			maxResults: searchConfig.maxResults,
 			smartCase: searchConfig.smartCase,
 		};
+	}
+
+	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
+		if (this.configuration.preserveInput) {
+			return DefaultQuickAccessFilterValue.LAST;
+		}
+
+		return undefined;
 	}
 
 	private doSearch(contentPattern: string, token: CancellationToken): {
@@ -195,7 +202,6 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 					highlights: {
 						label: match
 					},
-					description: `${element.range().startLineNumber}:${element.range().startColumn}`,
 					ariaLabel: `Match at location ${element.range().startLineNumber}:${element.range().startColumn} - ${previewText}`,
 					accept: async (keyMods, event) => {
 						await this.handleAccept(fileMatch, {
