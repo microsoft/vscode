@@ -191,6 +191,7 @@ export class ModesHoverController implements IEditorContribution {
 			// mouse moved on top of overlay hover widget
 			return true;
 		}
+
 		return false;
 	}
 
