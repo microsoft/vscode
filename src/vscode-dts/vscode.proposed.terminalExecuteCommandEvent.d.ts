@@ -9,7 +9,7 @@ declare module 'vscode' {
 
 	export interface TerminalWillExecuteCommandEvent {
 		terminal: Terminal;
-		command: TerminalCommand<Thenable<TerminalExecuteCommandResult>>;
+		command: TerminalCommand<TerminalExecuteCommandResult | Thenable<TerminalExecuteCommandResult>>;
 	}
 
 	export interface TerminalExecuteCommandEvent {

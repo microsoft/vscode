@@ -395,17 +395,24 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	readonly onDidChangeTerminalDimensions = this._onDidChangeTerminalDimensions.event;
 	protected readonly _onDidChangeTerminalState = new Emitter<vscode.Terminal>();
 	readonly onDidChangeTerminalState = this._onDidChangeTerminalState.event;
-	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent> = new Emitter<vscode.TerminalDataWriteEvent>({
+	protected readonly _onDidChangeShell = new Emitter<string>();
+	readonly onDidChangeShell = this._onDidChangeShell.event;
+
+	protected readonly _onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
 		onWillAddFirstListener: () => this._proxy.$startSendingDataEvents(),
 		onDidRemoveLastListener: () => this._proxy.$stopSendingDataEvents()
 	});
 	readonly onDidWriteTerminalData = this._onDidWriteTerminalData.event;
-	protected readonly _onWillExecuteCommand = new Emitter<vscode.TerminalWillExecuteCommandEvent>();
+	protected readonly _onWillExecuteCommand = new Emitter<vscode.TerminalWillExecuteCommandEvent>({
+		onWillAddFirstListener: () => this._proxy.$startSendingCommandEvents(),
+		onDidRemoveLastListener: () => this._proxy.$stopSendingCommandEvents()
+	});
 	readonly onWillExecuteTerminalCommand = this._onWillExecuteCommand.event;
-	protected readonly _onDidExecuteCommand = new Emitter<vscode.TerminalExecuteCommandEvent>();
+	protected readonly _onDidExecuteCommand = new Emitter<vscode.TerminalExecuteCommandEvent>({
+		onWillAddFirstListener: () => this._proxy.$startSendingCommandEvents(),
+		onDidRemoveLastListener: () => this._proxy.$stopSendingCommandEvents()
+	});
 	readonly onDidExecuteTerminalCommand = this._onDidExecuteCommand.event;
-	protected readonly _onDidChangeShell = new Emitter<string>();
-	readonly onDidChangeShell = this._onDidChangeShell.event;
 
 	constructor(
 		supportsProcesses: boolean,
@@ -511,6 +518,26 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 					dimensions: terminal.value.dimensions as vscode.TerminalDimensions
 				});
 			}
+		}
+	}
+
+	public async $acceptWillExecuteCommand(id: number, command: any): Promise<void> {
+		const terminal = this._getTerminalById(id);
+		if (terminal) {
+			this._onWillExecuteCommand.fire({
+				terminal: terminal.value,
+				command: command
+			});
+		}
+	}
+
+	public async $acceptDidExecuteCommand(id: number, command: any): Promise<void> {
+		const terminal = this._getTerminalById(id);
+		if (terminal) {
+			this._onDidExecuteCommand.fire({
+				terminal: terminal.value,
+				command: command
+			});
 		}
 	}
 

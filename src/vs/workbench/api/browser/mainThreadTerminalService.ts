@@ -228,6 +228,20 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._dataEventTracker.clear();
 	}
 
+	public $startSendingCommandEvents(): void {
+		// TODO: Impl
+		this._logService.info('$startSendingCommandEvents');
+		setInterval(() => {
+			this._onWillExecuteCommand(this._terminalService.instances[0]!.instanceId, null);
+			this._onDidExecuteCommand(this._terminalService.instances[0]!.instanceId, null);
+		}, 3000);
+	}
+
+	public $stopSendingCommandEvents(): void {
+		this._logService.info('$stopSendingCommandEvents');
+		// TODO: Impl
+	}
+
 	public $startLinkProvider(): void {
 		this._linkProvider?.dispose();
 		this._linkProvider = this._terminalLinkProviderService.registerLinkProvider(new ExtensionTerminalLinkProvider(this._proxy));
@@ -304,6 +318,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTerminalData(terminalId: number, data: string): void {
 		this._proxy.$acceptTerminalProcessData(terminalId, data);
+	}
+
+	private _onWillExecuteCommand(terminalId: number, command: any): void {
+		this._proxy.$acceptWillExecuteCommand(terminalId, command);
+	}
+	private _onDidExecuteCommand(terminalId: number, command: any): void {
+		this._proxy.$acceptDidExecuteCommand(terminalId, command);
 	}
 
 	private _onTitleChanged(terminalId: number, name: string): void {

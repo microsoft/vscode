@@ -509,16 +509,20 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$hide(id: ExtHostTerminalIdentifier): void;
 	$sendText(id: ExtHostTerminalIdentifier, text: string, addNewLine: boolean): void;
 	$show(id: ExtHostTerminalIdentifier, preserveFocus: boolean): void;
-	$startSendingDataEvents(): void;
-	$stopSendingDataEvents(): void;
-	$startLinkProvider(): void;
-	$stopLinkProvider(): void;
 	$registerProcessSupport(isSupported: boolean): void;
 	$registerProfileProvider(id: string, extensionIdentifier: string): void;
 	$unregisterProfileProvider(id: string): void;
 	$registerQuickFixProvider(id: string, extensionIdentifier: string): void;
 	$unregisterQuickFixProvider(id: string): void;
 	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined, descriptionMap: ISerializableEnvironmentDescriptionMap): void;
+
+	// Optional event toggles
+	$startSendingDataEvents(): void;
+	$stopSendingDataEvents(): void;
+	$startSendingCommandEvents(): void;
+	$stopSendingCommandEvents(): void;
+	$startLinkProvider(): void;
+	$stopLinkProvider(): void;
 
 	// Process
 	$sendProcessData(terminalId: number, data: string): void;
@@ -2093,6 +2097,8 @@ export interface ExtHostTerminalServiceShape {
 	$acceptActiveTerminalChanged(id: number | null): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
 	$acceptTerminalProcessData(id: number, data: string): void;
+	$acceptWillExecuteCommand(id: number, command: any): void;
+	$acceptDidExecuteCommand(id: number, command: any): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
