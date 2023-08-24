@@ -110,8 +110,9 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 	}
 
 	private _getCommandsWithEditorLine(): ICommandWithEditorLine[] | undefined {
-		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
-		const currentCommand = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.currentCommand;
+		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
+		const commands = capability?.commands;
+		const currentCommand = capability?.currentCommand;
 		if (!commands?.length) {
 			return;
 		}
