@@ -90,7 +90,9 @@ class VoiceChatSession {
 
 		context.focusInput();
 
-		const onDidTranscribe = await this.voiceRecognitionService.transcribe(cts.token);
+		const onDidTranscribe = await this.voiceRecognitionService.transcribe(cts.token, {
+			onDidCancel: () => this.stop()
+		});
 		if (cts.token.isCancellationRequested) {
 			return Disposable.None;
 		}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -16,17 +16,26 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 
 export const IWorkbenchVoiceRecognitionService = createDecorator<IWorkbenchVoiceRecognitionService>('workbenchVoiceRecognitionService');
 
+export interface IWorkbenchVoiceRecognitionOptions {
+
+	/**
+	 * Optional event that is fired when the user cancels the voice recognition.
+	 */
+	readonly onDidCancel?: () => void;
+}
+
 export interface IWorkbenchVoiceRecognitionService {
 
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Starts listening to the microphone transcribing the voice to text.
+	 * Starts listening to the microphone transcribing the voice to text. Microphone
+	 * recording starts when the returned promise is resolved.
 	 *
 	 * @param cancellation a cancellation token to stop transcribing and
 	 * listening to the microphone.
 	 */
-	transcribe(cancellation: CancellationToken): Promise<Event<string>>;
+	transcribe(cancellation: CancellationToken, options?: IWorkbenchVoiceRecognitionOptions): Promise<Event<string>>;
 }
 
 class VoiceTranscriptionWorkletNode extends AudioWorkletNode {
@@ -64,7 +73,6 @@ class VoiceTranscriptionWorkletNode extends AudioWorkletNode {
 
 // TODO@voice
 // - add native module test to ensure module loads
-// - allow to cancel voice recording from window progress
 export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
 
 	declare readonly _serviceBrand: undefined;
@@ -79,22 +87,28 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 		@INotificationService private readonly notificationService: INotificationService
 	) { }
 
-	async transcribe(cancellation: CancellationToken): Promise<Event<string>> {
-		const onDidTranscribe = new Emitter<string>();
-		cancellation.onCancellationRequested(() => onDidTranscribe.dispose());
+	async transcribe(cancellation: CancellationToken, options?: IWorkbenchVoiceRecognitionOptions): Promise<Event<string>> {
+		const cts = new CancellationTokenSource(cancellation);
 
-		await this.doTranscribe(onDidTranscribe, cancellation);
+		const onDidTranscribe = new Emitter<string>();
+		cts.token.onCancellationRequested(() => {
+			onDidTranscribe.dispose();
+			options?.onDidCancel?.();
+		});
+
+		await this.doTranscribe(onDidTranscribe, cts);
 
 		return onDidTranscribe.event;
 	}
 
-	private doTranscribe(onDidTranscribe: Emitter<string>, token: CancellationToken): Promise<void> {
+	private doTranscribe(onDidTranscribe: Emitter<string>, cts: CancellationTokenSource): Promise<void> {
 		const recordingReady = new DeferredPromise<void>();
-		token.onCancellationRequested(() => recordingReady.complete());
+		cts.token.onCancellationRequested(() => recordingReady.complete());
 
 		this.progressService.withProgress({
 			location: ProgressLocation.Window,
 			title: localize('voiceTranscription', "Voice Transcription"),
+			cancellable: true
 		}, async progress => {
 			const recordingDone = new DeferredPromise<void>();
 			try {
@@ -110,7 +124,7 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 					}
 				});
 
-				if (token.isCancellationRequested) {
+				if (cts.token.isCancellationRequested) {
 					return;
 				}
 
@@ -121,7 +135,7 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 
 				const microphoneSource = audioContext.createMediaStreamSource(microphoneDevice);
 
-				token.onCancellationRequested(() => {
+				cts.token.onCancellationRequested(() => {
 					try {
 						for (const track of microphoneDevice.getTracks()) {
 							track.stop();
@@ -136,7 +150,7 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 
 				await audioContext.audioWorklet.addModule(FileAccess.asBrowserUri('vs/workbench/services/voiceRecognition/electron-sandbox/voiceTranscriptionWorklet.js').toString(true));
 
-				if (token.isCancellationRequested) {
+				if (cts.token.isCancellationRequested) {
 					return;
 				}
 
@@ -144,9 +158,9 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 					channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
 					channelCountMode: 'explicit'
 				}, onDidTranscribe, this.sharedProcessService);
-				await voiceTranscriptionTarget.start(token);
+				await voiceTranscriptionTarget.start(cts.token);
 
-				if (token.isCancellationRequested) {
+				if (cts.token.isCancellationRequested) {
 					return;
 				}
 
@@ -162,6 +176,8 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 				recordingReady.error(error);
 				recordingDone.error(error);
 			}
+		}, () => {
+			cts.cancel();
 		});
 
 		return recordingReady.p;
