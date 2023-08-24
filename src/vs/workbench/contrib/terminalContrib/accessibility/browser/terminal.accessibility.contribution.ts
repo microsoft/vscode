@@ -117,8 +117,8 @@ registerTerminalAction({
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	keybinding: [
 		{
-			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-			secondary: [KeyMod.Alt | KeyCode.F2],
+			primary: KeyMod.Shift | KeyCode.Tab,
+			secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.Alt | KeyCode.F2],
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.focus, ContextKeyExpr.or(terminalTabFocusModeContextKey, TerminalContextKeys.accessibleBufferFocus.negate()))
 		}
