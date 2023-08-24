@@ -48,7 +48,7 @@ class TextAreaSyncContribution extends DisposableStore implements ITerminalContr
 }
 registerTerminalContribution(TextAreaSyncContribution.ID, TextAreaSyncContribution);
 
-export class AccessibleBufferContribution extends DisposableStore implements ITerminalContribution {
+class AccessibleBufferContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.accessible-buffer';
 	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
 	static get(instance: ITerminalInstance): AccessibleBufferContribution | null {
@@ -220,13 +220,7 @@ registerTerminalAction({
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	run: async (c) => {
 		const instance = c.service.activeInstance || await c.service.createTerminal({ location: TerminalLocation.Panel });
-		if (!instance) {
-			return;
-		}
-		const contribution = instance.getContribution<AccessibleBufferContribution>('terminal.accessible-buffer');
-		if (contribution) {
-			contribution.hide();
-		}
+		instance.getContribution<AccessibleBufferContribution>(AccessibleBufferContribution.ID)?.hide();
 		instance.focus(true);
 	}
 });
