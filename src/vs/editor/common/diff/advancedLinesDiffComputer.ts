@@ -17,7 +17,7 @@ import { optimizeSequenceDiffs, removeRandomLineMatches, removeRandomMatches, sm
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/algorithms/myersDiffAlgorithm';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping, LinesDiff, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
-export class StandardLinesDiffComputer implements ILinesDiffComputer {
+export class AdvancedLinesDiffComputer implements ILinesDiffComputer {
 	private readonly dynamicProgrammingDiffing = new DynamicProgrammingDiffing();
 	private readonly myersDiffingAlgorithm = new MyersDiffAlgorithm();
 

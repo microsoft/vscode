@@ -5,7 +5,7 @@
 
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ISequence, SequenceDiff } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
-import { LineSequence, LinesSliceCharSequence } from 'vs/editor/common/diff/standardLinesDiffComputer';
+import { LineSequence, LinesSliceCharSequence } from 'vs/editor/common/diff/advancedLinesDiffComputer';
 
 export function optimizeSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	let result = sequenceDiffs;

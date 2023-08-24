@@ -1332,9 +1332,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'aiRelatedInformation');
 				return extHostAiRelatedInformation.getRelatedInformation(extension, query, types);
 			},
-			registerRelatedInformationProvider(types: vscode.RelatedInformationType[], provider: vscode.RelatedInformationProvider) {
+			registerRelatedInformationProvider(type: vscode.RelatedInformationType, provider: vscode.RelatedInformationProvider) {
 				checkProposedApiEnabled(extension, 'aiRelatedInformation');
-				return extHostAiRelatedInformation.registerRelatedInformationProvider(extension, types, provider);
+				return extHostAiRelatedInformation.registerRelatedInformationProvider(extension, type, provider);
 			},
 			registerEmbeddingVectorProvider(model: string, provider: vscode.EmbeddingVectorProvider) {
 				checkProposedApiEnabled(extension, 'aiRelatedInformation');

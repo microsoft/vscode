@@ -1142,13 +1142,16 @@ export class FolderMatch extends Disposable {
 		raw.forEach(rawFileMatch => {
 			const existingFileMatch = this.getDownstreamFileMatch(rawFileMatch.resource);
 			if (existingFileMatch) {
-				rawFileMatch
-					.results!
-					.filter(resultIsMatch)
-					.forEach(m => {
-						textSearchResultToMatches(m, existingFileMatch)
-							.forEach(m => existingFileMatch.add(m));
-					});
+
+				if (rawFileMatch.results) {
+					rawFileMatch
+						.results
+						.filter(resultIsMatch)
+						.forEach(m => {
+							textSearchResultToMatches(m, existingFileMatch)
+								.forEach(m => existingFileMatch.add(m));
+						});
+				}
 
 				// add cell matches
 				if (isIFileMatchWithCells(rawFileMatch)) {
@@ -2009,7 +2012,7 @@ export class SearchModel extends Disposable {
 	} {
 		const asyncGenerateOnProgress = async (p: ISearchProgressItem) => {
 			progressEmitter.fire();
-			this.onSearchProgress(p, searchInstanceID);
+			this.onSearchProgress(p, searchInstanceID, false);
 			onProgress?.(p);
 		};
 
@@ -2020,7 +2023,7 @@ export class SearchModel extends Disposable {
 		};
 		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource(callerToken);
 
-		const notebookResult = this.notebookSearchService.notebookSearch(query, tokenSource.token, searchInstanceID, syncGenerateOnProgress);
+		const notebookResult = this.notebookSearchService.notebookSearch(query, tokenSource.token, searchInstanceID, asyncGenerateOnProgress);
 		const textResult = this.searchService.textSearchSplitSyncAsync(
 			searchQuery,
 			this.currentCancelTokenSource.token, asyncGenerateOnProgress,

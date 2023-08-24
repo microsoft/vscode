@@ -19,7 +19,7 @@ import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import * as languages from 'vs/editor/common/languages';
@@ -1216,7 +1216,7 @@ export interface IChatResponseProgressFileTreeData {
 	children?: IChatResponseProgressFileTreeData[];
 }
 
-export type IChatResponseProgressDto = { content: string } | { requestId: string } | { placeholder: string } | { treeData: IChatResponseProgressFileTreeData };
+export type IChatResponseProgressDto = { content: string | IMarkdownString } | { requestId: string } | { placeholder: string } | { treeData: IChatResponseProgressFileTreeData };
 
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
@@ -1675,12 +1675,12 @@ export interface MainThreadSemanticSimilarityShape extends IDisposable {
 }
 
 export interface ExtHostAiRelatedInformationShape {
-	$provideAiRelatedInformation(handle: number, query: string, types: RelatedInformationType[], token: CancellationToken): Promise<RelatedInformationResult[]>;
+	$provideAiRelatedInformation(handle: number, query: string, token: CancellationToken): Promise<RelatedInformationResult[]>;
 }
 
 export interface MainThreadAiRelatedInformationShape {
 	$getAiRelatedInformation(query: string, types: RelatedInformationType[]): Promise<RelatedInformationResult[]>;
-	$registerAiRelatedInformationProvider(handle: number, types: RelatedInformationType[]): void;
+	$registerAiRelatedInformationProvider(handle: number, type: RelatedInformationType): void;
 	$unregisterAiRelatedInformationProvider(handle: number): void;
 }
 

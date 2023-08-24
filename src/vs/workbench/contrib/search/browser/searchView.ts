@@ -860,7 +860,7 @@ export class SearchView extends ViewPane {
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				},
-				additionalScrollHeight: SearchDelegate.ITEM_HEIGHT
+				paddingBottom: SearchDelegate.ITEM_HEIGHT
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));
@@ -903,8 +903,8 @@ export class SearchView extends ViewPane {
 			}
 
 			let editable = false;
-			if (focus instanceof MatchInNotebook) {
-				editable = !focus.isWebviewMatch();
+			if (focus instanceof Match) {
+				editable = (focus instanceof MatchInNotebook) ? !focus.isWebviewMatch() : true;
 			} else if (focus instanceof FileMatch) {
 				editable = !focus.hasOnlyReadOnlyMatches();
 			} else if (focus instanceof FolderMatch) {
@@ -1894,7 +1894,7 @@ export class SearchView extends ViewPane {
 			pinned,
 			selection,
 			revealIfVisible: true,
-			indexedCellOptions: element instanceof MatchInNotebook ? { cellIndex: element.cellIndex, selection: element.range } : undefined,
+			indexedCellOptions: element instanceof MatchInNotebook ? { index: element.cellIndex, selection: element.range() } : undefined,
 		};
 
 		try {

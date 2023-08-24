@@ -16,7 +16,9 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::pin;
 use tokio::process::Command;
 
-use crate::async_pipe::{get_socket_name, get_socket_rw_stream, AsyncPipe};
+use crate::async_pipe::{
+	get_socket_name, get_socket_rw_stream, listen_socket_rw_stream, AsyncPipe,
+};
 use crate::constants::VSCODE_CLI_QUALITY;
 use crate::download_cache::DownloadCache;
 use crate::log;
@@ -53,43 +55,53 @@ const RELEASE_CACHE_SECS: u64 = 60 * 60;
 /// while new clients get new VS Code Server versions.
 pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i32, AnyError> {
 	legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
-	let mut addr: SocketAddr = match &args.host {
-		Some(h) => h.parse().map_err(CodeError::InvalidHostAddress)?,
-		None => SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
-	};
-	addr.set_port(args.port);
 
 	let platform: crate::update_service::Platform = PreReqChecker::new().verify().await?;
 
 	if !args.without_connection_token {
 		// Ensure there's a defined connection token, since if multiple server versions
 		// are excuted, they will need to have a single shared token.
-		let connection_token = args
-			.connection_token
-			.clone()
-			.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-		ctx.log.result(format!(
-			"Web UI available at http://{}?tkn={}",
-			addr, connection_token,
-		));
-		args.connection_token = Some(connection_token);
-	} else {
-		ctx.log
-			.result(format!("Web UI available at http://{}", addr));
-		args.connection_token = None;
+		args.connection_token = Some(
+			args.connection_token
+				.clone()
+				.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+		);
 	}
 
-	let cm = ConnectionManager::new(&ctx, platform, args);
-	let make_svc = make_service_fn(move |_conn| {
+	let cm = ConnectionManager::new(&ctx, platform, args.clone());
+	let make_svc = move || {
 		let cm = cm.clone();
-		let log = ctx.log.clone();
+		let log = cm.log.clone();
 		let service = service_fn(move |req| handle(cm.clone(), log.clone(), req));
 		async move { Ok::<_, Infallible>(service) }
-	});
+	};
 
-	let server = Server::bind(&addr).serve(make_svc);
+	let r = if let Some(s) = args.socket_path {
+		let socket = listen_socket_rw_stream(&PathBuf::from(&s)).await?;
+		ctx.log.result(format!("Web UI available on {}", s));
+		Server::builder(socket.into_pollable())
+			.serve(make_service_fn(|_| make_svc()))
+			.await
+	} else {
+		let addr: SocketAddr = match &args.host {
+			Some(h) => {
+				SocketAddr::new(h.parse().map_err(CodeError::InvalidHostAddress)?, args.port)
+			}
+			None => SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), args.port),
+		};
 
-	server.await.map_err(CodeError::CouldNotListenOnInterface)?;
+		let mut listening = format!("Web UI available at http://{}", addr);
+		if let Some(ct) = args.connection_token {
+			listening.push_str(&format!("?tkn={}", ct));
+		}
+		ctx.log.result(listening);
+
+		Server::bind(&addr)
+			.serve(make_service_fn(|_| make_svc()))
+			.await
+	};
+
+	r.map_err(CodeError::CouldNotListenOnInterface)?;
 
 	Ok(0)
 }
