@@ -21,6 +21,8 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
+import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IOutlineMarkerInfo {
 	readonly count: number;
@@ -147,6 +149,7 @@ export class NotebookCellOutlineProvider {
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
+		@IOutlineModelService private readonly _outlineModelService: IOutlineModelService
 	) {
 		const selectionListener = new MutableDisposable();
 		this._dispoables.add(selectionListener);
@@ -190,11 +193,11 @@ export class NotebookCellOutlineProvider {
 		this._dispoables.dispose();
 	}
 
-	init(): void {
-		this._recomputeState();
+	async init(): Promise<void> {
+		await this._recomputeState();
 	}
 
-	private _recomputeState(): void {
+	private async _recomputeState(): Promise<void> {
 		this._entriesDisposables.clear();
 		this._activeEntry = undefined;
 		this._entries.length = 0;
@@ -267,7 +270,17 @@ export class NotebookCellOutlineProvider {
 				}
 
 				const exeState = !isMarkdown && this._notebookExecutionStateService.getCellExecution(cell.uri);
-				entries.push(new OutlineEntry(entries.length, 7, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
+				if (!isMarkdown && cell.model.textModel) {
+					const outlineModel = await this._outlineModelService.getOrCreate(cell.model.textModel, CancellationToken.None);
+					outlineModel.getTopLevelSymbols().forEach((symbol) => {
+						console.log('ADDING ENTRY ', symbol.name);
+						entries.push(new OutlineEntry(entries.length, 7, cell, symbol.name, !!exeState, exeState ? exeState.isPaused : false));
+					});
+				}
+				else {
+					console.log('ADDING ENTRY ', preview);
+					entries.push(new OutlineEntry(entries.length, 7, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
+				}
 			}
 
 			if (cell.handle === focused) {
@@ -275,8 +288,8 @@ export class NotebookCellOutlineProvider {
 			}
 
 			// send an event whenever any of the cells change
-			this._entriesDisposables.add(cell.model.onDidChangeContent(() => {
-				this._recomputeState();
+			this._entriesDisposables.add(cell.model.onDidChangeContent(async () => {
+				await this._recomputeState();
 				this._onDidChange.fire({});
 			}));
 		}
