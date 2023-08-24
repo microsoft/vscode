@@ -280,7 +280,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		const textEditorModel = model.textEditorModel;
 		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: model.resource };
 
-		// Keeping string | boolean until fully depracting boolean options
+		// Keeping string | boolean until fully deprecating boolean options
 		const setting = this.configurationService.getValue<{ [kind: string]: string | boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
 		if (!setting) {
 			return undefined;
