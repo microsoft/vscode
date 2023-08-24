@@ -195,7 +195,6 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		const target = mouseEvent.target;
 		if (
 			this._contentWidget?.isFocused
 			|| this._contentWidget?.isResizing
@@ -218,6 +217,7 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
+		const target = mouseEvent.target;
 		const mouseOnDecorator = target.element?.classList.contains('colorpicker-color-decoration');
 		const decoratorActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
 
