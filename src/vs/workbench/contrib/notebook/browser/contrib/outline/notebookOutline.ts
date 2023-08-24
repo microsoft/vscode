@@ -146,13 +146,13 @@ class NotebookOutlineVirtualDelegate implements IListVirtualDelegate<OutlineEntr
 class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 
 	constructor(
-		private _getEntries: () => Promise<OutlineEntry[]>,
+		private _getEntries: () => OutlineEntry[],
 		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
-	async getQuickPickElements(): Promise<IQuickPickOutlineElement<OutlineEntry>[]> {
+	getQuickPickElements(): IQuickPickOutlineElement<OutlineEntry>[] {
 		const bucket: OutlineEntry[] = [];
-		for (const entry of await this._getEntries()) {
+		for (const entry of this._getEntries()) {
 			entry.asFlatList(bucket);
 		}
 		const result: IQuickPickOutlineElement<OutlineEntry>[] = [];
@@ -265,10 +265,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 					return result;
 				}
 			},
-			quickPickDataSource: instantiationService.createInstance(NotebookQuickPickProvider, async () => {
-				await this._outlineProvider?.init();
-				return this._outlineProvider?.entries ?? [];
-			}),
+			quickPickDataSource: instantiationService.createInstance(NotebookQuickPickProvider, () => (this._outlineProvider?.entries ?? [])),
 			treeDataSource,
 			delegate,
 			renderers,

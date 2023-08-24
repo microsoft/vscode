@@ -104,7 +104,7 @@ export class NotebookCellOutlineProvider {
 		await this._recomputeState();
 	}
 
-	private async _recomputeState(): Promise<void> {
+	private _recomputeState(): void {
 		this._entriesDisposables.clear();
 		this._activeEntry = undefined;
 		this._uri = undefined;
@@ -132,7 +132,7 @@ export class NotebookCellOutlineProvider {
 		const focused = notebookEditorWidget.cellAt(focusedCellIndex)?.handle;
 		const notebookCells = notebookEditorWidget.getViewModel().viewCells.filter((cell) => cell.cellKind === CellKind.Markup || includeCodeCells);
 
-		const { entries, activeEntry } = await this.outlineEntryFactory.createOutlineEntrys(notebookCells, focused, this._entriesDisposables);
+		const { entries, activeEntry } = this.outlineEntryFactory.createOutlineEntrys(notebookCells, focused, this._entriesDisposables);
 		this._activeEntry = activeEntry;
 
 		// build a tree from the list of entries

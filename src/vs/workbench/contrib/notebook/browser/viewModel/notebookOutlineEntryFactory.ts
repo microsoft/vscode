@@ -25,8 +25,7 @@ export class NotebookOutlineEntryFactory {
 		private readonly outlineModelService: IOutlineModelService
 	) { }
 
-	public async createOutlineEntrys(notebookCells: ICellViewModel[], focused: number, disposables: DisposableStore):
-		Promise<{ entries: OutlineEntry[]; activeEntry: OutlineEntry | undefined }> {
+	public createOutlineEntrys(notebookCells: ICellViewModel[], focused: number, disposables: DisposableStore): { entries: OutlineEntry[]; activeEntry: OutlineEntry | undefined } {
 		const entries: OutlineEntry[] = [];
 		let activeEntry: OutlineEntry | undefined = undefined;
 
@@ -71,7 +70,7 @@ export class NotebookOutlineEntryFactory {
 
 				const exeState = !isMarkdown && this.executionStateService.getCellExecution(cell.uri);
 				if (!isMarkdown && cell.model.textModel) {
-					const outlineModel = await this.outlineModelService.getOrCreate(cell.model.textModel, CancellationToken.None);
+					const outlineModel = this.outlineModelService.getOrCreate(cell.model.textModel, CancellationToken.None);
 					outlineModel.getTopLevelSymbols().forEach((symbol) => {
 						console.log('ADDING ENTRY ', symbol.name);
 						entries.push(new OutlineEntry(entries.length, 7, cell, symbol.name, !!exeState, exeState ? exeState.isPaused : false));
@@ -88,8 +87,9 @@ export class NotebookOutlineEntryFactory {
 			}
 
 			// send an event whenever any of the cells change
-			disposables.add(cell.model.onDidChangeContent(async () => {
+			disposables.add(cell.model.onDidChangeContent(() => {
 				this._onDidCellModelChange.fire();
+
 			}));
 		}
 		return { entries, activeEntry };

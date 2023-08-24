@@ -55,7 +55,7 @@ export interface IQuickPickOutlineElement<E> {
 }
 
 export interface IQuickPickDataSource<E> {
-	getQuickPickElements(): Promise<IQuickPickOutlineElement<E>[]>;
+	getQuickPickElements(): IQuickPickOutlineElement<E>[];
 }
 
 export interface IOutlineListConfig<E> {
