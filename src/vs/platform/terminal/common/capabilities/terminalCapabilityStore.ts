@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ITerminalCapabilityImplMap, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityImplMap, ITerminalCapabilityStore, TerminalCapability, TerminalCapabilityChangeEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 export class TerminalCapabilityStore extends Disposable implements ITerminalCapabilityStore {
 	private _map: Map<TerminalCapability, { type: TerminalCapability }> = new Map();
@@ -15,6 +15,11 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 	private readonly _onDidAddCapability = this._register(new Emitter<TerminalCapability>());
 	readonly onDidAddCapability = this._onDidAddCapability.event;
 
+	private readonly _onDidRemoveCapability2 = this._register(new Emitter<TerminalCapabilityChangeEvent<any>>());
+	readonly onDidRemoveCapability2 = this._onDidRemoveCapability2.event;
+	private readonly _onDidAddCapability2 = this._register(new Emitter<TerminalCapabilityChangeEvent<any>>());
+	readonly onDidAddCapability2 = this._onDidAddCapability2.event;
+
 	get items(): IterableIterator<TerminalCapability> {
 		return this._map.keys();
 	}
@@ -22,6 +27,7 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 	add<T extends TerminalCapability>(capability: T, impl: ITerminalCapabilityImplMap[T]) {
 		this._map.set(capability, impl);
 		this._onDidAddCapability.fire(capability);
+		this._onDidAddCapability2.fire({ id: capability, capability: impl });
 	}
 
 	get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined {
@@ -30,11 +36,13 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 	}
 
 	remove(capability: TerminalCapability) {
-		if (!this._map.has(capability)) {
+		const impl = this._map.get(capability);
+		if (!impl) {
 			return;
 		}
 		this._map.delete(capability);
 		this._onDidRemoveCapability.fire(capability);
+		this._onDidAddCapability2.fire({ id: capability, capability: impl });
 	}
 
 	has(capability: TerminalCapability) {
@@ -49,6 +57,11 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 	readonly onDidRemoveCapability = this._onDidRemoveCapability.event;
 	private readonly _onDidAddCapability = this._register(new Emitter<TerminalCapability>());
 	readonly onDidAddCapability = this._onDidAddCapability.event;
+
+	private readonly _onDidRemoveCapability2 = this._register(new Emitter<TerminalCapabilityChangeEvent<any>>());
+	readonly onDidRemoveCapability2 = this._onDidRemoveCapability2.event;
+	private readonly _onDidAddCapability2 = this._register(new Emitter<TerminalCapabilityChangeEvent<any>>());
+	readonly onDidAddCapability2 = this._onDidAddCapability2.event;
 
 	get items(): IterableIterator<TerminalCapability> {
 		return this._items();
@@ -87,8 +100,11 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 		this._stores.push(store);
 		for (const capability of store.items) {
 			this._onDidAddCapability.fire(capability);
+			this._onDidAddCapability2.fire({ id: capability, capability: store.get(capability)! });
 		}
 		store.onDidAddCapability(e => this._onDidAddCapability.fire(e));
+		store.onDidAddCapability2(e => this._onDidAddCapability2.fire(e));
 		store.onDidRemoveCapability(e => this._onDidRemoveCapability.fire(e));
+		store.onDidRemoveCapability2(e => this._onDidRemoveCapability2.fire(e));
 	}
 }

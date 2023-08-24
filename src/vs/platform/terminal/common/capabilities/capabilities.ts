@@ -84,13 +84,25 @@ export interface ITerminalCapabilityStore {
 
 	/**
 	 * Fired when a capability is added.
+	 * @deprecated Use onDidAddCapability2
 	 */
 	readonly onDidAddCapability: Event<TerminalCapability>;
 
 	/**
 	 * Fired when a capability is removed.
+	 * @deprecated Use onDidRemoveCapability2
 	 */
 	readonly onDidRemoveCapability: Event<TerminalCapability>;
+
+	/**
+	 * Fired when a capability is added.
+	 */
+	readonly onDidAddCapability2: Event<TerminalCapabilityChangeEvent<any>>;
+
+	/**
+	 * Fired when a capability is removed.
+	 */
+	readonly onDidRemoveCapability2: Event<TerminalCapabilityChangeEvent<any>>;
 
 	/**
 	 * Gets whether the capability exists in the store.
@@ -101,6 +113,11 @@ export interface ITerminalCapabilityStore {
 	 * Gets the implementation of a capability if it has been added to the store.
 	 */
 	get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined;
+}
+
+export interface TerminalCapabilityChangeEvent<T extends TerminalCapability> {
+	id: T;
+	capability: ITerminalCapabilityImplMap[T];
 }
 
 /**

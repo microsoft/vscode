@@ -23,7 +23,7 @@ import { Promises } from 'vs/base/common/async';
 import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
-import { ICommandDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
@@ -229,65 +229,33 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._dataEventTracker.clear();
 	}
 
-	private _commandEventListeners = new MutableDisposable();
+	private _sendCommandEventListener = new MutableDisposable();
 
 	public $startSendingCommandEvents(): void {
 		this._logService.info('$startSendingCommandEvents');
-		if (this._commandEventListeners.value) {
+		if (this._sendCommandEventListener.value) {
 			return;
 		}
 
-		// TODO: Add instance event multiplexer helper to service
-		const store = new DisposableStore();
-		this._commandEventListeners.value = store;
-		for (const instance of this._terminalService.instances) {
-			// TODO: Track instance listeners in a map so disposed ones don't keep piling up?
-			store.add(this._initInstanceCommandListeners(instance));
-		}
-		store.add(this._terminalService.onDidCreateInstance(instance => {
-			store.add(this._initInstanceCommandListeners(instance));
-		}));
-	}
+		const multiplexer = this._terminalService.createInstanceCapabilityEventMultiplexer(TerminalCapability.CommandDetection, capability => capability.onCommandFinished);
+		this._sendCommandEventListener.value = multiplexer;
 
-	private _initInstanceCommandListeners(instance: ITerminalInstance): IDisposable {
-		const store = new DisposableStore();
-		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
-
-		const that = this;
-		function attachListener(commandDetection: ICommandDetectionCapability): IDisposable {
-			return commandDetection.onCommandFinished(e => {
-				that._onDidExecuteCommand(instance.instanceId, {
-					commandLine: e.command,
-					// TODO: Convert to URI if possible
-					cwd: e.cwd,
-					result: {
-						exitCode: e.exitCode,
-						output: e.getOutput() ?? ''
-					}
-				});
-			});
-		}
-
-		if (commandDetection) {
-			store.add(attachListener(commandDetection));
-		}
-		store.add(instance.capabilities.onDidAddCapability(capability => {
-			if (capability === TerminalCapability.CommandDetection) {
-				const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
-				if (commandDetection) {
-					store.add(attachListener(commandDetection));
+		multiplexer.event(e => {
+			this._onDidExecuteCommand(e.instance.instanceId, {
+				commandLine: e.data.command,
+				// TODO: Convert to URI if possible
+				cwd: e.data.cwd,
+				result: {
+					exitCode: e.data.exitCode,
+					output: e.data.getOutput() ?? ''
 				}
-			}
-		}));
-
-		// TODO: Handle remove
-
-		return store;
+			});
+		});
 	}
 
 	public $stopSendingCommandEvents(): void {
 		this._logService.info('$stopSendingCommandEvents');
-		this._commandEventListeners.clear();
+		this._sendCommandEventListener.clear();
 	}
 
 	public $startLinkProvider(): void {
