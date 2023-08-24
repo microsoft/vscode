@@ -213,6 +213,15 @@ export class ModesHoverController implements IEditorContribution {
 			this._mouseWasOverWidget = mouseIsOverWidget;
 			return;
 		}
+		if (this._mouseWasOverWidget) {
+			// The mouse just left the content widget and a timeout is trigerred to hide the widget
+			// This timeout will be cancelled if the mouse re-enters the content widget
+			this._hideWidgetsTimeout = setTimeout(() => {
+				this._hideWidgets();
+				this._hideWidgetsTimeout = undefined;
+			}, this._hidingDelay);
+			this._mouseWasOverWidget = false;
+		}
 
 		const target = mouseEvent.target;
 		const mouseOnDecorator = target.element?.classList.contains('colorpicker-color-decoration');
@@ -244,16 +253,6 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 		if (this._hideWidgetsTimeout || _sticky) {
-			return;
-		}
-		if (this._mouseWasOverWidget) {
-			// The mouse just left the content widget and a timeout is trigerred to hide the widget
-			// This timeout will be cancelled if the mouse re-enters the content widget
-			this._hideWidgetsTimeout = setTimeout(() => {
-				this._hideWidgets();
-				this._hideWidgetsTimeout = undefined;
-			}, this._hidingDelay);
-			this._mouseWasOverWidget = false;
 			return;
 		}
 		this._hideWidgets();
