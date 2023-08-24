@@ -325,6 +325,7 @@ class MovedBlockOverlayWidget extends ViewZoneOverlayWidget {
 			const isActive = this._diffModel.movedTextToCompare.read(reader) === _move;
 			actionCompare.checked = isActive;
 		}));
-		actionBar.push(actionCompare, { icon: true, label: false });
+
+		actionBar.push(actionCompare, { icon: false, label: true });
 	}
 }
