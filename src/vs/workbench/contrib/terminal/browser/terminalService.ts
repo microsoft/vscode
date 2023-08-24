@@ -1237,7 +1237,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			capabilityListeners.set(capability, listener);
 		}
 
-		// Existing instances
+		// Existing capabilities
 		for (const instance of this.instances) {
 			const capability = instance.capabilities.get(capabilityId);
 			if (capability) {
@@ -1245,7 +1245,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			}
 		}
 
-		// TODO: Verify this is valid; the capabilities need to be added after onDidCreateInstance
+		// Added capabilities
 		const addCapabilityMultiplexer = this.createInstanceEventMultiplexer(instance => Event.map(instance.capabilities.onDidAddCapability2, changeEvent => ({ instance, changeEvent })));
 		addCapabilityMultiplexer.event(e => {
 			if (e.changeEvent.id === capabilityId) {
@@ -1253,6 +1253,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			}
 		});
 
+		// Removed capabilities
 		const removeCapabilityMultiplexer = this.createInstanceEventMultiplexer(instance => instance.capabilities.onDidRemoveCapability2);
 		removeCapabilityMultiplexer.event(e => {
 			if (e.id === capabilityId) {

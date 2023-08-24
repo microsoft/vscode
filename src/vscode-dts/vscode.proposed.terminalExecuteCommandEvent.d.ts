@@ -59,6 +59,9 @@ declare module 'vscode' {
 		/**
 		 * An event that is emitted when a terminal with shell integration activated has completed
 		 * executing a command.
+		 *
+		 * Note that this event will not fire if the executed command exits the shell, listen to
+		 * {@link onDidOpenTerminal} to handle that case.
 		 */
 		export const onDidExecuteTerminalCommand: Event<TerminalExecuteCommandEvent>;
 	}
