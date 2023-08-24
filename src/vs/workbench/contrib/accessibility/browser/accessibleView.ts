@@ -301,7 +301,6 @@ class AccessibleView extends Disposable {
 			this._currentProvider = provider;
 			this._accessibleViewCurrentProviderId.set(provider.verbositySettingKey.replaceAll('accessibility.verbosity.', ''));
 		}
-		this._updateContextKeys(provider, true);
 		const value = this._configurationService.getValue(provider.verbositySettingKey);
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nPress H now to open a browser window with more information related to accessibility.\n\n") : '';
 		let disableHelpHint = '';
@@ -326,6 +325,7 @@ class AccessibleView extends Disposable {
 		}
 
 		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', '\n\nExit this dialog via the Escape key.');
+		this._updateContextKeys(provider, true);
 
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.verbositySettingKey}`, scheme: 'accessible-view', fragment: this._currentContent })).then((model) => {
 			if (!model) {
