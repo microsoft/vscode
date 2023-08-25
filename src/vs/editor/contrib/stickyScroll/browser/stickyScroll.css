@@ -39,7 +39,6 @@
 	float: right;
 }
 
-
 .monaco-editor .sticky-line-content {
 	width: var(--vscode-editorStickyScroll-scrollableWidth);
 	background-color: inherit;
