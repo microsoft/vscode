@@ -118,6 +118,7 @@ import { runAccessibilityHelpAction, showAccessibleOutput } from 'vs/workbench/c
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -730,6 +731,7 @@ registerSingleton(INotebookExecutionStateService, NotebookExecutionStateService,
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, InstantiationType.Delayed);
 registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationType.Delayed);
 registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
+registerSingleton(INotebookOutlineEntryFactory, NotebookOutlineEntryFactory, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {

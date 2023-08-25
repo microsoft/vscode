@@ -5,8 +5,6 @@
 
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { localize } from 'vs/nls';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -14,87 +12,106 @@ import { getMarkdownHeadersInCell } from 'vs/workbench/contrib/notebook/browser/
 import { OutlineEntry } from './OutlineEntry';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export class NotebookOutlineEntryFactory {
-	private readonly _onDidCellModelChange = new Emitter<void>();
-	readonly onDidCellModelChange: Event<void> = this._onDidCellModelChange.event;
+export const INotebookOutlineEntryFactory = createDecorator<INotebookOutlineEntryFactory>('INotebookOutlineEntryFactory');
 
+export interface INotebookOutlineEntryFactory {
+	readonly _serviceBrand: undefined;
+	createOutlineEntrys(cell: ICellViewModel, index: number, includeAllSymbols: boolean, cacheSymbols: boolean): OutlineEntry[];
+}
+
+type entryDesc = { name: string; children?: entryDesc[] };
+
+export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory {
+	_serviceBrand: undefined;
+
+	private cellOutlineEntryCache: Record<string, entryDesc[]> = {};
 
 	constructor(
-		private readonly executionStateService: INotebookExecutionStateService,
-		private readonly outlineModelService: IOutlineModelService
+		@INotebookExecutionStateService private readonly executionStateService: INotebookExecutionStateService,
+		@IOutlineModelService private readonly outlineModelService: IOutlineModelService
 	) { }
 
-	public createOutlineEntrys(notebookCells: ICellViewModel[], focused: number, disposables: DisposableStore): { entries: OutlineEntry[]; activeEntry: OutlineEntry | undefined } {
+	public createOutlineEntrys(cell: ICellViewModel, index: number, includeAllSymbols: boolean, cacheSymbols: boolean): OutlineEntry[] {
 		const entries: OutlineEntry[] = [];
-		let activeEntry: OutlineEntry | undefined = undefined;
 
-		for (const cell of notebookCells) {
-			const isMarkdown = cell.cellKind === CellKind.Markup;
+		const isMarkdown = cell.cellKind === CellKind.Markup;
 
-			// cap the amount of characters that we look at and use the following logic
-			// - for MD prefer headings (each header is an entry)
-			// - otherwise use the first none-empty line of the cell (MD or code)
-			let content = getCellFirstNonEmptyLine(cell);
-			let hasHeader = false;
+		// cap the amount of characters that we look at and use the following logic
+		// - for MD prefer headings (each header is an entry)
+		// - otherwise use the first none-empty line of the cell (MD or code)
+		let content = getCellFirstNonEmptyLine(cell);
+		let hasHeader = false;
 
-			if (isMarkdown) {
-				const fullContent = cell.getText().substring(0, 10000);
-				for (const { depth, text } of getMarkdownHeadersInCell(fullContent)) {
+		if (isMarkdown) {
+			const fullContent = cell.getText().substring(0, 10000);
+			for (const { depth, text } of getMarkdownHeadersInCell(fullContent)) {
+				hasHeader = true;
+				entries.push(new OutlineEntry(index++, depth, cell, text, false, false));
+			}
+
+			if (!hasHeader) {
+				// no markdown syntax headers, try to find html tags
+				const match = fullContent.match(/<h([1-6]).*>(.*)<\/h\1>/i);
+				if (match) {
 					hasHeader = true;
-					entries.push(new OutlineEntry(entries.length, depth, cell, text, false, false));
-				}
-
-				if (!hasHeader) {
-					// no markdown syntax headers, try to find html tags
-					const match = fullContent.match(/<h([1-6]).*>(.*)<\/h\1>/i);
-					if (match) {
-						hasHeader = true;
-						const level = parseInt(match[1]);
-						const text = match[2].trim();
-						entries.push(new OutlineEntry(entries.length, level, cell, text, false, false));
-					}
-				}
-
-				if (!hasHeader) {
-					content = renderMarkdownAsPlaintext({ value: content });
+					const level = parseInt(match[1]);
+					const text = match[2].trim();
+					entries.push(new OutlineEntry(index++, level, cell, text, false, false));
 				}
 			}
 
 			if (!hasHeader) {
+				content = renderMarkdownAsPlaintext({ value: content });
+			}
+		}
+
+		if (!hasHeader) {
+			if (!isMarkdown && cacheSymbols && cell.model.textModel) {
+				const cachedEntries = this.cellOutlineEntryCache[cell.model.textModel.id];
+				if (!cachedEntries || cachedEntries.entries.length === 0) {
+					this.cacheSymbols(cell);
+				}
+
+				// Gathering symbols from the model is an async operation, but this provider is syncronous.
+				// This will just provide the most recently cached values to stay syncronous, while refreshing the cache asyncronously.
+				if (includeAllSymbols && cachedEntries) {
+					cachedEntries.forEach((cached) => {
+						entries.push(new OutlineEntry(index++, 7, cell, cached.name, false, false));
+					});
+
+				}
+			}
+
+			const exeState = !isMarkdown && this.executionStateService.getCellExecution(cell.uri);
+			if (entries.length === 0) {
 				let preview = content.trim();
 				if (preview.length === 0) {
 					// empty or just whitespace
 					preview = localize('empty', "empty cell");
 				}
 
-				const exeState = !isMarkdown && this.executionStateService.getCellExecution(cell.uri);
-				if (!isMarkdown && cell.model.textModel) {
-					const outlineModel = this.outlineModelService.getOrCreate(cell.model.textModel, CancellationToken.None);
-					outlineModel.getTopLevelSymbols().forEach((symbol) => {
-						console.log('ADDING ENTRY ', symbol.name);
-						entries.push(new OutlineEntry(entries.length, 7, cell, symbol.name, !!exeState, exeState ? exeState.isPaused : false));
-					});
-				}
-				else {
-					console.log('ADDING ENTRY ', preview);
-					entries.push(new OutlineEntry(entries.length, 7, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
-				}
+				entries.push(new OutlineEntry(index++, 7, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
 			}
-
-			if (cell.handle === focused) {
-				activeEntry = entries[entries.length - 1];
-			}
-
-			// send an event whenever any of the cells change
-			disposables.add(cell.model.onDidChangeContent(() => {
-				this._onDidCellModelChange.fire();
-
-			}));
 		}
-		return { entries, activeEntry };
+
+		return entries;
 	}
 
+	private async cacheSymbols(cell: ICellViewModel) {
+		const textModel = cell.model.textModel;
+		if (textModel) {
+			setTimeout(async () => {
+				const outlineModel = await this.outlineModelService.getOrCreate(textModel, CancellationToken.None);
+				const symbols = outlineModel.getTopLevelSymbols().map((symbol) => {
+					return { name: symbol.name };
+				});
+
+				this.cellOutlineEntryCache[textModel.id] = symbols;
+			}, 500);
+		}
+	}
 }
 
 function getCellFirstNonEmptyLine(cell: ICellViewModel) {

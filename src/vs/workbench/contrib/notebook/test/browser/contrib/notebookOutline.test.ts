@@ -161,29 +161,4 @@ suite('Notebook Outline', function () {
 			assert.deepStrictEqual(elements[1].label, 'h1');
 		});
 	});
-
-	test('Code cells', async function () {
-		await withNotebookOutline([
-			['myvar1 = 1/nmyvar2 = 2', 'python', CellKind.Code]
-		], async outline => {
-			assert.ok(outline instanceof NotebookCellOutline);
-			const elements = await outline.config.quickPickDataSource.getQuickPickElements();
-			assert.deepStrictEqual(elements.length, 2);
-			assert.deepStrictEqual(elements[0].label, 'myvar1');
-			assert.deepStrictEqual(elements[1].label, 'myvar2');
-		});
-	});
-
-	test('Markup and Code cells', async function () {
-		await withNotebookOutline([
-			['# Header', 'md', CellKind.Markup],
-			['myvar2 = 2', 'python', CellKind.Code]
-		], async outline => {
-			assert.ok(outline instanceof NotebookCellOutline);
-			const elements = await outline.config.quickPickDataSource.getQuickPickElements();
-			assert.deepStrictEqual(elements.length, 2);
-			assert.deepStrictEqual(elements[0].label, 'Header');
-			assert.deepStrictEqual(elements[1].label, 'myvar2');
-		});
-	});
 });

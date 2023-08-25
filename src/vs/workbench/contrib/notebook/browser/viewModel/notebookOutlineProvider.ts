@@ -15,8 +15,7 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
+import { INotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
 import { OutlineEntry } from './OutlineEntry';
 
 export class NotebookCellOutlineProvider {
@@ -24,8 +23,6 @@ export class NotebookCellOutlineProvider {
 	private readonly _onDidChange = new Emitter<OutlineChangeEvent>();
 
 	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
-
-	private readonly outlineEntryFactory: NotebookOutlineEntryFactory;
 
 	private _uri: URI | undefined;
 	private _entries: OutlineEntry[] = [];
@@ -45,21 +42,15 @@ export class NotebookCellOutlineProvider {
 	constructor(
 		private readonly _editor: INotebookEditor,
 		private readonly _target: OutlineTarget,
+		@INotebookOutlineEntryFactory private readonly _outlineEntryFactory: INotebookOutlineEntryFactory,
 		@IThemeService themeService: IThemeService,
 		@IEditorService _editorService: IEditorService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
-		@IOutlineModelService private readonly _outlineModelService: IOutlineModelService
+		@INotebookExecutionStateService _notebookExecutionStateService: INotebookExecutionStateService
 	) {
 		const selectionListener = new MutableDisposable();
 		this._dispoables.add(selectionListener);
-
-		this.outlineEntryFactory = new NotebookOutlineEntryFactory(this._notebookExecutionStateService, this._outlineModelService);
-		this._dispoables.add(this.outlineEntryFactory.onDidCellModelChange(async () => {
-			await this._recomputeState();
-			this._onDidChange.fire({});
-		}));
 
 		selectionListener.value = combinedDisposable(
 			Event.debounce<void, void>(
@@ -100,8 +91,8 @@ export class NotebookCellOutlineProvider {
 		this._dispoables.dispose();
 	}
 
-	async init(): Promise<void> {
-		await this._recomputeState();
+	init(): void {
+		this._recomputeState();
 	}
 
 	private _recomputeState(): void {
@@ -128,12 +119,20 @@ export class NotebookCellOutlineProvider {
 			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
 		}
 
-		const focusedCellIndex = notebookEditorWidget.getFocus().start;
-		const focused = notebookEditorWidget.cellAt(focusedCellIndex)?.handle;
+		const cacheSymbols = this._configurationService.getValue<boolean>('notebook.experimental.gotoSymbols.showAllSymbols');
+		const showAllSymbols = cacheSymbols && this._target === OutlineTarget.QuickPick;
+
 		const notebookCells = notebookEditorWidget.getViewModel().viewCells.filter((cell) => cell.cellKind === CellKind.Markup || includeCodeCells);
 
-		const { entries, activeEntry } = this.outlineEntryFactory.createOutlineEntrys(notebookCells, focused, this._entriesDisposables);
-		this._activeEntry = activeEntry;
+		const entries: OutlineEntry[] = [];
+		for (const cell of notebookCells) {
+			entries.push(...this._outlineEntryFactory.createOutlineEntrys(cell, entries.length, showAllSymbols, cacheSymbols));
+			// send an event whenever any of the cells change
+			this._entriesDisposables.add(cell.model.onDidChangeContent(() => {
+				this._recomputeState();
+				this._onDidChange.fire({});
+			}));
+		}
 
 		// build a tree from the list of entries
 		if (entries.length > 0) {
@@ -209,6 +208,7 @@ export class NotebookCellOutlineProvider {
 			}
 		}));
 
+		this._recomputeActive();
 		this._onDidChange.fire({});
 	}
 
