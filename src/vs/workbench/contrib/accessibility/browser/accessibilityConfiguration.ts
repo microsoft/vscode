@@ -111,7 +111,7 @@ export function registerAccessibilityConfiguration() {
 				type: 'boolean',
 				default: false,
 				tags: ['accessibility'],
-				scope: ConfigurationScope.MACHINE,
+				scope: ConfigurationScope.APPLICATION,
 			},
 			[AccessibilityWorkbenchSettingId.ViewDimUnfocusedOpacity]: {
 				description: localize('dimUnfocusedOpacity', 'The opacity fraction (0.2 to 1.0) to use for unfocused editors and terminals. This will only take effect when {0} is enabled.', `\`#${AccessibilityWorkbenchSettingId.ViewDimUnfocusedEnabled}#\``),
@@ -120,7 +120,7 @@ export function registerAccessibilityConfiguration() {
 				maximum: ViewDimUnfocusedOpacityProperties.Maximum,
 				default: ViewDimUnfocusedOpacityProperties.Default,
 				tags: ['accessibility'],
-				scope: ConfigurationScope.MACHINE,
+				scope: ConfigurationScope.APPLICATION,
 			}
 		}
 	});
