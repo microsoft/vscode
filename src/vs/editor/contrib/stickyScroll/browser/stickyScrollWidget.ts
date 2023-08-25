@@ -150,6 +150,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const renderedStickyLine = this._renderChildNode(index, line, layoutInfo, foldingModel);
 			this._linesDomNode.appendChild(renderedStickyLine.lineDomNode);
+			this._lineNumbersDomNode.appendChild(renderedStickyLine.lineNumberDomNode);
 			this._stickyLines.push(renderedStickyLine);
 		}
 		if (foldingModel) {
@@ -291,7 +292,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
 		lineNumberHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
 		const foldingIcon = this._renderFoldingIconForLine(lineNumberHTMLNode, foldingModel, index, line);
-		return new RenderedStickyLine(line, lineHTMLNode, foldingIcon, renderOutput.characterMapping);
+		return new RenderedStickyLine(line, lineHTMLNode, lineNumberHTMLNode, foldingIcon, renderOutput.characterMapping);
 	}
 
 	private _renderFoldingIconForLine(container: HTMLSpanElement, foldingModel: FoldingModel | null | undefined, index: number, line: number): FoldingIcon | undefined {
@@ -312,7 +313,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const isCollapsed = this._collapsedLines.some(collapsedLine => collapsedLine === line);
 		const foldingIcon = new FoldingIcon(foldingIconNode, isCollapsed);
 		foldingIcon.setVisible(isCollapsed || showFoldingControls === 'always');
-		foldingIcon.setTransitionRequired(false);
+		foldingIcon.setTransitionRequired(true);
 
 		this._foldingIconStore.add(dom.addDisposableListener(foldingIconNode, dom.EventType.CLICK, () => {
 			toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
@@ -413,6 +414,7 @@ class RenderedStickyLine {
 	constructor(
 		public readonly lineNumber: number,
 		public readonly lineDomNode: HTMLElement,
+		public readonly lineNumberDomNode: HTMLElement,
 		public readonly foldingIcon: FoldingIcon | undefined,
 		public readonly characterMapping: CharacterMapping
 	) { }
