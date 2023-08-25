@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixExecuteTerminalCommandDto, TerminalCommandMatchResultDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixExecuteTerminalCommandDto, TerminalCommandMatchResultDto, ITerminalCommandDto } from 'vs/workbench/api/common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -40,8 +40,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	readonly onDidChangeTerminalDimensions: Event<vscode.TerminalDimensionsChangeEvent>;
 	readonly onDidChangeTerminalState: Event<vscode.Terminal>;
 	readonly onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
-	readonly onWillExecuteTerminalCommand: Event<vscode.TerminalWillExecuteCommandEvent>;
-	readonly onDidExecuteTerminalCommand: Event<vscode.TerminalExecuteCommandEvent>;
+	readonly onDidExecuteTerminalCommand: Event<vscode.TerminalExecutedCommand>;
 	readonly onDidChangeShell: Event<string>;
 
 	createTerminal(name?: string, shellPath?: string, shellArgs?: readonly string[] | string): vscode.Terminal;
@@ -403,12 +402,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		onDidRemoveLastListener: () => this._proxy.$stopSendingDataEvents()
 	});
 	readonly onDidWriteTerminalData = this._onDidWriteTerminalData.event;
-	protected readonly _onWillExecuteCommand = new Emitter<vscode.TerminalWillExecuteCommandEvent>({
-		onWillAddFirstListener: () => this._proxy.$startSendingCommandEvents(),
-		onDidRemoveLastListener: () => this._proxy.$stopSendingCommandEvents()
-	});
-	readonly onWillExecuteTerminalCommand = this._onWillExecuteCommand.event;
-	protected readonly _onDidExecuteCommand = new Emitter<vscode.TerminalExecuteCommandEvent>({
+	protected readonly _onDidExecuteCommand = new Emitter<vscode.TerminalExecutedCommand>({
 		onWillAddFirstListener: () => this._proxy.$startSendingCommandEvents(),
 		onDidRemoveLastListener: () => this._proxy.$stopSendingCommandEvents()
 	});
@@ -521,23 +515,10 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 	}
 
-	public async $acceptWillExecuteCommand(id: number, command: any): Promise<void> {
+	public async $acceptDidExecuteCommand(id: number, command: ITerminalCommandDto): Promise<void> {
 		const terminal = this._getTerminalById(id);
 		if (terminal) {
-			this._onWillExecuteCommand.fire({
-				terminal: terminal.value,
-				command: command
-			});
-		}
-	}
-
-	public async $acceptDidExecuteCommand(id: number, command: any): Promise<void> {
-		const terminal = this._getTerminalById(id);
-		if (terminal) {
-			this._onDidExecuteCommand.fire({
-				terminal: terminal.value,
-				command: command
-			});
+			this._onDidExecuteCommand.fire({ terminal: terminal.value, ...command });
 		}
 	}
 

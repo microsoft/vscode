@@ -2092,12 +2092,10 @@ export interface TerminalCommandMatchResultDto {
 }
 
 export interface ITerminalCommandDto {
-	commandLine: string;
+	commandLine: string | undefined;
 	cwd: URI | string | undefined;
-	result: {
-		exitCode: number | undefined;
-		output: string;
-	};
+	exitCode: number | undefined;
+	output: string | undefined;
 }
 
 export interface ExtHostTerminalServiceShape {
@@ -2106,7 +2104,6 @@ export interface ExtHostTerminalServiceShape {
 	$acceptActiveTerminalChanged(id: number | null): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
 	$acceptTerminalProcessData(id: number, data: string): void;
-	$acceptWillExecuteCommand(id: number, command: ITerminalCommandDto): void;
 	$acceptDidExecuteCommand(id: number, command: ITerminalCommandDto): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;

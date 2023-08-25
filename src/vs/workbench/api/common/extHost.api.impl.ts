@@ -698,11 +698,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'terminalDataWriteEvent');
 				return extHostTerminalService.onDidWriteTerminalData(listener, thisArg, disposables);
 			},
-			onWillExecuteTerminalCommand(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension, 'terminalExecuteCommandEvent');
-				return extHostTerminalService.onWillExecuteTerminalCommand(listener, thisArg, disposables);
-
-			},
 			onDidExecuteTerminalCommand(listener, thisArg?, disposables?) {
 				checkProposedApiEnabled(extension, 'terminalExecuteCommandEvent');
 				return extHostTerminalService.onDidExecuteTerminalCommand(listener, thisArg, disposables);

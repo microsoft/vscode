@@ -242,10 +242,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 				commandLine: e.data.command,
 				// TODO: Convert to URI if possible
 				cwd: e.data.cwd,
-				result: {
-					exitCode: e.data.exitCode,
-					output: e.data.getOutput() ?? ''
-				}
+				exitCode: e.data.exitCode,
+				output: e.data.getOutput()
 			});
 		});
 		this._sendCommandEventListener.value = multiplexer;
@@ -333,10 +331,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _onTerminalData(terminalId: number, data: string): void {
 		this._proxy.$acceptTerminalProcessData(terminalId, data);
 	}
-
-	// private _onWillExecuteCommand(terminalId: number, command: ITerminalCommandDto): void {
-	// 	this._proxy.$acceptWillExecuteCommand(terminalId, command);
-	// }
 
 	private _onDidExecuteCommand(terminalId: number, command: ITerminalCommandDto): void {
 		this._proxy.$acceptDidExecuteCommand(terminalId, command);
