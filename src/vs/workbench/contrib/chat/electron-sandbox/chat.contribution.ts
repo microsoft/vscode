@@ -3,6 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerChatVoiceInputActions } from 'vs/workbench/contrib/chat/electron-sandbox/actions/chatVoiceInputActions';
+import { registerVoiceChatActions } from 'vs/workbench/contrib/chat/electron-sandbox/actions/voiceChatActions';
 
-registerChatVoiceInputActions();
+registerVoiceChatActions();

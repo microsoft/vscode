@@ -375,7 +375,7 @@ class StopVoiceChatAction extends Action2 {
 	}
 }
 
-export function registerChatVoiceInputActions() {
+export function registerVoiceChatActions() {
 	if (typeof process.env.VSCODE_VOICE_MODULE_PATH === 'string' && product.quality !== 'stable') { // TODO@bpasero package
 		registerAction2(VoiceChatInChatViewAction);
 		registerAction2(QuickVoiceChatAction);
