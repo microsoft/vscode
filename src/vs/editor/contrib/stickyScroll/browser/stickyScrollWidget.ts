@@ -320,7 +320,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		container.append(foldingIcon.domNode);
 		foldingIcon.setVisible(isCollapsed || showFoldingControls === 'always');
 		foldingIcon.setTransitionRequired(true);
-
 		this._foldingIconStore.add(dom.addDisposableListener(foldingIcon.domNode, dom.EventType.CLICK, () => {
 			toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
 			foldingIcon.isCollapsed = !isCollapsed;
