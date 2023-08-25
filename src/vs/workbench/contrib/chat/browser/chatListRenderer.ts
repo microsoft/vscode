@@ -354,7 +354,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				templateData.contextKeyService));
 		}
 
-		element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
+		const newHeight = templateData.rowContainer.offsetHeight;
+		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
+		element.currentRenderedHeight = newHeight;
+		if (fireEvent) {
+			const disposable = this._register(dom.scheduleAtNextAnimationFrame(() => {
+				disposable.dispose();
+				this._onDidChangeItemHeight.fire({ element, height: newHeight });
+			}));
+		}
 	}
 
 	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate) {
@@ -381,7 +389,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
+		const newHeight = templateData.rowContainer.offsetHeight;
+		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
+		element.currentRenderedHeight = newHeight;
+		if (fireEvent) {
+			const disposable = this._register(dom.scheduleAtNextAnimationFrame(() => {
+				disposable.dispose();
+				this._onDidChangeItemHeight.fire({ element, height: newHeight });
+			}));
+		}
 	}
 
 	/**
