@@ -19,7 +19,7 @@ import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import * as languages from 'vs/editor/common/languages';
@@ -76,6 +76,7 @@ import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common
 import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { RelatedInformationResult, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -371,6 +372,16 @@ export interface IShareableItemDto {
 	selection?: IRange;
 }
 
+export interface IRelatedContextItemDto {
+	readonly uri: UriComponents;
+	readonly range: IRange;
+}
+
+export interface IMappedEditsContextDto {
+	selections: ISelection[];
+	related: IRelatedContextItemDto[];
+}
+
 export interface ISignatureHelpProviderMetadataDto {
 	readonly triggerCharacters: readonly string[];
 	readonly retriggerCharacters: readonly string[];
@@ -426,6 +437,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$resolvePasteFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$resolveDocumentOnDropFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
+	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[]): void;
 }
 
 export interface MainThreadLanguagesShape extends IDisposable {
@@ -1204,7 +1216,7 @@ export interface IChatResponseProgressFileTreeData {
 	children?: IChatResponseProgressFileTreeData[];
 }
 
-export type IChatResponseProgressDto = { content: string } | { requestId: string } | { placeholder: string } | { treeData: IChatResponseProgressFileTreeData };
+export type IChatResponseProgressDto = { content: string | IMarkdownString } | { requestId: string } | { placeholder: string } | { treeData: IChatResponseProgressFileTreeData };
 
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
@@ -1662,6 +1674,25 @@ export interface MainThreadSemanticSimilarityShape extends IDisposable {
 	$unregisterSemanticSimilarityProvider(handle: number): void;
 }
 
+export interface ExtHostAiRelatedInformationShape {
+	$provideAiRelatedInformation(handle: number, query: string, token: CancellationToken): Promise<RelatedInformationResult[]>;
+}
+
+export interface MainThreadAiRelatedInformationShape {
+	$getAiRelatedInformation(query: string, types: RelatedInformationType[]): Promise<RelatedInformationResult[]>;
+	$registerAiRelatedInformationProvider(handle: number, type: RelatedInformationType): void;
+	$unregisterAiRelatedInformationProvider(handle: number): void;
+}
+
+export interface ExtHostAiEmbeddingVectorShape {
+	$provideAiEmbeddingVector(handle: number, strings: string[], token: CancellationToken): Promise<number[][]>;
+}
+
+export interface MainThreadAiEmbeddingVectorShape {
+	$registerAiEmbeddingVectorProvider(model: string, handle: number): void;
+	$unregisterAiEmbeddingVectorProvider(handle: number): void;
+}
+
 export interface ExtHostSecretStateShape {
 	$onDidChangePassword(e: { extensionId: string; key: string }): Promise<void>;
 }
@@ -1999,6 +2030,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
 	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentOnDropEditDto | undefined>;
+	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: IMappedEditsContextDto, token: CancellationToken): Promise<IWorkspaceEditDto | null>;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -2641,6 +2673,8 @@ export const MainContext = {
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
 	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape'),
 	MainThreadSemanticSimilarity: createProxyIdentifier<MainThreadSemanticSimilarityShape>('MainThreadSemanticSimilarity'),
+	MainThreadAiRelatedInformation: createProxyIdentifier<MainThreadAiRelatedInformationShape>('MainThreadAiRelatedInformation'),
+	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector'),
 	MainThreadIssueReporter: createProxyIdentifier<MainThreadIssueReporterShape>('MainThreadIssueReporter'),
 };
 
@@ -2701,6 +2735,8 @@ export const ExtHostContext = {
 	ExtHostChatVariables: createProxyIdentifier<ExtHostChatVariablesShape>('ExtHostChatVariables'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostChatProviderShape>('ExtHostChatProvider'),
 	ExtHostSemanticSimilarity: createProxyIdentifier<ExtHostSemanticSimilarityShape>('ExtHostSemanticSimilarity'),
+	ExtHostAiRelatedInformation: createProxyIdentifier<ExtHostAiRelatedInformationShape>('ExtHostAiRelatedInformation'),
+	ExtHostAiEmbeddingVector: createProxyIdentifier<ExtHostAiEmbeddingVectorShape>('ExtHostAiEmbeddingVector'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostManagedSockets: createProxyIdentifier<ExtHostManagedSocketsShape>('ExtHostManagedSockets'),

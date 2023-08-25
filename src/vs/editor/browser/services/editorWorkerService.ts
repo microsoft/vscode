@@ -24,7 +24,7 @@ import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { ILinesDiffComputerOptions, LineRangeMapping, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { LineRange } from 'vs/editor/common/core/lineRange';

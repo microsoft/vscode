@@ -110,11 +110,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	setState(state: StickyScrollWidgetState): void {
-		this._stickyLines = [];
-		this._foldingIconStore.clear();
-		dom.clearNode(this._lineNumbersDomNode);
-		dom.clearNode(this._linesDomNode);
-		if (!this._editor._getViewModel()) {
+		this._clearStickyWidget();
+		if (!state) {
 			return;
 		}
 		const futureWidgetHeight = state.startLineNumbers.length * this._lineHeight + state.lastLineRelativePosition;
@@ -142,6 +139,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth}px`;
 	}
 
+	private _clearStickyWidget() {
+		this._stickyLines = [];
+		this._foldingIconStore.clear();
+		dom.clearNode(this._lineNumbersDomNode);
+		dom.clearNode(this._linesDomNode);
+		this._rootDomNode.style.display = 'none';
+	}
+
 	private async _renderRootNode(): Promise<void> {
 
 		const foldingModel = await FoldingController.get(this._editor)?.getFoldingModel();
@@ -157,7 +162,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 
 		const widgetHeight: number = this._lineNumbers.length * this._lineHeight + this._lastLineRelativePosition;
-		this._rootDomNode.style.display = widgetHeight > 0 ? 'block' : 'none';
+		if (widgetHeight === 0) {
+			this._clearStickyWidget();
+			return;
+		}
+		this._rootDomNode.style.display = 'block';
 		this._lineNumbersDomNode.style.height = `${widgetHeight}px`;
 		this._linesDomNodeScrollable.style.height = `${widgetHeight}px`;
 		this._rootDomNode.style.height = `${widgetHeight}px`;

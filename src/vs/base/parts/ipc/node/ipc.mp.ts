@@ -33,18 +33,35 @@ class Protocol implements IMessagePassingProtocol {
 	}
 }
 
+export interface IClientConnectionFilter {
+
+	/**
+	 * Allows to filter incoming messages to the
+	 * server to handle them differently.
+	 *
+	 * @param e the message event to handle
+	 * @returns `true` if the event was handled
+	 * and should not be processed by the server.
+	 */
+	handledClientConnection(e: MessageEvent): boolean;
+}
+
 /**
  * An implementation of a `IPCServer` on top of MessagePort style IPC communication.
  * The clients register themselves via Electron Utility Process IPC transfer.
  */
 export class Server extends IPCServer {
 
-	private static getOnDidClientConnect(): Event<ClientConnectionEvent> {
+	private static getOnDidClientConnect(filter?: IClientConnectionFilter): Event<ClientConnectionEvent> {
 		assertType(isUtilityProcess(process), 'Electron Utility Process');
 
 		const onCreateMessageChannel = new Emitter<MessagePortMain>();
 
-		process.parentPort.on('message', (e: Electron.MessageEvent) => {
+		process.parentPort.on('message', (e: MessageEvent) => {
+			if (filter?.handledClientConnection(e)) {
+				return;
+			}
+
 			const port = firstOrDefault(e.ports);
 			if (port) {
 				onCreateMessageChannel.fire(port);
@@ -66,8 +83,8 @@ export class Server extends IPCServer {
 		});
 	}
 
-	constructor() {
-		super(Server.getOnDidClientConnect());
+	constructor(filter?: IClientConnectionFilter) {
+		super(Server.getOnDidClientConnect(filter));
 	}
 }
 

@@ -84,7 +84,7 @@ class AccessibleViewGoToSymbolAction extends Action2 {
 	constructor() {
 		super({
 			id: AccessibilityCommandId.GoToSymbol,
-			precondition: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewGoToSymbolSupported),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown), accessibleViewGoToSymbolSupported),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period],
@@ -95,7 +95,7 @@ class AccessibleViewGoToSymbolAction extends Action2 {
 				commandPalette,
 				{
 					...accessibleViewMenu,
-					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+					when: ContextKeyExpr.and(ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown), accessibleViewGoToSymbolSupported),
 				}
 			],
 			title: localize('editor.action.accessibleViewGoToSymbol', "Go To Symbol in Accessible View")

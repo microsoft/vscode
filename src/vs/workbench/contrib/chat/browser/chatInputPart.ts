@@ -40,7 +40,7 @@ const $ = dom.$;
 const INPUT_EDITOR_MAX_HEIGHT = 250;
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
-	public static readonly INPUT_SCHEME = 'chatSessionInput';
+	static readonly INPUT_SCHEME = 'chatSessionInput';
 	private static _counter = 0;
 
 	private _onDidChangeHeight = this._register(new Emitter<void>());
@@ -64,7 +64,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _inputEditor!: CodeEditorWidget;
 	private _inputEditorElement!: HTMLElement;
 
-	public get inputEditor() {
+	private toolbar!: MenuWorkbenchToolBar;
+
+	get inputEditor() {
 		return this._inputEditor;
 	}
 
@@ -74,7 +76,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputEditorHasText: IContextKey<boolean>;
 	private providerId: string | undefined;
 
-	public readonly inputUri = URI.parse(`${ChatInputPart.INPUT_SCHEME}:input-${ChatInputPart._counter++}`);
+	readonly inputUri = URI.parse(`${ChatInputPart.INPUT_SCHEME}:input-${ChatInputPart._counter++}`);
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
@@ -138,7 +140,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.setHistoryNavigationEnablement(true);
 	}
 
-	private setValue(value: string): void {
+	setValue(value: string): void {
 		this.inputEditor.setValue(value);
 		// always leave cursor at the end
 		this.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
@@ -146,6 +148,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	focus() {
 		this._inputEditor.focus();
+	}
+
+	hasFocus(): boolean {
+		return this._inputEditor.hasWidgetFocus();
 	}
 
 	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
@@ -233,13 +239,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._onDidBlur.fire();
 		}));
 
-		const toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, MenuId.ChatExecute, {
+		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, MenuId.ChatExecute, {
 			menuOptions: {
 				shouldForwardArgs: true
 			}
 		}));
-		toolbar.getElement().classList.add('interactive-execute-toolbar');
-		toolbar.context = <IChatExecuteActionContext>{ widget };
+		this.toolbar.getElement().classList.add('interactive-execute-toolbar');
+		this.toolbar.context = <IChatExecuteActionContext>{ widget };
 
 		if (this.options.renderStyle === 'compact') {
 			const toolbarSide = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputAndSideToolbar, MenuId.ChatInputSide, {
@@ -290,7 +296,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const editorBorder = 2;
 		const editorPadding = 8;
-		const executeToolbarWidth = 25;
+		const executeToolbarWidth = this.toolbar.getItemsWidth();
 		const sideToolbarWidth = this.options.renderStyle === 'compact' ? 20 : 0;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();

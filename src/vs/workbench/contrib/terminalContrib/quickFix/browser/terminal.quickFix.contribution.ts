@@ -55,7 +55,7 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 		// Register quick fixes
 		for (const actionOption of [
 			gitTwoDashes(),
-			freePort(this),
+			freePort((port: string, command: string) => this._instance.freePortKillProcess(port, command)),
 			gitSimilar(),
 			gitPushSetUpstream(),
 			gitCreatePr(),

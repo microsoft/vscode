@@ -27,7 +27,7 @@ import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/contrib/search/browser/searchModel';
+import { ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService } from 'vs/workbench/contrib/search/browser/searchModel';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
@@ -45,7 +45,7 @@ import 'vs/workbench/contrib/search/browser/searchActionsTopBar';
 import 'vs/workbench/contrib/search/browser/searchActionsTextQuickAccess';
 import { TEXT_SEARCH_QUICK_ACCESS_PREFIX, TextSearchQuickAccess } from 'vs/workbench/contrib/search/browser/quickTextSearch/textSearchQuickAccess';
 
-registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, InstantiationType.Delayed);
+registerSingleton(ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
 
 replaceContributions();
@@ -128,8 +128,14 @@ quickAccessRegistry.registerQuickAccessProvider({
 	ctor: TextSearchQuickAccess,
 	prefix: TEXT_SEARCH_QUICK_ACCESS_PREFIX,
 	contextKey: 'inTextSearchPicker',
-	placeholder: nls.localize('textSearchPickerPlaceholder', "Search for text in your workspace files."),
-	helpEntries: [{ description: nls.localize('textSearchPickerHelp', "Show All Text Results (experimental)"), commandId: Constants.QuickTextSearchActionId }]
+	placeholder: nls.localize('textSearchPickerPlaceholder', "Search for text in your workspace files (experimental)."),
+	helpEntries: [
+		{
+			description: nls.localize('textSearchPickerHelp', "Search for Text (Experimental)"),
+			commandId: Constants.QuickTextSearchActionId,
+			commandCenterOrder: 65,
+		}
+	]
 });
 
 // Configuration
@@ -370,7 +376,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('search.experimental.closedNotebookResults', "Show notebook editor rich content results for closed notebooks. Please refresh your search results after changing this setting."),
 			default: false
-		}
+		},
+		'search.experimental.quickAccess.preserveInput': {
+			'type': 'boolean',
+			'description': nls.localize('search.experimental.quickAccess.preserveInput', "Controls whether the last typed input to Quick Search should be restored when opening it the next time."),
+			'default': false
+		},
 	}
 });
 

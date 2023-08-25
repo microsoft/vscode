@@ -22,6 +22,10 @@ export const terminalStrings = {
 		value: localize('workbench.action.terminal.focus', "Focus Terminal"),
 		original: 'Focus Terminal'
 	},
+	focusAndHideAccessibleBuffer: {
+		value: localize('workbench.action.terminal.focusAndHideAccessibleBuffer', "Focus Terminal and Hide Accessible Buffer"),
+		original: 'Focus Terminal and Hide Accessible Buffer'
+	},
 	kill: {
 		value: localize('killTerminal', "Kill Terminal"),
 		original: 'Kill Terminal',

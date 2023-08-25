@@ -683,6 +683,31 @@ export class Queue<T> extends Limiter<T> {
 }
 
 /**
+ * Same as `Queue`, ensures that only 1 task is executed at the same time. The difference to `Queue` is that
+ * there is only 1 task about to be scheduled next. As such, calling `queue` while a task is executing will
+ * replace the currently queued task until it executes.
+ *
+ * As such, the returned promise may not be from the factory that is passed in but from the next factory that
+ * is running after having called `queue`.
+ */
+export class LimitedQueue {
+
+	private readonly sequentializer = new TaskSequentializer();
+
+	private tasks = 0;
+
+	queue(factory: ITask<Promise<void>>): Promise<void> {
+		if (!this.sequentializer.isRunning()) {
+			return this.sequentializer.run(this.tasks++, factory());
+		}
+
+		return this.sequentializer.queue(() => {
+			return this.sequentializer.run(this.tasks++, factory());
+		});
+	}
+}
+
+/**
  * A helper to organize queues per resource. The ResourceQueue makes sure to manage queues per resource
  * by disposing them once the queue is empty.
  */
@@ -1267,87 +1292,92 @@ export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: 
 
 //#region Task Sequentializer
 
-interface IPendingTask {
+interface IRunningTask {
 	readonly taskId: number;
 	readonly cancel: () => void;
 	readonly promise: Promise<void>;
 }
 
-interface INextTask {
+interface IQueuedTask {
 	readonly promise: Promise<void>;
 	readonly promiseResolve: () => void;
 	readonly promiseReject: (error: Error) => void;
-	run: () => Promise<void>;
+	run: ITask<Promise<void>>;
 }
 
-export interface ITaskSequentializerWithPendingTask {
-	readonly pending: Promise<void>;
+export interface ITaskSequentializerWithRunningTask {
+	readonly running: Promise<void>;
 }
 
-export interface ITaskSequentializerWithNextTask {
-	readonly next: INextTask;
+export interface ITaskSequentializerWithQueuedTask {
+	readonly queued: IQueuedTask;
 }
 
+/**
+ * @deprecated use `LimitedQueue` instead for an easier to use API
+ */
 export class TaskSequentializer {
 
-	private _pending?: IPendingTask;
-	private _next?: INextTask;
+	private _running?: IRunningTask;
+	private _queued?: IQueuedTask;
 
-	hasPending(taskId?: number): this is ITaskSequentializerWithPendingTask {
-		if (!this._pending) {
-			return false;
-		}
-
+	isRunning(taskId?: number): this is ITaskSequentializerWithRunningTask {
 		if (typeof taskId === 'number') {
-			return this._pending.taskId === taskId;
+			return this._running?.taskId === taskId;
 		}
 
-		return !!this._pending;
+		return !!this._running;
 	}
 
-	get pending(): Promise<void> | undefined {
-		return this._pending?.promise;
+	get running(): Promise<void> | undefined {
+		return this._running?.promise;
 	}
 
-	cancelPending(): void {
-		this._pending?.cancel();
+	cancelRunning(): void {
+		this._running?.cancel();
 	}
 
-	setPending(taskId: number, promise: Promise<void>, onCancel?: () => void,): Promise<void> {
-		this._pending = { taskId, cancel: () => onCancel?.(), promise };
+	run(taskId: number, promise: Promise<void>, onCancel?: () => void,): Promise<void> {
+		this._running = { taskId, cancel: () => onCancel?.(), promise };
 
-		promise.then(() => this.donePending(taskId), () => this.donePending(taskId));
+		promise.then(() => this.doneRunning(taskId), () => this.doneRunning(taskId));
 
 		return promise;
 	}
 
-	private donePending(taskId: number): void {
-		if (this._pending && taskId === this._pending.taskId) {
+	private doneRunning(taskId: number): void {
+		if (this._running && taskId === this._running.taskId) {
 
-			// only set pending to done if the promise finished that is associated with that taskId
-			this._pending = undefined;
+			// only set running to done if the promise finished that is associated with that taskId
+			this._running = undefined;
 
-			// schedule the next task now that we are free if we have any
-			this.triggerNext();
+			// schedule the queued task now that we are free if we have any
+			this.runQueued();
 		}
 	}
 
-	private triggerNext(): void {
-		if (this._next) {
-			const next = this._next;
-			this._next = undefined;
+	private runQueued(): void {
+		if (this._queued) {
+			const queued = this._queued;
+			this._queued = undefined;
 
-			// Run next task and complete on the associated promise
-			next.run().then(next.promiseResolve, next.promiseReject);
+			// Run queued task and complete on the associated promise
+			queued.run().then(queued.promiseResolve, queued.promiseReject);
 		}
 	}
 
-	setNext(run: () => Promise<void>): Promise<void> {
+	/**
+	 * Note: the promise to schedule as next run MUST itself call `run`.
+	 *       Otherwise, this sequentializer will report `false` for `isRunning`
+	 *       even when this task is running. Missing this detail means that
+	 *       suddenly multiple tasks will run in parallel.
+	 */
+	queue(run: ITask<Promise<void>>): Promise<void> {
 
-		// this is our first next task, so we create associated promise with it
+		// this is our first queued task, so we create associated promise with it
 		// so that we can return a promise that completes when the task has
 		// completed.
-		if (!this._next) {
+		if (!this._queued) {
 			let promiseResolve: () => void;
 			let promiseReject: (error: Error) => void;
 			const promise = new Promise<void>((resolve, reject) => {
@@ -1355,7 +1385,7 @@ export class TaskSequentializer {
 				promiseReject = reject;
 			});
 
-			this._next = {
+			this._queued = {
 				run,
 				promise,
 				promiseResolve: promiseResolve!,
@@ -1363,20 +1393,20 @@ export class TaskSequentializer {
 			};
 		}
 
-		// we have a previous next task, just overwrite it
+		// we have a previous queued task, just overwrite it
 		else {
-			this._next.run = run;
+			this._queued.run = run;
 		}
 
-		return this._next.promise;
+		return this._queued.promise;
 	}
 
-	hasNext(): this is ITaskSequentializerWithNextTask {
-		return !!this._next;
+	hasQueued(): this is ITaskSequentializerWithQueuedTask {
+		return !!this._queued;
 	}
 
 	async join(): Promise<void> {
-		return this._next?.promise ?? this._pending?.promise;
+		return this._queued?.promise ?? this._running?.promise;
 	}
 }
 

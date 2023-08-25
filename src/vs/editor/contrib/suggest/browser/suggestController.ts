@@ -143,7 +143,7 @@ export class SuggestController implements IEditorContribution {
 		// context key: update insert/replace mode
 		const ctxInsertMode = SuggestContext.InsertMode.bindTo(_contextKeyService);
 		ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode);
-		this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode));
+		this._toDispose.add(this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode)));
 
 		this.widget = this._toDispose.add(new IdleValue(() => {
 
