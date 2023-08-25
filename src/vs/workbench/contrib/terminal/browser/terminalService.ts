@@ -6,8 +6,8 @@
 import * as dom from 'vs/base/browser/dom';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
-import { Emitter, Event, EventMultiplexer } from 'vs/base/common/event';
-import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -54,6 +54,7 @@ import { ITimerService } from 'vs/workbench/services/timer/browser/timerService'
 import { mark } from 'vs/base/common/performance';
 import { DeatachedTerminal } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
 import { ITerminalCapabilityImplMap, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { createInstanceCapabilityEventMultiplexer, createInstanceEventMultiplexer } from 'vs/workbench/contrib/terminal/browser/terminalEvents';
 
 export class TerminalService extends Disposable implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -1197,74 +1198,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	onInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): { dispose(): void; event: Event<T> } {
-		const store = new DisposableStore();
-		const multiplexer = store.add(new EventMultiplexer<T>());
-		const instanceListeners = store.add(new DisposableMap<ITerminalInstance, IDisposable>());
-
-		function addInstance(instance: ITerminalInstance) {
-			const listener = multiplexer.add(getEvent(instance));
-			instanceListeners.set(instance, listener);
-		}
-
-		// Existing instances
-		for (const instance of this.instances) {
-			addInstance(instance);
-		}
-
-		// Added instances
-		store.add(this.onDidCreateInstance(instance => {
-			addInstance(instance);
-		}));
-
-		// Removed instances
-		store.add(this.onDidDisposeInstance(instance => {
-			instanceListeners.deleteAndDispose(instance);
-		}));
-
-		return {
-			dispose: () => store.dispose(),
-			event: multiplexer.event
-		};
+		return createInstanceEventMultiplexer(this.instances, this.onDidCreateInstance, this.onDidDisposeInstance, getEvent);
 	}
 
 	onInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): { dispose(): void; event: Event<{ instance: ITerminalInstance; data: K }> } {
-		const store = new DisposableStore();
-		const multiplexer = store.add(new EventMultiplexer<{ instance: ITerminalInstance; data: K }>());
-		const capabilityListeners = store.add(new DisposableMap<ITerminalCapabilityImplMap[T], IDisposable>());
-
-		function addCapability(instance: ITerminalInstance, capability: ITerminalCapabilityImplMap[T]) {
-			const listener = multiplexer.add(Event.map(getEvent(capability), data => ({ instance, data })));
-			capabilityListeners.set(capability, listener);
-		}
-
-		// Existing capabilities
-		for (const instance of this.instances) {
-			const capability = instance.capabilities.get(capabilityId);
-			if (capability) {
-				addCapability(instance, capability);
-			}
-		}
-
-		// Added capabilities
-		const addCapabilityMultiplexer = this.onInstanceEvent(instance => Event.map(instance.capabilities.onDidAddCapability, changeEvent => ({ instance, changeEvent })));
-		addCapabilityMultiplexer.event(e => {
-			if (e.changeEvent.id === capabilityId) {
-				addCapability(e.instance, e.changeEvent.capability);
-			}
-		});
-
-		// Removed capabilities
-		const removeCapabilityMultiplexer = this.onInstanceEvent(instance => instance.capabilities.onDidRemoveCapability);
-		removeCapabilityMultiplexer.event(e => {
-			if (e.id === capabilityId) {
-				capabilityListeners.deleteAndDispose(e.capability);
-			}
-		});
-
-		return {
-			dispose: () => store.dispose(),
-			event: multiplexer.event
-		};
+		return createInstanceCapabilityEventMultiplexer(this.instances, this.onDidCreateInstance, this.onDidDisposeInstance, capabilityId, getEvent);
 	}
 }
 
