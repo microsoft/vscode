@@ -269,7 +269,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const foldingRegions = foldingModel.regions;
 		const indexOfFoldingRegion = foldingRegions.findRange(line);
 		const startLineNumber = foldingRegions.getStartLineNumber(indexOfFoldingRegion);
-		const endLineNumber = foldingRegions.getEndLineNumber(indexOfFoldingRegion);
 		const isFoldingScope = line === startLineNumber;
 		if (!isFoldingScope) {
 			return;
@@ -280,9 +279,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._foldingIconStore.add(dom.addDisposableListener(foldingIcon, dom.EventType.CLICK, () => {
 			toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
 			const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-			const topOfStartLine = this._editor.getTopForLineNumber(startLineNumber) - lineHeight * index + 1;
-			const topOfEndLine = this._editor.getTopForLineNumber(endLineNumber) - lineHeight * index + 1;
-			this._editor.setScrollTop(isRegionCollapsed ? topOfStartLine : topOfEndLine);
+			let scrollTop = - lineHeight * index + 1;
+			if (isRegionCollapsed) {
+				scrollTop += this._editor.getTopForLineNumber(startLineNumber);
+			} else {
+				const endLineNumber = foldingRegions.getEndLineNumber(indexOfFoldingRegion);
+				scrollTop += this._editor.getTopForLineNumber(endLineNumber);
+			}
+			this._editor.setScrollTop(scrollTop);
 		}));
 	}
 
