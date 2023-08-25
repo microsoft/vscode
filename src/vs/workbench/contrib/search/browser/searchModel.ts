@@ -2113,7 +2113,7 @@ export class SearchModel extends Disposable {
 						this.onSearchError(e, Date.now() - start);
 						throw e;
 					}),
-				syncResults: syncResults
+				syncResults
 			};
 		} finally {
 			/* __GDPR__
