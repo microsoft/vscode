@@ -264,7 +264,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	private _renderFoldingIconForLine(container: HTMLSpanElement, foldingModel: FoldingModel | null | undefined, index: number, line: number): void {
-		if (!foldingModel) {
+		const showFoldingControls: 'mouseover' | 'always' | 'never' = this._editor.getOption(EditorOption.showFoldingControls);
+		if (!foldingModel || showFoldingControls === 'never') {
 			return;
 		}
 		const foldingRegions = foldingModel.regions;
