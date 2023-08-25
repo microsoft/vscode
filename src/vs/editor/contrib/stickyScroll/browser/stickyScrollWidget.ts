@@ -109,9 +109,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return this._lineNumbers;
 	}
 
-	setState(state: StickyScrollWidgetState): void {
+	setState(state: StickyScrollWidgetState | undefined): void {
 		this._clearStickyWidget();
-		if (!state) {
+		if (!state || !this._editor._getViewModel()) {
 			return;
 		}
 		const futureWidgetHeight = state.startLineNumbers.length * this._lineHeight + state.lastLineRelativePosition;
