@@ -96,6 +96,10 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 			}
 		}
 
+		if (options.get(EditorOption.stickyScroll)) {
+			content.push(this._descriptionForCommand('editor.action.focusStickyScroll', AccessibilityHelpNLS.stickScrollKb, AccessibilityHelpNLS.stickScrollNoKb));
+		}
+
 		if (options.get(EditorOption.tabFocusMode)) {
 			content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb));
 		} else {
