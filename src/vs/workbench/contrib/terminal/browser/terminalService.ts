@@ -1246,7 +1246,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 
 		// Added capabilities
-		const addCapabilityMultiplexer = this.onInstanceEvent(instance => Event.map(instance.capabilities.onDidAddCapability2, changeEvent => ({ instance, changeEvent })));
+		const addCapabilityMultiplexer = this.onInstanceEvent(instance => Event.map(instance.capabilities.onDidAddCapability, changeEvent => ({ instance, changeEvent })));
 		addCapabilityMultiplexer.event(e => {
 			if (e.changeEvent.id === capabilityId) {
 				addCapability(e.instance, e.changeEvent.capability);
@@ -1254,7 +1254,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		});
 
 		// Removed capabilities
-		const removeCapabilityMultiplexer = this.onInstanceEvent(instance => instance.capabilities.onDidRemoveCapability2);
+		const removeCapabilityMultiplexer = this.onInstanceEvent(instance => instance.capabilities.onDidRemoveCapability);
 		removeCapabilityMultiplexer.event(e => {
 			if (e.id === capabilityId) {
 				capabilityListeners.deleteAndDispose(e.capability);

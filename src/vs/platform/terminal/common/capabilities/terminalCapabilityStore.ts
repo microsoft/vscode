@@ -11,14 +11,14 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 	private _map: Map<TerminalCapability, { type: TerminalCapability }> = new Map();
 
 	private readonly _onDidRemoveCapability = this._register(new Emitter<TerminalCapability>());
-	readonly onDidRemoveCapability = this._onDidRemoveCapability.event;
+	readonly onDidRemoveCapabilityType = this._onDidRemoveCapability.event;
 	private readonly _onDidAddCapability = this._register(new Emitter<TerminalCapability>());
-	readonly onDidAddCapability = this._onDidAddCapability.event;
+	readonly onDidAddCapabilityType = this._onDidAddCapability.event;
 
 	private readonly _onDidRemoveCapability2 = this._register(new Emitter<TerminalCapabilityChangeEvent<any>>());
-	readonly onDidRemoveCapability2 = this._onDidRemoveCapability2.event;
+	readonly onDidRemoveCapability = this._onDidRemoveCapability2.event;
 	private readonly _onDidAddCapability2 = this._register(new Emitter<TerminalCapabilityChangeEvent<any>>());
-	readonly onDidAddCapability2 = this._onDidAddCapability2.event;
+	readonly onDidAddCapability = this._onDidAddCapability2.event;
 
 	get items(): IterableIterator<TerminalCapability> {
 		return this._map.keys();
@@ -54,14 +54,14 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 	readonly _stores: ITerminalCapabilityStore[] = [];
 
 	private readonly _onDidRemoveCapability = this._register(new Emitter<TerminalCapability>());
-	readonly onDidRemoveCapability = this._onDidRemoveCapability.event;
+	readonly onDidRemoveCapabilityType = this._onDidRemoveCapability.event;
 	private readonly _onDidAddCapability = this._register(new Emitter<TerminalCapability>());
-	readonly onDidAddCapability = this._onDidAddCapability.event;
+	readonly onDidAddCapabilityType = this._onDidAddCapability.event;
 
 	private readonly _onDidRemoveCapability2 = this._register(new Emitter<TerminalCapabilityChangeEvent<any>>());
-	readonly onDidRemoveCapability2 = this._onDidRemoveCapability2.event;
+	readonly onDidRemoveCapability = this._onDidRemoveCapability2.event;
 	private readonly _onDidAddCapability2 = this._register(new Emitter<TerminalCapabilityChangeEvent<any>>());
-	readonly onDidAddCapability2 = this._onDidAddCapability2.event;
+	readonly onDidAddCapability = this._onDidAddCapability2.event;
 
 	get items(): IterableIterator<TerminalCapability> {
 		return this._items();
@@ -102,9 +102,9 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 			this._onDidAddCapability.fire(capability);
 			this._onDidAddCapability2.fire({ id: capability, capability: store.get(capability)! });
 		}
-		store.onDidAddCapability(e => this._onDidAddCapability.fire(e));
-		store.onDidAddCapability2(e => this._onDidAddCapability2.fire(e));
-		store.onDidRemoveCapability(e => this._onDidRemoveCapability.fire(e));
-		store.onDidRemoveCapability2(e => this._onDidRemoveCapability2.fire(e));
+		store.onDidAddCapabilityType(e => this._onDidAddCapability.fire(e));
+		store.onDidAddCapability(e => this._onDidAddCapability2.fire(e));
+		store.onDidRemoveCapabilityType(e => this._onDidRemoveCapability.fire(e));
+		store.onDidRemoveCapability(e => this._onDidRemoveCapability2.fire(e));
 	}
 }
