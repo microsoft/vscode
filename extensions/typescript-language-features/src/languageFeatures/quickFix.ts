@@ -18,80 +18,7 @@ import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
 import { applyCodeActionCommands, getEditForCodeAction } from './util/codeAction';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
-
-type EditorChatReplacementCommand_args = {
-	readonly message: string;
-	readonly document: vscode.TextDocument;
-	readonly diagnostic: vscode.Diagnostic;
-};
-
-class EditorChatReplacementCommand implements Command {
-	public static readonly ID = '_typescript.quickFix.editorChatReplacement';
-	public readonly id = EditorChatReplacementCommand.ID;
-
-	constructor( private readonly client: ITypeScriptServiceClient, private readonly diagnosticManager: DiagnosticsManager) {
-	}
-
-	async execute({ message, document, diagnostic }: EditorChatReplacementCommand_args) {
-		this.diagnosticManager.deleteDiagnostic(document.uri, diagnostic);
-		await editorChat(this.client, document, diagnostic.range.start.line, message);
-	}
-}
-
-class EditorChatFollowUp implements Command {
-
-	id: string = '_typescript.quickFix.editorChatFollowUp';
-
-	constructor(private readonly prompt: string, private readonly document: vscode.TextDocument, private readonly range: vscode.Range, private readonly client: ITypeScriptServiceClient) {
-	}
-
-	async execute() {
-		await editorChat(this.client, this.document, this.range.start.line, this.prompt);
-		const filepath = this.client.toOpenTsFilePath(this.document);
-		if (!filepath) {
-			return;
-		}
-		const response = await this.client.execute('navtree', { file: filepath }, nulToken);
-		if (response.type !== 'response' || !response.body?.childItems) {
-			return;
-		}
-		const startLine = this.range.start.line;
-		const enclosingRange = findScopeEndLineFromNavTree(startLine, response.body.childItems);
-		if (!enclosingRange) {
-			return;
-		}
-		await vscode.commands.executeCommand('vscode.editorChat.start', { initialRange: enclosingRange, message: this.prompt, autoSend: true });
-	}
-}
-
-function findScopeEndLineFromNavTree(startLine: number, navigationTree: Proto.NavigationTree[]): vscode.Range | undefined {
-	for (const node of navigationTree) {
-		const range = typeConverters.Range.fromTextSpan(node.spans[0]);
-		if (startLine === range.start.line) {
-			return range;
-		} else if (startLine > range.start.line && startLine <= range.end.line && node.childItems) {
-			return findScopeEndLineFromNavTree(startLine, node.childItems);
-		}
-	}
-	return undefined;
-}
-
-async function editorChat(client: ITypeScriptServiceClient, document: vscode.TextDocument, startLine: number, message: string) {
-		const filepath = client.toOpenTsFilePath(document);
-		if (!filepath) {
-			return;
-		}
-		const response = await client.execute('navtree', { file: filepath }, nulToken);
-		if (response.type !== 'response' || !response.body?.childItems) {
-			return;
-		}
-		const initialRange = findScopeEndLineFromNavTree(startLine, response.body.childItems);
-		if (!initialRange) {
-			return;
-		}
-
-		await vscode.commands.executeCommand('vscode.editorChat.start', { initialRange, message, autoSend: true });
-}
+import { ChatPanelFollowup, EditorChatFollowUp, EditorChatReplacementCommand1, CompositeCommand } from './util/copilot';
 
 type ApplyCodeActionCommand_args = {
 	readonly document: vscode.TextDocument;
@@ -293,9 +220,11 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		private readonly diagnosticsManager: DiagnosticsManager,
 		telemetryReporter: TelemetryReporter
 	) {
+		commandManager.register(new CompositeCommand());
 		commandManager.register(new ApplyCodeActionCommand(client, diagnosticsManager, telemetryReporter));
 		commandManager.register(new ApplyFixAllCodeAction(client, telemetryReporter));
-		commandManager.register(new EditorChatReplacementCommand(client, diagnosticsManager));
+		commandManager.register(new EditorChatReplacementCommand1(client, diagnosticsManager));
+		commandManager.register(new ChatPanelFollowup(client));
 
 		this.supportedCodeActionProvider = new SupportedCodeActionProvider(client);
 	}
@@ -393,24 +322,51 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		tsAction: Proto.CodeFixAction
 	): VsCodeCodeAction[] {
 		const actions: VsCodeCodeAction[] = [];
-		const aiQuickFixEnabled = vscode.workspace.getConfiguration('typescript').get('experimental.aiQuickFix');
 		let followupAction: Command | undefined;
-		if (aiQuickFixEnabled && tsAction.fixName === fixNames.classIncorrectlyImplementsInterface) {
-			followupAction = new EditorChatFollowUp('Implement the class using the interface', document, diagnostic.range, this.client);
-		}
-		else if (aiQuickFixEnabled && tsAction.fixName === fixNames.inferFromUsage) {
-			const inferFromBody = new VsCodeCodeAction(tsAction, 'Copilot: Infer and add types', vscode.CodeActionKind.QuickFix);
-			inferFromBody.edit = new vscode.WorkspaceEdit();
-			inferFromBody.diagnostics = [diagnostic];
-			inferFromBody.command = {
-				command: EditorChatReplacementCommand.ID,
-				arguments: [<EditorChatReplacementCommand_args>{
-					message: 'Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.',
-					diagnostic,
-					document }],
-				title: ''
-			};
-			actions.push(inferFromBody);
+		if (vscode.workspace.getConfiguration('typescript').get('experimental.aiQuickFix')) {
+			if(tsAction.fixName === fixNames.classIncorrectlyImplementsInterface) {
+				followupAction = new EditorChatFollowUp('Implement the class using the interface', document, diagnostic.range, this.client);
+			}
+			else if (tsAction.fixName === fixNames.inferFromUsage) {
+				const inferFromBody = new VsCodeCodeAction(tsAction, 'Copilot: Infer and add types', vscode.CodeActionKind.QuickFix);
+				inferFromBody.edit = new vscode.WorkspaceEdit();
+				inferFromBody.diagnostics = [diagnostic];
+				inferFromBody.command = {
+					command: EditorChatReplacementCommand1.ID,
+					arguments: [<EditorChatReplacementCommand1.Args>{
+						message: 'Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.',
+						diagnostic,
+						document }],
+					title: ''
+				};
+				actions.push(inferFromBody);
+			}
+			else if (tsAction.fixName === fixNames.addNameToNamelessParameter) {
+				followupAction = new EditorChatFollowUp('Suggest a better name for this parameter', document, diagnostic.range, this.client);
+				const suggestName = new VsCodeCodeAction(tsAction, 'Add parameter name', vscode.CodeActionKind.QuickFix);
+				suggestName.edit = getEditForCodeAction(this.client, tsAction);
+				suggestName.command = {
+					command: CompositeCommand.ID,
+					arguments: [{
+						command: ApplyCodeActionCommand.ID,
+						arguments: [<ApplyCodeActionCommand_args>{ action: tsAction, diagnostic, document }],
+						title: ''
+					}, {
+						command: ChatPanelFollowup.ID,
+						arguments: [<ChatPanelFollowup.Args>{
+							prompt: `Suggest 5 normal-sounding, useful names for the parameter
+\`\`\`
+${document.getText(diagnostic.range)}
+\`\`\` `,
+							range: diagnostic.range,
+							expand: 'navtree-function',
+							document }],
+						title: ''
+					}],
+					title: '',
+				}
+				return [suggestName]
+			}
 		}
 		const codeAction = new VsCodeCodeAction(tsAction, tsAction.description, vscode.CodeActionKind.QuickFix);
 		codeAction.edit = getEditForCodeAction(this.client, tsAction);

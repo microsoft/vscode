@@ -17,5 +17,6 @@ export const forgottenThisPropertyAccess = 'forgottenThisPropertyAccess';
 export const removeUnnecessaryAwait = 'removeUnnecessaryAwait';
 export const spelling = 'spelling';
 export const inferFromUsage = 'inferFromUsage';
+export const addNameToNamelessParameter = 'addNameToNamelessParameter';
 export const unreachableCode = 'fixUnreachableCode';
 export const unusedIdentifier = 'unusedIdentifier';
