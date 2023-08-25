@@ -37,14 +37,10 @@
 	width: 18px;
 	height: 18px;
 	float: right;
-	cursor: var(--vscode-editorStickyScroll-cursorOutsideHover);
-	opacity: var(--vscode-editorStickyScroll-opacityOutsideHover);
+	cursor: var(--vscode-editorStickyScroll-cursorOutsideHover, 'default');
+	opacity: var(--vscode-editorStickyScroll-opacityOutsideHover, '0');
 }
 
-.monaco-editor .sticky-line-number .codicon:hover {
-	cursor: pointer;
-	opacity: 1;
-}
 
 .monaco-editor .sticky-line-content {
 	width: var(--vscode-editorStickyScroll-scrollableWidth);

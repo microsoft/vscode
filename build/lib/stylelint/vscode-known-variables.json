@@ -749,6 +749,7 @@
 		"--vscode-sash-size",
 		"--vscode-editorStickyScroll-cursorOutsideHover",
 		"--vscode-editorStickyScroll-opacityOutsideHover",
+		"--vscode-editorStickyScroll-transitionOpacity",
 		"--vscode-editorStickyScroll-scrollableWidth",
 		"--window-border-color",
 		"--workspace-trust-check-color",
