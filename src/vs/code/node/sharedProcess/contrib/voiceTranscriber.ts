@@ -9,7 +9,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IVoiceRecognitionService } from 'vs/platform/voiceRecognition/node/voiceRecognitionService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { TaskSequentializer } from 'vs/base/common/async';
+import { LimitedQueue } from 'vs/base/common/async';
 
 export class VoiceTranscriptionManager extends Disposable {
 
@@ -34,9 +34,7 @@ class VoiceTranscriber extends Disposable {
 
 	private static MAX_DATA_LENGTH = 30 /* seconds */ * 16000 /* sampling rate */ * 16 /* bith depth */ * 1 /* channels */ / 8;
 
-	private readonly transcriptionSequentializer = new TaskSequentializer();
-
-	private requests = 0;
+	private readonly transcriptionQueue = new LimitedQueue();
 
 	private data: Float32Array | undefined = undefined;
 
@@ -67,7 +65,6 @@ class VoiceTranscriber extends Disposable {
 			this.logService.info(`[voice] transcriber: closed connection`);
 
 			cts.dispose(true);
-			this.transcriptionSequentializer.cancelPending();
 		});
 	}
 
@@ -91,23 +88,21 @@ class VoiceTranscriber extends Disposable {
 		}
 
 		this.data = dataCandidate;
-		const data = this.data.slice(0);
 
-		this.requests++;
-
-		if (!this.transcriptionSequentializer.hasPending()) {
-			this.transcriptionSequentializer.setPending(this.requests, this.transcribe(data, cancellation));
-		} else {
-			this.transcriptionSequentializer.setNext(() => this.transcribe(data, cancellation));
-		}
+		this.transcriptionQueue.queue(() => this.transcribe(cancellation));
 	}
 
-	private async transcribe(channelData: Float32Array, cancellation: CancellationToken): Promise<void> {
+	private async transcribe(cancellation: CancellationToken): Promise<void> {
 		if (cancellation.isCancellationRequested) {
 			return;
 		}
 
-		const result = await this.voiceRecognitionService.transcribe(channelData, cancellation);
+		const data = this.data?.slice(0);
+		if (!data) {
+			return;
+		}
+
+		const result = await this.voiceRecognitionService.transcribe(data, cancellation);
 
 		if (cancellation.isCancellationRequested) {
 			return;
