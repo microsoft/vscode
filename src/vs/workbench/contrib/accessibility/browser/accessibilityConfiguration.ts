@@ -45,6 +45,20 @@ export const enum AccessibilityVerbositySettingId {
 	EditorUntitledHint = 'accessibility.verbosity.editor.untitledHint'
 }
 
+export const enum AccessibleViewProviderId {
+	Terminal = 'terminal',
+	DiffEditor = 'diffEditor',
+	Chat = 'panelChat',
+	InlineChat = 'inlineChat',
+	InlineCompletions = 'inlineCompletions',
+	KeybindingsEditor = 'keybindingsEditor',
+	Notebook = 'notebook',
+	Editor = 'editor',
+	Hover = 'hover',
+	Notification = 'notification',
+	EditorUntitledHint = 'editor.untitledHint'
+}
+
 const baseProperty: object = {
 	type: 'boolean',
 	default: true,

@@ -85,7 +85,12 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._readConfiguration();
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
 		this._register(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.stickyScroll) || e.hasChanged(EditorOption.minimap)) {
+			if (
+				e.hasChanged(EditorOption.stickyScroll)
+				|| e.hasChanged(EditorOption.minimap)
+				|| e.hasChanged(EditorOption.lineHeight)
+				|| e.hasChanged(EditorOption.showFoldingControls)
+			) {
 				this._readConfiguration();
 			}
 		}));
