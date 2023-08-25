@@ -170,6 +170,16 @@ class AccessibleView extends Disposable {
 				this._updateToolbar(this._currentProvider.actions, this._currentProvider.options.type);
 			}
 		}));
+		this._register(this._editorWidget.onDidDispose(() => this._resetContextKeys()));
+	}
+
+	private _resetContextKeys(): void {
+		this._accessiblityHelpIsShown.reset();
+		this._accessibleViewIsShown.reset();
+		this._accessibleViewSupportsNavigation.reset();
+		this._accessibleViewVerbosityEnabled.reset();
+		this._accessibleViewGoToSymbolSupported.reset();
+		this._accessibleViewCurrentProviderId.reset();
 	}
 
 	show(provider?: IAccessibleContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean): void {
@@ -186,8 +196,7 @@ class AccessibleView extends Disposable {
 			onHide: () => {
 				if (!showAccessibleViewHelp) {
 					this._currentProvider = undefined;
-					this._accessibleViewCurrentProviderId.reset();
-					this._updateContextKeys(provider!, false);
+					this._resetContextKeys();
 				}
 			}
 		};
