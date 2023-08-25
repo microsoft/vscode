@@ -284,6 +284,18 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this.__isCommandStorageDisabled = true;
 	}
 
+	getCommandForLine(line: number): ITerminalCommand | ICurrentPartialCommand | undefined {
+		// Handle the current partial command first, anything below it's prompt is considered part
+		// of the current command
+		if (this._currentCommand.promptStartMarker && line >= this._currentCommand.promptStartMarker?.line) {
+			return this._currentCommand;
+		}
+		// TODO: It would be more reliable to take the closest cwd above the line if it isn't found for the line
+		// TODO: Use a reverse for loop to find the line to avoid creating another array
+		const reversed = [...this._commands].reverse();
+		return reversed.find(c => c.marker!.line <= line - 1);
+	}
+
 	getCwdForLine(line: number): string | undefined {
 		// Handle the current partial command first, anything below it's prompt is considered part
 		// of the current command
