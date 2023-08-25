@@ -106,9 +106,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	setState(state: StickyScrollWidgetState): void {
+		this._stickyLines = [];
+		this._foldingIconStore.clear();
 		dom.clearNode(this._lineNumbersDomNode);
 		dom.clearNode(this._linesDomNode);
-		this._stickyLines = [];
+		if (!this._editor._getViewModel()) {
+			return;
+		}
 		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const futureWidgetHeight = state.startLineNumbers.length * editorLineHeight + state.lastLineRelativePosition;
 
@@ -137,10 +141,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private async _renderRootNode(): Promise<void> {
 
-		this._foldingIconStore.clear();
-		if (!this._editor._getViewModel()) {
-			return;
-		}
 		const foldingModel = await FoldingController.get(this._editor)?.getFoldingModel();
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (const [index, line] of this._lineNumbers.entries()) {
