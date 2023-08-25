@@ -153,6 +153,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._linesDomNode.appendChild(renderedStickyLine.lineDomNode);
 			this._stickyLines.push(renderedStickyLine);
 		}
+		if (foldingModel) {
+			this._setFoldingHoverListeners();
+		}
 
 		const widgetHeight: number = this._lineNumbers.length * this._lineHeight + this._lastLineRelativePosition;
 		this._rootDomNode.style.display = widgetHeight > 0 ? 'block' : 'none';
@@ -167,7 +170,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._rootDomNode.style.marginLeft = '0px';
 		}
 		this._updateMinContentWidth();
-		this._setFoldingHoverListeners();
 		this._editor.layoutOverlayWidget(this);
 	}
 
