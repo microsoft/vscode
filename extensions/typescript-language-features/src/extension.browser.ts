@@ -109,14 +109,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		isCaseSensitive: true,
 		isReadonly: false
 	}));
-	context.subscriptions.push(vscode.workspace.registerFileSystemProvider('vscode-global-typings', new MemFs(), {
-		isCaseSensitive: true,
-		isReadonly: false
-	}));
-	context.subscriptions.push(vscode.workspace.registerFileSystemProvider('vscode-node-modules', new AutoInstallerFs(), {
-		isCaseSensitive: true,
-		isReadonly: false
-	}));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }
