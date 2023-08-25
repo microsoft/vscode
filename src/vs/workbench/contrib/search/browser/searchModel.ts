@@ -2102,12 +2102,17 @@ export class SearchModel extends Disposable {
 			this.telemetryService.publicLog('searchResultsFirstRender', { duration: Date.now() - start });
 		});
 
-		asyncResults.then(
-			value => this.onSearchCompleted(value, Date.now() - start, searchInstanceID),
-			e => this.onSearchError(e, Date.now() - start));
 		try {
 			return {
-				asyncResults: asyncResults,
+				asyncResults: asyncResults.then(
+					value => {
+						this.onSearchCompleted(value, Date.now() - start, searchInstanceID);
+						return value;
+					},
+					e => {
+						this.onSearchError(e, Date.now() - start);
+						throw e;
+					}),
 				syncResults: syncResults
 			};
 		} finally {
