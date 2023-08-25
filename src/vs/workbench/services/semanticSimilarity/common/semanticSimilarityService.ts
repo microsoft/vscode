@@ -11,8 +11,14 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ILogService } from 'vs/platform/log/common/log';
 
+/**
+ * @deprecated Use `IAiRelatedInformationService` instead.
+ */
 export const ISemanticSimilarityService = createDecorator<ISemanticSimilarityService>('ISemanticSimilarityService');
 
+/**
+ * @deprecated Use `IAiRelatedInformationService` instead.
+ */
 export interface ISemanticSimilarityService {
 	readonly _serviceBrand: undefined;
 

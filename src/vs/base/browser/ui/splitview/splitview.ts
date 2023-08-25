@@ -259,7 +259,7 @@ abstract class ViewItem<TLayoutContext> {
 
 	constructor(
 		protected container: HTMLElement,
-		private view: IView<TLayoutContext>,
+		readonly view: IView<TLayoutContext>,
 		size: ViewItemSize,
 		private disposable: IDisposable
 	) {
@@ -280,9 +280,8 @@ abstract class ViewItem<TLayoutContext> {
 
 	abstract layoutContainer(offset: number): void;
 
-	dispose(): IView<TLayoutContext> {
+	dispose(): void {
 		this.disposable.dispose();
-		return this.view;
 	}
 }
 
@@ -566,11 +565,11 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		this.sashContainer = append(this.el, $('.sash-container'));
 		this.viewContainer = $('.split-view-container');
 
-		this.scrollable = new Scrollable({
+		this.scrollable = this._register(new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: 125,
 			scheduleAtNextAnimationFrame
-		});
+		}));
 		this.scrollableElement = this._register(new SmoothScrollableElement(this.viewContainer, {
 			vertical: this.orientation === Orientation.VERTICAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden,
 			horizontal: this.orientation === Orientation.HORIZONTAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden
@@ -662,13 +661,20 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			if (this.areViewsDistributed()) {
 				sizing = { type: 'distribute' };
 			} else {
-				sizing = undefined;
+				sizing = { type: 'split', index: sizing.index };
 			}
 		}
 
+		// Save referene view, in case of `split` sizing
+		const referenceViewItem = sizing?.type === 'split' ? this.viewItems[sizing.index] : undefined;
+
 		// Remove view
-		const viewItem = this.viewItems.splice(index, 1)[0];
-		const view = viewItem.dispose();
+		const viewItemToRemove = this.viewItems.splice(index, 1)[0];
+
+		// Resize reference view, in case of `split` sizing
+		if (referenceViewItem) {
+			referenceViewItem.size += viewItemToRemove.size;
+		}
 
 		// Remove sash
 		if (this.viewItems.length >= 1) {
@@ -684,7 +690,9 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			this.distributeViewSizes();
 		}
 
-		return view;
+		const result = viewItemToRemove.view;
+		viewItemToRemove.dispose();
+		return result;
 	}
 
 	/**

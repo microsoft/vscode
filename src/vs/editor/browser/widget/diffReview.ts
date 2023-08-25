@@ -19,7 +19,7 @@ import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -325,9 +325,9 @@ export class DiffReview extends Disposable {
 		}
 		const element = !type ? current : type === 'next' ? current?.nextElementSibling : current?.previousElementSibling;
 		if (element?.classList.contains(DiffEditorLineClasses.Insert)) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineInserted, true);
+			this._audioCueService.playAudioCue(AudioCue.diffLineInserted, { allowManyInParallel: true });
 		} else if (element?.classList.contains(DiffEditorLineClasses.Delete)) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, true);
+			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, { allowManyInParallel: true });
 		}
 		this.scrollbar.scanDomNode();
 	}

@@ -43,44 +43,48 @@
 			"modifiedRange": "[14,18)",
 			"innerChanges": [
 				{
-					"originalRange": "[14,120 -> 14,154]",
-					"modifiedRange": "[14,120 -> 14,162]"
-				},
-				{
-					"originalRange": "[14,165 -> 14,211]",
-					"modifiedRange": "[14,173 -> 17,1]"
+					"originalRange": "[14,120 -> 15,1]",
+					"modifiedRange": "[14,120 -> 18,1]"
 				}
 			]
 		},
 		{
 			"originalRange": "[17,24)",
-			"modifiedRange": "[20,24)",
+			"modifiedRange": "[20,22)",
 			"innerChanges": [
 				{
 					"originalRange": "[17,1 -> 17,1]",
 					"modifiedRange": "[20,1 -> 21,1]"
 				},
 				{
-					"originalRange": "[17,8 -> 17,40]",
-					"modifiedRange": "[21,8 -> 21,43]"
+					"originalRange": "[17,9 -> 17,21]",
+					"modifiedRange": "[21,9 -> 21,15]"
 				},
 				{
-					"originalRange": "[17,71 -> 17,72]",
+					"originalRange": "[17,24 -> 17,40]",
+					"modifiedRange": "[21,18 -> 21,43]"
+				},
+				{
+					"originalRange": "[17,71 -> 24,1]",
 					"modifiedRange": "[21,74 -> 22,1]"
-				},
-				{
-					"originalRange": "[18,3 -> 23,4]",
-					"modifiedRange": "[23,3 -> 23,120]"
 				}
 			]
 		},
 		{
 			"originalRange": "[25,27)",
-			"modifiedRange": "[25,25)",
+			"modifiedRange": "[23,25)",
 			"innerChanges": [
 				{
-					"originalRange": "[25,1 -> 27,1]",
-					"modifiedRange": "[25,1 -> 25,1]"
+					"originalRange": "[25,9 -> 26,18]",
+					"modifiedRange": "[23,9 -> 23,18]"
+				},
+				{
+					"originalRange": "[26,22 -> 26,27]",
+					"modifiedRange": "[23,22 -> 23,23]"
+				},
+				{
+					"originalRange": "[27,1 -> 27,1]",
+					"modifiedRange": "[24,1 -> 25,1]"
 				}
 			]
 		},
@@ -89,20 +93,8 @@
 			"modifiedRange": "[26,38)",
 			"innerChanges": [
 				{
-					"originalRange": "[28,1 -> 28,1]",
-					"modifiedRange": "[26,1 -> 27,1]"
-				},
-				{
-					"originalRange": "[28,15 -> 28,20]",
-					"modifiedRange": "[27,15 -> 27,16]"
-				},
-				{
-					"originalRange": "[29,4 -> 29,24]",
-					"modifiedRange": "[28,4 -> 29,36]"
-				},
-				{
-					"originalRange": "[30,4 -> 30,31]",
-					"modifiedRange": "[30,4 -> 37,9]"
+					"originalRange": "[28,1 -> 31,1]",
+					"modifiedRange": "[26,1 -> 38,1]"
 				}
 			]
 		}

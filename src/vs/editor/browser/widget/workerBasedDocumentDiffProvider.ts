@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -34,13 +35,22 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 		this.diffAlgorithmOnDidChangeSubscription?.dispose();
 	}
 
-	async computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff> {
+	async computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions, cancellationToken: CancellationToken): Promise<IDocumentDiff> {
 		if (typeof this.diffAlgorithm !== 'string') {
-			return this.diffAlgorithm.computeDiff(original, modified, options);
+			return this.diffAlgorithm.computeDiff(original, modified, options, cancellationToken);
 		}
 
 		// This significantly speeds up the case when the original file is empty
 		if (original.getLineCount() === 1 && original.getLineMaxColumn(1) === 1) {
+			if (modified.getLineCount() === 1 && modified.getLineMaxColumn(1) === 1) {
+				return {
+					changes: [],
+					identical: true,
+					quitEarly: false,
+					moves: [],
+				};
+			}
+
 			return {
 				changes: [
 					new LineRangeMapping(
@@ -85,6 +95,16 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 			timeMs,
 			timedOut: result?.quitEarly ?? true,
 		});
+
+		if (cancellationToken.isCancellationRequested) {
+			// Text models might be disposed!
+			return {
+				changes: [],
+				identical: false,
+				quitEarly: true,
+				moves: [],
+			};
+		}
 
 		if (!result) {
 			throw new Error('no diff result available');

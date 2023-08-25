@@ -59,6 +59,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/mappedEdits",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/comments",
 			"project": "vscode-workbench"
 		},
@@ -84,10 +88,6 @@
 		},
 		{
 			"name": "vs/workbench/contrib/externalTerminal",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/contrib/feedback",
 			"project": "vscode-workbench"
 		},
 		{

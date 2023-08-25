@@ -73,7 +73,7 @@ import { DelayedLogChannel } from 'vs/workbench/services/output/common/delayedLo
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
-import { IRemoteExplorerService, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { DisposableTunnel, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
@@ -96,6 +96,7 @@ import { BrowserSecretStorageService } from 'vs/workbench/services/secrets/brows
 import { EncryptionService } from 'vs/workbench/services/encryption/browser/encryptionService';
 import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
+import { TunnelSource } from 'vs/workbench/services/remote/common/tunnelModel';
 
 export class BrowserMain extends Disposable {
 
@@ -209,6 +210,10 @@ export class BrowserMain extends Disposable {
 							requireLocalPort: undefined,
 							protocol: tunnelOptions.protocol === TunnelProtocol.Https ? tunnelOptions.protocol : TunnelProtocol.Http
 						}));
+
+						if (typeof tunnel === 'string') {
+							throw new Error(tunnel);
+						}
 
 						return new class extends DisposableTunnel implements ITunnel {
 							declare localAddress: string;

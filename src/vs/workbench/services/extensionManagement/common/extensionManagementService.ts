@@ -153,10 +153,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
 
-	updateMetadata(extension: ILocalExtension, metadata: Partial<Metadata>): Promise<ILocalExtension> {
+	updateMetadata(extension: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
 		const server = this.getServer(extension);
 		if (server) {
-			return server.extensionManagementService.updateMetadata(extension, metadata);
+			return server.extensionManagementService.updateMetadata(extension, metadata, profileLocation);
 		}
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
@@ -558,6 +558,14 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	async cleanUp(): Promise<void> {
 		await Promise.allSettled(this.servers.map(server => server.extensionManagementService.cleanUp()));
+	}
+
+	toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {
+		const server = this.getServer(extension);
+		if (server) {
+			return server.extensionManagementService.toggleAppliationScope(extension, fromProfileLocation);
+		}
+		throw new Error('Not Supported');
 	}
 
 	copyExtensions(from: URI, to: URI): Promise<void> {

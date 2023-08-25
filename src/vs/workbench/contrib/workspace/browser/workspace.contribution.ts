@@ -32,7 +32,6 @@ import { isEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleF
 import { dirname, resolve } from 'vs/base/common/path';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
@@ -527,9 +526,6 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	private getStatusbarEntry(trusted: boolean): IStatusbarEntry {
 		const text = workspaceTrustToString(trusted);
 
-		const backgroundColor = { id: STATUS_BAR_PROMINENT_ITEM_BACKGROUND };
-		const color = { id: STATUS_BAR_PROMINENT_ITEM_FOREGROUND };
-
 		let ariaLabel = '';
 		let toolTip: IMarkdownString | string | undefined;
 		switch (this.workspaceContextService.getWorkbenchState()) {
@@ -586,8 +582,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			ariaLabel: ariaLabel,
 			tooltip: toolTip,
 			command: MANAGE_TRUST_COMMAND_ID,
-			backgroundColor,
-			color
+			kind: 'prominent'
 		};
 	}
 

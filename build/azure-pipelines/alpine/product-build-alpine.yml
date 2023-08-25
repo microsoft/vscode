@@ -1,11 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
-
-  - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-    displayName: "Register Docker QEMU"
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
+      versionSpec: "18.x"
 
   - template: ../distro/download-distro.yml
 
@@ -46,7 +42,10 @@ steps:
   - script: |
       set -e
       npm config set registry "$NPM_REGISTRY" --location=project
-      npm config set always-auth=true --location=project
+      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+      # following is a workaround for yarn to send authorization header
+      # for GET requests to the registry.
+      echo "always-auth=true" >> .npmrc
       yarn config set registry "$NPM_REGISTRY"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM & Yarn
@@ -67,6 +66,10 @@ steps:
     displayName: "Pull image"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+  - script: sudo apt-get update && sudo apt-get install -y libkrb5-dev
+    displayName: Install build dependencies
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
   - script: |
       set -e
       for i in {1..5}; do # try 5 times
@@ -78,10 +81,12 @@ steps:
         echo "Yarn failed $i, trying again..."
       done
     env:
+      npm_config_arch: $(NPM_ARCH)
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
       VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH)
+      VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
     displayName: Install build dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 

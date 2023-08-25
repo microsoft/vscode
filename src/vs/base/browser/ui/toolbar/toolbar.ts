@@ -13,7 +13,6 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { EventMultiplexer } from 'vs/base/common/event';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./toolbar';
 import * as nls from 'vs/nls';
 
@@ -31,6 +30,11 @@ export interface IToolBarOptions {
 	moreIcon?: ThemeIcon;
 	allowContextMenu?: boolean;
 	skipTelemetry?: boolean;
+
+	/**
+	 * If true, toggled primary items are highlighted with a background color.
+	 */
+	highlightToggledItems?: boolean;
 }
 
 /**
@@ -48,7 +52,7 @@ export class ToolBar extends Disposable {
 
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
 	readonly onDidChangeDropdownVisibility = this._onDidChangeDropdownVisibility.event;
-	private disposables = new DisposableStore();
+	private disposables = this._register(new DisposableStore());
 
 	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
 		super();
@@ -67,6 +71,7 @@ export class ToolBar extends Disposable {
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
 			allowContextMenu: options.allowContextMenu,
+			highlightToggledItems: options.highlightToggledItems,
 			actionViewItemProvider: (action, viewItemOptions) => {
 				if (action.id === ToggleMenuAction.ID) {
 					this.toggleMenuActionViewItem = new DropdownMenuActionViewItem(
@@ -196,7 +201,7 @@ export class ToolBar extends Disposable {
 	private getKeybindingLabel(action: IAction): string | undefined {
 		const key = this.lookupKeybindings ? this.options.getKeyBinding?.(action) : undefined;
 
-		return withNullAsUndefined(key?.getLabel());
+		return key?.getLabel() ?? undefined;
 	}
 
 	private clear(): void {

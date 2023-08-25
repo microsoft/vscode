@@ -117,10 +117,10 @@ suite('Search Actions', () => {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
 			}
-		}, searchModel.searchResult, searchModel, null);
+		}, searchModel.searchResult, searchModel.searchResult, null);
 		return instantiationService.createInstance(FileMatch, {
 			pattern: ''
-		}, undefined, undefined, folderMatch, rawMatch, null);
+		}, undefined, undefined, folderMatch, rawMatch, null, '');
 	}
 
 	function aMatch(fileMatch: FileMatch): Match {

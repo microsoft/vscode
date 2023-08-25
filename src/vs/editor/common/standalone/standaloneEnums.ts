@@ -318,7 +318,8 @@ export enum EditorOption {
 	layoutInfo = 142,
 	wrappingInfo = 143,
 	defaultColorDecorators = 144,
-	colorDecoratorsActivatedOn = 145
+	colorDecoratorsActivatedOn = 145,
+	inlineCompletionsAccessibilityVerbose = 146
 }
 
 /**

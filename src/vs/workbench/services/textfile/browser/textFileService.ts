@@ -43,7 +43,6 @@ import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/w
 import { Emitter } from 'vs/base/common/event';
 import { Codicon } from 'vs/base/common/codicons';
 import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { firstOrDefault } from 'vs/base/common/arrays';
 
 /**
@@ -90,7 +89,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	private provideDecorations(): void {
 
 		// Text file model decorations
-		this.decorationsService.registerDecorationsProvider(new class extends Disposable implements IDecorationsProvider {
+		const provider = this._register(new class extends Disposable implements IDecorationsProvider {
 
 			readonly label = localize('textFileModelDecorations', "Text File Model Decorations");
 
@@ -162,6 +161,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				return undefined;
 			}
 		}(this.files));
+
+		this._register(this.decorationsService.registerDecorationsProvider(provider));
 	}
 
 	//#endregin
@@ -308,7 +309,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			acceptTextOnly: options?.acceptTextOnly ?? false,
 			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
 			overwriteEncoding: async detectedEncoding => {
-				const { encoding } = await this.encoding.getPreferredReadEncoding(resource, options, withNullAsUndefined(detectedEncoding));
+				const { encoding } = await this.encoding.getPreferredReadEncoding(resource, options, detectedEncoding ?? undefined);
 
 				return encoding;
 			}
@@ -507,7 +508,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		let sourceTextModel: ITextModel | undefined = undefined;
 		if (sourceModel instanceof BaseTextEditorModel) {
 			if (sourceModel.isResolved()) {
-				sourceTextModel = withNullAsUndefined(sourceModel.textEditorModel);
+				sourceTextModel = sourceModel.textEditorModel ?? undefined;
 			}
 		} else {
 			sourceTextModel = sourceModel as ITextModel;

@@ -1734,6 +1734,11 @@ declare module 'vscode' {
 		kind?: QuickPickItemKind;
 
 		/**
+		 * The icon path or {@link ThemeIcon} for the QuickPickItem.
+		 */
+		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+
+		/**
 		 * A human-readable string which is rendered less prominent in the same line. Supports rendering of
 		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
 		 *
@@ -4145,6 +4150,26 @@ declare module 'vscode' {
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+
+
+		/**
+		 * Provide formatting edits for multiple ranges in a document.
+		 *
+		 * This function is optional but allows a formatter to perform faster when formatting only modified ranges or when
+		 * formatting a large number of selections.
+		 *
+		 * The given ranges are hints and providers can decide to format a smaller
+		 * or larger range. Often this is done by adjusting the start and end
+		 * of the range to full syntax nodes.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param ranges The ranges which should be formatted.
+		 * @param options Options controlling formatting.
+		 * @param token A cancellation token.
+		 * @return A set of text edits or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined`, `null`, or an empty array.
+		 */
+		provideDocumentRangesFormattingEdits?(document: TextDocument, ranges: Range[], options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
 	}
 
 	/**
@@ -7160,10 +7185,10 @@ declare module 'vscode' {
 		readonly extensionPath: string;
 
 		/**
-		 * Gets the extension's environment variable collection for this workspace, enabling changes
-		 * to be applied to terminal environment variables.
+		 * Gets the extension's global environment variable collection for this workspace, enabling changes to be
+		 * applied to terminal environment variables.
 		 */
-		readonly environmentVariableCollection: EnvironmentVariableCollection;
+		readonly environmentVariableCollection: GlobalEnvironmentVariableCollection;
 
 		/**
 		 * Get the absolute path of a resource contained in the extension.
@@ -11403,6 +11428,31 @@ declare module 'vscode' {
 		 */
 		clear(): void;
 	}
+
+	export interface GlobalEnvironmentVariableCollection extends EnvironmentVariableCollection {
+		/**
+		 * Gets scope-specific environment variable collection for the extension. This enables alterations to
+		 * terminal environment variables solely within the designated scope, and is applied in addition to (and
+		 * after) the global collection.
+		 *
+		 * Each object obtained through this method is isolated and does not impact objects for other scopes,
+		 * including the global collection.
+		 *
+		 * @param scope The scope to which the environment variable collection applies to.
+		 *
+		 * If a scope parameter is omitted, collection applicable to all relevant scopes for that parameter is
+		 * returned. For instance, if the 'workspaceFolder' parameter is not specified, the collection that applies
+		 * across all workspace folders will be returned.
+		 */
+		getScoped(scope: EnvironmentVariableScope): EnvironmentVariableCollection;
+	}
+
+	export type EnvironmentVariableScope = {
+		/**
+		 * Any specific workspace folder to get collection for.
+		 */
+		workspaceFolder?: WorkspaceFolder;
+	};
 
 	/**
 	 * A location in the editor at which progress information can be shown. It depends on the
@@ -15975,7 +16025,7 @@ declare module 'vscode' {
 		 * @param id The unique identifier of the provider.
 		 * @param label The human-readable name of the provider.
 		 * @param provider The authentication provider provider.
-		 * @params options Additional options for the provider.
+		 * @param options Additional options for the provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerAuthenticationProvider(id: string, label: string, provider: AuthenticationProvider, options?: AuthenticationProviderOptions): Disposable;
@@ -16298,6 +16348,24 @@ declare module 'vscode' {
 		 * @param uri URI this TestItem is associated with. May be a file or directory.
 		 */
 		createTestItem(id: string, label: string, uri?: Uri): TestItem;
+
+		/**
+		 * Marks an item's results as being outdated. This is commonly called when
+		 * code or configuration changes and previous results should no longer
+		 * be considered relevant. The same logic used to mark results as outdated
+		 * may be used to drive {@link TestRunRequest.continuous continuous test runs}.
+		 *
+		 * If an item is passed to this method, test results for the item and all of
+		 * its children will be marked as outdated. If no item is passed, then all
+		 * test owned by the TestController will be marked as outdated.
+		 *
+		 * Any test runs started before the moment this method is called, including
+		 * runs which may still be ongoing, will be marked as outdated and deprioritized
+		 * in the editor's UI.
+		 *
+		 * @param item Item to mark as outdated. If undefined, all the controller's items are marked outdated.
+		 */
+		invalidateTestResults(items?: TestItem | readonly TestItem[]): void;
 
 		/**
 		 * Unregisters the test controller, disposing of its associated tests

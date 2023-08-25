@@ -52,6 +52,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super({ syncResource: SyncResource.Profiles, profile }, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
+		this._register(userDataProfilesService.onDidChangeProfiles(() => this.triggerLocalChange()));
 	}
 
 	async getLastSyncedProfiles(): Promise<ISyncUserDataProfile[] | null> {
@@ -206,7 +207,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 				if (localProfile) {
 					promises.push((async () => {
 						this.logService.trace(`${this.syncResourceLogLabel}: Updating '${profile.name}' profile...`);
-						await this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName });
+						await this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName, useDefaultFlags: profile.useDefaultFlags });
 						this.logService.info(`${this.syncResourceLogLabel}: Updated profile '${profile.name}'.`);
 					})());
 				} else {

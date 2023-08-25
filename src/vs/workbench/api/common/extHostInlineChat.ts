@@ -58,6 +58,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 		type EditorChatApiArg = {
 			initialRange?: vscode.Range;
+			initialSelection?: vscode.Selection;
 			message?: string;
 			autoSend?: boolean;
 			position?: vscode.Position;
@@ -65,6 +66,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 		type InteractiveEditorRunOptions = {
 			initialRange?: IRange;
+			initialSelection?: ISelection;
 			message?: string;
 			autoSend?: boolean;
 			position?: IPosition;
@@ -80,6 +82,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 				return {
 					initialRange: v.initialRange ? typeConvert.Range.from(v.initialRange) : undefined,
+					initialSelection: v.initialSelection ? typeConvert.Selection.from(v.initialSelection) : undefined,
 					message: v.message,
 					autoSend: v.autoSend,
 					position: v.position ? typeConvert.Position.from(v.position) : undefined,
@@ -92,7 +95,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 	registerProvider(extension: Readonly<IRelaxedExtensionDescription>, provider: vscode.InteractiveEditorSessionProvider): vscode.Disposable {
 		const wrapper = new ProviderWrapper(extension, provider);
 		this._inputProvider.set(wrapper.handle, wrapper);
-		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function');
+		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, provider.label, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function');
 		return toDisposable(() => {
 			this._proxy.$unregisterInteractiveEditorProvider(wrapper.handle);
 			this._inputProvider.delete(wrapper.handle);
@@ -123,7 +126,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		return {
 			id,
 			placeholder: session.placeholder,
-			slashCommands: session.slashCommands?.map(c => ({ command: c.command, detail: c.detail, refer: c.refer })),
+			slashCommands: session.slashCommands?.map(c => ({ command: c.command, detail: c.detail, refer: c.refer, executeImmediately: c.executeImmediately })),
 			wholeRange: typeConvert.Range.from(session.wholeRange),
 			message: session.message
 		};
@@ -233,6 +236,9 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 					break;
 				case InlineChatResponseFeedbackKind.Undone:
 					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Undone;
+					break;
+				case InlineChatResponseFeedbackKind.Accepted:
+					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Accepted;
 					break;
 			}
 

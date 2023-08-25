@@ -4,21 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ISettableObservable, ITransaction, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
-import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IObservable, IReader, ISettableObservable, ITransaction, autorunWithStore, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
 import { ISerializedLineRange, LineRange } from 'vs/editor/common/core/lineRange';
 import { Range } from 'vs/editor/common/core/range';
 import { IDocumentDiff, IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
 import { LineRangeMapping, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { lineRangeMappingFromRangeMappings } from 'vs/editor/common/diff/standardLinesDiffComputer';
+import { AdvancedLinesDiffComputer, lineRangeMappingFromRangeMappings } from 'vs/editor/common/diff/advancedLinesDiffComputer';
 import { IDiffEditorModel, IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextEditInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper';
 import { combineTextEditInfos } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos';
 import { lengthAdd, lengthDiffNonNegative, lengthGetLineCount, lengthOfRange, lengthToPosition, lengthZero, positionToLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { DiffEditorOptions } from './diffEditorOptions';
+import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export class DiffEditorViewModel extends Disposable implements IDiffEditorViewModel {
 	private readonly _isDiffUpToDate = observableValue<boolean>('isDiffUpToDate', false);
@@ -32,7 +33,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		'unchangedRegion',
 		{ regions: [], originalDecorationIds: [], modifiedDecorationIds: [] }
 	);
-	public readonly unchangedRegions: IObservable<UnchangedRegion[]> = derived('unchangedRegions', r => {
+	public readonly unchangedRegions: IObservable<UnchangedRegion[]> = derived(r => {
+		/** @description unchangedRegions */
 		if (this._options.collapseUnchangedRegions.read(r)) {
 			return this._unchangedRegions.read(r).regions;
 		} else {
@@ -47,7 +49,23 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	}
 	);
 
-	public readonly syncedMovedTexts = observableValue<MovedText | undefined>('syncedMovedText', undefined);
+	public readonly movedTextToCompare = observableValue<MovedText | undefined>('movedTextToCompare', undefined);
+
+	private readonly _activeMovedText = observableValue<MovedText | undefined>('activeMovedText', undefined);
+	private readonly _hoveredMovedText = observableValue<MovedText | undefined>('hoveredMovedText', undefined);
+
+
+	public readonly activeMovedText = derived(r => this.movedTextToCompare.read(r) ?? this._hoveredMovedText.read(r) ?? this._activeMovedText.read(r));
+
+	public setActiveMovedText(movedText: MovedText | undefined): void {
+		this._activeMovedText.set(movedText, undefined);
+	}
+
+	public setHoveredMovedText(movedText: MovedText | undefined): void {
+		this._hoveredMovedText.set(movedText, undefined);
+	}
+
+	private readonly _cancellationTokenSource = new CancellationTokenSource();
 
 	constructor(
 		public readonly model: IDiffEditorModel,
@@ -55,6 +73,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		documentDiffProvider: IDocumentDiffProvider,
 	) {
 		super();
+
+		this._register(toDisposable(() => this._cancellationTokenSource.cancel()));
 
 		const contentChangedSignal = observableSignal('contentChangedSignal');
 		const debouncer = this._register(new RunOnceScheduler(() => contentChangedSignal.trigger(undefined), 200));
@@ -105,40 +125,36 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 
 		this._register(model.modified.onDidChangeContent((e) => {
 			const diff = this._diff.get();
-			if (!diff) {
-				return;
-			}
-
-			const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
-			const result = applyModifiedEdits(this._lastDiff!, textEdits, model.original, model.modified);
-			if (result) {
-				this._lastDiff = result;
-				transaction(tx => {
-					this._diff.set(DiffState.fromDiffResult(this._lastDiff!), tx);
-					updateUnchangedRegions(result, tx);
-					const currentSyncedMovedText = this.syncedMovedTexts.get();
-					this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, tx);
-				});
+			if (diff) {
+				const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
+				const result = applyModifiedEdits(this._lastDiff!, textEdits, model.original, model.modified);
+				if (result) {
+					this._lastDiff = result;
+					transaction(tx => {
+						this._diff.set(DiffState.fromDiffResult(this._lastDiff!), tx);
+						updateUnchangedRegions(result, tx);
+						const currentSyncedMovedText = this.movedTextToCompare.get();
+						this.movedTextToCompare.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
+					});
+				}
 			}
 
 			debouncer.schedule();
 		}));
 		this._register(model.original.onDidChangeContent((e) => {
 			const diff = this._diff.get();
-			if (!diff) {
-				return;
-			}
-
-			const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
-			const result = applyOriginalEdits(this._lastDiff!, textEdits, model.original, model.modified);
-			if (result) {
-				this._lastDiff = result;
-				transaction(tx => {
-					this._diff.set(DiffState.fromDiffResult(this._lastDiff!), tx);
-					updateUnchangedRegions(result, tx);
-					const currentSyncedMovedText = this.syncedMovedTexts.get();
-					this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, tx);
-				});
+			if (diff) {
+				const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
+				const result = applyOriginalEdits(this._lastDiff!, textEdits, model.original, model.modified);
+				if (result) {
+					this._lastDiff = result;
+					transaction(tx => {
+						this._diff.set(DiffState.fromDiffResult(this._lastDiff!), tx);
+						updateUnchangedRegions(result, tx);
+						const currentSyncedMovedText = this.movedTextToCompare.get();
+						this.movedTextToCompare.set(currentSyncedMovedText ? this._lastDiff!.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
+					});
+				}
 			}
 
 			debouncer.schedule();
@@ -146,10 +162,12 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 
 		const documentDiffProviderOptionChanged = observableSignalFromEvent('documentDiffProviderOptionChanged', documentDiffProvider.onDidChange);
 
-		this._register(autorunWithStore2('compute diff', async (reader, store) => {
+		this._register(autorunWithStore(async (reader, store) => {
+			/** @description compute diff */
 			debouncer.cancel();
 			contentChangedSignal.read(reader);
 			documentDiffProviderOptionChanged.read(reader);
+			readHotReloadableExport(AdvancedLinesDiffComputer, reader);
 
 			this._isDiffUpToDate.set(false, undefined);
 
@@ -169,11 +187,14 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				ignoreTrimWhitespace: this._options.ignoreTrimWhitespace.read(reader),
 				maxComputationTimeMs: this._options.maxComputationTimeMs.read(reader),
 				computeMoves: this._options.showMoves.read(reader),
-			});
+			}, this._cancellationTokenSource.token);
+
+			if (this._cancellationTokenSource.token.isCancellationRequested) {
+				return;
+			}
 
 			result = applyOriginalEdits(result, originalTextEditInfos, model.original, model.modified) ?? result;
 			result = applyModifiedEdits(result, modifiedTextEditInfos, model.original, model.modified) ?? result;
-
 
 			transaction(tx => {
 				updateUnchangedRegions(result, tx);
@@ -182,8 +203,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				const state = DiffState.fromDiffResult(result);
 				this._diff.set(state, tx);
 				this._isDiffUpToDate.set(true, tx);
-				const currentSyncedMovedText = this.syncedMovedTexts.get();
-				this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, tx);
+				const currentSyncedMovedText = this.movedTextToCompare.get();
+				this.movedTextToCompare.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
 			});
 		}));
 	}
@@ -339,7 +360,7 @@ export class UnchangedRegion {
 	private readonly _visibleLineCountBottom = observableValue<number>('visibleLineCountBottom', 0);
 	public readonly visibleLineCountBottom: ISettableObservable<number> = this._visibleLineCountBottom;
 
-	private readonly _shouldHideControls = derived('isVisible', reader => this.visibleLineCountTop.read(reader) + this.visibleLineCountBottom.read(reader) === this.lineCount && !this.isDragged.read(reader));
+	private readonly _shouldHideControls = derived(reader => /** @description isVisible */ this.visibleLineCountTop.read(reader) + this.visibleLineCountBottom.read(reader) === this.lineCount && !this.isDragged.read(reader));
 
 	public readonly isDragged = observableValue<boolean>('isDragged', false);
 
@@ -443,9 +464,9 @@ function applyModifiedEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], orig
 	const changes = applyModifiedEditsToLineRangeMappings(diff.changes, textEdits, originalTextModel, modifiedTextModel);
 
 	const moves = diff.moves.map(m => {
-		const newModifiedRange = applyEditToLineRange(m.lineRangeMapping.modifiedRange, textEdits);
+		const newModifiedRange = applyEditToLineRange(m.lineRangeMapping.modified, textEdits);
 		return newModifiedRange ? new MovedText(
-			new SimpleLineRangeMapping(m.lineRangeMapping.originalRange, newModifiedRange),
+			new SimpleLineRangeMapping(m.lineRangeMapping.original, newModifiedRange),
 			applyModifiedEditsToLineRangeMappings(m.changes, textEdits, originalTextModel, modifiedTextModel),
 		) : undefined;
 	}).filter(isDefined);

@@ -33,7 +33,10 @@
     "Programming Languages"
   ],
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.5",
+    "@vscode/extension-telemetry": "^0.8.4",
+    "jsonc-parser": "^3.2.0",
+    "semver": "7.5.2",
+    "vscode-tas-client": "^0.1.63",
     "@vscode/sync-api-client": "^0.7.2",
     "@vscode/sync-api-common": "^0.7.2",
     "@vscode/sync-api-service": "^0.7.3",
@@ -43,7 +46,7 @@
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/node": "16.x",
+    "@types/node": "18.x",
     "@types/semver": "^5.5.0"
   },
   "scripts": {
@@ -145,7 +148,7 @@
       "properties": {
         "typescript.experimental.aiQuickFix": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%typescript.experimental.aiQuickFix%",
           "scope": "resource"
         },
