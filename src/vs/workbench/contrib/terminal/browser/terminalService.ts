@@ -54,7 +54,7 @@ import { ITimerService } from 'vs/workbench/services/timer/browser/timerService'
 import { mark } from 'vs/base/common/performance';
 import { DeatachedTerminal } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
 import { ITerminalCapabilityImplMap, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { createInstanceCapabilityEventMultiplexer, createInstanceEventMultiplexer } from 'vs/workbench/contrib/terminal/browser/terminalEvents';
+import { createInstanceCapabilityEventMultiplexer, createDynamicListEventMultiplexer } from 'vs/workbench/contrib/terminal/browser/terminalEvents';
 
 export class TerminalService extends Disposable implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -1198,7 +1198,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	onInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): { dispose(): void; event: Event<T> } {
-		return createInstanceEventMultiplexer(this.instances, this.onDidCreateInstance, this.onDidDisposeInstance, getEvent);
+		return createDynamicListEventMultiplexer(this.instances, this.onDidCreateInstance, this.onDidDisposeInstance, getEvent);
 	}
 
 	onInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): { dispose(): void; event: Event<{ instance: ITerminalInstance; data: K }> } {

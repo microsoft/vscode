@@ -8,34 +8,33 @@ import { Event, EventMultiplexer } from 'vs/base/common/event';
 import { DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ITerminalCapabilityImplMap, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
-export function createInstanceEventMultiplexer<T>(
-	currentInstances: ITerminalInstance[],
-	onAddInstance: Event<ITerminalInstance>,
-	onRemoveInstance: Event<ITerminalInstance>,
-	getEvent: (instance: ITerminalInstance) => Event<T>
-): { dispose(): void; event: Event<T> } {
+export function createDynamicListEventMultiplexer<TItem, TEventType>(
+	items: TItem[],
+	onAddItem: Event<TItem>,
+	onRemoveItem: Event<TItem>,
+	getEvent: (item: TItem) => Event<TEventType>
+): { dispose(): void; event: Event<TEventType> } {
 	const store = new DisposableStore();
-	const multiplexer = store.add(new EventMultiplexer<T>());
-	const instanceListeners = store.add(new DisposableMap<ITerminalInstance, IDisposable>());
+	const multiplexer = store.add(new EventMultiplexer<TEventType>());
+	const itemListeners = store.add(new DisposableMap<TItem, IDisposable>());
 
-	function addInstance(instance: ITerminalInstance) {
-		const listener = multiplexer.add(getEvent(instance));
-		instanceListeners.set(instance, listener);
+	function addInstance(instance: TItem) {
+		itemListeners.set(instance, multiplexer.add(getEvent(instance)));
 	}
 
-	// Existing instances
-	for (const instance of currentInstances) {
+	// Existing items
+	for (const instance of items) {
 		addInstance(instance);
 	}
 
-	// Added instances
-	store.add(onAddInstance(instance => {
+	// Added items
+	store.add(onAddItem(instance => {
 		addInstance(instance);
 	}));
 
-	// Removed instances
-	store.add(onRemoveInstance(instance => {
-		instanceListeners.deleteAndDispose(instance);
+	// Removed items
+	store.add(onRemoveItem(instance => {
+		itemListeners.deleteAndDispose(instance);
 	}));
 
 	return {
@@ -69,7 +68,7 @@ export function createInstanceCapabilityEventMultiplexer<T extends TerminalCapab
 	}
 
 	// Added capabilities
-	const addCapabilityMultiplexer = createInstanceEventMultiplexer(
+	const addCapabilityMultiplexer = createDynamicListEventMultiplexer(
 		currentInstances,
 		onAddInstance,
 		onRemoveInstance,
@@ -82,7 +81,7 @@ export function createInstanceCapabilityEventMultiplexer<T extends TerminalCapab
 	});
 
 	// Removed capabilities
-	const removeCapabilityMultiplexer = createInstanceEventMultiplexer(
+	const removeCapabilityMultiplexer = createDynamicListEventMultiplexer(
 		currentInstances,
 		onAddInstance,
 		onRemoveInstance,
