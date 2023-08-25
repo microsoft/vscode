@@ -162,9 +162,9 @@ export class CodeApplication extends Disposable {
 
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
-		const allowedPermissionsInMainFrame = new Set([
-			'media'
-		]);
+		const allowedPermissionsInMainFrame = new Set(
+			this.productService.quality === 'stable' ? [] : ['media']
+		);
 
 		const allowedPermissionsInWebview = new Set([
 			'clipboard-read',
