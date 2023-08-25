@@ -177,23 +177,19 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return;
 		}
 		this._foldingIconStore.add(dom.addDisposableListener(this._lineNumbersDomNode, dom.EventType.MOUSE_ENTER, (e) => {
-			let insideOfStickyScroll = false;
-			if ('fromElement' in e && (e.fromElement instanceof HTMLElement)) {
-				if (e.fromElement.classList.contains('codicon')) {
-					insideOfStickyScroll = true;
-				}
-			}
+			const mouseEventTriggerredByClick =
+				'fromElement' in e
+				&& e.fromElement instanceof HTMLElement
+				&& e.fromElement.classList.contains('codicon');
+
 			for (const line of this._stickyLines) {
 				const lineNumberDomNode = line.lineNumberDomNode;
-				if (insideOfStickyScroll) {
-					lineNumberDomNode.style.setProperty('--vscode-editorStickyScroll-opacityTransition', 'opacity 0s');
-				}
-				lineNumberDomNode.style.setProperty('--vscode-editorStickyScroll-cursorOutsideHover', `pointer`);
-				lineNumberDomNode.style.setProperty('--vscode-editorStickyScroll-opacityOutsideHover', `1`);
-				if (insideOfStickyScroll) {
-					setTimeout(() => {
-						lineNumberDomNode.style.setProperty('--vscode-editorStickyScroll-opacityTransition', 'opacity 0.5s');
-					}, 300);
+				if (mouseEventTriggerredByClick) {
+					this._setFoldingToggleIconTransitionRequired(lineNumberDomNode, false);
+					this._setFoldingToggleIconVisible(lineNumberDomNode, true);
+					setTimeout(() => { this._setFoldingToggleIconTransitionRequired(lineNumberDomNode, true); }, 300);
+				} else {
+					this._setFoldingToggleIconVisible(lineNumberDomNode, true);
 				}
 			}
 		}));
@@ -201,15 +197,19 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			for (const line of this._stickyLines) {
 				const lineNumber = line.lineNumber;
 				const lineNumberDomNode = line.lineNumberDomNode;
-				if (this._collapsedLines.some(collapsedLine => collapsedLine === lineNumber)) {
-					lineNumberDomNode.style.setProperty('--vscode-editorStickyScroll-cursorOutsideHover', `pointer`);
-					lineNumberDomNode.style.setProperty('--vscode-editorStickyScroll-opacityOutsideHover', `1`);
-				} else {
-					lineNumberDomNode.style.setProperty('--vscode-editorStickyScroll-cursorOutsideHover', showFoldingControls === `mouseover` ? `default` : `pointer`);
-					lineNumberDomNode.style.setProperty('--vscode-editorStickyScroll-opacityOutsideHover', showFoldingControls === `mouseover` ? `0` : `1`);
-				}
+				const isCollapsed = this._collapsedLines.some(collapsedLine => collapsedLine === lineNumber);
+				this._setFoldingToggleIconVisible(lineNumberDomNode, isCollapsed);
 			}
 		}));
+	}
+
+	private _setFoldingToggleIconTransitionRequired(container: HTMLElement, requiresTrandition: boolean) {
+		container.style.setProperty('--vscode-editorStickyScroll-opacityTransition', `opacity ${requiresTrandition ? 0.5 : 0}s`);
+	}
+
+	private _setFoldingToggleIconVisible(container: HTMLElement, visible: boolean) {
+		container.style.setProperty('--vscode-editorStickyScroll-cursorOutsideHover', visible ? 'pointer' : 'default');
+		container.style.setProperty('--vscode-editorStickyScroll-opacityOutsideHover', visible ? '1' : '0');
 	}
 
 	private _renderChildNode(index: number, line: number, layoutInfo: EditorLayoutInfo, foldingModel: FoldingModel | null | undefined): RenderedStickyLine {
@@ -299,7 +299,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineNumberHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
 
 		this._renderFoldingIconForLine(lineNumberHTMLNode, foldingModel, index, line);
-		return new RenderedStickyLine(index, line, lineHTMLNode, lineNumberHTMLNode, renderOutput.characterMapping);
+		return new RenderedStickyLine(line, lineHTMLNode, lineNumberHTMLNode, renderOutput.characterMapping);
 	}
 
 	private _renderFoldingIconForLine(container: HTMLSpanElement, foldingModel: FoldingModel | null | undefined, index: number, line: number): void {
@@ -317,29 +317,22 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const foldingIcon = container.appendChild(document.createElement('div'));
 		const isRegionCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
 		foldingIcon.className = ThemeIcon.asClassName(isRegionCollapsed ? foldingCollapsedIcon : foldingExpandedIcon);
+		const isCollapsed = this._collapsedLines.some(collapsedLine => collapsedLine === line);
+		this._setFoldingToggleIconVisible(container, isCollapsed || showFoldingControls === 'always');
+		this._setFoldingToggleIconTransitionRequired(container, true);
 
-		// Setting the folding style properties
-		if (this._collapsedLines.some(collapsedLine => collapsedLine === line)) {
-			container.style.setProperty('--vscode-editorStickyScroll-cursorOutsideHover', `pointer`);
-			container.style.setProperty('--vscode-editorStickyScroll-opacityOutsideHover', `1`);
-		} else {
-			container.style.setProperty('--vscode-editorStickyScroll-cursorOutsideHover', showFoldingControls === `mouseover` ? `default` : `pointer`);
-			container.style.setProperty('--vscode-editorStickyScroll-opacityOutsideHover', showFoldingControls === `mouseover` ? `0` : `1`);
-		}
-		container.style.setProperty('--vscode-editorStickyScroll-opacityTransition', 'opacity 0.5s');
-
-		// Setting the click listener
 		this._foldingIconStore.add(dom.addDisposableListener(foldingIcon, dom.EventType.CLICK, () => {
 			toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
-			let scrollTop = - this._lineHeight * index + 1;
+			let scrollTop: number;
 			if (isRegionCollapsed) {
 				this._collapsedLines = this._collapsedLines.filter(line => line !== startLineNumber);
-				scrollTop += this._editor.getTopForLineNumber(startLineNumber);
+				scrollTop = this._editor.getTopForLineNumber(startLineNumber);
 			} else {
 				this._collapsedLines.push(startLineNumber);
 				const endLineNumber = foldingRegions.getEndLineNumber(indexOfFoldingRegion);
-				scrollTop += this._editor.getTopForLineNumber(endLineNumber);
+				scrollTop = this._editor.getTopForLineNumber(endLineNumber);
 			}
+			scrollTop += -this._lineHeight * index + 1;
 			this._editor.setScrollTop(scrollTop);
 		}));
 	}
@@ -424,7 +417,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 class RenderedStickyLine {
 	constructor(
-		public readonly index: number,
 		public readonly lineNumber: number,
 		public readonly lineDomNode: HTMLElement,
 		public readonly lineNumberDomNode: HTMLElement,
