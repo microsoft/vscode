@@ -39,6 +39,7 @@
 	float: right;
 	cursor: var(--vscode-editorStickyScroll-cursorOutsideHover, 'default');
 	opacity: var(--vscode-editorStickyScroll-opacityOutsideHover, '0');
+	transition: var(--vscode-editorStickyScroll-opacityTransition, 'opacity 0s');
 }
 
 

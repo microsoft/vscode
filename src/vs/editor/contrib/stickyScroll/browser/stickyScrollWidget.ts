@@ -176,11 +176,25 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (showFoldingControls !== 'mouseover') {
 			return;
 		}
-		this._foldingIconStore.add(dom.addDisposableListener(this._lineNumbersDomNode, dom.EventType.MOUSE_ENTER, () => {
+		this._foldingIconStore.add(dom.addDisposableListener(this._lineNumbersDomNode, dom.EventType.MOUSE_ENTER, (e) => {
+			let insideOfStickyScroll = false;
+			if ('fromElement' in e && (e.fromElement instanceof HTMLElement)) {
+				if (e.fromElement.classList.contains('codicon')) {
+					insideOfStickyScroll = true;
+				}
+			}
 			for (const line of this._stickyLines) {
 				const lineNumberDomNode = line.lineNumberDomNode;
+				if (insideOfStickyScroll) {
+					lineNumberDomNode.style.setProperty('--vscode-editorStickyScroll-opacityTransition', 'opacity 0s');
+				}
 				lineNumberDomNode.style.setProperty('--vscode-editorStickyScroll-cursorOutsideHover', `pointer`);
 				lineNumberDomNode.style.setProperty('--vscode-editorStickyScroll-opacityOutsideHover', `1`);
+				if (insideOfStickyScroll) {
+					setTimeout(() => {
+						lineNumberDomNode.style.setProperty('--vscode-editorStickyScroll-opacityTransition', 'opacity 0.5s');
+					}, 300);
+				}
 			}
 		}));
 		this._foldingIconStore.add(dom.addDisposableListener(this._lineNumbersDomNode, dom.EventType.MOUSE_LEAVE, () => {
@@ -312,6 +326,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			container.style.setProperty('--vscode-editorStickyScroll-cursorOutsideHover', showFoldingControls === `mouseover` ? `default` : `pointer`);
 			container.style.setProperty('--vscode-editorStickyScroll-opacityOutsideHover', showFoldingControls === `mouseover` ? `0` : `1`);
 		}
+		container.style.setProperty('--vscode-editorStickyScroll-opacityTransition', 'opacity 0.5s');
 
 		// Setting the click listener
 		this._foldingIconStore.add(dom.addDisposableListener(foldingIcon, dom.EventType.CLICK, () => {
