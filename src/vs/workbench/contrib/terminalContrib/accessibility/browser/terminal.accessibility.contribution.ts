@@ -11,7 +11,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { TerminalLocation, terminalTabFocusModeContextKey } from 'vs/platform/terminal/common/terminal';
+import { terminalTabFocusModeContextKey } from 'vs/platform/terminal/common/terminal';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -20,7 +20,6 @@ import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/brow
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { TerminalAccessibleContentProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
 import { AccessibleBufferWidget, NavigationType } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
 import { TextAreaSyncAddon } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/textAreaSyncAddon';
@@ -205,22 +204,5 @@ registerTerminalAction({
 			return;
 		}
 		await AccessibleBufferContribution.get(instance)?.navigateToCommand(NavigationType.Previous);
-	}
-});
-
-registerTerminalAction({
-	id: TerminalCommandId.FocusAndHideAccessibleBuffer,
-	title: terminalStrings.focusAndHideAccessibleBuffer,
-	f1: false,
-	keybinding: {
-		when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, TerminalContextKeys.accessibleBufferOnLastLine),
-		primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-		weight: KeybindingWeight.WorkbenchContrib
-	},
-	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-	run: async (c) => {
-		const instance = c.service.activeInstance || await c.service.createTerminal({ location: TerminalLocation.Panel });
-		instance.getContribution<AccessibleBufferContribution>(AccessibleBufferContribution.ID)?.hide();
-		instance.focus(true);
 	}
 });

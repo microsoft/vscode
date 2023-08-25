@@ -495,7 +495,6 @@ export const enum TerminalCommandId {
 	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
 	FocusHover = 'workbench.action.terminal.focusHover',
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
-	FocusAndHideAccessibleBuffer = 'workbench.action.terminal.focusAndHideAccessibleBuffer',
 
 	// Developer commands
 
@@ -570,7 +569,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.HideSuggestWidget,
 	TerminalCommandId.FocusHover,
 	AccessibilityCommandId.OpenAccessibilityHelp,
-	TerminalCommandId.FocusAndHideAccessibleBuffer,
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',
 	'notifications.hideToasts',
