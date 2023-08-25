@@ -268,6 +268,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (!foldingModel || showFoldingControls === 'never') {
 			return;
 		}
+		container.style.setProperty('--vscode-editorStickyScroll-cursorOutsideHover', showFoldingControls === `mouseover` ? `default` : `pointer`);
+		container.style.setProperty('--vscode-editorStickyScroll-opacityOutsideHover', showFoldingControls === `mouseover` ? `0` : `1`);
+
 		const foldingRegions = foldingModel.regions;
 		const indexOfFoldingRegion = foldingRegions.findRange(line);
 		const startLineNumber = foldingRegions.getStartLineNumber(indexOfFoldingRegion);
