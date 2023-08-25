@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { MemFs } from './memFs';
 import { URI } from 'vscode-uri';
-import { PackageManager, FileSystem, packagePath } from '../../package-manager/packageManager';
+import { PackageManager, FileSystem, packagePath } from '@vscode/ts-package-manager';
 import { join, basename, dirname } from 'path';
 
 const TEXT_DECODER = new TextDecoder('utf-8');

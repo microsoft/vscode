@@ -4,20 +4,12 @@
 
 "@azure/abort-controller@^1.0.0":
   version "1.1.0"
-  resolved "https://registry.npmjs.org/@azure/abort-controller/-/abort-controller-1.1.0.tgz"
+  resolved "https://registry.yarnpkg.com/@azure/abort-controller/-/abort-controller-1.1.0.tgz#788ee78457a55af8a1ad342acb182383d2119249"
   integrity sha512-TrRLIoSQVzfAJX9H1JeFjzAoDGcoK1IYX1UImfceTZpsyYfWr09Ss1aHW1y5TrrR3iq6RZLBwJ3E24uwPhwahw==
   dependencies:
     tslib "^2.2.0"
 
-"@azure/core-auth@^1.4.0":
-  version "1.4.0"
-  resolved "https://registry.npmjs.org/@azure/core-auth/-/core-auth-1.4.0.tgz"
-  integrity sha512-HFrcTgmuSuukRf/EdPmqBrc5l6Q5Uu+2TbuhaKbgaCpP2TfAeiNaQPAadxO+CYBRHGUzIDteMAjFspFLDLnKVQ==
-  dependencies:
-    "@azure/abort-controller" "^1.0.0"
-    tslib "^2.2.0"
-
-"@azure/core-auth@^1.5.0":
+"@azure/core-auth@^1.4.0", "@azure/core-auth@^1.5.0":
   version "1.5.0"
   resolved "https://registry.yarnpkg.com/@azure/core-auth/-/core-auth-1.5.0.tgz#a41848c5c31cb3b7c84c409885267d55a2c92e44"
   integrity sha512-udzoBuYG1VBoHVohDTrvKjyzel34zt77Bhp7dQntVGGD0ehVq48owENbBG8fIgkHRNUBQH5k1r0hpoMu5L8+kw==
@@ -28,7 +20,7 @@
 
 "@azure/core-rest-pipeline@1.10.1":
   version "1.10.1"
-  resolved "https://registry.npmjs.org/@azure/core-rest-pipeline/-/core-rest-pipeline-1.10.1.tgz"
+  resolved "https://registry.yarnpkg.com/@azure/core-rest-pipeline/-/core-rest-pipeline-1.10.1.tgz#348290847ca31b9eecf9cf5de7519aaccdd30968"
   integrity sha512-Kji9k6TOFRDB5ZMTw8qUf2IJ+CeJtsuMdAHox9eqpTf1cefiNMpzrfnF6sINEBZJsaVaWgQ0o48B6kcUH68niA==
   dependencies:
     "@azure/abort-controller" "^1.0.0"
@@ -44,7 +36,7 @@
 
 "@azure/core-tracing@^1.0.0", "@azure/core-tracing@^1.0.1":
   version "1.0.1"
-  resolved "https://registry.npmjs.org/@azure/core-tracing/-/core-tracing-1.0.1.tgz"
+  resolved "https://registry.yarnpkg.com/@azure/core-tracing/-/core-tracing-1.0.1.tgz#352a38cbea438c4a83c86b314f48017d70ba9503"
   integrity sha512-I5CGMoLtX+pI17ZdiFJZgxMJApsK6jjfm85hpgp3oazCdq5Wxgh4wMr7ge/TTWW1B5WBuvIOI1fMU/FrOAMKrw==
   dependencies:
     tslib "^2.2.0"
@@ -57,15 +49,7 @@
     "@azure/abort-controller" "^1.0.0"
     tslib "^2.2.0"
 
-"@azure/core-util@^1.0.0":
-  version "1.1.1"
-  resolved "https://registry.npmjs.org/@azure/core-util/-/core-util-1.1.1.tgz"
-  integrity sha512-A4TBYVQCtHOigFb2ETiiKFDocBoI1Zk2Ui1KpI42aJSIDexF7DHQFpnjonltXAIU/ceH+1fsZAWWgvX6/AKzog==
-  dependencies:
-    "@azure/abort-controller" "^1.0.0"
-    tslib "^2.2.0"
-
-"@azure/core-util@^1.1.0":
+"@azure/core-util@^1.0.0", "@azure/core-util@^1.1.0":
   version "1.4.0"
   resolved "https://registry.yarnpkg.com/@azure/core-util/-/core-util-1.4.0.tgz#c120a56b3e48a9e4d20619a0b00268ae9de891c7"
   integrity sha512-eGAyJpm3skVQoLiRqm/xPa+SXi/NPDdSHMxbRAz2lSprd+Zs+qrpQGQQ2VQ3Nttu+nSZR4XoYQC71LbEI7jsig==
@@ -74,23 +58,16 @@
     tslib "^2.2.0"
 
 "@azure/logger@^1.0.0":
-  version "1.0.3"
-  resolved "https://registry.npmjs.org/@azure/logger/-/logger-1.0.3.tgz"
-  integrity sha512-aK4s3Xxjrx3daZr3VylxejK3vG5ExXck5WOHDJ8in/k9AqlfIyFMMT1uG7u8mNjX+QRILTIn0/Xgschfh/dQ9g==
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/@azure/logger/-/logger-1.0.4.tgz#28bc6d0e5b3c38ef29296b32d35da4e483593fa1"
+  integrity sha512-ustrPY8MryhloQj7OWGe+HrYx+aoiOxzbXTtgblbV3xwCqpzUK36phH3XNHQKj3EPonyFUuDTfR3qFhTEAuZEg==
   dependencies:
     tslib "^2.2.0"
 
-<<<<<<< HEAD
-"@microsoft/1ds-core-js@3.2.8", "@microsoft/1ds-core-js@^3.2.8":
-  version "3.2.8"
-  resolved "https://registry.npmjs.org/@microsoft/1ds-core-js/-/1ds-core-js-3.2.8.tgz"
-  integrity sha512-9o9SUAamJiTXIYwpkQDuueYt83uZfXp8zp8YFix1IwVPwC9RmE36T2CX9gXOeq1nDckOuOduYpA8qHvdh5BGfQ==
-=======
 "@azure/opentelemetry-instrumentation-azure-sdk@^1.0.0-beta.5":
   version "1.0.0-beta.5"
   resolved "https://registry.yarnpkg.com/@azure/opentelemetry-instrumentation-azure-sdk/-/opentelemetry-instrumentation-azure-sdk-1.0.0-beta.5.tgz#78809e6c005d08450701e5d37f087f6fce2f86eb"
   integrity sha512-fsUarKQDvjhmBO4nIfaZkfNSApm1hZBzcvpNbSrXdcUBxu7lRvKsV5DnwszX7cnhLyVOW9yl1uigtRQ1yDANjA==
->>>>>>> main
   dependencies:
     "@azure/core-tracing" "^1.0.0"
     "@azure/logger" "^1.0.0"
@@ -108,33 +85,19 @@
     "@microsoft/applicationinsights-shims" "^2.0.2"
     "@microsoft/dynamicproto-js" "^1.1.7"
 
-<<<<<<< HEAD
-"@microsoft/1ds-post-js@^3.2.8":
-  version "3.2.8"
-  resolved "https://registry.npmjs.org/@microsoft/1ds-post-js/-/1ds-post-js-3.2.8.tgz"
-  integrity sha512-SjlRoNcXcXBH6WQD/5SkkaCHIVqldH3gDu+bI7YagrOVJ5APxwT1Duw9gm3L1FjFa9S2i81fvJ3EVSKpp9wULA==
-=======
 "@microsoft/1ds-post-js@^3.2.13":
   version "3.2.13"
   resolved "https://registry.yarnpkg.com/@microsoft/1ds-post-js/-/1ds-post-js-3.2.13.tgz#560aacac8a92fdbb79e8c2ebcb293d56e19f51aa"
   integrity sha512-HgS574fdD19Bo2vPguyznL4eDw7Pcm1cVNpvbvBLWiW3x4e1FCQ3VMXChWnAxCae8Hb0XqlA2sz332ZobBavTA==
->>>>>>> main
   dependencies:
     "@microsoft/1ds-core-js" "3.2.13"
     "@microsoft/applicationinsights-shims" "^2.0.2"
     "@microsoft/dynamicproto-js" "^1.1.7"
 
-<<<<<<< HEAD
-"@microsoft/applicationinsights-channel-js@2.8.9":
-  version "2.8.9"
-  resolved "https://registry.npmjs.org/@microsoft/applicationinsights-channel-js/-/applicationinsights-channel-js-2.8.9.tgz"
-  integrity sha512-fMBsAEB7pWtPn43y72q9Xy5E5y55r6gMuDQqRRccccVoQDPXyS57VCj5IdATblctru0C6A8XpL2vRyNmEsu0Vg==
-=======
 "@microsoft/applicationinsights-channel-js@3.0.2":
   version "3.0.2"
   resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-channel-js/-/applicationinsights-channel-js-3.0.2.tgz#be49fbf74831c7b8c97950027c5052ea99d2a8a5"
   integrity sha512-jDBNKbCHsJgmpv0CKNhJ/uN9ZphvfGdb93Svk+R4LjO8L3apNNMbDDPxBvXXi0uigRmA1TBcmyBG4IRKjabGhw==
->>>>>>> main
   dependencies:
     "@microsoft/applicationinsights-common" "3.0.2"
     "@microsoft/applicationinsights-core-js" "3.0.2"
@@ -143,34 +106,20 @@
     "@nevware21/ts-async" ">= 0.2.4 < 2.x"
     "@nevware21/ts-utils" ">= 0.9.5 < 2.x"
 
-<<<<<<< HEAD
-"@microsoft/applicationinsights-common@2.8.9":
-  version "2.8.9"
-  resolved "https://registry.npmjs.org/@microsoft/applicationinsights-common/-/applicationinsights-common-2.8.9.tgz"
-  integrity sha512-mObn1moElyxZaGIRF/IU3cOaeKMgxghXnYEoHNUCA2e+rNwBIgxjyKkblFIpmGuHf4X7Oz3o3yBWpaC6AoMpig==
-=======
 "@microsoft/applicationinsights-common@3.0.2":
   version "3.0.2"
   resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-common/-/applicationinsights-common-3.0.2.tgz#37670bb07f4858ed41ff9759119e0759007d6e05"
   integrity sha512-y+WXWop+OVim954Cu1uyYMnNx6PWO8okHpZIQi/1YSqtqaYdtJVPv4P0AVzwJdohxzVfgzKvqj9nec/VWqE2Zg==
->>>>>>> main
   dependencies:
     "@microsoft/applicationinsights-core-js" "3.0.2"
     "@microsoft/applicationinsights-shims" "3.0.1"
     "@microsoft/dynamicproto-js" "^2.0.2"
     "@nevware21/ts-utils" ">= 0.9.5 < 2.x"
 
-<<<<<<< HEAD
-"@microsoft/applicationinsights-core-js@2.8.9":
-  version "2.8.9"
-  resolved "https://registry.npmjs.org/@microsoft/applicationinsights-core-js/-/applicationinsights-core-js-2.8.9.tgz"
-  integrity sha512-HRuIuZ6aOWezcg/G5VyFDDWGL8hDNe/ljPP01J7ImH2kRPEgbtcfPSUMjkamGMefgdq81GZsSoC/NNGTP4pp2w==
-=======
 "@microsoft/applicationinsights-core-js@2.8.15":
   version "2.8.15"
   resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-core-js/-/applicationinsights-core-js-2.8.15.tgz#8fa466474260e01967fe649f14dd9e5ff91dcdc8"
   integrity sha512-yYAs9MyjGr2YijQdUSN9mVgT1ijI1FPMgcffpaPmYbHAVbQmF7bXudrBWHxmLzJlwl5rfep+Zgjli2e67lwUqQ==
->>>>>>> main
   dependencies:
     "@microsoft/applicationinsights-shims" "2.0.2"
     "@microsoft/dynamicproto-js" "^1.1.9"
@@ -187,20 +136,13 @@
 
 "@microsoft/applicationinsights-shims@2.0.2", "@microsoft/applicationinsights-shims@^2.0.2":
   version "2.0.2"
-  resolved "https://registry.npmjs.org/@microsoft/applicationinsights-shims/-/applicationinsights-shims-2.0.2.tgz"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-shims/-/applicationinsights-shims-2.0.2.tgz#92b36a09375e2d9cb2b4203383b05772be837085"
   integrity sha512-PoHEgsnmcqruLNHZ/amACqdJ6YYQpED0KSRe6J7gIJTtpZC1FfFU9b1fmDKDKtFoUSrPzEh1qzO3kmRZP0betg==
 
-<<<<<<< HEAD
-"@microsoft/applicationinsights-web-basic@^2.8.9":
-  version "2.8.9"
-  resolved "https://registry.npmjs.org/@microsoft/applicationinsights-web-basic/-/applicationinsights-web-basic-2.8.9.tgz"
-  integrity sha512-CH0J8JFOy7MjK8JO4pXXU+EML+Ilix+94PMZTX5EJlBU1in+mrik74/8qSg3UC4ekPi12KwrXaHCQSVC3WseXQ==
-=======
 "@microsoft/applicationinsights-shims@3.0.1":
   version "3.0.1"
   resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-shims/-/applicationinsights-shims-3.0.1.tgz#3865b73ace8405b9c4618cc5c571f2fe3876f06f"
   integrity sha512-DKwboF47H1nb33rSUfjqI6ryX29v+2QWcTrRvcQDA32AZr5Ilkr7whOOSsD1aBzwqX0RJEIP1Z81jfE3NBm/Lg==
->>>>>>> main
   dependencies:
     "@nevware21/ts-utils" ">= 0.9.4 < 2.x"
 
@@ -219,26 +161,10 @@
 
 "@microsoft/applicationinsights-web-snippet@^1.0.1":
   version "1.0.1"
-  resolved "https://registry.npmjs.org/@microsoft/applicationinsights-web-snippet/-/applicationinsights-web-snippet-1.0.1.tgz"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-web-snippet/-/applicationinsights-web-snippet-1.0.1.tgz#6bb788b2902e48bf5d460c38c6bb7fedd686ddd7"
   integrity sha512-2IHAOaLauc8qaAitvWS+U931T+ze+7MNWrDHY47IENP5y2UA0vqJDu67kWZDdpCN1fFC77sfgfB+HV7SrKshnQ==
 
-"@microsoft/dynamicproto-js@^1.1.7":
-  version "1.1.7"
-  resolved "https://registry.npmjs.org/@microsoft/dynamicproto-js/-/dynamicproto-js-1.1.7.tgz"
-  integrity sha512-SK3D3aVt+5vOOccKPnGaJWB5gQ8FuKfjboUJHedMP7gu54HqSCXX5iFXhktGD8nfJb0Go30eDvs/UDoTnR2kOA==
-
-<<<<<<< HEAD
-"@opentelemetry/api@^1.0.4":
-  version "1.2.0"
-  resolved "https://registry.npmjs.org/@opentelemetry/api/-/api-1.2.0.tgz"
-  integrity sha512-0nBr+VZNKm9tvNDZFstI3Pq1fCTEDK5OZTnVKNvBNAKgd0yIvmwsP4m61rEv7ZP+tOUjWJhROpxK5MsnlF911g==
-
-"@opentelemetry/core@1.7.0", "@opentelemetry/core@^1.0.1":
-  version "1.7.0"
-  resolved "https://registry.npmjs.org/@opentelemetry/core/-/core-1.7.0.tgz"
-  integrity sha512-AVqAi5uc8DrKJBimCTFUT4iFI+5eXpo4sYmGbQ0CypG0piOTHE2g9c5aSoTGYXu3CzOmJZf7pT6Xh+nwm5d6yQ==
-=======
-"@microsoft/dynamicproto-js@^1.1.9":
+"@microsoft/dynamicproto-js@^1.1.7", "@microsoft/dynamicproto-js@^1.1.9":
   version "1.1.9"
   resolved "https://registry.yarnpkg.com/@microsoft/dynamicproto-js/-/dynamicproto-js-1.1.9.tgz#7437db7aa061162ee94e4131b69a62b8dad5dea6"
   integrity sha512-n1VPsljTSkthsAFYdiWfC+DKzK2WwcRp83Y1YAqdX552BstvsDjft9YXppjUzp11BPsapDoO1LDgrDB0XVsfNQ==
@@ -247,30 +173,16 @@
   version "2.0.2"
   resolved "https://registry.yarnpkg.com/@microsoft/dynamicproto-js/-/dynamicproto-js-2.0.2.tgz#e57fbec2e7067d48b7e8e1e1c1d354028ef718a6"
   integrity sha512-MB8trWaFREpmb037k/d0bB7T2BP7Ai24w1e1tbz3ASLB0/lwphsq3Nq8S9I5AsI5vs4zAQT+SB5nC5/dLYTiOg==
->>>>>>> main
   dependencies:
     "@nevware21/ts-utils" ">= 0.9.4 < 2.x"
 
-<<<<<<< HEAD
-"@opentelemetry/resources@1.7.0":
-  version "1.7.0"
-  resolved "https://registry.npmjs.org/@opentelemetry/resources/-/resources-1.7.0.tgz"
-  integrity sha512-u1M0yZotkjyKx8dj+46Sg5thwtOTBmtRieNXqdCRiWUp6SfFiIP0bI+1XK3LhuXqXkBXA1awJZaTqKduNMStRg==
-=======
 "@nevware21/ts-async@>= 0.2.4 < 2.x":
   version "0.3.0"
   resolved "https://registry.yarnpkg.com/@nevware21/ts-async/-/ts-async-0.3.0.tgz#a8b97ba01065fc930de9a3f4dd4a05e862becc6c"
   integrity sha512-ZUcgUH12LN/F6nzN0cYd0F/rJaMLmXr0EHVTyYfaYmK55bdwE4338uue4UiVoRqHVqNW4KDUrJc49iGogHKeWA==
->>>>>>> main
   dependencies:
     "@nevware21/ts-utils" ">= 0.10.0 < 2.x"
 
-<<<<<<< HEAD
-"@opentelemetry/sdk-trace-base@^1.0.1":
-  version "1.7.0"
-  resolved "https://registry.npmjs.org/@opentelemetry/sdk-trace-base/-/sdk-trace-base-1.7.0.tgz"
-  integrity sha512-Iz84C+FVOskmauh9FNnj4+VrA+hG5o+tkMzXuoesvSfunVSioXib0syVFeNXwOm4+M5GdWCuW632LVjqEXStIg==
-=======
 "@nevware21/ts-utils@>= 0.10.0 < 2.x", "@nevware21/ts-utils@>= 0.9.4 < 2.x", "@nevware21/ts-utils@>= 0.9.5 < 2.x":
   version "0.10.1"
   resolved "https://registry.yarnpkg.com/@nevware21/ts-utils/-/ts-utils-0.10.1.tgz#aa65abc71eba06749a396598f22263d26f796ac7"
@@ -285,16 +197,9 @@
   version "1.15.2"
   resolved "https://registry.yarnpkg.com/@opentelemetry/core/-/core-1.15.2.tgz#5b170bf223a2333884bbc2d29d95812cdbda7c9f"
   integrity sha512-+gBv15ta96WqkHZaPpcDHiaz0utiiHZVfm2YOYSqFGrUaJpPkMoSuLBB58YFQGi6Rsb9EHos84X6X5+9JspmLw==
->>>>>>> main
   dependencies:
     "@opentelemetry/semantic-conventions" "1.15.2"
 
-<<<<<<< HEAD
-"@opentelemetry/semantic-conventions@1.7.0", "@opentelemetry/semantic-conventions@^1.0.1":
-  version "1.7.0"
-  resolved "https://registry.npmjs.org/@opentelemetry/semantic-conventions/-/semantic-conventions-1.7.0.tgz"
-  integrity sha512-FGBx/Qd09lMaqQcogCHyYrFEpTx4cAjeS+48lMIR12z7LdH+zofGDVQSubN59nL6IpubfKqTeIDu9rNO28iHVA==
-=======
 "@opentelemetry/instrumentation@^0.41.2":
   version "0.41.2"
   resolved "https://registry.yarnpkg.com/@opentelemetry/instrumentation/-/instrumentation-0.41.2.tgz#cae11fa64485dcf03dae331f35b315b64bc6189f"
@@ -327,36 +232,22 @@
   version "1.15.2"
   resolved "https://registry.yarnpkg.com/@opentelemetry/semantic-conventions/-/semantic-conventions-1.15.2.tgz#3bafb5de3e20e841dff6cb3c66f4d6e9694c4241"
   integrity sha512-CjbOKwk2s+3xPIMcd5UNYQzsf+v94RczbdNix9/kQh38WiQkM90sUOi3if8eyHFgiBjBjhwXrA7W3ydiSQP9mw==
->>>>>>> main
 
 "@tootallnate/once@2":
   version "2.0.0"
-  resolved "https://registry.npmjs.org/@tootallnate/once/-/once-2.0.0.tgz"
+  resolved "https://registry.yarnpkg.com/@tootallnate/once/-/once-2.0.0.tgz#f544a148d3ab35801c1f633a7441fd87c2e484bf"
   integrity sha512-XCuKFP5PS55gnMVu3dty8KPatLqUoy/ZYzDzAGCQ8JNFCkLXzmI7vNHCR+XpbZaMWQK/vQubr7PkYq8g470J/A==
 
-<<<<<<< HEAD
-"@types/node@16.x":
-  version "16.11.6"
-  resolved "https://registry.npmjs.org/@types/node/-/node-16.11.6.tgz"
-  integrity sha512-ua7PgUoeQFjmWPcoo9khiPum3Pd60k4/2ZGXt18sm2Slk0W0xZTqt5Y0Ny1NyBiN1EVQ/+FaF9NcY4Qe6rwk5w==
-=======
 "@types/node@18.x":
-  version "18.15.13"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-18.15.13.tgz#f64277c341150c979e42b00e4ac289290c9df469"
-  integrity sha512-N+0kuo9KgrUQ1Sn/ifDXsvg0TTleP7rIy4zOBGECxAljqvqfqpTfzx0Q1NUedOixRMBfe2Whhb056a42cWs26Q==
->>>>>>> main
+  version "18.17.11"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-18.17.11.tgz#c04054659d88bfeba94095f41ef99a8ddf4e1813"
+  integrity sha512-r3hjHPBu+3LzbGBa8DHnr/KAeTEEOrahkcL+cZc4MaBMTM+mk8LtXR+zw+nqfjuDZZzYTYgTcpHuP+BEQk069g==
 
 "@types/semver@^5.5.0":
   version "5.5.0"
-  resolved "https://registry.npmjs.org/@types/semver/-/semver-5.5.0.tgz"
+  resolved "https://registry.yarnpkg.com/@types/semver/-/semver-5.5.0.tgz#146c2a29ee7d3bae4bf2fcb274636e264c813c45"
   integrity sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
 
-<<<<<<< HEAD
-"@vscode/extension-telemetry@0.7.5":
-  version "0.7.5"
-  resolved "https://registry.npmjs.org/@vscode/extension-telemetry/-/extension-telemetry-0.7.5.tgz"
-  integrity sha512-fJ5y3TcpqqkFYHneabYaoB4XAhDdVflVm+TDKshw9VOs77jkgNS4UA7LNXrWeO0eDne3Sh3JgURf+xzc1rk69w==
-=======
 "@types/shimmer@^1.0.2":
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/@types/shimmer/-/shimmer-1.0.2.tgz#93eb2c243c351f3f17d5c580c7467ae5d686b65f"
@@ -366,7 +257,6 @@
   version "0.8.4"
   resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.8.4.tgz#c078c6f55df1c9e0592de3b4ce0f685dd345bfe7"
   integrity sha512-UqM9+KZDDK3MyoHTsg6XNM+XO6pweQxzCpqJz33BoBEYAGsbBviRYcVpJglgay2oReuDD2pOI1Nio3BKNDLhWA==
->>>>>>> main
   dependencies:
     "@microsoft/1ds-core-js" "^3.2.13"
     "@microsoft/1ds-post-js" "^3.2.13"
@@ -375,7 +265,7 @@
 
 "@vscode/sync-api-client@^0.7.2":
   version "0.7.2"
-  resolved "https://registry.npmjs.org/@vscode/sync-api-client/-/sync-api-client-0.7.2.tgz"
+  resolved "https://registry.yarnpkg.com/@vscode/sync-api-client/-/sync-api-client-0.7.2.tgz#0644bff66a5eff636bcd8eb483d34796b9f90d2d"
   integrity sha512-HQHz57RVKmR8sTEen1Y/T3r6mzDX7IaUJz/O2RJkn0Qu9ThvCsakLP0N+1iiwPnPfUfmNSwQXbSw8bEQFPcpYQ==
   dependencies:
     "@vscode/sync-api-common" "0.7.2"
@@ -383,16 +273,21 @@
 
 "@vscode/sync-api-common@0.7.2", "@vscode/sync-api-common@^0.7.2":
   version "0.7.2"
-  resolved "https://registry.npmjs.org/@vscode/sync-api-common/-/sync-api-common-0.7.2.tgz"
+  resolved "https://registry.yarnpkg.com/@vscode/sync-api-common/-/sync-api-common-0.7.2.tgz#705060ee6a0108c24e145e687613becdb4292b33"
   integrity sha512-ne1XEeDIYA3mp4oo1QoF1fqFedd0Vf4ybMmLb9HixbTyXy/qwMNL2p6OjXjOsmx6w2q9eqzGA5W/OPRSJxTTIQ==
 
 "@vscode/sync-api-service@^0.7.3":
   version "0.7.3"
-  resolved "https://registry.npmjs.org/@vscode/sync-api-service/-/sync-api-service-0.7.3.tgz"
+  resolved "https://registry.yarnpkg.com/@vscode/sync-api-service/-/sync-api-service-0.7.3.tgz#6cb7bd23c4a7378e4b92ca3638501a9be1937152"
   integrity sha512-m2AmmfG4uzfjLMgWRHQ3xnBkdwCiUTO68vdw1XuzMsOb39Jwm9xr5bVVxwOFR9lPC0FfO1H6FUxBhZQvg7itPA==
   dependencies:
     "@vscode/sync-api-common" "0.7.2"
     vscode-uri "3.0.3"
+
+"@vscode/ts-package-manager@*":
+  version "0.0.1"
+  resolved "https://registry.yarnpkg.com/@vscode/ts-package-manager/-/ts-package-manager-0.0.1.tgz#0c40d4f211aea736a54b38f6b53d1f71a826ba32"
+  integrity sha512-Na2ZjQKs70Ij6eupw2M4w7o8d+9VZq/kpwUJpGF457PpfOlx+34RXKKXupq4HGyRfeLRdObSmUVSeWFBCtO4wA==
 
 acorn-import-assertions@^1.9.0:
   version "1.9.0"
@@ -406,22 +301,15 @@ acorn@^8.8.2:
 
 agent-base@6:
   version "6.0.2"
-  resolved "https://registry.npmjs.org/agent-base/-/agent-base-6.0.2.tgz"
+  resolved "https://registry.yarnpkg.com/agent-base/-/agent-base-6.0.2.tgz#49fff58577cfee3f37176feab4c22e00f86d7f77"
   integrity sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==
   dependencies:
     debug "4"
 
-<<<<<<< HEAD
-applicationinsights@2.4.1:
-  version "2.4.1"
-  resolved "https://registry.npmjs.org/applicationinsights/-/applicationinsights-2.4.1.tgz"
-  integrity sha512-0n0Ikd0gzSm460xm+M0UTWIwXrhrH/0bqfZatcJjYObWyefxfAxapGEyNnSGd1Tg90neHz+Yhf+Ff/zgvPiQYA==
-=======
 applicationinsights@^2.7.1:
   version "2.7.3"
   resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-2.7.3.tgz#8781454d29c0b14c9773f2e892b4cf5e7468ffa5"
   integrity sha512-JY8+kTEkjbA+kAVNWDtpfW2lqsrDALfDXuxOs74KLPu2y13fy/9WB52V4LfYVTVcW1/jYOXjTxNS2gPZIDh1iw==
->>>>>>> main
   dependencies:
     "@azure/core-auth" "^1.5.0"
     "@azure/core-rest-pipeline" "1.10.1"
@@ -439,14 +327,14 @@ applicationinsights@^2.7.1:
 
 async-hook-jl@^1.7.6:
   version "1.7.6"
-  resolved "https://registry.npmjs.org/async-hook-jl/-/async-hook-jl-1.7.6.tgz"
+  resolved "https://registry.yarnpkg.com/async-hook-jl/-/async-hook-jl-1.7.6.tgz#4fd25c2f864dbaf279c610d73bf97b1b28595e68"
   integrity sha512-gFaHkFfSxTjvoxDMYqDuGHlcRyUuamF8s+ZTtJdDzqjws4mCt7v0vuV79/E2Wr2/riMQgtG4/yUtXWs1gZ7JMg==
   dependencies:
     stack-chain "^1.3.7"
 
 async-listener@^0.6.0:
   version "0.6.10"
-  resolved "https://registry.npmjs.org/async-listener/-/async-listener-0.6.10.tgz"
+  resolved "https://registry.yarnpkg.com/async-listener/-/async-listener-0.6.10.tgz#a7c97abe570ba602d782273c0de60a51e3e17cbc"
   integrity sha512-gpuo6xOyF4D5DE5WvyqZdPA3NGhiT6Qf07l7DCB0wwDEsLvDIbCr6j9S5aj5Ch96dLace5tXVzWBZkxU/c5ohw==
   dependencies:
     semver "^5.3.0"
@@ -454,12 +342,12 @@ async-listener@^0.6.0:
 
 asynckit@^0.4.0:
   version "0.4.0"
-  resolved "https://registry.npmjs.org/asynckit/-/asynckit-0.4.0.tgz"
+  resolved "https://registry.yarnpkg.com/asynckit/-/asynckit-0.4.0.tgz#c79ed97f7f34cb8f2ba1bc9790bcc366474b4b79"
   integrity sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==
 
 axios@^0.26.1:
   version "0.26.1"
-  resolved "https://registry.npmjs.org/axios/-/axios-0.26.1.tgz"
+  resolved "https://registry.yarnpkg.com/axios/-/axios-0.26.1.tgz#1ede41c51fcf51bbbd6fd43669caaa4f0495aaa9"
   integrity sha512-fPwcX4EvnSHuInCMItEhAGnaSEXRBjtzh9fOtsE6E1G6p7vl7edEeZe11QHf18+6+9gR5PbKV/sGKNaD8YaMeA==
   dependencies:
     follow-redirects "^1.14.8"
@@ -471,7 +359,7 @@ cjs-module-lexer@^1.2.2:
 
 cls-hooked@^4.2.2:
   version "4.2.2"
-  resolved "https://registry.npmjs.org/cls-hooked/-/cls-hooked-4.2.2.tgz"
+  resolved "https://registry.yarnpkg.com/cls-hooked/-/cls-hooked-4.2.2.tgz#ad2e9a4092680cdaffeb2d3551da0e225eae1908"
   integrity sha512-J4Xj5f5wq/4jAvcdgoGsL3G103BtWpZrMo8NEinRltN+xpTZdI+M38pyQqhuFU/P792xkMFvnKSf+Lm81U1bxw==
   dependencies:
     async-hook-jl "^1.7.6"
@@ -480,14 +368,14 @@ cls-hooked@^4.2.2:
 
 combined-stream@^1.0.8:
   version "1.0.8"
-  resolved "https://registry.npmjs.org/combined-stream/-/combined-stream-1.0.8.tgz"
+  resolved "https://registry.yarnpkg.com/combined-stream/-/combined-stream-1.0.8.tgz#c3d45a8b34fd730631a110a8a2520682b31d5a7f"
   integrity sha512-FQN4MRfuJeHf7cBbBMJFXhKSDq+2kAArBlmRBvcvFE5BB1HZKXtSFASDhdlz9zOYwxh8lDdnvmMOe/+5cdoEdg==
   dependencies:
     delayed-stream "~1.0.0"
 
 continuation-local-storage@^3.2.1:
   version "3.2.1"
-  resolved "https://registry.npmjs.org/continuation-local-storage/-/continuation-local-storage-3.2.1.tgz"
+  resolved "https://registry.yarnpkg.com/continuation-local-storage/-/continuation-local-storage-3.2.1.tgz#11f613f74e914fe9b34c92ad2d28fe6ae1db7ffb"
   integrity sha512-jx44cconVqkCEEyLSKWwkvUXwO561jXMa3LPjTPsm5QR22PA0/mhe33FT4Xb5y74JDvt/Cq+5lm8S8rskLv9ZA==
   dependencies:
     async-listener "^0.6.0"
@@ -495,27 +383,16 @@ continuation-local-storage@^3.2.1:
 
 debug@4, debug@^4.1.1:
   version "4.3.4"
-  resolved "https://registry.npmjs.org/debug/-/debug-4.3.4.tgz"
+  resolved "https://registry.yarnpkg.com/debug/-/debug-4.3.4.tgz#1319f6579357f2338d3337d2cdd4914bb5dcc865"
   integrity sha512-PRWFHuSU3eDtQJPvnNY7Jcket1j0t5OuOsFzPPzsekD52Zl8qUfFIPEiswXqIvHWGVHOgX+7G/vCNNhehwxfkQ==
   dependencies:
     ms "2.1.2"
 
 delayed-stream@~1.0.0:
   version "1.0.0"
-  resolved "https://registry.npmjs.org/delayed-stream/-/delayed-stream-1.0.0.tgz"
+  resolved "https://registry.yarnpkg.com/delayed-stream/-/delayed-stream-1.0.0.tgz#df3ae199acadfb7d440aaae0b29e2272b24ec619"
   integrity sha512-ZySD7Nf91aLB0RxL4KGrKHBXl7Eds1DAmEdcoVawXnLD7SDhpNgtuII2aAkg7a7QS41jxPSZ17p4VdGnMHk3MQ==
 
-<<<<<<< HEAD
-diagnostic-channel-publishers@1.0.5:
-  version "1.0.5"
-  resolved "https://registry.npmjs.org/diagnostic-channel-publishers/-/diagnostic-channel-publishers-1.0.5.tgz"
-  integrity sha512-dJwUS0915pkjjimPJVDnS/QQHsH0aOYhnZsLJdnZIMOrB+csj8RnZhWTuwnm8R5v3Z7OZs+ksv5luC14DGB7eg==
-
-diagnostic-channel@1.1.0:
-  version "1.1.0"
-  resolved "https://registry.npmjs.org/diagnostic-channel/-/diagnostic-channel-1.1.0.tgz"
-  integrity sha512-fwujyMe1gj6rk6dYi9hMZm0c8Mz8NDMVl2LB4iaYh3+LIAThZC8RKFGXWG0IML2OxAit/ZFRgZhMkhQ3d/bobQ==
-=======
 diagnostic-channel-publishers@1.0.7:
   version "1.0.7"
   resolved "https://registry.yarnpkg.com/diagnostic-channel-publishers/-/diagnostic-channel-publishers-1.0.7.tgz#9b7f8d5ee1295481aee19c827d917e96fedf2c4a"
@@ -525,25 +402,24 @@ diagnostic-channel@1.1.1:
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/diagnostic-channel/-/diagnostic-channel-1.1.1.tgz#44b60972de9ee055c16216535b0e9db3f6a0efd0"
   integrity sha512-r2HV5qFkUICyoaKlBEpLKHjxMXATUf/l+h8UZPGBHGLy4DDiY2sOLcIctax4eRnTw5wH2jTMExLntGPJ8eOJxw==
->>>>>>> main
   dependencies:
     semver "^7.5.3"
 
 emitter-listener@^1.0.1, emitter-listener@^1.1.1:
   version "1.1.2"
-  resolved "https://registry.npmjs.org/emitter-listener/-/emitter-listener-1.1.2.tgz"
+  resolved "https://registry.yarnpkg.com/emitter-listener/-/emitter-listener-1.1.2.tgz#56b140e8f6992375b3d7cb2cab1cc7432d9632e8"
   integrity sha512-Bt1sBAGFHY9DKY+4/2cV6izcKJUf5T7/gkdmkxzX/qv9CcGH8xSwVRW5mtX03SWJtRTWSOpzCuWN9rBFYZepZQ==
   dependencies:
     shimmer "^1.2.0"
 
 follow-redirects@^1.14.8:
-  version "1.15.1"
-  resolved "https://registry.npmjs.org/follow-redirects/-/follow-redirects-1.15.1.tgz"
-  integrity sha512-yLAMQs+k0b2m7cVxpS1VKJVvoz7SS9Td1zss3XRwXj+ZDH00RJgnuLx7E44wx02kQLrdM3aOOy+FpzS7+8OizA==
+  version "1.15.2"
+  resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.15.2.tgz#b460864144ba63f2681096f274c4e57026da2c13"
+  integrity sha512-VQLG33o04KaQ8uYi2tVNbdrWp1QWxNNea+nmIB4EVM28v0hmP17z7aG1+wAkNzVq4KeXTq3221ye5qTJP91JwA==
 
 form-data@^4.0.0:
   version "4.0.0"
-  resolved "https://registry.npmjs.org/form-data/-/form-data-4.0.0.tgz"
+  resolved "https://registry.yarnpkg.com/form-data/-/form-data-4.0.0.tgz#93919daeaf361ee529584b9b31664dc12c9fa452"
   integrity sha512-ETEklSGi5t0QMZuiXoA/Q6vcnxcLQP5vdugSpuAyi6SVGi2clPPp+xgEhuMaHC+zGgn31Kd235W35f7Hykkaww==
   dependencies:
     asynckit "^0.4.0"
@@ -564,7 +440,7 @@ has@^1.0.3:
 
 http-proxy-agent@^5.0.0:
   version "5.0.0"
-  resolved "https://registry.npmjs.org/http-proxy-agent/-/http-proxy-agent-5.0.0.tgz"
+  resolved "https://registry.yarnpkg.com/http-proxy-agent/-/http-proxy-agent-5.0.0.tgz#5129800203520d434f142bc78ff3c170800f2b43"
   integrity sha512-n2hY8YdoRE1i7r6M0w9DIw5GgZN0G25P8zLCRQ8rjXtTU3vsNFBI/vWK/UIeE6g5MUUz6avwAPXmL6Fy9D/90w==
   dependencies:
     "@tootallnate/once" "2"
@@ -573,7 +449,7 @@ http-proxy-agent@^5.0.0:
 
 https-proxy-agent@^5.0.0:
   version "5.0.1"
-  resolved "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-5.0.1.tgz"
+  resolved "https://registry.yarnpkg.com/https-proxy-agent/-/https-proxy-agent-5.0.1.tgz#c59ef224a04fe8b754f3db0063a25ea30d0005d6"
   integrity sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA==
   dependencies:
     agent-base "6"
@@ -598,7 +474,7 @@ is-core-module@^2.13.0:
 
 jsonc-parser@^3.2.0:
   version "3.2.0"
-  resolved "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-3.2.0.tgz"
+  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-3.2.0.tgz#31ff3f4c2b9793f89c67212627c51c6394f88e76"
   integrity sha512-gfFQZrcTc8CnKXp6Y4/CBT3fTc0OVuDofpre4aEeEpSBPV5X5v4+Vmx+8snU7RLPrNHPKSgLxGo9YuQzz20o+w==
 
 lru-cache@^6.0.0:
@@ -610,12 +486,12 @@ lru-cache@^6.0.0:
 
 mime-db@1.52.0:
   version "1.52.0"
-  resolved "https://registry.npmjs.org/mime-db/-/mime-db-1.52.0.tgz"
+  resolved "https://registry.yarnpkg.com/mime-db/-/mime-db-1.52.0.tgz#bbabcdc02859f4987301c856e3387ce5ec43bf70"
   integrity sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg==
 
 mime-types@^2.1.12:
   version "2.1.35"
-  resolved "https://registry.npmjs.org/mime-types/-/mime-types-2.1.35.tgz"
+  resolved "https://registry.yarnpkg.com/mime-types/-/mime-types-2.1.35.tgz#381a871b62a734450660ae3deee44813f70d959a"
   integrity sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==
   dependencies:
     mime-db "1.52.0"
@@ -627,7 +503,7 @@ module-details-from-path@^1.0.3:
 
 ms@2.1.2:
   version "2.1.2"
-  resolved "https://registry.npmjs.org/ms/-/ms-2.1.2.tgz"
+  resolved "https://registry.yarnpkg.com/ms/-/ms-2.1.2.tgz#d09d1f357b443f493382a8eb3ccd183872ae6009"
   integrity sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==
 
 path-parse@^1.0.7:
@@ -674,12 +550,12 @@ semver@^7.5.1, semver@^7.5.3:
 
 shimmer@^1.1.0, shimmer@^1.2.0, shimmer@^1.2.1:
   version "1.2.1"
-  resolved "https://registry.npmjs.org/shimmer/-/shimmer-1.2.1.tgz"
+  resolved "https://registry.yarnpkg.com/shimmer/-/shimmer-1.2.1.tgz#610859f7de327b587efebf501fb43117f9aff337"
   integrity sha512-sQTKC1Re/rM6XyFM6fIAGHRPVGvyXfgzIDvzoq608vM+jeyVD0Tu1E6Np0Kc2zAIFWIj963V2800iF/9LPieQw==
 
 stack-chain@^1.3.7:
   version "1.3.7"
-  resolved "https://registry.npmjs.org/stack-chain/-/stack-chain-1.3.7.tgz"
+  resolved "https://registry.yarnpkg.com/stack-chain/-/stack-chain-1.3.7.tgz#d192c9ff4ea6a22c94c4dd459171e3f00cea1285"
   integrity sha512-D8cWtWVdIe/jBA7v5p5Hwl5yOSOrmZPWDPe2KxQ5UAGD+nxbxU0lKXA4h85Ta6+qgdKVL3vUxsbIZjc1kBG7ug==
 
 supports-preserve-symlinks-flag@^1.0.0:
@@ -689,32 +565,37 @@ supports-preserve-symlinks-flag@^1.0.0:
 
 tas-client@0.1.58:
   version "0.1.58"
-  resolved "https://registry.npmjs.org/tas-client/-/tas-client-0.1.58.tgz"
+  resolved "https://registry.yarnpkg.com/tas-client/-/tas-client-0.1.58.tgz#67d66bf0e27df5276ebc751105e6ad47791c36d8"
   integrity sha512-fOWii4wQXuo9Zl0oXgvjBzZWzKc5MmUR6XQWX93WU2c1SaP1plPo/zvXP8kpbZ9fvegFOHdapszYqMTRq/SRtg==
   dependencies:
     axios "^0.26.1"
 
 tslib@^2.2.0:
-  version "2.4.1"
-  resolved "https://registry.npmjs.org/tslib/-/tslib-2.4.1.tgz"
-  integrity sha512-tGyy4dAjRIEwI7BzsB0lynWgOpfqjUdq91XXAlIWD2OwKBH7oCl/GZG/HT4BOHrTlPMOASlMQ7veyTqpmRcrNA==
+  version "2.6.2"
+  resolved "https://registry.yarnpkg.com/tslib/-/tslib-2.6.2.tgz#703ac29425e7b37cd6fd456e92404d46d1f3e4ae"
+  integrity sha512-AEYxH93jGFPn/a2iVAwW87VuUIkR1FVUKB77NwMF7nBTDkDrrT/Hpt/IrCJ0QXhW27jTBDcf5ZY7w6RiqTMw2Q==
 
 uuid@^8.3.0:
   version "8.3.2"
-  resolved "https://registry.npmjs.org/uuid/-/uuid-8.3.2.tgz"
+  resolved "https://registry.yarnpkg.com/uuid/-/uuid-8.3.2.tgz#80d5b5ced271bb9af6c445f21a1a04c606cefbe2"
   integrity sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==
 
 vscode-tas-client@^0.1.63:
   version "0.1.63"
-  resolved "https://registry.npmjs.org/vscode-tas-client/-/vscode-tas-client-0.1.63.tgz"
+  resolved "https://registry.yarnpkg.com/vscode-tas-client/-/vscode-tas-client-0.1.63.tgz#df89e67e9bf7ecb46471a0fb8a4a522d2aafad65"
   integrity sha512-TY5TPyibzi6rNmuUB7eRVqpzLzNfQYrrIl/0/F8ukrrbzOrKVvS31hM3urE+tbaVrnT+TMYXL16GhX57vEowhA==
   dependencies:
     tas-client "0.1.58"
 
-vscode-uri@3.0.3, vscode-uri@^3.0.3:
+vscode-uri@3.0.3:
   version "3.0.3"
-  resolved "https://registry.npmjs.org/vscode-uri/-/vscode-uri-3.0.3.tgz"
+  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.3.tgz#a95c1ce2e6f41b7549f86279d19f47951e4f4d84"
   integrity sha512-EcswR2S8bpR7fD0YPeS7r2xXExrScVMxg4MedACaWHEtx9ftCF/qHG1xGkolzTPcEmjTavCQgbVzHUIdTMzFGA==
+
+vscode-uri@^3.0.3:
+  version "3.0.7"
+  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.7.tgz#6d19fef387ee6b46c479e5fb00870e15e58c1eb8"
+  integrity sha512-eOpPHogvorZRobNqJGhapa0JdwaxpjVvyBp0QIUMRMSf8ZAlqOdEquKuRmw9Qwu0qXtJIWqFtMkmvJjUZmMjVA==
 
 yallist@^4.0.0:
   version "4.0.0"

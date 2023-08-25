@@ -23,10 +23,10 @@
  * the stuff the abstract class is already doing for us.
  */
 
-import * as ts from 'typescript/lib/tsserverlibrary';
+import { PackageManager, PackageType } from '@vscode/ts-package-manager';
 import { join } from 'path';
+import * as ts from 'typescript/lib/tsserverlibrary';
 import { NameValidationResult, validatePackageNameWorker } from './jsTyping';
-import { PackageManager, PackageType } from '../package-manager/packageManager';
 
 type InstallerResponse = ts.server.PackageInstalledResponse | ts.server.SetTypings | ts.server.InvalidateCachedTypings | ts.server.BeginInstallTypes | ts.server.EndInstallTypes | ts.server.WatchTypingLocations;
 
