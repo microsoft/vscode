@@ -45,7 +45,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
 	private _minContentWidthInPx: number = 0;
-	private _collapsedLines: number[] = [];
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -308,25 +307,20 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return;
 		}
 		const foldingIconNode = container.appendChild(document.createElement('div'));
-		const isRegionCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
-		foldingIconNode.className = ThemeIcon.asClassName(isRegionCollapsed ? foldingCollapsedIcon : foldingExpandedIcon);
-		const isCollapsed = this._collapsedLines.some(collapsedLine => collapsedLine === line);
+		const isCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
+		foldingIconNode.className = ThemeIcon.asClassName(isCollapsed ? foldingCollapsedIcon : foldingExpandedIcon);
 		const foldingIcon = new FoldingIcon(foldingIconNode, isCollapsed);
 		foldingIcon.setVisible(isCollapsed || showFoldingControls === 'always');
 		foldingIcon.setTransitionRequired(true);
 
 		this._foldingIconStore.add(dom.addDisposableListener(foldingIconNode, dom.EventType.CLICK, () => {
 			toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
-			let scrollTop: number;
-			if (isRegionCollapsed) {
-				this._collapsedLines = this._collapsedLines.filter(line => line !== startLineNumber);
-				scrollTop = this._editor.getTopForLineNumber(startLineNumber);
-			} else {
-				this._collapsedLines.push(startLineNumber);
-				const endLineNumber = foldingRegions.getEndLineNumber(indexOfFoldingRegion);
-				scrollTop = this._editor.getTopForLineNumber(endLineNumber);
-			}
-			scrollTop += -this._lineHeight * index + 1;
+			foldingIcon.isCollapsed = !isCollapsed;
+			const scrollTop =
+				(isCollapsed ?
+					this._editor.getTopForLineNumber(startLineNumber)
+					: this._editor.getTopForLineNumber(foldingRegions.getEndLineNumber(indexOfFoldingRegion)))
+				- this._lineHeight * index + 1;
 			this._editor.setScrollTop(scrollTop);
 		}));
 		return foldingIcon;
