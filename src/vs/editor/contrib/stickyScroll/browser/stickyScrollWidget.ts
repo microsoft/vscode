@@ -149,7 +149,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const renderedStickyLine = this._renderChildNode(index, line, layoutInfo, foldingModel);
-			this._lineNumbersDomNode.appendChild(renderedStickyLine.lineNumberDomNode);
 			this._linesDomNode.appendChild(renderedStickyLine.lineDomNode);
 			this._stickyLines.push(renderedStickyLine);
 		}
@@ -185,33 +184,25 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				&& e.fromElement.classList.contains('codicon');
 
 			for (const line of this._stickyLines) {
-				const lineNumberDomNode = line.lineNumberDomNode;
+				const foldingIcon = line.foldingIcon;
+				if (!foldingIcon) {
+					continue;
+				}
 				if (mouseEventTriggerredByClick) {
-					this._setFoldingToggleIconTransitionRequired(lineNumberDomNode, false);
-					this._setFoldingToggleIconVisible(lineNumberDomNode, true);
-					setTimeout(() => { this._setFoldingToggleIconTransitionRequired(lineNumberDomNode, true); }, 300);
+					foldingIcon.setTransitionRequired(false);
+					foldingIcon.setVisible(true);
+					setTimeout(() => { foldingIcon.setTransitionRequired(true); }, 300);
 				} else {
-					this._setFoldingToggleIconVisible(lineNumberDomNode, true);
+					foldingIcon.setVisible(true);
 				}
 			}
 		}));
 		this._foldingIconStore.add(dom.addDisposableListener(this._lineNumbersDomNode, dom.EventType.MOUSE_LEAVE, () => {
 			for (const line of this._stickyLines) {
-				const lineNumber = line.lineNumber;
-				const lineNumberDomNode = line.lineNumberDomNode;
-				const isCollapsed = this._collapsedLines.some(collapsedLine => collapsedLine === lineNumber);
-				this._setFoldingToggleIconVisible(lineNumberDomNode, isCollapsed);
+				const foldingIcon = line.foldingIcon;
+				foldingIcon?.setVisible(foldingIcon.isCollapsed);
 			}
 		}));
-	}
-
-	private _setFoldingToggleIconTransitionRequired(container: HTMLElement, requiresTrandition: boolean) {
-		container.style.setProperty('--vscode-editorStickyScroll-opacityTransition', `opacity ${requiresTrandition ? 0.5 : 0}s`);
-	}
-
-	private _setFoldingToggleIconVisible(container: HTMLElement, visible: boolean) {
-		container.style.setProperty('--vscode-editorStickyScroll-cursorOutsideHover', visible ? 'pointer' : 'default');
-		container.style.setProperty('--vscode-editorStickyScroll-opacityOutsideHover', visible ? '1' : '0');
 	}
 
 	private _renderChildNode(index: number, line: number, layoutInfo: EditorLayoutInfo, foldingModel: FoldingModel | null | undefined): RenderedStickyLine {
@@ -299,12 +290,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const intermediateLineTop = `${index * this._lineHeight}px`;
 		lineHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
 		lineNumberHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
-
-		this._renderFoldingIconForLine(lineNumberHTMLNode, foldingModel, index, line);
-		return new RenderedStickyLine(line, lineHTMLNode, lineNumberHTMLNode, renderOutput.characterMapping);
+		const foldingIcon = this._renderFoldingIconForLine(lineNumberHTMLNode, foldingModel, index, line);
+		return new RenderedStickyLine(line, lineHTMLNode, foldingIcon, renderOutput.characterMapping);
 	}
 
-	private _renderFoldingIconForLine(container: HTMLSpanElement, foldingModel: FoldingModel | null | undefined, index: number, line: number): void {
+	private _renderFoldingIconForLine(container: HTMLSpanElement, foldingModel: FoldingModel | null | undefined, index: number, line: number): FoldingIcon | undefined {
 		const showFoldingControls: 'mouseover' | 'always' | 'never' = this._editor.getOption(EditorOption.showFoldingControls);
 		if (!foldingModel || showFoldingControls === 'never') {
 			return;
@@ -316,14 +306,15 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (!isFoldingScope) {
 			return;
 		}
-		const foldingIcon = container.appendChild(document.createElement('div'));
+		const foldingIconNode = container.appendChild(document.createElement('div'));
 		const isRegionCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
-		foldingIcon.className = ThemeIcon.asClassName(isRegionCollapsed ? foldingCollapsedIcon : foldingExpandedIcon);
+		foldingIconNode.className = ThemeIcon.asClassName(isRegionCollapsed ? foldingCollapsedIcon : foldingExpandedIcon);
 		const isCollapsed = this._collapsedLines.some(collapsedLine => collapsedLine === line);
-		this._setFoldingToggleIconVisible(container, isCollapsed || showFoldingControls === 'always');
-		this._setFoldingToggleIconTransitionRequired(container, true);
+		const foldingIcon = new FoldingIcon(foldingIconNode, isCollapsed);
+		foldingIcon.setVisible(isCollapsed || showFoldingControls === 'always');
+		foldingIcon.setTransitionRequired(false);
 
-		this._foldingIconStore.add(dom.addDisposableListener(foldingIcon, dom.EventType.CLICK, () => {
+		this._foldingIconStore.add(dom.addDisposableListener(foldingIconNode, dom.EventType.CLICK, () => {
 			toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
 			let scrollTop: number;
 			if (isRegionCollapsed) {
@@ -337,6 +328,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			scrollTop += -this._lineHeight * index + 1;
 			this._editor.setScrollTop(scrollTop);
 		}));
+		return foldingIcon;
 	}
 
 	private _updateMinContentWidth() {
@@ -421,7 +413,23 @@ class RenderedStickyLine {
 	constructor(
 		public readonly lineNumber: number,
 		public readonly lineDomNode: HTMLElement,
-		public readonly lineNumberDomNode: HTMLElement,
+		public readonly foldingIcon: FoldingIcon | undefined,
 		public readonly characterMapping: CharacterMapping
 	) { }
+}
+
+class FoldingIcon {
+	constructor(
+		private readonly foldingIconNode: HTMLElement,
+		public isCollapsed: boolean
+	) { }
+
+	public setVisible(visible: boolean) {
+		this.foldingIconNode.style.cursor = visible ? 'pointer' : 'default';
+		this.foldingIconNode.style.opacity = visible ? '1' : '0';
+	}
+
+	public setTransitionRequired(transitionRequired: boolean) {
+		this.foldingIconNode.style.transition = `opacity ${transitionRequired ? 0.5 : 0}s`;
+	}
 }
