@@ -8,6 +8,7 @@ import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/c
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { SharedProcessChannelConnection, SharedProcessRawConnection } from 'vs/platform/sharedProcess/common/sharedProcess';
 import { mark } from 'vs/base/common/performance';
 import { Barrier, timeout } from 'vs/base/common/async';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
@@ -44,7 +45,7 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 		// Acquire a message port connected to the shared process
 		mark('code/willConnectSharedProcess');
 		this.logService.trace('Renderer->SharedProcess#connect: before acquirePort');
-		const port = await acquirePort('vscode:createSharedProcessMessageChannel', 'vscode:createSharedProcessMessageChannelResult');
+		const port = await acquirePort(SharedProcessChannelConnection.request, SharedProcessChannelConnection.response);
 		mark('code/didConnectSharedProcess');
 		this.logService.trace('Renderer->SharedProcess#connect: connection established');
 
@@ -63,5 +64,18 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 
 	registerChannel(channelName: string, channel: IServerChannel<string>): void {
 		this.withSharedProcessConnection.then(connection => connection.registerChannel(channelName, channel));
+	}
+
+	async createRawConnection(): Promise<MessagePort> {
+
+		// Await initialization of the shared process
+		await this.withSharedProcessConnection;
+
+		// Create a new port to the shared process
+		this.logService.trace('Renderer->SharedProcess#createRawConnection: before acquirePort');
+		const port = await acquirePort(SharedProcessRawConnection.request, SharedProcessRawConnection.response);
+		this.logService.trace('Renderer->SharedProcess#createRawConnection: connection established');
+
+		return port;
 	}
 }

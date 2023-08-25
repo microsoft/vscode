@@ -1294,12 +1294,8 @@ export class TaskSequentializer {
 	private _next?: INextTask;
 
 	hasPending(taskId?: number): this is ITaskSequentializerWithPendingTask {
-		if (!this._pending) {
-			return false;
-		}
-
 		if (typeof taskId === 'number') {
-			return this._pending.taskId === taskId;
+			return this._pending?.taskId === taskId;
 		}
 
 		return !!this._pending;
