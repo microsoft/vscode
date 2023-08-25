@@ -40,6 +40,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly _linesDomNodeScrollable: HTMLElement = document.createElement('div');
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
 
+	private _lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
 	private _stickyLines: RenderedStickyLine[] = [];
 	private _lineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
@@ -70,6 +71,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._register(this._editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.stickyScroll)) {
 				updateScrollLeftPosition();
+			}
+			if (e.hasChanged(EditorOption.lineHeight)) {
+				this._lineHeight = this._editor.getOption(EditorOption.lineHeight);
 			}
 		}));
 		this._register(this._editor.onDidScrollChange((e) => {
@@ -113,8 +117,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (!this._editor._getViewModel()) {
 			return;
 		}
-		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const futureWidgetHeight = state.startLineNumbers.length * editorLineHeight + state.lastLineRelativePosition;
+		const futureWidgetHeight = state.startLineNumbers.length * this._lineHeight + state.lastLineRelativePosition;
 
 		if (futureWidgetHeight > 0) {
 			this._lastLineRelativePosition = state.lastLineRelativePosition;
@@ -150,8 +153,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._stickyLines.push(renderedStickyLine);
 		}
 
-		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
+		const widgetHeight: number = this._lineNumbers.length * this._lineHeight + this._lastLineRelativePosition;
 		this._rootDomNode.style.display = widgetHeight > 0 ? 'block' : 'none';
 		this._lineNumbersDomNode.style.height = `${widgetHeight}px`;
 		this._linesDomNodeScrollable.style.height = `${widgetHeight}px`;
@@ -172,7 +174,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
 		const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
 		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
-		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 
 		let actualInlineDecorations: LineDecoration[];
@@ -203,12 +204,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const lineHTMLNode = document.createElement('span');
 		lineHTMLNode.className = 'sticky-line-content';
 		lineHTMLNode.classList.add(`stickyLine${line}`);
-		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
+		lineHTMLNode.style.lineHeight = `${this._lineHeight}px`;
 		lineHTMLNode.innerHTML = newLine as string;
 
 		const lineNumberHTMLNode = document.createElement('span');
 		lineNumberHTMLNode.className = 'sticky-line-number';
-		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
+		lineNumberHTMLNode.style.lineHeight = `${this._lineHeight}px`;
 		const lineNumbersWidth = minimapSide === 'left' ? layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth : layoutInfo.contentLeft;
 		lineNumberHTMLNode.style.width = `${lineNumbersWidth}px`;
 
@@ -219,7 +220,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			innerLineNumberHTML.innerText = Math.abs(line - this._editor.getPosition()!.lineNumber).toString();
 		}
 		innerLineNumberHTML.className = 'sticky-line-number-inner';
-		innerLineNumberHTML.style.lineHeight = `${lineHeight}px`;
+		innerLineNumberHTML.style.lineHeight = `${this._lineHeight}px`;
 		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
 		innerLineNumberHTML.style.float = 'left';
 		if (minimapSide === 'left') {
@@ -236,10 +237,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.setAttribute(STICKY_LINE_INDEX_ATTR, String(index));
 		lineHTMLNode.tabIndex = 0;
 
-		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
-		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
-		lineNumberHTMLNode.style.height = `${lineHeight}px`;
-		lineHTMLNode.style.height = `${lineHeight}px`;
+		lineNumberHTMLNode.style.lineHeight = `${this._lineHeight}px`;
+		lineHTMLNode.style.lineHeight = `${this._lineHeight}px`;
+		lineNumberHTMLNode.style.height = `${this._lineHeight}px`;
+		lineHTMLNode.style.height = `${this._lineHeight}px`;
 
 		// Special case for the last line of sticky scroll
 		const isLastLine = index === this._lineNumbers.length - 1;
@@ -249,8 +250,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
 		lineNumberHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
 
-		const lastLineTop = `${index * lineHeight + this._lastLineRelativePosition}px`;
-		const intermediateLineTop = `${index * lineHeight}px`;
+		const lastLineTop = `${index * this._lineHeight + this._lastLineRelativePosition}px`;
+		const intermediateLineTop = `${index * this._lineHeight}px`;
 		lineHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
 		lineNumberHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
 
@@ -278,8 +279,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		foldingIcon.className = ThemeIcon.asClassName(isRegionCollapsed ? foldingCollapsedIcon : foldingExpandedIcon);
 		this._foldingIconStore.add(dom.addDisposableListener(foldingIcon, dom.EventType.CLICK, () => {
 			toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
-			const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-			let scrollTop = - lineHeight * index + 1;
+			let scrollTop = - this._lineHeight * index + 1;
 			if (isRegionCollapsed) {
 				scrollTop += this._editor.getTopForLineNumber(startLineNumber);
 			} else {
