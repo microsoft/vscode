@@ -60,19 +60,24 @@ class VoiceTranscriptionWorkletNode extends AudioWorkletNode {
 	}
 
 	async start(token: CancellationToken): Promise<void> {
+		token.onCancellationRequested(() => this.stop());
+
 		const sharedProcessConnection = await this.sharedProcessService.createRawConnection();
 
-		token.onCancellationRequested(() => {
-			this.port.postMessage('vscode:stopVoiceTranscription');
-			this.disconnect();
-		});
+		if (token.isCancellationRequested) {
+			this.stop();
+			return;
+		}
 
 		this.port.postMessage('vscode:startVoiceTranscription', [sharedProcessConnection]);
 	}
+
+	private stop(): void {
+		this.port.postMessage('vscode:stopVoiceTranscription');
+		this.disconnect();
+	}
 }
 
-// TODO@voice
-// - add native module test to ensure module loads
 export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
 
 	declare readonly _serviceBrand: undefined;

@@ -12,7 +12,7 @@ import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
@@ -28,9 +28,10 @@ import { isExecuteActionContext } from 'vs/workbench/contrib/chat/browser/action
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import product from 'vs/platform/product/common/product';
+import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 
-const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when there is voice input for chat getting ready.") });
-const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when there is voice input for chat in progress.") });
+const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone.") });
+const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress.") });
 
 interface IVoiceChatSessionController {
 
@@ -94,13 +95,13 @@ class VoiceChatSession {
 		context.focusInput();
 
 		const onDidTranscribe = await this.voiceRecognitionService.transcribe(cts.token, {
-			onDidCancel: () => this.stop()
+			onDidCancel: () => this.stop(voiceChatSessionId)
 		});
 		if (cts.token.isCancellationRequested) {
 			return Disposable.None;
 		}
 
-		const voiceChatSessionId = this.voiceChatSessionIds++;
+		const voiceChatSessionId = ++this.voiceChatSessionIds;
 
 		this.voiceChatGettingReadyKey.set(false);
 		this.voiceChatInProgressKey.set(true);
@@ -130,15 +131,9 @@ class VoiceChatSession {
 			}
 		}));
 
-		this.currentVoiceChatSession.add(context.onDidAcceptInput(() => {
-			this.stop();
-		}));
+		this.currentVoiceChatSession.add(context.onDidAcceptInput(() => this.stop(voiceChatSessionId)));
 
-		return toDisposable(() => {
-			if (this.voiceChatSessionIds === voiceChatSessionId) {
-				this.stop();
-			}
-		});
+		return toDisposable(() => this.stop(voiceChatSessionId));
 	}
 
 	private isSimilarTranscription(textA: string, textB: string): boolean {
@@ -155,8 +150,12 @@ class VoiceChatSession {
 		);
 	}
 
-	stop(): void {
+	stop(voiceChatSessionId = this.voiceChatSessionIds): void {
 		if (!this.currentVoiceChatSession) {
+			return;
+		}
+
+		if (this.voiceChatSessionIds !== voiceChatSessionId) {
 			return;
 		}
 
@@ -212,7 +211,7 @@ class InlineVoiceChatAction extends Action2 {
 				original: 'Inline Voice Chat'
 			},
 			category: CHAT_CATEGORY,
-			precondition: CONTEXT_PROVIDER_EXISTS,
+			precondition: ContextKeyExpr.and(CONTEXT_PROVIDER_EXISTS, ActiveEditorContext),
 			f1: true
 		});
 	}
@@ -234,7 +233,6 @@ class InlineVoiceChatAction extends Action2 {
 		const inlineChatSession = controller.run();
 
 		const disposable = await VoiceChatSession.getInstance(instantiationService).start(getController(controller));
-
 		inlineChatSession.finally(() => disposable.dispose());
 	}
 }
