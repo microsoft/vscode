@@ -530,7 +530,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.renderer.onDidChangeItemHeight(() => this.layoutDynamicChatTreeItemMode()));
 	}
 
-	layoutDynamicChatTreeItemMode(allowRecurse = true): void {
+	layoutDynamicChatTreeItemMode(): void {
 		if (!this.viewModel) {
 			return;
 		}
@@ -554,10 +554,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.container.offsetWidth
 		);
 
-		if (needsRerender && allowRecurse) {
+		if (needsRerender) {
 			// TODO: figure out a better place to reveal the last element
 			revealLastElement(this.tree);
-			this.layoutDynamicChatTreeItemMode(false);
 		}
 	}
 
