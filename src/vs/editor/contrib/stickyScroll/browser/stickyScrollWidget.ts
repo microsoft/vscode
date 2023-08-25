@@ -307,6 +307,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return;
 		}
 		const foldingIconNode = container.appendChild(document.createElement('div'));
+		foldingIconNode.style.width = `${this._lineHeight}px`;
+		foldingIconNode.style.height = `${this._lineHeight}px`;
 		const isCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
 		foldingIconNode.className = ThemeIcon.asClassName(isCollapsed ? foldingCollapsedIcon : foldingExpandedIcon);
 		const foldingIcon = new FoldingIcon(foldingIconNode, isCollapsed);
