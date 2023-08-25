@@ -112,6 +112,7 @@ export interface TypeScriptServiceConfiguration {
 	readonly useSyntaxServer: SyntaxServerConfiguration;
 	readonly webProjectWideIntellisenseEnabled: boolean;
 	readonly webProjectWideIntellisenseSuppressSemanticErrors: boolean;
+	readonly enableDiagnosticsTelemetry: boolean;
 	readonly enableProjectDiagnostics: boolean;
 	readonly maxTsServerMemory: number;
 	readonly enablePromptUseWorkspaceTsdk: boolean;
@@ -144,6 +145,7 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			useSyntaxServer: this.readUseSyntaxServer(configuration),
 			webProjectWideIntellisenseEnabled: this.readWebProjectWideIntellisenseEnable(configuration),
 			webProjectWideIntellisenseSuppressSemanticErrors: this.readWebProjectWideIntellisenseSuppressSemanticErrors(configuration),
+			enableDiagnosticsTelemetry: this.readEnableDiagnosticsTelemetry(configuration),
 			enableProjectDiagnostics: this.readEnableProjectDiagnostics(configuration),
 			maxTsServerMemory: this.readMaxTsServerMemory(configuration),
 			enablePromptUseWorkspaceTsdk: this.readEnablePromptUseWorkspaceTsdk(configuration),
@@ -195,6 +197,11 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			return SyntaxServerConfiguration.Auto;
 		}
 		return SyntaxServerConfiguration.Never;
+	}
+
+	protected readEnableDiagnosticsTelemetry(configuration: vscode.WorkspaceConfiguration): boolean {
+		// This setting does not appear in the settings view, as it is not to be enabled by users outside the team
+		return configuration.get<boolean>('typescript.enableDiagnosticsTelemetry', false);
 	}
 
 	protected readEnableProjectDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {

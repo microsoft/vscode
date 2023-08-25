@@ -214,6 +214,10 @@ export interface ICellOutput {
 	outputs: IOutputItemDto[];
 	metadata?: Record<string, any>;
 	outputId: string;
+	/**
+	 * Alternative output id that's reused when the output is updated.
+	 */
+	alternativeOutputId: string;
 	onDidChangeData: Event<void>;
 	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
@@ -776,6 +780,7 @@ export interface ICellEditorViewState {
 
 export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('notebookEditorCursorAtBoundary', 'none');
 
+export const NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY = new RawContextKey<'none' | 'start' | 'end' | 'both'>('notebookEditorCursorAtLineBoundary', 'none');
 
 export interface INotebookLoadOptions {
 	/**

@@ -83,6 +83,9 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 	navigateToCommand(type: NavigationType): void {
 		return this._accessibleBufferWidget?.navigateToCommand(type);
 	}
+	hide(): void {
+		this._accessibleBufferWidget?.hide();
+	}
 }
 registerTerminalContribution(AccessibleBufferContribution.ID, AccessibleBufferContribution);
 
@@ -114,6 +117,7 @@ registerTerminalAction({
 	keybinding: [
 		{
 			primary: KeyMod.Shift | KeyCode.Tab,
+			secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.Alt | KeyCode.F2],
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.focus, ContextKeyExpr.or(terminalTabFocusModeContextKey, TerminalContextKeys.accessibleBufferFocus.negate()))
 		}
@@ -161,8 +165,7 @@ registerTerminalAction({
 			weight: KeybindingWeight.WorkbenchContrib + 2
 		},
 		{
-			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-			mac: { primary: KeyMod.Alt | KeyCode.DownArrow },
+			primary: KeyMod.Alt | KeyCode.DownArrow,
 			when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 			weight: KeybindingWeight.WorkbenchContrib + 2
 		}
@@ -189,8 +192,7 @@ registerTerminalAction({
 			weight: KeybindingWeight.WorkbenchContrib + 2
 		},
 		{
-			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-			mac: { primary: KeyMod.Alt | KeyCode.UpArrow },
+			primary: KeyMod.Alt | KeyCode.UpArrow,
 			when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 			weight: KeybindingWeight.WorkbenchContrib + 2
 		}

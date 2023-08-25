@@ -805,6 +805,13 @@ export enum CursorAtBoundary {
 	Both
 }
 
+export enum CursorAtLineBoundary {
+	None,
+	Start,
+	End,
+	Both
+}
+
 export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INotebookEditor | undefined {
 	if (!editorPane) {
 		return;

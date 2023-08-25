@@ -157,7 +157,9 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(autorunWithStore((reader, store) => {
 			/** @description UnchangedRangesFeature */
-			this.unchangedRangesFeature = store.add(new (readHotReloadableExport(UnchangedRangesFeature, reader))(this._editors, this._diffModel, this._options));
+			this.unchangedRangesFeature = store.add(
+				this._instantiationService.createInstance(readHotReloadableExport(UnchangedRangesFeature, reader), this._editors, this._diffModel, this._options)
+			);
 		}));
 
 		this._register(autorunWithStore((reader, store) => {
@@ -178,7 +180,9 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(autorunWithStore((reader, store) => {
 			/** @description OverviewRulerPart */
-			store.add(this._instantiationService.createInstance(readHotReloadableExport(OverviewRulerPart, reader), this._editors,
+			store.add(this._instantiationService.createInstance(
+				readHotReloadableExport(OverviewRulerPart, reader),
+				this._editors,
 				this.elements.root,
 				this._diffModel,
 				this._rootSizeObserver.width,

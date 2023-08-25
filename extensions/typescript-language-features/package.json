@@ -33,7 +33,7 @@
     "Programming Languages"
   ],
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.5",
+    "@vscode/extension-telemetry": "^0.8.4",
     "jsonc-parser": "^3.2.0",
     "semver": "7.5.2",
     "vscode-tas-client": "^0.1.63",
