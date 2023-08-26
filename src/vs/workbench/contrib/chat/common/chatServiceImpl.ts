@@ -508,7 +508,7 @@ export class ChatService extends Disposable implements IChatService {
 				};
 
 				if (typeof request.message === 'string') {
-					request.variables = await this.chatVariablesService.resolveVariables(request.message, token);
+					request.variables = await this.chatVariablesService.resolveVariables(request.message, model, token);
 				}
 
 				rawResponse = await provider.provideReply(request, progressCallback, token);

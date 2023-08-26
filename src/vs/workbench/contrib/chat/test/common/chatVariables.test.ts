@@ -21,32 +21,32 @@ suite('ChatVariables', function () {
 		service.registerVariable({ name: 'far', description: 'boo' }, async () => ([{ level: 'full', value: 'farboo' }]));
 
 		{
-			const data = await service.resolveVariables('Hello @foo and@far', CancellationToken.None);
+			const data = await service.resolveVariables('Hello @foo and@far', null!, CancellationToken.None);
 			assert.strictEqual(Object.keys(data).length, 1);
 			assert.deepEqual(Object.keys(data).sort(), ['foo']);
 		}
 		{
-			const data = await service.resolveVariables('@foo Hello', CancellationToken.None);
+			const data = await service.resolveVariables('@foo Hello', null!, CancellationToken.None);
 			assert.strictEqual(Object.keys(data).length, 1);
 			assert.deepEqual(Object.keys(data).sort(), ['foo']);
 		}
 		{
-			const data = await service.resolveVariables('Hello @foo', CancellationToken.None);
+			const data = await service.resolveVariables('Hello @foo', null!, CancellationToken.None);
 			assert.strictEqual(Object.keys(data).length, 1);
 			assert.deepEqual(Object.keys(data).sort(), ['foo']);
 		}
 		{
-			const data = await service.resolveVariables('Hello @foo and@far @foo', CancellationToken.None);
+			const data = await service.resolveVariables('Hello @foo and@far @foo', null!, CancellationToken.None);
 			assert.strictEqual(Object.keys(data).length, 1);
 			assert.deepEqual(Object.keys(data).sort(), ['foo']);
 		}
 		{
-			const data = await service.resolveVariables('Hello @foo and @far @foo', CancellationToken.None);
+			const data = await service.resolveVariables('Hello @foo and @far @foo', null!, CancellationToken.None);
 			assert.strictEqual(Object.keys(data).length, 2);
 			assert.deepEqual(Object.keys(data).sort(), ['far', 'foo']);
 		}
 		{
-			const data = await service.resolveVariables('Hello @foo and @far @foo @unknown', CancellationToken.None);
+			const data = await service.resolveVariables('Hello @foo and @far @foo @unknown', null!, CancellationToken.None);
 			assert.strictEqual(Object.keys(data).length, 2);
 			assert.deepEqual(Object.keys(data).sort(), ['far', 'foo']);
 		}
