@@ -84,16 +84,19 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 		this.telemetryService.publicLog2<{
 			timeMs: number;
 			timedOut: boolean;
+			detectedMoves: number;
 		}, {
 			owner: 'hediet';
 
 			timeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand if the new diff algorithm is slower/faster than the old one' };
 			timedOut: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand how often the new diff algorithm times out' };
+			detectedMoves: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand how often the new diff algorithm detects moves' };
 
 			comment: 'This event gives insight about the performance of the new diff algorithm.';
 		}>('diffEditor.computeDiff', {
 			timeMs,
 			timedOut: result?.quitEarly ?? true,
+			detectedMoves: options.computeMoves ? (result?.moves.length ?? 0) : -1,
 		});
 
 		if (cancellationToken.isCancellationRequested) {
