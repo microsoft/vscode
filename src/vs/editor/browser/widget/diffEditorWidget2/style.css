@@ -74,6 +74,14 @@
 	color: var(--vscode-editorLink-activeForeground) !important;
 }
 
+.monaco-editor .diff-hidden-lines div.breadcrumb-item {
+	cursor: pointer;
+}
+
+.monaco-editor .diff-hidden-lines div.breadcrumb-item:hover {
+	color: var(--vscode-editorLink-activeForeground);
+}
+
 .monaco-editor .movedOriginal {
 	border: 2px solid var(--vscode-diffEditor-move-border);
 }
