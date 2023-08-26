@@ -120,11 +120,16 @@ export class SwitchSide extends EditorAction2 {
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]): void {
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, arg?: { dryRun: boolean }): unknown {
 		const diffEditor = findFocusedDiffEditor(accessor);
 		if (diffEditor instanceof DiffEditorWidget2) {
-			diffEditor.switchSide();
+			if (arg && arg.dryRun) {
+				return { destinationSelection: diffEditor.mapToOtherSide().destinationSelection };
+			} else {
+				diffEditor.switchSide();
+			}
 		}
+		return undefined;
 	}
 }
 
