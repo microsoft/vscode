@@ -64,6 +64,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidAcceptInput = this._register(new Emitter<void>());
 	readonly onDidAcceptInput = this._onDidAcceptInput.event;
 
+	private _onDidChangeHeight = this._register(new Emitter<number>());
+	readonly onDidChangeHeight = this._onDidChangeHeight.event;
+
 	private tree!: WorkbenchObjectTree<ChatTreeItem>;
 	private renderer!: ChatListItemRenderer;
 
@@ -518,6 +521,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.listContainer.style.height = `${height - inputPartHeight}px`;
+
+		this._onDidChangeHeight.fire(height);
 	}
 
 	private _dynamicMessageLayoutData?: { numOfMessages: number; maxHeight: number };
@@ -528,6 +533,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	setDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
 		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight };
 		this._register(this.renderer.onDidChangeItemHeight(() => this.layoutDynamicChatTreeItemMode()));
+
+		this._register(this.tree.onDidScroll((e) => {
+			dom.scheduleAtNextAnimationFrame(() => {
+				if (!e.scrollTopChanged || e.heightChanged || e.scrollHeightChanged) {
+					return;
+				}
+				const renderHeight = e.height;
+				const height1 = e.scrollHeight - renderHeight;
+				const scrollTop = e.scrollTop;
+
+				const diff = height1 - scrollTop;
+				if (diff === 0) {
+					return;
+				}
+				const newHeight = Math.min(renderHeight + diff, maxHeight);
+				const inputPartHeight = this.inputPart.layout(newHeight, this.container.offsetWidth);
+				this.layout(newHeight + inputPartHeight, this.container.offsetWidth);
+			});
+		}));
 	}
 
 	layoutDynamicChatTreeItemMode(): void {
