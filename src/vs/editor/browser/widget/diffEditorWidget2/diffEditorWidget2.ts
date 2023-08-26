@@ -81,6 +81,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 	private readonly movedBlocksLinesPart = observableValue<MovedBlocksLinesPart | undefined>('MovedBlocksLinesPart', undefined);
 
+	public get collapseUnchangedRegions() { return this._options.collapseUnchangedRegions.get(); }
+
 	constructor(
 		private readonly _domElement: HTMLElement,
 		options: Readonly<IDiffEditorConstructionOptions>,
