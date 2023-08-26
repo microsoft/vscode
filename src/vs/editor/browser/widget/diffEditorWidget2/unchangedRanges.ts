@@ -94,13 +94,13 @@ export class UnchangedRangesFeature extends Disposable {
 					const d = derived(reader => /** @description hiddenOriginalRangeStart */ r.getHiddenOriginalRange(reader).startLineNumber - 1);
 					const origVz = new PlaceholderViewZone(d, 24);
 					origViewZones.push(origVz);
-					store.add(new CollapsedCodeOverlayWidget(this._editors.original, origVz, r, r.originalRange, !sideBySide, modifiedOutlineSource));
+					store.add(new CollapsedCodeOverlayWidget(this._editors.original, origVz, r, r.originalRange, !sideBySide, modifiedOutlineSource, l => this._diffModel.get()!.ensureOriginalLineIsVisible(l, undefined)));
 				}
 				{
 					const d = derived(reader => /** @description hiddenModifiedRangeStart */ r.getHiddenModifiedRange(reader).startLineNumber - 1);
 					const modViewZone = new PlaceholderViewZone(d, 24);
 					modViewZones.push(modViewZone);
-					store.add(new CollapsedCodeOverlayWidget(this._editors.modified, modViewZone, r, r.modifiedRange, false, modifiedOutlineSource));
+					store.add(new CollapsedCodeOverlayWidget(this._editors.modified, modViewZone, r, r.modifiedRange, false, modifiedOutlineSource, l => this._diffModel.get()!.ensureModifiedLineIsVisible(l, undefined)));
 				}
 			}
 
@@ -236,13 +236,13 @@ class OutlineSource extends Disposable {
 		}));
 	}
 
-	public getBreadcrumbItems(startRange: LineRange, reader: IReader): { name: string; kind: SymbolKind }[] {
+	public getBreadcrumbItems(startRange: LineRange, reader: IReader): { name: string; kind: SymbolKind; startLineNumber: number }[] {
 		const m = this._currentModel.read(reader);
 		if (!m) { return []; }
 		const symbols = m.asListOfDocumentSymbols()
 			.filter(s => startRange.contains(s.range.startLineNumber) && !startRange.contains(s.range.endLineNumber));
 		symbols.sort(reverseOrder(compareBy(s => s.range.endLineNumber - s.range.startLineNumber, numberComparator)));
-		return symbols.map(s => ({ name: s.name, kind: s.kind }));
+		return symbols.map(s => ({ name: s.name, kind: s.kind, startLineNumber: s.range.startLineNumber }));
 	}
 }
 
@@ -265,6 +265,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 		private readonly _unchangedRegionRange: LineRange,
 		private readonly hide: boolean,
 		private readonly _modifiedOutlineSource: OutlineSource,
+		private readonly _revealHiddenLine: (lineNumber: number) => void,
 	) {
 		const root = h('div.diff-hidden-lines-widget');
 		super(_editor, _viewZone, root.root);
@@ -370,17 +371,26 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 				const items = this._modifiedOutlineSource.getBreadcrumbItems(range, reader);
 
 				if (items.length > 0) {
-					children.push($('span', undefined, '\u00a0|\u00a0'));
+					children.push($('span', undefined, '\u00a0\u00a0|\u00a0\u00a0'));
 
-					let isFirst = true;
-					for (const item of items) {
-						if (!isFirst) {
-							children.push($('span', {}, ' ', renderIcon(Codicon.chevronRight), ' '));
-						}
-
+					for (let i = 0; i < items.length; i++) {
+						const item = items[i];
 						const icon = SymbolKinds.toIcon(item.kind);
-						children.push($('span', {}, renderIcon(icon), ' ', item.name));
-						isFirst = false;
+						const divItem = h('div.breadcrumb-item', {
+							style: { display: 'flex', alignItems: 'center' },
+						}, [
+							renderIcon(icon),
+							'\u00a0',
+							item.name,
+							...(i === items.length - 1
+								? []
+								: [renderIcon(Codicon.chevronRight)]
+							)
+						]).root;
+						children.push(divItem);
+						divItem.onclick = () => {
+							this._revealHiddenLine(item.startLineNumber);
+						};
 					}
 				}
 			}
