@@ -541,13 +541,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					return;
 				}
 				const renderHeight = e.height;
-				const height1 = e.scrollHeight - renderHeight;
-				const scrollTop = e.scrollTop;
-
-				const diff = height1 - scrollTop;
+				const diff = e.scrollHeight - renderHeight - e.scrollTop;
 				if (diff === 0) {
 					return;
 				}
+
 				const newHeight = Math.min(renderHeight + diff, maxHeight);
 				const inputPartHeight = this.inputPart.layout(newHeight, this.container.offsetWidth);
 				this.layout(newHeight + inputPartHeight, this.container.offsetWidth);
