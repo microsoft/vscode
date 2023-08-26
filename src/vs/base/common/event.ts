@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IObservable, IObserver } from 'vs/base/common/observable';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -1426,6 +1426,50 @@ export class EventMultiplexer<T> implements IDisposable {
 
 	dispose(): void {
 		this.emitter.dispose();
+	}
+}
+
+export interface IDynamicListEventMultiplexer<TEventType> extends IDisposable {
+	readonly event: Event<TEventType>;
+}
+export class DynamicListEventMultiplexer<TItem, TEventType> implements IDynamicListEventMultiplexer<TEventType> {
+	private readonly _store = new DisposableStore();
+
+	readonly event: Event<TEventType>;
+
+	constructor(
+		items: TItem[],
+		onAddItem: Event<TItem>,
+		onRemoveItem: Event<TItem>,
+		getEvent: (item: TItem) => Event<TEventType>
+	) {
+		const multiplexer = this._store.add(new EventMultiplexer<TEventType>());
+		const itemListeners = this._store.add(new DisposableMap<TItem, IDisposable>());
+
+		function addItem(instance: TItem) {
+			itemListeners.set(instance, multiplexer.add(getEvent(instance)));
+		}
+
+		// Existing items
+		for (const instance of items) {
+			addItem(instance);
+		}
+
+		// Added items
+		this._store.add(onAddItem(instance => {
+			addItem(instance);
+		}));
+
+		// Removed items
+		this._store.add(onRemoveItem(instance => {
+			itemListeners.deleteAndDispose(instance);
+		}));
+
+		this.event = multiplexer.event;
+	}
+
+	dispose() {
+		this._store.dispose();
 	}
 }
 
