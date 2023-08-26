@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { debounce } from 'vs/base/common/decorators';
+import { debounce, memoize } from 'vs/base/common/decorators';
 import { DynamicListEventMultiplexer, Emitter, Event, IDynamicListEventMultiplexer } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -143,8 +143,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 	get onDidChangeInstanceCapability(): Event<ITerminalInstance> { return this._onDidChangeInstanceCapability.event; }
 	private readonly _onDidChangeInstances = this._register(new Emitter<void>());
 	get onDidChangeInstances(): Event<void> { return this._onDidChangeInstances.event; }
-	private readonly _onDidChangeInstanceTitle = this._register(new Emitter<ITerminalInstance | undefined>());
-	get onDidChangeInstanceTitle(): Event<ITerminalInstance | undefined> { return this._onDidChangeInstanceTitle.event; }
 	private readonly _onDidChangeInstanceIcon = this._register(new Emitter<{ instance: ITerminalInstance; userInitiated: boolean }>());
 	get onDidChangeInstanceIcon(): Event<{ instance: ITerminalInstance; userInitiated: boolean }> { return this._onDidChangeInstanceIcon.event; }
 	private readonly _onDidChangeInstanceColor = this._register(new Emitter<{ instance: ITerminalInstance; userInitiated: boolean }>());
@@ -165,6 +163,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 	get onDidRegisterProcessSupport(): Event<void> { return this._onDidRegisterProcessSupport.event; }
 	private readonly _onDidChangeConnectionState = this._register(new Emitter<void>());
 	get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
+
+	// Lazily initialized events that fire when the specified event fires on _any_ terminal
+	@memoize get onAnyInstanceTitleChanged() { return this.createOnInstanceEvent(e => e.onTitleChanged); }
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -537,7 +538,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// The state must be updated when the terminal is relaunched, otherwise the persistent
 		// terminal ID will be stale and the process will be leaked.
 		this.onDidReceiveProcessId(() => this._saveState());
-		this.onDidChangeInstanceTitle(instance => this._updateTitle(instance));
+		this.onAnyInstanceTitleChanged(instance => this._updateTitle(instance));
 		this.onDidChangeInstanceIcon(e => this._updateIcon(e.instance, e.userInitiated));
 	}
 
@@ -829,7 +830,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
 		const instanceDisposables: IDisposable[] = [
-			instance.onTitleChanged(this._onDidChangeInstanceTitle.fire, this._onDidChangeInstanceTitle),
 			instance.onIconChanged(this._onDidChangeInstanceIcon.fire, this._onDidChangeInstanceIcon),
 			instance.onIconChanged(this._onDidChangeInstanceColor.fire, this._onDidChangeInstanceColor),
 			instance.onProcessIdReady(this._onDidReceiveProcessId.fire, this._onDidReceiveProcessId),
@@ -1197,11 +1197,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._editingTerminal = instance;
 	}
 
-	onInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): IDynamicListEventMultiplexer<T> {
-		return new DynamicListEventMultiplexer(this.instances, this.onDidCreateInstance, this.onDidDisposeInstance, getEvent);
+	createOnInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): Event<T> {
+		return this._register(new DynamicListEventMultiplexer(this.instances, this.onDidCreateInstance, this.onDidDisposeInstance, getEvent)).event;
 	}
 
-	onInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }> {
+	createOnInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }> {
 		return createInstanceCapabilityEventMultiplexer(this.instances, this.onDidCreateInstance, this.onDidDisposeInstance, capabilityId, getEvent);
 	}
 }
