@@ -352,8 +352,9 @@ export function createWebWorker<T extends object>(opts: IWebWorkerOptions): Mona
 export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
 	const languageService = StandaloneServices.get(ILanguageService);
 	const themeService = <StandaloneThemeService>StandaloneServices.get(IStandaloneThemeService);
-	themeService.registerEditorContainer(domNode);
-	return Colorizer.colorizeElement(themeService, languageService, domNode, options);
+	return Colorizer.colorizeElement(themeService, languageService, domNode, options).then(() => {
+		themeService.registerEditorContainer(domNode);
+	});
 }
 
 /**

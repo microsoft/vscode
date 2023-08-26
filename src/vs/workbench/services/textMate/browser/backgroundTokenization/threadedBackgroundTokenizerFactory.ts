@@ -63,7 +63,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 		const controllerContainer = this._getWorkerProxy().then((workerProxy) => {
 			if (store.isDisposed || !workerProxy) { return undefined; }
 
-			const controllerContainer = { controller: undefined as undefined | TextMateWorkerTokenizerController };
+			const controllerContainer = { controller: undefined as undefined | TextMateWorkerTokenizerController, worker: this._worker };
 			store.add(keepAliveWhenAttached(textModel, () => {
 				const controller = new TextMateWorkerTokenizerController(textModel, workerProxy, this._languageService.languageIdCodec, tokenStore, this._configurationService, maxTokenizationLineLength);
 				controllerContainer.controller = controller;
@@ -82,10 +82,12 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 				store.dispose();
 			},
 			requestTokens: async (startLineNumber, endLineNumberExclusive) => {
-				const controller = (await controllerContainer)?.controller;
-				if (controller) {
-					// If there is no controller, the model has been detached in the meantime
-					controller.requestTokens(startLineNumber, endLineNumberExclusive);
+				const container = await controllerContainer;
+
+				// If there is no controller, the model has been detached in the meantime.
+				// Only request the proxy object if the worker is the same!
+				if (container?.controller && container.worker === this._worker) {
+					container.controller.requestTokens(startLineNumber, endLineNumberExclusive);
 				}
 			},
 			reportMismatchingTokens: (lineNumber) => {

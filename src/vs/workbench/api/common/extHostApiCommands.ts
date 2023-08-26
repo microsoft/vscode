@@ -464,7 +464,26 @@ const newCommands: ApiCommand[] = [
 			new ApiCommandArgument('value', 'The context key value', () => true, v => v),
 		],
 		ApiCommandResult.Void
-	)
+	),
+	// --- mapped edits
+	new ApiCommand(
+		'vscode.executeMappedEditsProvider', '_executeMappedEditsProvider', 'Execute Mapped Edits Provider',
+		[
+			ApiCommandArgument.Uri,
+			ApiCommandArgument.StringArray,
+			new ApiCommandArgument(
+				'MappedEditsContext',
+				'Mapped Edits Context',
+				(v: unknown) => typeConverters.MappedEditsContext.is(v),
+				(v: vscode.MappedEditsContext) => typeConverters.MappedEditsContext.from(v)
+			)
+		],
+		new ApiCommandResult<IWorkspaceEditDto | null, vscode.WorkspaceEdit | null>(
+			'A promise that resolves to a workspace edit or null',
+			(value) => {
+				return value ? typeConverters.WorkspaceEdit.to(value) : null;
+			})
+	),
 ];
 
 //#endregion

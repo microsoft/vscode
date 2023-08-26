@@ -7,7 +7,7 @@ import { stub } from 'sinon';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from 'vs/base/common/event';
+import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, toDisposable } from 'vs/base/common/lifecycle';
 import { observableValue, transaction } from 'vs/base/common/observable';
 import { MicrotaskDelay } from 'vs/base/common/symbols';
@@ -1062,6 +1062,52 @@ suite('Event utils', () => {
 			e2.fire(4);
 			e1.fire(5);
 			assert.deepStrictEqual(result, [1, 2, 3, 4, 5]);
+		});
+	});
+
+	suite('DynamicListEventMultiplexer', () => {
+		const recordedEvents: number[] = [];
+		const addEmitter = new Emitter<TestItem>();
+		const removeEmitter = new Emitter<TestItem>();
+		class TestItem {
+			readonly onTestEventEmitter = new Emitter<number>();
+			readonly onTestEvent = this.onTestEventEmitter.event;
+		}
+		let items: TestItem[];
+		let m: DynamicListEventMultiplexer<TestItem, number>;
+		setup(() => {
+			items = [new TestItem(), new TestItem()];
+			for (const [i, item] of items.entries()) {
+				item.onTestEvent(e => `${i}:${e}`);
+			}
+			m = new DynamicListEventMultiplexer(items, addEmitter.event, removeEmitter.event, e => e.onTestEvent);
+			m.event(e => recordedEvents.push(e));
+			recordedEvents.length = 0;
+		});
+		teardown(() => m.dispose());
+		test('should fire events for initial items', () => {
+			items[0].onTestEventEmitter.fire(1);
+			items[1].onTestEventEmitter.fire(2);
+			items[0].onTestEventEmitter.fire(3);
+			items[1].onTestEventEmitter.fire(4);
+			assert.deepStrictEqual(recordedEvents, [1, 2, 3, 4]);
+		});
+		test('should fire events for added items', () => {
+			const addedItem = new TestItem();
+			addEmitter.fire(addedItem);
+			addedItem.onTestEventEmitter.fire(1);
+			items[0].onTestEventEmitter.fire(2);
+			items[1].onTestEventEmitter.fire(3);
+			addedItem.onTestEventEmitter.fire(4);
+			assert.deepStrictEqual(recordedEvents, [1, 2, 3, 4]);
+		});
+		test('should not fire events for removed items', () => {
+			removeEmitter.fire(items[0]);
+			items[0].onTestEventEmitter.fire(1);
+			items[1].onTestEventEmitter.fire(2);
+			items[0].onTestEventEmitter.fire(3);
+			items[1].onTestEventEmitter.fire(4);
+			assert.deepStrictEqual(recordedEvents, [2, 4]);
 		});
 	});
 

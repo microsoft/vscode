@@ -5,7 +5,7 @@
 
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ISequence, SequenceDiff } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
-import { LineSequence, LinesSliceCharSequence } from 'vs/editor/common/diff/standardLinesDiffComputer';
+import { LineSequence, LinesSliceCharSequence } from 'vs/editor/common/diff/advancedLinesDiffComputer';
 
 export function optimizeSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	let result = sequenceDiffs;
@@ -148,6 +148,29 @@ export function removeRandomMatches(sequence1: LinesSliceCharSequence, sequence2
 
 		diffs = result;
 	} while (counter++ < 10 && shouldRepeat);
+
+	// Remove short suffixes/prefixes
+	for (let i = 0; i < diffs.length; i++) {
+		const cur = diffs[i];
+
+		let range1 = cur.seq1Range;
+		let range2 = cur.seq2Range;
+
+		const fullRange1 = sequence1.extendToFullLines(cur.seq1Range);
+		const prefix = sequence1.getText(new OffsetRange(fullRange1.start, cur.seq1Range.start));
+		if (prefix.length > 0 && prefix.trim().length <= 3 && cur.seq1Range.length + cur.seq2Range.length > 100) {
+			range1 = cur.seq1Range.deltaStart(-prefix.length);
+			range2 = cur.seq2Range.deltaStart(-prefix.length);
+		}
+
+		const suffix = sequence1.getText(new OffsetRange(cur.seq1Range.endExclusive, fullRange1.endExclusive));
+		if (suffix.length > 0 && (suffix.trim().length <= 3 && cur.seq1Range.length + cur.seq2Range.length > 150)) {
+			range1 = range1.deltaEnd(suffix.length);
+			range2 = range2.deltaEnd(suffix.length);
+		}
+
+		diffs[i] = new SequenceDiff(range1, range2);
+	}
 
 	return diffs;
 }

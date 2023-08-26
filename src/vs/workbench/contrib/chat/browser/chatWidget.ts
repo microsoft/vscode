@@ -61,6 +61,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidClear = this._register(new Emitter<void>());
 	readonly onDidClear = this._onDidClear.event;
 
+	private _onDidAcceptInput = this._register(new Emitter<void>());
+	readonly onDidAcceptInput = this._onDidAcceptInput.event;
+
 	private tree!: WorkbenchObjectTree<ChatTreeItem>;
 	private renderer!: ChatListItemRenderer;
 
@@ -177,6 +180,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	focusInput(): void {
 		this.inputPart.focus();
+	}
+
+	hasInputFocus(): boolean {
+		return this.inputPart.hasFocus();
 	}
 
 	moveFocus(item: ChatTreeItem, type: 'next' | 'previous'): void {
@@ -432,8 +439,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.domFocus();
 	}
 
+	updateInput(value = ''): void {
+		this.inputPart.setValue(value);
+	}
+
 	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
 		if (this.viewModel) {
+			this._onDidAcceptInput.fire();
+
 			const editorValue = this.inputPart.inputEditor.getValue();
 			this._chatAccessibilityService.acceptRequest();
 			const input = query ?? editorValue;
@@ -517,7 +530,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.renderer.onDidChangeItemHeight(() => this.layoutDynamicChatTreeItemMode()));
 	}
 
-	layoutDynamicChatTreeItemMode(allowRecurse = true): void {
+	layoutDynamicChatTreeItemMode(): void {
 		if (!this.viewModel) {
 			return;
 		}
@@ -541,10 +554,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.container.offsetWidth
 		);
 
-		if (needsRerender && allowRecurse) {
+		if (needsRerender) {
 			// TODO: figure out a better place to reveal the last element
 			revealLastElement(this.tree);
-			this.layoutDynamicChatTreeItemMode(false);
 		}
 	}
 

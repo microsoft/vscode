@@ -381,10 +381,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('suggestCommands', "Controls whether the command palette should have a list of commonly used commands."),
 				'default': false
 			},
-			'workbench.commandPalette.experimental.useSemanticSimilarity': {
+			'workbench.commandPalette.experimental.enableNaturalLanguageSearch': {
 				'type': 'boolean',
 				tags: ['experimental'],
-				'description': localize('useSemanticSimilarity', "Controls whether the command palette should include similar commands. You must have an extension installed that provides Semantic Similarity."),
+				'description': localize('enableNaturalLanguageSearch', "Controls whether the command palette should include similar commands. You must have an extension installed that provides Natural Language support."),
 				'default': true
 			},
 			'workbench.quickOpen.closeOnFocusLost': {
@@ -550,6 +550,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		localize('appName', "`${appName}`: e.g. VS Code."),
 		localize('remoteName', "`${remoteName}`: e.g. SSH"),
 		localize('dirty', "`${dirty}`: an indicator for when the active editor has unsaved changes."),
+		localize('focusedView', "`${focusedView}`: the name of the view that is currently focused."),
 		localize('separator', "`${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
