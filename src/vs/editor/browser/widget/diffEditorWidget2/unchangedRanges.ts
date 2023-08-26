@@ -361,27 +361,27 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			/** @description update labels */
 
 			const children: HTMLElement[] = [];
-			if (!this.hide && true) {
+			if (!this.hide) {
 				const lineCount = _unchangedRegion.getHiddenModifiedRange(reader).length;
 				const linesHiddenText = localize('hiddenLines', '{0} Hidden Lines', lineCount);
 				children.push($('span', { title: linesHiddenText }, linesHiddenText));
-			}
 
-			const range = this._unchangedRegion.getHiddenModifiedRange(reader);
-			const items = this._modifiedOutlineSource.getBreadcrumbItems(range, reader);
+				const range = this._unchangedRegion.getHiddenModifiedRange(reader);
+				const items = this._modifiedOutlineSource.getBreadcrumbItems(range, reader);
 
-			if (items.length > 0) {
-				children.push($('span', undefined, '\u00a0|\u00a0'));
+				if (items.length > 0) {
+					children.push($('span', undefined, '\u00a0|\u00a0'));
 
-				let isFirst = true;
-				for (const item of items) {
-					if (!isFirst) {
-						children.push($('span', {}, ' ', renderIcon(Codicon.chevronRight), ' '));
+					let isFirst = true;
+					for (const item of items) {
+						if (!isFirst) {
+							children.push($('span', {}, ' ', renderIcon(Codicon.chevronRight), ' '));
+						}
+
+						const icon = SymbolKinds.toIcon(item.kind);
+						children.push($('span', {}, renderIcon(icon), ' ', item.name));
+						isFirst = false;
 					}
-
-					const icon = SymbolKinds.toIcon(item.kind);
-					children.push($('span', {}, renderIcon(icon), ' ', item.name));
-					isFirst = false;
 				}
 			}
 

@@ -5998,7 +5998,7 @@ declare namespace monaco.editor {
 		/**
 		 * Get the vertical position (top offset) for the line's top w.r.t. to the first line.
 		 */
-		getTopForLineNumber(lineNumber: number): number;
+		getTopForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 		/**
 		 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
 		 */
