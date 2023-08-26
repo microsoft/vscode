@@ -311,6 +311,8 @@ class VariableCompletions extends Disposable {
 
 				const history = widget.viewModel!.getItems()
 					.filter(isResponseVM);
+
+				// TODO@roblourens work out a real API for this- maybe it can be part of the two-step flow that @file will probably use
 				const historyItems = history.map((h, i): CompletionItem => ({
 					label: `@response:${i + 1}`,
 					detail: h.response.asString(),
