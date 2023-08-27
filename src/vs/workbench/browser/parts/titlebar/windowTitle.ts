@@ -111,11 +111,12 @@ export class WindowTitle extends Disposable {
 				nativeTitle = this.productService.nameLong;
 			}
 			if (!window.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
-				// macOS: if we set a window title for the first time
-				// and it matches the one we set in `windowImpl.ts`
-				// somehow the window does not appear in the "Windows"
-				// menu. As such, we set the title briefly to something
-				// different to ensure macOS recognizes we have a window.
+				// TODO@electron macOS: if we set a window title for
+				// the first time and it matches the one we set in
+				// `windowImpl.ts` somehow the window does not appear
+				// in the "Windows" menu. As such, we set the title
+				// briefly to something different to ensure macOS
+				// recognizes we have a window.
 				// See: https://github.com/microsoft/vscode/issues/191288
 				window.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
 			}
