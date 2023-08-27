@@ -8,7 +8,7 @@ import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tre
 import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/chat';
@@ -534,9 +534,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight };
 		this._register(this.renderer.onDidChangeItemHeight(() => this.layoutDynamicChatTreeItemMode()));
 
+		const mutableDisposable = this._register(new MutableDisposable());
 		this._register(this.tree.onDidScroll((e) => {
-			const disposable = this._register(dom.scheduleAtNextAnimationFrame(() => {
-				disposable.dispose();
+			mutableDisposable.value = dom.scheduleAtNextAnimationFrame(() => {
+				mutableDisposable.dispose();
 				if (!e.scrollTopChanged || e.heightChanged || e.scrollHeightChanged) {
 					return;
 				}
@@ -549,7 +550,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const newHeight = Math.min(renderHeight + diff, maxHeight);
 				const inputPartHeight = this.inputPart.layout(newHeight, this.container.offsetWidth);
 				this.layout(newHeight + inputPartHeight, this.container.offsetWidth);
-			}));
+			});
 		}));
 	}
 
