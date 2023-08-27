@@ -86,12 +86,6 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				renderers: IListRenderer<T, any>[],
 				options: IWorkbenchListOptions<T>
 			) => this.instantiationService.createInstance(WorkbenchList, user, container, delegate, renderers, options) as List<T>,
-			hoverDelegate: {
-				showHover(options, focus) {
-					return undefined;
-				},
-				delay: 200
-			},
 			styles: this.computeStyles()
 		};
 

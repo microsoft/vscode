@@ -539,7 +539,7 @@ export class QuickInputList {
 			}
 		}));
 
-		const delayer = new ThrottledDelayer(options.hoverDelegate.delay);
+		const delayer = new ThrottledDelayer(options.hoverDelegate ? options.hoverDelegate.delay : 200);
 		// onMouseOver triggers every time a new element has been moused over
 		// even if it's on the same list item.
 		this.disposables.push(this.list.onMouseOver(async e => {
@@ -837,23 +837,26 @@ export class QuickInputList {
 	 * @param element The element to show the hover for
 	 */
 	private showHover(element: IListElement): void {
-		if (this._lastHover && !this._lastHover.isDisposed) {
+		if (this._lastHover && !this._lastHover.isDisposed && this.options.hoverDelegate) {
 			this.options.hoverDelegate.onDidHideHover?.();
 			this._lastHover?.dispose();
 		}
+
 		if (!element.element || !element.saneTooltip) {
 			return;
 		}
-		this._lastHover = this.options.hoverDelegate.showHover({
-			content: element.saneTooltip!,
-			target: element.element!,
-			linkHandler: (url) => {
-				this.options.linkOpenerDelegate(url);
-			},
-			showPointer: true,
-			container: this.container,
-			hoverPosition: HoverPosition.RIGHT
-		}, false);
+		if (this.options.hoverDelegate) {
+			this._lastHover = this.options.hoverDelegate.showHover({
+				content: element.saneTooltip!,
+				target: element.element!,
+				linkHandler: (url) => {
+					this.options.linkOpenerDelegate(url);
+				},
+				showPointer: true,
+				container: this.container,
+				hoverPosition: HoverPosition.RIGHT
+			}, false);
+		}
 	}
 
 	layout(maxHeight?: number): void {

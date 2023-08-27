@@ -48,7 +48,7 @@ export interface IQuickInputOptions {
 		renderers: IListRenderer<T, any>[],
 		options: IListOptions<T>,
 	): List<T>;
-	hoverDelegate: IHoverDelegate;
+	hoverDelegate?: IHoverDelegate;
 	styles: IQuickInputStyles;
 }
 
