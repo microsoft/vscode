@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -114,6 +115,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 
 class QuickChat extends Disposable {
 	private widget!: ChatWidget;
+	private sash!: Sash;
 	private model: ChatModel | undefined;
 	private _currentQuery: string | undefined;
 
@@ -173,14 +175,24 @@ class QuickChat extends Disposable {
 			});
 		}
 
-		this.registerListeners();
+		this.sash?.dispose();
+		this.sash = this._register(new Sash(parent, { getHorizontalSashTop: () => parent.offsetHeight }, { orientation: Orientation.HORIZONTAL }));
+		this.registerListeners(parent);
 	}
 
-	private registerListeners(): void {
+	private registerListeners(parent: HTMLElement): void {
 		this._register(this.widget.inputEditor.onDidChangeModelContent((e) => {
 			this._currentQuery = this.widget.inputEditor.getValue();
 		}));
 		this._register(this.widget.onDidClear(() => this.clear()));
+		this._register(this.sash.onDidChange((e) => {
+			if (e.currentY < 200) {
+				return;
+			}
+			this.widget.layout(e.currentY, parent.offsetWidth);
+			this.sash.layout();
+		}));
+		this._register(this.widget.onDidChangeHeight((e) => this.sash.layout()));
 	}
 
 	async acceptInput(): Promise<void> {
