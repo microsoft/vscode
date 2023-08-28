@@ -161,7 +161,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		let lineNumberDomNode: HTMLElement;
 
 		for (const [index, line] of this._lineNumbers.entries()) {
-			console.log('line : ', line);
 
 			const previousRenderedStickyLine = this._previousStickyLines[index];
 
