@@ -11476,7 +11476,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The scope object to which the environment variable collection applies to.
+	 * The scope object to which the environment variable collection applies.
 	 */
 	export interface EnvironmentVariableScope {
 		/**
