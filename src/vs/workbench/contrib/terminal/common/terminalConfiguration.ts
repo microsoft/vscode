@@ -618,7 +618,7 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.focusAfterRun.auto', "Set to `terminal` when in screen reader optimized mode and `none` otherwise."),
 				localize('terminal.integrated.focusAfterRun.terminal', "Always focus the terminal."),
 				localize('terminal.integrated.focusAfterRun.accessible-buffer', "Always focus the accessible buffer."),
-				localize('terminal.integrated.focusAfterRun.none', "Keep the focus in the editor."),
+				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 			]
 		}
 	}
