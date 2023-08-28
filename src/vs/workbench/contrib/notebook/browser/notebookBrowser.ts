@@ -152,6 +152,7 @@ export interface IFocusNotebookCellOptions {
 	readonly focusEditorLine?: number;
 	readonly minimalScrolling?: boolean;
 	readonly outputId?: string;
+	readonly altOutputId?: string;
 }
 
 //#endregion
@@ -802,6 +803,13 @@ export enum CursorAtBoundary {
 	None,
 	Top,
 	Bottom,
+	Both
+}
+
+export enum CursorAtLineBoundary {
+	None,
+	Start,
+	End,
 	Both
 }
 

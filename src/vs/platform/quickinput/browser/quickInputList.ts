@@ -34,7 +34,8 @@ import { getIconClass } from 'vs/platform/quickinput/browser/quickInputUtils';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
-import { ColorScheme, isDark } from 'vs/platform/theme/common/theme';
+import { isDark } from 'vs/platform/theme/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -234,7 +235,7 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 
 	static readonly ID = 'listelement';
 
-	constructor(private readonly colorScheme: ColorScheme) { }
+	constructor(private readonly themeService: IThemeService) { }
 
 	get templateId() {
 		return ListElementRenderer.ID;
@@ -299,7 +300,7 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
 
 		if (element.item?.iconPath) {
-			const icon = isDark(this.colorScheme) ? element.item.iconPath.dark : (element.item.iconPath.light ?? element.item.iconPath.dark);
+			const icon = isDark(this.themeService.getColorTheme().type) ? element.item.iconPath.dark : (element.item.iconPath.light ?? element.item.iconPath.dark);
 			const iconUrl = URI.revive(icon);
 			data.icon.className = 'quick-input-list-icon';
 			data.icon.style.backgroundImage = dom.asCSSUrl(iconUrl);
@@ -459,12 +460,13 @@ export class QuickInputList {
 		private parent: HTMLElement,
 		id: string,
 		private options: IQuickInputOptions,
+		themeService: IThemeService
 	) {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
-		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(this.options.styles.colorScheme)], {
+		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(themeService)], {
 			identityProvider: {
 				getId: element => {
 					// always prefer item over separator because if item is defined, it must be the main item type
@@ -539,46 +541,49 @@ export class QuickInputList {
 			}
 		}));
 
-		const delayer = new ThrottledDelayer(options.hoverDelegate.delay);
-		// onMouseOver triggers every time a new element has been moused over
-		// even if it's on the same list item.
-		this.disposables.push(this.list.onMouseOver(async e => {
-			// If we hover over an anchor element, we don't want to show the hover because
-			// the anchor may have a tooltip that we want to show instead.
-			if (e.browserEvent.target instanceof HTMLAnchorElement) {
-				delayer.cancel();
-				return;
-			}
-			if (
-				// anchors are an exception as called out above so we skip them here
-				!(e.browserEvent.relatedTarget instanceof HTMLAnchorElement) &&
-				// check if the mouse is still over the same element
-				dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)
-			) {
-				return;
-			}
-			try {
-				await delayer.trigger(async () => {
-					if (e.element) {
-						this.showHover(e.element);
-					}
-				});
-			} catch (e) {
-				// Ignore cancellation errors due to mouse out
-				if (!isCancellationError(e)) {
-					throw e;
+		if (options.hoverDelegate) {
+			const delayer = new ThrottledDelayer(options.hoverDelegate.delay);
+			// onMouseOver triggers every time a new element has been moused over
+			// even if it's on the same list item.
+			this.disposables.push(this.list.onMouseOver(async e => {
+				// If we hover over an anchor element, we don't want to show the hover because
+				// the anchor may have a tooltip that we want to show instead.
+				if (e.browserEvent.target instanceof HTMLAnchorElement) {
+					delayer.cancel();
+					return;
 				}
-			}
-		}));
-		this.disposables.push(this.list.onMouseOut(e => {
-			// onMouseOut triggers every time a new element has been moused over
-			// even if it's on the same list item. We only want one event, so we
-			// check if the mouse is still over the same element.
-			if (dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)) {
-				return;
-			}
-			delayer.cancel();
-		}));
+				if (
+					// anchors are an exception as called out above so we skip them here
+					!(e.browserEvent.relatedTarget instanceof HTMLAnchorElement) &&
+					// check if the mouse is still over the same element
+					dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)
+				) {
+					return;
+				}
+				try {
+					await delayer.trigger(async () => {
+						if (e.element) {
+							this.showHover(e.element);
+						}
+					});
+				} catch (e) {
+					// Ignore cancellation errors due to mouse out
+					if (!isCancellationError(e)) {
+						throw e;
+					}
+				}
+			}));
+			this.disposables.push(this.list.onMouseOut(e => {
+				// onMouseOut triggers every time a new element has been moused over
+				// even if it's on the same list item. We only want one event, so we
+				// check if the mouse is still over the same element.
+				if (dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)) {
+					return;
+				}
+				delayer.cancel();
+			}));
+			this.disposables.push(delayer);
+		}
 		this.disposables.push(this._listElementChecked.event(_ => this.fireCheckedEvents()));
 		this.disposables.push(
 			this._onChangedAllVisibleChecked,
@@ -588,8 +593,7 @@ export class QuickInputList {
 			this._onButtonTriggered,
 			this._onSeparatorButtonTriggered,
 			this._onLeave,
-			this._onKeyDown,
-			delayer
+			this._onKeyDown
 		);
 	}
 
@@ -837,10 +841,14 @@ export class QuickInputList {
 	 * @param element The element to show the hover for
 	 */
 	private showHover(element: IListElement): void {
+		if (this.options.hoverDelegate === undefined) {
+			return;
+		}
 		if (this._lastHover && !this._lastHover.isDisposed) {
 			this.options.hoverDelegate.onDidHideHover?.();
 			this._lastHover?.dispose();
 		}
+
 		if (!element.element || !element.saneTooltip) {
 			return;
 		}

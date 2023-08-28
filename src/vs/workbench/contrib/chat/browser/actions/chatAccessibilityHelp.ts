@@ -45,7 +45,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'pane
 		content.push(localize('inlineChat.toolbar', "Use tab to reach conditional parts like commands, status, message responses and more."));
 	}
 	content.push(localize('chat.audioCues', "Audio cues can be changed via settings with a prefix of audioCues.chat. By default, if a request takes more than 4 seconds, you will hear an audio cue indicating that progress is still occurring."));
-	return content.join('\n');
+	return content.join('\n\n');
 }
 
 function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {

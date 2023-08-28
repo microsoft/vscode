@@ -100,7 +100,6 @@ import { ExtHostQuickDiff } from 'vs/workbench/api/common/extHostQuickDiff';
 import { ExtHostChat } from 'vs/workbench/api/common/extHostChat';
 import { ExtHostInteractiveEditor } from 'vs/workbench/api/common/extHostInlineChat';
 import { ExtHostNotebookDocumentSaveParticipant } from 'vs/workbench/api/common/extHostNotebookDocumentSaveParticipant';
-import { ExtHostSemanticSimilarity } from 'vs/workbench/api/common/extHostSemanticSimilarity';
 import { ExtHostIssueReporter } from 'vs/workbench/api/common/extHostIssueReporter';
 import { IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
 import { ExtHostShare } from 'vs/workbench/api/common/extHostShare';
@@ -212,7 +211,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostChatSlashCommands = rpcProtocol.set(ExtHostContext.ExtHostChatSlashCommands, new ExtHostChatSlashCommands(rpcProtocol, extHostChatProvider, extHostLogService));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
 	const extHostChat = rpcProtocol.set(ExtHostContext.ExtHostChat, new ExtHostChat(rpcProtocol, extHostLogService));
-	const extHostSemanticSimilarity = rpcProtocol.set(ExtHostContext.ExtHostSemanticSimilarity, new ExtHostSemanticSimilarity(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
 	const extHostIssueReporter = rpcProtocol.set(ExtHostContext.ExtHostIssueReporter, new ExtHostIssueReporter(rpcProtocol));
@@ -697,6 +695,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidWriteTerminalData(listener, thisArg?, disposables?) {
 				checkProposedApiEnabled(extension, 'terminalDataWriteEvent');
 				return extHostTerminalService.onDidWriteTerminalData(listener, thisArg, disposables);
+			},
+			onDidExecuteTerminalCommand(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'terminalExecuteCommandEvent');
+				return extHostTerminalService.onDidExecuteTerminalCommand(listener, thisArg, disposables);
 			},
 			get state() {
 				return extHostWindow.getState(extension);
@@ -1324,10 +1326,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: ai
 		const ai: typeof vscode.ai = {
-			registerSemanticSimilarityProvider(provider: vscode.SemanticSimilarityProvider) {
-				checkProposedApiEnabled(extension, 'semanticSimilarity');
-				return extHostSemanticSimilarity.registerSemanticSimilarityProvider(extension, provider);
-			},
 			getRelatedInformation(query: string, types: vscode.RelatedInformationType[]): Thenable<vscode.RelatedInformationResult[]> {
 				checkProposedApiEnabled(extension, 'aiRelatedInformation');
 				return extHostAiRelatedInformation.getRelatedInformation(extension, query, types);

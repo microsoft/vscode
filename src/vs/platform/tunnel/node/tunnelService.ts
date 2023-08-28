@@ -19,6 +19,7 @@ import { IAddressProvider, IConnectionOptions, connectRemoteAgentTunnel } from '
 import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { AbstractTunnelService, ISharedTunnelsService, ITunnelProvider, ITunnelService, RemoteTunnel, TunnelPrivacyId, isAllInterfaces, isLocalhost, isPortPrivileged, isTunnelProvider } from 'vs/platform/tunnel/common/tunnel';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 async function createRemoteTunnel(options: IConnectionOptions, defaultTunnelHost: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
 	let readyTunnel: NodeRemoteTunnel | undefined;
@@ -159,6 +160,7 @@ export class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		remoteSocket.onClose(() => localSocket.destroy());
 		remoteSocket.onEnd(() => localSocket.end());
 		remoteSocket.onData(d => localSocket.write(d.buffer));
+		localSocket.on('data', d => remoteSocket.write(VSBuffer.wrap(d)));
 		localSocket.resume();
 	}
 

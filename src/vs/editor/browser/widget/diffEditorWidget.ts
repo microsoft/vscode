@@ -297,7 +297,14 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			diffAlgorithm: 'advanced',
 			accessibilityVerbose: false,
 			experimental: {
-				collapseUnchangedRegions: false,
+				showEmptyDecorations: false,
+				showMoves: false,
+			},
+			hideUnchangedRegions: {
+				enabled: false,
+				contextLineCount: 0,
+				minimumLineCount: 0,
+				revealLineCount: 0,
 			},
 			isInEmbeddedEditor: false,
 			onlyShowAccessibleDiffViewer: false,
@@ -2743,8 +2750,15 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		diffWordWrap: validateDiffWordWrap(options.diffWordWrap, defaults.diffWordWrap),
 		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced'], { 'smart': 'legacy', 'experimental': 'advanced' }),
 		accessibilityVerbose: validateBooleanOption(options.accessibilityVerbose, defaults.accessibilityVerbose),
+		hideUnchangedRegions: {
+			enabled: false,
+			contextLineCount: 0,
+			minimumLineCount: 0,
+			revealLineCount: 0,
+		},
 		experimental: {
-			collapseUnchangedRegions: false,
+			showEmptyDecorations: false,
+			showMoves: false,
 		},
 		isInEmbeddedEditor: validateBooleanOption(options.isInEmbeddedEditor, defaults.isInEmbeddedEditor),
 		onlyShowAccessibleDiffViewer: false,

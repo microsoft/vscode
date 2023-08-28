@@ -532,13 +532,16 @@ class TypeNavigationController<T> implements IDisposable {
 					const prefix = matchesPrefix(word, labelStr);
 					const fuzzy = matchesFuzzy2(word, labelStr);
 
-					// ensures that when fuzzy matching, it doesn't clash with prefix matching (1 input vs 1+ should be prefix and fuzzy respecitvely)
-					const fuzzyScore = fuzzy ? fuzzy[0].end - fuzzy[0].start : 0;
-					if (prefix || fuzzyScore > 1) {
-						this.previouslyFocused = start;
-						this.list.setFocus([index]);
-						this.list.reveal(index);
-						return;
+					if (fuzzy) {
+						const fuzzyScore = fuzzy[0].end - fuzzy[0].start;
+
+						// ensures that when fuzzy matching, doesn't clash with prefix matching (1 input vs 1+ should be prefix and fuzzy respecitvely). Also makes sure that exact matches are prioritized.
+						if (prefix || (fuzzyScore > 1 && fuzzy.length === 1)) {
+							this.previouslyFocused = start;
+							this.list.setFocus([index]);
+							this.list.reveal(index);
+							return;
+						}
 					}
 				}
 			} else {
@@ -727,10 +730,6 @@ export class MouseController<T> implements IDisposable {
 			this.list.setSelection([], e.browserEvent);
 			this.list.setAnchor(undefined);
 			return;
-		}
-
-		if (this.isSelectionRangeChangeEvent(e)) {
-			return this.changeSelection(e);
 		}
 
 		if (this.isSelectionChangeEvent(e)) {

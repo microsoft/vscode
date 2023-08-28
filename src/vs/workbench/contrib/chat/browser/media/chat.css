@@ -238,7 +238,7 @@
 
 .interactive-session .interactive-input-and-side-toolbar {
 	display: flex;
-	gap: 6px;
+	gap: 4px;
 	align-items: center;
 }
 
@@ -426,6 +426,13 @@
 
 .quick-input-widget .interactive-session .interactive-input-and-execute-toolbar {
 	margin: 0;
+	border-radius: 2px;
+	padding: 0 4px 0 6px;
+}
+
+.quick-input-widget .interactive-list {
+	border-bottom-right-radius: 6px;
+	border-bottom-left-radius: 6px;
 }
 
 /* #endregion */

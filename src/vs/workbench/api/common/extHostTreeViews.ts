@@ -246,6 +246,9 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	$setVisible(treeViewId: string, isVisible: boolean): void {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
+			if (!isVisible) {
+				return;
+			}
 			throw new NoTreeViewError(treeViewId);
 		}
 		treeView.setVisible(isVisible);

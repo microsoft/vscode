@@ -3979,10 +3979,6 @@ declare namespace monaco.editor {
 			/**
 			 * Defaults to false.
 			 */
-			collapseUnchangedRegions?: boolean;
-			/**
-			 * Defaults to false.
-			 */
 			showMoves?: boolean;
 			showEmptyDecorations?: boolean;
 		};
@@ -3995,6 +3991,12 @@ declare namespace monaco.editor {
 		 * If the diff editor should only show the difference review mode.
 		 */
 		onlyShowAccessibleDiffViewer?: boolean;
+		hideUnchangedRegions?: {
+			enabled?: boolean;
+			revealLineCount?: number;
+			minimumLineCount?: number;
+			contextLineCount?: number;
+		};
 	}
 
 	/**
@@ -5998,7 +6000,7 @@ declare namespace monaco.editor {
 		/**
 		 * Get the vertical position (top offset) for the line's top w.r.t. to the first line.
 		 */
-		getTopForLineNumber(lineNumber: number): number;
+		getTopForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 		/**
 		 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
 		 */
@@ -6257,7 +6259,7 @@ declare namespace monaco.languages {
 
 	/**
 	 * An event emitted when a language is associated for the first time with a text model or
-	 * whena language is encountered during the tokenization of another language.
+	 * when a language is encountered during the tokenization of another language.
 	 * @event
 	 */
 	export function onLanguageEncountered(languageId: string, callback: () => void): IDisposable;

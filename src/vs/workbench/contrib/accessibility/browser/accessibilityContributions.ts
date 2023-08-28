@@ -96,12 +96,16 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 			}
 		}
 
+		if (options.get(EditorOption.stickyScroll)) {
+			content.push(this._descriptionForCommand('editor.action.focusStickyScroll', AccessibilityHelpNLS.stickScrollKb, AccessibilityHelpNLS.stickScrollNoKb));
+		}
+
 		if (options.get(EditorOption.tabFocusMode)) {
 			content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb));
 		} else {
 			content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb));
 		}
-		return content.join('\n');
+		return content.join('\n\n');
 	}
 }
 
@@ -253,6 +257,10 @@ function getActionsFromNotification(notification: INotificationViewItem): IActio
 				notification.close();
 			};
 		}
+	}
+	const manageExtension = actions?.find(a => a.label.includes('Manage Extension'));
+	if (manageExtension) {
+		manageExtension.class = ThemeIcon.asClassName(Codicon.gear);
 	}
 	if (actions) {
 		actions.push({ id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => notification.close(), enabled: true, class: ThemeIcon.asClassName(Codicon.clearAll) });

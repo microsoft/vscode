@@ -83,14 +83,28 @@ export interface ITerminalCapabilityStore {
 	readonly items: IterableIterator<TerminalCapability>;
 
 	/**
+	 * Fired when a capability is added. The event data for this is only the
+	 * {@link TerminalCapability} type, use {@link onDidAddCapability} to access the actual
+	 * capability.
+	 */
+	readonly onDidAddCapabilityType: Event<TerminalCapability>;
+
+	/**
+	 * Fired when a capability is removed. The event data for this is only the
+	 * {@link TerminalCapability} type, use {@link onDidAddCapability} to access the actual
+	 * capability.
+	 */
+	readonly onDidRemoveCapabilityType: Event<TerminalCapability>;
+
+	/**
 	 * Fired when a capability is added.
 	 */
-	readonly onDidAddCapability: Event<TerminalCapability>;
+	readonly onDidAddCapability: Event<TerminalCapabilityChangeEvent<any>>;
 
 	/**
 	 * Fired when a capability is removed.
 	 */
-	readonly onDidRemoveCapability: Event<TerminalCapability>;
+	readonly onDidRemoveCapability: Event<TerminalCapabilityChangeEvent<any>>;
 
 	/**
 	 * Gets whether the capability exists in the store.
@@ -101,6 +115,11 @@ export interface ITerminalCapabilityStore {
 	 * Gets the implementation of a capability if it has been added to the store.
 	 */
 	get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined;
+}
+
+export interface TerminalCapabilityChangeEvent<T extends TerminalCapability> {
+	id: T;
+	capability: ITerminalCapabilityImplMap[T];
 }
 
 /**
