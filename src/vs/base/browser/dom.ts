@@ -16,6 +16,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -135,26 +136,32 @@ export let runAtThisOrScheduleAtNextAnimationFrame: (runner: () => void, priorit
  * If currently in an animation frame, `runner` will be executed at the next animation frame.
  * @return token that can be used to cancel the scheduled runner.
  */
-export let scheduleAtNextAnimationFrame: (runner: () => void, priority?: number) => IDisposable;
+export let scheduleAtNextAnimationFrame: (runner: () => void, priority?: number, token?: CancellationToken) => IDisposable;
 
 class AnimationFrameQueueItem implements IDisposable {
 
 	private _runner: () => void;
 	public priority: number;
-	private _canceled: boolean;
+	private _disposed: boolean;
+	private _disposable?: IDisposable;
 
-	constructor(runner: () => void, priority: number = 0) {
+	constructor(runner: () => void, priority: number = 0, token?: CancellationToken) {
 		this._runner = runner;
 		this.priority = priority;
-		this._canceled = false;
+		this._disposed = false;
+
+		if (token) {
+			this._disposable = token.onCancellationRequested(() => this.dispose());
+		}
 	}
 
 	public dispose(): void {
-		this._canceled = true;
+		this._disposable?.dispose();
+		this._disposed = true;
 	}
 
 	public execute(): void {
-		if (this._canceled) {
+		if (this._disposed) {
 			return;
 		}
 
@@ -162,6 +169,8 @@ class AnimationFrameQueueItem implements IDisposable {
 			this._runner();
 		} catch (e) {
 			onUnexpectedError(e);
+		} finally {
+			this.dispose();
 		}
 	}
 
@@ -204,8 +213,8 @@ class AnimationFrameQueueItem implements IDisposable {
 		inAnimationFrameRunner = false;
 	};
 
-	scheduleAtNextAnimationFrame = (runner: () => void, priority: number = 0) => {
-		const item = new AnimationFrameQueueItem(runner, priority);
+	scheduleAtNextAnimationFrame = (runner: () => void, priority: number = 0, token?: CancellationToken) => {
+		const item = new AnimationFrameQueueItem(runner, priority, token);
 		NEXT_QUEUE.push(item);
 
 		if (!animFrameRequested) {
