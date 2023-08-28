@@ -5,6 +5,7 @@
 
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -16,7 +17,6 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { NotebookCellOutlineProvider, OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export class ToggleNotebookStickyScroll extends Action2 {
 
@@ -82,7 +82,7 @@ class NotebookStickyLine extends Disposable {
 
 export class NotebookStickyScroll extends Disposable {
 	private readonly _disposables = new DisposableStore();
-	private currentStickyLines = new Map<OutlineEntry, NotebookStickyLine>();
+	private currentStickyLines = new Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }>();
 
 	getDomNode(): HTMLElement {
 		return this.domNode;
@@ -92,7 +92,7 @@ export class NotebookStickyScroll extends Disposable {
 		return this.currentStickyLines.size * 22;
 	}
 
-	private setCurrentStickyLines(newStickyLines: Map<OutlineEntry, NotebookStickyLine>) {
+	private setCurrentStickyLines(newStickyLines: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }>) {
 		this.currentStickyLines = newStickyLines;
 	}
 
@@ -136,9 +136,7 @@ export class NotebookStickyScroll extends Disposable {
 			this.init();
 		} else {
 			this._disposables.clear();
-			this.currentStickyLines.forEach((value) => {
-				value.dispose();
-			});
+			this.disposeCurrentStickyLines();
 			DOM.clearNode(this.domNode);
 			this.updateDisplay();
 		}
@@ -261,16 +259,13 @@ export class NotebookStickyScroll extends Disposable {
 		// compute the space available for sticky lines, and render sticky lines
 
 		const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
-		let newMap: Map<OutlineEntry, NotebookStickyLine> | undefined = new Map();
+		let newMap: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }> = new Map();
 		newMap = NotebookStickyScroll.renderStickyLines(trackedEntry?.parent, this.domNode, linesToRender, newMap, this.notebookEditor);
-		if (!newMap) {
-			newMap = new Map();
-		}
 		this.setCurrentStickyLines(newMap);
 		this.updateDisplay();
 	}
 
-	private updateContent(newMap: Map<OutlineEntry, NotebookStickyLine>) {
+	private updateContent(newMap: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }>) {
 		this.setCurrentStickyLines(newMap);
 		this.updateDisplay();
 	}
@@ -294,7 +289,17 @@ export class NotebookStickyScroll extends Disposable {
 		return height;
 	}
 
-	static renderStickyLines(entry: OutlineEntry | undefined, containerElement: HTMLElement, numLinesToRender: number, newMap: Map<OutlineEntry, NotebookStickyLine>, notebookEditor: INotebookEditor) {
+	static createStickyTestElement(stickyLines: IterableIterator<{ line: NotebookStickyLine; rendered: boolean }>) {
+		const outputElements = [];
+		for (const stickyLine of stickyLines) {
+			if (stickyLine.rendered) {
+				outputElements.unshift(stickyLine.line.element.innerText);
+			}
+		}
+		return outputElements;
+	}
+
+	static renderStickyLines(entry: OutlineEntry | undefined, containerElement: HTMLElement, numLinesToRender: number, newMap: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }>, notebookEditor: INotebookEditor) {
 		const partial = false;
 		let currentEntry = entry;
 
@@ -306,7 +311,7 @@ export class NotebookStickyScroll extends Disposable {
 				continue;
 			}
 			const lineToRender = NotebookStickyScroll.createStickyElement(currentEntry, partial, notebookEditor);
-			newMap.set(currentEntry, lineToRender);
+			newMap.set(currentEntry, { line: lineToRender, rendered: false });
 			elementsToRender.unshift(lineToRender);
 			currentEntry = currentEntry.parent;
 		}
@@ -318,6 +323,7 @@ export class NotebookStickyScroll extends Disposable {
 				break;
 			}
 			containerElement.append(elementsToRender[i].element);
+			newMap.set(elementsToRender[i].entry, { line: elementsToRender[i], rendered: true });
 		}
 
 		containerElement.append(DOM.$('div', { class: 'notebook-shadow' })); // ensure we have dropShadow at base of sticky scroll
@@ -340,7 +346,7 @@ export class NotebookStickyScroll extends Disposable {
 
 	private disposeCurrentStickyLines() {
 		this.currentStickyLines.forEach((value) => {
-			value.dispose();
+			value.line.dispose();
 		});
 	}
 
@@ -351,7 +357,7 @@ export class NotebookStickyScroll extends Disposable {
 	}
 }
 
-export function computeContent(domNode: HTMLElement, notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[]): Map<OutlineEntry, NotebookStickyLine> {
+export function computeContent(domNode: HTMLElement, notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[]): Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }> {
 	// find first code cell in visible range. this marks the start of the first section
 	// find the last code cell in the first section of the visible range, store the bottom scroll position in a const sectionBottom
 	// compute sticky scroll height, and check if editorScrolltop + stickyScrollHeight < sectionBottom
@@ -397,11 +403,8 @@ export function computeContent(domNode: HTMLElement, notebookEditor: INotebookEd
 				const currentSectionStickyHeight = NotebookStickyScroll.computeStickyHeight(entry!);
 				if (editorScrollTop + currentSectionStickyHeight < sectionBottom) {
 					const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
-					let newMap: Map<OutlineEntry, NotebookStickyLine> | undefined = new Map();
+					let newMap: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }> = new Map();
 					newMap = NotebookStickyScroll.renderStickyLines(entry?.parent, domNode, linesToRender, newMap, notebookEditor);
-					if (!newMap) {
-						newMap = new Map();
-					}
 					return newMap;
 				}
 
@@ -420,37 +423,33 @@ export function computeContent(domNode: HTMLElement, notebookEditor: INotebookEd
 				// if the current section and the next section share a parent, then we can render the next section's sticky lines to avoid pop-in between
 				if (entry?.parent?.parent === nextSectionEntry?.parent) {
 					const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22) + 1;
-					let newMap: Map<OutlineEntry, NotebookStickyLine> | undefined = new Map();
+					let newMap: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }> = new Map();
 					newMap = NotebookStickyScroll.renderStickyLines(nextSectionEntry?.parent, domNode, linesToRender, newMap, notebookEditor);
-					if (!newMap) {
-						newMap = new Map();
-					}
 					return newMap;
 				} else if (Math.abs(currentSectionStickyHeight - nextSectionStickyHeight) > 22) { // only shrink sticky
 					const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
-					let newMap: Map<OutlineEntry, NotebookStickyLine> | undefined = new Map();
+					let newMap: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }> = new Map();
 					newMap = NotebookStickyScroll.renderStickyLines(entry?.parent, domNode, linesToRender, newMap, notebookEditor);
-					if (!newMap) {
-						newMap = new Map();
-					}
 					return newMap;
 				}
 			}
 		} else {
 			// there is no next cell, so use the bottom of the editor as the sectionBottom, using scrolltop + height
-			sectionBottom = notebookEditor.scrollTop + notebookEditor.getLayoutInfo().scrollHeight;
+			sectionBottom = notebookEditor.getLayoutInfo().scrollHeight;
 			trackedEntry = NotebookStickyScroll.getVisibleOutlineEntry(i, notebookOutlineEntries);
 			const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
 
-			let newMap: Map<OutlineEntry, NotebookStickyLine> | undefined = new Map();
+			let newMap: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }> = new Map();
 			newMap = NotebookStickyScroll.renderStickyLines(trackedEntry?.parent, domNode, linesToRender, newMap, notebookEditor);
-			if (!newMap) {
-				newMap = new Map();
-			}
 			return newMap;
 		}
 	} // for cell loop close
 	return new Map();
+}
+
+export function nbStickyTestHelper(domNode: HTMLElement, notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[]) {
+	const output = computeContent(domNode, notebookEditor, notebookCellList, notebookOutlineEntries);
+	return NotebookStickyScroll.createStickyTestElement(output.values());
 }
 
 registerAction2(ToggleNotebookStickyScroll);
