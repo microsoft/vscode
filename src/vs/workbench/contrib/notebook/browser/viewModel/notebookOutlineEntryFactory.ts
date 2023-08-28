@@ -13,6 +13,8 @@ import { OutlineEntry } from './OutlineEntry';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { TimeoutTimer } from 'vs/base/common/async';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const INotebookOutlineEntryFactory = createDecorator<INotebookOutlineEntryFactory>('INotebookOutlineEntryFactory');
 
@@ -23,10 +25,11 @@ export interface INotebookOutlineEntryFactory {
 
 type entryDesc = { name: string; children?: entryDesc[] };
 
-export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory {
+export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory, IDisposable {
 	_serviceBrand: undefined;
 
 	private cellOutlineEntryCache: Record<string, entryDesc[]> = {};
+	private cacheTimer = new TimeoutTimer();
 
 	constructor(
 		@INotebookExecutionStateService private readonly executionStateService: INotebookExecutionStateService,
@@ -102,15 +105,20 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 	private async cacheSymbols(cell: ICellViewModel) {
 		const textModel = cell.model.textModel;
 		if (textModel) {
-			setTimeout(async () => {
+			const timeout = this.outlineModelService.getDebounceValue(textModel);
+			this.cacheTimer.cancelAndSet(async () => {
 				const outlineModel = await this.outlineModelService.getOrCreate(textModel, CancellationToken.None);
 				const symbols = outlineModel.getTopLevelSymbols().map((symbol) => {
 					return { name: symbol.name };
 				});
 
 				this.cellOutlineEntryCache[textModel.id] = symbols;
-			}, 500);
+			}, timeout);
 		}
+	}
+
+	dispose(): void {
+		this.cacheTimer.dispose();
 	}
 }
 
