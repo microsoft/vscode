@@ -16,16 +16,16 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { TimeoutTimer } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-export const INotebookOutlineEntryFactory = createDecorator<INotebookOutlineEntryFactory>('INotebookOutlineEntryFactory');
+export const INotebookOutlineEntryCacheService = createDecorator<INotebookOutlineEntryCacheService>('INotebookOutlineEntryFactory');
 
-export interface INotebookOutlineEntryFactory {
+export interface INotebookOutlineEntryCacheService {
 	readonly _serviceBrand: undefined;
 	createOutlineEntrys(cell: ICellViewModel, index: number, includeAllSymbols: boolean, cacheSymbols: boolean): OutlineEntry[];
 }
 
 type entryDesc = { name: string; level: number };
 
-export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory, IDisposable {
+export class NotebookOutlineEntryCacheService implements INotebookOutlineEntryCacheService, IDisposable {
 	_serviceBrand: undefined;
 
 	private cellOutlineEntryCache: Record<string, entryDesc[]> = {};

@@ -15,7 +15,7 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { INotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
+import { INotebookOutlineEntryCacheService } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
 import { OutlineEntry } from './OutlineEntry';
 
 export class NotebookCellOutlineProvider {
@@ -42,12 +42,12 @@ export class NotebookCellOutlineProvider {
 	constructor(
 		private readonly _editor: INotebookEditor,
 		private readonly _target: OutlineTarget,
-		@INotebookOutlineEntryFactory private readonly _outlineEntryFactory: INotebookOutlineEntryFactory,
 		@IThemeService themeService: IThemeService,
 		@IEditorService _editorService: IEditorService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@INotebookExecutionStateService _notebookExecutionStateService: INotebookExecutionStateService
+		@INotebookExecutionStateService _notebookExecutionStateService: INotebookExecutionStateService,
+		@INotebookOutlineEntryCacheService private readonly _outlineEntryFactory: INotebookOutlineEntryCacheService,
 	) {
 		const selectionListener = new MutableDisposable();
 		this._dispoables.add(selectionListener);

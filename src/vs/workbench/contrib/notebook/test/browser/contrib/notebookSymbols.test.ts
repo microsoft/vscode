@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { mock } from 'vs/base/test/common/mock';
 import { IOutlineModelService, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
+import { NotebookOutlineEntryCacheService } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 suite('Notebook Symbols', function () {
@@ -52,7 +52,7 @@ suite('Notebook Symbols', function () {
 
 	test('Cell without symbols cache', function () {
 		symbols = [{ name: 'var' }];
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryCacheService(executionService, outlineModelService);
 		const entries = entryFactory.createOutlineEntrys(createCellViewModel(), 0, true, true);
 
 		assert.equal(entries.length, 1, 'no entries created');
@@ -61,7 +61,7 @@ suite('Notebook Symbols', function () {
 
 	test('Cell with simple symbols', async function () {
 		symbols = [{ name: 'var1' }, { name: 'var2' }];
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryCacheService(executionService, outlineModelService);
 
 		const cell = createCellViewModel();
 		// initial call to cache values
@@ -81,7 +81,7 @@ suite('Notebook Symbols', function () {
 
 	test('Cell outline entries update with new text model versions', async function () {
 		symbols = [{ name: 'var1' }];
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryCacheService(executionService, outlineModelService);
 
 		entryFactory.createOutlineEntrys(createCellViewModel(1), 0, true, true);
 		await new Promise(resolve => setTimeout(resolve, 0));
@@ -98,7 +98,7 @@ suite('Notebook Symbols', function () {
 
 	test('Cell symbols cache updates for call that does not want all symbols', async function () {
 		symbols = [{ name: 'var1' }];
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryCacheService(executionService, outlineModelService);
 
 		const cell = createCellViewModel();
 		// initial call that doesn't need all symbols, still request to cache them
@@ -115,7 +115,7 @@ suite('Notebook Symbols', function () {
 			{ name: 'root1', children: [{ name: 'nested1' }, { name: 'nested2' }] },
 			{ name: 'root2', children: [{ name: 'nested1' }] }
 		];
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryCacheService(executionService, outlineModelService);
 
 		// initial call to cache values
 		entryFactory.createOutlineEntrys(createCellViewModel(), 0, true, true);

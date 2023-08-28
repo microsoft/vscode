@@ -61,6 +61,8 @@ import { IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { INotebookOutlineEntryCacheService, NotebookOutlineEntryCacheService } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
+import { NotebookExecutionStateService } from 'vs/workbench/contrib/notebook/browser/services/notebookExecutionStateServiceImpl';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -191,6 +193,7 @@ export function setupInstantiationService(disposables = new DisposableStore()) {
 	instantiationService.stub(INotebookExecutionStateService, new TestNotebookExecutionStateService());
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(INotebookCellStatusBarService, new NotebookCellStatusBarService());
+	instantiationService.stub(INotebookOutlineEntryCacheService, instantiationService.createInstance(NotebookOutlineEntryCacheService));
 
 	return instantiationService;
 }
