@@ -40,6 +40,7 @@ export const ITerminalInstanceService = createDecorator<ITerminalInstanceService
 export interface ITerminalContribution extends IDisposable {
 	layout?(xterm: IXtermTerminal & { raw: RawXtermTerminal }, dimension: IDimension): void;
 	xtermReady?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
+	requestFocus?(): void;
 }
 
 /**

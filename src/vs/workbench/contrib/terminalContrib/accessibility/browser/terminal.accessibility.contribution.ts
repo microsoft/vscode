@@ -86,6 +86,9 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 	hide(): void {
 		this._accessibleBufferWidget?.hide();
 	}
+	requestFocus(): void {
+		this._accessibleBufferWidget?.show();
+	}
 }
 registerTerminalContribution(AccessibleBufferContribution.ID, AccessibleBufferContribution);
 
