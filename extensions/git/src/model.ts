@@ -577,8 +577,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			}
 
 			// Open repository
-			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repositoryRootRealPath = await this.getRepositoryRootRealPath(repositoryRoot);
+			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
 			const repository = new Repository(this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger), this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
