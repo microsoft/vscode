@@ -537,7 +537,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const mutableDisposable = this._register(new MutableDisposable());
 		this._register(this.tree.onDidScroll((e) => {
 			mutableDisposable.value = dom.scheduleAtNextAnimationFrame(() => {
-				mutableDisposable.dispose();
 				if (!e.scrollTopChanged || e.heightChanged || e.scrollHeightChanged) {
 					return;
 				}
@@ -548,8 +547,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 
 				const newHeight = Math.min(renderHeight + diff, maxHeight);
-				const inputPartHeight = this.inputPart.layout(newHeight, this.container.offsetWidth);
-				this.layout(newHeight + inputPartHeight, this.container.offsetWidth);
+				const width = this.bodyDimension?.width ?? this.container.offsetWidth;
+				const inputPartHeight = this.inputPart.layout(newHeight, width);
+				this.layout(newHeight + inputPartHeight, width);
 			});
 		}));
 	}
