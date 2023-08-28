@@ -546,12 +546,32 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					return;
 				}
 
-				const newHeight = Math.min(renderHeight + diff, maxHeight);
+				const possibleMaxHeight = (this._dynamicMessageLayoutData?.maxHeight ?? maxHeight);
 				const width = this.bodyDimension?.width ?? this.container.offsetWidth;
-				const inputPartHeight = this.inputPart.layout(newHeight, width);
+				const inputPartHeight = this.inputPart.layout(possibleMaxHeight, width);
+				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight);
 				this.layout(newHeight + inputPartHeight, width);
 			});
 		}));
+	}
+
+	updateDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
+		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight };
+		let hasChanged = false;
+		let height = this.bodyDimension!.height;
+		let width = this.bodyDimension!.width;
+		if (maxHeight < this.bodyDimension!.height) {
+			height = maxHeight;
+			hasChanged = true;
+		}
+		const containerWidth = this.container.offsetWidth;
+		if (this.bodyDimension?.width !== containerWidth) {
+			width = containerWidth;
+			hasChanged = true;
+		}
+		if (hasChanged) {
+			this.layout(height, width);
+		}
 	}
 
 	layoutDynamicChatTreeItemMode(): void {
