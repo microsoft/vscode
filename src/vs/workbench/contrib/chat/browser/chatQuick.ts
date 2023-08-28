@@ -204,12 +204,19 @@ class QuickChat extends Disposable {
 		this._register(this.widget.onDidClear(() => this.clear()));
 		this._register(this.widget.onDidChangeHeight((e) => this.sash.layout()));
 		const width = parent.offsetWidth;
+		this._register(this.sash.onDidStart(() => {
+			this.widget.isDynamicChatTreeItemLayoutEnabled = false;
+		}));
 		this._register(this.sash.onDidChange((e) => {
 			if (e.currentY < QuickChat.DEFAULT_MIN_HEIGHT || e.currentY > this.maxHeight) {
 				return;
 			}
 			this.widget.layout(e.currentY, width);
 			this.sash.layout();
+		}));
+		this._register(this.sash.onDidReset(() => {
+			this.widget.isDynamicChatTreeItemLayoutEnabled = true;
+			this.widget.layoutDynamicChatTreeItemMode();
 		}));
 	}
 
