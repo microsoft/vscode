@@ -837,7 +837,10 @@ export class QuickInputList {
 	 * @param element The element to show the hover for
 	 */
 	private showHover(element: IListElement): void {
-		if (this._lastHover && !this._lastHover.isDisposed && this.options.hoverDelegate) {
+		if (this.options.hoverDelegate === undefined) {
+			return;
+		}
+		if (this._lastHover && !this._lastHover.isDisposed) {
 			this.options.hoverDelegate.onDidHideHover?.();
 			this._lastHover?.dispose();
 		}
@@ -845,18 +848,16 @@ export class QuickInputList {
 		if (!element.element || !element.saneTooltip) {
 			return;
 		}
-		if (this.options.hoverDelegate) {
-			this._lastHover = this.options.hoverDelegate.showHover({
-				content: element.saneTooltip!,
-				target: element.element!,
-				linkHandler: (url) => {
-					this.options.linkOpenerDelegate(url);
-				},
-				showPointer: true,
-				container: this.container,
-				hoverPosition: HoverPosition.RIGHT
-			}, false);
-		}
+		this._lastHover = this.options.hoverDelegate.showHover({
+			content: element.saneTooltip!,
+			target: element.element!,
+			linkHandler: (url) => {
+				this.options.linkOpenerDelegate(url);
+			},
+			showPointer: true,
+			container: this.container,
+			hoverPosition: HoverPosition.RIGHT
+		}, false);
 	}
 
 	layout(maxHeight?: number): void {
