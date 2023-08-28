@@ -38,11 +38,17 @@ export interface IWorkbenchVoiceRecognitionService {
 	transcribe(cancellation: CancellationToken, options?: IWorkbenchVoiceRecognitionOptions): Promise<Event<string>>;
 }
 
+interface IVoiceTranscriptionWorkletOptions extends AudioWorkletNodeOptions {
+	processorOptions: {
+		readonly bufferTimespan: number;
+	};
+}
+
 class VoiceTranscriptionWorkletNode extends AudioWorkletNode {
 
 	constructor(
 		context: BaseAudioContext,
-		options: AudioWorkletNodeOptions,
+		options: IVoiceTranscriptionWorkletOptions,
 		private readonly onDidTranscribe: Emitter<string>,
 		private readonly sharedProcessService: ISharedProcessService
 	) {
@@ -86,6 +92,8 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 	private static readonly AUDIO_BIT_DEPTH = 16;
 	private static readonly AUDIO_CHANNELS = 1;
 
+	private static readonly BUFFER_TIMESPAN = 1000;
+
 	constructor(
 		@IProgressService private readonly progressService: IProgressService,
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
@@ -125,7 +133,8 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 						sampleSize: WorkbenchVoiceRecognitionService.AUDIO_BIT_DEPTH,
 						channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
 						autoGainControl: true,
-						noiseSuppression: true
+						noiseSuppression: true,
+						echoCancellation: false
 					}
 				});
 
@@ -161,7 +170,10 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 
 				const voiceTranscriptionTarget = new VoiceTranscriptionWorkletNode(audioContext, {
 					channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
-					channelCountMode: 'explicit'
+					channelCountMode: 'explicit',
+					processorOptions: {
+						bufferTimespan: WorkbenchVoiceRecognitionService.BUFFER_TIMESPAN
+					}
 				}, onDidTranscribe, this.sharedProcessService);
 				await voiceTranscriptionTarget.start(cts.token);
 
