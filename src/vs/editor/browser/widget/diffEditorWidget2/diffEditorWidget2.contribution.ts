@@ -108,6 +108,7 @@ const diffEditorCategory: ILocalizedString = {
 	value: localize('diffEditor', 'Diff Editor'),
 	original: 'Diff Editor',
 };
+
 export class SwitchSide extends EditorAction2 {
 	constructor() {
 		super({
@@ -120,11 +121,16 @@ export class SwitchSide extends EditorAction2 {
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]): void {
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, arg?: { dryRun: boolean }): unknown {
 		const diffEditor = findFocusedDiffEditor(accessor);
 		if (diffEditor instanceof DiffEditorWidget2) {
-			diffEditor.switchSide();
+			if (arg && arg.dryRun) {
+				return { destinationSelection: diffEditor.mapToOtherSide().destinationSelection };
+			} else {
+				diffEditor.switchSide();
+			}
 		}
+		return undefined;
 	}
 }
 
@@ -155,3 +161,47 @@ export class ExitCompareMove extends EditorAction2 {
 }
 
 registerAction2(ExitCompareMove);
+
+export class CollapseAllUnchangedRegions extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'diffEditor.collapseAllUnchangedRegions',
+			title: { value: localize('collapseAllUnchangedRegions', "Collapse All Unchanged Regions"), original: 'Collapse All Unchanged Regions' },
+			icon: Codicon.fold,
+			precondition: ContextKeyExpr.and(ContextKeyEqualsExpr.create('diffEditorVersion', 2), ContextKeyExpr.has('isInDiffEditor')),
+			f1: true,
+			category: diffEditorCategory,
+		});
+	}
+
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]): void {
+		const diffEditor = findFocusedDiffEditor(accessor);
+		if (diffEditor instanceof DiffEditorWidget2) {
+			diffEditor.collapseAllUnchangedRegions();
+		}
+	}
+}
+
+registerAction2(CollapseAllUnchangedRegions);
+
+export class ShowAllUnchangedRegions extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'diffEditor.showAllUnchangedRegions',
+			title: { value: localize('showAllUnchangedRegions', "Show All Unchanged Regions"), original: 'Show All Unchanged Regions' },
+			icon: Codicon.unfold,
+			precondition: ContextKeyExpr.and(ContextKeyEqualsExpr.create('diffEditorVersion', 2), ContextKeyExpr.has('isInDiffEditor')),
+			f1: true,
+			category: diffEditorCategory,
+		});
+	}
+
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]): void {
+		const diffEditor = findFocusedDiffEditor(accessor);
+		if (diffEditor instanceof DiffEditorWidget2) {
+			diffEditor.showAllUnchangedRegions();
+		}
+	}
+}
+
+registerAction2(ShowAllUnchangedRegions);

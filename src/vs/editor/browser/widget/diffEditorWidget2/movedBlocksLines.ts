@@ -102,6 +102,9 @@ export class MovedBlocksLinesPart extends Disposable {
 		}));
 	}
 
+	private readonly _modifiedViewZonesChangedSignal = observableSignalFromEvent('modified.onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
+	private readonly _originalViewZonesChangedSignal = observableSignalFromEvent('original.onDidChangeViewZones', this._editors.original.onDidChangeViewZones);
+
 	private readonly _state = derivedWithStore('state', (reader, store) => {
 		/** @description update moved blocks lines */
 
@@ -122,10 +125,13 @@ export class MovedBlocksLinesPart extends Disposable {
 			return;
 		}
 
+		this._modifiedViewZonesChangedSignal.read(reader);
+		this._originalViewZonesChangedSignal.read(reader);
+
 		const lines = moves.map((move) => {
 			function computeLineStart(range: LineRange, editor: ICodeEditor) {
-				const t1 = editor.getTopForLineNumber(range.startLineNumber);
-				const t2 = editor.getTopForLineNumber(range.endLineNumberExclusive);
+				const t1 = editor.getTopForLineNumber(range.startLineNumber, true);
+				const t2 = editor.getTopForLineNumber(range.endLineNumberExclusive, true);
 				return (t1 + t2) / 2;
 			}
 

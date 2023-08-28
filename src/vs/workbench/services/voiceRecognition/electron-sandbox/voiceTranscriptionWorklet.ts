@@ -10,9 +10,13 @@ declare class AudioWorkletProcessor {
 	process(inputs: [Float32Array[]], outputs: [Float32Array[]]): boolean;
 }
 
-class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
+interface IVoiceTranscriptionWorkletOptions extends AudioWorkletNodeOptions {
+	processorOptions: {
+		readonly bufferTimespan: number;
+	};
+}
 
-	private static readonly BUFFER_TIMESPAN = 1000;
+class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 
 	private startTime: number | undefined = undefined;
 	private stopped: boolean = false;
@@ -21,7 +25,7 @@ class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 
 	private sharedProcessConnection: MessagePort | undefined = undefined;
 
-	constructor() {
+	constructor(private readonly options: IVoiceTranscriptionWorkletOptions) {
 		super();
 
 		this.registerListeners();
@@ -71,7 +75,7 @@ class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 
 		this.buffer.push(inputChannelData.slice(0));
 
-		if (Date.now() - this.startTime > VoiceTranscriptionWorklet.BUFFER_TIMESPAN && this.sharedProcessConnection) {
+		if (Date.now() - this.startTime > this.options.processorOptions.bufferTimespan && this.sharedProcessConnection) {
 			const buffer = this.buffer;
 			this.buffer = [];
 

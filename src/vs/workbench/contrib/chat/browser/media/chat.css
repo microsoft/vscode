@@ -426,6 +426,7 @@
 
 .quick-input-widget .interactive-session .interactive-input-and-execute-toolbar {
 	margin: 0;
+	border-radius: 2px;
 }
 
 /* #endregion */

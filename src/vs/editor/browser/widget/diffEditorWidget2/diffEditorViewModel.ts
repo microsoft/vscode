@@ -41,7 +41,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			// Reset state
 			transaction(tx => {
 				for (const r of this._unchangedRegions.get().regions) {
-					r.setState(0, 0, tx);
+					r.collapseAll(tx);
 				}
 			});
 			return [];
@@ -209,27 +209,27 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		}));
 	}
 
-	public ensureModifiedLineIsVisible(lineNumber: number, tx: ITransaction): void {
+	public ensureModifiedLineIsVisible(lineNumber: number, tx: ITransaction | undefined): void {
 		if (this.diff.get()?.mappings.length === 0) {
 			return;
 		}
 		const unchangedRegions = this._unchangedRegions.get().regions;
 		for (const r of unchangedRegions) {
 			if (r.getHiddenModifiedRange(undefined).contains(lineNumber)) {
-				r.showAll(tx); // TODO only unhide what is needed
+				r.showModifiedLine(lineNumber, tx);
 				return;
 			}
 		}
 	}
 
-	public ensureOriginalLineIsVisible(lineNumber: number, tx: ITransaction): void {
+	public ensureOriginalLineIsVisible(lineNumber: number, tx: ITransaction | undefined): void {
 		if (this.diff.get()?.mappings.length === 0) {
 			return;
 		}
 		const unchangedRegions = this._unchangedRegions.get().regions;
 		for (const r of unchangedRegions) {
 			if (r.getHiddenOriginalRange(undefined).contains(lineNumber)) {
-				r.showAll(tx); // TODO only unhide what is needed
+				r.showOriginalLine(lineNumber, tx);
 				return;
 			}
 		}
@@ -419,6 +419,31 @@ export class UnchangedRegion {
 
 	public showAll(tx: ITransaction | undefined): void {
 		this._visibleLineCountBottom.set(this.lineCount - this._visibleLineCountTop.get(), tx);
+	}
+
+	public showModifiedLine(lineNumber: number, tx: ITransaction | undefined): void {
+		const top = lineNumber + 1 - (this.modifiedLineNumber + this._visibleLineCountTop.get());
+		const bottom = (this.modifiedLineNumber - this._visibleLineCountBottom.get() + this.lineCount) - lineNumber;
+		if (top < bottom) {
+			this._visibleLineCountTop.set(this._visibleLineCountTop.get() + top, tx);
+		} else {
+			this._visibleLineCountBottom.set(this._visibleLineCountBottom.get() + bottom, tx);
+		}
+	}
+
+	public showOriginalLine(lineNumber: number, tx: ITransaction | undefined): void {
+		const top = lineNumber - this.originalLineNumber;
+		const bottom = (this.originalLineNumber + this.lineCount) - lineNumber;
+		if (top < bottom) {
+			this._visibleLineCountTop.set(Math.min(this._visibleLineCountTop.get() + bottom - top, this.getMaxVisibleLineCountTop()), tx);
+		} else {
+			this._visibleLineCountBottom.set(Math.min(this._visibleLineCountBottom.get() + top - bottom, this.getMaxVisibleLineCountBottom()), tx);
+		}
+	}
+
+	public collapseAll(tx: ITransaction | undefined): void {
+		this._visibleLineCountTop.set(0, tx);
+		this._visibleLineCountBottom.set(0, tx);
 	}
 
 	public setState(visibleLineCountTop: number, visibleLineCountBottom: number, tx: ITransaction | undefined): void {

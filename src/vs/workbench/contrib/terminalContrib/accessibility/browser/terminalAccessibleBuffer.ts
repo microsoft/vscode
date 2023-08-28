@@ -60,6 +60,7 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 		super(ClassName.AccessibleBuffer, _instance, _xterm, TerminalContextKeys.accessibleBufferFocus, TerminalContextKeys.accessibleBufferOnLastLine, _instantiationService, _modelService, _configurationService, _contextKeyService, _terminalService);
 		this._bufferTracker = _instantiationService.createInstance(BufferContentTracker, _xterm);
 		this.element.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
+		_instance.onDidRequestFocus(() => this.hide(true));
 		this.updateEditor();
 		this.add(this.editorWidget.onDidFocusEditorText(async () => {
 			if (this.element.classList.contains(ClassName.Active)) {

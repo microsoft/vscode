@@ -577,8 +577,8 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			}
 
 			// Open repository
-			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit, this.logger), this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
+			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
+			const repository = new Repository(this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger), this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
 			this._closedRepositoriesManager.deleteRepository(repository.root);
@@ -612,6 +612,16 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			}
 
 			throw err;
+		}
+	}
+
+	private async getRepositoryRootRealPath(repositoryRoot: string): Promise<string | undefined> {
+		try {
+			const repositoryRootRealPath = await fs.promises.realpath(repositoryRoot);
+			return !pathEquals(repositoryRoot, repositoryRootRealPath) ? repositoryRootRealPath : undefined;
+		} catch (err) {
+			this.logger.warn(`Failed to get repository realpath for: "${repositoryRoot}". ${err}`);
+			return undefined;
 		}
 	}
 
@@ -766,15 +776,25 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	}
 
 	private async getRepositoryExact(repoPath: string): Promise<Repository | undefined> {
-		const repoPathCanonical = await fs.promises.realpath(repoPath, { encoding: 'utf8' });
+		// Use the repository path
+		const openRepository = this.openRepositories
+			.find(r => pathEquals(r.repository.root, repoPath));
 
-		for (const openRepository of this.openRepositories) {
-			const rootPathCanonical = await fs.promises.realpath(openRepository.repository.root, { encoding: 'utf8' });
-			if (pathEquals(rootPathCanonical, repoPathCanonical)) {
-				return openRepository.repository;
-			}
+		if (openRepository) {
+			return openRepository.repository;
 		}
-		return undefined;
+
+		try {
+			// Use the repository real path
+			const repoPathRealPath = await fs.promises.realpath(repoPath, { encoding: 'utf8' });
+			const openRepositoryRealPath = this.openRepositories
+				.find(r => pathEquals(r.repository.rootRealPath ?? '', repoPathRealPath));
+
+			return openRepositoryRealPath?.repository;
+		} catch (err) {
+			this.logger.warn(`Failed to get repository realpath for: "${repoPath}". ${err}`);
+			return undefined;
+		}
 	}
 
 	private getOpenRepository(repository: Repository): OpenRepository | undefined;

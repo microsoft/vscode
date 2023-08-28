@@ -20,7 +20,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ISemanticSimilarityService } from 'vs/workbench/services/semanticSimilarity/common/semanticSimilarityService';
 import { IAiRelatedInformationService, RelatedInformationType, SettingInformationResult } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
 
 export interface IEndpointDetails {
@@ -304,8 +303,7 @@ class RemoteSearchKeysProvider {
 	private currentPreferencesModel: ISettingsEditorModel | undefined;
 
 	constructor(
-		private readonly aiRelatedInformationService: IAiRelatedInformationService,
-		private readonly semanticSimilarityService: ISemanticSimilarityService
+		private readonly aiRelatedInformationService: IAiRelatedInformationService
 	) { }
 
 	updateModel(preferencesModel: ISettingsEditorModel) {
@@ -323,7 +321,7 @@ class RemoteSearchKeysProvider {
 
 		if (
 			!this.currentPreferencesModel ||
-			(!this.semanticSimilarityService.isEnabled() && !this.aiRelatedInformationService.isEnabled())
+			!this.aiRelatedInformationService.isEnabled()
 		) {
 			return;
 		}
@@ -351,17 +349,16 @@ class RemoteSearchKeysProvider {
 }
 
 export class RemoteSearchProvider implements ISearchProvider {
-	private static readonly SEMANTIC_SIMILARITY_THRESHOLD = 0.73;
-	private static readonly SEMANTIC_SIMILARITY_MAX_PICKS = 15;
+	private static readonly AI_RELATED_INFORMATION_THRESHOLD = 0.73;
+	private static readonly AI_RELATED_INFORMATION_MAX_PICKS = 15;
 
 	private readonly _keysProvider: RemoteSearchKeysProvider;
 	private _filter: string = '';
 
 	constructor(
-		@ISemanticSimilarityService private readonly semanticSimilarityService: ISemanticSimilarityService,
 		@IAiRelatedInformationService private readonly aiRelatedInformationService: IAiRelatedInformationService
 	) {
-		this._keysProvider = new RemoteSearchKeysProvider(aiRelatedInformationService, semanticSimilarityService);
+		this._keysProvider = new RemoteSearchKeysProvider(aiRelatedInformationService);
 	}
 
 	setFilter(filter: string) {
@@ -371,48 +368,16 @@ export class RemoteSearchProvider implements ISearchProvider {
 	async searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken | undefined): Promise<ISearchResult | null> {
 		if (
 			!this._filter ||
-			(!this.semanticSimilarityService.isEnabled() && !this.aiRelatedInformationService.isEnabled())) {
+			!this.aiRelatedInformationService.isEnabled()
+		) {
 			return null;
 		}
 
 		this._keysProvider.updateModel(preferencesModel);
-		const filterMatches = this.aiRelatedInformationService.isEnabled()
-			? await this.getAiRelatedInformationItems(token)
-			: this.semanticSimilarityService.isEnabled()
-				? await this.getSemanticSimilarityItems(token)
-				: [];
 
 		return {
-			filterMatches
+			filterMatches: await this.getAiRelatedInformationItems(token)
 		};
-	}
-
-	// TODO: Remove this when all semantic similarity providers are migrated to aiRelatedInformationService
-	private async getSemanticSimilarityItems(token?: CancellationToken | undefined) {
-		const settingKeys = this._keysProvider.getSettingKeys();
-		const settingsRecord = this._keysProvider.getSettingsRecord();
-
-		const scores = await this.semanticSimilarityService.getSimilarityScore(this._filter, settingKeys, token ?? CancellationToken.None);
-		const filterMatches: ISettingMatch[] = [];
-		const sortedIndices = scores.map((_, i) => i).sort((a, b) => scores[b] - scores[a]);
-		let numOfSmartPicks = 0;
-		for (const i of sortedIndices) {
-			const score = scores[i];
-			if (score < RemoteSearchProvider.SEMANTIC_SIMILARITY_THRESHOLD || numOfSmartPicks === RemoteSearchProvider.SEMANTIC_SIMILARITY_MAX_PICKS) {
-				break;
-			}
-
-			const pick = settingKeys[i];
-			filterMatches.push({
-				setting: settingsRecord[pick],
-				matches: [settingsRecord[pick].range],
-				matchType: SettingMatchType.RemoteMatch,
-				score
-			});
-			numOfSmartPicks++;
-		}
-
-		return filterMatches;
 	}
 
 	private async getAiRelatedInformationItems(token?: CancellationToken | undefined) {
@@ -423,7 +388,7 @@ export class RemoteSearchProvider implements ISearchProvider {
 		relatedInformation.sort((a, b) => b.weight - a.weight);
 
 		for (const info of relatedInformation) {
-			if (info.weight < RemoteSearchProvider.SEMANTIC_SIMILARITY_THRESHOLD || filterMatches.length === RemoteSearchProvider.SEMANTIC_SIMILARITY_MAX_PICKS) {
+			if (info.weight < RemoteSearchProvider.AI_RELATED_INFORMATION_THRESHOLD || filterMatches.length === RemoteSearchProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
 				break;
 			}
 			const pick = info.setting;
