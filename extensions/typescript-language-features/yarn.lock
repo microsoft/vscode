@@ -284,10 +284,10 @@
     "@vscode/sync-api-common" "0.7.2"
     vscode-uri "3.0.3"
 
-"@vscode/ts-package-manager@^0.0.1":
-  version "0.0.1"
-  resolved "https://registry.yarnpkg.com/@vscode/ts-package-manager/-/ts-package-manager-0.0.1.tgz#0c40d4f211aea736a54b38f6b53d1f71a826ba32"
-  integrity sha512-Na2ZjQKs70Ij6eupw2M4w7o8d+9VZq/kpwUJpGF457PpfOlx+34RXKKXupq4HGyRfeLRdObSmUVSeWFBCtO4wA==
+"@vscode/ts-package-manager@^0.0.2":
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/@vscode/ts-package-manager/-/ts-package-manager-0.0.2.tgz#d1cade5ff0d01da8c5b5b00bf79d80e7156771cf"
+  integrity sha512-cXPxGbPVTkEQI8mUiWYUwB6j3ga6M9i7yubUOCrjgZ01GeZPMSnaWRprfJ09uuy81wJjY2gfHgLsOgwrGvUBTw==
 
 acorn-import-assertions@^1.9.0:
   version "1.9.0"
