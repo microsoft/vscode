@@ -35,7 +35,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	);
 	public readonly unchangedRegions: IObservable<UnchangedRegion[]> = derived(r => {
 		/** @description unchangedRegions */
-		if (this._options.collapseUnchangedRegions.read(r)) {
+		if (this._options.hideUnchangedRegions.read(r)) {
 			return this._unchangedRegions.read(r).regions;
 		} else {
 			// Reset state
@@ -79,8 +79,14 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		const contentChangedSignal = observableSignal('contentChangedSignal');
 		const debouncer = this._register(new RunOnceScheduler(() => contentChangedSignal.trigger(undefined), 200));
 
-		const updateUnchangedRegions = (result: IDocumentDiff, tx: ITransaction) => {
-			const newUnchangedRegions = UnchangedRegion.fromDiffs(result.changes, model.original.getLineCount(), model.modified.getLineCount());
+		const updateUnchangedRegions = (result: IDocumentDiff, tx: ITransaction, reader?: IReader) => {
+			const newUnchangedRegions = UnchangedRegion.fromDiffs(
+				result.changes,
+				model.original.getLineCount(),
+				model.modified.getLineCount(),
+				this._options.hideUnchangedRegionsminimumLineCount.read(reader),
+				this._options.hideUnchangedRegionsContextLineCount.read(reader),
+			);
 
 			// Transfer state from cur state
 			const lastUnchangedRegions = this._unchangedRegions.get();
@@ -121,7 +127,6 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				tx
 			);
 		};
-
 
 		this._register(model.modified.onDidChangeContent((e) => {
 			const diff = this._diff.get();
@@ -164,6 +169,11 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 
 		this._register(autorunWithStore(async (reader, store) => {
 			/** @description compute diff */
+
+			// So that they get recomputed when these settings change
+			this._options.hideUnchangedRegionsminimumLineCount.read(reader);
+			this._options.hideUnchangedRegionsContextLineCount.read(reader);
+
 			debouncer.cancel();
 			contentChangedSignal.read(reader);
 			documentDiffProviderOptionChanged.read(reader);
@@ -310,12 +320,15 @@ export class DiffMapping {
 }
 
 export class UnchangedRegion {
-	public static fromDiffs(changes: readonly LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): UnchangedRegion[] {
+	public static fromDiffs(
+		changes: readonly LineRangeMapping[],
+		originalLineCount: number,
+		modifiedLineCount: number,
+		minHiddenLineCount: number,
+		minContext: number,
+	): UnchangedRegion[] {
 		const inversedMappings = LineRangeMapping.inverse(changes, originalLineCount, modifiedLineCount);
 		const result: UnchangedRegion[] = [];
-
-		const minHiddenLineCount = 3;
-		const minContext = 3;
 
 		for (const mapping of inversedMappings) {
 			let origStart = mapping.originalRange.startLineNumber;
@@ -325,7 +338,7 @@ export class UnchangedRegion {
 			const atStart = origStart === 1 && modStart === 1;
 			const atEnd = origStart + length === originalLineCount + 1 && modStart + length === modifiedLineCount + 1;
 
-			if ((atStart || atEnd) && length > minContext + minHiddenLineCount) {
+			if ((atStart || atEnd) && length >= minContext + minHiddenLineCount) {
 				if (atStart && !atEnd) {
 					length -= minContext;
 				}
@@ -335,7 +348,7 @@ export class UnchangedRegion {
 					length -= minContext;
 				}
 				result.push(new UnchangedRegion(origStart, modStart, length, 0, 0));
-			} else if (length > minContext * 2 + minHiddenLineCount) {
+			} else if (length >= minContext * 2 + minHiddenLineCount) {
 				origStart += minContext;
 				modStart += minContext;
 				length -= minContext * 2;

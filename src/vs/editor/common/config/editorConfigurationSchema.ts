@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { diffEditorDefaultOptions } from 'vs/editor/common/config/diffEditor';
 import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import * as nls from 'vs/nls';
@@ -206,17 +207,35 @@ const editorConfiguration: IConfigurationNode = {
 		'diffEditor.diffAlgorithm': {
 			type: 'string',
 			enum: ['legacy', 'advanced'],
-			default: 'advanced',
+			default: diffEditorDefaultOptions.diffAlgorithm,
 			markdownEnumDescriptions: [
 				nls.localize('diffAlgorithm.legacy', "Uses the legacy diffing algorithm."),
 				nls.localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
 			],
 			tags: ['experimental'],
 		},
-		'diffEditor.experimental.collapseUnchangedRegions': {
+		'diffEditor.hideUnchangedRegions.enabled': {
 			type: 'boolean',
-			default: false,
-			markdownDescription: nls.localize('collapseUnchangedRegions', "Controls whether the diff editor shows unchanged regions. Only works when {0} is set.", '`#diffEditor.experimental.useVersion2#`'),
+			default: diffEditorDefaultOptions.hideUnchangedRegions.enabled,
+			markdownDescription: nls.localize('hideUnchangedRegions.enabled', "Controls whether the diff editor shows unchanged regions. Only works when {0} is set.", '`#diffEditor.experimental.useVersion2#`'),
+		},
+		'diffEditor.hideUnchangedRegions.revealLineCount': {
+			type: 'integer',
+			default: diffEditorDefaultOptions.hideUnchangedRegions.revealLineCount,
+			markdownDescription: nls.localize('hideUnchangedRegions.revealLineCount', "Controls how many lines are used for unchanged regions. Only works when {0} is set.", '`#diffEditor.experimental.useVersion2#`'),
+			minimum: 1,
+		},
+		'diffEditor.hideUnchangedRegions.minimumLineCount': {
+			type: 'integer',
+			default: diffEditorDefaultOptions.hideUnchangedRegions.minimumLineCount,
+			markdownDescription: nls.localize('hideUnchangedRegions.minimumLineCount', "Controls how many lines are used as a minimum for unchanged regions. Only works when {0} is set.", '`#diffEditor.experimental.useVersion2#`'),
+			minimum: 1,
+		},
+		'diffEditor.hideUnchangedRegions.contextLineCount': {
+			type: 'integer',
+			default: diffEditorDefaultOptions.hideUnchangedRegions.contextLineCount,
+			markdownDescription: nls.localize('hideUnchangedRegions.contextLineCount', "Controls how many lines are used as context when comparing unchanged regions. Only works when {0} is set.", '`#diffEditor.experimental.useVersion2#`'),
+			minimum: 1,
 		},
 		'diffEditor.experimental.showMoves': {
 			type: 'boolean',

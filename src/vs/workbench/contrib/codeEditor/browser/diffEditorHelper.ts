@@ -23,6 +23,8 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 
 class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
 	public static readonly ID = 'editor.contrib.diffEditorHelper';
@@ -120,3 +122,14 @@ function createScreenReaderHelp(): IDisposable {
 }
 
 registerDiffEditorContribution(DiffEditorHelperContribution.ID, DiffEditorHelperContribution);
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'diffEditor.experimental.collapseUnchangedRegions',
+		migrateFn: (value, accessor) => {
+			return [
+				['diffEditor.hideUnchangedRegions.enabled', { value }],
+				['diffEditor.experimental.collapseUnchangedRegions', { value: undefined }]
+			];
+		}
+	}]);

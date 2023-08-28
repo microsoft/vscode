@@ -6,6 +6,7 @@
 import { IObservable, ISettableObservable, derived, observableValue } from 'vs/base/common/observable';
 import { Constants } from 'vs/base/common/uint';
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { diffEditorDefaultOptions } from 'vs/editor/common/config/diffEditor';
 import { IDiffEditorBaseOptions, IDiffEditorOptions, IEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from 'vs/editor/common/config/editorOptions';
 
 export class DiffEditorOptions {
@@ -37,7 +38,6 @@ export class DiffEditorOptions {
 	});
 	public readonly renderIndicators = derived(reader => /** @description renderIndicators */ this._options.read(reader).renderIndicators);
 	public readonly enableSplitViewResizing = derived(reader => /** @description enableSplitViewResizing */ this._options.read(reader).enableSplitViewResizing);
-	public readonly collapseUnchangedRegions = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).experimental.collapseUnchangedRegions!);
 	public readonly splitViewDefaultRatio = derived(reader => /** @description splitViewDefaultRatio */ this._options.read(reader).splitViewDefaultRatio);
 	public readonly ignoreTrimWhitespace = derived(reader => /** @description ignoreTrimWhitespace */ this._options.read(reader).ignoreTrimWhitespace);
 	public readonly maxComputationTimeMs = derived(reader => /** @description maxComputationTime */ this._options.read(reader).maxComputationTime);
@@ -51,38 +51,17 @@ export class DiffEditorOptions {
 	public readonly showEmptyDecorations = derived(reader => /** @description showEmptyDecorations */ this._options.read(reader).experimental.showEmptyDecorations!);
 	public readonly onlyShowAccessibleDiffViewer = derived(reader => /** @description onlyShowAccessibleDiffViewer */ this._options.read(reader).onlyShowAccessibleDiffViewer);
 
+	public readonly hideUnchangedRegions = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).hideUnchangedRegions.enabled!);
+	public readonly hideUnchangedRegionsRevealLineCount = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).hideUnchangedRegions.revealLineCount!);
+	public readonly hideUnchangedRegionsContextLineCount = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).hideUnchangedRegions.contextLineCount!);
+	public readonly hideUnchangedRegionsminimumLineCount = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).hideUnchangedRegions.minimumLineCount!);
+
 	public updateOptions(changedOptions: IDiffEditorOptions): void {
 		const newDiffEditorOptions = validateDiffEditorOptions(changedOptions, this._options.get());
 		const newOptions = { ...this._options.get(), ...changedOptions, ...newDiffEditorOptions };
 		this._options.set(newOptions, undefined, { changedOptions: changedOptions });
 	}
 }
-
-const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
-	enableSplitViewResizing: true,
-	splitViewDefaultRatio: 0.5,
-	renderSideBySide: true,
-	renderMarginRevertIcon: true,
-	maxComputationTime: 5000,
-	maxFileSize: 50,
-	ignoreTrimWhitespace: true,
-	renderIndicators: true,
-	originalEditable: false,
-	diffCodeLens: false,
-	renderOverviewRuler: true,
-	diffWordWrap: 'inherit',
-	diffAlgorithm: 'advanced',
-	accessibilityVerbose: false,
-	experimental: {
-		collapseUnchangedRegions: false,
-		showMoves: false,
-		showEmptyDecorations: true,
-	},
-	isInEmbeddedEditor: false,
-	onlyShowAccessibleDiffViewer: false,
-	renderSideBySideInlineBreakpoint: 900,
-	useInlineViewWhenSpaceIsLimited: true,
-};
 
 function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaults: ValidDiffEditorBaseOptions): ValidDiffEditorBaseOptions {
 	return {
@@ -101,9 +80,14 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced'], { 'smart': 'legacy', 'experimental': 'advanced' }),
 		accessibilityVerbose: validateBooleanOption(options.accessibilityVerbose, defaults.accessibilityVerbose),
 		experimental: {
-			collapseUnchangedRegions: validateBooleanOption(options.experimental?.collapseUnchangedRegions, defaults.experimental.collapseUnchangedRegions!),
 			showMoves: validateBooleanOption(options.experimental?.showMoves, defaults.experimental.showMoves!),
 			showEmptyDecorations: validateBooleanOption(options.experimental?.showEmptyDecorations, defaults.experimental.showEmptyDecorations!),
+		},
+		hideUnchangedRegions: {
+			enabled: validateBooleanOption(options.hideUnchangedRegions?.enabled ?? (options.experimental as any)?.collapseUnchangedRegions, defaults.hideUnchangedRegions.enabled!),
+			contextLineCount: clampedInt(options.hideUnchangedRegions?.contextLineCount, defaults.hideUnchangedRegions.contextLineCount!, 0, Constants.MAX_SAFE_SMALL_INTEGER),
+			minimumLineCount: clampedInt(options.hideUnchangedRegions?.minimumLineCount, defaults.hideUnchangedRegions.minimumLineCount!, 0, Constants.MAX_SAFE_SMALL_INTEGER),
+			revealLineCount: clampedInt(options.hideUnchangedRegions?.revealLineCount, defaults.hideUnchangedRegions.revealLineCount!, 0, Constants.MAX_SAFE_SMALL_INTEGER),
 		},
 		isInEmbeddedEditor: validateBooleanOption(options.isInEmbeddedEditor, defaults.isInEmbeddedEditor),
 		onlyShowAccessibleDiffViewer: validateBooleanOption(options.onlyShowAccessibleDiffViewer, defaults.onlyShowAccessibleDiffViewer),

@@ -147,7 +147,7 @@ export class DiffEditorEditors extends Disposable {
 		clonedOptions.minimap = { ...(clonedOptions.minimap || {}) };
 		clonedOptions.minimap.enabled = false;
 
-		if (this._options.collapseUnchangedRegions.get()) {
+		if (this._options.hideUnchangedRegions.get()) {
 			clonedOptions.stickyScroll = { enabled: false };
 		} else {
 			clonedOptions.stickyScroll = this._options.editorOptions.get().stickyScroll;

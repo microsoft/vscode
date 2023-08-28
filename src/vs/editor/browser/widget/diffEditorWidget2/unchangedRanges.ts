@@ -94,13 +94,13 @@ export class UnchangedRangesFeature extends Disposable {
 					const d = derived(reader => /** @description hiddenOriginalRangeStart */ r.getHiddenOriginalRange(reader).startLineNumber - 1);
 					const origVz = new PlaceholderViewZone(d, 24);
 					origViewZones.push(origVz);
-					store.add(new CollapsedCodeOverlayWidget(this._editors.original, origVz, r, r.originalRange, !sideBySide, modifiedOutlineSource, l => this._diffModel.get()!.ensureOriginalLineIsVisible(l, undefined)));
+					store.add(new CollapsedCodeOverlayWidget(this._editors.original, origVz, r, r.originalRange, !sideBySide, modifiedOutlineSource, l => this._diffModel.get()!.ensureOriginalLineIsVisible(l, undefined), this._options));
 				}
 				{
 					const d = derived(reader => /** @description hiddenModifiedRangeStart */ r.getHiddenModifiedRange(reader).startLineNumber - 1);
 					const modViewZone = new PlaceholderViewZone(d, 24);
 					modViewZones.push(modViewZone);
-					store.add(new CollapsedCodeOverlayWidget(this._editors.modified, modViewZone, r, r.modifiedRange, false, modifiedOutlineSource, l => this._diffModel.get()!.ensureModifiedLineIsVisible(l, undefined)));
+					store.add(new CollapsedCodeOverlayWidget(this._editors.modified, modViewZone, r, r.modifiedRange, false, modifiedOutlineSource, l => this._diffModel.get()!.ensureModifiedLineIsVisible(l, undefined), this._options));
 				}
 			}
 
@@ -266,6 +266,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 		private readonly hide: boolean,
 		private readonly _modifiedOutlineSource: OutlineSource,
 		private readonly _revealHiddenLine: (lineNumber: number) => void,
+		private readonly _options: DiffEditorOptions,
 	) {
 		const root = h('div.diff-hidden-lines-widget');
 		super(_editor, _viewZone, root.root);
@@ -307,7 +308,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 
 			const mouseUpListener = addDisposableListener(window, 'mouseup', e => {
 				if (!didMove) {
-					this._unchangedRegion.showMoreAbove(20, undefined);
+					this._unchangedRegion.showMoreAbove(this._options.hideUnchangedRegionsRevealLineCount.get(), undefined);
 				}
 				this._nodes.top.classList.toggle('dragging', false);
 				this._nodes.root.classList.toggle('dragging', false);
@@ -347,7 +348,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 				if (!didMove) {
 					const top = editor.getTopForLineNumber(this._unchangedRegionRange.endLineNumberExclusive);
 
-					this._unchangedRegion.showMoreBelow(20, undefined);
+					this._unchangedRegion.showMoreBelow(this._options.hideUnchangedRegionsRevealLineCount.get(), undefined);
 					const top2 = editor.getTopForLineNumber(this._unchangedRegionRange.endLineNumberExclusive);
 					editor.setScrollTop(editor.getScrollTop() + (top2 - top));
 				}
