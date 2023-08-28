@@ -61,9 +61,9 @@ import { IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { INotebookOutlineEntryCacheService, NotebookOutlineEntryCacheService } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { EditorFontLigatures, EditorFontVariations } from 'vs/editor/common/config/editorOptions';
+import { INotebookOutlineEntryCacheService, NotebookOutlineEntryCacheService } from 'vs/workbench/contrib/notebook/browser/viewModel/NotebookOutlineEntryCacheService';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(

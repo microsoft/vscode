@@ -15,7 +15,7 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { INotebookOutlineEntryCacheService } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
+import { INotebookOutlineEntryCacheService } from 'vs/workbench/contrib/notebook/browser/viewModel/NotebookOutlineEntryCacheService';
 import { OutlineEntry } from './OutlineEntry';
 
 export class NotebookCellOutlineProvider {

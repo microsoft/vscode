@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { mock } from 'vs/base/test/common/mock';
 import { IOutlineModelService, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookOutlineEntryCacheService } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
+import { NotebookOutlineEntryCacheService } from 'vs/workbench/contrib/notebook/browser/viewModel/NotebookOutlineEntryCacheService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 suite('Notebook Symbols', function () {
