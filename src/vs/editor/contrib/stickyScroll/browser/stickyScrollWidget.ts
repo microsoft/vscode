@@ -45,6 +45,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
 	private _minContentWidthInPx: number = 0;
+	private _isOnFoldingGlyphMargin: boolean = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -187,28 +188,29 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return;
 		}
 		this._foldingIconStore.add(dom.addDisposableListener(this._lineNumbersDomNode, dom.EventType.MOUSE_ENTER, (e) => {
-			const mouseEventTriggerredByClick =
-				'fromElement' in e
-				&& e.fromElement instanceof HTMLElement
-				&& e.fromElement.classList.contains('codicon');
+
+			this._isOnFoldingGlyphMargin = true;
 
 			for (const line of this._stickyLines) {
 				const foldingIcon = line.foldingIcon;
 				if (!foldingIcon) {
 					continue;
 				}
-				if (mouseEventTriggerredByClick) {
-					foldingIcon.setTransitionRequired(false);
-					foldingIcon.setVisible(true);
-					setTimeout(() => { foldingIcon.setTransitionRequired(true); }, 300);
-				} else {
-					foldingIcon.setVisible(true);
-				}
+				foldingIcon.setTransitionRequired(true);
+				foldingIcon.setVisible(true);
+				foldingIcon.setTransitionRequired(false);
 			}
 		}));
 		this._foldingIconStore.add(dom.addDisposableListener(this._lineNumbersDomNode, dom.EventType.MOUSE_LEAVE, () => {
+
+			this._isOnFoldingGlyphMargin = false;
+
 			for (const line of this._stickyLines) {
 				const foldingIcon = line.foldingIcon;
+				if (!foldingIcon) {
+					continue;
+				}
+				foldingIcon.setTransitionRequired(true);
 				foldingIcon?.setVisible(foldingIcon.isCollapsed);
 			}
 		}));
