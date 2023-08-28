@@ -45,6 +45,7 @@ import { DiffEditorEditors } from './diffEditorEditors';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel';
 import { toDisposable } from 'vs/base/common/lifecycle';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 
 export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
@@ -91,6 +92,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
 	) {
 		super();
 		codeEditorService.willCreateDiffEditor();
@@ -266,6 +268,14 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 				} else if (diff) {
 					this._audioCueService.playAudioCue(AudioCue.diffLineModified, { source: 'diffEditor.cursorPositionChanged' });
 				}
+			}
+		}));
+
+		const isDiffUpToDate = this._diffModel.map((m, reader) => m?.isDiffUpToDate.read(reader));
+		this._register(autorunWithStore((reader, store) => {
+			if (isDiffUpToDate.read(reader) === false) {
+				const r = this._editorProgressService.show(true, 1000);
+				store.add(toDisposable(() => r.done()));
 			}
 		}));
 	}
