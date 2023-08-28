@@ -22,11 +22,10 @@ import { walkthroughs } from 'vs/workbench/contrib/welcomeGettingStarted/common/
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
+import { LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
 import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedExtensionPoint';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
-import { coalesce, flatten } from 'vs/base/common/arrays';
 import { IViewsService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -564,24 +563,6 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		if ((step as any).doneOn) {
 			console.error(`wakthrough step`, step, `uses deprecated 'doneOn' property. Adopt 'completionEvents' to silence this warning`);
 			return;
-		}
-
-		if (!step.completionEvents.length) {
-			step.completionEvents = coalesce(flatten(
-				step.description
-					.filter(linkedText => linkedText.nodes.length === 1) // only buttons
-					.map(linkedText =>
-						linkedText.nodes
-							.filter(((node): node is ILink => typeof node !== 'string'))
-							.map(({ href }) => {
-								if (href.startsWith('command:')) {
-									return 'onCommand:' + href.slice('command:'.length, href.includes('?') ? href.indexOf('?') : undefined);
-								}
-								if (href.startsWith('https://') || href.startsWith('http://')) {
-									return 'onLink:' + href;
-								}
-								return undefined;
-							}))));
 		}
 
 		if (!step.completionEvents.length) {
