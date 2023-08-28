@@ -24,10 +24,10 @@ import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
@@ -176,7 +176,7 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		// const variables = this.chatVariablesService.getVariables();
-		const variableReg = /(^|\s)@(\w+)(?=(\s|$))/ig;
+		const variableReg = /(^|\s)@(\w+)(:\d+)?(?=(\s|$))/ig;
 		let match: RegExpMatchArray | null;
 		const varDecorations: IDecorationOptions[] = [];
 		while (match = variableReg.exec(inputValue)) {
@@ -253,14 +253,14 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				return <CompletionList>{
-					suggestions: slashCommands.map(c => {
+					suggestions: sortSlashCommandsByYieldTo<ISlashCommand>(slashCommands).map((c, i) => {
 						const withSlash = `/${c.command}`;
 						return <CompletionItem>{
 							label: withSlash,
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							detail: c.detail,
 							range: new Range(1, 1, 1, 1),
-							sortText: c.sortText ?? c.command,
+							sortText: c.sortText ?? 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
 							command: c.executeImmediately ? { id: SubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
 						};
@@ -269,6 +269,79 @@ class SlashCommandCompletions extends Disposable {
 			}
 		}));
 	}
+}
+
+interface SlashCommandYieldTo {
+	command: string;
+}
+
+// Adapted from https://github.com/microsoft/vscode/blob/ca2c1636f87ea4705f32345c2e348e815996e129/src/vs/editor/contrib/dropOrPasteInto/browser/edit.ts#L31-L99
+function sortSlashCommandsByYieldTo<T extends {
+	readonly command: string;
+	readonly yieldsTo?: ReadonlyArray<SlashCommandYieldTo>;
+}>(slashCommands: readonly T[]): T[] {
+	function yieldsTo(yTo: SlashCommandYieldTo, other: T): boolean {
+		return 'command' in yTo && other.command === yTo.command;
+	}
+
+	// Build list of nodes each node yields to
+	const yieldsToMap = new Map<T, T[]>();
+	for (const slashCommand of slashCommands) {
+		for (const yTo of slashCommand.yieldsTo ?? []) {
+			for (const other of slashCommands) {
+				if (other.command === slashCommand.command) {
+					continue;
+				}
+
+				if (yieldsTo(yTo, other)) {
+					let arr = yieldsToMap.get(slashCommand);
+					if (!arr) {
+						arr = [];
+						yieldsToMap.set(slashCommand, arr);
+					}
+					arr.push(other);
+				}
+			}
+		}
+	}
+
+	if (!yieldsToMap.size) {
+		return Array.from(slashCommands);
+	}
+
+	// Topological sort
+	const visited = new Set<T>();
+	const tempStack: T[] = [];
+
+	function visit(nodes: T[]): T[] {
+		if (!nodes.length) {
+			return [];
+		}
+
+		const node = nodes[0];
+		if (tempStack.includes(node)) {
+			console.warn(`Yield to cycle detected for ${node.command}`);
+			return nodes;
+		}
+
+		if (visited.has(node)) {
+			return visit(nodes.slice(1));
+		}
+
+		let pre: T[] = [];
+		const yTo = yieldsToMap.get(node);
+		if (yTo) {
+			tempStack.push(node);
+			pre = visit(yTo);
+			tempStack.pop();
+		}
+
+		visited.add(node);
+
+		return [...pre, node, ...visit(nodes.slice(1))];
+	}
+
+	return visit(Array.from(slashCommands));
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SlashCommandCompletions, LifecyclePhase.Eventually);
@@ -309,17 +382,31 @@ class VariableCompletions extends Disposable {
 					replace = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, varWord.endColumn);
 				}
 
+				const history = widget.viewModel!.getItems()
+					.filter(isResponseVM);
+
+				// TODO@roblourens work out a real API for this- maybe it can be part of the two-step flow that @file will probably use
+				const historyItems = history.map((h, i): CompletionItem => ({
+					label: `@response:${i + 1}`,
+					detail: h.response.asString(),
+					insertText: `@response:${String(i + 1).padStart(String(history.length).length, '0')} `,
+					kind: CompletionItemKind.Text,
+					range: { insert, replace },
+				}));
+
+				const variableItems = Array.from(this.chatVariablesService.getVariables()).map(v => {
+					const withAt = `@${v.name}`;
+					return <CompletionItem>{
+						label: withAt,
+						range: { insert, replace },
+						insertText: withAt + ' ',
+						detail: v.description,
+						kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+					};
+				});
+
 				return <CompletionList>{
-					suggestions: Array.from(this.chatVariablesService.getVariables()).map(v => {
-						const withAt = `@${v.name}`;
-						return <CompletionItem>{
-							label: withAt,
-							range: { insert, replace },
-							insertText: withAt + ' ',
-							detail: v.description,
-							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-						};
-					})
+					suggestions: [...variableItems, ...historyItems]
 				};
 			}
 		}));

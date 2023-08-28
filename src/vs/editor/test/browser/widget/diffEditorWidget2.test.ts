@@ -19,6 +19,8 @@ suite('DiffEditorWidget2', () => {
 				[new LineRangeMapping(new LineRange(1, 10), new LineRange(1, 10), [])],
 				10,
 				10,
+				3,
+				3,
 			)), []);
 		});
 
@@ -27,6 +29,8 @@ suite('DiffEditorWidget2', () => {
 				[],
 				10,
 				10,
+				3,
+				3,
 			)), [
 				"[1,11) - [1,11)"
 			]);
@@ -37,6 +41,8 @@ suite('DiffEditorWidget2', () => {
 				[new LineRangeMapping(new LineRange(50, 60), new LineRange(50, 60), [])],
 				100,
 				100,
+				3,
+				3,
 			)), ([
 				'[1,47) - [1,47)',
 				'[63,101) - [63,101)'
@@ -48,6 +54,8 @@ suite('DiffEditorWidget2', () => {
 				[new LineRangeMapping(new LineRange(99, 100), new LineRange(100, 100), [])],
 				100,
 				100,
+				3,
+				3,
 			)), (["[1,96) - [1,96)"]));
 		});
 	});

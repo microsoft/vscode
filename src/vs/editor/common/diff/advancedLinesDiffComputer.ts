@@ -17,7 +17,7 @@ import { optimizeSequenceDiffs, removeRandomLineMatches, removeRandomMatches, sm
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/algorithms/myersDiffAlgorithm';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping, LinesDiff, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
-export class StandardLinesDiffComputer implements ILinesDiffComputer {
+export class AdvancedLinesDiffComputer implements ILinesDiffComputer {
 	private readonly dynamicProgrammingDiffing = new DynamicProgrammingDiffing();
 	private readonly myersDiffingAlgorithm = new MyersDiffAlgorithm();
 
@@ -311,7 +311,7 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			const modifiedDist = current.modified.startLineNumber - last.modified.endLineNumberExclusive;
 			const currentMoveAfterLast = originalDist >= 0 && modifiedDist >= 0;
 
-			if (currentMoveAfterLast && originalDist <= 1 && modifiedDist <= 1) {
+			if (currentMoveAfterLast && originalDist + modifiedDist <= 2) {
 				joinedMoves[joinedMoves.length - 1] = last.join(current);
 				continue;
 			}

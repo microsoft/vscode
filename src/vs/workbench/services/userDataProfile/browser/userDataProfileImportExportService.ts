@@ -324,14 +324,15 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 
 		let result: { name: string; items: ReadonlyArray<IQuickPickItem> } | undefined;
 		disposables.add(Event.any(quickPick.onDidCustom, quickPick.onDidAccept)(() => {
-			if (!quickPick.value) {
-				quickPick.validationMessage = localize('name required', "Provide a name for the new profile");
+			const name = quickPick.value.trim();
+			if (!name) {
+				quickPick.validationMessage = localize('name required', "Profile name is required and must be a non-empty value.");
 				quickPick.severity = Severity.Error;
 			}
 			if (quickPick.validationMessage) {
 				return;
 			}
-			result = { name: quickPick.value, items: quickPick.selectedItems };
+			result = { name, items: quickPick.selectedItems };
 			quickPick.hide();
 			quickPick.severity = Severity.Ignore;
 			quickPick.validationMessage = undefined;

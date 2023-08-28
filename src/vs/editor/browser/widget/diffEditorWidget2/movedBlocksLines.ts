@@ -102,6 +102,9 @@ export class MovedBlocksLinesPart extends Disposable {
 		}));
 	}
 
+	private readonly _modifiedViewZonesChangedSignal = observableSignalFromEvent('modified.onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
+	private readonly _originalViewZonesChangedSignal = observableSignalFromEvent('original.onDidChangeViewZones', this._editors.original.onDidChangeViewZones);
+
 	private readonly _state = derivedWithStore('state', (reader, store) => {
 		/** @description update moved blocks lines */
 
@@ -122,10 +125,13 @@ export class MovedBlocksLinesPart extends Disposable {
 			return;
 		}
 
+		this._modifiedViewZonesChangedSignal.read(reader);
+		this._originalViewZonesChangedSignal.read(reader);
+
 		const lines = moves.map((move) => {
 			function computeLineStart(range: LineRange, editor: ICodeEditor) {
-				const t1 = editor.getTopForLineNumber(range.startLineNumber);
-				const t2 = editor.getTopForLineNumber(range.endLineNumberExclusive);
+				const t1 = editor.getTopForLineNumber(range.startLineNumber, true);
+				const t2 = editor.getTopForLineNumber(range.endLineNumberExclusive, true);
 				return (t1 + t2) / 2;
 			}
 
@@ -145,7 +151,7 @@ export class MovedBlocksLinesPart extends Disposable {
 
 		lines.sort(tieBreakComparators(
 			compareBy(l => l.fromWithoutScroll > l.toWithoutScroll, booleanComparator),
-			compareBy(l => -l.fromWithoutScroll, numberComparator)
+			compareBy(l => l.fromWithoutScroll > l.toWithoutScroll ? l.fromWithoutScroll : -l.toWithoutScroll, numberComparator)
 		));
 
 		const layout = LinesLayout.compute(lines.map(l => l.range));
@@ -325,6 +331,7 @@ class MovedBlockOverlayWidget extends ViewZoneOverlayWidget {
 			const isActive = this._diffModel.movedTextToCompare.read(reader) === _move;
 			actionCompare.checked = isActive;
 		}));
-		actionBar.push(actionCompare, { icon: true, label: false });
+
+		actionBar.push(actionCompare, { icon: false, label: true });
 	}
 }

@@ -14,11 +14,15 @@
 	line-height: 14px;
 }
 
-.monaco-editor .diff-hidden-lines:not(.dragging) .top:hover, .diff-hidden-lines:not(.dragging) .bottom:hover, .diff-hidden-lines .top.dragging, .diff-hidden-lines .bottom.dragging {
+.monaco-editor .diff-hidden-lines:not(.dragging) .top:hover,
+.monaco-editor .diff-hidden-lines:not(.dragging) .bottom:hover,
+.monaco-editor .diff-hidden-lines .top.dragging,
+.monaco-editor .diff-hidden-lines .bottom.dragging {
 	background-color: var(--vscode-focusBorder);
 }
 
-.monaco-editor .diff-hidden-lines .top, .diff-hidden-lines .bottom {
+.monaco-editor .diff-hidden-lines .top,
+.monaco-editor .diff-hidden-lines .bottom {
 	transition: background-color 0.1s ease-out;
 	height: 4px;
 	background-color: transparent;
@@ -68,6 +72,14 @@
 .monaco-editor .diff-hidden-lines .center a:hover .codicon {
 	cursor: pointer;
 	color: var(--vscode-editorLink-activeForeground) !important;
+}
+
+.monaco-editor .diff-hidden-lines div.breadcrumb-item {
+	cursor: pointer;
+}
+
+.monaco-editor .diff-hidden-lines div.breadcrumb-item:hover {
+	color: var(--vscode-editorLink-activeForeground);
 }
 
 .monaco-editor .movedOriginal {

@@ -11,7 +11,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
@@ -42,7 +42,7 @@ class AccessibleViewNextAction extends Action2 {
 					...accessibleViewMenu,
 					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
 				}],
-			icon: Codicon.chevronRight,
+			icon: Codicon.arrowDown,
 			title: localize('editor.action.accessibleViewNext', "Show Next in Accessible View")
 		});
 	}
@@ -62,7 +62,7 @@ class AccessibleViewPreviousAction extends Action2 {
 				primary: KeyMod.Alt | KeyCode.BracketLeft,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			icon: Codicon.chevronLeft,
+			icon: Codicon.arrowUp,
 			menu: [
 				commandPalette,
 				{
@@ -84,7 +84,7 @@ class AccessibleViewGoToSymbolAction extends Action2 {
 	constructor() {
 		super({
 			id: AccessibilityCommandId.GoToSymbol,
-			precondition: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewGoToSymbolSupported),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown), accessibleViewGoToSymbolSupported),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period],
@@ -95,7 +95,7 @@ class AccessibleViewGoToSymbolAction extends Action2 {
 				commandPalette,
 				{
 					...accessibleViewMenu,
-					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+					when: ContextKeyExpr.and(ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown), accessibleViewGoToSymbolSupported),
 				}
 			],
 			title: localize('editor.action.accessibleViewGoToSymbol', "Go To Symbol in Accessible View")
@@ -182,7 +182,7 @@ class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 	constructor() {
 		super({
 			id: AccessibilityCommandId.AccessibleViewAcceptInlineCompletion,
-			precondition: ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibilityVerbositySettingId.InlineCompletions)),
+			precondition: ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.InlineCompletions)),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.Slash,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Slash },
@@ -195,7 +195,7 @@ class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 					id: MenuId.AccessibleView,
 					group: 'navigation',
 					order: 0,
-					when: ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibilityVerbositySettingId.InlineCompletions))
+					when: ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.InlineCompletions))
 				}],
 			title: localize('editor.action.accessibleViewAcceptInlineCompletionAction', "Accept Inline Completion")
 		});

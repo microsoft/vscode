@@ -40,14 +40,16 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 
 	protected _listeners: IDisposable[] = [];
 
-	private readonly _focusedContextKey?: IContextKey<boolean>;
+	private readonly _focusedContextKey: IContextKey<boolean>;
+	private readonly _focusedLastLineContextKey: IContextKey<boolean>;
 	private readonly _focusTracker?: dom.IFocusTracker;
 
 	constructor(
 		private readonly _className: string,
 		protected readonly _instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource'>,
 		protected readonly _xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal },
-		private _focusContextKey: RawContextKey<boolean> | undefined,
+		rawFocusContextKey: RawContextKey<boolean>,
+		rawFocusLastLineContextKey: RawContextKey<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -87,12 +89,21 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		this._element.replaceChildren(this._editorContainer);
 		this._xtermElement.insertAdjacentElement('beforebegin', this._element);
 
-		if (this._focusContextKey) {
-			this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
-			this._focusedContextKey = this._focusContextKey.bindTo(this._contextKeyService);
-			this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey?.set(true)));
-			this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey?.reset()));
-		}
+		this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
+		this._focusedContextKey = rawFocusContextKey.bindTo(this._contextKeyService);
+		this._focusedLastLineContextKey = rawFocusLastLineContextKey.bindTo(this._contextKeyService);
+		this.add(this._focusTracker.onDidFocus(() => {
+			this._focusedContextKey?.set(true);
+			this._focusedLastLineContextKey?.set(this._editorWidget.getSelection()?.positionLineNumber === this._editorWidget.getModel()?.getLineCount());
+		}));
+		this.add(this._focusTracker.onDidBlur(() => {
+			this._focusedContextKey?.reset();
+			this._focusedLastLineContextKey?.reset();
+		}));
+		this._editorWidget.onDidChangeCursorPosition(() => {
+			console.log(this._editorWidget.getSelection()?.positionLineNumber === this._editorWidget.getModel()?.getLineCount());
+			this._focusedLastLineContextKey?.set(this._editorWidget.getSelection()?.positionLineNumber === this._editorWidget.getModel()?.getLineCount());
+		});
 
 		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this.layout()));
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
@@ -105,8 +116,7 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 			switch (e.keyCode) {
 				case KeyCode.Escape:
 					// On escape, hide the accessible buffer and force focus onto the terminal
-					this.hide();
-					this._xterm.raw.focus();
+					this.hide(true);
 					break;
 				case KeyCode.Tab:
 					// On tab or shift+tab, hide the accessible buffer and perform the default tab
@@ -152,10 +162,13 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		}
 	}
 
-	hide(): void {
+	hide(focusXterm?: boolean): void {
 		this._disposeListeners();
 		this.element.classList.remove(ClassName.Active);
 		this._xtermElement.classList.remove(ClassName.Hide);
+		if (focusXterm) {
+			this._xterm.raw.focus();
+		}
 	}
 
 	async getTextModel(resource: URI): Promise<ITextModel | null> {

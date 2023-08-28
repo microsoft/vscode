@@ -318,3 +318,9 @@
 .quick-input-list .monaco-list-row.focused .monaco-keybinding-key {
 	background: none;
 }
+
+/* Quick input separators as full-row item */
+.quick-input-list .quick-input-list-separator-as-item {
+	font-weight: 600;
+	font-size: 12px;
+}
