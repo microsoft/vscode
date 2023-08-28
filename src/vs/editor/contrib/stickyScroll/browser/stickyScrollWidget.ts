@@ -151,14 +151,15 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private async _renderRootNode(): Promise<void> {
 
+		console.log('inside of render root node');
 		const foldingModel = await FoldingController.get(this._editor)?.getFoldingModel();
 		const layoutInfo = this._editor.getLayoutInfo();
 		console.log('this._previousStickyLines', JSON.stringify(this._previousStickyLines));
 		console.log('this._lineNumbers', JSON.stringify(this._lineNumbers));
 		for (const [index, line] of this._lineNumbers.entries()) {
-			let renderedStickyLine: RenderedStickyLine | undefined;
 			console.log('this._previousStickyLines[index].lineNumber : ', this._previousStickyLines[index].lineNumber);
 			console.log('line : ', line);
+			let renderedStickyLine: RenderedStickyLine | undefined;
 			if (this._previousStickyLines[index].lineNumber === line) {
 				// Element was already rendered so reuse the rendered node
 				console.log('inside of if loop for line : ', line);
