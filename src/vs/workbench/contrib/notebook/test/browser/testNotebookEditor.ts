@@ -62,7 +62,6 @@ import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspac
 import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { INotebookOutlineEntryCacheService, NotebookOutlineEntryCacheService } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
-import { NotebookExecutionStateService } from 'vs/workbench/contrib/notebook/browser/services/notebookExecutionStateServiceImpl';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
