@@ -41,11 +41,7 @@ export class DiffEditorOptions {
 	public readonly splitViewDefaultRatio = derived(reader => /** @description splitViewDefaultRatio */ this._options.read(reader).splitViewDefaultRatio);
 	public readonly ignoreTrimWhitespace = derived(reader => /** @description ignoreTrimWhitespace */ this._options.read(reader).ignoreTrimWhitespace);
 	public readonly maxComputationTimeMs = derived(reader => /** @description maxComputationTime */ this._options.read(reader).maxComputationTime);
-	public readonly showMoves = derived(reader => {
-		/** @description showMoves */
-		const o = this._options.read(reader);
-		return o.experimental.showMoves! && o.renderSideBySide;
-	});
+	public readonly showMoves = derived(reader => /** @description showMoves */ this._options.read(reader).experimental.showMoves! && this.renderSideBySide.read(reader));
 	public readonly isInEmbeddedEditor = derived(reader => /** @description isInEmbeddedEditor */ this._options.read(reader).isInEmbeddedEditor);
 	public readonly diffWordWrap = derived(reader => /** @description diffWordWrap */ this._options.read(reader).diffWordWrap);
 	public readonly originalEditable = derived(reader => /** @description originalEditable */ this._options.read(reader).originalEditable);

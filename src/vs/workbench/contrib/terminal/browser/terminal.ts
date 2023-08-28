@@ -6,13 +6,13 @@
 import { IDimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
+import { Event, IDynamicListEventMultiplexer } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IMarkProperties, ITerminalCapabilityImplMap, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalBackend, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -170,7 +170,7 @@ export interface IDetachedTerminalInstance extends IDisposable {
 	attachToElement(container: HTMLElement, options?: Partial<IXtermAttachToElementOptions>): void;
 }
 
-export const isDetachedTerminalInstance = (t: ITerminalInstance | IDetachedTerminalInstance): t is IDetachedTerminalInstance => typeof (t as ITerminalInstance).instanceId === 'number';
+export const isDetachedTerminalInstance = (t: ITerminalInstance | IDetachedTerminalInstance): t is IDetachedTerminalInstance => typeof (t as ITerminalInstance).instanceId !== 'number';
 
 export interface ITerminalService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
@@ -263,6 +263,21 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	getEditingTerminal(): ITerminalInstance | undefined;
 	setEditingTerminal(instance: ITerminalInstance | undefined): void;
+
+	/**
+	 * Creates an instance event listener that listens to all instances, dynamically adding new
+	 * instances and removing old instances as needed.
+	 * @param getEvent Maps the instance to the event.
+	 */
+	onInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): IDynamicListEventMultiplexer<T>;
+
+	/**
+	 * Creates a capability event listener that listens to capabilities on all instances,
+	 * dynamically adding and removing instances and capabilities as needed.
+	 * @param capabilityId The capability type to listen to an event on.
+	 * @param getEvent Maps the capability to the event.
+	 */
+	onInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }>;
 }
 export class TerminalLinkQuickPickEvent extends MouseEvent {
 

@@ -13,7 +13,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 
 const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
 
-export class SmartLinesDiffComputer implements ILinesDiffComputer {
+export class LegacyLinesDiffComputer implements ILinesDiffComputer {
 	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): LinesDiff {
 		const diffComputer = new DiffComputer(originalLines, modifiedLines, {
 			maxComputationTime: options.maxComputationTimeMs,

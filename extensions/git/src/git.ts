@@ -397,8 +397,8 @@ export class Git {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
 	}
 
-	open(repository: string, dotGit: { path: string; commonPath?: string }, logger: LogOutputChannel): Repository {
-		return new Repository(this, repository, dotGit, logger);
+	open(repositoryRoot: string, repositoryRootRealPath: string | undefined, dotGit: { path: string; commonPath?: string }, logger: LogOutputChannel): Repository {
+		return new Repository(this, repositoryRoot, repositoryRootRealPath, dotGit, logger);
 	}
 
 	async init(repository: string, options: InitOptions = {}): Promise<void> {
@@ -956,6 +956,7 @@ export class Repository {
 	constructor(
 		private _git: Git,
 		private repositoryRoot: string,
+		private repositoryRootRealPath: string | undefined,
 		readonly dotGit: { path: string; commonPath?: string },
 		private logger: LogOutputChannel
 	) { }
@@ -966,6 +967,10 @@ export class Repository {
 
 	get root(): string {
 		return this.repositoryRoot;
+	}
+
+	get rootRealPath(): string | undefined {
+		return this.repositoryRootRealPath;
 	}
 
 	async exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {

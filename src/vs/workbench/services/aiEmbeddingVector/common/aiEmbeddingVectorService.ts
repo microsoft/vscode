@@ -11,26 +11,27 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export const ISemanticSimilarityService = createDecorator<ISemanticSimilarityService>('ISemanticSimilarityService');
+export const IAiEmbeddingVectorService = createDecorator<IAiEmbeddingVectorService>('IAiEmbeddingVectorService');
 
-export interface ISemanticSimilarityService {
+export interface IAiEmbeddingVectorService {
 	readonly _serviceBrand: undefined;
 
 	isEnabled(): boolean;
-	getSimilarityScore(string1: string, comparisons: string[], token: CancellationToken): Promise<number[]>;
-	registerSemanticSimilarityProvider(provider: ISemanticSimilarityProvider): IDisposable;
+	getEmbeddingVector(str: string, token: CancellationToken): Promise<number[]>;
+	getEmbeddingVector(strings: string[], token: CancellationToken): Promise<number[][]>;
+	registerAiEmbeddingVectorProvider(model: string, provider: IAiEmbeddingVectorProvider): IDisposable;
 }
 
-export interface ISemanticSimilarityProvider {
-	provideSimilarityScore(string1: string, comparisons: string[], token: CancellationToken): Promise<number[]>;
+export interface IAiEmbeddingVectorProvider {
+	provideAiEmbeddingVector(strings: string[], token: CancellationToken): Promise<number[][]>;
 }
 
-export class SemanticSimilarityService implements ISemanticSimilarityService {
+export class AiEmbeddingVectorService implements IAiEmbeddingVectorService {
 	readonly _serviceBrand: undefined;
 
 	static readonly DEFAULT_TIMEOUT = 1000 * 10; // 10 seconds
 
-	private readonly _providers: ISemanticSimilarityProvider[] = [];
+	private readonly _providers: IAiEmbeddingVectorProvider[] = [];
 
 	constructor(@ILogService private readonly logService: ILogService) { }
 
@@ -38,7 +39,7 @@ export class SemanticSimilarityService implements ISemanticSimilarityService {
 		return this._providers.length > 0;
 	}
 
-	registerSemanticSimilarityProvider(provider: ISemanticSimilarityProvider): IDisposable {
+	registerAiEmbeddingVectorProvider(model: string, provider: IAiEmbeddingVectorProvider): IDisposable {
 		this._providers.push(provider);
 		return {
 			dispose: () => {
@@ -50,16 +51,18 @@ export class SemanticSimilarityService implements ISemanticSimilarityService {
 		};
 	}
 
-	async getSimilarityScore(string1: string, comparisons: string[], token: CancellationToken): Promise<number[]> {
+	getEmbeddingVector(str: string, token: CancellationToken): Promise<number[]>;
+	getEmbeddingVector(strings: string[], token: CancellationToken): Promise<number[][]>;
+	async getEmbeddingVector(strings: string | string[], token: CancellationToken): Promise<number[] | number[][]> {
 		if (this._providers.length === 0) {
-			throw new Error('No semantic similarity providers registered');
+			throw new Error('No embedding vector providers registered');
 		}
 
 		const stopwatch = StopWatch.create();
 
-		const cancellablePromises: Array<CancelablePromise<number[]>> = [];
+		const cancellablePromises: Array<CancelablePromise<number[][]>> = [];
 
-		const timer = timeout(SemanticSimilarityService.DEFAULT_TIMEOUT);
+		const timer = timeout(AiEmbeddingVectorService.DEFAULT_TIMEOUT);
 		const disposable = token.onCancellationRequested(() => {
 			disposable.dispose();
 			timer.cancel();
@@ -68,7 +71,10 @@ export class SemanticSimilarityService implements ISemanticSimilarityService {
 		for (const provider of this._providers) {
 			cancellablePromises.push(createCancelablePromise(async t => {
 				try {
-					return await provider.provideSimilarityScore(string1, comparisons, t);
+					return await provider.provideAiEmbeddingVector(
+						Array.isArray(strings) ? strings : [strings],
+						t
+					);
 				} catch (e) {
 					// logged in extension host
 				}
@@ -76,7 +82,7 @@ export class SemanticSimilarityService implements ISemanticSimilarityService {
 				// Alternatively, if something resolved, or we've timed out, this will throw
 				// as expected.
 				await timer;
-				throw new Error('Semantic similarity provider timed out');
+				throw new Error('Embedding vector provider timed out');
 			}));
 		}
 
@@ -86,17 +92,23 @@ export class SemanticSimilarityService implements ISemanticSimilarityService {
 				disposable.dispose();
 			});
 			await timer;
-			throw new Error('Semantic similarity provider timed out');
+			throw new Error('Embedding vector provider timed out');
 		}));
 
 		try {
 			const result = await raceCancellablePromises(cancellablePromises);
+
+			// If we have a single result, return it directly, otherwise return an array.
+			// This aligns with the API overloads.
+			if (result.length === 1) {
+				return result[0];
+			}
 			return result;
 		} finally {
 			stopwatch.stop();
-			this.logService.trace(`[SemanticSimilarityService]: getSimilarityScore took ${stopwatch.elapsed()}ms`);
+			this.logService.trace(`[AiEmbeddingVectorService]: getEmbeddingVector took ${stopwatch.elapsed()}ms`);
 		}
 	}
 }
 
-registerSingleton(ISemanticSimilarityService, SemanticSimilarityService, InstantiationType.Delayed);
+registerSingleton(IAiEmbeddingVectorService, AiEmbeddingVectorService, InstantiationType.Delayed);

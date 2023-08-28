@@ -176,7 +176,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds, onCaseInsenitiveFileSystem);
 		this.onReady(() => { this.bufferSyncSupport.listen(); });
 
-		this.diagnosticsManager = new DiagnosticsManager('typescript', onCaseInsenitiveFileSystem);
 		this.bufferSyncSupport.onDelete(resource => {
 			this.cancelInflightRequestsForResource(resource);
 			this.diagnosticsManager.deleteAllDiagnosticsInFile(resource);
@@ -213,7 +212,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 			return this.apiVersion.fullVersionString;
 		});
-
+		this.diagnosticsManager = new DiagnosticsManager('typescript', this._configuration, this.telemetryReporter, onCaseInsenitiveFileSystem);
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this._versionManager, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer, this.processFactory);
 
 		this._register(this.pluginManager.onDidUpdateConfig(update => {

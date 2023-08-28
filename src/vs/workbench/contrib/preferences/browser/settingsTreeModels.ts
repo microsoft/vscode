@@ -273,7 +273,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	private getTargetToInspect(setting: ISetting): SettingsTarget {
-		if (!this.userDataProfileService.currentProfile.isDefault) {
+		if (!this.userDataProfileService.currentProfile.isDefault && !this.userDataProfileService.currentProfile.useDefaultFlags?.settings) {
 			if (setting.scope === ConfigurationScope.APPLICATION) {
 				return ConfigurationTarget.APPLICATION;
 			}

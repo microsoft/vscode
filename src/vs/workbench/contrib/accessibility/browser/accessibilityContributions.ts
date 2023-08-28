@@ -96,12 +96,16 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 			}
 		}
 
+		if (options.get(EditorOption.stickyScroll)) {
+			content.push(this._descriptionForCommand('editor.action.focusStickyScroll', AccessibilityHelpNLS.stickScrollKb, AccessibilityHelpNLS.stickScrollNoKb));
+		}
+
 		if (options.get(EditorOption.tabFocusMode)) {
 			content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb));
 		} else {
 			content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb));
 		}
-		return content.join('\n');
+		return content.join('\n\n');
 	}
 }
 
@@ -282,7 +286,6 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 		this._register(AccessibleViewAction.addImplementation(95, 'inline-completions', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const codeEditorService = accessor.get(ICodeEditorService);
-			const contextViewService = accessor.get(IContextViewService);
 			const show = () => {
 				const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 				if (!editor) {
@@ -311,12 +314,12 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 						editor.focus();
 					},
 					next() {
-						contextViewService.hideContextView();
-						setTimeout(() => model.next().then(() => show()), 50);
+						model.next();
+						setTimeout(() => show(), 50);
 					},
 					previous() {
-						contextViewService.hideContextView();
-						setTimeout(() => model.previous().then(() => show()), 50);
+						model.previous();
+						setTimeout(() => show(), 50);
 					},
 					options: this._options
 				});

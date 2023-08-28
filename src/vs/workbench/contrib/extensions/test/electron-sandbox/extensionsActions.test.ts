@@ -447,7 +447,7 @@ suite('ExtensionsActions', () => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage', testObject.class);
-				assert.strictEqual('', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 
@@ -462,7 +462,7 @@ suite('ExtensionsActions', () => {
 				testObject.extension = page.firstPage[0];
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage hide', testObject.class);
-				assert.strictEqual('', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 
@@ -479,7 +479,7 @@ suite('ExtensionsActions', () => {
 				installEvent.fire({ identifier: gallery.identifier, source: gallery });
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage hide', testObject.class);
-				assert.strictEqual('', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 
@@ -498,7 +498,7 @@ suite('ExtensionsActions', () => {
 		await promise;
 		assert.ok(testObject.enabled);
 		assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage', testObject.class);
-		assert.strictEqual('', testObject.tooltip);
+		assert.strictEqual('Manage', testObject.tooltip);
 	});
 
 	test('Test ManageExtensionAction when extension is system extension', () => {
@@ -512,7 +512,7 @@ suite('ExtensionsActions', () => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage', testObject.class);
-				assert.strictEqual('', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 
@@ -529,7 +529,7 @@ suite('ExtensionsActions', () => {
 
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage', testObject.class);
-				assert.strictEqual('Uninstalling', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 
