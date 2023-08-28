@@ -112,6 +112,7 @@ export interface TypeScriptServiceConfiguration {
 	readonly useSyntaxServer: SyntaxServerConfiguration;
 	readonly webProjectWideIntellisenseEnabled: boolean;
 	readonly webProjectWideIntellisenseSuppressSemanticErrors: boolean;
+	readonly webExperimentalTypeAcquisition: boolean;
 	readonly enableDiagnosticsTelemetry: boolean;
 	readonly enableProjectDiagnostics: boolean;
 	readonly maxTsServerMemory: number;
@@ -145,6 +146,7 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			useSyntaxServer: this.readUseSyntaxServer(configuration),
 			webProjectWideIntellisenseEnabled: this.readWebProjectWideIntellisenseEnable(configuration),
 			webProjectWideIntellisenseSuppressSemanticErrors: this.readWebProjectWideIntellisenseSuppressSemanticErrors(configuration),
+			webExperimentalTypeAcquisition: this.readWebExperimentalTypeAcquisition(configuration),
 			enableDiagnosticsTelemetry: this.readEnableDiagnosticsTelemetry(configuration),
 			enableProjectDiagnostics: this.readEnableProjectDiagnostics(configuration),
 			maxTsServerMemory: this.readMaxTsServerMemory(configuration),
@@ -173,6 +175,10 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 
 	protected readDisableAutomaticTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.disableAutomaticTypeAcquisition', false);
+	}
+
+	protected readWebExperimentalTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.experimental.tsserver.web.typeAcquisition.enabled', false);
 	}
 
 	protected readLocale(configuration: vscode.WorkspaceConfiguration): string | null {
