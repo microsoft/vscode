@@ -129,7 +129,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._lastLineRelativePosition = 0;
 			this._lineNumbers = [];
 		}
-		this._renderRootNode();
+		this._renderRootNode(forceRebuildFullState);
 	}
 
 	private _updateWidgetWidth(): void {
@@ -149,34 +149,51 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.style.display = 'none';
 	}
 
-	private async _renderRootNode(): Promise<void> {
+	private async _renderRootNode(forceRebuildFullState: boolean = false): Promise<void> {
 
 		console.log('inside of render root node');
+
 		const foldingModel = await FoldingController.get(this._editor)?.getFoldingModel();
 		const layoutInfo = this._editor.getLayoutInfo();
-		console.log('this._previousStickyLines', JSON.stringify(this._previousStickyLines));
-		console.log('this._lineNumbers', JSON.stringify(this._lineNumbers));
+
+		let renderedStickyLine: RenderedStickyLine;
+		let lineDomNode: HTMLElement;
+		let lineNumberDomNode: HTMLElement;
+
 		for (const [index, line] of this._lineNumbers.entries()) {
-			console.log('this._previousStickyLines[index].lineNumber : ', this._previousStickyLines[index].lineNumber);
 			console.log('line : ', line);
-			let renderedStickyLine: RenderedStickyLine | undefined;
-			if (this._previousStickyLines[index].lineNumber === line) {
+
+			const previousRenderedStickyLine = this._previousStickyLines[index];
+
+			if (forceRebuildFullState && previousRenderedStickyLine && previousRenderedStickyLine.lineNumber === line) {
 				// Element was already rendered so reuse the rendered node
 				console.log('inside of if loop for line : ', line);
-				renderedStickyLine = this._previousStickyLines[index];
-			} else {
-				// Render the element
-				console.log('inside of else loop');
-				renderedStickyLine = this._renderChildNode(index, line, layoutInfo, foldingModel);
-			}
 
-			this._linesDomNode.appendChild(renderedStickyLine.lineDomNode);
-			this._lineNumbersDomNode.appendChild(renderedStickyLine.lineNumberDomNode);
+				renderedStickyLine = previousRenderedStickyLine;
+				const foldingIcon = renderedStickyLine.foldingIcon;
+				const isLastLine = index === this._lineNumbers.length - 1;
+
+				lineDomNode = renderedStickyLine.lineDomNode;
+				lineNumberDomNode = renderedStickyLine.lineNumberDomNode;
+
+				const lastLineZIndex = '0';
+				const intermediateLineZIndex = '1';
+				lineDomNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
+				lineNumberDomNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
+
+				const lastLineTop = `${index * this._lineHeight + this._lastLineRelativePosition + (foldingIcon?.isCollapsed ? 1 : 0)}px`;
+				const intermediateLineTop = `${index * this._lineHeight}px`;
+				lineDomNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
+				lineNumberDomNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
+			} else {
+				renderedStickyLine = this._renderChildNode(index, line, layoutInfo, foldingModel);
+				lineDomNode = renderedStickyLine.lineDomNode;
+				lineNumberDomNode = renderedStickyLine.lineNumberDomNode;
+			}
+			this._linesDomNode.appendChild(lineDomNode);
+			this._lineNumbersDomNode.appendChild(lineNumberDomNode);
 			this._stickyLines.push(renderedStickyLine);
 		}
-		console.log('this._stickyLines', JSON.stringify(this._stickyLines));
-		console.log('this._linesDomNode : ', JSON.stringify(this._linesDomNode));
-		console.log('this._lineNumbersDomNode : ', JSON.stringify(this._lineNumbersDomNode));
 		if (foldingModel) {
 			this._setFoldingHoverListeners();
 		}
