@@ -13,7 +13,6 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import type { IVoiceTranscriptionWorkletOptions } from 'vs/workbench/services/voiceRecognition/electron-sandbox/voiceTranscriptionWorklet';
 
 export const IWorkbenchVoiceRecognitionService = createDecorator<IWorkbenchVoiceRecognitionService>('workbenchVoiceRecognitionService');
 
@@ -37,6 +36,12 @@ export interface IWorkbenchVoiceRecognitionService {
 	 * listening to the microphone.
 	 */
 	transcribe(cancellation: CancellationToken, options?: IWorkbenchVoiceRecognitionOptions): Promise<Event<string>>;
+}
+
+interface IVoiceTranscriptionWorkletOptions extends AudioWorkletNodeOptions {
+	processorOptions: {
+		readonly bufferTimespan: number;
+	};
 }
 
 class VoiceTranscriptionWorkletNode extends AudioWorkletNode {

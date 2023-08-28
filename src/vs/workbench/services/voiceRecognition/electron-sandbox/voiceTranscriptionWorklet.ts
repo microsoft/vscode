@@ -10,7 +10,7 @@ declare class AudioWorkletProcessor {
 	process(inputs: [Float32Array[]], outputs: [Float32Array[]]): boolean;
 }
 
-export interface IVoiceTranscriptionWorkletOptions extends AudioWorkletNodeOptions {
+interface IVoiceTranscriptionWorkletOptions extends AudioWorkletNodeOptions {
 	processorOptions: {
 		readonly bufferTimespan: number;
 	};
