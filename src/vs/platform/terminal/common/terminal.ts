@@ -64,6 +64,7 @@ export const enum TerminalSettingId {
 	FontWeightBold = 'terminal.integrated.fontWeightBold',
 	CursorBlinking = 'terminal.integrated.cursorBlinking',
 	CursorStyle = 'terminal.integrated.cursorStyle',
+	CursorStyleInactive = 'terminal.integrated.cursorStyleInactive',
 	CursorWidth = 'terminal.integrated.cursorWidth',
 	Scrollback = 'terminal.integrated.scrollback',
 	DetectLocale = 'terminal.integrated.detectLocale',
@@ -120,6 +121,8 @@ export const enum TerminalSettingId {
 	DeveloperPtyHostLatency = 'terminal.integrated.developer.ptyHost.latency',
 	/** Simulated startup delay of the pty host process */
 	DeveloperPtyHostStartupDelay = 'terminal.integrated.developer.ptyHost.startupDelay',
+	/** Shows the textarea element */
+	DevMode = 'terminal.integrated.developer.devMode'
 }
 
 export const enum PosixShellType {
@@ -963,6 +966,7 @@ export interface ITerminalCommandSelector {
 	outputMatcher?: ITerminalOutputMatcher;
 	exitStatus: boolean;
 	commandExitResult: 'success' | 'error';
+	kind?: 'fix' | 'explain';
 }
 
 export interface ITerminalBackend {

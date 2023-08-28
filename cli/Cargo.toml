@@ -34,10 +34,10 @@ serde_bytes = "0.11.9"
 chrono = { version = "0.4.26", features = ["serde", "std", "clock"], default-features = false }
 gethostname = "0.4.3"
 libc = "0.2.144"
-tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "2621784a9ad72aa39500372391332a14bad581a3", default-features = false, features = ["connections"] }
+tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "3141ad7be00e18c4231f7c4fb6c11f9219ac49af", default-features = false, features = ["connections"] }
 keyring = { version = "2.0.3", default-features = false, features = ["linux-secret-service-rt-tokio-crypto-openssl"] }
 dialoguer = "0.10.4"
-hyper = "0.14.26"
+hyper = { version = "0.14.26", features = ["server", "http1", "runtime"] }
 indicatif = "0.17.4"
 tempfile = "3.5.0"
 clap_lex = "0.5.0"
@@ -56,7 +56,7 @@ bytes = "1.4.0"
 tar = "0.4.38"
 
 [build-dependencies]
-serde = "1.0.163"
+serde = { version="1.0.163", features = ["derive"] }
 serde_json = "1.0.96"
 
 [target.'cfg(windows)'.dependencies]

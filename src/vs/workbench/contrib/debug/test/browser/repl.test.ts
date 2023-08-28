@@ -5,30 +5,41 @@
 
 
 import * as assert from 'assert';
-import severity from 'vs/base/common/severity';
-import { DebugModel, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { ReplOutputElement, RawObjectReplElement, ReplEvaluationInput, ReplModel, ReplEvaluationResult, ReplGroup, ReplVariableElement } from 'vs/workbench/contrib/debug/common/replModel';
-import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { timeout } from 'vs/base/common/async';
-import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
 import { TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { timeout } from 'vs/base/common/async';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import severity from 'vs/base/common/severity';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
+import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
+import { DebugModel, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
+import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplModel, ReplOutputElement, ReplVariableElement } from 'vs/workbench/contrib/debug/common/replModel';
+import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
 import { MockDebugAdapter, MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 
 suite('Debug - REPL', () => {
 	let model: DebugModel;
 	let rawSession: MockRawSession;
 	const configurationService = new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } });
+	let disposables: DisposableStore;
+
 
 	setup(() => {
-		model = createMockDebugModel();
+		disposables = new DisposableStore();
+		model = createMockDebugModel(disposables);
 		rawSession = new MockRawSession();
 	});
 
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('repl output', () => {
-		const session = createTestSession(model);
+		const session = disposables.add(createTestSession(model));
 		const repl = new ReplModel(configurationService);
 		repl.appendToRepl(session, { output: 'first line\n', sev: severity.Error });
 		repl.appendToRepl(session, { output: 'second line ', sev: severity.Error });
@@ -86,7 +97,7 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl output count', () => {
-		const session = createTestSession(model);
+		const session = disposables.add(createTestSession(model));
 		const repl = new ReplModel(configurationService);
 		repl.appendToRepl(session, { output: 'first line\n', sev: severity.Info });
 		repl.appendToRepl(session, { output: 'first line\n', sev: severity.Info });
@@ -108,14 +119,14 @@ suite('Debug - REPL', () => {
 
 	test('repl merging', () => {
 		// 'mergeWithParent' should be ignored when there is no parent.
-		const parent = createTestSession(model, 'parent', { repl: 'mergeWithParent' });
-		const child1 = createTestSession(model, 'child1', { parentSession: parent, repl: 'separate' });
-		const child2 = createTestSession(model, 'child2', { parentSession: parent, repl: 'mergeWithParent' });
-		const grandChild = createTestSession(model, 'grandChild', { parentSession: child2, repl: 'mergeWithParent' });
-		const child3 = createTestSession(model, 'child3', { parentSession: parent });
+		const parent = disposables.add(createTestSession(model, 'parent', { repl: 'mergeWithParent' }));
+		const child1 = disposables.add(createTestSession(model, 'child1', { parentSession: parent, repl: 'separate' }));
+		const child2 = disposables.add(createTestSession(model, 'child2', { parentSession: parent, repl: 'mergeWithParent' }));
+		const grandChild = disposables.add(createTestSession(model, 'grandChild', { parentSession: child2, repl: 'mergeWithParent' }));
+		const child3 = disposables.add(createTestSession(model, 'child3', { parentSession: parent }));
 
 		let parentChanges = 0;
-		parent.onDidChangeReplElements(() => ++parentChanges);
+		disposables.add(parent.onDidChangeReplElements(() => ++parentChanges));
 
 		parent.appendToRepl({ output: '1\n', sev: severity.Info });
 		assert.strictEqual(parentChanges, 1);
@@ -151,7 +162,7 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl expressions', () => {
-		const session = createTestSession(model);
+		const session = disposables.add(createTestSession(model));
 		assert.strictEqual(session.getReplElements().length, 0);
 		model.addSession(session);
 
@@ -173,11 +184,11 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl ordering', async () => {
-		const session = createTestSession(model);
+		const session = disposables.add(createTestSession(model));
 		model.addSession(session);
 
 		const adapter = new MockDebugAdapter();
-		const raw = new RawDebugSession(adapter, undefined!, '', '', undefined!, undefined!, undefined!, undefined!,);
+		const raw = disposables.add(new RawDebugSession(adapter, undefined!, '', '', undefined!, undefined!, undefined!, undefined!,));
 		session.initializeForTest(raw);
 
 		await session.addReplExpression(undefined, 'before.1');
@@ -195,7 +206,7 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl groups', async () => {
-		const session = createTestSession(model);
+		const session = disposables.add(createTestSession(model));
 		const repl = new ReplModel(configurationService);
 
 		repl.appendToRepl(session, { output: 'first global line', sev: severity.Info });
@@ -233,7 +244,7 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl filter', async () => {
-		const session = createTestSession(model);
+		const session = disposables.add(createTestSession(model));
 		const repl = new ReplModel(configurationService);
 		const replFilter = new ReplFilter();
 

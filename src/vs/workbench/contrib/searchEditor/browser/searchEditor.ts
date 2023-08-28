@@ -10,7 +10,7 @@ import { Delayer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -530,7 +530,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchEditor',
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-			maxResults: withNullAsUndefined(this.searchConfig.maxResults),
+			maxResults: this.searchConfig.maxResults ?? undefined,
 			disregardIgnoreFiles: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			excludePattern: config.filesToExclude,
@@ -567,8 +567,8 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 		const { configurationModel } = await startInput.resolveModels();
 		configurationModel.updateConfig(config);
-
-		startInput.ongoingSearchOperation = this.searchModel.search(query).finally(() => {
+		const result = this.searchModel.search(query);
+		startInput.ongoingSearchOperation = result.asyncResults.finally(() => {
 			this.ongoingOperations--;
 			if (this.ongoingOperations === 0) {
 				this.searchOperation.stop();

@@ -4,16 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-slash-command-content-widget {
-	padding: 0.1em 0.3em;
-	border-radius: 2px;
-	background-color: var(--vscode-textCodeBlock-background);
-	color: var(--vscode-textLink-foreground);
-}
-
-.interactive-session .interactive-input-and-toolbar .chat-slash-command-content-widget {
-	top: 7px !important;
-}
-
-.inline-chat .chat-slash-command-content-widget {
-	top: 2px !important;
+	background-color: var(--vscode-chat-slashCommandBackground);
+	color: var(--vscode-chat-slashCommandForeground);
+	border-radius: 3px;
+	padding: 1px;
 }

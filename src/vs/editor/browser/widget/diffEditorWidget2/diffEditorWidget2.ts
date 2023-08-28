@@ -30,7 +30,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { EditorType, IDiffEditorModel, IDiffEditorViewModel, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
@@ -44,6 +44,7 @@ import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffEditorEditors } from './diffEditorEditors';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel';
+import { toDisposable } from 'vs/base/common/lifecycle';
 
 export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
@@ -78,6 +79,10 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly _options: DiffEditorOptions;
 	private readonly _editors: DiffEditorEditors;
 
+	private readonly movedBlocksLinesPart = observableValue<MovedBlocksLinesPart | undefined>('MovedBlocksLinesPart', undefined);
+
+	public get collapseUnchangedRegions() { return this._options.collapseUnchangedRegions.get(); }
+
 	constructor(
 		private readonly _domElement: HTMLElement,
 		options: Readonly<IDiffEditorConstructionOptions>,
@@ -94,6 +99,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._contextKeyService.createKey('diffEditorVersion', 2);
 
 		this._domElement.appendChild(this.elements.root);
+		this._register(toDisposable(() => this._domElement.removeChild(this.elements.root)));
 
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
@@ -105,6 +111,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._register(autorun(reader => {
 			/** @description update isEmbeddedDiffEditorKey */
 			isEmbeddedDiffEditorKey.set(this._options.isInEmbeddedEditor.read(reader));
+		}));
+
+		const comparingMovedCodeKey = EditorContextKeys.comparingMovedCode.bindTo(this._contextKeyService);
+		this._register(autorun(reader => {
+			/** @description update comparingMovedCodeKey */
+			comparingMovedCodeKey.set(!!this._diffModel.read(reader)?.movedTextToCompare.read(reader));
 		}));
 
 		const diffEditorRenderSideBySideInlineBreakpointReachedContextKeyValue = EditorContextKeys.diffEditorRenderSideBySideInlineBreakpointReached.bindTo(this._contextKeyService);
@@ -147,7 +159,9 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(autorunWithStore((reader, store) => {
 			/** @description UnchangedRangesFeature */
-			this.unchangedRangesFeature = store.add(new (readHotReloadableExport(UnchangedRangesFeature, reader))(this._editors, this._diffModel, this._options));
+			this.unchangedRangesFeature = store.add(
+				this._instantiationService.createInstance(readHotReloadableExport(UnchangedRangesFeature, reader), this._editors, this._diffModel, this._options)
+			);
 		}));
 
 		this._register(autorunWithStore((reader, store) => {
@@ -168,7 +182,9 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(autorunWithStore((reader, store) => {
 			/** @description OverviewRulerPart */
-			store.add(this._instantiationService.createInstance(readHotReloadableExport(OverviewRulerPart, reader), this._editors,
+			store.add(this._instantiationService.createInstance(
+				readHotReloadableExport(OverviewRulerPart, reader),
+				this._editors,
 				this.elements.root,
 				this._diffModel,
 				this._rootSizeObserver.width,
@@ -202,32 +218,21 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(keepAlive(this._layoutInfo, true));
 
-		this._register(new MovedBlocksLinesPart(
-			this.elements.root,
-			this._diffModel,
-			this._layoutInfo.map(i => i.originalEditor),
-			this._layoutInfo.map(i => i.modifiedEditor),
-			this._editors,
-		));
+		this._register(autorunWithStore((reader, store) => {
+			this.movedBlocksLinesPart.set(store.add(new (readHotReloadableExport(MovedBlocksLinesPart, reader))(
+				this.elements.root,
+				this._diffModel,
+				this._layoutInfo.map(i => i.originalEditor),
+				this._layoutInfo.map(i => i.modifiedEditor),
+				this._editors,
+			)), undefined);
+		}));
 
 		this._register(applyStyle(this.elements.overlay, {
 			width: this._layoutInfo.map((i, r) => i.originalEditor.width + (this._options.renderSideBySide.read(r) ? 0 : i.modifiedEditor.width)),
 			visibility: derived(reader => /** @description visibility */(this._options.collapseUnchangedRegions.read(reader) && this._diffModel.read(reader)?.diff.read(reader)?.mappings.length === 0)
 				? 'visible' : 'hidden'
 			),
-		}));
-
-		this._register(this._editors.original.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
-			if (!m) { return; }
-			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.original.contains(e.position.lineNumber));
-			m.syncedMovedTexts.set(movedText, undefined);
-		}));
-		this._register(this._editors.modified.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
-			if (!m) { return; }
-			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.modified.contains(e.position.lineNumber));
-			m.syncedMovedTexts.set(movedText, undefined);
 		}));
 
 		// Revert change when an arrow is clicked.
@@ -283,13 +288,15 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		const originalWidth = sashLeft ?? Math.max(5, this._editors.original.getLayoutInfo().decorationsLeft);
 		const modifiedWidth = width - originalWidth - (this._options.renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0);
 
-		this.elements.original.style.width = originalWidth + 'px';
+		const movedBlocksLinesWidth = this.movedBlocksLinesPart.read(reader)?.width.read(reader) ?? 0;
+		const originalWidthWithoutMovedBlockLines = originalWidth - movedBlocksLinesWidth;
+		this.elements.original.style.width = originalWidthWithoutMovedBlockLines + 'px';
 		this.elements.original.style.left = '0px';
 
 		this.elements.modified.style.width = modifiedWidth + 'px';
 		this.elements.modified.style.left = originalWidth + 'px';
 
-		this._editors.original.layout({ width: originalWidth, height });
+		this._editors.original.layout({ width: originalWidthWithoutMovedBlockLines, height });
 		this._editors.modified.layout({ width: modifiedWidth, height });
 
 		return {
@@ -493,10 +500,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		await diffModel.waitForDiff();
 	}
 
-	switchSide(): void {
+	mapToOtherSide(): { destination: CodeEditorWidget; destinationSelection: Range | undefined } {
 		const isModifiedFocus = this._editors.modified.hasWidgetFocus();
 		const source = isModifiedFocus ? this._editors.modified : this._editors.original;
 		const destination = isModifiedFocus ? this._editors.original : this._editors.modified;
+
+		let destinationSelection: Range | undefined;
 
 		const sourceSelection = source.getSelection();
 		if (sourceSelection) {
@@ -504,11 +513,24 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			if (mappings) {
 				const newRange1 = translatePosition(sourceSelection.getStartPosition(), mappings);
 				const newRange2 = translatePosition(sourceSelection.getEndPosition(), mappings);
-				const range = Range.plusRange(newRange1, newRange2);
-				destination.setSelection(range);
+				destinationSelection = Range.plusRange(newRange1, newRange2);
 			}
 		}
+		return { destination, destinationSelection };
+	}
+
+	switchSide(): void {
+		const { destination, destinationSelection } = this.mapToOtherSide();
 		destination.focus();
+		if (destinationSelection) {
+			destination.setSelection(destinationSelection);
+		}
+	}
+
+	exitCompareMove(): void {
+		const model = this._diffModel.get();
+		if (!model) { return; }
+		model.movedTextToCompare.set(undefined, undefined);
 	}
 }
 

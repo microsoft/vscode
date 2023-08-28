@@ -10,7 +10,8 @@ import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SocketCloseEvent } from 'vs/base/parts/ipc/common/ipc.net';
 import { mock } from 'vs/base/test/common/mock';
-import { ManagedSocket, RemoteSocketHalf } from 'vs/workbench/api/browser/mainThreadManagedSockets';
+import { RemoteSocketHalf } from 'vs/platform/remote/common/managedSocket';
+import { MainThreadManagedSocket } from 'vs/workbench/api/browser/mainThreadManagedSockets';
 import { ExtHostManagedSocketsShape } from 'vs/workbench/api/common/extHost.protocol';
 
 suite('MainThreadManagedSockets', () => {
@@ -68,7 +69,7 @@ suite('MainThreadManagedSockets', () => {
 		});
 
 		async function doConnect() {
-			const socket = ManagedSocket.connect(1, extHost, '/hello', 'world=true', '', half);
+			const socket = MainThreadManagedSocket.connect(1, extHost, '/hello', 'world=true', '', half);
 			await extHost.expectEvent(evt => evt.data && evt.data.startsWith('GET ws://localhost/hello?world=true&skipWebSocketFrames=true HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key:'), 'websocket open event');
 			half.onData.fire(VSBuffer.fromString('Opened successfully ;)\r\n\r\n'));
 			return await socket;
@@ -79,7 +80,7 @@ suite('MainThreadManagedSockets', () => {
 		});
 
 		test('includes trailing connection data', async () => {
-			const socketProm = ManagedSocket.connect(1, extHost, '/hello', 'world=true', '', half);
+			const socketProm = MainThreadManagedSocket.connect(1, extHost, '/hello', 'world=true', '', half);
 			await extHost.expectEvent(evt => evt.data && evt.data.includes('GET ws://localhost'), 'websocket open event');
 			half.onData.fire(VSBuffer.fromString('Opened successfully ;)\r\n\r\nSome trailing data'));
 			const socket = await socketProm;

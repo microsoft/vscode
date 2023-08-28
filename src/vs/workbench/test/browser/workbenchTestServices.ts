@@ -95,7 +95,7 @@ import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEdit
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
@@ -283,15 +283,16 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 	const themeService = new TestThemeService();
 	instantiationService.stub(IThemeService, themeService);
-	instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
+	instantiationService.stub(ILanguageConfigurationService, disposables.add(new TestLanguageConfigurationService()));
 	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
 	const fileService = overrides?.fileService ? overrides.fileService(instantiationService) : new TestFileService();
 	instantiationService.stub(IFileService, fileService);
 	const uriIdentityService = new UriIdentityService(fileService);
+	disposables.add(uriIdentityService);
 	instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(contextKeyService, configService, workspaceContextService, environmentService, uriIdentityService, fileService)));
 	instantiationService.stub(IUriIdentityService, uriIdentityService);
-	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, new NullLogService()));
-	instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService));
+	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, new NullLogService())));
+	instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService)));
 	instantiationService.stub(IWorkingCopyBackupService, overrides?.workingCopyBackupService ? overrides?.workingCopyBackupService(instantiationService) : new TestWorkingCopyBackupService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(INotificationService, new TestNotificationService());
@@ -305,7 +306,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ITextFileService, overrides?.textFileService ? overrides.textFileService(instantiationService) : disposables.add(<ITextFileService>instantiationService.createInstance(TestTextFileService)));
 	instantiationService.stub(IHostService, <IHostService>instantiationService.createInstance(TestHostService));
 	instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
-	instantiationService.stub(ILoggerService, new TestLoggerService(TestEnvironmentService.logsHome));
+	instantiationService.stub(ILoggerService, disposables.add(new TestLoggerService(TestEnvironmentService.logsHome)));
 	instantiationService.stub(ILogService, new NullLogService());
 	const editorGroupService = new TestEditorGroupsService([new TestEditorGroupView(0)]);
 	instantiationService.stub(IEditorGroupsService, editorGroupService);
@@ -314,10 +315,10 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(IWorkingCopyEditorService, disposables.add(instantiationService.createInstance(WorkingCopyEditorService)));
 	instantiationService.stub(IEditorResolverService, disposables.add(instantiationService.createInstance(EditorResolverService)));
-	const textEditorService = overrides?.textEditorService ? overrides.textEditorService(instantiationService) : instantiationService.createInstance(TextEditorService);
+	const textEditorService = overrides?.textEditorService ? overrides.textEditorService(instantiationService) : disposables.add(instantiationService.createInstance(TextEditorService));
 	instantiationService.stub(ITextEditorService, textEditorService);
 	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, configService)));
-	instantiationService.stub(IPaneCompositePartService, new TestPaneCompositeService());
+	instantiationService.stub(IPaneCompositePartService, disposables.add(new TestPaneCompositeService()));
 	instantiationService.stub(IListService, new TestListService());
 	const hoverService = instantiationService.stub(IHoverService, instantiationService.createInstance(TestHoverService));
 	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService, hoverService)));
@@ -794,6 +795,8 @@ export class TestViewsService implements IViewsService {
 
 	onDidChangeViewVisibilityEmitter = new Emitter<{ id: string; visible: boolean }>();
 	onDidChangeViewVisibility = this.onDidChangeViewVisibilityEmitter.event;
+	onDidChangeFocusedViewEmitter = new Emitter<void>();
+	onDidChangeFocusedView = this.onDidChangeFocusedViewEmitter.event;
 	isViewVisible(id: string): boolean { return true; }
 	getActiveViewWithId<T extends IView>(id: string): T | null { return null; }
 	getViewWithId<T extends IView>(id: string): T | null { return null; }
@@ -801,6 +804,7 @@ export class TestViewsService implements IViewsService {
 	closeView(id: string): void { }
 	getViewProgressIndicator(id: string) { return null!; }
 	getActiveViewPaneContainerWithId(id: string) { return null; }
+	getFocusedViewName(): string { return ''; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
@@ -1840,6 +1844,7 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	groups: readonly ITerminalGroup[] = [];
 	activeGroup: ITerminalGroup | undefined;
 	activeGroupIndex: number = 0;
+	lastAccessedMenu: 'inline-tab' | 'tab-list' = 'inline-tab';
 	onDidChangeActiveGroup = Event.None;
 	onDidDisposeGroup = Event.None;
 	onDidShow = Event.None;
@@ -1867,7 +1872,6 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	showPanel(focus?: boolean): Promise<void> { throw new Error('Method not implemented.'); }
 	hidePanel(): void { throw new Error('Method not implemented.'); }
 	focusTabs(): void { throw new Error('Method not implemented.'); }
-	showTabs(): void { throw new Error('Method not implemented.'); }
 	focusHover(): void { throw new Error('Method not implemented.'); }
 	setActiveInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	focusActiveInstance(): Promise<void> { throw new Error('Method not implemented.'); }
@@ -1933,6 +1937,7 @@ export class TestQuickInputService implements IQuickInputService {
 
 	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> { throw new Error('not implemented.'); }
 	createInputBox(): IInputBox { throw new Error('not implemented.'); }
+	createQuickWidget(): IQuickWidget { throw new Error('Method not implemented.'); }
 	focus(): void { throw new Error('not implemented.'); }
 	toggle(): void { throw new Error('not implemented.'); }
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void { throw new Error('not implemented.'); }

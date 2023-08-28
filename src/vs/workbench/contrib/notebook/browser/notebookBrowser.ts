@@ -151,6 +151,7 @@ export interface IFocusNotebookCellOptions {
 	readonly skipReveal?: boolean;
 	readonly focusEditorLine?: number;
 	readonly minimalScrolling?: boolean;
+	readonly outputId?: string;
 }
 
 //#endregion
@@ -549,6 +550,11 @@ export interface INotebookEditor {
 	 */
 	updateOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
 
+	/**
+	 * Copy the image in the specific cell output to the clipboard
+	 */
+	copyOutputImage(cellOutput: ICellOutputViewModel): Promise<void>;
+
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage>;
 
 	/**
@@ -796,6 +802,13 @@ export enum CursorAtBoundary {
 	None,
 	Top,
 	Bottom,
+	Both
+}
+
+export enum CursorAtLineBoundary {
+	None,
+	Start,
+	End,
 	Both
 }
 

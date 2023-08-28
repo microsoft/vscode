@@ -14,11 +14,15 @@
 	line-height: 14px;
 }
 
-.monaco-editor .diff-hidden-lines:not(.dragging) .top:hover, .diff-hidden-lines:not(.dragging) .bottom:hover, .diff-hidden-lines .top.dragging, .diff-hidden-lines .bottom.dragging {
+.monaco-editor .diff-hidden-lines:not(.dragging) .top:hover,
+.monaco-editor .diff-hidden-lines:not(.dragging) .bottom:hover,
+.monaco-editor .diff-hidden-lines .top.dragging,
+.monaco-editor .diff-hidden-lines .bottom.dragging {
 	background-color: var(--vscode-focusBorder);
 }
 
-.monaco-editor .diff-hidden-lines .top, .diff-hidden-lines .bottom {
+.monaco-editor .diff-hidden-lines .top,
+.monaco-editor .diff-hidden-lines .bottom {
 	transition: background-color 0.1s ease-out;
 	height: 4px;
 	background-color: transparent;
@@ -78,6 +82,30 @@
 	border: 2px solid var(--vscode-diffEditor-move-border);
 }
 
+.monaco-editor .movedOriginal.currentMove, .monaco-editor .movedModified.currentMove {
+	border: 2px solid var(--vscode-diffEditor-moveActive-border);
+}
+
+.monaco-diff-editor .moved-blocks-lines path.currentMove {
+	stroke: var(--vscode-diffEditor-moveActive-border);
+}
+
+.monaco-diff-editor .moved-blocks-lines path {
+	pointer-events: visiblestroke;
+}
+
+.monaco-diff-editor .moved-blocks-lines .arrow {
+	fill: var(--vscode-diffEditor-move-border);
+}
+
+.monaco-diff-editor .moved-blocks-lines .arrow.currentMove {
+	fill: var(--vscode-diffEditor-moveActive-border);
+}
+
+.monaco-diff-editor .moved-blocks-lines .arrow-rectangle {
+	fill: var(--vscode-editor-background);
+}
+
 .monaco-diff-editor .moved-blocks-lines {
 	position: absolute;
 	pointer-events: none;
@@ -100,4 +128,16 @@
 
 .monaco-editor .fold-unchanged {
 	cursor: pointer;
+}
+
+.monaco-diff-editor .diff-moved-code-block {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: -4px;
+}
+
+.monaco-diff-editor .diff-moved-code-block .action-bar .action-label.codicon {
+	width: 12px;
+	height: 12px;
+	font-size: 12px;
 }

@@ -6,8 +6,8 @@
 import * as dom from 'vs/base/browser/dom';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DynamicListEventMultiplexer, Emitter, Event, IDynamicListEventMultiplexer } from 'vs/base/common/event';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -29,7 +29,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IDetachedXTermOptions, IDetachedXtermTerminal, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, IXtermTerminal, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IDetachedTerminalInstance, IDetachedXTermOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, IXtermTerminal, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -52,8 +52,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { mark } from 'vs/base/common/performance';
+import { DeatachedTerminal } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
+import { ITerminalCapabilityImplMap, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { createInstanceCapabilityEventMultiplexer } from 'vs/workbench/contrib/terminal/browser/terminalEvents';
 
-export class TerminalService implements ITerminalService {
+export class TerminalService extends Disposable implements ITerminalService {
 	declare _serviceBrand: undefined;
 
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
@@ -120,47 +123,47 @@ export class TerminalService implements ITerminalService {
 
 	private _editingTerminal: ITerminalInstance | undefined;
 
-	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
+	private readonly _onDidChangeActiveGroup = this._register(new Emitter<ITerminalGroup | undefined>());
 	get onDidChangeActiveGroup(): Event<ITerminalGroup | undefined> { return this._onDidChangeActiveGroup.event; }
-	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
+	private readonly _onDidCreateInstance = this._register(new Emitter<ITerminalInstance>());
 	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
-	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
+	private readonly _onDidDisposeInstance = this._register(new Emitter<ITerminalInstance>());
 	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
-	private readonly _onDidFocusInstance = new Emitter<ITerminalInstance>();
+	private readonly _onDidFocusInstance = this._register(new Emitter<ITerminalInstance>());
 	get onDidFocusInstance(): Event<ITerminalInstance> { return this._onDidFocusInstance.event; }
-	private readonly _onDidReceiveProcessId = new Emitter<ITerminalInstance>();
+	private readonly _onDidReceiveProcessId = this._register(new Emitter<ITerminalInstance>());
 	get onDidReceiveProcessId(): Event<ITerminalInstance> { return this._onDidReceiveProcessId.event; }
-	private readonly _onDidRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
+	private readonly _onDidRequestStartExtensionTerminal = this._register(new Emitter<IStartExtensionTerminalRequest>());
 	get onDidRequestStartExtensionTerminal(): Event<IStartExtensionTerminalRequest> { return this._onDidRequestStartExtensionTerminal.event; }
-	private readonly _onDidChangeInstanceDimensions = new Emitter<ITerminalInstance>();
+	private readonly _onDidChangeInstanceDimensions = this._register(new Emitter<ITerminalInstance>());
 	get onDidChangeInstanceDimensions(): Event<ITerminalInstance> { return this._onDidChangeInstanceDimensions.event; }
-	private readonly _onDidMaxiumumDimensionsChange = new Emitter<ITerminalInstance>();
+	private readonly _onDidMaxiumumDimensionsChange = this._register(new Emitter<ITerminalInstance>());
 	get onDidMaximumDimensionsChange(): Event<ITerminalInstance> { return this._onDidMaxiumumDimensionsChange.event; }
-	private readonly _onDidChangeInstanceCapability = new Emitter<ITerminalInstance>();
+	private readonly _onDidChangeInstanceCapability = this._register(new Emitter<ITerminalInstance>());
 	get onDidChangeInstanceCapability(): Event<ITerminalInstance> { return this._onDidChangeInstanceCapability.event; }
-	private readonly _onDidChangeInstances = new Emitter<void>();
+	private readonly _onDidChangeInstances = this._register(new Emitter<void>());
 	get onDidChangeInstances(): Event<void> { return this._onDidChangeInstances.event; }
-	private readonly _onDidChangeInstanceTitle = new Emitter<ITerminalInstance | undefined>();
+	private readonly _onDidChangeInstanceTitle = this._register(new Emitter<ITerminalInstance | undefined>());
 	get onDidChangeInstanceTitle(): Event<ITerminalInstance | undefined> { return this._onDidChangeInstanceTitle.event; }
-	private readonly _onDidChangeInstanceIcon = new Emitter<{ instance: ITerminalInstance; userInitiated: boolean }>();
+	private readonly _onDidChangeInstanceIcon = this._register(new Emitter<{ instance: ITerminalInstance; userInitiated: boolean }>());
 	get onDidChangeInstanceIcon(): Event<{ instance: ITerminalInstance; userInitiated: boolean }> { return this._onDidChangeInstanceIcon.event; }
-	private readonly _onDidChangeInstanceColor = new Emitter<{ instance: ITerminalInstance; userInitiated: boolean }>();
+	private readonly _onDidChangeInstanceColor = this._register(new Emitter<{ instance: ITerminalInstance; userInitiated: boolean }>());
 	get onDidChangeInstanceColor(): Event<{ instance: ITerminalInstance; userInitiated: boolean }> { return this._onDidChangeInstanceColor.event; }
-	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
+	private readonly _onDidChangeActiveInstance = this._register(new Emitter<ITerminalInstance | undefined>());
 	get onDidChangeActiveInstance(): Event<ITerminalInstance | undefined> { return this._onDidChangeActiveInstance.event; }
-	private readonly _onDidChangeInstancePrimaryStatus = new Emitter<ITerminalInstance>();
+	private readonly _onDidChangeInstancePrimaryStatus = this._register(new Emitter<ITerminalInstance>());
 	get onDidChangeInstancePrimaryStatus(): Event<ITerminalInstance> { return this._onDidChangeInstancePrimaryStatus.event; }
-	private readonly _onDidInputInstanceData = new Emitter<ITerminalInstance>();
+	private readonly _onDidInputInstanceData = this._register(new Emitter<ITerminalInstance>());
 	get onDidInputInstanceData(): Event<ITerminalInstance> { return this._onDidInputInstanceData.event; }
-	private readonly _onDidChangeSelection = new Emitter<ITerminalInstance>();
+	private readonly _onDidChangeSelection = this._register(new Emitter<ITerminalInstance>());
 	get onDidChangeSelection(): Event<ITerminalInstance> { return this._onDidChangeSelection.event; }
-	private readonly _onDidDisposeGroup = new Emitter<ITerminalGroup>();
+	private readonly _onDidDisposeGroup = this._register(new Emitter<ITerminalGroup>());
 	get onDidDisposeGroup(): Event<ITerminalGroup> { return this._onDidDisposeGroup.event; }
-	private readonly _onDidChangeGroups = new Emitter<void>();
+	private readonly _onDidChangeGroups = this._register(new Emitter<void>());
 	get onDidChangeGroups(): Event<void> { return this._onDidChangeGroups.event; }
-	private readonly _onDidRegisterProcessSupport = new Emitter<void>();
+	private readonly _onDidRegisterProcessSupport = this._register(new Emitter<void>());
 	get onDidRegisterProcessSupport(): Event<void> { return this._onDidRegisterProcessSupport.event; }
-	private readonly _onDidChangeConnectionState = new Emitter<void>();
+	private readonly _onDidChangeConnectionState = this._register(new Emitter<void>());
 	get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
 
 	constructor(
@@ -185,7 +188,9 @@ export class TerminalService implements ITerminalService {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ITimerService private readonly _timerService: ITimerService
 	) {
-		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
+		super();
+
+		this._configHelper = this._register(this._instantiationService.createInstance(TerminalConfigHelper));
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
@@ -1016,9 +1021,9 @@ export class TerminalService implements ITerminalService {
 		return this._createTerminal(shellLaunchConfig, location, options);
 	}
 
-	async createDetachedXterm(options: IDetachedXTermOptions): Promise<IDetachedXtermTerminal> {
+	async createDetachedTerminal(options: IDetachedXTermOptions): Promise<IDetachedTerminalInstance> {
 		const ctor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
-		const instance = this._instantiationService.createInstance(
+		const xterm = this._instantiationService.createInstance(
 			XtermTerminal,
 			ctor,
 			this._configHelper,
@@ -1032,13 +1037,16 @@ export class TerminalService implements ITerminalService {
 		);
 
 		if (options.readonly) {
-			instance.raw.attachCustomKeyEventHandler(() => false);
+			xterm.raw.attachCustomKeyEventHandler(() => false);
 		}
 
-		this._detachedXterms.add(instance);
-		instance.onDidDispose(() => this._detachedXterms.delete(instance));
+		this._detachedXterms.add(xterm);
+		const l = xterm.onDidDispose(() => {
+			this._detachedXterms.delete(xterm);
+			l.dispose();
+		});
 
-		return instance;
+		return new DeatachedTerminal(xterm, options, this._instantiationService);
 	}
 
 	private async _resolveCwd(shellLaunchConfig: IShellLaunchConfig, splitActiveTerminal: boolean, options?: ICreateTerminalOptions): Promise<void> {
@@ -1187,6 +1195,14 @@ export class TerminalService implements ITerminalService {
 
 	setEditingTerminal(instance: ITerminalInstance | undefined) {
 		this._editingTerminal = instance;
+	}
+
+	onInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): IDynamicListEventMultiplexer<T> {
+		return new DynamicListEventMultiplexer(this.instances, this.onDidCreateInstance, this.onDidDisposeInstance, getEvent);
+	}
+
+	onInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }> {
+		return createInstanceCapabilityEventMultiplexer(this.instances, this.onDidCreateInstance, this.onDidDisposeInstance, capabilityId, getEvent);
 	}
 }
 

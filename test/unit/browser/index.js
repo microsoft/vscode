@@ -14,6 +14,7 @@ const createStatsCollector = require('../../../node_modules/mocha/lib/stats-coll
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const minimatch = require('minimatch');
+const fs = require('fs');
 const playwright = require('@playwright/test');
 const { applyReporter } = require('../reporter');
 
@@ -141,9 +142,18 @@ async function runTestsInBrowser(testModules, browserType) {
 	}
 
 	const emitter = new events.EventEmitter();
-	await page.exposeFunction('mocha_report', (type, data1, data2) => {
-		emitter.emit(type, data1, data2);
-	});
+
+	await Promise.all([
+		page.exposeFunction('mocha_report', (type, data1, data2) => {
+			emitter.emit(type, data1, data2);
+		}),
+		// Test file operations that are common across platforms. Used for test infra, namely snapshot tests
+		page.exposeFunction('__readFileInTests', (path) => fs.promises.readFile(path, 'utf-8')),
+		page.exposeFunction('__writeFileInTests', (path, contents) => fs.promises.writeFile(path, contents)),
+		page.exposeFunction('__readDirInTests', (path) => fs.promises.readdir(path)),
+		page.exposeFunction('__unlinkInTests', (path) => fs.promises.unlink(path)),
+		page.exposeFunction('__mkdirPInTests', (path) => fs.promises.mkdir(path, { recursive: true })),
+	]);
 
 	await page.goto(target.href);
 

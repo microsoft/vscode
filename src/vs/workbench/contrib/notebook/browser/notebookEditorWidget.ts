@@ -87,7 +87,7 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { BaseCellEditorOptions } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEditorOptions';
-import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
+import { FloatingEditorClickMenu } from 'vs/workbench/browser/codeeditor';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
@@ -99,6 +99,7 @@ import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/brows
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 
 const $ = DOM.$;
 
@@ -106,7 +107,7 @@ export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOpti
 	// We inlined the id to avoid loading comment contrib in tests
 	const skipContributions = [
 		'editor.contrib.review',
-		FloatingClickMenu.ID,
+		FloatingEditorClickMenu.ID,
 		'editor.contrib.dirtydiff',
 		'editor.contrib.testingOutputPeek',
 		'editor.contrib.testingDecorations',
@@ -872,7 +873,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._register(this._listDelegate);
 
 		const createNotebookAriaLabel = () => {
-			const keybinding = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
+			const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 
 			if (this.configurationService.getValue(AccessibilityVerbositySettingId.Notebook)) {
 				return keybinding
@@ -2348,9 +2349,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
-			if (!options?.skipReveal) {
-				this._webview.focusOutput(cell.id, this._webviewFocused);
-			}
+			const focusElementId = options?.outputId ?? cell.id;
+			this._webview.focusOutput(focusElementId, this._webviewFocused);
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Output;
@@ -2790,6 +2790,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			const cellTop = this._list.getCellViewScrollTop(cell) + top;
 			this._webview.updateOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
 		});
+	}
+
+	async copyOutputImage(cellOutput: ICellOutputViewModel): Promise<void> {
+		this._webview?.copyImage(cellOutput);
 	}
 
 	removeInset(output: ICellOutputViewModel) {
