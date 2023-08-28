@@ -8,7 +8,7 @@ import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IQuickInputService, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
@@ -26,7 +26,9 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly onDidClose = this._onDidClose.event;
 
 	private _input: IQuickWidget | undefined;
+	// TODO: support multiple chat providers eventually
 	private _currentChat: QuickChat | undefined;
+	private _container: HTMLElement | undefined;
 
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -77,16 +79,18 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 		this._input.ignoreFocusOut = true;
 		disposableStore.add(this._input);
 
-		const containerSession = dom.$('.interactive-session');
-		this._input.widget = containerSession;
+		this._container ??= dom.$('.interactive-session');
+		this._input.widget = this._container;
 
-		this._currentChat ??= this.instantiationService.createInstance(QuickChat, {
-			providerId: providerInfo.id,
-		});
-
-		// show needs to come before the current chat rendering
 		this._input.show();
-		this._currentChat.render(containerSession);
+		if (!this._currentChat) {
+			this._currentChat = this.instantiationService.createInstance(QuickChat, {
+				providerId: providerInfo.id,
+			});
+
+			// show needs to come after the quickpick is shown
+			this._currentChat.render(this._container);
+		}
 
 		disposableStore.add(this._input.onDidHide(() => {
 			disposableStore.dispose();
@@ -106,6 +110,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 	}
 	close(): void {
 		this._input?.dispose();
+		this._input = undefined;
 	}
 	async openInChatView(): Promise<void> {
 		await this._currentChat?.openChatView();
@@ -118,11 +123,6 @@ class QuickChat extends Disposable {
 	private sash!: Sash;
 	private model: ChatModel | undefined;
 	private _currentQuery: string | undefined;
-
-	private _scopedContextKeyService!: IScopedContextKeyService;
-	get scopedContextKeyService() {
-		return this._scopedContextKeyService;
-	}
 
 	constructor(
 		private readonly _options: IChatViewOptions,
@@ -144,14 +144,28 @@ class QuickChat extends Disposable {
 	focus(): void {
 		if (this.widget) {
 			this.widget.focusInput();
+			const value = this.widget.inputEditor.getValue();
+			if (value) {
+				this.widget.inputEditor.setSelection({
+					startLineNumber: 1,
+					startColumn: 1,
+					endLineNumber: 1,
+					endColumn: value.length + 1
+				});
+			}
 		}
 	}
 
 	render(parent: HTMLElement): void {
-		this._scopedContextKeyService?.dispose();
-		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
-		this.widget?.dispose();
+		if (this.widget) {
+			throw new Error('Cannot render quick chat twice');
+		}
+		const scopedInstantiationService = this.instantiationService.createChild(
+			new ServiceCollection([
+				IContextKeyService,
+				this._register(this.contextKeyService.createScoped(parent))
+			])
+		);
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
@@ -166,16 +180,6 @@ class QuickChat extends Disposable {
 		this.widget.setVisible(true);
 		this.widget.setDynamicChatTreeItemLayout(2, 900);
 		this.updateModel();
-		if (this._currentQuery) {
-			this.widget.inputEditor.setSelection({
-				startLineNumber: 1,
-				startColumn: 1,
-				endLineNumber: 1,
-				endColumn: this._currentQuery.length + 1
-			});
-		}
-
-		this.sash?.dispose();
 		this.sash = this._register(new Sash(parent, { getHorizontalSashTop: () => parent.offsetHeight }, { orientation: Orientation.HORIZONTAL }));
 		this.registerListeners(parent);
 	}
@@ -185,14 +189,15 @@ class QuickChat extends Disposable {
 			this._currentQuery = this.widget.inputEditor.getValue();
 		}));
 		this._register(this.widget.onDidClear(() => this.clear()));
+		this._register(this.widget.onDidChangeHeight((e) => this.sash.layout()));
+		const width = parent.offsetWidth;
 		this._register(this.sash.onDidChange((e) => {
 			if (e.currentY < 200) {
 				return;
 			}
-			this.widget.layout(e.currentY, parent.offsetWidth);
+			this.widget.layout(e.currentY, width);
 			this.sash.layout();
 		}));
-		this._register(this.widget.onDidChangeHeight((e) => this.sash.layout()));
 	}
 
 	async acceptInput(): Promise<void> {
@@ -228,6 +233,7 @@ class QuickChat extends Disposable {
 
 	setValue(value: string): void {
 		this.widget.inputEditor.setValue(value);
+		this.focus();
 	}
 
 	private updateModel(): void {
