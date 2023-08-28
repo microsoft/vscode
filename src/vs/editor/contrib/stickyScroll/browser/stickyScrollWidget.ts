@@ -196,10 +196,20 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				if (!foldingIcon) {
 					continue;
 				}
+				foldingIcon.setVisible(true);
+			}
+
+			/*
+			for (const line of this._stickyLines) {
+				const foldingIcon = line.foldingIcon;
+				if (!foldingIcon) {
+					continue;
+				}
 				foldingIcon.setTransitionRequired(true);
 				foldingIcon.setVisible(true);
 				foldingIcon.setTransitionRequired(false);
 			}
+			*/
 		}));
 		this._foldingIconStore.add(dom.addDisposableListener(this._lineNumbersDomNode, dom.EventType.MOUSE_LEAVE, () => {
 
@@ -213,6 +223,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				foldingIcon.setTransitionRequired(true);
 				foldingIcon?.setVisible(foldingIcon.isCollapsed);
 			}
+
 		}));
 	}
 
@@ -320,8 +331,17 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const isCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
 		const foldingIcon = new StickyFoldingIcon(isCollapsed, this._lineHeight);
 		container.append(foldingIcon.domNode);
-		foldingIcon.setVisible(isCollapsed || showFoldingControls === 'always');
-		foldingIcon.setTransitionRequired(true);
+
+		// If we are on the glyph margin
+		console.log('this._isOnFoldingGlyphMargin : ', this._isOnFoldingGlyphMargin);
+
+		if (this._isOnFoldingGlyphMargin) {
+			foldingIcon.setTransitionRequired(false);
+			foldingIcon.setVisible(true);
+		} else {
+			foldingIcon.setTransitionRequired(true);
+			foldingIcon.setVisible(isCollapsed || showFoldingControls === 'always');
+		}
 
 		this._foldingIconStore.add(dom.addDisposableListener(foldingIcon.domNode, dom.EventType.CLICK, () => {
 			toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
