@@ -174,7 +174,7 @@ export class UnchangedRangesFeature extends Disposable {
 				if (!model) { return; }
 				const region = model.unchangedRegions.get().find(r => r.modifiedRange.includes(lineNumber));
 				if (!region) { return; }
-				region.setState(0, 0, undefined);
+				region.collapseAll(undefined);
 				event.event.stopPropagation();
 				event.event.preventDefault();
 			}
@@ -187,7 +187,7 @@ export class UnchangedRangesFeature extends Disposable {
 				if (!model) { return; }
 				const region = model.unchangedRegions.get().find(r => r.originalRange.includes(lineNumber));
 				if (!region) { return; }
-				region.setState(0, 0, undefined);
+				region.collapseAll(undefined);
 				event.event.stopPropagation();
 				event.event.preventDefault();
 			}

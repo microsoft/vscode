@@ -41,7 +41,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			// Reset state
 			transaction(tx => {
 				for (const r of this._unchangedRegions.get().regions) {
-					r.setState(0, 0, tx);
+					r.collapseAll(tx);
 				}
 			});
 			return [];
@@ -439,6 +439,11 @@ export class UnchangedRegion {
 		} else {
 			this._visibleLineCountBottom.set(Math.min(this._visibleLineCountBottom.get() + top - bottom, this.getMaxVisibleLineCountBottom()), tx);
 		}
+	}
+
+	public collapseAll(tx: ITransaction | undefined): void {
+		this._visibleLineCountTop.set(0, tx);
+		this._visibleLineCountBottom.set(0, tx);
 	}
 
 	public setState(visibleLineCountTop: number, visibleLineCountBottom: number, tx: ITransaction | undefined): void {
