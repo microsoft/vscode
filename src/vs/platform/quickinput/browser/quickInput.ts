@@ -31,7 +31,6 @@ import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEve
 import { QuickInputBox } from './quickInputBox';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { getIconClass, renderQuickInputDescription } from './quickInputUtils';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -40,7 +39,6 @@ export interface IQuickInputOptions {
 	backKeybindingLabel(): string | undefined;
 	setContextKey(id?: string): void;
 	linkOpenerDelegate(content: string): void;
-	colorSchemeDelegate(): ColorScheme;
 	returnFocus(): void;
 	createList<T>(
 		user: string,

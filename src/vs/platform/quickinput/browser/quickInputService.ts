@@ -78,7 +78,6 @@ export class QuickInputService extends Themable implements IQuickInputService {
 					openerService.open(content, { allowCommands: true, fromUserGesture: true });
 				});
 			},
-			colorSchemeDelegate: () => this.themeService.getColorTheme().type,
 			returnFocus: () => host.focus(),
 			createList: <T>(
 				user: string,
@@ -99,7 +98,8 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		const controller = this._register(new QuickInputController({
 			...defaultOptions,
 			...options
-		}));
+		},
+			this.themeService));
 
 		controller.layout(host.dimension, host.offset.quickPickTop);
 

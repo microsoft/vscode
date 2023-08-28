@@ -21,6 +21,7 @@ import { QuickInputBox } from 'vs/platform/quickinput/browser/quickInputBox';
 import { QuickInputList, QuickInputListFocus } from 'vs/platform/quickinput/browser/quickInputList';
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget } from 'vs/platform/quickinput/browser/quickInput';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -50,7 +51,8 @@ export class QuickInputController extends Disposable {
 
 	private previousFocusElement?: HTMLElement;
 
-	constructor(private options: IQuickInputOptions) {
+	constructor(private options: IQuickInputOptions,
+		private readonly themeService: IThemeService) {
 		super();
 		this.idPrefix = options.idPrefix;
 		this.parentElement = options.container;
@@ -145,7 +147,7 @@ export class QuickInputController extends Disposable {
 		const description1 = dom.append(container, $('.quick-input-description'));
 
 		const listId = this.idPrefix + 'list';
-		const list = this._register(new QuickInputList(container, listId, this.options));
+		const list = this._register(new QuickInputList(container, listId, this.options, this.themeService));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
 			inputBox.setAttribute('aria-activedescendant', list.getActiveDescendant() ?? '');
