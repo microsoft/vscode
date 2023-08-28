@@ -161,29 +161,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		let lineNumberDomNode: HTMLElement;
 
 		for (const [index, line] of this._lineNumbers.entries()) {
-
 			const previousRenderedStickyLine = this._previousStickyLines[index];
-
 			if (forceRebuildFullState && previousRenderedStickyLine && previousRenderedStickyLine.lineNumber === line) {
-				// Element was already rendered so reuse the rendered node
-				console.log('inside of if loop for line : ', line);
-
 				renderedStickyLine = previousRenderedStickyLine;
-				const foldingIcon = renderedStickyLine.foldingIcon;
-				const isLastLine = index === this._lineNumbers.length - 1;
-
 				lineDomNode = renderedStickyLine.lineDomNode;
 				lineNumberDomNode = renderedStickyLine.lineNumberDomNode;
-
-				const lastLineZIndex = '0';
-				const intermediateLineZIndex = '1';
-				lineDomNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
-				lineNumberDomNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
-
-				const lastLineTop = `${index * this._lineHeight + this._lastLineRelativePosition + (foldingIcon?.isCollapsed ? 1 : 0)}px`;
-				const intermediateLineTop = `${index * this._lineHeight}px`;
-				lineDomNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
-				lineNumberDomNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
+				this._updateTopAndZIndex(lineDomNode, lineNumberDomNode, index, renderedStickyLine.foldingIcon?.isCollapsed);
 			} else {
 				renderedStickyLine = this._renderChildNode(index, line, layoutInfo, foldingModel);
 				lineDomNode = renderedStickyLine.lineDomNode;
@@ -325,18 +308,22 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.style.height = `${this._lineHeight}px`;
 
 		// Special case for the last line of sticky scroll
+		this._updateTopAndZIndex(lineHTMLNode, lineNumberHTMLNode, index, foldingIcon?.isCollapsed);
+		return new RenderedStickyLine(line, lineHTMLNode, lineNumberHTMLNode, foldingIcon, renderOutput.characterMapping);
+	}
+
+	private _updateTopAndZIndex(lineNode: HTMLElement, lineNumberNode: HTMLElement, index: number, isCollapsed: boolean = false) {
 		const isLastLine = index === this._lineNumbers.length - 1;
 
 		const lastLineZIndex = '0';
 		const intermediateLineZIndex = '1';
-		lineHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
-		lineNumberHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
+		lineNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
+		lineNumberNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
 
-		const lastLineTop = `${index * this._lineHeight + this._lastLineRelativePosition + (foldingIcon?.isCollapsed ? 1 : 0)}px`;
+		const lastLineTop = `${index * this._lineHeight + this._lastLineRelativePosition + (isCollapsed ? 1 : 0)}px`;
 		const intermediateLineTop = `${index * this._lineHeight}px`;
-		lineHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
-		lineNumberHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
-		return new RenderedStickyLine(line, lineHTMLNode, lineNumberHTMLNode, foldingIcon, renderOutput.characterMapping);
+		lineNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
+		lineNumberNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
 	}
 
 	private _renderFoldingIconForLine(container: HTMLSpanElement, foldingModel: FoldingModel | null | undefined, index: number, line: number): StickyFoldingIcon | undefined {
