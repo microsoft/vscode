@@ -10,8 +10,10 @@ import { mock } from 'vs/base/test/common/mock';
 import { assertSnapshot } from 'vs/base/test/common/snapshot';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
-import { INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { nbStickyTestHelper } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll';
+import { INotebookEditor, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
+import { NotebookStickyLine, computeContent } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
@@ -42,6 +44,21 @@ suite('NotebookEditorStickyScroll', () => {
 			override onDidChangeModel: Event<void> = Event.None;
 		}, OutlineTarget.QuickPick);
 		return outline;
+	}
+
+	function nbStickyTestHelper(domNode: HTMLElement, notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[]) {
+		const output = computeContent(domNode, notebookEditor, notebookCellList, notebookOutlineEntries);
+		return createStickyTestElement(output.values());
+	}
+
+	function createStickyTestElement(stickyLines: IterableIterator<{ line: NotebookStickyLine; rendered: boolean }>) {
+		const outputElements = [];
+		for (const stickyLine of stickyLines) {
+			if (stickyLine.rendered) {
+				outputElements.unshift(stickyLine.line.element.innerText);
+			}
+		}
+		return outputElements;
 	}
 
 	test('test0: should render empty, 	scrollTop at 0', async function () {

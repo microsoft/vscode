@@ -48,7 +48,7 @@ export class ToggleNotebookStickyScroll extends Action2 {
 	}
 }
 
-class NotebookStickyLine extends Disposable {
+export class NotebookStickyLine extends Disposable {
 	constructor(
 		public readonly element: HTMLElement,
 		public readonly entry: OutlineEntry,
@@ -78,7 +78,6 @@ class NotebookStickyLine extends Disposable {
 		return count;
 	}
 }
-
 
 export class NotebookStickyScroll extends Disposable {
 	private readonly _disposables = new DisposableStore();
@@ -289,16 +288,6 @@ export class NotebookStickyScroll extends Disposable {
 		return height;
 	}
 
-	static createStickyTestElement(stickyLines: IterableIterator<{ line: NotebookStickyLine; rendered: boolean }>) {
-		const outputElements = [];
-		for (const stickyLine of stickyLines) {
-			if (stickyLine.rendered) {
-				outputElements.unshift(stickyLine.line.element.innerText);
-			}
-		}
-		return outputElements;
-	}
-
 	static renderStickyLines(entry: OutlineEntry | undefined, containerElement: HTMLElement, numLinesToRender: number, newMap: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }>, notebookEditor: INotebookEditor) {
 		const partial = false;
 		let currentEntry = entry;
@@ -445,11 +434,6 @@ export function computeContent(domNode: HTMLElement, notebookEditor: INotebookEd
 		}
 	} // for cell loop close
 	return new Map();
-}
-
-export function nbStickyTestHelper(domNode: HTMLElement, notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[]) {
-	const output = computeContent(domNode, notebookEditor, notebookCellList, notebookOutlineEntries);
-	return NotebookStickyScroll.createStickyTestElement(output.values());
 }
 
 registerAction2(ToggleNotebookStickyScroll);
