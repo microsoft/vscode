@@ -421,7 +421,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _onTokensChange(event: IModelTokensChangedEvent) {
 		if (this._needsUpdate(event)) {
-			this._renderStickyScroll();
+			this._renderStickyScroll(true);
 		}
 	}
 
@@ -432,10 +432,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._maxStickyLines = Math.round(theoreticalLines * .25);
 	}
 
-	private _renderStickyScroll() {
+	private _renderStickyScroll(forceRebuildFullState: boolean = false) {
 		const model = this._editor.getModel();
 		if (!model || model.isTooLargeForTokenization()) {
-			this._stickyScrollWidget.setState(undefined);
+			this._stickyScrollWidget.setState(undefined, forceRebuildFullState);
 			return;
 		}
 		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
@@ -444,18 +444,18 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._stickyScrollVisibleContextKey.set(!(this._widgetState.startLineNumbers.length === 0));
 
 			if (!this._focused) {
-				this._stickyScrollWidget.setState(this._widgetState);
+				this._stickyScrollWidget.setState(this._widgetState, forceRebuildFullState);
 			} else {
 				// Suppose that previously the sticky scroll widget had height 0, then if there are visible lines, set the last line as focused
 				if (this._focusedStickyElementIndex === -1) {
-					this._stickyScrollWidget.setState(this._widgetState);
+					this._stickyScrollWidget.setState(this._widgetState, forceRebuildFullState);
 					this._focusedStickyElementIndex = this._stickyScrollWidget.lineNumberCount - 1;
 					if (this._focusedStickyElementIndex !== -1) {
 						this._stickyScrollWidget.focusLineWithIndex(this._focusedStickyElementIndex);
 					}
 				} else {
 					const focusedStickyElementLineNumber = this._stickyScrollWidget.lineNumbers[this._focusedStickyElementIndex];
-					this._stickyScrollWidget.setState(this._widgetState);
+					this._stickyScrollWidget.setState(this._widgetState, forceRebuildFullState);
 					// Suppose that after setting the state, there are no sticky lines, set the focused index to -1
 					if (this._stickyScrollWidget.lineNumberCount === 0) {
 						this._focusedStickyElementIndex = -1;
