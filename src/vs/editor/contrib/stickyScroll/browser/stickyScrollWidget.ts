@@ -45,7 +45,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
 	private _minContentWidthInPx: number = 0;
-	private _isOnFoldingGlyphMargin: boolean = false;
+	private _isOnGlyphMargin: boolean = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -148,6 +148,20 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.style.display = 'none';
 	}
 
+	private _useFoldingOpacityTransition(requireTransitions: boolean) {
+		this._lineNumbersDomNode.style.setProperty('--vscode-editorStickyScroll-foldingOpacityTransition', `opacity ${requireTransitions ? 0.5 : 0}s`);
+	}
+
+	private _setFoldingIconsVisibility(allVisible: boolean) {
+		for (const line of this._stickyLines) {
+			const foldingIcon = line.foldingIcon;
+			if (!foldingIcon) {
+				continue;
+			}
+			foldingIcon.setVisible(allVisible ? true : foldingIcon.isCollapsed);
+		}
+	}
+
 	private async _renderRootNode(): Promise<void> {
 
 		const foldingModel = await FoldingController.get(this._editor)?.getFoldingModel();
@@ -160,6 +174,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 		if (foldingModel) {
 			this._setFoldingHoverListeners();
+			this._useFoldingOpacityTransition(!this._isOnGlyphMargin);
 		}
 
 		const widgetHeight: number = this._lineNumbers.length * this._lineHeight + this._lastLineRelativePosition;
@@ -188,41 +203,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return;
 		}
 		this._foldingIconStore.add(dom.addDisposableListener(this._lineNumbersDomNode, dom.EventType.MOUSE_ENTER, (e) => {
-
-			this._isOnFoldingGlyphMargin = true;
-
-			for (const line of this._stickyLines) {
-				const foldingIcon = line.foldingIcon;
-				if (!foldingIcon) {
-					continue;
-				}
-				foldingIcon.setVisible(true);
-			}
-
-			/*
-			for (const line of this._stickyLines) {
-				const foldingIcon = line.foldingIcon;
-				if (!foldingIcon) {
-					continue;
-				}
-				foldingIcon.setTransitionRequired(true);
-				foldingIcon.setVisible(true);
-				foldingIcon.setTransitionRequired(false);
-			}
-			*/
+			this._isOnGlyphMargin = true;
+			this._setFoldingIconsVisibility(true);
 		}));
 		this._foldingIconStore.add(dom.addDisposableListener(this._lineNumbersDomNode, dom.EventType.MOUSE_LEAVE, () => {
-
-			this._isOnFoldingGlyphMargin = false;
-
-			for (const line of this._stickyLines) {
-				const foldingIcon = line.foldingIcon;
-				if (!foldingIcon) {
-					continue;
-				}
-				foldingIcon.setTransitionRequired(true);
-				foldingIcon?.setVisible(foldingIcon.isCollapsed);
-			}
+			this._isOnGlyphMargin = false;
+			this._useFoldingOpacityTransition(true);
+			this._setFoldingIconsVisibility(false);
 
 		}));
 	}
@@ -331,17 +318,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const isCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
 		const foldingIcon = new StickyFoldingIcon(isCollapsed, this._lineHeight);
 		container.append(foldingIcon.domNode);
-
-		// If we are on the glyph margin
-		console.log('this._isOnFoldingGlyphMargin : ', this._isOnFoldingGlyphMargin);
-
-		if (this._isOnFoldingGlyphMargin) {
-			foldingIcon.setTransitionRequired(false);
-			foldingIcon.setVisible(true);
-		} else {
-			foldingIcon.setTransitionRequired(true);
-			foldingIcon.setVisible(isCollapsed || showFoldingControls === 'always');
-		}
+		foldingIcon.setVisible(this._isOnGlyphMargin ? true : (isCollapsed || showFoldingControls === 'always'));
 
 		this._foldingIconStore.add(dom.addDisposableListener(foldingIcon.domNode, dom.EventType.CLICK, () => {
 			toggleCollapseState(foldingModel, Number.MAX_VALUE, [line]);
@@ -461,9 +438,5 @@ class StickyFoldingIcon {
 	public setVisible(visible: boolean) {
 		this.domNode.style.cursor = visible ? 'pointer' : 'default';
 		this.domNode.style.opacity = visible ? '1' : '0';
-	}
-
-	public setTransitionRequired(transitionRequired: boolean) {
-		this.domNode.style.transition = `opacity ${transitionRequired ? 0.5 : 0}s`;
 	}
 }
