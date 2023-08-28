@@ -104,6 +104,44 @@ export function registerChatTitleActions() {
 		}
 	});
 
+	registerAction2(class MentionAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.mention',
+				title: {
+					value: localize('interactive.mention.label', "Mention"),
+					original: 'Mention'
+				},
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.add,
+				menu: {
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 3,
+					when: CONTEXT_RESPONSE
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			const item = args[0];
+			if (!isResponseVM(item)) {
+				return;
+			}
+
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const widget = chatWidgetService.lastFocusedWidget!;
+			const num = widget.viewModel!.getItems()
+				.filter(isResponseVM)
+				.indexOf(item) + 1;
+			widget.inputEditor.setValue(`${widget.inputEditor.getValue()} @response:${num} `);
+			const lastLine = widget.inputEditor.getModel()!.getLineCount();
+			const lastCol = widget.inputEditor.getModel()!.getLineLength(lastLine);
+			widget.inputEditor.setSelection({ startColumn: lastCol, endColumn: lastCol, startLineNumber: lastLine, endLineNumber: lastLine });
+		}
+	});
+
 	registerAction2(class InsertToNotebookAction extends Action2 {
 		constructor() {
 			super({

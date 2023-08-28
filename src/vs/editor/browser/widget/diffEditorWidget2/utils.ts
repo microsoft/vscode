@@ -268,6 +268,8 @@ export interface CSSStyle {
 	top: number | string;
 	visibility: 'visible' | 'hidden' | 'collapse';
 	display: 'block' | 'inline' | 'inline-block' | 'flex' | 'none';
+	paddingLeft: number | string;
+	paddingRight: number | string;
 }
 
 export function applyStyle(domNode: HTMLElement, style: Partial<{ [TKey in keyof CSSStyle]: CSSStyle[TKey] | IObservable<CSSStyle[TKey] | undefined> | undefined }>) {
@@ -280,6 +282,7 @@ export function applyStyle(domNode: HTMLElement, style: Partial<{ [TKey in keyof
 			if (typeof val === 'number') {
 				val = `${val}px`;
 			}
+			key = key.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
 			domNode.style[key as any] = val as any;
 		}
 	});

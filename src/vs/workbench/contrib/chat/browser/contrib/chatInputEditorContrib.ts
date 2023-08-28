@@ -26,8 +26,8 @@ import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
@@ -176,7 +176,7 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		// const variables = this.chatVariablesService.getVariables();
-		const variableReg = /(^|\s)@(\w+)(?=(\s|$))/ig;
+		const variableReg = /(^|\s)@(\w+)(:\d+)?(?=(\s|$))/ig;
 		let match: RegExpMatchArray | null;
 		const varDecorations: IDecorationOptions[] = [];
 		while (match = variableReg.exec(inputValue)) {
@@ -309,17 +309,31 @@ class VariableCompletions extends Disposable {
 					replace = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, varWord.endColumn);
 				}
 
+				const history = widget.viewModel!.getItems()
+					.filter(isResponseVM);
+
+				// TODO@roblourens work out a real API for this- maybe it can be part of the two-step flow that @file will probably use
+				const historyItems = history.map((h, i): CompletionItem => ({
+					label: `@response:${i + 1}`,
+					detail: h.response.asString(),
+					insertText: `@response:${String(i + 1).padStart(String(history.length).length, '0')} `,
+					kind: CompletionItemKind.Text,
+					range: { insert, replace },
+				}));
+
+				const variableItems = Array.from(this.chatVariablesService.getVariables()).map(v => {
+					const withAt = `@${v.name}`;
+					return <CompletionItem>{
+						label: withAt,
+						range: { insert, replace },
+						insertText: withAt + ' ',
+						detail: v.description,
+						kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+					};
+				});
+
 				return <CompletionList>{
-					suggestions: Array.from(this.chatVariablesService.getVariables()).map(v => {
-						const withAt = `@${v.name}`;
-						return <CompletionItem>{
-							label: withAt,
-							range: { insert, replace },
-							insertText: withAt + ' ',
-							detail: v.description,
-							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-						};
-					})
+					suggestions: [...variableItems, ...historyItems]
 				};
 			}
 		}));

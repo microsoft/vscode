@@ -7185,10 +7185,10 @@ declare module 'vscode' {
 		readonly extensionPath: string;
 
 		/**
-		 * Gets the extension's environment variable collection for this workspace, enabling changes
-		 * to be applied to terminal environment variables.
+		 * Gets the extension's global environment variable collection for this workspace, enabling changes to be
+		 * applied to terminal environment variables.
 		 */
-		readonly environmentVariableCollection: EnvironmentVariableCollection;
+		readonly environmentVariableCollection: GlobalEnvironmentVariableCollection;
 
 		/**
 		 * Get the absolute path of a resource contained in the extension.
@@ -11335,6 +11335,23 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Options applied to the mutator.
+	 */
+	export interface EnvironmentVariableMutatorOptions {
+		/**
+		 * Apply to the environment just before the process is created. Defaults to false.
+		 */
+		applyAtProcessCreation?: boolean;
+
+		/**
+		 * Apply to the environment in the shell integration script. Note that this _will not_ apply
+		 * the mutator if shell integration is disabled or not working for some reason. Defaults to
+		 * false.
+		 */
+		applyAtShellIntegration?: boolean;
+	}
+
+	/**
 	 * A type of mutation and its value to be applied to an environment variable.
 	 */
 	export interface EnvironmentVariableMutator {
@@ -11347,6 +11364,11 @@ declare module 'vscode' {
 		 * The value to use for the variable.
 		 */
 		readonly value: string;
+
+		/**
+		 * Options applied to the mutator.
+		 */
+		readonly options: EnvironmentVariableMutatorOptions;
 	}
 
 	/**
@@ -11376,8 +11398,10 @@ declare module 'vscode' {
 		 *
 		 * @param variable The variable to replace.
 		 * @param value The value to replace the variable with.
+		 * @param options Options applied to the mutator, when no options are provided this will
+		 * default to `{ applyAtProcessCreation: true }`.
 		 */
-		replace(variable: string, value: string): void;
+		replace(variable: string, value: string, options?: EnvironmentVariableMutatorOptions): void;
 
 		/**
 		 * Append a value to an environment variable.
@@ -11387,8 +11411,10 @@ declare module 'vscode' {
 		 *
 		 * @param variable The variable to append to.
 		 * @param value The value to append to the variable.
+		 * @param options Options applied to the mutator, when no options are provided this will
+		 * default to `{ applyAtProcessCreation: true }`.
 		 */
-		append(variable: string, value: string): void;
+		append(variable: string, value: string, options?: EnvironmentVariableMutatorOptions): void;
 
 		/**
 		 * Prepend a value to an environment variable.
@@ -11398,8 +11424,10 @@ declare module 'vscode' {
 		 *
 		 * @param variable The variable to prepend.
 		 * @param value The value to prepend to the variable.
+		 * @param options Options applied to the mutator, when no options are provided this will
+		 * default to `{ applyAtProcessCreation: true }`.
 		 */
-		prepend(variable: string, value: string): void;
+		prepend(variable: string, value: string, options?: EnvironmentVariableMutatorOptions): void;
 
 		/**
 		 * Gets the mutator that this collection applies to a variable, if any.
@@ -11428,6 +11456,31 @@ declare module 'vscode' {
 		 */
 		clear(): void;
 	}
+
+	export interface GlobalEnvironmentVariableCollection extends EnvironmentVariableCollection {
+		/**
+		 * Gets scope-specific environment variable collection for the extension. This enables alterations to
+		 * terminal environment variables solely within the designated scope, and is applied in addition to (and
+		 * after) the global collection.
+		 *
+		 * Each object obtained through this method is isolated and does not impact objects for other scopes,
+		 * including the global collection.
+		 *
+		 * @param scope The scope to which the environment variable collection applies to.
+		 *
+		 * If a scope parameter is omitted, collection applicable to all relevant scopes for that parameter is
+		 * returned. For instance, if the 'workspaceFolder' parameter is not specified, the collection that applies
+		 * across all workspace folders will be returned.
+		 */
+		getScoped(scope: EnvironmentVariableScope): EnvironmentVariableCollection;
+	}
+
+	export type EnvironmentVariableScope = {
+		/**
+		 * Any specific workspace folder to get collection for.
+		 */
+		workspaceFolder?: WorkspaceFolder;
+	};
 
 	/**
 	 * A location in the editor at which progress information can be shown. It depends on the

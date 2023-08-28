@@ -33,6 +33,10 @@
 	background-color: inherit;
 }
 
+.monaco-editor .sticky-line-number .codicon {
+	float: right;
+}
+
 .monaco-editor .sticky-line-content {
 	width: var(--vscode-editorStickyScroll-scrollableWidth);
 	background-color: inherit;

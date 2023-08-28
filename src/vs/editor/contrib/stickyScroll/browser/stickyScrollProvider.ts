@@ -11,7 +11,6 @@ import { EditorOption, IEditorStickyScrollOptions } from 'vs/editor/common/confi
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { binarySearch } from 'vs/base/common/arrays';
-import { isEqual } from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { StickyModelProvider, IStickyModelProvider } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollModelProvider';
@@ -39,7 +38,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 
 	static readonly ID = 'store.contrib.stickyScrollController';
 
-	private readonly _onDidChangeStickyScroll = this._store.add(new Emitter<void>());
+	private readonly _onDidChangeStickyScroll = this._register(new Emitter<void>());
 	public readonly onDidChangeStickyScroll = this._onDidChangeStickyScroll.event;
 
 	private readonly _editor: ICodeEditor;
@@ -58,7 +57,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	) {
 		super();
 		this._editor = editor;
-		this._sessionStore = new DisposableStore();
+		this._sessionStore = this._register(new DisposableStore());
 		this._updateSoon = this._register(new RunOnceScheduler(() => this.update(), 50));
 
 		this._register(this._editor.onDidChangeConfiguration(e => {
@@ -69,27 +68,31 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		this.readConfiguration();
 	}
 
-	override dispose(): void {
-		super.dispose();
-		this._sessionStore.dispose();
-	}
-
 	private readConfiguration() {
+
+		this._stickyModelProvider = null;
+		this._sessionStore.clear();
 
 		this._options = this._editor.getOption(EditorOption.stickyScroll);
 		if (!this._options.enabled) {
-			this._sessionStore.clear();
 			return;
 		}
 
-		this._stickyModelProvider = new StickyModelProvider(
+		this._stickyModelProvider = this._sessionStore.add(new StickyModelProvider(
 			this._editor,
 			this._languageConfigurationService,
 			this._languageFeaturesService,
 			this._options.defaultModel
-		);
+		));
 
-		this._sessionStore.add(this._editor.onDidChangeModel(() => this.update()));
+		this._sessionStore.add(this._editor.onDidChangeModel(() => {
+			// We should not show an old model for a different file, it will always be wrong.
+			// So we clear the model here immediately and then trigger an update.
+			this._model = null;
+			this._onDidChangeStickyScroll.fire();
+
+			this.update();
+		}));
 		this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this.update()));
 		this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
 		this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this.update()));
@@ -110,24 +113,20 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	private async updateStickyModel(token: CancellationToken): Promise<void> {
 
 		if (!this._editor.hasModel() || !this._stickyModelProvider) {
+			this._model = null;
 			return;
 		}
 
 		const textModel = this._editor.getModel();
 		const modelVersionId = textModel.getVersionId();
-		const isDifferentModel = this._model ? !isEqual(this._model.uri, textModel.uri) : false;
 
-		// Clear sticky scroll to not show stale data for too long
-		const resetHandle = isDifferentModel ? setTimeout(() => {
-			if (!token.isCancellationRequested) {
-				this._model = new StickyModel(textModel.uri, textModel.getVersionId(), undefined, undefined);
-				this._onDidChangeStickyScroll.fire();
-			}
-		}, 75) : undefined;
+		const model = await this._stickyModelProvider.update(textModel, modelVersionId, token);
+		if (token.isCancellationRequested) {
+			// the computation was canceled, so do not overwrite the model
+			return;
+		}
 
-		this._model = await this._stickyModelProvider.update(textModel, modelVersionId, token);
-
-		clearTimeout(resetHandle);
+		this._model = model;
 	}
 
 	private updateIndex(index: number) {

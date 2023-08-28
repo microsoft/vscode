@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { findFocusedDiffEditor } from 'vs/editor/browser/widget/diffEditor.contribution';
@@ -91,14 +92,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	)
 });
 
-/*
-TODO@hediet add this back once move detection is more polished.
-Users can still enable this via settings.json (config.diffEditor.experimental.showMoves).
-
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: new ToggleShowMovedCodeBlocks().desc.id,
-		title: localize('showMoves', "Show Moves"),
+		title: localize('showMoves', "Show Moved Code Blocks"),
 		icon: Codicon.move,
 		toggled: ContextKeyEqualsExpr.create('config.diffEditor.experimental.showMoves', true),
 	},
@@ -106,12 +103,12 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	group: '1_diff',
 	when: ContextKeyEqualsExpr.create('diffEditorVersion', 2)
 });
-*/
 
 const diffEditorCategory: ILocalizedString = {
 	value: localize('diffEditor', 'Diff Editor'),
 	original: 'Diff Editor',
 };
+
 export class SwitchSide extends EditorAction2 {
 	constructor() {
 		super({
@@ -124,12 +121,87 @@ export class SwitchSide extends EditorAction2 {
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]): void {
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, arg?: { dryRun: boolean }): unknown {
 		const diffEditor = findFocusedDiffEditor(accessor);
 		if (diffEditor instanceof DiffEditorWidget2) {
-			diffEditor.switchSide();
+			if (arg && arg.dryRun) {
+				return { destinationSelection: diffEditor.mapToOtherSide().destinationSelection };
+			} else {
+				diffEditor.switchSide();
+			}
 		}
+		return undefined;
 	}
 }
 
 registerAction2(SwitchSide);
+
+export class ExitCompareMove extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'diffEditor.exitCompareMove',
+			title: { value: localize('exitCompareMove', "Exit Compare Move"), original: 'Exit Compare Move' },
+			icon: Codicon.close,
+			precondition: EditorContextKeys.comparingMovedCode,
+			f1: false,
+			category: diffEditorCategory,
+			keybinding: {
+				weight: 10000,
+				primary: KeyCode.Escape,
+			}
+		});
+	}
+
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]): void {
+		const diffEditor = findFocusedDiffEditor(accessor);
+		if (diffEditor instanceof DiffEditorWidget2) {
+			diffEditor.exitCompareMove();
+		}
+	}
+}
+
+registerAction2(ExitCompareMove);
+
+export class CollapseAllUnchangedRegions extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'diffEditor.collapseAllUnchangedRegions',
+			title: { value: localize('collapseAllUnchangedRegions', "Collapse All Unchanged Regions"), original: 'Collapse All Unchanged Regions' },
+			icon: Codicon.fold,
+			precondition: ContextKeyExpr.and(ContextKeyEqualsExpr.create('diffEditorVersion', 2), ContextKeyExpr.has('isInDiffEditor')),
+			f1: true,
+			category: diffEditorCategory,
+		});
+	}
+
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]): void {
+		const diffEditor = findFocusedDiffEditor(accessor);
+		if (diffEditor instanceof DiffEditorWidget2) {
+			diffEditor.collapseAllUnchangedRegions();
+		}
+	}
+}
+
+registerAction2(CollapseAllUnchangedRegions);
+
+export class ShowAllUnchangedRegions extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'diffEditor.showAllUnchangedRegions',
+			title: { value: localize('showAllUnchangedRegions', "Show All Unchanged Regions"), original: 'Show All Unchanged Regions' },
+			icon: Codicon.unfold,
+			precondition: ContextKeyExpr.and(ContextKeyEqualsExpr.create('diffEditorVersion', 2), ContextKeyExpr.has('isInDiffEditor')),
+			f1: true,
+			category: diffEditorCategory,
+		});
+	}
+
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]): void {
+		const diffEditor = findFocusedDiffEditor(accessor);
+		if (diffEditor instanceof DiffEditorWidget2) {
+			diffEditor.showAllUnchangedRegions();
+		}
+	}
+}
+
+registerAction2(ShowAllUnchangedRegions);

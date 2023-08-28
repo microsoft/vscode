@@ -155,6 +155,13 @@ export class SimpleLineRangeMapping {
 	public flip(): SimpleLineRangeMapping {
 		return new SimpleLineRangeMapping(this.modified, this.original);
 	}
+
+	public join(other: SimpleLineRangeMapping): SimpleLineRangeMapping {
+		return new SimpleLineRangeMapping(
+			this.original.join(other.original),
+			this.modified.join(other.modified),
+		);
+	}
 }
 
 export class MovedText {

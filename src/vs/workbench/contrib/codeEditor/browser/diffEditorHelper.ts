@@ -107,11 +107,11 @@ function createScreenReaderHelp(): IDisposable {
 				localize('msg1', "You are in a diff editor."),
 				localize('msg2', "Press {0} or {1} to view the next or previous diff in the diff review mode that is optimized for screen readers.", next, previous),
 				localize('msg3', "To control which audio cues should be played, the following settings can be configured: {0}.", keys.join(', ')),
-			].join('\n'),
+			].join('\n\n'),
 			onClose: () => {
 				codeEditor.focus();
 			},
-			options: { type: AccessibleViewType.Help, ariaLabel: localize('chat-help-label', "Diff editor accessibility help") }
+			options: { type: AccessibleViewType.Help }
 		});
 	}, ContextKeyExpr.and(
 		ContextKeyEqualsExpr.create('diffEditorVersion', 2),

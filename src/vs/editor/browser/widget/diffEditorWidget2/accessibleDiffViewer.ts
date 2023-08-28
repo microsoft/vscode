@@ -18,6 +18,7 @@ import { applyStyle } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { LineRangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
@@ -163,7 +164,7 @@ class ViewModel extends Disposable {
 		const groups = this.groups.get();
 		if (!groups || groups.length <= 1) { return; }
 		subtransaction(tx, tx => {
-			this._currentGroupIdx.set((this._currentGroupIdx.get() + groups.length + delta) % groups.length, tx);
+			this._currentGroupIdx.set(OffsetRange.ofLength(groups.length).clipCyclic(this._currentGroupIdx.get() + delta), tx);
 			this._currentElementIdx.set(0, tx);
 		});
 	}
@@ -175,7 +176,7 @@ class ViewModel extends Disposable {
 		const group = this.currentGroup.get();
 		if (!group || group.lines.length <= 1) { return; }
 		transaction(tx => {
-			this._currentElementIdx.set((this._currentElementIdx.get() + group.lines.length + delta) % group.lines.length, tx);
+			this._currentElementIdx.set(OffsetRange.ofLength(group.lines.length).clip(this._currentElementIdx.get() + delta), tx);
 		});
 	}
 

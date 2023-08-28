@@ -12,7 +12,7 @@ import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { coalesce } from 'vs/base/common/arrays';
 import { UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, markAsSingleton } from 'vs/base/common/lifecycle';
 import { stringify } from 'vs/base/common/marshalling';
 import { Mimes } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
@@ -427,6 +427,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 	static get INSTANCE(): CompositeDragAndDropObserver {
 		if (!CompositeDragAndDropObserver.instance) {
 			CompositeDragAndDropObserver.instance = new CompositeDragAndDropObserver();
+			markAsSingleton(CompositeDragAndDropObserver.instance);
 		}
 
 		return CompositeDragAndDropObserver.instance;
@@ -523,7 +524,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 		if (callbacks.onDragEnd) {
 			this.onDragEnd.event(e => {
 				callbacks.onDragEnd!(e);
-			});
+			}, this, disposableStore);
 		}
 
 		return this._register(disposableStore);
