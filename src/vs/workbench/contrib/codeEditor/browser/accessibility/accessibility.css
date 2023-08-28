@@ -21,3 +21,34 @@
 	width: 100%;
 	justify-content: flex-end;
 }
+
+.accessible-view-title-bar {
+	display: flex;
+	align-items: center;
+	border-top-left-radius: 5px;
+	border-top-right-radius: 5px;
+}
+
+.accessible-view-title {
+	padding: 3px 0px;
+	text-align: center;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	width: 100%;
+}
+
+.accessible-view-action-bar {
+	justify-content: flex-end;
+	margin-right: 4px;
+	flex: 1;
+}
+
+.accessible-view-action-bar > .actions-container {
+	justify-content: flex-end;
+}
+
+.accessible-view-title-bar .monaco-action-bar .action-label.codicon {
+	background-position: center;
+	background-repeat: no-repeat;
+	padding: 2px;
+}

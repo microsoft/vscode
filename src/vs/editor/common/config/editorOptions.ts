@@ -828,10 +828,6 @@ export interface IDiffEditorBaseOptions {
 		/**
 		 * Defaults to false.
 		 */
-		collapseUnchangedRegions?: boolean;
-		/**
-		 * Defaults to false.
-		 */
 		showMoves?: boolean;
 
 		showEmptyDecorations?: boolean;
@@ -847,6 +843,13 @@ export interface IDiffEditorBaseOptions {
 	 * If the diff editor should only show the difference review mode.
 	 */
 	onlyShowAccessibleDiffViewer?: boolean;
+
+	hideUnchangedRegions?: {
+		enabled?: boolean;
+		revealLineCount?: number;
+		minimumLineCount?: number;
+		contextLineCount?: number;
+	};
 }
 
 /**

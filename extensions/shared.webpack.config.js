@@ -139,6 +139,9 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 						},
 					},
 				]
+			}, {
+				test: /\.wasm$/,
+				type: 'asset/inline'
 			}]
 		},
 		externals: {

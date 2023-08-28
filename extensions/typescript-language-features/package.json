@@ -34,12 +34,13 @@
   ],
   "dependencies": {
     "@vscode/extension-telemetry": "^0.8.4",
-    "jsonc-parser": "^3.2.0",
-    "semver": "7.5.2",
-    "vscode-tas-client": "^0.1.63",
     "@vscode/sync-api-client": "^0.7.2",
     "@vscode/sync-api-common": "^0.7.2",
     "@vscode/sync-api-service": "^0.7.3",
+    "@vscode/ts-package-manager": "^0.0.2",
+    "jsonc-parser": "^3.2.0",
+    "semver": "7.5.2",
+    "vscode-tas-client": "^0.1.63",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
@@ -1249,6 +1250,13 @@
           "default": true,
           "description": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors%",
           "scope": "window"
+        },
+        "typescript.experimental.tsserver.web.typeAcquisition.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.experimental.tsserver.web.typeAcquisition.enabled%",
+          "scope": "window",
+          "tags": ["experimental"]
         },
         "typescript.preferGoToSourceDefinition": {
           "type": "boolean",

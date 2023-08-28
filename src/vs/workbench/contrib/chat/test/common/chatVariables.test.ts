@@ -22,33 +22,42 @@ suite('ChatVariables', function () {
 
 		{
 			const data = await service.resolveVariables('Hello @foo and@far', null!, CancellationToken.None);
-			assert.strictEqual(Object.keys(data).length, 1);
-			assert.deepEqual(Object.keys(data).sort(), ['foo']);
+			assert.strictEqual(Object.keys(data.variables).length, 1);
+			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
+			assert.strictEqual(data.prompt, 'Hello [@foo](values:foo) and@far');
 		}
 		{
 			const data = await service.resolveVariables('@foo Hello', null!, CancellationToken.None);
-			assert.strictEqual(Object.keys(data).length, 1);
-			assert.deepEqual(Object.keys(data).sort(), ['foo']);
+			assert.strictEqual(Object.keys(data.variables).length, 1);
+			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
+			assert.strictEqual(data.prompt, '[@foo](values:foo) Hello');
 		}
 		{
 			const data = await service.resolveVariables('Hello @foo', null!, CancellationToken.None);
-			assert.strictEqual(Object.keys(data).length, 1);
-			assert.deepEqual(Object.keys(data).sort(), ['foo']);
+			assert.strictEqual(Object.keys(data.variables).length, 1);
+			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
+		}
+		{
+			const data = await service.resolveVariables('Hello @foo?', null!, CancellationToken.None);
+			assert.strictEqual(Object.keys(data.variables).length, 1);
+			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
+			assert.strictEqual(data.prompt, 'Hello [@foo](values:foo)?');
 		}
 		{
 			const data = await service.resolveVariables('Hello @foo and@far @foo', null!, CancellationToken.None);
-			assert.strictEqual(Object.keys(data).length, 1);
-			assert.deepEqual(Object.keys(data).sort(), ['foo']);
+			assert.strictEqual(Object.keys(data.variables).length, 1);
+			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
 		}
 		{
 			const data = await service.resolveVariables('Hello @foo and @far @foo', null!, CancellationToken.None);
-			assert.strictEqual(Object.keys(data).length, 2);
-			assert.deepEqual(Object.keys(data).sort(), ['far', 'foo']);
+			assert.strictEqual(Object.keys(data.variables).length, 2);
+			assert.deepEqual(Object.keys(data.variables).sort(), ['far', 'foo']);
 		}
 		{
 			const data = await service.resolveVariables('Hello @foo and @far @foo @unknown', null!, CancellationToken.None);
-			assert.strictEqual(Object.keys(data).length, 2);
-			assert.deepEqual(Object.keys(data).sort(), ['far', 'foo']);
+			assert.strictEqual(Object.keys(data.variables).length, 2);
+			assert.deepEqual(Object.keys(data.variables).sort(), ['far', 'foo']);
+			assert.strictEqual(data.prompt, 'Hello [@foo](values:foo) and [@far](values:far) [@foo](values:foo) @unknown');
 		}
 	});
 });
