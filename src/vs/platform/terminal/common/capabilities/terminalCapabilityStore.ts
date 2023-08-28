@@ -5,14 +5,19 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ITerminalCapabilityImplMap, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityImplMap, ITerminalCapabilityStore, TerminalCapability, TerminalCapabilityChangeEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 export class TerminalCapabilityStore extends Disposable implements ITerminalCapabilityStore {
 	private _map: Map<TerminalCapability, { type: TerminalCapability }> = new Map();
 
-	private readonly _onDidRemoveCapability = this._register(new Emitter<TerminalCapability>());
+	private readonly _onDidRemoveCapabilityType = this._register(new Emitter<TerminalCapability>());
+	readonly onDidRemoveCapabilityType = this._onDidRemoveCapabilityType.event;
+	private readonly _onDidAddCapabilityType = this._register(new Emitter<TerminalCapability>());
+	readonly onDidAddCapabilityType = this._onDidAddCapabilityType.event;
+
+	private readonly _onDidRemoveCapability = this._register(new Emitter<TerminalCapabilityChangeEvent<any>>());
 	readonly onDidRemoveCapability = this._onDidRemoveCapability.event;
-	private readonly _onDidAddCapability = this._register(new Emitter<TerminalCapability>());
+	private readonly _onDidAddCapability = this._register(new Emitter<TerminalCapabilityChangeEvent<any>>());
 	readonly onDidAddCapability = this._onDidAddCapability.event;
 
 	get items(): IterableIterator<TerminalCapability> {
@@ -21,7 +26,8 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 
 	add<T extends TerminalCapability>(capability: T, impl: ITerminalCapabilityImplMap[T]) {
 		this._map.set(capability, impl);
-		this._onDidAddCapability.fire(capability);
+		this._onDidAddCapabilityType.fire(capability);
+		this._onDidAddCapability.fire({ id: capability, capability: impl });
 	}
 
 	get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined {
@@ -30,11 +36,13 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 	}
 
 	remove(capability: TerminalCapability) {
-		if (!this._map.has(capability)) {
+		const impl = this._map.get(capability);
+		if (!impl) {
 			return;
 		}
 		this._map.delete(capability);
-		this._onDidRemoveCapability.fire(capability);
+		this._onDidRemoveCapabilityType.fire(capability);
+		this._onDidAddCapability.fire({ id: capability, capability: impl });
 	}
 
 	has(capability: TerminalCapability) {
@@ -45,9 +53,14 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 export class TerminalCapabilityStoreMultiplexer extends Disposable implements ITerminalCapabilityStore {
 	readonly _stores: ITerminalCapabilityStore[] = [];
 
-	private readonly _onDidRemoveCapability = this._register(new Emitter<TerminalCapability>());
+	private readonly _onDidRemoveCapabilityType = this._register(new Emitter<TerminalCapability>());
+	readonly onDidRemoveCapabilityType = this._onDidRemoveCapabilityType.event;
+	private readonly _onDidAddCapabilityType = this._register(new Emitter<TerminalCapability>());
+	readonly onDidAddCapabilityType = this._onDidAddCapabilityType.event;
+
+	private readonly _onDidRemoveCapability = this._register(new Emitter<TerminalCapabilityChangeEvent<any>>());
 	readonly onDidRemoveCapability = this._onDidRemoveCapability.event;
-	private readonly _onDidAddCapability = this._register(new Emitter<TerminalCapability>());
+	private readonly _onDidAddCapability = this._register(new Emitter<TerminalCapabilityChangeEvent<any>>());
 	readonly onDidAddCapability = this._onDidAddCapability.event;
 
 	get items(): IterableIterator<TerminalCapability> {
@@ -86,9 +99,12 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 	add(store: ITerminalCapabilityStore) {
 		this._stores.push(store);
 		for (const capability of store.items) {
-			this._onDidAddCapability.fire(capability);
+			this._onDidAddCapabilityType.fire(capability);
+			this._onDidAddCapability.fire({ id: capability, capability: store.get(capability)! });
 		}
+		store.onDidAddCapabilityType(e => this._onDidAddCapabilityType.fire(e));
 		store.onDidAddCapability(e => this._onDidAddCapability.fire(e));
+		store.onDidRemoveCapabilityType(e => this._onDidRemoveCapabilityType.fire(e));
 		store.onDidRemoveCapability(e => this._onDidRemoveCapability.fire(e));
 	}
 }

@@ -1074,10 +1074,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				allowScripts: true,
 				localResourceRoots: this.localResourceRootsCache,
 			},
-			extension: undefined
+			extension: undefined,
+			providedViewType: 'notebook.output'
 		});
 
 		webview.setHtml(content);
+		webview.setContextKeyService(this.contextKeyService);
 		return webview;
 	}
 
@@ -1606,7 +1608,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this.webview?.focus();
 	}
 
-	focusOutput(cellId: string, viewFocused: boolean) {
+	focusOutput(cellOrOutputId: string, viewFocused: boolean) {
 		if (this._disposed) {
 			return;
 		}
@@ -1617,7 +1619,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 		this._sendMessageToWebview({
 			type: 'focus-output',
-			cellId,
+			cellOrOutputId: cellOrOutputId,
 		});
 	}
 

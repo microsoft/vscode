@@ -121,7 +121,7 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveProgressContent {
-		content: string;
+		content: string | MarkdownString;
 	}
 
 	export interface InteractiveProgressId {
@@ -149,6 +149,7 @@ declare module 'vscode' {
 		commandId: string;
 		args?: any[];
 		title: string; // supports codicon strings
+		when?: string;
 	}
 
 	export interface InteractiveSessionSlashCommand {

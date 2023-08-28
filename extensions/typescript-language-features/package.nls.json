@@ -212,5 +212,20 @@
 	"configuration.suggest.classMemberSnippets.enabled": "Enable/disable snippet completions for class members.",
 	"configuration.suggest.objectLiteralMethodSnippets.enabled": "Enable/disable snippet completions for methods in object literals. Requires using TypeScript 4.7+ in the workspace.",
 	"configuration.tsserver.web.projectWideIntellisense.enabled": "Enable/disable project-wide IntelliSense on web. Requires that VS Code is running in a trusted context.",
-	"configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors": "Suppresses semantic errors. This is needed when using external packages as these can't be included analyzed on web."
+	"configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors": "Suppresses semantic errors. This is needed when using external packages as these can't be included analyzed on web.",
+	"configuration.experimental.tsserver.web.typeAcquisition.enabled": "Enable/disable package acquisition on the web.",
+	"walkthroughs.nodejsWelcome.title": "Get started with JavaScript and Node.js",
+	"walkthroughs.nodejsWelcome.description": "Make the most of Visual Studio Code's first-class JavaScript experience.",
+	"walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows.title": "Install Node.js",
+	"walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows.description": "Node.js is an easy way to run JavaScript code. You can use it to quickly build command-line apps and servers. It also comes with npm, a package manager which makes reusing and sharing JavaScript code easy.\n[Install Node.js](https://nodejs.org/en/download/)",
+	"walkthroughs.nodejsWelcome.downloadNode.forLinux.title": "Install Node.js",
+	"walkthroughs.nodejsWelcome.downloadNode.forLinux.description": "Node.js is an easy way to run JavaScript code. You can use it to quickly build command-line apps and servers. It also comes with npm, a package manager which makes reusing and sharing JavaScript code easy.\n[Install Node.js](https://nodejs.org/en/download/package-manager/)",
+	"walkthroughs.nodejsWelcome.makeJsFile.title": "Create a JavaScript File",
+	"walkthroughs.nodejsWelcome.makeJsFile.description": "Let's write our first JavaScript file. We'll have to create a new file and save it with the ``.js`` extension at the end of the file name.\n[Create a JavaScript File](command:javascript-walkthrough.commands.createJsFile)",
+	"walkthroughs.nodejsWelcome.debugJsFile.title": "Run and Debug your JavaScript",
+	"walkthroughs.nodejsWelcome.debugJsFile.description": "Once you've installed Node.js, you can run JavaScript programs at a terminal by entering ``node your-file-name.js``\nAnother easy way to run Node.js programs is by using VS Code's debugger which lets you run your code, pause at different points, and help you understand what's going on step-by-step.\n[Start Debugging](command:javascript-walkthrough.commands.debugJsFile)",
+	"walkthroughs.nodejsWelcome.debugJsFile.altText": "Debug and run your JavaScript code in Node.js with Visual Studio Code.",
+	"walkthroughs.nodejsWelcome.learnMoreAboutJs.title": "Explore More",
+	"walkthroughs.nodejsWelcome.learnMoreAboutJs.description": "Want to get more comfortable with JavaScript, Node.js, and VS Code? Be sure to check out our docs!\nWe've got lots of resources for learning [JavaScript](https://code.visualstudio.com/docs/nodejs/working-with-javascript) and [Node.js](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial).\n\n[Learn More](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial)",
+	"walkthroughs.nodejsWelcome.learnMoreAboutJs.altText": "Learn more about JavaScript and Node.js in Visual Studio Code."
 }

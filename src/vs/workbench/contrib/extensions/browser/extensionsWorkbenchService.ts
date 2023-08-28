@@ -1622,7 +1622,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	async toggleApplyExtensionToAllProfiles(extension: IExtension): Promise<void> {
-		if (!extension.local || isApplicationScopedExtension(extension.local.manifest)) {
+		if (!extension.local || isApplicationScopedExtension(extension.local.manifest) || extension.isBuiltin) {
 			return;
 		}
 		await this.extensionManagementService.toggleAppliationScope(extension.local, this.userDataProfileService.currentProfile.extensionsResource);

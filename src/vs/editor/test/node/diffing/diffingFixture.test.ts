@@ -9,8 +9,8 @@ import { join, resolve } from 'path';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { FileAccess } from 'vs/base/common/network';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { SmartLinesDiffComputer } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { StandardLinesDiffComputer } from 'vs/editor/common/diff/standardLinesDiffComputer';
+import { LegacyLinesDiffComputer } from 'vs/editor/common/diff/legacyLinesDiffComputer';
+import { AdvancedLinesDiffComputer } from 'vs/editor/common/diff/advancedLinesDiffComputer';
 
 suite('diff fixtures', () => {
 	setup(() => {
@@ -38,7 +38,7 @@ suite('diff fixtures', () => {
 		const secondContent = readFileSync(join(folderPath, secondFileName), 'utf8').replaceAll('\r\n', '\n').replaceAll('\r', '\n');
 		const secondContentLines = secondContent.split(/\n/);
 
-		const diffingAlgo = diffingAlgoName === 'legacy' ? new SmartLinesDiffComputer() : new StandardLinesDiffComputer();
+		const diffingAlgo = diffingAlgoName === 'legacy' ? new LegacyLinesDiffComputer() : new AdvancedLinesDiffComputer();
 
 		const ignoreTrimWhitespace = folder.indexOf('trimws') >= 0;
 		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false });

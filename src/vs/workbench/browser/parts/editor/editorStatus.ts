@@ -47,8 +47,6 @@ import { Event } from 'vs/base/common/event';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
-import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
@@ -381,8 +379,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 					ariaLabel: text,
 					tooltip: localize('disableTabMode', "Disable Accessibility Mode"),
 					command: 'editor.action.toggleTabFocusMode',
-					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
-					color: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_FOREGROUND)
+					kind: 'prominent'
 				}, 'status.editor.tabFocusMode', StatusbarAlignment.RIGHT, 100.7);
 			}
 		} else {
@@ -400,8 +397,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 					ariaLabel: text,
 					tooltip: localize('disableColumnSelectionMode', "Disable Column Selection Mode"),
 					command: 'editor.action.toggleColumnSelection',
-					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
-					color: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_FOREGROUND)
+					kind: 'prominent'
 				}, 'status.editor.columnSelectionMode', StatusbarAlignment.RIGHT, 100.8);
 			}
 		} else {

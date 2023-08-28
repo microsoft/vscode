@@ -50,7 +50,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { Color } from 'vs/base/common/color';
 import { ResourceMap } from 'vs/base/common/map';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';

@@ -8,7 +8,7 @@ import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tre
 import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/chat';
@@ -60,6 +60,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _onDidClear = this._register(new Emitter<void>());
 	readonly onDidClear = this._onDidClear.event;
+
+	private _onDidAcceptInput = this._register(new Emitter<void>());
+	readonly onDidAcceptInput = this._onDidAcceptInput.event;
+
+	private _onDidChangeHeight = this._register(new Emitter<number>());
+	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private tree!: WorkbenchObjectTree<ChatTreeItem>;
 	private renderer!: ChatListItemRenderer;
@@ -177,6 +183,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	focusInput(): void {
 		this.inputPart.focus();
+	}
+
+	hasInputFocus(): boolean {
+		return this.inputPart.hasFocus();
 	}
 
 	moveFocus(item: ChatTreeItem, type: 'next' | 'previous'): void {
@@ -432,8 +442,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.domFocus();
 	}
 
+	updateInput(value = ''): void {
+		this.inputPart.setValue(value);
+	}
+
 	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
 		if (this.viewModel) {
+			this._onDidAcceptInput.fire();
+
 			const editorValue = this.inputPart.inputEditor.getValue();
 			this._chatAccessibilityService.acceptRequest();
 			const input = query ?? editorValue;
@@ -505,6 +521,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.listContainer.style.height = `${height - inputPartHeight}px`;
+
+		this._onDidChangeHeight.fire(height);
 	}
 
 	private _dynamicMessageLayoutData?: { numOfMessages: number; maxHeight: number };
@@ -515,9 +533,28 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	setDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
 		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight };
 		this._register(this.renderer.onDidChangeItemHeight(() => this.layoutDynamicChatTreeItemMode()));
+
+		const mutableDisposable = this._register(new MutableDisposable());
+		this._register(this.tree.onDidScroll((e) => {
+			mutableDisposable.value = dom.scheduleAtNextAnimationFrame(() => {
+				if (!e.scrollTopChanged || e.heightChanged || e.scrollHeightChanged) {
+					return;
+				}
+				const renderHeight = e.height;
+				const diff = e.scrollHeight - renderHeight - e.scrollTop;
+				if (diff === 0) {
+					return;
+				}
+
+				const newHeight = Math.min(renderHeight + diff, maxHeight);
+				const width = this.bodyDimension?.width ?? this.container.offsetWidth;
+				const inputPartHeight = this.inputPart.layout(newHeight, width);
+				this.layout(newHeight + inputPartHeight, width);
+			});
+		}));
 	}
 
-	layoutDynamicChatTreeItemMode(allowRecurse = true): void {
+	layoutDynamicChatTreeItemMode(): void {
 		if (!this.viewModel) {
 			return;
 		}
@@ -541,10 +578,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.container.offsetWidth
 		);
 
-		if (needsRerender && allowRecurse) {
+		if (needsRerender) {
 			// TODO: figure out a better place to reveal the last element
 			revealLastElement(this.tree);
-			this.layoutDynamicChatTreeItemMode(false);
 		}
 	}
 

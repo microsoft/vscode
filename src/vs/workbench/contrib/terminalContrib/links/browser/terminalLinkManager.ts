@@ -25,7 +25,7 @@ import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/ter
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalProcessInfo, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import type { ILink, ILinkProvider, IViewportRange, Terminal } from 'xterm';
 import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
@@ -47,7 +47,7 @@ export class TerminalLinkManager extends DisposableStore {
 
 	constructor(
 		private readonly _xterm: Terminal,
-		private readonly _processManager: ITerminalProcessManager,
+		private readonly _processInfo: ITerminalProcessInfo,
 		capabilities: ITerminalCapabilityStore,
 		private readonly _linkResolver: ITerminalLinkResolver,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -65,15 +65,15 @@ export class TerminalLinkManager extends DisposableStore {
 				enableFileLinks = false;
 				break;
 			case 'notRemote':
-				enableFileLinks = !this._processManager.remoteAuthority;
+				enableFileLinks = !this._processInfo.remoteAuthority;
 				break;
 		}
 
 		// Setup link detectors in their order of priority
-		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._processManager, this._linkResolver));
+		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._processInfo, this._linkResolver));
 		if (enableFileLinks) {
-			this._setupLinkDetector(TerminalMultiLineLinkDetector.id, this._instantiationService.createInstance(TerminalMultiLineLinkDetector, this._xterm, this._processManager, this._linkResolver));
-			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, capabilities, this._processManager, this._linkResolver));
+			this._setupLinkDetector(TerminalMultiLineLinkDetector.id, this._instantiationService.createInstance(TerminalMultiLineLinkDetector, this._xterm, this._processInfo, this._linkResolver));
+			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, capabilities, this._processInfo, this._linkResolver));
 		}
 		this._setupLinkDetector(TerminalWordLinkDetector.id, this.add(this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm)));
 
@@ -83,8 +83,8 @@ export class TerminalLinkManager extends DisposableStore {
 		this._openers.set(TerminalBuiltinLinkType.LocalFile, localFileOpener);
 		this._openers.set(TerminalBuiltinLinkType.LocalFolderInWorkspace, localFolderInWorkspaceOpener);
 		this._openers.set(TerminalBuiltinLinkType.LocalFolderOutsideWorkspace, this._instantiationService.createInstance(TerminalLocalFolderOutsideWorkspaceLinkOpener));
-		this._openers.set(TerminalBuiltinLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, this._processManager.initialCwd, localFileOpener, localFolderInWorkspaceOpener, () => this._processManager.os || OS));
-		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processManager.remoteAuthority));
+		this._openers.set(TerminalBuiltinLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, this._processInfo.initialCwd, localFileOpener, localFolderInWorkspaceOpener, () => this._processInfo.os || OS));
+		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processInfo.remoteAuthority));
 
 		this._registerStandardLinkProviders();
 
