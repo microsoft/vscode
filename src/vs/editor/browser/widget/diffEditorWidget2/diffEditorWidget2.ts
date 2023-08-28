@@ -82,7 +82,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 	private readonly movedBlocksLinesPart = observableValue<MovedBlocksLinesPart | undefined>('MovedBlocksLinesPart', undefined);
 
-	public get collapseUnchangedRegions() { return this._options.collapseUnchangedRegions.get(); }
+	public get collapseUnchangedRegions() { return this._options.hideUnchangedRegions.get(); }
 
 	constructor(
 		private readonly _domElement: HTMLElement,
@@ -232,7 +232,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(applyStyle(this.elements.overlay, {
 			width: this._layoutInfo.map((i, r) => i.originalEditor.width + (this._options.renderSideBySide.read(r) ? 0 : i.modifiedEditor.width)),
-			visibility: derived(reader => /** @description visibility */(this._options.collapseUnchangedRegions.read(reader) && this._diffModel.read(reader)?.diff.read(reader)?.mappings.length === 0)
+			visibility: derived(reader => /** @description visibility */(this._options.hideUnchangedRegions.read(reader) && this._diffModel.read(reader)?.diff.read(reader)?.mappings.length === 0)
 				? 'visible' : 'hidden'
 			),
 		}));
