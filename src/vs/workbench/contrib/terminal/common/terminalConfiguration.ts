@@ -613,6 +613,7 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.focusAfterRun', "Controls whether the terminal, accessible buffer, or neither will be focused after `Terminal: Run Selected Text In Active Terminal` has been run."),
 			enum: ['auto', 'terminal', 'accessible-buffer', 'none'],
 			default: 'auto',
+			tags: ['accessibility'],
 			markdownEnumDescriptions: [
 				localize('terminal.integrated.focusAfterRun.auto', "Set to `terminal` when in screen reader optimized mode and `none` otherwise."),
 				localize('terminal.integrated.focusAfterRun.terminal', "Always focus the terminal."),
