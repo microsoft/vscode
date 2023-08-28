@@ -251,7 +251,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 		h('div.top@top', { title: localize('diff.hiddenLines.top', 'Click or drag to show more above') }),
 		h('div.center@content', { style: { display: 'flex' } }, [
 			h('div@first', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center' } },
-				[$('a', { title: localize('showAll', 'Show all'), role: 'button', onclick: () => { this._unchangedRegion.showAll(undefined); } }, ...renderLabelWithIcons('$(unfold)'))]
+				[$('a', { title: localize('showAll', 'Show all'), role: 'button', onclick: () => { this.showAll(); } }, ...renderLabelWithIcons('$(unfold)'))]
 			),
 			h('div@others', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center' } }),
 		]),
@@ -365,7 +365,13 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			if (!this.hide) {
 				const lineCount = _unchangedRegion.getHiddenModifiedRange(reader).length;
 				const linesHiddenText = localize('hiddenLines', '{0} Hidden Lines', lineCount);
-				children.push($('span', { title: linesHiddenText }, linesHiddenText));
+				const span = $('span', { title: localize('diff.hiddenLines.expandAll', 'Double click to unfold') }, linesHiddenText);
+				span.addEventListener('dblclick', e => {
+					if (e.button !== 0) { return; }
+					e.preventDefault();
+					this.showAll();
+				});
+				children.push(span);
 
 				const range = this._unchangedRegion.getHiddenModifiedRange(reader);
 				const items = this._modifiedOutlineSource.getBreadcrumbItems(range, reader);
@@ -398,4 +404,6 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			reset(this._nodes.others, ...children);
 		}));
 	}
+
+	private showAll() { this._unchangedRegion.showAll(undefined); }
 }
