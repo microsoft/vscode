@@ -278,7 +278,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		}
 
 		const textEditorModel = model.textEditorModel;
-		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: model.resource };
+		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: textEditorModel.uri };
 
 		// Keeping string | boolean until fully deprecating boolean options
 		const setting = this.configurationService.getValue<{ [kind: string]: string | boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
@@ -317,11 +317,23 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 				.filter(x => setting[x] === 'never' || false)
 				.map(x => new CodeActionKind(x));
 
+		// To be depracated once boolean support is no longer available
+		const includedActions = Array.isArray(setting)
+			? []
+			: Object.keys(setting)
+				.filter(x => setting[x] === true)
+				.map(x => new CodeActionKind(x));
+
 		progress.report({ message: localize('codeaction', "Quick Fixes") });
 
-		const filteredSaveList = Array.isArray(setting)
+		let filteredSaveList = Array.isArray(setting)
 			? []
-			: codeActionsOnSave.filter(x => setting[x.value] === 'always' || (setting[x.value] === 'explicit' || true) && env.reason === SaveReason.EXPLICIT);
+			: codeActionsOnSave.filter(x => setting[x.value] === 'always' || (setting[x.value] === 'explicit') && env.reason === SaveReason.EXPLICIT);
+
+		// To be depracated once boolean support is no longer available
+		if (includedActions.length && env.reason === SaveReason.EXPLICIT) {
+			filteredSaveList = includedActions;
+		}
 
 		await this.applyOnSaveActions(textEditorModel, filteredSaveList, excludedActions, progress, token);
 	}
