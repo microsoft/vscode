@@ -429,6 +429,11 @@
 	border-radius: 2px;
 }
 
+.quick-input-widget .interactive-list {
+	border-bottom-right-radius: 6px;
+	border-bottom-left-radius: 6px;
+}
+
 /* #endregion */
 
 .interactive-response-progress-tree .monaco-tl-row:hover {

@@ -26,7 +26,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly onDidClose = this._onDidClose.event;
 
 	private _input: IQuickWidget | undefined;
-	// TODO: support multiple chat providers eventually
+	// TODO@TylerLeonhardt: support multiple chat providers eventually
 	private _currentChat: QuickChat | undefined;
 	private _container: HTMLElement | undefined;
 
@@ -119,6 +119,10 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 }
 
 class QuickChat extends Disposable {
+	// TODO@TylerLeonhardt: be responsive to window size
+	static DEFAULT_MIN_HEIGHT = 200;
+	static DEFAULT_MAX_HEIGHT = 900;
+
 	private widget!: ChatWidget;
 	private sash!: Sash;
 	private model: ChatModel | undefined;
@@ -178,7 +182,7 @@ class QuickChat extends Disposable {
 				}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
-		this.widget.setDynamicChatTreeItemLayout(2, 900);
+		this.widget.setDynamicChatTreeItemLayout(2, QuickChat.DEFAULT_MAX_HEIGHT);
 		this.updateModel();
 		this.sash = this._register(new Sash(parent, { getHorizontalSashTop: () => parent.offsetHeight }, { orientation: Orientation.HORIZONTAL }));
 		this.registerListeners(parent);
@@ -192,7 +196,7 @@ class QuickChat extends Disposable {
 		this._register(this.widget.onDidChangeHeight((e) => this.sash.layout()));
 		const width = parent.offsetWidth;
 		this._register(this.sash.onDidChange((e) => {
-			if (e.currentY < 200) {
+			if (e.currentY < QuickChat.DEFAULT_MIN_HEIGHT || e.currentY > QuickChat.DEFAULT_MAX_HEIGHT) {
 				return;
 			}
 			this.widget.layout(e.currentY, width);
