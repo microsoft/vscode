@@ -47,25 +47,23 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 		_xterm: Pick<IXtermTerminal, 'getFont' | 'shellIntegration'> & { raw: Terminal },
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 		this._hasShellIntegration = _xterm.shellIntegration.status === ShellIntegrationStatus.VSCode;
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		const kb = this._keybindingService.lookupKeybindings(commandId);
-		switch (kb.length) {
-			case 0:
-				return format(noKbMsg, commandId);
-			case 1:
-				return format(msg, kb[0].getAriaLabel());
+		if (commandId === TerminalCommandId.RunRecentCommand) {
+			const kb = this._keybindingService.lookupKeybindings(commandId);
+			// Run recent command has multiple keybindings. lookupKeybinding just returns the first one regardless of the when context.
+			// Thus, we have to check if accessibility mode is enabled to determine which keybinding to use.
+			return this._accessibilityService.isScreenReaderOptimized() ? format(msg, kb[1].getAriaLabel()) : format(msg, kb[0].getAriaLabel());
 		}
-		// Run recent command has multiple keybindings. lookupKeybinding just returns the first one regardless of the when context.
-		// Thus, we have to check if accessibility mode is enabled to determine which keybinding to use.
-		return this._accessibilityService.isScreenReaderOptimized() ? format(msg, kb[1].getAriaLabel()) : format(msg, kb[0].getAriaLabel());
+		const kb = this._keybindingService.lookupKeybinding(commandId, this._contextKeyService)?.getAriaLabel();
+		return !kb ? format(noKbMsg, commandId) : format(msg, kb);
 	}
 
 	provideContent(): string {

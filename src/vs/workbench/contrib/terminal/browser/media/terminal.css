@@ -469,6 +469,8 @@
 
 .monaco-workbench .terminal .terminal-command-decoration:not(.default):hover {
 	cursor: pointer;
+}
+.monaco-workbench .terminal .terminal-command-decoration:not(.default):hover::before {
 	border-radius: 5px;
 	background-color: var(--vscode-toolbar-hoverBackground);
 }

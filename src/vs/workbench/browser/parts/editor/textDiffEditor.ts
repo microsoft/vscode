@@ -332,17 +332,24 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	private logInputLifecycleTelemetry(duration: number, languageId: string | undefined): void {
+		let collapseUnchangedRegions = false;
+		if (this.diffEditorControl instanceof DiffEditorWidget2) {
+			collapseUnchangedRegions = this.diffEditorControl.collapseUnchangedRegions;
+		}
 		this.telemetryService.publicLog2<{
 			editorVisibleTimeMs: number;
 			languageId: string;
+			collapseUnchangedRegions: boolean;
 		}, {
 			owner: 'hediet';
 			editorVisibleTimeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates the time the diff editor was visible to the user' };
 			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates for which language the diff editor was shown' };
+			collapseUnchangedRegions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates whether unchanged regions were collapsed' };
 			comment: 'This event gives insight about how long the diff editor was visible to the user.';
 		}>('diffEditor.editorVisibleTime', {
 			editorVisibleTimeMs: duration,
 			languageId: languageId ?? '',
+			collapseUnchangedRegions,
 		});
 	}
 

@@ -335,7 +335,7 @@ class AccessibleView extends Disposable {
 			}
 		}
 
-		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', '\n\nExit this dialog via the Escape key.');
+		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', '\nExit this dialog via the Escape key.');
 		this._updateContextKeys(provider, true);
 
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.verbositySettingKey}`, scheme: 'accessible-view', fragment: this._currentContent })).then((model) => {

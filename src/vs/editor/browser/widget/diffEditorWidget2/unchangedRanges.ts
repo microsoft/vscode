@@ -94,13 +94,13 @@ export class UnchangedRangesFeature extends Disposable {
 					const d = derived(reader => /** @description hiddenOriginalRangeStart */ r.getHiddenOriginalRange(reader).startLineNumber - 1);
 					const origVz = new PlaceholderViewZone(d, 24);
 					origViewZones.push(origVz);
-					store.add(new CollapsedCodeOverlayWidget(this._editors.original, origVz, r, !sideBySide, modifiedOutlineSource));
+					store.add(new CollapsedCodeOverlayWidget(this._editors.original, origVz, r, r.originalRange, !sideBySide, modifiedOutlineSource));
 				}
 				{
 					const d = derived(reader => /** @description hiddenModifiedRangeStart */ r.getHiddenModifiedRange(reader).startLineNumber - 1);
 					const modViewZone = new PlaceholderViewZone(d, 24);
 					modViewZones.push(modViewZone);
-					store.add(new CollapsedCodeOverlayWidget(this._editors.modified, modViewZone, r, false, modifiedOutlineSource));
+					store.add(new CollapsedCodeOverlayWidget(this._editors.modified, modViewZone, r, r.modifiedRange, false, modifiedOutlineSource));
 				}
 			}
 
@@ -262,6 +262,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 		private readonly _editor: ICodeEditor,
 		_viewZone: PlaceholderViewZone,
 		private readonly _unchangedRegion: UnchangedRegion,
+		private readonly _unchangedRegionRange: LineRange,
 		private readonly hide: boolean,
 		private readonly _modifiedOutlineSource: OutlineSource,
 	) {
@@ -333,9 +334,9 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 				didMove = didMove || Math.abs(delta) > 2;
 				const lineDelta = Math.round(delta / editor.getOption(EditorOption.lineHeight));
 				const newVal = Math.max(0, Math.min(cur - lineDelta, this._unchangedRegion.getMaxVisibleLineCountBottom()));
-				const top = editor.getTopForLineNumber(this._unchangedRegion.originalRange.endLineNumberExclusive);
+				const top = editor.getTopForLineNumber(this._unchangedRegionRange.endLineNumberExclusive);
 				this._unchangedRegion.visibleLineCountBottom.set(newVal, undefined);
-				const top2 = editor.getTopForLineNumber(this._unchangedRegion.originalRange.endLineNumberExclusive);
+				const top2 = editor.getTopForLineNumber(this._unchangedRegionRange.endLineNumberExclusive);
 				editor.setScrollTop(editor.getScrollTop() + (top2 - top));
 			});
 
@@ -343,10 +344,10 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 				this._unchangedRegion.isDragged.set(false, undefined);
 
 				if (!didMove) {
-					const top = editor.getTopForLineNumber(this._unchangedRegion.originalRange.endLineNumberExclusive);
+					const top = editor.getTopForLineNumber(this._unchangedRegionRange.endLineNumberExclusive);
 
 					this._unchangedRegion.showMoreBelow(20, undefined);
-					const top2 = editor.getTopForLineNumber(this._unchangedRegion.originalRange.endLineNumberExclusive);
+					const top2 = editor.getTopForLineNumber(this._unchangedRegionRange.endLineNumberExclusive);
 					editor.setScrollTop(editor.getScrollTop() + (top2 - top));
 				}
 				this._nodes.bottom.classList.toggle('dragging', false);
@@ -360,27 +361,27 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			/** @description update labels */
 
 			const children: HTMLElement[] = [];
-			if (!this.hide && true) {
+			if (!this.hide) {
 				const lineCount = _unchangedRegion.getHiddenModifiedRange(reader).length;
 				const linesHiddenText = localize('hiddenLines', '{0} Hidden Lines', lineCount);
 				children.push($('span', { title: linesHiddenText }, linesHiddenText));
-			}
 
-			const range = this._unchangedRegion.getHiddenModifiedRange(reader);
-			const items = this._modifiedOutlineSource.getBreadcrumbItems(range, reader);
+				const range = this._unchangedRegion.getHiddenModifiedRange(reader);
+				const items = this._modifiedOutlineSource.getBreadcrumbItems(range, reader);
 
-			if (items.length > 0) {
-				children.push($('span', undefined, '\u00a0|\u00a0'));
+				if (items.length > 0) {
+					children.push($('span', undefined, '\u00a0|\u00a0'));
 
-				let isFirst = true;
-				for (const item of items) {
-					if (!isFirst) {
-						children.push($('span', {}, ' ', renderIcon(Codicon.chevronRight), ' '));
+					let isFirst = true;
+					for (const item of items) {
+						if (!isFirst) {
+							children.push($('span', {}, ' ', renderIcon(Codicon.chevronRight), ' '));
+						}
+
+						const icon = SymbolKinds.toIcon(item.kind);
+						children.push($('span', {}, renderIcon(icon), ' ', item.name));
+						isFirst = false;
 					}
-
-					const icon = SymbolKinds.toIcon(item.kind);
-					children.push($('span', {}, renderIcon(icon), ' ', item.name));
-					isFirst = false;
 				}
 			}
 

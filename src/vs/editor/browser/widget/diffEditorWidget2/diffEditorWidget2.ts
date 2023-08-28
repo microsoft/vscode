@@ -81,6 +81,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 	private readonly movedBlocksLinesPart = observableValue<MovedBlocksLinesPart | undefined>('MovedBlocksLinesPart', undefined);
 
+	public get collapseUnchangedRegions() { return this._options.collapseUnchangedRegions.get(); }
+
 	constructor(
 		private readonly _domElement: HTMLElement,
 		options: Readonly<IDiffEditorConstructionOptions>,
@@ -498,10 +500,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		await diffModel.waitForDiff();
 	}
 
-	switchSide(): void {
+	mapToOtherSide(): { destination: CodeEditorWidget; destinationSelection: Range | undefined } {
 		const isModifiedFocus = this._editors.modified.hasWidgetFocus();
 		const source = isModifiedFocus ? this._editors.modified : this._editors.original;
 		const destination = isModifiedFocus ? this._editors.original : this._editors.modified;
+
+		let destinationSelection: Range | undefined;
 
 		const sourceSelection = source.getSelection();
 		if (sourceSelection) {
@@ -509,11 +513,18 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			if (mappings) {
 				const newRange1 = translatePosition(sourceSelection.getStartPosition(), mappings);
 				const newRange2 = translatePosition(sourceSelection.getEndPosition(), mappings);
-				const range = Range.plusRange(newRange1, newRange2);
-				destination.setSelection(range);
+				destinationSelection = Range.plusRange(newRange1, newRange2);
 			}
 		}
+		return { destination, destinationSelection };
+	}
+
+	switchSide(): void {
+		const { destination, destinationSelection } = this.mapToOtherSide();
 		destination.focus();
+		if (destinationSelection) {
+			destination.setSelection(destinationSelection);
+		}
 	}
 
 	exitCompareMove(): void {
