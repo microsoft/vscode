@@ -186,7 +186,7 @@ export interface IProductConfiguration {
 	readonly profileTemplatesUrl?: string;
 
 	readonly commonlyUsedSettings?: string[];
-	readonly aiGeneratedWorkspaceTrust: IAiGeneratedWorkspaceTrust;
+	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
 }
 
 export interface ITunnelApplicationConfig {

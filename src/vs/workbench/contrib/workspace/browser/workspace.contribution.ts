@@ -309,9 +309,23 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		}));
 
 		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequestOnStartup(async () => {
-			const isAiGeneratedWorkspace = await this.isAiGeneratedWorkspace();
 
-			const title = isAiGeneratedWorkspace ? this.productService.aiGeneratedWorkspaceTrust.title : (this.useWorkspaceLanguage ?
+			let titleString: string | undefined;
+			let checkboxString: string | undefined;
+			let learnMoreString: string | undefined;
+			let trustOption: string | undefined;
+			let dontTrustOption: string | undefined;
+			if (await this.isAiGeneratedWorkspace() && this.productService.aiGeneratedWorkspaceTrust) {
+				titleString = this.productService.aiGeneratedWorkspaceTrust.title;
+				checkboxString = this.productService.aiGeneratedWorkspaceTrust.checkboxText;
+				learnMoreString = this.productService.aiGeneratedWorkspaceTrust.startupTrustRequestLearnMore;
+				trustOption = this.productService.aiGeneratedWorkspaceTrust.startupTrustRequestLearnMore;
+				dontTrustOption = this.productService.aiGeneratedWorkspaceTrust.dontTrustOption;
+			} else {
+				console.warn('AI generated workspace trust dialog contents not available.');
+			}
+
+			const title = titleString ?? (this.useWorkspaceLanguage ?
 				localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
 				localize('folderTrust', "Do you trust the authors of the files in this folder?"));
 
@@ -321,19 +335,19 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			const isEmptyWindow = isEmptyWorkspaceIdentifier(workspaceIdentifier);
 			if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
 				const name = basename(uriDirname((workspaceIdentifier as ISingleFolderWorkspaceIdentifier).uri));
-				checkboxText = isAiGeneratedWorkspace ? this.productService.aiGeneratedWorkspaceTrust.checkboxText : localize('checkboxString', "Trust the authors of all files in the parent folder '{0}'", name);
+				checkboxText = checkboxString ?? localize('checkboxString', "Trust the authors of all files in the parent folder '{0}'", name);
 			}
 
 			// Show Workspace Trust Start Dialog
 			this.doShowModal(
 				title,
-				{ label: isAiGeneratedWorkspace ? this.productService.aiGeneratedWorkspaceTrust.trustOption : localize({ key: 'trustOption', comment: ['&& denotes a mnemonic'] }, "&&Yes, I trust the authors"), sublabel: isSingleFolderWorkspace ? localize('trustFolderOptionDescription', "Trust folder and enable all features") : localize('trustWorkspaceOptionDescription', "Trust workspace and enable all features") },
-				{ label: isAiGeneratedWorkspace ? this.productService.aiGeneratedWorkspaceTrust.dontTrustOption : localize({ key: 'dontTrustOption', comment: ['&& denotes a mnemonic'] }, "&&No, I don't trust the authors"), sublabel: isSingleFolderWorkspace ? localize('dontTrustFolderOptionDescription', "Browse folder in restricted mode") : localize('dontTrustWorkspaceOptionDescription', "Browse workspace in restricted mode") },
+				{ label: trustOption ?? localize({ key: 'trustOption', comment: ['&& denotes a mnemonic'] }, "&&Yes, I trust the authors"), sublabel: isSingleFolderWorkspace ? localize('trustFolderOptionDescription', "Trust folder and enable all features") : localize('trustWorkspaceOptionDescription', "Trust workspace and enable all features") },
+				{ label: dontTrustOption ?? localize({ key: 'dontTrustOption', comment: ['&& denotes a mnemonic'] }, "&&No, I don't trust the authors"), sublabel: isSingleFolderWorkspace ? localize('dontTrustFolderOptionDescription', "Browse folder in restricted mode") : localize('dontTrustWorkspaceOptionDescription', "Browse workspace in restricted mode") },
 				[
 					!isSingleFolderWorkspace ?
 						localize('workspaceStartupTrustDetails', "{0} provides features that may automatically execute files in this workspace.", this.productService.nameShort) :
 						localize('folderStartupTrustDetails', "{0} provides features that may automatically execute files in this folder.", this.productService.nameShort),
-					isAiGeneratedWorkspace ? this.productService.aiGeneratedWorkspaceTrust.startupTrustRequestLearnMore : localize('startupTrustRequestLearnMore', "If you don't trust the authors of these files, we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more."),
+					learnMoreString ?? localize('startupTrustRequestLearnMore', "If you don't trust the authors of these files, we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more."),
 					!isEmptyWindow ?
 						`\`${this.labelService.getWorkspaceLabel(workspaceIdentifier, { verbose: Verbosity.LONG })}\`` : '',
 				],
