@@ -539,7 +539,10 @@ export class QuickInputList {
 			}
 		}));
 
-		const delayer = new ThrottledDelayer(options.hoverDelegate ? options.hoverDelegate.delay : 200);
+		if (options.hoverDelegate === undefined) {
+			return;
+		}
+		const delayer = new ThrottledDelayer(options.hoverDelegate.delay);
 		// onMouseOver triggers every time a new element has been moused over
 		// even if it's on the same list item.
 		this.disposables.push(this.list.onMouseOver(async e => {
