@@ -53,7 +53,7 @@ suite('Notebook Symbols', function () {
 	test('Cell without symbols cache', function () {
 		symbols = [{ name: 'var' }];
 		const entryFactory = new NotebookOutlineEntryCacheService(executionService, outlineModelService);
-		const entries = entryFactory.createOutlineEntrys(createCellViewModel(), 0, true, true);
+		const entries = entryFactory.getOutlineEntries(createCellViewModel(), 0, true, true);
 
 		assert.equal(entries.length, 1, 'no entries created');
 		assert.equal(entries[0].label, '# code', 'entry should fall back to first line of cell');
@@ -65,9 +65,9 @@ suite('Notebook Symbols', function () {
 
 		const cell = createCellViewModel();
 		// initial call to cache values
-		entryFactory.createOutlineEntrys(cell, 0, true, true);
+		entryFactory.getOutlineEntries(cell, 0, true, true);
 		await new Promise(resolve => setTimeout(resolve, 0));
-		const entries = entryFactory.createOutlineEntrys(cell, 0, true, true);
+		const entries = entryFactory.getOutlineEntries(cell, 0, true, true);
 
 		assert.equal(entries.length, 2, 'wrong number of outline entries');
 		assert.equal(entries[0].label, 'var1');
@@ -83,14 +83,14 @@ suite('Notebook Symbols', function () {
 		symbols = [{ name: 'var1' }];
 		const entryFactory = new NotebookOutlineEntryCacheService(executionService, outlineModelService);
 
-		entryFactory.createOutlineEntrys(createCellViewModel(1), 0, true, true);
+		entryFactory.getOutlineEntries(createCellViewModel(1), 0, true, true);
 		await new Promise(resolve => setTimeout(resolve, 0));
 		symbols = [{ name: 'updated' }];
 		// update the cache
 		const cell = createCellViewModel(2);
-		entryFactory.createOutlineEntrys(cell, 0, true, true);
+		entryFactory.getOutlineEntries(cell, 0, true, true);
 		await new Promise(resolve => setTimeout(resolve, 0));
-		const entries = entryFactory.createOutlineEntrys(cell, 0, true, true);
+		const entries = entryFactory.getOutlineEntries(cell, 0, true, true);
 
 		assert.equal(entries.length, 1, 'wrong number of outline entries');
 		assert.equal(entries[0].label, 'updated');
@@ -102,9 +102,9 @@ suite('Notebook Symbols', function () {
 
 		const cell = createCellViewModel();
 		// initial call that doesn't need all symbols, still request to cache them
-		entryFactory.createOutlineEntrys(cell, 0, false, true);
+		entryFactory.getOutlineEntries(cell, 0, false, true);
 		await new Promise(resolve => setTimeout(resolve, 0));
-		const entries = entryFactory.createOutlineEntrys(cell, 0, true, true);
+		const entries = entryFactory.getOutlineEntries(cell, 0, true, true);
 
 		assert.equal(entries.length, 1, 'wrong number of outline entries');
 		assert.equal(entries[0].label, 'var1');
@@ -118,9 +118,9 @@ suite('Notebook Symbols', function () {
 		const entryFactory = new NotebookOutlineEntryCacheService(executionService, outlineModelService);
 
 		// initial call to cache values
-		entryFactory.createOutlineEntrys(createCellViewModel(), 0, true, true);
+		entryFactory.getOutlineEntries(createCellViewModel(), 0, true, true);
 		await new Promise(resolve => setTimeout(resolve, 0));
-		const entries = entryFactory.createOutlineEntrys(createCellViewModel(), 0, true, true);
+		const entries = entryFactory.getOutlineEntries(createCellViewModel(), 0, true, true);
 
 		assert.equal(entries.length, 5, 'wrong number of outline entries');
 		assert.equal(entries[0].label, 'root1');

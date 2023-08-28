@@ -126,7 +126,7 @@ export class NotebookCellOutlineProvider {
 
 		const entries: OutlineEntry[] = [];
 		for (const cell of notebookCells) {
-			entries.push(...this._outlineEntryFactory.createOutlineEntrys(cell, entries.length, showAllSymbols, cacheSymbols));
+			entries.push(...this._outlineEntryFactory.getOutlineEntries(cell, entries.length, showAllSymbols, cacheSymbols));
 			// send an event whenever any of the cells change
 			this._entriesDisposables.add(cell.model.onDidChangeContent(() => {
 				this._recomputeState();

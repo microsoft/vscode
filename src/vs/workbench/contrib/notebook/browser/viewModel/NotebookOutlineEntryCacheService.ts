@@ -15,15 +15,21 @@ import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/co
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Range } from 'vs/editor/common/core/range';
+
 
 export const INotebookOutlineEntryCacheService = createDecorator<INotebookOutlineEntryCacheService>('INotebookOutlineEntryFactory');
 
 export interface INotebookOutlineEntryCacheService {
 	readonly _serviceBrand: undefined;
-	createOutlineEntrys(cell: ICellViewModel, index: number, includeAllSymbols: boolean, cacheSymbols: boolean): OutlineEntry[];
+	getOutlineEntries(cell: ICellViewModel, index: number, includeAllSymbols: boolean, cacheSymbols: boolean): OutlineEntry[];
 }
 
-type entryDesc = { name: string; level: number };
+type entryDesc = {
+	name: string;
+	position: Range;
+	level: number;
+};
 
 export class NotebookOutlineEntryCacheService implements INotebookOutlineEntryCacheService, IDisposable {
 	_serviceBrand: undefined;
@@ -36,7 +42,7 @@ export class NotebookOutlineEntryCacheService implements INotebookOutlineEntryCa
 		@IOutlineModelService private readonly outlineModelService: IOutlineModelService
 	) { }
 
-	public createOutlineEntrys(cell: ICellViewModel, index: number, includeAllSymbols: boolean, cacheSymbols: boolean): OutlineEntry[] {
+	public getOutlineEntries(cell: ICellViewModel, index: number, includeAllSymbols: boolean, cacheSymbols: boolean): OutlineEntry[] {
 		const entries: OutlineEntry[] = [];
 
 		const isMarkdown = cell.cellKind === CellKind.Markup;
@@ -81,7 +87,7 @@ export class NotebookOutlineEntryCacheService implements INotebookOutlineEntryCa
 				// This will just provide the most recently cached values to stay syncronous, while refreshing the cache asyncronously.
 				if (includeAllSymbols && cachedEntries) {
 					cachedEntries.forEach((cached) => {
-						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false));
+						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false, cached.position));
 					});
 
 				}
@@ -108,8 +114,8 @@ export class NotebookOutlineEntryCacheService implements INotebookOutlineEntryCa
 			const timeout = this.outlineModelService.getDebounceValue(textModel);
 			this.cacheTimer.cancelAndSet(async () => {
 				const outlineModel = await this.outlineModelService.getOrCreate(textModel, CancellationToken.None);
-				const symbols = createOutlineEntry(outlineModel.getTopLevelSymbols(), 7);
-				this.cellOutlineEntryCache[textModel.id] = symbols;
+				const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 7);
+				this.cellOutlineEntryCache[textModel.id] = entries;
 			}, timeout);
 		}
 	}
@@ -122,12 +128,16 @@ export class NotebookOutlineEntryCacheService implements INotebookOutlineEntryCa
 type outlineModel = Awaited<ReturnType<OutlineModelService['getOrCreate']>>;
 type documentSymbol = ReturnType<outlineModel['getTopLevelSymbols']>[number];
 
-function createOutlineEntry(symbols: documentSymbol[], level: number): entryDesc[] {
+function createOutlineEntries(symbols: documentSymbol[], level: number): entryDesc[] {
 	const entries: entryDesc[] = [];
 	symbols.forEach(symbol => {
-		entries.push({ name: symbol.name, level });
+		const position = new Range(symbol.selectionRange.startLineNumber,
+			symbol.selectionRange.startColumn,
+			symbol.selectionRange.startLineNumber,
+			symbol.selectionRange.startColumn);
+		entries.push({ name: symbol.name, position, level });
 		if (symbol.children) {
-			entries.push(...createOutlineEntry(symbol.children, level + 1));
+			entries.push(...createOutlineEntries(symbol.children, level + 1));
 		}
 	});
 	return entries;

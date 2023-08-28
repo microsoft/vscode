@@ -286,7 +286,8 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			options: {
 				...options,
 				override: this._editor.input?.editorId,
-				cellRevealType: CellRevealType.NearTopIfOutsideViewport
+				cellRevealType: CellRevealType.NearTopIfOutsideViewport,
+				selection: entry.position
 			} as INotebookEditorOptions,
 		}, sideBySide ? SIDE_GROUP : undefined);
 	}
