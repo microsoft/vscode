@@ -28,6 +28,9 @@ suite('Notebook Symbols', function () {
 		override getOrCreate(arg0: any, arg1: any) {
 			return Promise.resolve(outlineModel);
 		}
+		override getDebounceValue(arg0: any) {
+			return 0;
+		}
 	};
 
 	function createCellViewModel(version: number = 1) {
@@ -109,7 +112,7 @@ suite('Notebook Symbols', function () {
 
 	test('Cell with nested symbols', async function () {
 		symbols = [
-			{ name: 'root1', children: [{ name: 'nested1' }] },
+			{ name: 'root1', children: [{ name: 'nested1' }, { name: 'nested2' }] },
 			{ name: 'root2', children: [{ name: 'nested1' }] }
 		];
 		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
@@ -119,14 +122,16 @@ suite('Notebook Symbols', function () {
 		await new Promise(resolve => setTimeout(resolve, 0));
 		const entries = entryFactory.createOutlineEntrys(createCellViewModel(), 0, true, true);
 
-		assert.equal(entries.length, 4, 'wrong number of outline entries');
+		assert.equal(entries.length, 5, 'wrong number of outline entries');
 		assert.equal(entries[0].label, 'root1');
 		assert.equal(entries[0].level, 7);
 		assert.equal(entries[1].label, 'nested1');
 		assert.equal(entries[1].level, 8);
-		assert.equal(entries[0].label, 'root2');
-		assert.equal(entries[0].level, 7);
-		assert.equal(entries[1].label, 'nested1');
-		assert.equal(entries[1].level, 8);
+		assert.equal(entries[2].label, 'nested2');
+		assert.equal(entries[2].level, 8);
+		assert.equal(entries[3].label, 'root2');
+		assert.equal(entries[3].level, 7);
+		assert.equal(entries[4].label, 'nested1');
+		assert.equal(entries[4].level, 8);
 	});
 });

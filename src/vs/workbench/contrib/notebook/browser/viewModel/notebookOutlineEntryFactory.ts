@@ -5,7 +5,7 @@
 
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
+import { IOutlineModelService, OutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { localize } from 'vs/nls';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getMarkdownHeadersInCell } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
@@ -23,7 +23,7 @@ export interface INotebookOutlineEntryFactory {
 	createOutlineEntrys(cell: ICellViewModel, index: number, includeAllSymbols: boolean, cacheSymbols: boolean): OutlineEntry[];
 }
 
-type entryDesc = { name: string; children?: entryDesc[] };
+type entryDesc = { name: string; level: number };
 
 export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory, IDisposable {
 	_serviceBrand: undefined;
@@ -81,7 +81,7 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 				// This will just provide the most recently cached values to stay syncronous, while refreshing the cache asyncronously.
 				if (includeAllSymbols && cachedEntries) {
 					cachedEntries.forEach((cached) => {
-						entries.push(new OutlineEntry(index++, 7, cell, cached.name, false, false));
+						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false));
 					});
 
 				}
@@ -108,10 +108,7 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 			const timeout = this.outlineModelService.getDebounceValue(textModel);
 			this.cacheTimer.cancelAndSet(async () => {
 				const outlineModel = await this.outlineModelService.getOrCreate(textModel, CancellationToken.None);
-				const symbols = outlineModel.getTopLevelSymbols().map((symbol) => {
-					return { name: symbol.name };
-				});
-
+				const symbols = createOutlineEntry(outlineModel.getTopLevelSymbols(), 7);
 				this.cellOutlineEntryCache[textModel.id] = symbols;
 			}, timeout);
 		}
@@ -120,6 +117,20 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 	dispose(): void {
 		this.cacheTimer.dispose();
 	}
+}
+
+type outlineModel = Awaited<ReturnType<OutlineModelService['getOrCreate']>>;
+type documentSymbol = ReturnType<outlineModel['getTopLevelSymbols']>[number];
+
+function createOutlineEntry(symbols: documentSymbol[], level: number): entryDesc[] {
+	const entries: entryDesc[] = [];
+	symbols.forEach(symbol => {
+		entries.push({ name: symbol.name, level });
+		if (symbol.children) {
+			entries.push(...createOutlineEntry(symbol.children, level + 1));
+		}
+	});
+	return entries;
 }
 
 function getCellFirstNonEmptyLine(cell: ICellViewModel) {
