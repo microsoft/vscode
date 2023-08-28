@@ -319,7 +319,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				titleString = this.productService.aiGeneratedWorkspaceTrust.title;
 				checkboxString = this.productService.aiGeneratedWorkspaceTrust.checkboxText;
 				learnMoreString = this.productService.aiGeneratedWorkspaceTrust.startupTrustRequestLearnMore;
-				trustOption = this.productService.aiGeneratedWorkspaceTrust.startupTrustRequestLearnMore;
+				trustOption = this.productService.aiGeneratedWorkspaceTrust.trustOption;
 				dontTrustOption = this.productService.aiGeneratedWorkspaceTrust.dontTrustOption;
 			} else {
 				console.warn('AI generated workspace trust dialog contents not available.');
