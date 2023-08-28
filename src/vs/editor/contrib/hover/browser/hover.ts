@@ -42,7 +42,7 @@ export class ModesHoverController implements IEditorContribution {
 	public static readonly ID = 'editor.contrib.hover';
 
 	private readonly _toUnhook = new DisposableStore();
-	private readonly _editorListenerStore: DisposableStore = new DisposableStore();
+	private readonly _store: DisposableStore = new DisposableStore();
 
 	private _contentWidget: ContentHoverController | null;
 
@@ -77,13 +77,13 @@ export class ModesHoverController implements IEditorContribution {
 
 		this._hookEvents();
 
-		this._editorListenerStore.add(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+		this._store.add(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.hover)) {
 				this._unhookEvents();
 				this._hookEvents();
 			}
 		}));
-		this._editorListenerStore.add(this._editor.onMouseLeave(() => {
+		this._store.add(this._editor.onMouseLeave(() => {
 			this._mouseMoveEvent = undefined;
 		}));
 	}
@@ -359,7 +359,7 @@ export class ModesHoverController implements IEditorContribution {
 	public dispose(): void {
 		this._unhookEvents();
 		this._toUnhook.dispose();
-		this._editorListenerStore.dispose();
+		this._store.dispose();
 		this._glyphWidget?.dispose();
 		this._contentWidget?.dispose();
 	}
