@@ -1019,8 +1019,8 @@ export class Repository {
 		const maxEntries = options?.maxEntries ?? 32;
 		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z'];
 
-		if (options?.between) {
-			args.push(`${options.between.fromRef}..${options.between.toRef}`);
+		if (options?.range) {
+			args.push(options.range);
 		}
 
 		args.push('--');
