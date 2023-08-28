@@ -583,6 +583,7 @@ class AccessibleViewSymbolQuickPick {
 	}
 	show(provider: IAccessibleContentProvider): void {
 		const quickPick = this._quickInputService.createQuickPick<IAccessibleViewSymbol>();
+		quickPick.placeholder = localize('accessibleViewSymbolQuickPickPlaceholder', "Type to search symbols");
 		quickPick.title = localize('accessibleViewSymbolQuickPickTitle', "Go to Symbol Accessible View");
 		const picks = [];
 		const symbols = this._accessibleView.getSymbols();
