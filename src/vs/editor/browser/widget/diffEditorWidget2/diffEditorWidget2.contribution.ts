@@ -23,7 +23,7 @@ export class ToggleCollapseUnchangedRegions extends Action2 {
 			title: { value: localize('toggleCollapseUnchangedRegions', "Toggle Collapse Unchanged Regions"), original: 'Toggle Collapse Unchanged Regions' },
 			icon: Codicon.map,
 			precondition: ContextKeyEqualsExpr.create('diffEditorVersion', 2),
-			toggled: ContextKeyExpr.has('config.diffEditor.experimental.collapseUnchangedRegions'),
+			toggled: ContextKeyExpr.has('config.diffEditor.hideUnchangedRegions.enabled'),
 			menu: {
 				id: MenuId.EditorTitle,
 				order: 22,
@@ -35,8 +35,8 @@ export class ToggleCollapseUnchangedRegions extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const configurationService = accessor.get(IConfigurationService);
-		const newValue = !configurationService.getValue<boolean>('diffEditor.experimental.collapseUnchangedRegions');
-		configurationService.updateValue('diffEditor.experimental.collapseUnchangedRegions', newValue);
+		const newValue = !configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled');
+		configurationService.updateValue('diffEditor.hideUnchangedRegions.enabled', newValue);
 	}
 }
 

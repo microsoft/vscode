@@ -594,6 +594,7 @@ export class StandaloneDiffEditor2 extends DiffEditorWidget2 implements IStandal
 			instantiationService,
 			codeEditorService,
 			audioCueService,
+			editorProgressService,
 		);
 
 		this._configurationService = configurationService;

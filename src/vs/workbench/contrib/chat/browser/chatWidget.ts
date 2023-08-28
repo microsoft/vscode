@@ -207,6 +207,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	clear(): void {
+		if (this._dynamicMessageLayoutData) {
+			this._dynamicMessageLayoutData.enabled = true;
+		}
 		this._onDidClear.fire();
 	}
 
@@ -525,13 +528,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._onDidChangeHeight.fire(height);
 	}
 
-	private _dynamicMessageLayoutData?: { numOfMessages: number; maxHeight: number };
+	private _dynamicMessageLayoutData?: { numOfMessages: number; maxHeight: number; enabled: boolean };
 
 	// An alternative to layout, this allows you to specify the number of ChatTreeItems
 	// you want to show, and the max height of the container. It will then layout the
 	// tree to show that many items.
+	// TODO@TylerLeonhardt: This could use some refactoring to make it clear which layout strategy is being used
 	setDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
-		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight };
+		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight, enabled: true };
 		this._register(this.renderer.onDidChangeItemHeight(() => this.layoutDynamicChatTreeItemMode()));
 
 		const mutableDisposable = this._register(new MutableDisposable());
@@ -546,16 +550,47 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					return;
 				}
 
-				const newHeight = Math.min(renderHeight + diff, maxHeight);
+				const possibleMaxHeight = (this._dynamicMessageLayoutData?.maxHeight ?? maxHeight);
 				const width = this.bodyDimension?.width ?? this.container.offsetWidth;
-				const inputPartHeight = this.inputPart.layout(newHeight, width);
+				const inputPartHeight = this.inputPart.layout(possibleMaxHeight, width);
+				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight);
 				this.layout(newHeight + inputPartHeight, width);
 			});
 		}));
 	}
 
+	updateDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
+		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight, enabled: true };
+		let hasChanged = false;
+		let height = this.bodyDimension!.height;
+		let width = this.bodyDimension!.width;
+		if (maxHeight < this.bodyDimension!.height) {
+			height = maxHeight;
+			hasChanged = true;
+		}
+		const containerWidth = this.container.offsetWidth;
+		if (this.bodyDimension?.width !== containerWidth) {
+			width = containerWidth;
+			hasChanged = true;
+		}
+		if (hasChanged) {
+			this.layout(height, width);
+		}
+	}
+
+	get isDynamicChatTreeItemLayoutEnabled(): boolean {
+		return this._dynamicMessageLayoutData?.enabled ?? false;
+	}
+
+	set isDynamicChatTreeItemLayoutEnabled(value: boolean) {
+		if (!this._dynamicMessageLayoutData) {
+			return;
+		}
+		this._dynamicMessageLayoutData.enabled = value;
+	}
+
 	layoutDynamicChatTreeItemMode(): void {
-		if (!this.viewModel) {
+		if (!this.viewModel || !this._dynamicMessageLayoutData?.enabled) {
 			return;
 		}
 		const inputHeight = this.inputPart.layout(this._dynamicMessageLayoutData!.maxHeight, this.container.offsetWidth);

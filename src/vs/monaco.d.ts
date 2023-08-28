@@ -3979,10 +3979,6 @@ declare namespace monaco.editor {
 			/**
 			 * Defaults to false.
 			 */
-			collapseUnchangedRegions?: boolean;
-			/**
-			 * Defaults to false.
-			 */
 			showMoves?: boolean;
 			showEmptyDecorations?: boolean;
 		};
@@ -3995,6 +3991,12 @@ declare namespace monaco.editor {
 		 * If the diff editor should only show the difference review mode.
 		 */
 		onlyShowAccessibleDiffViewer?: boolean;
+		hideUnchangedRegions?: {
+			enabled?: boolean;
+			revealLineCount?: number;
+			minimumLineCount?: number;
+			contextLineCount?: number;
+		};
 	}
 
 	/**

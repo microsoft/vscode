@@ -11475,12 +11475,15 @@ declare module 'vscode' {
 		getScoped(scope: EnvironmentVariableScope): EnvironmentVariableCollection;
 	}
 
-	export type EnvironmentVariableScope = {
+	/**
+	 * The scope object to which the environment variable collection applies.
+	 */
+	export interface EnvironmentVariableScope {
 		/**
 		 * Any specific workspace folder to get collection for.
 		 */
 		workspaceFolder?: WorkspaceFolder;
-	};
+	}
 
 	/**
 	 * A location in the editor at which progress information can be shown. It depends on the

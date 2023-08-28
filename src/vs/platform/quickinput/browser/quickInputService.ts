@@ -98,7 +98,8 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		const controller = this._register(new QuickInputController({
 			...defaultOptions,
 			...options
-		}));
+		},
+			this.themeService));
 
 		controller.layout(host.dimension, host.offset.quickPickTop);
 
@@ -225,8 +226,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			pickerGroup: {
 				pickerGroupBorder: asCssVariable(pickerGroupBorder),
 				pickerGroupForeground: asCssVariable(pickerGroupForeground),
-			},
-			colorScheme: this.themeService.getColorTheme().type
+			}
 		};
 	}
 }
