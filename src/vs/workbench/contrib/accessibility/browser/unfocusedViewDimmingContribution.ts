@@ -43,15 +43,15 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 					// Terminals
 					rules.add(`.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper:not(:focus-within) { ${filterRule} }`);
 					// Text editors
-					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .monaco-editor { ${filterRule} }`);
+					rules.add(`.monaco-workbench .editor-group-container:not(.active) .monaco-editor { ${filterRule} }`);
 					// Breadcrumbs
 					rules.add(`.monaco-workbench .editor-group-container:not(.active) .tabs-breadcrumbs { ${filterRule} }`);
 					// Terminal editors
-					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .terminal-wrapper { ${filterRule} }`);
+					rules.add(`.monaco-workbench .editor-group-container:not(.active) .terminal-wrapper { ${filterRule} }`);
 					// Settings editor
-					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .settings-editor { ${filterRule} }`);
+					rules.add(`.monaco-workbench .editor-group-container:not(.active) .settings-editor { ${filterRule} }`);
 					// Keybindings editor
-					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .keybindings-editor { ${filterRule} }`);
+					rules.add(`.monaco-workbench .editor-group-container:not(.active) .keybindings-editor { ${filterRule} }`);
 					cssTextContent = [...rules].join('\n');
 				}
 
