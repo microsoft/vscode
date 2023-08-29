@@ -387,6 +387,8 @@ export function computeContent(domNode: HTMLElement, notebookEditor: INotebookEd
 			return new Map();
 		}
 
+		const nextCell = notebookEditor.cellAt(i + 1);
+
 		// account for transitions between top level headers
 		if (cell.cellKind === CellKind.Markup) {
 			sectionBottom = notebookCellList.getCellViewScrollBottom(cell);
@@ -406,9 +408,8 @@ export function computeContent(domNode: HTMLElement, notebookEditor: INotebookEd
 
 		// if we are here, the cell is a code cell.
 		// check next cell, if markdown, that means this is the end of the section
-		const nextVisibleCell = notebookEditor.cellAt(i + 1);
-		if (nextVisibleCell && i + 1 < visibleRange.end) {
-			if (nextVisibleCell.cellKind === CellKind.Markup) {
+		if (nextCell && i + 1 < visibleRange.end) {
+			if (nextCell.cellKind === CellKind.Markup) {
 				// this is the end of the section
 				// store the bottom scroll position of this cell
 				sectionBottom = notebookCellList.getCellViewScrollBottom(cell);
