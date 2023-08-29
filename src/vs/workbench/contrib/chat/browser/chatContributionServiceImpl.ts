@@ -106,12 +106,15 @@ export class ChatContributionService implements IChatContributionService {
 	}
 
 	private registerChatProvider(extension: Readonly<IRelaxedExtensionDescription>, providerDescriptor: IRawChatProviderContribution): IDisposable {
+		const icon = providerDescriptor.icon ? resources.joinPath(extension.extensionLocation, providerDescriptor.icon) : Codicon.commentDiscussion;
+		const title = localize('chat.viewContainer.label', "Chat");
+
 		// Register View Container
 		const viewContainerId = CHAT_SIDEBAR_PANEL_ID + '.' + providerDescriptor.id;
 		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 			id: viewContainerId,
-			title: localize('chat.viewContainer.label', "Chat"),
-			icon: providerDescriptor.icon ? resources.joinPath(extension.extensionLocation, providerDescriptor.icon) : Codicon.commentDiscussion,
+			title,
+			icon,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [viewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: viewContainerId,
 			hideIfEmpty: true,
@@ -122,6 +125,8 @@ export class ChatContributionService implements IChatContributionService {
 		const viewId = this.getViewIdForProvider(providerDescriptor.id);
 		const viewDescriptor: IViewDescriptor[] = [{
 			id: viewId,
+			containerIcon: icon,
+			containerTitle: title,
 			name: providerDescriptor.label,
 			canToggleVisibility: false,
 			canMoveView: true,
