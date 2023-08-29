@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isWeb } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
@@ -20,7 +19,7 @@ import { createNotebookCellList, setupInstantiationService, withTestNotebook } f
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
 
-(isWeb ? suite.skip : suite)('NotebookEditorStickyScroll', () => {
+suite('NotebookEditorStickyScroll', () => {
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
