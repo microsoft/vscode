@@ -59,8 +59,9 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 			this.open(providerId, query);
 		}
 	}
+
 	open(providerId?: string, query?: string | undefined): void {
-		if (this.focused) {
+		if (this._input) {
 			return this.focus();
 		}
 
