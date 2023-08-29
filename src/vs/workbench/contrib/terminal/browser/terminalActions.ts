@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -549,8 +549,6 @@ export function registerTerminalActions() {
 		title: { value: localize('workbench.action.terminal.runSelectedText', "Run Selected Text In Active Terminal"), original: 'Run Selected Text In Active Terminal' },
 		run: async (c, accessor) => {
 			const codeEditorService = accessor.get(ICodeEditorService);
-			const configurationService = accessor.get(IConfigurationService);
-			const accessibilityService = accessor.get(IAccessibilityService);
 			const editor = codeEditorService.getActiveCodeEditor();
 			if (!editor || !editor.hasModel()) {
 				return;
@@ -566,13 +564,6 @@ export function registerTerminalActions() {
 			}
 			await instance.sendText(text, true, true);
 			await c.service.revealActiveTerminal();
-			const focusAfterRun = configurationService.getValue(TerminalSettingId.FocusAfterRun);
-			const focusTerminal = focusAfterRun === 'terminal' || (focusAfterRun === 'auto' && accessibilityService.isScreenReaderOptimized());
-			if (focusTerminal) {
-				instance.focus(true);
-			} else if (focusAfterRun === 'accessible-buffer') {
-				instance.getContribution('terminal.accessible-buffer')?.requestFocus?.();
-			}
 		}
 	});
 
