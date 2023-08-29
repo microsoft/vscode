@@ -56,6 +56,8 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 					rules.add(`.monaco-workbench .editor-group-container:not(.active) .keybindings-editor { ${filterRule} }`);
 					// Editor placeholder (error case)
 					rules.add(`.monaco-workbench .editor-group-container:not(.active) .monaco-editor-pane-placeholder { ${filterRule} }`);
+					// Welcome editor
+					rules.add(`.monaco-workbench .editor-group-container:not(.active) .gettingStartedContainer { ${filterRule} }`);
 					cssTextContent = [...rules].join('\n');
 				}
 
