@@ -170,8 +170,7 @@ suite('NotebookEditorStickyScroll', () => {
 			});
 	});
 
-	// waiting on behavior push to fix this.
-	test.skip('test3: should render 0->1, 	collapsing against equivalent level header', async function () {
+	test('test3: should render 0->1, 	collapsing against equivalent level header', async function () {
 		await withTestNotebook(
 			[
 				['# header a', 'markdown', CellKind.Markup, [], {}],	// 0
@@ -209,7 +208,7 @@ suite('NotebookEditorStickyScroll', () => {
 			});
 	});
 
-	// waiting on behavior push to fix this.
+	// outdated/improper behavior
 	test.skip('test4: should render 0, 		scrolltop halfway through cell 0', async function () {
 		await withTestNotebook(
 			[
@@ -236,7 +235,7 @@ suite('NotebookEditorStickyScroll', () => {
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
-				editor.setScrollTop(25);
+				editor.setScrollTop(50);
 				editor.visibleRanges = [{ start: 0, end: 8 }];
 
 				const notebookOutlineEntries = getOutline(editor).entries;
@@ -246,7 +245,7 @@ suite('NotebookEditorStickyScroll', () => {
 			});
 	});
 
-	// waiting on behavior push to fix this.
+	// outdated/improper behavior
 	test.skip('test5: should render 0->2, 	scrolltop halfway through cell 2', async function () {
 		await withTestNotebook(
 			[
@@ -285,7 +284,7 @@ suite('NotebookEditorStickyScroll', () => {
 			});
 	});
 
-	// waiting on behavior push to fix this.
+	// outdated/improper behavior
 	test.skip('test6: should render 6->7, 	scrolltop halfway through cell 7', async function () {
 		await withTestNotebook(
 			[
@@ -325,7 +324,7 @@ suite('NotebookEditorStickyScroll', () => {
 	});
 
 	// waiting on behavior push to fix this.
-	test.skip('test7: should render 0->1, 	collapsing against next section', async function () {
+	test('test7: should render 0->1, 	collapsing against next section', async function () {
 		await withTestNotebook(
 			[
 				['# header a', 'markdown', CellKind.Markup, [], {}], 		//0
