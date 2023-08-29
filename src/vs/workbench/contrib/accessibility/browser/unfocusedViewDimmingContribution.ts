@@ -36,6 +36,8 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 				);
 
 				if (opacity !== 1) {
+					// These filter rules are more specific than may be expected as the `filter`
+					// rule can cause problems if it's used inside the element like on editor hovers
 					const rules = new Set<string>();
 					const filterRule = `filter: opacity(${opacity});`;
 					// Terminal tabs
@@ -52,6 +54,8 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 					rules.add(`.monaco-workbench .editor-group-container:not(.active) .settings-editor { ${filterRule} }`);
 					// Keybindings editor
 					rules.add(`.monaco-workbench .editor-group-container:not(.active) .keybindings-editor { ${filterRule} }`);
+					// Editor placeholder (error case)
+					rules.add(`.monaco-workbench .editor-group-container:not(.active) .monaco-editor-pane-placeholder { ${filterRule} }`);
 					cssTextContent = [...rules].join('\n');
 				}
 
