@@ -92,8 +92,7 @@ suite('NotebookEditorStickyScroll', () => {
 
 				const notebookOutlineEntries = getOutline(editor).entries;
 				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
-
-				await assertSnapshot(resultingMap);
+				assert.equal(resultingMap.length, 0, 'should render empty, scrollTop at 0');
 			});
 	});
 
