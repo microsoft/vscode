@@ -21,16 +21,16 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 		this._register(toDisposable(() => this._removeStyleElement()));
 
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
-			if (e && !e.affectsConfiguration(AccessibilityWorkbenchSettingId.ViewDimUnfocusedEnabled) && !e.affectsConfiguration(AccessibilityWorkbenchSettingId.ViewDimUnfocusedOpacity)) {
+			if (e && !e.affectsConfiguration(AccessibilityWorkbenchSettingId.DimUnfocusedEnabled) && !e.affectsConfiguration(AccessibilityWorkbenchSettingId.DimUnfocusedOpacity)) {
 				return;
 			}
 
 			let cssTextContent = '';
 
-			const enabled = ensureBoolean(configurationService.getValue(AccessibilityWorkbenchSettingId.ViewDimUnfocusedEnabled), false);
+			const enabled = ensureBoolean(configurationService.getValue(AccessibilityWorkbenchSettingId.DimUnfocusedEnabled), false);
 			if (enabled) {
 				const opacity = clamp(
-					ensureNumber(configurationService.getValue(AccessibilityWorkbenchSettingId.ViewDimUnfocusedOpacity), ViewDimUnfocusedOpacityProperties.Default),
+					ensureNumber(configurationService.getValue(AccessibilityWorkbenchSettingId.DimUnfocusedOpacity), ViewDimUnfocusedOpacityProperties.Default),
 					ViewDimUnfocusedOpacityProperties.Minimum,
 					ViewDimUnfocusedOpacityProperties.Maximum
 				);

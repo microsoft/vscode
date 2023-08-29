@@ -21,8 +21,8 @@ export const accessibleViewCurrentProviderId = new RawContextKey<string>('access
  * were better to live under workbench for discoverability.
  */
 export const enum AccessibilityWorkbenchSettingId {
-	ViewDimUnfocusedEnabled = 'workbench.view.dimUnfocused.enabled',
-	ViewDimUnfocusedOpacity = 'workbench.view.dimUnfocused.opacity'
+	DimUnfocusedEnabled = 'accessibility.dimUnfocused.enabled',
+	DimUnfocusedOpacity = 'accessibility.dimUnfocused.opacity'
 }
 
 export const enum ViewDimUnfocusedOpacityProperties {
@@ -120,15 +120,15 @@ export function registerAccessibilityConfiguration() {
 	registry.registerConfiguration({
 		...workbenchConfigurationNodeBase,
 		properties: {
-			[AccessibilityWorkbenchSettingId.ViewDimUnfocusedEnabled]: {
-				description: localize('dimUnfocusedEnabled', 'Whether to dim unfocused editors and terminals, making the focused view more obvious.'),
+			[AccessibilityWorkbenchSettingId.DimUnfocusedEnabled]: {
+				description: localize('dimUnfocusedEnabled', 'Whether to dim unfocused editors and terminals, which makes it more clear where typed input will go to. This works with the majority of editors with the notable exceptions of those that utilize iframes like notebooks and extension webview editors.'),
 				type: 'boolean',
 				default: false,
 				tags: ['accessibility'],
 				scope: ConfigurationScope.APPLICATION,
 			},
-			[AccessibilityWorkbenchSettingId.ViewDimUnfocusedOpacity]: {
-				description: localize('dimUnfocusedOpacity', 'The opacity fraction (0.2 to 1.0) to use for unfocused editors and terminals. This will only take effect when {0} is enabled.', `\`#${AccessibilityWorkbenchSettingId.ViewDimUnfocusedEnabled}#\``),
+			[AccessibilityWorkbenchSettingId.DimUnfocusedOpacity]: {
+				description: localize('dimUnfocusedOpacity', 'The opacity fraction (0.2 to 1.0) to use for unfocused editors and terminals. This will only take effect when {0} is enabled.', `\`#${AccessibilityWorkbenchSettingId.DimUnfocusedEnabled}#\``),
 				type: 'number',
 				minimum: ViewDimUnfocusedOpacityProperties.Minimum,
 				maximum: ViewDimUnfocusedOpacityProperties.Maximum,
