@@ -757,6 +757,7 @@
 		"--vscode-sash-hover-size",
 		"--vscode-sash-size",
 		"--vscode-editorStickyScroll-scrollableWidth",
+		"--vscode-editorStickyScroll-foldingOpacityTransition",
 		"--window-border-color",
 		"--workspace-trust-check-color",
 		"--workspace-trust-selected-color",
