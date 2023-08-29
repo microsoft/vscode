@@ -117,7 +117,7 @@ export class InlineCompletionsController extends Disposable {
 		this._register(editor.onDidChangeCursorPosition(e => transaction(tx => {
 			/** @description onDidChangeCursorPosition */
 			this.updateObservables(tx, VersionIdChangeReason.Other);
-			if (e.reason === CursorChangeReason.Explicit) {
+			if (e.reason === CursorChangeReason.Explicit || e.source === 'api') {
 				this.model.get()?.stop(tx);
 			}
 		})));
@@ -192,7 +192,7 @@ export class InlineCompletionsController extends Disposable {
 				const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
 				this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-						this.provideScreenReaderUpdate(lineText + state.ghostText.renderForScreenReader(lineText));
+						this.provideScreenReaderUpdate(state.ghostText.renderForScreenReader(lineText));
 					}
 				});
 			}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -30,6 +31,8 @@ import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/comm
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { WorkspaceEdit, RelatedContextItem } from 'vs/editor/common/languages';
 
 export interface IChatCodeBlockActionContext {
 	code: string;
@@ -232,17 +235,44 @@ export function registerChatCodeBlockActions() {
 			this.notifyUserAction(accessor, context);
 		}
 
-		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, context: IChatCodeBlockActionContext) {
-			this.notifyUserAction(accessor, context);
+		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, chatCodeBlockActionContext: IChatCodeBlockActionContext) {
+			this.notifyUserAction(accessor, chatCodeBlockActionContext);
+
 			const bulkEditService = accessor.get(IBulkEditService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 
-			const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
-			await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
-				range: activeSelection,
-				text: context.code,
-			})]);
+			const mappedEditsProviders = accessor.get(ILanguageFeaturesService).mappedEditsProvider.ordered(activeModel);
 
+			// try applying workspace edit that was returned by a MappedEditsProvider, else simply insert at selection
+
+			let workspaceEdit: WorkspaceEdit | null = null;
+
+			if (mappedEditsProviders.length > 0) {
+				const mostRelevantProvider = mappedEditsProviders[0];
+
+				const selections = codeEditor.getSelections() ?? [];
+				const mappedEditsContext = {
+					selections,
+					related: [] as RelatedContextItem[], // TODO@ulugbekna: we do have not yet decided what to populate this with
+				};
+				const cancellationTokenSource = new CancellationTokenSource();
+
+				workspaceEdit = await mostRelevantProvider.provideMappedEdits(
+					activeModel,
+					[chatCodeBlockActionContext.code],
+					mappedEditsContext,
+					cancellationTokenSource.token);
+			}
+
+			if (workspaceEdit) {
+				await bulkEditService.apply(workspaceEdit);
+			} else {
+				const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
+				await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
+					range: activeSelection,
+					text: chatCodeBlockActionContext.code,
+				})]);
+			}
 			codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
 		}
 

@@ -28,7 +28,7 @@ The extension supports running a script as a task from a folder in the Explorer.
 
 ### Others
 
-The extension fetches data from https://registry.npmjs.org and https://registry.bower.io to provide auto-completion and information on hover features on npm dependencies.
+The extension fetches data from <https://registry.npmjs.org> and <https://registry.bower.io> to provide auto-completion and information on hover features on npm dependencies.
 
 ## Settings
 
@@ -40,5 +40,3 @@ The extension fetches data from https://registry.npmjs.org and https://registry.
 - `npm.scriptExplorerAction` - The default click action: `open` or `run`, the default is `open`.
 - `npm.enableRunFromFolder` - Enable running npm scripts from the context menu of folders in Explorer, the default is `false`.
 - `npm.scriptCodeLens.enable` - Enable/disable the code lenses to run a script, the default is `false`.
-
-

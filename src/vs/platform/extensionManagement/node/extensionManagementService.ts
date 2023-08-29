@@ -782,7 +782,7 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<ILocalExtensio
 	constructor(
 		readonly identifier: IExtensionIdentifier,
 		readonly source: URI | IGalleryExtension,
-		protected readonly options: InstallExtensionTaskOptions,
+		readonly options: InstallExtensionTaskOptions,
 		protected readonly extensionsScanner: ExtensionsScanner,
 		protected readonly uriIdentityService: IUriIdentityService,
 		protected readonly userDataProfilesService: IUserDataProfilesService,

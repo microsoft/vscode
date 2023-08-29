@@ -993,7 +993,7 @@ class TestingExplorerViewModel extends Disposable {
 			this.projection.value = this.instantiationService.createInstance(TreeProjection, lastState);
 		}
 
-		const scheduler = new RunOnceScheduler(() => this.applyProjectionChanges(), 200);
+		const scheduler = this._register(new RunOnceScheduler(() => this.applyProjectionChanges(), 200));
 		this.projection.value.onUpdate(() => {
 			if (!scheduler.isScheduled()) {
 				scheduler.schedule();

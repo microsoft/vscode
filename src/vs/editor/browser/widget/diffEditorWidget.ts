@@ -11,6 +11,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { IBoundarySashes, ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 import * as assert from 'vs/base/common/assert';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -40,7 +41,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IChange, ICharChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange, ICharChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -296,7 +297,14 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			diffAlgorithm: 'advanced',
 			accessibilityVerbose: false,
 			experimental: {
-				collapseUnchangedRegions: false,
+				showEmptyDecorations: false,
+				showMoves: false,
+			},
+			hideUnchangedRegions: {
+				enabled: false,
+				contextLineCount: 0,
+				minimumLineCount: 0,
+				revealLineCount: 0,
 			},
 			isInEmbeddedEditor: false,
 			onlyShowAccessibleDiffViewer: false,
@@ -1186,7 +1194,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			ignoreTrimWhitespace: this._options.ignoreTrimWhitespace,
 			maxComputationTimeMs: this._options.maxComputationTime,
 			computeMoves: false,
-		}).then(result => {
+		}, CancellationToken.None).then(result => {
 			if (currentToken === this._diffComputationToken
 				&& currentOriginalModel === this._originalEditor.getModel()
 				&& currentModifiedModel === this._modifiedEditor.getModel()
@@ -2742,8 +2750,15 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		diffWordWrap: validateDiffWordWrap(options.diffWordWrap, defaults.diffWordWrap),
 		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced'], { 'smart': 'legacy', 'experimental': 'advanced' }),
 		accessibilityVerbose: validateBooleanOption(options.accessibilityVerbose, defaults.accessibilityVerbose),
+		hideUnchangedRegions: {
+			enabled: false,
+			contextLineCount: 0,
+			minimumLineCount: 0,
+			revealLineCount: 0,
+		},
 		experimental: {
-			collapseUnchangedRegions: false,
+			showEmptyDecorations: false,
+			showMoves: false,
 		},
 		isInEmbeddedEditor: validateBooleanOption(options.isInEmbeddedEditor, defaults.isInEmbeddedEditor),
 		onlyShowAccessibleDiffViewer: false,

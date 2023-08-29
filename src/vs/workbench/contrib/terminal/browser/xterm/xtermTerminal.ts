@@ -961,7 +961,7 @@ export function getXtermScaledDimensions(font: ITerminalFont, width: number, hei
 
 function vscodeToXtermLogLevel(logLevel: LogLevel): XtermLogLevel {
 	switch (logLevel) {
-		case LogLevel.Trace:
+		case LogLevel.Trace: return 'trace';
 		case LogLevel.Debug: return 'debug';
 		case LogLevel.Info: return 'info';
 		case LogLevel.Warning: return 'warn';

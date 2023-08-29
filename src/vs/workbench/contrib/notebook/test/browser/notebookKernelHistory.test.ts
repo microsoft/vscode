@@ -18,7 +18,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelHistoryServiceImpl';
-import { IStorageService, IWillSaveStateEvent, StorageScope } from 'vs/platform/storage/common/storage';
+import { IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageService, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 
 suite('NotebookKernelHistoryService', () => {
@@ -70,6 +70,12 @@ suite('NotebookKernelHistoryService', () => {
 
 		instantiationService.stub(IStorageService, new class extends mock<IStorageService>() {
 			override onWillSaveState: Event<IWillSaveStateEvent> = Event.None;
+			override onDidChangeValue(scope: StorageScope.WORKSPACE, key: string | undefined, disposable: DisposableStore): Event<IWorkspaceStorageValueChangeEvent>;
+			override onDidChangeValue(scope: StorageScope.PROFILE, key: string | undefined, disposable: DisposableStore): Event<IProfileStorageValueChangeEvent>;
+			override onDidChangeValue(scope: StorageScope.APPLICATION, key: string | undefined, disposable: DisposableStore): Event<IApplicationStorageValueChangeEvent>;
+			override onDidChangeValue(scope: StorageScope, key: string | undefined, disposable: DisposableStore): Event<IStorageValueChangeEvent> {
+				return Event.None;
+			}
 			override get(key: string, scope: StorageScope, fallbackValue: string): string;
 			override get(key: string, scope: StorageScope, fallbackValue?: string | undefined): string | undefined;
 			override get(key: unknown, scope: unknown, fallbackValue?: unknown): string | undefined {
@@ -119,6 +125,12 @@ suite('NotebookKernelHistoryService', () => {
 
 		instantiationService.stub(IStorageService, new class extends mock<IStorageService>() {
 			override onWillSaveState: Event<IWillSaveStateEvent> = Event.None;
+			override onDidChangeValue(scope: StorageScope.WORKSPACE, key: string | undefined, disposable: DisposableStore): Event<IWorkspaceStorageValueChangeEvent>;
+			override onDidChangeValue(scope: StorageScope.PROFILE, key: string | undefined, disposable: DisposableStore): Event<IProfileStorageValueChangeEvent>;
+			override onDidChangeValue(scope: StorageScope.APPLICATION, key: string | undefined, disposable: DisposableStore): Event<IApplicationStorageValueChangeEvent>;
+			override onDidChangeValue(scope: StorageScope, key: string | undefined, disposable: DisposableStore): Event<IStorageValueChangeEvent> {
+				return Event.None;
+			}
 			override get(key: string, scope: StorageScope, fallbackValue: string): string;
 			override get(key: string, scope: StorageScope, fallbackValue?: string | undefined): string | undefined;
 			override get(key: unknown, scope: unknown, fallbackValue?: unknown): string | undefined {

@@ -34,7 +34,8 @@ import { getIconClass } from 'vs/platform/quickinput/browser/quickInputUtils';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
-import { ColorScheme, isDark } from 'vs/platform/theme/common/theme';
+import { isDark } from 'vs/platform/theme/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -234,7 +235,7 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 
 	static readonly ID = 'listelement';
 
-	constructor(private readonly colorScheme: ColorScheme) { }
+	constructor(private readonly themeService: IThemeService) { }
 
 	get templateId() {
 		return ListElementRenderer.ID;
@@ -299,7 +300,7 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
 
 		if (element.item?.iconPath) {
-			const icon = isDark(this.colorScheme) ? element.item.iconPath.dark : (element.item.iconPath.light ?? element.item.iconPath.dark);
+			const icon = isDark(this.themeService.getColorTheme().type) ? element.item.iconPath.dark : (element.item.iconPath.light ?? element.item.iconPath.dark);
 			const iconUrl = URI.revive(icon);
 			data.icon.className = 'quick-input-list-icon';
 			data.icon.style.backgroundImage = dom.asCSSUrl(iconUrl);
@@ -459,12 +460,13 @@ export class QuickInputList {
 		private parent: HTMLElement,
 		id: string,
 		private options: IQuickInputOptions,
+		themeService: IThemeService
 	) {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
-		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(this.options.styles.colorScheme)], {
+		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(themeService)], {
 			identityProvider: {
 				getId: element => {
 					// always prefer item over separator because if item is defined, it must be the main item type
