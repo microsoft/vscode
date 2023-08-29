@@ -258,6 +258,10 @@ function getActionsFromNotification(notification: INotificationViewItem): IActio
 			};
 		}
 	}
+	const manageExtension = actions?.find(a => a.label.includes('Manage Extension'));
+	if (manageExtension) {
+		manageExtension.class = ThemeIcon.asClassName(Codicon.gear);
+	}
 	if (actions) {
 		actions.push({ id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => notification.close(), enabled: true, class: ThemeIcon.asClassName(Codicon.clearAll) });
 	}
