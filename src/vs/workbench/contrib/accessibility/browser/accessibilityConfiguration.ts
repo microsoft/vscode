@@ -42,7 +42,7 @@ export const enum AccessibilityVerbositySettingId {
 	Editor = 'accessibility.verbosity.editor',
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
-	EditorUntitledHint = 'accessibility.verbosity.editor.untitledHint'
+	EditorUntitledHint = 'accessibility.verbosity.untitledHint'
 }
 
 export const enum AccessibleViewProviderId {
@@ -107,7 +107,7 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.EditorUntitledHint]: {
-			description: localize('verbosity.editor.untitledhint', 'Provide information about relevant actions in an untitled text editor.'),
+			description: localize('verbosity.untitledhint', 'Provide information about relevant actions in an untitled text editor.'),
 			...baseProperty
 		}
 	}
