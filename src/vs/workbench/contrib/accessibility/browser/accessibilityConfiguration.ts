@@ -128,7 +128,7 @@ export function registerAccessibilityConfiguration() {
 				scope: ConfigurationScope.APPLICATION,
 			},
 			[AccessibilityWorkbenchSettingId.DimUnfocusedOpacity]: {
-				description: localize('dimUnfocusedOpacity', 'The opacity fraction (0.2 to 1.0) to use for unfocused editors and terminals. This will only take effect when {0} is enabled.', `\`#${AccessibilityWorkbenchSettingId.DimUnfocusedEnabled}#\``),
+				markdownDescription: localize('dimUnfocusedOpacity', 'The opacity fraction (0.2 to 1.0) to use for unfocused editors and terminals. This will only take effect when {0} is enabled.', `\`#${AccessibilityWorkbenchSettingId.DimUnfocusedEnabled}#\``),
 				type: 'number',
 				minimum: ViewDimUnfocusedOpacityProperties.Minimum,
 				maximum: ViewDimUnfocusedOpacityProperties.Maximum,
