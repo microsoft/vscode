@@ -71,7 +71,7 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 			if (focusTerminal) {
 				_instance.focus(true);
 			} else if (focusAfterRun === 'accessible-buffer') {
-				_instance.getContribution('terminal.accessible-buffer')?.requestFocus?.();
+				this.show();
 			}
 		}));
 	}
@@ -97,9 +97,6 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 	}
 	hide(): void {
 		this._accessibleBufferWidget?.hide();
-	}
-	requestFocus(): void {
-		this._accessibleBufferWidget?.show();
 	}
 }
 registerTerminalContribution(AccessibleBufferContribution.ID, AccessibleBufferContribution);

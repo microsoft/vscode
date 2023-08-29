@@ -131,7 +131,6 @@ export class TerminalLaunchHelpAction extends Action {
 	}
 }
 
-
 /**
  * A wrapper function around registerAction2 to help make registering terminal actions more concise.
  * The following default options are used if undefined:
@@ -206,7 +205,6 @@ export function registerActiveXtermAction(
 		}
 	});
 }
-
 
 export interface ITerminalServicesCollection {
 	service: ITerminalService;
@@ -562,7 +560,7 @@ export function registerTerminalActions() {
 				const endOfLinePreference = isWindows ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
-			await instance.sendText(text, true, true);
+			instance.sendText(text, true, true);
 			await c.service.revealActiveTerminal();
 		}
 	});
