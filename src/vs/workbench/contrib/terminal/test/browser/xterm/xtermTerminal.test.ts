@@ -33,7 +33,6 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { Color, RGBA } from 'vs/base/common/color';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import { isWindows } from 'vs/base/common/platform';
 
 class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;
