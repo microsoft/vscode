@@ -100,13 +100,14 @@ import { ExtHostQuickDiff } from 'vs/workbench/api/common/extHostQuickDiff';
 import { ExtHostChat } from 'vs/workbench/api/common/extHostChat';
 import { ExtHostInteractiveEditor } from 'vs/workbench/api/common/extHostInlineChat';
 import { ExtHostNotebookDocumentSaveParticipant } from 'vs/workbench/api/common/extHostNotebookDocumentSaveParticipant';
-import { ExtHostSemanticSimilarity } from 'vs/workbench/api/common/extHostSemanticSimilarity';
 import { ExtHostIssueReporter } from 'vs/workbench/api/common/extHostIssueReporter';
 import { IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
 import { ExtHostShare } from 'vs/workbench/api/common/extHostShare';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import { ExtHostChatSlashCommands } from 'vs/workbench/api/common/extHostChatSlashCommand';
 import { ExtHostChatVariables } from 'vs/workbench/api/common/extHostChatVariables';
+import { ExtHostRelatedInformation } from 'vs/workbench/api/common/extHostAiRelatedInformation';
+import { ExtHostAiEmbeddingVector } from 'vs/workbench/api/common/extHostEmbeddingVector';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -210,7 +211,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostChatSlashCommands = rpcProtocol.set(ExtHostContext.ExtHostChatSlashCommands, new ExtHostChatSlashCommands(rpcProtocol, extHostChatProvider, extHostLogService));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
 	const extHostChat = rpcProtocol.set(ExtHostContext.ExtHostChat, new ExtHostChat(rpcProtocol, extHostLogService));
-	const extHostSemanticSimilarity = rpcProtocol.set(ExtHostContext.ExtHostSemanticSimilarity, new ExtHostSemanticSimilarity(rpcProtocol));
+	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
+	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
 	const extHostIssueReporter = rpcProtocol.set(ExtHostContext.ExtHostIssueReporter, new ExtHostIssueReporter(rpcProtocol));
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
 
@@ -693,6 +695,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidWriteTerminalData(listener, thisArg?, disposables?) {
 				checkProposedApiEnabled(extension, 'terminalDataWriteEvent');
 				return extHostTerminalService.onDidWriteTerminalData(listener, thisArg, disposables);
+			},
+			onDidExecuteTerminalCommand(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'terminalExecuteCommandEvent');
+				return extHostTerminalService.onDidExecuteTerminalCommand(listener, thisArg, disposables);
 			},
 			get state() {
 				return extHostWindow.getState(extension);
@@ -1320,9 +1326,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: ai
 		const ai: typeof vscode.ai = {
-			registerSemanticSimilarityProvider(provider: vscode.SemanticSimilarityProvider) {
-				checkProposedApiEnabled(extension, 'semanticSimilarity');
-				return extHostSemanticSimilarity.registerSemanticSimilarityProvider(extension, provider);
+			getRelatedInformation(query: string, types: vscode.RelatedInformationType[]): Thenable<vscode.RelatedInformationResult[]> {
+				checkProposedApiEnabled(extension, 'aiRelatedInformation');
+				return extHostAiRelatedInformation.getRelatedInformation(extension, query, types);
+			},
+			registerRelatedInformationProvider(type: vscode.RelatedInformationType, provider: vscode.RelatedInformationProvider) {
+				checkProposedApiEnabled(extension, 'aiRelatedInformation');
+				return extHostAiRelatedInformation.registerRelatedInformationProvider(extension, type, provider);
+			},
+			registerEmbeddingVectorProvider(model: string, provider: vscode.EmbeddingVectorProvider) {
+				checkProposedApiEnabled(extension, 'aiRelatedInformation');
+				return extHostAiEmbeddingVector.registerEmbeddingVectorProvider(extension, model, provider);
 			}
 		};
 
@@ -1340,9 +1354,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatRequestAccess');
 				return extHostChatProvider.requestChatResponseProvider(extension.identifier, id);
 			},
-			registerVariable(name, description, resolver) {
+			registerVariable(name: string, description: string, resolver: vscode.ChatVariableResolver) {
 				checkProposedApiEnabled(extension, 'chatVariables');
 				return extHostChatVariables.registerVariableResolver(extension, name, description, resolver);
+			},
+			registerMappedEditsProvider(selector: vscode.DocumentSelector, provider: vscode.MappedEditsProvider) {
+				checkProposedApiEnabled(extension, 'mappedEditsProvider');
+				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
 			}
 		};
 
@@ -1560,7 +1578,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
 			StackFrameFocus: extHostTypes.StackFrameFocus,
 			ThreadFocus: extHostTypes.ThreadFocus,
-			NotebookCodeActionKind: extHostTypes.NotebookCodeActionKind
+			NotebookCodeActionKind: extHostTypes.NotebookCodeActionKind,
+			RelatedInformationType: extHostTypes.RelatedInformationType
 		};
 	};
 }

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, equals, findLastIndex, numberComparator, reverseOrder } from 'vs/base/common/arrays';
+import { Comparator, CompareResult, compareBy, equals, findLastIndex, numberComparator, reverseOrder } from 'vs/base/common/arrays';
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { CharCode } from 'vs/base/common/charCode';
 import { SetMap } from 'vs/base/common/collections';
+import { BugIndicatingError } from 'vs/base/common/errors';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Position } from 'vs/editor/common/core/position';
@@ -17,7 +18,7 @@ import { optimizeSequenceDiffs, removeRandomLineMatches, removeRandomMatches, sm
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/algorithms/myersDiffAlgorithm';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping, LinesDiff, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
-export class StandardLinesDiffComputer implements ILinesDiffComputer {
+export class AdvancedLinesDiffComputer implements ILinesDiffComputer {
 	private readonly dynamicProgrammingDiffing = new DynamicProgrammingDiffing();
 	private readonly myersDiffingAlgorithm = new MyersDiffAlgorithm();
 
@@ -177,7 +178,7 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 	}
 
 	private computeMoves(changes: LineRangeMapping[], originalLines: string[], modifiedLines: string[], hashedOriginalLines: number[], hashedModifiedLines: number[], timeout: ITimeout, considerWhitespaceChanges: boolean): MovedText[] {
-		const moves: MovedText[] = [];
+		const moves: SimpleLineRangeMapping[] = [];
 		const deletions = changes
 			.filter(c => c.modifiedRange.isEmpty && c.originalRange.length >= 3)
 			.map(d => new LineRangeFragment(d.originalRange, originalLines, d));
@@ -199,16 +200,14 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			}
 
 			if (highestSimilarity > 0.90 && best) {
-				const moveChanges = this.refineDiff(originalLines, modifiedLines, new SequenceDiff(
-					new OffsetRange(deletion.range.startLineNumber - 1, deletion.range.endLineNumberExclusive - 1),
-					new OffsetRange(best.range.startLineNumber - 1, best.range.endLineNumberExclusive - 1)
-				), timeout, considerWhitespaceChanges);
-				const mappings = lineRangeMappingFromRangeMappings(moveChanges.mappings, originalLines, modifiedLines, true);
-
 				insertions.delete(best);
-				moves.push(new MovedText(new SimpleLineRangeMapping(deletion.range, best.range), mappings));
+				moves.push(new SimpleLineRangeMapping(deletion.range, best.range));
 				excludedChanges.add(deletion.source);
 				excludedChanges.add(best.source);
+			}
+
+			if (!timeout.isValid()) {
+				return [];
 			}
 		}
 
@@ -242,9 +241,6 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			let lastMappings: PossibleMapping[] = [];
 			for (let i = change.modifiedRange.startLineNumber; i < change.modifiedRange.endLineNumberExclusive - 2; i++) {
 				const key = `${hashedModifiedLines[i - 1]}:${hashedModifiedLines[i + 1 - 1]}:${hashedModifiedLines[i + 2 - 1]}`;
-
-				//const isWeakKey = (originalLines[i].trim().length + originalLines[i + 1].trim().length + originalLines[i + 2].trim().length < 20);
-
 				const currentModifiedRange = new LineRange(i, i + 3);
 
 				const nextMappings: PossibleMapping[] = [];
@@ -269,6 +265,10 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 				});
 				lastMappings = nextMappings;
 			}
+
+			if (!timeout.isValid()) {
+				return [];
+			}
 		}
 
 		possibleMappings.sort(reverseOrder(compareBy(m => m.modifiedLineRange.length, numberComparator)));
@@ -291,19 +291,62 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 				const modifiedLineRange = s;
 				const originalLineRange = s.delta(-diffOrigToMod);
 
-				const moveChanges = this.refineDiff(originalLines, modifiedLines, new SequenceDiff(
-					new OffsetRange(originalLineRange.startLineNumber - 1, originalLineRange.endLineNumberExclusive - 1),
-					new OffsetRange(modifiedLineRange.startLineNumber - 1, modifiedLineRange.endLineNumberExclusive - 1)
-				), timeout, considerWhitespaceChanges);
-				const mappings = lineRangeMappingFromRangeMappings(moveChanges.mappings, originalLines, modifiedLines, true);
-				moves.push(new MovedText(new SimpleLineRangeMapping(originalLineRange, modifiedLineRange), mappings));
+				moves.push(new SimpleLineRangeMapping(originalLineRange, modifiedLineRange));
 
 				modifiedSet.addRange(modifiedLineRange);
 				originalSet.addRange(originalLineRange);
 			}
 		}
 
-		return moves;
+		// join moves
+		moves.sort(compareBy(m => m.original.startLineNumber, numberComparator));
+		if (moves.length === 0) {
+			return [];
+		}
+		let joinedMoves = [moves[0]];
+		for (let i = 1; i < moves.length; i++) {
+			const last = joinedMoves[joinedMoves.length - 1];
+			const current = moves[i];
+
+			const originalDist = current.original.startLineNumber - last.original.endLineNumberExclusive;
+			const modifiedDist = current.modified.startLineNumber - last.modified.endLineNumberExclusive;
+			const currentMoveAfterLast = originalDist >= 0 && modifiedDist >= 0;
+
+			if (currentMoveAfterLast && originalDist + modifiedDist <= 2) {
+				joinedMoves[joinedMoves.length - 1] = last.join(current);
+				continue;
+			}
+
+			const originalText = current.original.toOffsetRange().slice(originalLines).map(l => l.trim()).join('\n');
+			if (originalText.length <= 10) {
+				// Ignore small moves
+				continue;
+			}
+			joinedMoves.push(current);
+		}
+
+		// Ignore non moves
+		const originalChanges = MonotonousFinder.createOfSorted(changes, c => c.originalRange.endLineNumberExclusive, numberComparator);
+		joinedMoves = joinedMoves.filter(m => {
+			const diffBeforeOriginalMove = originalChanges.findLastItemBeforeOrEqual(m.original.startLineNumber)
+				|| new LineRangeMapping(new LineRange(1, 1), new LineRange(1, 1), []);
+
+			const modifiedDistToPrevDiff = m.modified.startLineNumber - diffBeforeOriginalMove.modifiedRange.endLineNumberExclusive;
+			const originalDistToPrevDiff = m.original.startLineNumber - diffBeforeOriginalMove.originalRange.endLineNumberExclusive;
+
+			const differentDistances = modifiedDistToPrevDiff !== originalDistToPrevDiff;
+			return differentDistances;
+		});
+
+		const fullMoves = joinedMoves.map(m => {
+			const moveChanges = this.refineDiff(originalLines, modifiedLines, new SequenceDiff(
+				m.original.toOffsetRange(),
+				m.modified.toOffsetRange(),
+			), timeout, considerWhitespaceChanges);
+			const mappings = lineRangeMappingFromRangeMappings(moveChanges.mappings, originalLines, modifiedLines, true);
+			return new MovedText(m, mappings);
+		});
+		return fullMoves;
 	}
 
 	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout, considerWhitespaceChanges: boolean): { mappings: RangeMapping[]; hitTimeout: boolean } {
@@ -334,6 +377,60 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			mappings: result,
 			hitTimeout: diffResult.hitTimeout,
 		};
+	}
+}
+
+class MonotonousFinder<TItem, TDomain> {
+	public static create<TItem, TDomain>(
+		items: TItem[],
+		itemToDomain: (item: TItem) => TDomain,
+		domainComparator: Comparator<TDomain>,
+	): MonotonousFinder<TItem, TDomain> {
+		items.sort((a, b) => domainComparator(itemToDomain(a), itemToDomain(b)));
+		return new MonotonousFinder(items, itemToDomain, domainComparator);
+	}
+
+	public static createOfSorted<TItem, TDomain>(
+		items: TItem[],
+		itemToDomain: (item: TItem) => TDomain,
+		domainComparator: Comparator<TDomain>,
+	): MonotonousFinder<TItem, TDomain> {
+		return new MonotonousFinder(items, itemToDomain, domainComparator);
+	}
+
+	private _currentIdx = 0; // All values with index lower than this are smaller than or equal to _lastValue and vice versa.
+	private _lastValue: TDomain | undefined = undefined; // Represents a smallest value.
+	private _hasLastValue = false;
+
+	private constructor(
+		private readonly _items: TItem[],
+		private readonly _itemToDomain: (item: TItem) => TDomain,
+		private readonly _domainComparator: Comparator<TDomain>,
+	) {
+	}
+
+	/**
+	 * Assumes the values are monotonously increasing.
+	 */
+	findLastItemBeforeOrEqual(value: TDomain): TItem | undefined {
+		if (this._hasLastValue && CompareResult.isLessThan(this._domainComparator(value, this._lastValue!))) {
+			// Values must be monotonously increasing
+			throw new BugIndicatingError();
+		}
+		this._lastValue = value;
+		this._hasLastValue = true;
+
+		while (
+			this._currentIdx < this._items.length
+			&& CompareResult.isLessThanOrEqual(this._domainComparator(
+				this._itemToDomain(this._items[this._currentIdx]),
+				value
+			))
+		) {
+			this._currentIdx++;
+		}
+
+		return this._currentIdx === 0 ? undefined : this._items[this._currentIdx - 1];
 	}
 }
 
@@ -659,7 +756,7 @@ export class LinesSliceCharSequence implements ISequence {
 	private readonly firstCharOffsetByLineMinusOne: number[] = [];
 	public readonly lineRange: OffsetRange;
 	// To account for trimming
-	private readonly offsetByLine: number[] = [];
+	private readonly additionalOffsetByLine: number[] = [];
 
 	constructor(public readonly lines: string[], lineRange: OffsetRange, public readonly considerWhitespaceChanges: boolean) {
 		// This slice has to have lineRange.length many \n! (otherwise diffing against an empty slice will be problematic)
@@ -687,7 +784,7 @@ export class LinesSliceCharSequence implements ISequence {
 				line = trimmedStartLine.trimEnd();
 			}
 
-			this.offsetByLine.push(offset);
+			this.additionalOffsetByLine.push(offset);
 
 			for (let i = 0; i < line.length; i++) {
 				this.elements.push(line.charCodeAt(i));
@@ -700,7 +797,7 @@ export class LinesSliceCharSequence implements ISequence {
 			}
 		}
 		// To account for the last line
-		this.offsetByLine.push(0);
+		this.additionalOffsetByLine.push(0);
 	}
 
 	toString() {
@@ -767,7 +864,7 @@ export class LinesSliceCharSequence implements ISequence {
 		}
 
 		const offsetOfFirstCharInLine = i === 0 ? 0 : this.firstCharOffsetByLineMinusOne[i - 1];
-		return new Position(this.lineRange.start + i + 1, offset - offsetOfFirstCharInLine + 1 + this.offsetByLine[i]);
+		return new Position(this.lineRange.start + i + 1, offset - offsetOfFirstCharInLine + 1 + this.additionalOffsetByLine[i]);
 	}
 
 	public translateRange(range: OffsetRange): Range {
@@ -805,9 +902,63 @@ export class LinesSliceCharSequence implements ISequence {
 		return this.translateOffset(range.endExclusive).lineNumber - this.translateOffset(range.start).lineNumber;
 	}
 
-	isStronglyEqual(offset1: number, offset2: number): boolean {
+	public isStronglyEqual(offset1: number, offset2: number): boolean {
 		return this.elements[offset1] === this.elements[offset2];
 	}
+
+	public extendToFullLines(range: OffsetRange): OffsetRange {
+		const start = findLastMonotonous(this.firstCharOffsetByLineMinusOne, x => x <= range.start) ?? 0;
+		const end = findFirstMonotonous(this.firstCharOffsetByLineMinusOne, x => range.endExclusive <= x) ?? this.elements.length;
+		return new OffsetRange(start, end);
+	}
+}
+
+/**
+ * `arr.map(predicate)` must be like `[true, ..., true, false, ..., false]`!
+ *
+ * @returns -1 if predicate is false for all items
+ */
+function findLastIdxMonotonous<T>(arr: T[], predicate: (item: T) => boolean): number {
+	let i = 0;
+	let j = arr.length;
+	while (i < j) {
+		const k = Math.floor((i + j) / 2);
+		if (predicate(arr[k])) {
+			i = k + 1;
+		} else {
+			j = k;
+		}
+	}
+	return i - 1;
+}
+
+export function findLastMonotonous<T>(arr: T[], predicate: (item: T) => boolean): T | undefined {
+	const idx = findLastIdxMonotonous(arr, predicate);
+	return idx === -1 ? undefined : arr[idx];
+}
+
+/**
+ * `arr.map(predicate)` must be like `[false, ..., false, true, ..., true]`!
+ *
+ * @returns arr.length if predicate is false for all items
+ */
+function findFirstIdxMonotonous<T>(arr: T[], predicate: (item: T) => boolean): number {
+	let i = 0;
+	let j = arr.length;
+	while (i < j) {
+		const k = Math.floor((i + j) / 2);
+		if (predicate(arr[k])) {
+			j = k;
+		} else {
+			i = k + 1;
+		}
+	}
+	return i;
+}
+
+export function findFirstMonotonous<T>(arr: T[], predicate: (item: T) => boolean): T | undefined {
+	const idx = findFirstIdxMonotonous(arr, predicate);
+	return idx === arr.length ? undefined : arr[idx];
 }
 
 function isWordChar(charCode: number): boolean {

@@ -25,7 +25,7 @@ const cliPath = process.env.VSCODE_FORWARDING_IS_DEV
 	? path.join(__dirname, '../../../cli/target/debug/code')
 	: path.join(
 		vscode.env.appRoot,
-		process.platform === 'win32' ? '../../bin' : 'bin',
+		process.platform === 'darwin' ? 'bin' : '../../bin',
 		vscode.env.appQuality === 'stable' ? 'code-tunnel' : 'code-tunnel-insiders',
 	) + (process.platform === 'win32' ? '.exe' : '');
 

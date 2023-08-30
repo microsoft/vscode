@@ -19,7 +19,7 @@ import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';

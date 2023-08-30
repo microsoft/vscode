@@ -54,7 +54,7 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 				codeEditor = codeEditorService.getActiveCodeEditor()!;
 			}
 			accessibleViewService.show(instantiationService.createInstance(AccessibilityHelpProvider, codeEditor));
-		}));
+		}, EditorContextKeys.focus));
 	}
 }
 
@@ -96,12 +96,16 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 			}
 		}
 
+		if (options.get(EditorOption.stickyScroll)) {
+			content.push(this._descriptionForCommand('editor.action.focusStickyScroll', AccessibilityHelpNLS.stickScrollKb, AccessibilityHelpNLS.stickScrollNoKb));
+		}
+
 		if (options.get(EditorOption.tabFocusMode)) {
 			content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb));
 		} else {
 			content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb));
 		}
-		return content.join('\n');
+		return content.join('\n\n');
 	}
 }
 
@@ -254,6 +258,10 @@ function getActionsFromNotification(notification: INotificationViewItem): IActio
 			};
 		}
 	}
+	const manageExtension = actions?.find(a => a.label.includes('Manage Extension'));
+	if (manageExtension) {
+		manageExtension.class = ThemeIcon.asClassName(Codicon.gear);
+	}
 	if (actions) {
 		actions.push({ id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => notification.close(), enabled: true, class: ThemeIcon.asClassName(Codicon.clearAll) });
 	}
@@ -310,33 +318,19 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 						editor.focus();
 					},
 					next() {
-						model.next().then(() => show());
+						model.next();
+						setTimeout(() => show(), 50);
 					},
 					previous() {
-						model.previous().then(() => show());
+						model.previous();
+						setTimeout(() => show(), 50);
 					},
-					actions: [
-						{
-							id: 'inlineCompletions.accept',
-							label: localize('inlineCompletions.accept', "Accept Completion"),
-							tooltip: localize('inlineCompletions.accept', "Accept Completion"),
-							run: () => {
-								model.accept(editor).then(() => {
-									alert('Accepted');
-									model.stop();
-									editor.focus();
-								});
-							},
-							class: ThemeIcon.asClassName(Codicon.check),
-							enabled: true
-						}
-					],
 					options: this._options
 				});
 				return true;
-			};
+			}; ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible);
 			return show();
-		}, ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible, EditorContextKeys.focus, EditorContextKeys.hasCodeActionsProvider)
+		},
 		)
 		);
 	}
