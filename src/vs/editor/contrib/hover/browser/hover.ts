@@ -5,7 +5,7 @@
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -31,18 +31,18 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
 	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
 	;
 
-export class ModesHoverController implements IEditorContribution {
+export class ModesHoverController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.hover';
 
 	private readonly _toUnhook = new DisposableStore();
-	private readonly _store: DisposableStore = new DisposableStore();
 
 	private _contentWidget: ContentHoverController | null;
 
@@ -56,7 +56,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _isHoverSticky!: boolean;
 	private _hidingDelay!: number;
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
-	private _reactToEditorMouseMoveTimeout: any;
+	private _reactToEditorMouseMoveRunner: RunOnceScheduler;
 	private _mouseMoveEvent: IEditorMouseEvent | undefined;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
@@ -69,24 +69,23 @@ export class ModesHoverController implements IEditorContribution {
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
+		super();
 		this._isMouseDown = false;
 		this._hoverClicked = false;
 		this._contentWidget = null;
 		this._glyphWidget = null;
+		this._reactToEditorMouseMoveRunner = this._register(new RunOnceScheduler(() => this._reactToEditorMouseMove(this._mouseMoveEvent), 0));
 
 		this._hookEvents();
-		this._store.add(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.hover)) {
 				this._unhookEvents();
 				this._hookEvents();
 			}
 		}));
-		this._store.add(this._editor.onMouseLeave(() => {
+		this._register(this._editor.onMouseLeave(() => {
 			this._mouseMoveEvent = undefined;
-			if (this._reactToEditorMouseMoveTimeout) {
-				clearTimeout(this._reactToEditorMouseMoveTimeout);
-				this._reactToEditorMouseMoveTimeout = undefined;
-			}
+			this._reactToEditorMouseMoveRunner.cancel();
 		}));
 	}
 
@@ -217,21 +216,15 @@ export class ModesHoverController implements IEditorContribution {
 		const mouseIsOverWidget = this._isMouseOverWidget(mouseEvent);
 		// If the mouse is over the widget and the hiding timeout is defined, then cancel it
 		if (mouseIsOverWidget) {
-			if (this._reactToEditorMouseMoveTimeout) {
-				clearTimeout(this._reactToEditorMouseMoveTimeout);
-				this._reactToEditorMouseMoveTimeout = undefined;
-			}
+			this._reactToEditorMouseMoveRunner.cancel();
 			return;
 		}
 
 		// If the mouse is not over the widget, and if sticky is on,
 		// then give it a grace period before reacting to the mouse event
 		if (this._contentWidget?.isVisible && this._isHoverSticky && this._hidingDelay > 0) {
-			if (!this._reactToEditorMouseMoveTimeout) {
-				this._reactToEditorMouseMoveTimeout = setTimeout(() => {
-					this._reactToEditorMouseMoveTimeout = undefined;
-					this._reactToEditorMouseMove(this._mouseMoveEvent);
-				}, this._hidingDelay);
+			if (!this._reactToEditorMouseMoveRunner.isScheduled()) {
+				this._reactToEditorMouseMoveRunner.schedule(this._hidingDelay);
 			}
 			return;
 		}
@@ -364,16 +357,12 @@ export class ModesHoverController implements IEditorContribution {
 		return this._contentWidget?.isVisible;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
+		super.dispose();
 		this._unhookEvents();
 		this._toUnhook.dispose();
-		this._store.dispose();
 		this._glyphWidget?.dispose();
 		this._contentWidget?.dispose();
-		if (this._reactToEditorMouseMoveTimeout) {
-			clearTimeout(this._reactToEditorMouseMoveTimeout);
-			this._reactToEditorMouseMoveTimeout = undefined;
-		}
 	}
 }
 
