@@ -976,6 +976,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				return false;
 			}
 
+			// Prevent default when shift+tab is being sent to the terminal to avoid it bubbling up
+			// and changing focus https://github.com/microsoft/vscode/issues/188329
+			if (event.key === 'Tab' && event.shiftKey) {
+				event.preventDefault();
+				return true;
+			}
+
 			// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
 			// system
 			if (isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
