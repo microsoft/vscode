@@ -92,10 +92,13 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 
 			// show needs to come after the quickpick is shown
 			this._currentChat.render(this._container);
+		} else {
+			this._currentChat.show();
 		}
 
 		disposableStore.add(this._input.onDidHide(() => {
 			disposableStore.dispose();
+			this._currentChat!.hide();
 			this._input = undefined;
 			this._onDidClose.fire();
 		}));
@@ -161,6 +164,14 @@ class QuickChat extends Disposable {
 				});
 			}
 		}
+	}
+
+	hide(): void {
+		this.widget.setVisible(false);
+	}
+
+	show(): void {
+		this.widget.setVisible(true);
 	}
 
 	render(parent: HTMLElement): void {
