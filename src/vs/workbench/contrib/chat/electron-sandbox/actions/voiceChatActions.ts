@@ -159,21 +159,26 @@ class VoiceChatSessionControllerFactory {
 	}
 }
 
-class VoiceChatSession {
+interface ActiveVoiceChatSession {
+	readonly controller: IVoiceChatSessionController;
+	readonly disposables: DisposableStore;
+}
 
-	private static instance: VoiceChatSession | undefined = undefined;
-	static getInstance(instantiationService: IInstantiationService): VoiceChatSession {
-		if (!VoiceChatSession.instance) {
-			VoiceChatSession.instance = instantiationService.createInstance(VoiceChatSession);
+class VoiceChatSessions {
+
+	private static instance: VoiceChatSessions | undefined = undefined;
+	static getInstance(instantiationService: IInstantiationService): VoiceChatSessions {
+		if (!VoiceChatSessions.instance) {
+			VoiceChatSessions.instance = instantiationService.createInstance(VoiceChatSessions);
 		}
 
-		return VoiceChatSession.instance;
+		return VoiceChatSessions.instance;
 	}
 
 	private voiceChatInProgressKey = CONTEXT_VOICE_CHAT_IN_PROGRESS.bindTo(this.contextKeyService);
 	private voiceChatGettingReadyKey = CONTEXT_VOICE_CHAT_GETTING_READY.bindTo(this.contextKeyService);
 
-	private currentVoiceChatSession: DisposableStore | undefined = undefined;
+	private currentVoiceChatSession: ActiveVoiceChatSession | undefined = undefined;
 	private voiceChatSessionIds = 0;
 
 	constructor(
@@ -185,13 +190,16 @@ class VoiceChatSession {
 		this.stop();
 
 		const voiceChatSessionId = ++this.voiceChatSessionIds;
-		this.currentVoiceChatSession = new DisposableStore();
+		this.currentVoiceChatSession = {
+			controller,
+			disposables: new DisposableStore()
+		};
 
 		const cts = new CancellationTokenSource();
-		this.currentVoiceChatSession.add(toDisposable(() => cts.dispose(true)));
+		this.currentVoiceChatSession.disposables.add(toDisposable(() => cts.dispose(true)));
 
-		this.currentVoiceChatSession.add(controller.onDidAcceptInput(() => this.stop(voiceChatSessionId)));
-		this.currentVoiceChatSession.add(controller.onDidCancelInput(() => this.stop(voiceChatSessionId)));
+		this.currentVoiceChatSession.disposables.add(controller.onDidAcceptInput(() => this.stop(voiceChatSessionId)));
+		this.currentVoiceChatSession.disposables.add(controller.onDidCancelInput(() => this.stop(voiceChatSessionId)));
 
 		controller.focusInput();
 
@@ -208,14 +216,14 @@ class VoiceChatSession {
 		this.voiceChatGettingReadyKey.set(false);
 		this.voiceChatInProgressKey.set(true);
 
-		this.registerTranscriptionListener(controller, onDidTranscribe, this.currentVoiceChatSession);
+		this.registerTranscriptionListener(this.currentVoiceChatSession, onDidTranscribe);
 	}
 
-	private registerTranscriptionListener(controller: IVoiceChatSessionController, onDidTranscribe: Event<string>, disposables: DisposableStore) {
+	private registerTranscriptionListener(session: ActiveVoiceChatSession, onDidTranscribe: Event<string>) {
 		let lastText: string | undefined = undefined;
 		let lastTextSimilarCount = 0;
 
-		disposables.add(onDidTranscribe(text => {
+		session.disposables.add(onDidTranscribe(text => {
 			if (!text && lastText) {
 				text = lastText;
 			}
@@ -229,9 +237,9 @@ class VoiceChatSession {
 				}
 
 				if (lastTextSimilarCount >= 2) {
-					controller.acceptInput();
+					session.controller.acceptInput();
 				} else {
-					controller.updateInput(text);
+					session.controller.updateInput(text);
 				}
 
 			}
@@ -260,11 +268,22 @@ class VoiceChatSession {
 			return;
 		}
 
-		this.currentVoiceChatSession.dispose();
+		this.currentVoiceChatSession.disposables.dispose();
 		this.currentVoiceChatSession = undefined;
 
 		this.voiceChatGettingReadyKey.set(false);
 		this.voiceChatInProgressKey.set(false);
+	}
+
+	accept(voiceChatSessionId = this.voiceChatSessionIds): void {
+		if (
+			!this.currentVoiceChatSession ||
+			this.voiceChatSessionIds !== voiceChatSessionId
+		) {
+			return;
+		}
+
+		this.currentVoiceChatSession.controller.acceptInput();
 	}
 }
 
@@ -290,7 +309,7 @@ class VoiceChatInChatViewAction extends Action2 {
 
 		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'view');
 		if (controller) {
-			VoiceChatSession.getInstance(instantiationService).start(controller);
+			VoiceChatSessions.getInstance(instantiationService).start(controller);
 		}
 	}
 }
@@ -317,7 +336,7 @@ class InlineVoiceChatAction extends Action2 {
 
 		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'inline');
 		if (controller) {
-			VoiceChatSession.getInstance(instantiationService).start(controller);
+			VoiceChatSessions.getInstance(instantiationService).start(controller);
 		}
 	}
 }
@@ -344,7 +363,7 @@ class QuickVoiceChatAction extends Action2 {
 
 		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'quick');
 		if (controller) {
-			VoiceChatSession.getInstance(instantiationService).start(controller);
+			VoiceChatSessions.getInstance(instantiationService).start(controller);
 		}
 	}
 }
@@ -390,7 +409,7 @@ class StartVoiceChatAction extends Action2 {
 
 		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'focussed');
 		if (controller) {
-			VoiceChatSession.getInstance(instantiationService).start(controller);
+			VoiceChatSessions.getInstance(instantiationService).start(controller);
 		} else {
 			// fallback to Quick Voice Chat command
 			commandService.executeCommand(QuickVoiceChatAction.ID);
@@ -433,7 +452,29 @@ class StopVoiceChatAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		VoiceChatSession.getInstance(accessor.get(IInstantiationService)).stop();
+		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop();
+	}
+}
+
+class StopVoiceChatAndSubmitAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.stopVoiceChatAndSubmit';
+
+	constructor() {
+		super({
+			id: StopVoiceChatAndSubmitAction.ID,
+			title: {
+				value: localize('workbench.action.chat.stopAndAcceptVoiceChat.label', "Stop Voice Chat and Submit"),
+				original: 'Stop Voice Chat and Submit'
+			},
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: CONTEXT_VOICE_CHAT_IN_PROGRESS
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).accept();
 	}
 }
 
@@ -445,5 +486,6 @@ export function registerVoiceChatActions() {
 
 		registerAction2(StartVoiceChatAction);
 		registerAction2(StopVoiceChatAction);
+		registerAction2(StopVoiceChatAndSubmitAction);
 	}
 }
