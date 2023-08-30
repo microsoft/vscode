@@ -198,6 +198,47 @@
 		},
 		{
 			"files": [
+				"**/vscode.d.ts"
+			],
+			"rules": {
+				"extends": [
+					"plugin:jsdoc/recommended-typescript"
+				],
+				"jsdoc/tag-lines": "off",
+				"jsdoc/valid-types": "off",
+				"jsdoc/no-multi-asterisks": [
+					"warn",
+					{
+						"allowWhitespace": true
+					}
+				],
+				"jsdoc/require-jsdoc": [
+					"warn",
+					{
+						"enableFixer": false,
+						"contexts": [
+							"TSInterfaceDeclaration",
+							"TSPropertySignature",
+							"TSMethodSignature",
+							"ClassDeclaration",
+							"MethodDefinition",
+							"PropertyDeclaration",
+							"TSEnumDeclaration",
+							"TSEnumMember",
+							"ExportNamedDeclaration"
+						]
+					}
+				],
+				"jsdoc/check-param-names": [
+					"warn",
+					{
+						"enableFixer": false
+					}
+				]
+			}
+		},
+		{
+			"files": [
 				"src/**/{common,browser}/**/*.ts"
 			],
 			"rules": {
