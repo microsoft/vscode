@@ -55,7 +55,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 		const mimeType = outputViewModel.pickedMimeType?.mimeType;
 
 		if (mimeType?.startsWith('image/')) {
-			const focusOptions = { skipReveal: true, outputId: outputViewModel.model.outputId };
+			const focusOptions = { skipReveal: true, outputId: outputViewModel.model.outputId, altOutputId: outputViewModel.model.alternativeOutputId };
 			await notebookEditor.focusNotebookCell(outputViewModel.cellViewModel as ICellViewModel, 'output', focusOptions);
 			notebookEditor.copyOutputImage(outputViewModel);
 		} else {
