@@ -567,6 +567,7 @@ export const Codicon = {
 	send: register('send', 0xec0f),
 	sparkle: register('sparkle', 0xec10),
 	insert: register('insert', 0xec11),
+	mic: register('mic', 0xec12),
 
 
 	// derived icons, that could become separate icons
