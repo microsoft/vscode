@@ -94,10 +94,7 @@ export class ContentHoverController extends Disposable {
 	/**
 	 * Returns true if the hover shows now or will show.
 	 */
-	public maybeShowAt(mouseEvent: IEditorMouseEvent | undefined): boolean {
-		if (!mouseEvent) {
-			return false;
-		}
+	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
 		if (this._widget.isResizing) {
 			return true;
 		}

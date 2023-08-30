@@ -83,6 +83,10 @@ export class ModesHoverController implements IEditorContribution {
 		}));
 		this._store.add(this._editor.onMouseLeave(() => {
 			this._mouseMoveEvent = undefined;
+			if (this._reactToEditorMouseMoveTimeout) {
+				clearTimeout(this._reactToEditorMouseMoveTimeout);
+				this._reactToEditorMouseMoveTimeout = undefined;
+			}
 		}));
 	}
 
@@ -366,6 +370,10 @@ export class ModesHoverController implements IEditorContribution {
 		this._store.dispose();
 		this._glyphWidget?.dispose();
 		this._contentWidget?.dispose();
+		if (this._reactToEditorMouseMoveTimeout) {
+			clearTimeout(this._reactToEditorMouseMoveTimeout);
+			this._reactToEditorMouseMoveTimeout = undefined;
+		}
 	}
 }
 
