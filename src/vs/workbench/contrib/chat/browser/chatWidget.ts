@@ -213,7 +213,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._onDidClear.fire();
 	}
 
-	private onDidChangeItems() {
+	private onDidChangeItems(skipDynamicLayout?: boolean) {
 		if (this.tree && this.visible) {
 			const treeItems = (this.viewModel?.getItems() ?? [])
 				.map(item => {
@@ -239,7 +239,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			});
 
-			if (this._dynamicMessageLayoutData) {
+			if (!skipDynamicLayout && this._dynamicMessageLayoutData) {
 				this.layoutDynamicChatTreeItemMode();
 			}
 
@@ -270,7 +270,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				// Progressive rendering paused while hidden, so start it up again.
 				// Do it after a timeout because the container is not visible yet (it should be but offsetHeight returns 0 here)
 				if (this.visible) {
-					this.onDidChangeItems();
+					this.onDidChangeItems(true);
 				}
 			}, 0));
 		}
@@ -540,6 +540,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const mutableDisposable = this._register(new MutableDisposable());
 		this._register(this.tree.onDidScroll((e) => {
+			// TODO@TylerLeonhardt this should probably just be disposed when this is disabled
+			// and then set up again when it is enabled again
+			if (!this._dynamicMessageLayoutData?.enabled) {
+				return;
+			}
 			mutableDisposable.value = dom.scheduleAtNextAnimationFrame(() => {
 				if (!e.scrollTopChanged || e.heightChanged || e.scrollHeightChanged) {
 					return;
@@ -593,7 +598,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.viewModel || !this._dynamicMessageLayoutData?.enabled) {
 			return;
 		}
-		const inputHeight = this.inputPart.layout(this._dynamicMessageLayoutData!.maxHeight, this.container.offsetWidth);
+
+		const width = this.bodyDimension?.width ?? this.container.offsetWidth;
+		const inputHeight = this.inputPart.layout(this._dynamicMessageLayoutData!.maxHeight, width);
 
 		const totalMessages = this.viewModel.getItems();
 		// grab the last N messages
@@ -610,10 +617,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				inputHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
 				this._dynamicMessageLayoutData!.maxHeight
 			),
-			this.container.offsetWidth
+			width
 		);
 
-		if (needsRerender) {
+		if (needsRerender || !listHeight) {
 			// TODO: figure out a better place to reveal the last element
 			revealLastElement(this.tree);
 		}
