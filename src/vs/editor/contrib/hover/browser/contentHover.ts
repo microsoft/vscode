@@ -207,7 +207,7 @@ export class ContentHoverController extends Disposable {
 			return;
 		}
 		if (hoverResult && hoverResult.messages.length === 0) {
-			hoverResult = null;
+			return;
 		}
 		this._currentResult = hoverResult;
 		if (this._currentResult) {
