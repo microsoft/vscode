@@ -43,7 +43,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { debounce } from 'vs/base/common/decorators';
 import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { isWindows } from 'vs/base/common/platform';
 
 const enum RenderConstants {
 	/**
@@ -684,7 +683,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		// - https://github.com/microsoft/vscode/issues/190195
 		// - https://github.com/xtermjs/xterm.js/issues/4665
 		// - https://bugs.chromium.org/p/chromium/issues/detail?id=1476475
-		if (!XtermTerminal._checkedWebglCompatible && isWindows) {
+		if (!XtermTerminal._checkedWebglCompatible) {
 			XtermTerminal._checkedWebglCompatible = true;
 			const checkCanvas = document.createElement('canvas');
 			const checkGl = checkCanvas.getContext('webgl2');
