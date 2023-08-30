@@ -2950,13 +2950,13 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scmRepositoryCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0 && remoteName != 'codespaces'",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scm.providerCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && scmRepositoryCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0 && remoteName != 'codespaces'",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && scm.providerCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
@@ -2992,13 +2992,13 @@
       {
         "view": "explorer",
         "contents": "%view.workbench.cloneRepository%",
-        "when": "config.git.enabled && git.state == initialized && scmRepositoryCount == 0",
+        "when": "config.git.enabled && git.state == initialized && scm.providerCount == 0",
         "group": "5_scm@1"
       },
       {
         "view": "explorer",
         "contents": "%view.workbench.learnMore%",
-        "when": "config.git.enabled && git.state == initialized && scmRepositoryCount == 0",
+        "when": "config.git.enabled && git.state == initialized && scm.providerCount == 0",
         "group": "5_scm@10"
       }
     ]
