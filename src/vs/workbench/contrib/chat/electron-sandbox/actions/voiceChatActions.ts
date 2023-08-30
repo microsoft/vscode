@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/voiceChatActions';
 import { Event } from 'vs/base/common/event';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
