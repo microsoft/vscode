@@ -324,7 +324,7 @@ class MovedBlockOverlayWidget extends ViewZoneOverlayWidget {
 			true,
 			() => {
 				this._editor.focus();
-				this._diffModel.movedTextToCompare.set(this._diffModel.movedTextToCompare.get() ? undefined : this._move, undefined);
+				this._diffModel.movedTextToCompare.set(this._diffModel.movedTextToCompare.get() === _move ? undefined : this._move, undefined);
 			},
 		);
 		this._register(autorun(reader => {
