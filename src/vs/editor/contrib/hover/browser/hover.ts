@@ -58,7 +58,6 @@ export class ModesHoverController implements IEditorContribution {
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
 	private _mouseWasOverWidget: boolean = false;
 	private _hideWidgetsTimeout: any;
-	private _mouseMoveEvent: IEditorMouseEvent | undefined;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -82,9 +81,6 @@ export class ModesHoverController implements IEditorContribution {
 				this._unhookEvents();
 				this._hookEvents();
 			}
-		}));
-		this._store.add(this._editor.onMouseLeave(() => {
-			this._mouseMoveEvent = undefined;
 		}));
 	}
 
@@ -199,7 +195,6 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		this._mouseMoveEvent = mouseEvent;
 		const mouseIsOverWidget = this._isMouseOverWidget(mouseEvent);
 		// If the mouse is over the widget and the hiding timeout is defined, then cancel it
 		if (mouseIsOverWidget) {
