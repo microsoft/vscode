@@ -160,7 +160,6 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _isMouseOverWidget(mouseEvent: IEditorMouseEvent): boolean {
-		this._mouseMoveEvent = mouseEvent;
 		const target = mouseEvent.target;
 		if (
 			this._isHoverSticky
@@ -199,6 +198,20 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
+		this._mouseMoveEvent = mouseEvent;
+		const target = mouseEvent.target;
+		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
+			return;
+		}
+		if (this._isMouseDown && this._hoverClicked) {
+			return;
+		}
+		if (this._isHoverSticky && this._contentWidget?.isVisibleFromKeyboard) {
+			// Sticky mode is on and the hover has been shown via keyboard
+			// so moving the mouse has no effect
+			return;
+		}
+
 		const mouseIsOverWidget = this._isMouseOverWidget(mouseEvent);
 		// If the mouse is over the widget and the hiding timeout is defined, then cancel it
 		if (mouseIsOverWidget) {
@@ -213,19 +226,7 @@ export class ModesHoverController implements IEditorContribution {
 		if (this._hideWidgetsTimeout) {
 			return;
 		}
-		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
-			return;
-		}
-		if (this._isMouseDown && this._hoverClicked) {
-			return;
-		}
-		if (this._isHoverSticky && this._contentWidget?.isVisibleFromKeyboard) {
-			// Sticky mode is on and the hover has been shown via keyboard
-			// so moving the mouse has no effect
-			return;
-		}
 
-		const target = mouseEvent.target;
 		const mouseOnDecorator = target.element?.classList.contains('colorpicker-color-decoration');
 		const decoratorActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
 
