@@ -32,6 +32,7 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { isExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress.") });
@@ -375,9 +376,17 @@ class StartVoiceChatAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, context: unknown): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
+
+		if (isExecuteActionContext(context)) {
+			// if we already get a context when the action is executed
+			// from a toolbar within the chat widget, then make sure
+			// to move focus into the input field so that the controller
+			// is properly retrieved
+			context.widget.focusInput();
+		}
 
 		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'focussed');
 		if (controller) {
