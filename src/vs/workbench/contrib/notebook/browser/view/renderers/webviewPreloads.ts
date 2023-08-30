@@ -1373,7 +1373,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		try {
-			const image = document.getElementById(outputId)?.querySelector('img') || document.getElementById(altOutputId)?.querySelector('img');
+			const image = document.getElementById(outputId)?.querySelector('img')
+				?? document.getElementById(altOutputId)?.querySelector('img');
 			if (image) {
 				await navigator.clipboard.write([new ClipboardItem({
 					'image/png': new Promise((resolve) => {
@@ -1501,9 +1502,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'copyImage': {
-
 				await copyOutputImage(event.data.outputId, event.data.altOutputId);
-
 				break;
 			}
 			case 'ack-dimension': {
