@@ -5,7 +5,7 @@
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -42,7 +42,7 @@ export class ModesHoverController implements IEditorContribution {
 	public static readonly ID = 'editor.contrib.hover';
 
 	private readonly _toUnhook = new DisposableStore();
-	private readonly _didChangeConfigurationHandler: IDisposable;
+	private readonly _store: DisposableStore = new DisposableStore();
 
 	private _contentWidget: ContentHoverController | null;
 
@@ -58,6 +58,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
 	private _mouseWasOverWidget: boolean = false;
 	private _hideWidgetsTimeout: any;
+	private _mouseMoveEvent: IEditorMouseEvent | undefined;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -75,13 +76,15 @@ export class ModesHoverController implements IEditorContribution {
 		this._glyphWidget = null;
 
 		this._hookEvents();
-
-		this._didChangeConfigurationHandler = this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+		this._store.add(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.hover)) {
 				this._unhookEvents();
 				this._hookEvents();
 			}
-		});
+		}));
+		this._store.add(this._editor.onMouseLeave(() => {
+			this._mouseMoveEvent = undefined;
+		}));
 	}
 
 	private _hookEvents(): void {
@@ -157,6 +160,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _isMouseOverWidget(mouseEvent: IEditorMouseEvent): boolean {
+		this._mouseMoveEvent = mouseEvent;
 		const target = mouseEvent.target;
 		if (
 			this._isHoverSticky
@@ -259,6 +263,7 @@ export class ModesHoverController implements IEditorContribution {
 			this._hideWidgetsTimeout = setTimeout(() => {
 				this._hideWidgets();
 				this._hideWidgetsTimeout = undefined;
+				contentWidget.maybeShowAt(this._mouseMoveEvent);
 			}, this._hidingDelay);
 			this._mouseWasOverWidget = false;
 		} else {
@@ -354,7 +359,7 @@ export class ModesHoverController implements IEditorContribution {
 	public dispose(): void {
 		this._unhookEvents();
 		this._toUnhook.dispose();
-		this._didChangeConfigurationHandler.dispose();
+		this._store.dispose();
 		this._glyphWidget?.dispose();
 		this._contentWidget?.dispose();
 	}
