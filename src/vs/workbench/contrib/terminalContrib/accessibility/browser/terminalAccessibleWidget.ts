@@ -118,11 +118,6 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 					// On escape, hide the accessible buffer and force focus onto the terminal
 					this.hide(true);
 					break;
-				case KeyCode.Tab:
-					// On tab or shift+tab, hide the accessible buffer and perform the default tab
-					// behavior
-					this.hide();
-					break;
 			}
 		}));
 		this.add(this._editorWidget.onDidFocusEditorText(async () => {
