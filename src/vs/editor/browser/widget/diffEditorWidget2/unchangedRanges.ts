@@ -365,7 +365,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			const children: HTMLElement[] = [];
 			if (!this.hide) {
 				const lineCount = _unchangedRegion.getHiddenModifiedRange(reader).length;
-				const linesHiddenText = localize('hiddenLines', '{0} Hidden Lines', lineCount);
+				const linesHiddenText = localize('hiddenLines', '{0} hidden lines', lineCount);
 				const span = $('span', { title: localize('diff.hiddenLines.expandAll', 'Double click to unfold') }, linesHiddenText);
 				span.addEventListener('dblclick', e => {
 					if (e.button !== 0) { return; }
