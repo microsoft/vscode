@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, equals, findLastIndex, numberComparator, reverseOrder } from 'vs/base/common/arrays';
+import { Comparator, CompareResult, compareBy, equals, findLastIndex, numberComparator, reverseOrder } from 'vs/base/common/arrays';
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { CharCode } from 'vs/base/common/charCode';
 import { SetMap } from 'vs/base/common/collections';
+import { BugIndicatingError } from 'vs/base/common/errors';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Position } from 'vs/editor/common/core/position';
@@ -302,7 +303,7 @@ export class AdvancedLinesDiffComputer implements ILinesDiffComputer {
 		if (moves.length === 0) {
 			return [];
 		}
-		const joinedMoves = [moves[0]];
+		let joinedMoves = [moves[0]];
 		for (let i = 1; i < moves.length; i++) {
 			const last = joinedMoves[joinedMoves.length - 1];
 			const current = moves[i];
@@ -323,6 +324,19 @@ export class AdvancedLinesDiffComputer implements ILinesDiffComputer {
 			}
 			joinedMoves.push(current);
 		}
+
+		// Ignore non moves
+		const originalChanges = MonotonousFinder.createOfSorted(changes, c => c.originalRange.endLineNumberExclusive, numberComparator);
+		joinedMoves = joinedMoves.filter(m => {
+			const diffBeforeOriginalMove = originalChanges.findLastItemBeforeOrEqual(m.original.startLineNumber)
+				|| new LineRangeMapping(new LineRange(1, 1), new LineRange(1, 1), []);
+
+			const modifiedDistToPrevDiff = m.modified.startLineNumber - diffBeforeOriginalMove.modifiedRange.endLineNumberExclusive;
+			const originalDistToPrevDiff = m.original.startLineNumber - diffBeforeOriginalMove.originalRange.endLineNumberExclusive;
+
+			const differentDistances = modifiedDistToPrevDiff !== originalDistToPrevDiff;
+			return differentDistances;
+		});
 
 		const fullMoves = joinedMoves.map(m => {
 			const moveChanges = this.refineDiff(originalLines, modifiedLines, new SequenceDiff(
@@ -363,6 +377,60 @@ export class AdvancedLinesDiffComputer implements ILinesDiffComputer {
 			mappings: result,
 			hitTimeout: diffResult.hitTimeout,
 		};
+	}
+}
+
+class MonotonousFinder<TItem, TDomain> {
+	public static create<TItem, TDomain>(
+		items: TItem[],
+		itemToDomain: (item: TItem) => TDomain,
+		domainComparator: Comparator<TDomain>,
+	): MonotonousFinder<TItem, TDomain> {
+		items.sort((a, b) => domainComparator(itemToDomain(a), itemToDomain(b)));
+		return new MonotonousFinder(items, itemToDomain, domainComparator);
+	}
+
+	public static createOfSorted<TItem, TDomain>(
+		items: TItem[],
+		itemToDomain: (item: TItem) => TDomain,
+		domainComparator: Comparator<TDomain>,
+	): MonotonousFinder<TItem, TDomain> {
+		return new MonotonousFinder(items, itemToDomain, domainComparator);
+	}
+
+	private _currentIdx = 0; // All values with index lower than this are smaller than or equal to _lastValue and vice versa.
+	private _lastValue: TDomain | undefined = undefined; // Represents a smallest value.
+	private _hasLastValue = false;
+
+	private constructor(
+		private readonly _items: TItem[],
+		private readonly _itemToDomain: (item: TItem) => TDomain,
+		private readonly _domainComparator: Comparator<TDomain>,
+	) {
+	}
+
+	/**
+	 * Assumes the values are monotonously increasing.
+	 */
+	findLastItemBeforeOrEqual(value: TDomain): TItem | undefined {
+		if (this._hasLastValue && CompareResult.isLessThan(this._domainComparator(value, this._lastValue!))) {
+			// Values must be monotonously increasing
+			throw new BugIndicatingError();
+		}
+		this._lastValue = value;
+		this._hasLastValue = true;
+
+		while (
+			this._currentIdx < this._items.length
+			&& CompareResult.isLessThanOrEqual(this._domainComparator(
+				this._itemToDomain(this._items[this._currentIdx]),
+				value
+			))
+		) {
+			this._currentIdx++;
+		}
+
+		return this._currentIdx === 0 ? undefined : this._items[this._currentIdx - 1];
 	}
 }
 
@@ -839,16 +907,15 @@ export class LinesSliceCharSequence implements ISequence {
 	}
 
 	public extendToFullLines(range: OffsetRange): OffsetRange {
-		const firstIdx = findLastIdxMonotonous(this.firstCharOffsetByLineMinusOne, x => x <= range.start);
-		const lastIdx = findFirstIdxMonotonous(this.firstCharOffsetByLineMinusOne, x => range.endExclusive <= x);
-
-		const start = firstIdx === -1 ? 0 : this.firstCharOffsetByLineMinusOne[firstIdx];
-		const end = lastIdx === this.firstCharOffsetByLineMinusOne.length ? this.elements.length : this.firstCharOffsetByLineMinusOne[lastIdx];
+		const start = findLastMonotonous(this.firstCharOffsetByLineMinusOne, x => x <= range.start) ?? 0;
+		const end = findFirstMonotonous(this.firstCharOffsetByLineMinusOne, x => range.endExclusive <= x) ?? this.elements.length;
 		return new OffsetRange(start, end);
 	}
 }
 
 /**
+ * `arr.map(predicate)` must be like `[true, ..., true, false, ..., false]`!
+ *
  * @returns -1 if predicate is false for all items
  */
 function findLastIdxMonotonous<T>(arr: T[], predicate: (item: T) => boolean): number {
@@ -865,7 +932,14 @@ function findLastIdxMonotonous<T>(arr: T[], predicate: (item: T) => boolean): nu
 	return i - 1;
 }
 
+export function findLastMonotonous<T>(arr: T[], predicate: (item: T) => boolean): T | undefined {
+	const idx = findLastIdxMonotonous(arr, predicate);
+	return idx === -1 ? undefined : arr[idx];
+}
+
 /**
+ * `arr.map(predicate)` must be like `[false, ..., false, true, ..., true]`!
+ *
  * @returns arr.length if predicate is false for all items
  */
 function findFirstIdxMonotonous<T>(arr: T[], predicate: (item: T) => boolean): number {
@@ -880,6 +954,11 @@ function findFirstIdxMonotonous<T>(arr: T[], predicate: (item: T) => boolean): n
 		}
 	}
 	return i;
+}
+
+export function findFirstMonotonous<T>(arr: T[], predicate: (item: T) => boolean): T | undefined {
+	const idx = findFirstIdxMonotonous(arr, predicate);
+	return idx === arr.length ? undefined : arr[idx];
 }
 
 function isWordChar(charCode: number): boolean {
