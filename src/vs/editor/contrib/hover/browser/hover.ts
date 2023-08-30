@@ -56,8 +56,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _isHoverSticky!: boolean;
 	private _hidingDelay!: number;
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
-	private _mouseWasOverWidget: boolean = false;
-	private _hideWidgetsTimeout: any;
+	private _reactToEditorMouseMoveTimeout: any;
 	private _mouseMoveEvent: IEditorMouseEvent | undefined;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
@@ -199,7 +198,6 @@ export class ModesHoverController implements IEditorContribution {
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 		this._mouseMoveEvent = mouseEvent;
-		const target = mouseEvent.target;
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
 			return;
 		}
@@ -215,17 +213,33 @@ export class ModesHoverController implements IEditorContribution {
 		const mouseIsOverWidget = this._isMouseOverWidget(mouseEvent);
 		// If the mouse is over the widget and the hiding timeout is defined, then cancel it
 		if (mouseIsOverWidget) {
-			if (this._hideWidgetsTimeout) {
-				clearTimeout(this._hideWidgetsTimeout);
-				this._hideWidgetsTimeout = undefined;
+			if (this._reactToEditorMouseMoveTimeout) {
+				clearTimeout(this._reactToEditorMouseMoveTimeout);
+				this._reactToEditorMouseMoveTimeout = undefined;
 			}
-			this._mouseWasOverWidget = mouseIsOverWidget;
 			return;
 		}
-		// If the mouse is not over the widget and the hiding timeout is defined, then do an early return
-		if (this._hideWidgetsTimeout) {
+
+		// If the mouse is not over the widget, and if sticky is on,
+		// then give it a grace period before reacting to the mouse event
+		if (this._contentWidget?.isVisible && this._isHoverSticky && this._hidingDelay > 0) {
+			if (!this._reactToEditorMouseMoveTimeout) {
+				this._reactToEditorMouseMoveTimeout = setTimeout(() => {
+					this._reactToEditorMouseMoveTimeout = undefined;
+					this._reactToEditorMouseMove(this._mouseMoveEvent);
+				}, this._hidingDelay);
+			}
 			return;
 		}
+		this._reactToEditorMouseMove(mouseEvent);
+	}
+
+	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent | undefined): void {
+		if (!mouseEvent) {
+			return;
+		}
+
+		const target = mouseEvent.target;
 
 		const mouseOnDecorator = target.element?.classList.contains('colorpicker-color-decoration');
 		const decoratorActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
@@ -258,18 +272,7 @@ export class ModesHoverController implements IEditorContribution {
 		if (_sticky) {
 			return;
 		}
-		if (this._mouseWasOverWidget) {
-			// The mouse just left the content widget and a timeout is trigerred to hide the widget
-			// This timeout will be cancelled if the mouse re-enters the content widget
-			this._hideWidgetsTimeout = setTimeout(() => {
-				this._hideWidgets();
-				this._hideWidgetsTimeout = undefined;
-				contentWidget.maybeShowAt(this._mouseMoveEvent);
-			}, this._hidingDelay);
-			this._mouseWasOverWidget = false;
-		} else {
-			this._hideWidgets();
-		}
+		this._hideWidgets();
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {

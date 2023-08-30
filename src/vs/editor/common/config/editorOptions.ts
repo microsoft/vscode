@@ -2054,7 +2054,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 		const defaults: EditorHoverOptions = {
 			enabled: true,
 			delay: 300,
-			hidingDelay: 500,
+			hidingDelay: 300,
 			sticky: true,
 			above: true,
 		};
