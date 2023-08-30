@@ -264,7 +264,6 @@ export class ModesHoverController implements IEditorContribution {
 			this._hideWidgetsTimeout = setTimeout(() => {
 				this._hideWidgets();
 				this._hideWidgetsTimeout = undefined;
-				contentWidget.maybeShowAt(this._mouseMoveEvent);
 			}, this._hidingDelay);
 			this._mouseWasOverWidget = false;
 		} else {
