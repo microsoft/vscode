@@ -474,9 +474,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
-	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string, backupId?: string) {
+	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string, alternateId?: string) {
 		const cellOutputContainer = document.getElementById(cellOrOutputId) ??
-			backupId ? document.getElementById(backupId!) : undefined;
+			alternateId ? document.getElementById(alternateId!) : undefined;
 		if (cellOutputContainer) {
 			if (cellOutputContainer.contains(document.activeElement)) {
 				return;
@@ -1525,7 +1525,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'focus-output':
-				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.backupId);
+				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
 				break;
 			case 'decorations': {
 				let outputContainer = document.getElementById(event.data.cellId);

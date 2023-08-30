@@ -1609,7 +1609,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this.webview?.focus();
 	}
 
-	focusOutput(cellOrOutputId: string, backupId: string | undefined, viewFocused: boolean) {
+	focusOutput(cellOrOutputId: string, alternateId: string | undefined, viewFocused: boolean) {
 		if (this._disposed) {
 			return;
 		}
@@ -1621,7 +1621,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this._sendMessageToWebview({
 			type: 'focus-output',
 			cellOrOutputId: cellOrOutputId,
-			backupId: backupId
+			alternateId: alternateId
 		});
 	}
 

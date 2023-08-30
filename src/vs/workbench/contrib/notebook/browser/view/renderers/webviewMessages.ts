@@ -275,7 +275,7 @@ export interface ICopyImageMessage {
 export interface IFocusOutputMessage {
 	readonly type: 'focus-output';
 	readonly cellOrOutputId: string;
-	readonly backupId?: string;
+	readonly alternateId?: string;
 }
 
 export interface IAckOutputHeight {
