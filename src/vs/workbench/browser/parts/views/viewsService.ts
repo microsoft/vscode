@@ -51,6 +51,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private readonly visibleViewContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly focusedViewContextKey: IContextKey<string>;
+	private _openViewContainerTitle: string | undefined;
 
 	constructor(
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
@@ -74,8 +75,17 @@ export class ViewsService extends Disposable implements IViewsService {
 		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeContainerLocation(viewContainer, from, to)));
 
 		// View Container Visibility
-		this._register(this.paneCompositeService.onDidPaneCompositeOpen(e => this._onDidChangeViewContainerVisibility.fire({ id: e.composite.getId(), visible: true, location: e.viewContainerLocation })));
-		this._register(this.paneCompositeService.onDidPaneCompositeClose(e => this._onDidChangeViewContainerVisibility.fire({ id: e.composite.getId(), visible: false, location: e.viewContainerLocation })));
+		this._register(this.paneCompositeService.onDidPaneCompositeOpen(e => {
+			this._openViewContainerTitle = e.composite.getTitle();
+			if (!this.focusedViewContextKey.get()) {
+				this._onDidChangeFocusedView.fire();
+			}
+			this._onDidChangeViewContainerVisibility.fire({ id: e.composite.getId(), visible: true, location: e.viewContainerLocation });
+		}));
+		this._register(this.paneCompositeService.onDidPaneCompositeClose(e => {
+			this._openViewContainerTitle = undefined;
+			this._onDidChangeViewContainerVisibility.fire({ id: e.composite.getId(), visible: false, location: e.viewContainerLocation });
+		}));
 
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 	}
@@ -239,8 +249,10 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	getFocusedViewName(): string {
-		const viewId: string = this.contextKeyService.getContextKeyValue(FocusedViewContext.key) ?? '';
-		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name ?? '';
+		const key = this.contextKeyService.getContextKeyValue(FocusedViewContext.key);
+		const viewTitle: string | undefined = key ? this.viewDescriptorService.getViewDescriptorById(key.toString())?.name : undefined;
+		const containerTitle: string | undefined = !viewTitle ? this._openViewContainerTitle : undefined;
+		return viewTitle ?? containerTitle ?? '';
 	}
 
 	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
@@ -625,6 +637,8 @@ export class ViewsService extends Disposable implements IViewsService {
 		disposables.add(viewPaneContainer.onDidChangeViewVisibility(view => this.onViewsVisibilityChanged(view, view.isBodyVisible())));
 		disposables.add(viewPaneContainer.onDidRemoveViews(views => this.onViewsRemoved(views)));
 		disposables.add(viewPaneContainer.onDidFocusView(view => {
+			const id = view.id ?? this._openViewContainerTitle;
+			console.log(id);
 			if (this.focusedViewContextKey.get() !== view.id) {
 				this.focusedViewContextKey.set(view.id);
 				this._onDidChangeFocusedView.fire();
