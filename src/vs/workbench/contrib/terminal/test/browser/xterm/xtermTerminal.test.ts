@@ -257,9 +257,9 @@ suite('XtermTerminal', () => {
 	});
 
 	suite('renderers', () => {
-		// This is skipped on Windows because the result depends on the webgl
-		// renderer in the browsing context
-		(isWindows ? test.skip : test)('should re-evaluate gpu acceleration auto when the setting is changed', async () => {
+		// This is skipped until the webgl renderer bug is fixed in Chromium
+		// https://bugs.chromium.org/p/chromium/issues/detail?id=1476475
+		test.skip('should re-evaluate gpu acceleration auto when the setting is changed', async () => {
 			// Check initial state
 			strictEqual(TestWebglAddon.isEnabled, false);
 
