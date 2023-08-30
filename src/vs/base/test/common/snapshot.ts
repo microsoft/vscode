@@ -25,6 +25,8 @@ export interface ISnapshotOptions {
 	extension?: string;
 }
 
+const originalDate = Date;
+
 /**
  * This is exported only for tests against the snapshotting itself! Use
  * {@link assertSnapshot} as a consumer!
@@ -61,7 +63,9 @@ export class SnapshotContext {
 		const actual = formatValue(value);
 		let expected: string;
 		try {
+			console.log('starting snapshot read', originalDate.now());
 			expected = await __readFileInTests(fpath);
+			console.log('finished snapshot read', originalDate.now());
 		} catch {
 			console.info(`Creating new snapshot in: ${fpath}`);
 			await __mkdirPInTests(this.snapshotsDir.fsPath);

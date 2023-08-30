@@ -148,7 +148,12 @@ async function runTestsInBrowser(testModules, browserType) {
 			emitter.emit(type, data1, data2);
 		}),
 		// Test file operations that are common across platforms. Used for test infra, namely snapshot tests
-		page.exposeFunction('__readFileInTests', (path) => fs.promises.readFile(path, 'utf-8')),
+		page.exposeFunction('__readFileInTests', async (path) => {
+			console.log('starting file read', Date.now());
+			const r = await fs.promises.readFile(path, 'utf-8');
+			console.log('finished file read, returning resolved promise', Date.now());
+			return r;
+		}),
 		page.exposeFunction('__writeFileInTests', (path, contents) => fs.promises.writeFile(path, contents)),
 		page.exposeFunction('__readDirInTests', (path) => fs.promises.readdir(path)),
 		page.exposeFunction('__unlinkInTests', (path) => fs.promises.unlink(path)),
