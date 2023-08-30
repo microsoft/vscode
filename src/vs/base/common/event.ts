@@ -558,6 +558,24 @@ export namespace Event {
 	}
 
 	/**
+	 * Creates an event out of a promise that fires once when the promise is
+	 * resolved with the result of the promise or `undefined`.
+	 */
+	export function fromPromise<T>(promise: Promise<T>): Event<T | undefined> {
+		const result = new Emitter<T | undefined>();
+
+		promise.then(res => {
+			result.fire(res);
+		}, () => {
+			result.fire(undefined);
+		}).finally(() => {
+			result.dispose();
+		});
+
+		return result.event;
+	}
+
+	/**
 	 * Adds a listener to an event and calls the listener immediately with undefined as the event object.
 	 *
 	 * @example

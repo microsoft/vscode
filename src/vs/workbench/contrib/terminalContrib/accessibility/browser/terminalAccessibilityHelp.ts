@@ -60,7 +60,14 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 			const kb = this._keybindingService.lookupKeybindings(commandId);
 			// Run recent command has multiple keybindings. lookupKeybinding just returns the first one regardless of the when context.
 			// Thus, we have to check if accessibility mode is enabled to determine which keybinding to use.
-			return this._accessibilityService.isScreenReaderOptimized() ? format(msg, kb[1].getAriaLabel()) : format(msg, kb[0].getAriaLabel());
+			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+			if (isScreenReaderOptimized && kb[1]) {
+				format(msg, kb[1].getAriaLabel());
+			} else if (kb[0]) {
+				format(msg, kb[0].getAriaLabel());
+			} else {
+				return format(noKbMsg, commandId);
+			}
 		}
 		const kb = this._keybindingService.lookupKeybinding(commandId, this._contextKeyService)?.getAriaLabel();
 		return !kb ? format(noKbMsg, commandId) : format(msg, kb);

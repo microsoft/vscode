@@ -94,7 +94,7 @@ export class UnchangedRangesFeature extends Disposable {
 					const d = derived(reader => /** @description hiddenOriginalRangeStart */ r.getHiddenOriginalRange(reader).startLineNumber - 1);
 					const origVz = new PlaceholderViewZone(d, 24);
 					origViewZones.push(origVz);
-					store.add(new CollapsedCodeOverlayWidget(this._editors.original, origVz, r, r.originalRange, !sideBySide, modifiedOutlineSource, l => this._diffModel.get()!.ensureOriginalLineIsVisible(l, undefined), this._options));
+					store.add(new CollapsedCodeOverlayWidget(this._editors.original, origVz, r, r.originalRange, !sideBySide, modifiedOutlineSource, l => this._diffModel.get()!.ensureModifiedLineIsVisible(l, undefined), this._options));
 				}
 				{
 					const d = derived(reader => /** @description hiddenModifiedRangeStart */ r.getHiddenModifiedRange(reader).startLineNumber - 1);
@@ -250,7 +250,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 	private readonly _nodes = h('div.diff-hidden-lines', [
 		h('div.top@top', { title: localize('diff.hiddenLines.top', 'Click or drag to show more above') }),
 		h('div.center@content', { style: { display: 'flex' } }, [
-			h('div@first', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center' } },
+			h('div@first', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: '0' } },
 				[$('a', { title: localize('showAll', 'Show all'), role: 'button', onclick: () => { this.showAll(); } }, ...renderLabelWithIcons('$(unfold)'))]
 			),
 			h('div@others', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center' } }),
@@ -265,7 +265,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 		private readonly _unchangedRegionRange: LineRange,
 		private readonly hide: boolean,
 		private readonly _modifiedOutlineSource: OutlineSource,
-		private readonly _revealHiddenLine: (lineNumber: number) => void,
+		private readonly _revealModifiedHiddenLine: (lineNumber: number) => void,
 		private readonly _options: DiffEditorOptions,
 	) {
 		const root = h('div.diff-hidden-lines-widget');
@@ -365,7 +365,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			const children: HTMLElement[] = [];
 			if (!this.hide) {
 				const lineCount = _unchangedRegion.getHiddenModifiedRange(reader).length;
-				const linesHiddenText = localize('hiddenLines', '{0} Hidden Lines', lineCount);
+				const linesHiddenText = localize('hiddenLines', '{0} hidden lines', lineCount);
 				const span = $('span', { title: localize('diff.hiddenLines.expandAll', 'Double click to unfold') }, linesHiddenText);
 				span.addEventListener('dblclick', e => {
 					if (e.button !== 0) { return; }
@@ -396,7 +396,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 						]).root;
 						children.push(divItem);
 						divItem.onclick = () => {
-							this._revealHiddenLine(item.startLineNumber);
+							this._revealModifiedHiddenLine(item.startLineNumber);
 						};
 					}
 				}

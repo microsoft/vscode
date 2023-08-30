@@ -322,6 +322,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
+	private readonly _onDidRunText = this._register(new Emitter<void>());
+	readonly onDidRunText = this._onDidRunText.event;
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
@@ -1255,6 +1257,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._onDidInputData.fire(this);
 		this.xterm?.suggestController?.handleNonXtermData(text);
 		this.xterm?.scrollToBottom();
+		this._onDidRunText.fire();
 	}
 
 	async sendPath(originalPath: string | URI, addNewLine: boolean): Promise<void> {
