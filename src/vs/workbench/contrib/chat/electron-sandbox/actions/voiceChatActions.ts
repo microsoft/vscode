@@ -201,6 +201,7 @@ class VoiceChatSessions {
 		this.currentVoiceChatSession.disposables.add(controller.onDidAcceptInput(() => this.stop(voiceChatSessionId)));
 		this.currentVoiceChatSession.disposables.add(controller.onDidCancelInput(() => this.stop(voiceChatSessionId)));
 
+		controller.updateInput('');
 		controller.focusInput();
 
 		this.voiceChatGettingReadyKey.set(true);
