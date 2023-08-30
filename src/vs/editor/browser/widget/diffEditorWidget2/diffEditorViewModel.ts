@@ -482,7 +482,7 @@ function applyOriginalEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], orig
 	}
 	return flip(diff3);*/
 }
-
+/*
 function flip(diff: IDocumentDiff): IDocumentDiff {
 	return {
 		changes: diff.changes.map(c => c.flip()),
@@ -491,7 +491,7 @@ function flip(diff: IDocumentDiff): IDocumentDiff {
 		quitEarly: diff.quitEarly,
 	};
 }
-
+*/
 function applyModifiedEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], originalTextModel: ITextModel, modifiedTextModel: ITextModel): IDocumentDiff | undefined {
 	return undefined;
 	/*
@@ -521,7 +521,7 @@ function applyModifiedEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], orig
 		moves,
 	};*/
 }
-
+/*
 function applyEditToLineRange(range: LineRange, textEdits: TextEditInfo[]): LineRange | undefined {
 	let rangeStartLineNumber = range.startLineNumber;
 	let rangeEndLineNumberEx = range.endLineNumberExclusive;
@@ -588,3 +588,4 @@ function applyModifiedEditsToLineRangeMappings(changes: readonly LineRangeMappin
 	);
 	return newChanges;
 }
+*/
