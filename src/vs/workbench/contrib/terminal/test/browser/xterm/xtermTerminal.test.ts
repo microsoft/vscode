@@ -33,6 +33,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { Color, RGBA } from 'vs/base/common/color';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
+import { isWindows } from 'vs/base/common/platform';
 
 class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;
@@ -256,7 +257,9 @@ suite('XtermTerminal', () => {
 	});
 
 	suite('renderers', () => {
-		test('should re-evaluate gpu acceleration auto when the setting is changed', async () => {
+		// This is skipped on Windows because the result depends on the webgl
+		// renderer in the browsing context
+		(isWindows ? test.skip : test)('should re-evaluate gpu acceleration auto when the setting is changed', async () => {
 			// Check initial state
 			strictEqual(TestWebglAddon.isEnabled, false);
 
