@@ -5,7 +5,7 @@
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -42,7 +42,7 @@ export class ModesHoverController implements IEditorContribution {
 	public static readonly ID = 'editor.contrib.hover';
 
 	private readonly _toUnhook = new DisposableStore();
-	private readonly _store: DisposableStore = new DisposableStore();
+	private readonly _didChangeConfigurationHandler: IDisposable;
 
 	private _contentWidget: ContentHoverController | null;
 
@@ -76,12 +76,12 @@ export class ModesHoverController implements IEditorContribution {
 
 		this._hookEvents();
 
-		this._store.add(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+		this._didChangeConfigurationHandler = this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.hover)) {
 				this._unhookEvents();
 				this._hookEvents();
 			}
-		}));
+		});
 	}
 
 	private _hookEvents(): void {
@@ -354,7 +354,7 @@ export class ModesHoverController implements IEditorContribution {
 	public dispose(): void {
 		this._unhookEvents();
 		this._toUnhook.dispose();
-		this._store.dispose();
+		this._didChangeConfigurationHandler.dispose();
 		this._glyphWidget?.dispose();
 		this._contentWidget?.dispose();
 	}
