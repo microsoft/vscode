@@ -200,7 +200,20 @@ export class ModesHoverController implements IEditorContribution {
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 		this._mouseMoveEvent = mouseEvent;
-		const target = mouseEvent.target;
+		const mouseIsOverWidget = this._isMouseOverWidget(mouseEvent);
+		// If the mouse is over the widget and the hiding timeout is defined, then cancel it
+		if (mouseIsOverWidget) {
+			if (this._hideWidgetsTimeout) {
+				clearTimeout(this._hideWidgetsTimeout);
+				this._hideWidgetsTimeout = undefined;
+			}
+			this._mouseWasOverWidget = mouseIsOverWidget;
+			return;
+		}
+		// If the mouse is not over the widget and the hiding timeout is defined, then do an early return
+		if (this._hideWidgetsTimeout) {
+			return;
+		}
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
 			return;
 		}
@@ -213,19 +226,7 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		const mouseIsOverWidget = this._isMouseOverWidget(mouseEvent);
-		if (mouseIsOverWidget) {
-			if (this._hideWidgetsTimeout) {
-				clearTimeout(this._hideWidgetsTimeout);
-				this._hideWidgetsTimeout = undefined;
-			}
-			this._mouseWasOverWidget = mouseIsOverWidget;
-			return;
-		}
-		if (this._hideWidgetsTimeout) {
-			return;
-		}
-
+		const target = mouseEvent.target;
 		const mouseOnDecorator = target.element?.classList.contains('colorpicker-color-decoration');
 		const decoratorActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
 
