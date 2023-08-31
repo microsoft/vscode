@@ -6,12 +6,12 @@
 import {
 	Connection,
 	TextDocuments, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions, Diagnostic, CodeActionKind
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions, Diagnostic, CodeAction, CodeActionKind
 } from 'vscode-languageserver';
 
 import { runSafe, runSafeAsync } from './utils/runner';
 import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
-import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position, SortOptions, CodeAction } from 'vscode-json-languageservice';
+import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position, SortOptions } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { Utils, URI } from 'vscode-uri';
 
@@ -412,7 +412,6 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	connection.onDocumentSymbol((documentSymbolParams, token) => {
 		return runSafe(runtime, () => {
-			console.log('inside of on document symbol');
 			const document = documents.get(documentSymbolParams.textDocument.uri);
 			if (document) {
 				const jsonDocument = getJSONDocument(document);
@@ -426,6 +425,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
 	});
 
+	//
 	connection.onCodeAction((_codeActionParams, token) => {
 		return runSafe(runtime, () => {
 			console.log('Inside of on code action');
@@ -438,6 +438,11 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			return codeActions;
 		}, [], `Error while retrieving code actions`, token);
 	});
+
+	connection.onCodeActionResolve(async (codeAction, token) => {
+		return codeAction;
+	});
+	//
 
 	function onFormat(textDocument: TextDocumentIdentifier, range: Range | undefined, options: FormattingOptions): TextEdit[] {
 

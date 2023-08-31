@@ -8,7 +8,7 @@ export type JSONLanguageStatus = { schemas: string[] };
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n, CodeActionContext, CodeAction, Command,
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n, CodeActionContext, CodeAction, Command, CodeActionProvider, Selection, CodeActionKind,
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions,
@@ -172,6 +172,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 
 
 	toDispose.push(commands.registerCommand('json.sort', async () => {
+
 		if (isClientReady) {
 			const textEditor = window.activeTextEditor;
 			if (textEditor) {
@@ -188,6 +189,35 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			}
 		}
 	}));
+
+	class JSONCodeActionProvider implements CodeActionProvider {
+
+		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(CodeAction | Command)[]> {
+			console.log('inside of provide code actions');
+			const codeActions: CodeAction[] = [];
+			const sortCodeAction = new CodeAction('Sort JSON', CodeActionKind.Source);
+			sortCodeAction.command = {
+				command: 'json.sort',
+				title: 'Sort JSON'
+			};
+			return codeActions;
+		}
+	}
+
+	languages.registerCodeActionsProvider('*', new JSONCodeActionProvider());
+
+	// connection.onCodeAction((_codeActionParams, token) => {
+	// 	return runSafe(runtime, () => {
+	// 		console.log('Inside of on code action');
+	// 		const codeActions: CodeAction[] = [];
+	// 		const sortCodeAction = CodeAction.create('Sort JSON', CodeActionKind.Source);
+	// 		sortCodeAction.command = {
+	// 			command: 'json.sort',
+	// 			title: 'Sort JSON'
+	// 		};
+	// 		return codeActions;
+	// 	}, [], `Error while retrieving code actions`, token);
+	// });
 
 	// Options to control the language client
 	const clientOptions: LanguageClientOptions = {
@@ -302,16 +332,16 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				}
 				return checkLimit(r);
 			},
-			provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken, next: ProvideCodeActionsSignature) {
-				console.log('inside of provide code actions');
-				console.log('next : ', next);
-				const r = next(document, range, context, token);
-				console.log('r : ', r);
-				if (isThenable<(Command | CodeAction)[] | null | undefined>(r)) {
-					return r;
-				}
-				return r;
-			}
+			// provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken, next: ProvideCodeActionsSignature) {
+			// 	console.log('inside of provide code actions');
+			// 	console.log('next : ', next);
+			// 	const r = next(document, range, context, token);
+			// 	console.log('r : ', r);
+			// 	if (isThenable<(Command | CodeAction)[] | null | undefined>(r)) {
+			// 		return r;
+			// 	}
+			// 	return r;
+			// }
 		}
 	};
 
