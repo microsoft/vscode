@@ -596,19 +596,21 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		} else {
 			let bonus: vscode.Command | undefined
 			if (vscode.workspace.getConfiguration('typescript', null).get('experimental.aiQuickFix')) {
-				if (action.name.startsWith('constant_')
-					|| action.name.startsWith('function_')
-					|| action.name.startsWith('Extract to')
-					|| action.name.startsWith('Infer function return')) {
-					const kind = action.name.startsWith('constant_') ? 'expression'
-						: action.name.startsWith('function_') ? 'function'
-						: action.name.startsWith('Extract to') ? 'type'
-						: action.name.startsWith('Infer function return') ? 'type'
-						: 'code';
+				if (Extract_Constant.matches(action)
+					|| Extract_Function.matches(action)
+					|| Extract_Type.matches(action)
+					|| Extract_Interface.matches(action)
+					|| action.name.startsWith('Infer function return')) { // TODO: There's no CodeActionKind for infer function return; maybe that's why it doesn't work
+					const kind = Extract_Constant.matches(action) ? 'variable'
+						: Extract_Function.matches(action) ? 'function'
+						: Extract_Type.matches(action) ? 'type'
+						: Extract_Interface.matches(action) ? 'type'
+						: action.name.startsWith('Infer function return') ? 'return type'
+						: '';
 					bonus = {
 						command: ChatPanelFollowup.ID,
 						arguments: [<ChatPanelFollowup.Args>{
-							prompt: `Suggest 5 names for the ${kind}
+							prompt: `Suggest 5 ${kind} names for the code below:
 \`\`\`
 ${document.getText(rangeOrSelection)}.
 \`\`\` `,

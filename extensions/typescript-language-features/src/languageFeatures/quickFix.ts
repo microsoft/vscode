@@ -327,6 +327,18 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			if(tsAction.fixName === fixNames.classIncorrectlyImplementsInterface) {
 				followupAction = new EditorChatFollowUp('Implement the class using the interface', document, diagnostic.range, this.client);
 			}
+			else if(tsAction.fixName === fixNames.fixClassDoesntImplementInheritedAbstractMember) {
+				// TODO: This range has the same problem as all the other followups
+				followupAction = new EditorChatFollowUp('Implement abstract class members with a useful implementation', document, diagnostic.range, this.client);
+			}
+			else if (tsAction.fixName === fixNames.fixMissingFunctionDeclaration) {
+				let edits = getEditForCodeAction(this.client, tsAction)
+				// console.log(JSON.stringify(edits)) // need to generate a new range based on the length and lines of the new text
+				const range = !edits ? diagnostic.range : edits.entries()[0][1][0].range
+				followupAction = new EditorChatFollowUp(
+					`Implement the function based on the function call \`${document.getText(diagnostic.range)}\``,
+					document, range, this.client);
+			}
 			else if (tsAction.fixName === fixNames.inferFromUsage) {
 				const inferFromBody = new VsCodeCodeAction(tsAction, 'Copilot: Infer and add types', vscode.CodeActionKind.QuickFix);
 				inferFromBody.edit = new vscode.WorkspaceEdit();
@@ -342,7 +354,6 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				actions.push(inferFromBody);
 			}
 			else if (tsAction.fixName === fixNames.addNameToNamelessParameter) {
-				followupAction = new EditorChatFollowUp('Suggest a better name for this parameter', document, diagnostic.range, this.client);
 				const suggestName = new VsCodeCodeAction(tsAction, 'Add parameter name', vscode.CodeActionKind.QuickFix);
 				suggestName.edit = getEditForCodeAction(this.client, tsAction);
 				suggestName.command = {
