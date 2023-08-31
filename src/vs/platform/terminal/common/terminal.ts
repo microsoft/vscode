@@ -115,7 +115,7 @@ export const enum TerminalSettingId {
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
 	FocusAfterRun = 'terminal.integrated.focusAfterRun',
-	SyncTextArea = 'terminal.integrated.syncTextArea',
+	SyncTextArea = 'terminal.integrated.experimental.syncTextArea',
 
 	// Debug settings that are hidden from user
 
