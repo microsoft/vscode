@@ -398,14 +398,14 @@ export function uniqueFilter<T, R>(keyFn: (t: T) => R): (t: T) => boolean {
 }
 
 export function findLast<T>(arr: readonly T[], predicate: (item: T) => boolean): T | undefined {
-	const idx = lastIndex(arr, predicate);
+	const idx = findLastIndex(arr, predicate);
 	if (idx === -1) {
 		return undefined;
 	}
 	return arr[idx];
 }
 
-export function lastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
+export function findLastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
 	for (let i = array.length - 1; i >= 0; i--) {
 		const element = array[i];
 
@@ -666,6 +666,10 @@ export namespace CompareResult {
 		return result < 0;
 	}
 
+	export function isLessThanOrEqual(result: CompareResult): boolean {
+		return result <= 0;
+	}
+
 	export function isGreaterThan(result: CompareResult): boolean {
 		return result > 0;
 	}
@@ -706,6 +710,12 @@ export function tieBreakComparators<TItem>(...comparators: Comparator<TItem>[]):
  * The natural order on numbers.
 */
 export const numberComparator: Comparator<number> = (a, b) => a - b;
+
+export const booleanComparator: Comparator<boolean> = (a, b) => numberComparator(a ? 1 : 0, b ? 1 : 0);
+
+export function reverseOrder<TItem>(comparator: Comparator<TItem>): Comparator<TItem> {
+	return (a, b) => -comparator(a, b);
+}
 
 /**
  * Returns the first item that is equal to or greater than every other item.
@@ -748,6 +758,21 @@ export function findLastMaxBy<T>(items: readonly T[], comparator: Comparator<T>)
 */
 export function findMinBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
 	return findMaxBy(items, (a, b) => -comparator(a, b));
+}
+
+export function findMaxIdxBy<T>(items: readonly T[], comparator: Comparator<T>): number {
+	if (items.length === 0) {
+		return -1;
+	}
+
+	let maxIdx = 0;
+	for (let i = 1; i < items.length; i++) {
+		const item = items[i];
+		if (comparator(item, items[maxIdx]) > 0) {
+			maxIdx = i;
+		}
+	}
+	return maxIdx;
 }
 
 export class ArrayQueue<T> {

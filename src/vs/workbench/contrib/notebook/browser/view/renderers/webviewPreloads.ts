@@ -474,8 +474,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
-	function focusFirstFocusableOrContainerInOutput(cellId: string) {
-		const cellOutputContainer = document.getElementById(cellId);
+	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string, alternateId?: string) {
+		const cellOutputContainer = document.getElementById(cellOrOutputId) ??
+			alternateId ? document.getElementById(alternateId!) : undefined;
 		if (cellOutputContainer) {
 			if (cellOutputContainer.contains(document.activeElement)) {
 				return;
@@ -1362,6 +1363,44 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
+	const copyOutputImage = async (outputId: string, altOutputId: string, retries = 5) => {
+		if (!document.hasFocus() && retries > 0) {
+			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
+			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
+			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
+			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 20);
+			return;
+		}
+
+		try {
+			const image = document.getElementById(outputId)?.querySelector('img')
+				?? document.getElementById(altOutputId)?.querySelector('img');
+			if (image) {
+				await navigator.clipboard.write([new ClipboardItem({
+					'image/png': new Promise((resolve) => {
+						const canvas = document.createElement('canvas');
+						if (canvas !== null) {
+							canvas.width = image.naturalWidth;
+							canvas.height = image.naturalHeight;
+							const context = canvas.getContext('2d');
+							context?.drawImage(image, 0, 0);
+						}
+						canvas.toBlob((blob) => {
+							if (blob) {
+								resolve(blob);
+							}
+							canvas.remove();
+						}, 'image/png');
+					})
+				})]);
+			} else {
+				console.error('Could not find image element to copy for output with id', outputId);
+			}
+		} catch (e) {
+			console.error('Could not copy image:', e);
+		}
+	};
+
 	window.addEventListener('message', async rawEvent => {
 		const event = rawEvent as ({ data: webviewMessages.ToWebviewMessage });
 
@@ -1462,6 +1501,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				});
 				break;
 			}
+			case 'copyImage': {
+				await copyOutputImage(event.data.outputId, event.data.altOutputId);
+				break;
+			}
 			case 'ack-dimension': {
 				for (const { cellId, outputId, height } of event.data.updates) {
 					viewModel.updateOutputHeight(cellId, outputId, height);
@@ -1481,7 +1524,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'focus-output':
-				focusFirstFocusableOrContainerInOutput(event.data.cellId);
+				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
 				break;
 			case 'decorations': {
 				let outputContainer = document.getElementById(event.data.cellId);
@@ -2519,6 +2562,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		) {
 			this.element = document.createElement('div');
 			this.element.classList.add('output_container');
+			this.element.setAttribute('data-vscode-context', JSON.stringify({ 'preventDefaultContextMenuItems': true }));
 			this.element.style.position = 'absolute';
 			this.element.style.overflow = 'hidden';
 		}

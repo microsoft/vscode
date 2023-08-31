@@ -162,22 +162,34 @@ export class CodeApplication extends Disposable {
 
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
+		const allowedPermissionsInMainFrame = new Set(
+			this.productService.quality === 'stable' ? [] : ['media']
+		);
+
 		const allowedPermissionsInWebview = new Set([
 			'clipboard-read',
 			'clipboard-sanitized-write',
 		]);
 
-		session.defaultSession.setPermissionRequestHandler((_webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback, details) => {
+		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
+			}
+
+			if (details.isMainFrame && details.securityOrigin === 'vscode-file://vscode-app/') {
+				return callback(allowedPermissionsInMainFrame.has(permission));
 			}
 
 			return callback(false);
 		});
 
-		session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */, _origin, details) => {
+		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
+			}
+
+			if (details.isMainFrame && details.securityOrigin === 'vscode-file://vscode-app/') {
+				return allowedPermissionsInMainFrame.has(permission);
 			}
 
 			return false;
@@ -934,7 +946,7 @@ export class CodeApplication extends Disposable {
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
 
 		// Encryption
-		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
+		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));

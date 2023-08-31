@@ -28,7 +28,8 @@ export class InlineCompletionContextKeys extends Disposable {
 	) {
 		super();
 
-		this._register(autorun('update context key: inlineCompletionVisible, suppressSuggestions', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update context key: inlineCompletionVisible, suppressSuggestions */
 			const model = this.model.read(reader);
 			const state = model?.state.read(reader);
 
@@ -40,7 +41,8 @@ export class InlineCompletionContextKeys extends Disposable {
 			}
 		}));
 
-		this._register(autorun('update context key: inlineCompletionSuggestsIndentation, inlineCompletionSuggestsIndentationLessThanTabSize', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update context key: inlineCompletionSuggestsIndentation, inlineCompletionSuggestsIndentationLessThanTabSize */
 			const model = this.model.read(reader);
 
 			let startsWithIndentation = false;

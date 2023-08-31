@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { getLineRangeMapping } from 'vs/editor/common/diff/standardLinesDiffComputer';
+import { getLineRangeMapping } from 'vs/editor/common/diff/advancedLinesDiffComputer';
 
 suite('lineRangeMapping', () => {
 	test('1', () => {

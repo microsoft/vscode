@@ -14,7 +14,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import * as extHostProtocol from './extHost.protocol';
-import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
+import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty, isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
@@ -506,6 +506,10 @@ class CodeActionAdapter {
 
 class DocumentPasteEditProvider {
 
+	public static toInternalProviderId(extId: string, editId: string): string {
+		return extId + '.' + editId;
+	}
+
 	constructor(
 		private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape,
 		private readonly _documents: ExtHostDocuments,
@@ -553,10 +557,11 @@ class DocumentPasteEditProvider {
 		}
 
 		return {
-			id: edit.id ? this._extension.identifier.value + '.' + edit.id : this._extension.identifier.value,
 			label: edit.label ?? localize('defaultPasteLabel', "Paste using '{0}' extension", this._extension.displayName || this._extension.name),
 			detail: this._extension.displayName || this._extension.name,
-			priority: edit.priority ?? 0,
+			yieldTo: edit.yieldTo?.map(yTo => {
+				return 'mimeType' in yTo ? yTo : { providerId: DocumentPasteEditProvider.toInternalProviderId(yTo.extensionId, yTo.providerId) };
+			}),
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
 			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		};
@@ -1212,7 +1217,6 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 
 		const normalizedResult = Array.isArray(result) ? result : result.items;
 		const commands = this._isAdditionsProposedApiEnabled ? Array.isArray(result) ? [] : result.commands || [] : [];
-		const suppressSuggestions = this._isAdditionsProposedApiEnabled && !Array.isArray(result) ? result.suppressSuggestions : undefined;
 		const enableForwardStability = this._isAdditionsProposedApiEnabled && !Array.isArray(result) ? result.enableForwardStability : undefined;
 
 		let disposableStore: DisposableStore | undefined = undefined;
@@ -1250,7 +1254,7 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 				}
 				return this._commands.toInternal(c, disposableStore);
 			}),
-			suppressSuggestions,
+			suppressSuggestions: false,
 			enableForwardStability,
 		};
 	}
@@ -1779,6 +1783,10 @@ class TypeHierarchyAdapter {
 
 class DocumentOnDropEditAdapter {
 
+	public static toInternalProviderId(extId: string, editId: string): string {
+		return extId + '.' + editId;
+	}
+
 	constructor(
 		private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape,
 		private readonly _documents: ExtHostDocuments,
@@ -1799,12 +1807,41 @@ class DocumentOnDropEditAdapter {
 			return undefined;
 		}
 		return {
-			id: edit.id ? this._extension.identifier.value + '.' + edit.id : this._extension.identifier.value,
 			label: edit.label ?? localize('defaultDropLabel', "Drop using '{0}' extension", this._extension.displayName || this._extension.name),
-			priority: edit.priority ?? 0,
+			yieldTo: edit.yieldTo?.map(yTo => {
+				return 'mimeType' in yTo ? yTo : { providerId: DocumentOnDropEditAdapter.toInternalProviderId(yTo.extensionId, yTo.providerId) };
+			}),
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
 			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		};
+	}
+}
+
+class MappedEditsAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.MappedEditsProvider,
+	) { }
+
+	async provideMappedEdits(
+		resource: UriComponents,
+		codeBlocks: string[],
+		context: extHostProtocol.IMappedEditsContextDto,
+		token: CancellationToken
+	): Promise<extHostProtocol.IWorkspaceEditDto | null> {
+
+		const uri = URI.revive(resource);
+		const doc = this._documents.getDocument(uri);
+
+		const ctx = {
+			selections: context.selections.map(s => typeConvert.Selection.to(s)),
+			related: context.related.map(r => ({ uri: URI.revive(r.uri), range: typeConvert.Range.to(r.range) })),
+		};
+
+		const mappedEdits = await this._provider.provideMappedEdits(doc, codeBlocks, ctx, token);
+
+		return mappedEdits ? typeConvert.WorkspaceEdit.from(mappedEdits) : null;
 	}
 }
 
@@ -1817,7 +1854,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
 	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter
-	| DocumentOnDropEditAdapter;
+	| DocumentOnDropEditAdapter | MappedEditsAdapter;
 
 class AdapterData {
 	constructor(
@@ -2129,9 +2166,6 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	registerDocumentRangeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
 		const canFormatMultipleRanges = typeof provider.provideDocumentRangesFormattingEdits === 'function';
-		if (canFormatMultipleRanges) {
-			checkProposedApiEnabled(extension, 'formatMultipleRanges');
-		}
 		const handle = this._addNewAdapter(new RangeFormattingAdapter(this._documents, provider), extension);
 		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector, extension), extension.identifier, extension.displayName || extension.name, canFormatMultipleRanges);
 		return this._createDisposable(handle);
@@ -2377,7 +2411,14 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: vscode.FoldingContext, token: CancellationToken): Promise<languages.FoldingRange[] | undefined> {
-		return this._withAdapter(handle, FoldingProviderAdapter, adapter => adapter.provideFoldingRanges(URI.revive(resource), context, token), undefined, token);
+		return this._withAdapter(
+			handle,
+			FoldingProviderAdapter,
+			(adapter) =>
+				adapter.provideFoldingRanges(URI.revive(resource), context, token),
+			undefined,
+			token
+		);
 	}
 
 	// --- smart select
@@ -2445,7 +2486,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(new DocumentOnDropEditAdapter(this._proxy, this._documents, provider, handle, extension), extension));
 
-		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector, extension), isProposedApiEnabled(extension, 'dropMetadata') ? metadata : undefined);
+		const id = isProposedApiEnabled(extension, 'dropMetadata') && metadata ? DocumentOnDropEditAdapter.toInternalProviderId(extension.identifier.value, metadata.id) : undefined;
+		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector, extension), id, isProposedApiEnabled(extension, 'dropMetadata') ? metadata : undefined);
 
 		return this._createDisposable(handle);
 	}
@@ -2455,12 +2497,26 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			Promise.resolve(adapter.provideDocumentOnDropEdits(requestId, URI.revive(resource), position, dataTransferDto, token)), undefined, undefined);
 	}
 
+	// --- mapped edits
+
+	registerMappedEditsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.MappedEditsProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new MappedEditsAdapter(this._documents, provider), extension);
+		this._proxy.$registerMappedEditsProvider(handle, this._transformDocumentSelector(selector, extension));
+		return this._createDisposable(handle);
+	}
+
+	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: extHostProtocol.IMappedEditsContextDto, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | null> {
+		return this._withAdapter(handle, MappedEditsAdapter, adapter =>
+			Promise.resolve(adapter.provideMappedEdits(document, codeBlocks, context, token)), null, token);
+	}
+
 	// --- copy/paste actions
 
 	registerDocumentPasteEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentPasteEditProvider, metadata: vscode.DocumentPasteProviderMetadata): vscode.Disposable {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(new DocumentPasteEditProvider(this._proxy, this._documents, provider, handle, extension), extension));
-		this._proxy.$registerPasteEditProvider(handle, this._transformDocumentSelector(selector, extension), {
+		const internalId = DocumentPasteEditProvider.toInternalProviderId(extension.identifier.value, metadata.id);
+		this._proxy.$registerPasteEditProvider(handle, this._transformDocumentSelector(selector, extension), internalId, {
 			supportsCopy: !!provider.prepareDocumentPaste,
 			supportsPaste: !!provider.provideDocumentPasteEdits,
 			copyMimeTypes: metadata.copyMimeTypes,
@@ -2482,7 +2538,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	private static _serializeRegExp(regExp: RegExp): extHostProtocol.IRegExpDto {
 		return {
 			pattern: regExp.source,
-			flags: regExpFlags(regExp),
+			flags: regExp.flags,
 		};
 	}
 

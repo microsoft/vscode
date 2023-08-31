@@ -43,7 +43,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IdleValue } from 'vs/base/common/async';
@@ -53,11 +53,12 @@ import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/cha
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
 const _inputEditorOptions: IEditorConstructionOptions = {
-	padding: { top: 3, bottom: 2 },
+	padding: { top: 2, bottom: 2 },
 	overviewRulerLanes: 0,
 	glyphMargin: false,
 	lineNumbers: 'off',
@@ -98,7 +99,7 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 	ariaLabel: defaultAriaLabel,
 	fontFamily: DEFAULT_FONT_FAMILY,
 	fontSize: 13,
-	lineHeight: 20,
+	lineHeight: 20
 };
 
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
@@ -229,7 +230,7 @@ export class InlineChatWidget {
 		}));
 
 		const uri = URI.from({ scheme: 'vscode', authority: 'inline-chat', path: `/inline-chat/model${InlineChatWidget._modelPool++}.txt` });
-		this._inputModel = this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri);
+		this._inputModel = this._store.add(this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri));
 		this._inputEditor.setModel(this._inputModel);
 
 		// --- context keys
@@ -315,7 +316,7 @@ export class InlineChatWidget {
 
 		// slash command content widget
 
-		this._slashCommandContentWidget = new SlashCommandContentWidget(this._inputEditor, this._accessibilityService);
+		this._slashCommandContentWidget = new SlashCommandContentWidget(this._inputEditor);
 		this._store.add(this._slashCommandContentWidget);
 
 		// toolbars
@@ -358,13 +359,13 @@ export class InlineChatWidget {
 		this._store.add(feedbackToolbar);
 
 		// preview editors
-		this._previewDiffEditor = new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget2, this._elements.previewDiff, {
+		this._previewDiffEditor = this._store.add(new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget2, this._elements.previewDiff, {
 			..._previewEditorEditorOptions,
 			onlyShowAccessibleDiffViewer: this._accessibilityService.isScreenReaderOptimized(),
-		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor)));
+		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor))));
 
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
-		this._previewCreateEditor = new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor)));
+		this._previewCreateEditor = this._store.add(new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor))));
 
 		this._elements.message.tabIndex = 0;
 		this._elements.message.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
@@ -375,6 +376,11 @@ export class InlineChatWidget {
 
 		this._store.add(addDisposableListener(this._elements.root, EventType.CONTEXT_MENU, async (event: MouseEvent) => {
 			this._onContextMenu(event);
+		}));
+		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
+				this._elements.message.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
+			}
 		}));
 	}
 
@@ -392,7 +398,7 @@ export class InlineChatWidget {
 		}
 		let label = defaultAriaLabel;
 		if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InlineChat)) {
-			const kbLabel = this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
+			const kbLabel = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 			label = kbLabel ? localize('inlineChat.accessibilityHelp', "Inline Chat Input, Use {0} for Inline Chat Accessibility Help.", kbLabel) : localize('inlineChat.accessibilityHelpNoKb', "Inline Chat Input, Run the Inline Chat Accessibility Help command for more information.");
 		}
 		_inputEditorOptions.ariaLabel = label;
@@ -465,8 +471,16 @@ export class InlineChatWidget {
 		this._inputEditor.setPosition(this._inputModel.getFullModelRange().getEndPosition());
 	}
 
-	selectAll() {
-		this._inputEditor.setSelection(this._inputModel.getFullModelRange());
+	selectAll(includeSlashCommand: boolean = true) {
+		let selection = this._inputModel.getFullModelRange();
+
+		if (!includeSlashCommand) {
+			const firstLine = this._inputModel.getLineContent(1);
+			const slashCommand = this._slashCommandDetails.find(c => firstLine.startsWith(`/${c.command} `));
+			selection = slashCommand ? new Range(1, slashCommand.command.length + 3, selection.endLineNumber, selection.endColumn) : selection;
+		}
+
+		this._inputEditor.setSelection(selection);
 	}
 
 	set placeholder(value: string) {
@@ -742,7 +756,7 @@ export class InlineChatWidget {
 					this._slashCommandContentWidget.show();
 
 					// inject detail when otherwise empty
-					if (firstLine === `/${command.command} `) {
+					if (firstLine === `/${command.command}`) {
 						newDecorations.push({
 							range: new Range(1, withSlash.length + 1, 1, withSlash.length + 2),
 							options: {

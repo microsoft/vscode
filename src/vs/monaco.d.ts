@@ -2374,7 +2374,7 @@ declare namespace monaco.editor {
 		/**
 		 * Computes the diff between the text models `original` and `modified`.
 		 */
-		computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff>;
+		computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions, cancellationToken: CancellationToken): Promise<IDocumentDiff>;
 		/**
 		 * Is fired when settings of the diff algorithm change that could alter the result of the diffing computation.
 		 * Any user of this provider should recompute the diff when this event is fired.
@@ -2460,6 +2460,7 @@ declare namespace monaco.editor {
 		 * Moves this line range by the given offset of line numbers.
 		 */
 		delta(offset: number): LineRange;
+		deltaLength(offset: number): LineRange;
 		/**
 		 * The number of lines this line range spans.
 		 */
@@ -2545,6 +2546,7 @@ declare namespace monaco.editor {
 		constructor(original: LineRange, modified: LineRange);
 		toString(): string;
 		flip(): SimpleLineRangeMapping;
+		join(other: SimpleLineRangeMapping): SimpleLineRangeMapping;
 	}
 	export interface IDimension {
 		width: number;
@@ -3888,6 +3890,10 @@ declare namespace monaco.editor {
 		 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
 		 */
 		tabFocusMode?: boolean;
+		/**
+		 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
+		 */
+		inlineCompletionsAccessibilityVerbose?: boolean;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -3907,6 +3913,16 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		renderSideBySide?: boolean;
+		/**
+		 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+		 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+		 */
+		renderSideBySideInlineBreakpoint?: number | undefined;
+		/**
+		 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+		 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+		 */
+		useInlineViewWhenSpaceIsLimited?: boolean;
 		/**
 		 * Timeout in milliseconds after which diff computation is cancelled.
 		 * Defaults to 5000.
@@ -3963,10 +3979,6 @@ declare namespace monaco.editor {
 			/**
 			 * Defaults to false.
 			 */
-			collapseUnchangedRegions?: boolean;
-			/**
-			 * Defaults to false.
-			 */
 			showMoves?: boolean;
 			showEmptyDecorations?: boolean;
 		};
@@ -3979,6 +3991,12 @@ declare namespace monaco.editor {
 		 * If the diff editor should only show the difference review mode.
 		 */
 		onlyShowAccessibleDiffViewer?: boolean;
+		hideUnchangedRegions?: {
+			enabled?: boolean;
+			revealLineCount?: number;
+			minimumLineCount?: number;
+			contextLineCount?: number;
+		};
 	}
 
 	/**
@@ -4303,6 +4321,10 @@ declare namespace monaco.editor {
 		 * Model to choose for sticky scroll by default
 		 */
 		defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
+		/**
+		 * Define whether to scroll sticky scroll with editor horizontal scrollbae
+		 */
+		scrollWithEditor?: boolean;
 	}
 
 	/**
@@ -5010,7 +5032,8 @@ declare namespace monaco.editor {
 		layoutInfo = 142,
 		wrappingInfo = 143,
 		defaultColorDecorators = 144,
-		colorDecoratorsActivatedOn = 145
+		colorDecoratorsActivatedOn = 145,
+		inlineCompletionsAccessibilityVerbose = 146
 	}
 
 	export const EditorOptions: {
@@ -5134,6 +5157,7 @@ declare namespace monaco.editor {
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, Readonly<Required<ISuggestOptions>>>;
 		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, Readonly<Required<IInlineSuggestOptions>>>;
+		inlineCompletionsAccessibilityVerbose: IEditorOption<EditorOption.inlineCompletionsAccessibilityVerbose, boolean>;
 		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
 		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;
@@ -5412,6 +5436,10 @@ declare namespace monaco.editor {
 		 * If null is returned, the overlay widget is responsible to place itself.
 		 */
 		getPosition(): IOverlayWidgetPosition | null;
+		/**
+		 * The editor will ensure that the scroll width is >= than this value.
+		 */
+		getMinContentWidthInPx?(): number;
 	}
 
 	/**
@@ -5517,7 +5545,7 @@ declare namespace monaco.editor {
 		/**
 		 * The target element
 		 */
-		readonly element: Element | null;
+		readonly element: HTMLElement | null;
 		/**
 		 * The 'approximate' editor position
 		 */
@@ -5972,7 +6000,7 @@ declare namespace monaco.editor {
 		/**
 		 * Get the vertical position (top offset) for the line's top w.r.t. to the first line.
 		 */
-		getTopForLineNumber(lineNumber: number): number;
+		getTopForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 		/**
 		 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
 		 */
@@ -6231,7 +6259,7 @@ declare namespace monaco.languages {
 
 	/**
 	 * An event emitted when a language is associated for the first time with a text model or
-	 * whena language is encountered during the tokenization of another language.
+	 * when a language is encountered during the tokenization of another language.
 	 * @event
 	 */
 	export function onLanguageEncountered(languageId: string, callback: () => void): IDisposable;
@@ -7865,6 +7893,30 @@ declare namespace monaco.languages {
 	export interface DocumentRangeSemanticTokensProvider {
 		getLegend(): SemanticTokensLegend;
 		provideDocumentRangeSemanticTokens(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
+	}
+
+	export interface RelatedContextItem {
+		readonly uri: Uri;
+		readonly range: IRange;
+	}
+
+	export interface MappedEditsContext {
+		selections: ISelection[];
+		related: RelatedContextItem[];
+	}
+
+	export interface MappedEditsProvider {
+		/**
+		 * Provider maps code blocks from the chat into a workspace edit.
+		 *
+		 * @param document The document to provide mapped edits for.
+		 * @param codeBlocks Code blocks that come from an LLM's reply.
+		 * 						"Insert at cursor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
+		 * @param context The context for providing mapped edits.
+		 * @param token A cancellation token.
+		 * @returns A provider result of text edits.
+		 */
+		provideMappedEdits(document: editor.ITextModel, codeBlocks: string[], context: MappedEditsContext, token: CancellationToken): Promise<WorkspaceEdit | null>;
 	}
 
 	export interface ILanguageExtensionPoint {

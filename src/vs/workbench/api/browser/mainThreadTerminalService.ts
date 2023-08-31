@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier, TerminalQuickFix } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier, TerminalQuickFix, ITerminalCommandDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,16 +17,13 @@ import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/commo
 import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { TerminalEditorLocationOptions } from 'vscode';
 import { Promises } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TerminalQuickFixType } from 'vs/workbench/api/common/extHostTypes';
 import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { ITerminalQuickFixService, ITerminalQuickFixOptions, ITerminalQuickFix } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
@@ -45,6 +42,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _profileProviders = new Map<string, IDisposable>();
 	private readonly _quickFixProviders = new Map<string, IDisposable>();
 	private readonly _dataEventTracker = new MutableDisposable<TerminalDataEventTracker>();
+	private readonly _sendCommandEventListener = new MutableDisposable();
 	/**
 	 * A single shared terminal link provider for the exthost. When an ext registers a link
 	 * provider, this is registered with the terminal on the renderer side and all links are
@@ -123,7 +121,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private async _updateDefaultProfile() {
-		const remoteAuthority = withNullAsUndefined(this._extHostContext.remoteAuthority);
+		const remoteAuthority = this._extHostContext.remoteAuthority ?? undefined;
 		const defaultProfile = this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority, os: this._os });
 		const defaultAutomationProfile = this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority, os: this._os, allowAutomationShell: true });
 		this._proxy.$acceptDefaultProfile(...await Promise.all([defaultProfile, defaultAutomationProfile]));
@@ -232,6 +230,30 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._dataEventTracker.clear();
 	}
 
+	public $startSendingCommandEvents(): void {
+		this._logService.info('$startSendingCommandEvents');
+		if (this._sendCommandEventListener.value) {
+			return;
+		}
+
+		const multiplexer = this._terminalService.onInstanceCapabilityEvent(TerminalCapability.CommandDetection, capability => capability.onCommandFinished);
+		multiplexer.event(e => {
+			this._onDidExecuteCommand(e.instance.instanceId, {
+				commandLine: e.data.command,
+				// TODO: Convert to URI if possible
+				cwd: e.data.cwd,
+				exitCode: e.data.exitCode,
+				output: e.data.getOutput()
+			});
+		});
+		this._sendCommandEventListener.value = multiplexer;
+	}
+
+	public $stopSendingCommandEvents(): void {
+		this._logService.info('$stopSendingCommandEvents');
+		this._sendCommandEventListener.clear();
+	}
+
 	public $startLinkProvider(): void {
 		this._linkProvider?.dispose();
 		this._linkProvider = this._terminalLinkProviderService.registerLinkProvider(new ExtensionTerminalLinkProvider(this._proxy));
@@ -261,42 +283,40 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public async $registerQuickFixProvider(id: string, extensionId: string): Promise<void> {
-		this._quickFixProviders.set(id, this._terminalQuickFixService.registerQuickFixProvider(id,
-			{
-				provideTerminalQuickFixes: async (terminalCommand: ITerminalCommand, lines: string[], option: ITerminalQuickFixOptions, token: CancellationToken) => {
-					if (token.isCancellationRequested) {
-						return;
-					}
-					if (option.outputMatcher?.length && option.outputMatcher.length > 40) {
-						option.outputMatcher.length = 40;
-						this._logService.warn('Cannot exceed output matcher length of 40');
-					}
-					const commandLineMatch = terminalCommand.command.match(option.commandLineMatcher);
-					if (!commandLineMatch) {
-						return;
-					}
-					const outputMatcher = option.outputMatcher;
-					let outputMatch;
-					if (outputMatcher) {
-						outputMatch = getOutputMatchForLines(lines, outputMatcher);
-					}
-					if (!outputMatch) {
-						return;
-					}
-					const matchResult = { commandLineMatch, outputMatch, commandLine: terminalCommand.command };
-
-					if (matchResult) {
-						const result = await this._proxy.$provideTerminalQuickFixes(id, matchResult, token);
-						if (result && Array.isArray(result)) {
-							return result.map(r => parseQuickFix(id, extensionId, r));
-						} else if (result) {
-							return parseQuickFix(id, extensionId, result);
-						}
-					}
+		this._quickFixProviders.set(id, this._terminalQuickFixService.registerQuickFixProvider(id, {
+			provideTerminalQuickFixes: async (terminalCommand, lines, options, token) => {
+				if (token.isCancellationRequested) {
 					return;
 				}
-			})
-		);
+				if (options.outputMatcher?.length && options.outputMatcher.length > 40) {
+					options.outputMatcher.length = 40;
+					this._logService.warn('Cannot exceed output matcher length of 40');
+				}
+				const commandLineMatch = terminalCommand.command.match(options.commandLineMatcher);
+				if (!commandLineMatch || !lines) {
+					return;
+				}
+				const outputMatcher = options.outputMatcher;
+				let outputMatch;
+				if (outputMatcher) {
+					outputMatch = getOutputMatchForLines(lines, outputMatcher);
+				}
+				if (!outputMatch) {
+					return;
+				}
+				const matchResult = { commandLineMatch, outputMatch, commandLine: terminalCommand.command };
+
+				if (matchResult) {
+					const result = await this._proxy.$provideTerminalQuickFixes(id, matchResult, token);
+					if (result && Array.isArray(result)) {
+						return result.map(r => parseQuickFix(id, extensionId, r));
+					} else if (result) {
+						return parseQuickFix(id, extensionId, result);
+					}
+				}
+				return;
+			}
+		}));
 	}
 
 	public $unregisterQuickFixProvider(id: string): void {
@@ -310,6 +330,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTerminalData(terminalId: number, data: string): void {
 		this._proxy.$acceptTerminalProcessData(terminalId, data);
+	}
+
+	private _onDidExecuteCommand(terminalId: number, command: ITerminalCommandDto): void {
+		this._proxy.$acceptDidExecuteCommand(terminalId, command);
 	}
 
 	private _onTitleChanged(terminalId: number, name: string): void {
@@ -453,10 +477,12 @@ export function getOutputMatchForLines(lines: string[], outputMatcher: ITerminal
 }
 
 function parseQuickFix(id: string, source: string, fix: TerminalQuickFix): ITerminalQuickFix {
-	let type = TerminalQuickFixType.Command;
+	let type = TerminalQuickFixType.TerminalCommand;
 	if ('uri' in fix) {
 		fix.uri = URI.revive(fix.uri);
 		type = TerminalQuickFixType.Opener;
+	} else if ('id' in fix) {
+		type = TerminalQuickFixType.VscodeCommand;
 	}
 	return { id, type, source, ...fix };
 }

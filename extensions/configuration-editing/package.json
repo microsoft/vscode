@@ -41,8 +41,7 @@
           ".code-workspace",
           "language-configuration.json",
           "icon-theme.json",
-          "color-theme.json",
-          ".code-snippets"
+          "color-theme.json"
         ],
         "filenames": [
           "settings.json",
@@ -54,10 +53,6 @@
           "profiles.json",
           "devcontainer.json",
           ".devcontainer.json"
-        ],
-        "filenamePatterns": [
-          "**/User/snippets/*.json",
-          "**/User/profiles/*/snippets/*.json"
         ]
       }, {
         "id": "json",
@@ -166,7 +161,7 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "18.x"
   },
   "repository": {
     "type": "git",

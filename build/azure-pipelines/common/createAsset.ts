@@ -227,14 +227,17 @@ async function main(): Promise<void> {
 	}
 
 	const promiseResults = await Promise.allSettled(uploadPromises);
+	const rejectedPromiseResults = promiseResults.filter(result => result.status === 'rejected') as PromiseRejectedResult[];
 
-	for (const result of promiseResults) {
-		if (result.status === 'rejected') {
-			throw result.reason;
-		}
+	if (rejectedPromiseResults.length === 0) {
+		console.log('All blobs successfully uploaded.');
+	} else if (rejectedPromiseResults[0]?.reason?.message?.includes('already exists')) {
+		console.warn(rejectedPromiseResults[0].reason.message);
+		console.log('Some blobs successfully uploaded.');
+	} else {
+		// eslint-disable-next-line no-throw-literal
+		throw rejectedPromiseResults[0]?.reason;
 	}
-
-	console.log('All blobs successfully uploaded.');
 
 	const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
 	const blobPath = new URL(assetUrl).pathname;
