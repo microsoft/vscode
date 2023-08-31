@@ -33,7 +33,7 @@ suite('Notebook Symbols', function () {
 		}
 	};
 
-	function createCellViewModel(version: number = 1) {
+	function createCellViewModel(version: number = 1, textmodelId = 'textId') {
 		return {
 			textBuffer: {
 				getLineCount() { return 0; }
@@ -43,7 +43,7 @@ suite('Notebook Symbols', function () {
 			},
 			model: {
 				textModel: {
-					id: 'textId',
+					id: textmodelId,
 					getVersionId() { return version; }
 				}
 			}
@@ -134,4 +134,29 @@ suite('Notebook Symbols', function () {
 		assert.equal(entries[4].label, 'nested1');
 		assert.equal(entries[4].level, 8);
 	});
+
+	test('Different Cell updates should update the cache for each cell', async function () {
+		symbols = [{ name: 'var1' }];
+		const entryFactory = new NotebookOutlineEntryCacheService(executionService, outlineModelService);
+
+		entryFactory.getOutlineEntries(createCellViewModel(1, '$1'), 0, true, true);
+		entryFactory.getOutlineEntries(createCellViewModel(1, '$2'), 0, true, true);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		symbols = [{ name: 'updated' }];
+		// update the cache
+		const cell1Updated = createCellViewModel(1, '$1');
+		const cell2Updated = createCellViewModel(1, '$2');
+		entryFactory.getOutlineEntries(cell1Updated, 0, true, true);
+		entryFactory.getOutlineEntries(cell2Updated, 0, true, true);
+
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const entries1 = entryFactory.getOutlineEntries(cell1Updated, 0, true, true);
+		const entries2 = entryFactory.getOutlineEntries(cell2Updated, 0, true, true);
+
+		assert.equal(entries1.length, 1, 'wrong number of outline entries');
+		assert.equal(entries1[0].label, 'updated');
+		assert.equal(entries2.length, 1, 'wrong number of outline entries');
+		assert.equal(entries2[0].label, 'updated');
+	});
+
 });

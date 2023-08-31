@@ -109,6 +109,7 @@ export class NotebookOutlineEntryCacheService implements INotebookOutlineEntryCa
 	}
 
 	private async cacheSymbols(cell: ICellViewModel) {
+		// TODO FIX: This is called for all cell text models, so the debounced function below will only look at the last cell.
 		const textModel = cell.model.textModel;
 		if (textModel) {
 			const timeout = this.outlineModelService.getDebounceValue(textModel);
