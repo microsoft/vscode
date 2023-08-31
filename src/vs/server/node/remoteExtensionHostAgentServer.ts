@@ -10,12 +10,14 @@ import * as net from 'net';
 import { performance } from 'perf_hooks';
 import * as url from 'url';
 import { LoaderStats } from 'vs/base/common/amd';
+import { DeferredPromise } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { CharCode } from 'vs/base/common/charCode';
-import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { CancellationError, isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { connectionTokenQueryName, FileAccess, Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas, connectionTokenQueryName } from 'vs/base/common/network';
 import { dirname, join } from 'vs/base/common/path';
 import * as perf from 'vs/base/common/performance';
 import * as platform from 'vs/base/common/platform';
@@ -37,10 +39,10 @@ import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionHostConnection } from 'vs/server/node/extensionHostConnection';
 import { ManagementConnection } from 'vs/server/node/remoteExtensionManagement';
-import { determineServerConnectionToken, requestHasValidConnectionToken as httpRequestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
+import { ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType, determineServerConnectionToken, requestHasValidConnectionToken as httpRequestHasValidConnectionToken } from 'vs/server/node/serverConnectionToken';
 import { IServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
-import { setupServerServices, SocketServer } from 'vs/server/node/serverServices';
-import { CacheControl, serveError, serveFile, WebClientServer } from 'vs/server/node/webClientServer';
+import { SocketServer, setupServerServices } from 'vs/server/node/serverServices';
+import { CacheControl, WebClientServer, serveError, serveFile } from 'vs/server/node/webClientServer';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -546,21 +548,54 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		remoteSocket.pipe(localSocket);
 	}
 
-	private _connectTunnelSocket(host: string, port: number): Promise<net.Socket> {
-		return new Promise<net.Socket>((c, e) => {
-			const socket = net.createConnection(
-				{
-					host: host,
-					port: port
-				}, () => {
-					socket.removeListener('error', e);
-					socket.pause();
-					c(socket);
-				}
-			);
+	private _connectTunnelSocket(host: string, port: number, ct?: CancellationToken): Promise<net.Socket> {
+		const store = new DisposableStore();
+		try {
+			// for localhost, try to use ipv4 and ipv6, resolving whichever works first (#191945)
+			if (host === 'localhost') {
+				const cts = store.add(new CancellationTokenSource(ct));
+				const deferred = new DeferredPromise<net.Socket>();
+				const doResolve = (connection: net.Socket) => {
+					if (deferred.isSettled) {
+						connection.end();
+					} else {
+						deferred.complete(connection);
+						cts.cancel();
+					}
+				};
+				let isSecondFailure = false;
+				const doReject = (err: Error) => {
+					if (!isSecondFailure) {
+						isSecondFailure = true;
+					} else {
+						deferred.error(err);
+					}
+				};
 
-			socket.once('error', e);
-		});
+				this._connectTunnelSocket('127.0.0.1', port, cts.token).then(doResolve, doReject);
+				this._connectTunnelSocket('::1', port, cts.token).then(doResolve, doReject);
+				return deferred.p;
+			} else {
+				return new Promise<net.Socket>((resolve, reject) => {
+					const socket = net.createConnection({ host, port }, () => {
+						socket.removeListener('error', reject);
+						socket.pause();
+						resolve(socket);
+					});
+
+					if (ct) {
+						store.add(ct.onCancellationRequested(() => {
+							socket.destroy();
+							reject(new CancellationError());
+						}));
+					}
+
+					socket.once('error', reject);
+				});
+			}
+		} finally {
+			store.dispose();
+		}
 	}
 
 	private _updateWithFreeDebugPort(startParams: IRemoteExtensionHostStartParams): Thenable<IRemoteExtensionHostStartParams> {
