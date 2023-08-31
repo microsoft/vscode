@@ -105,9 +105,11 @@ class AccessibleView extends Disposable {
 	private _accessibleViewCurrentProviderId: IContextKey<string>;
 
 	get editorWidget() { return this._editorWidget; }
-	private _editorContainer: HTMLElement;
-	private _currentProvider: IAccessibleContentProvider | undefined;
+	private _container: HTMLElement;
+	private _title: HTMLElement;
 	private readonly _toolbar: WorkbenchToolBar;
+
+	private _currentProvider: IAccessibleContentProvider | undefined;
 	private _currentContent: string | undefined;
 
 	constructor(
@@ -131,12 +133,21 @@ class AccessibleView extends Disposable {
 		this._accessibleViewGoToSymbolSupported = accessibleViewGoToSymbolSupported.bindTo(this._contextKeyService);
 		this._accessibleViewCurrentProviderId = accessibleViewCurrentProviderId.bindTo(this._contextKeyService);
 
-		this._editorContainer = document.createElement('div');
-		this._editorContainer.classList.add('accessible-view');
+		this._container = document.createElement('div');
+		this._container.classList.add('accessible-view');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			contributions: EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeActionController.ID)
 		};
-		this._toolbar = this._register(_instantiationService.createInstance(WorkbenchToolBar, this._editorContainer, { orientation: ActionsOrientation.HORIZONTAL }));
+		const titleBar = document.createElement('div');
+		titleBar.classList.add('accessible-view-title-bar');
+		this._title = document.createElement('div');
+		this._title.classList.add('accessible-view-title');
+		titleBar.appendChild(this._title);
+		const actionBar = document.createElement('div');
+		actionBar.classList.add('accessible-view-action-bar');
+		titleBar.appendChild(actionBar);
+		this._container.appendChild(titleBar);
+		this._toolbar = this._register(_instantiationService.createInstance(WorkbenchToolBar, actionBar, { orientation: ActionsOrientation.HORIZONTAL }));
 		this._toolbar.context = { viewId: 'accessibleView' };
 		const toolbarElt = this._toolbar.getElement();
 		toolbarElt.tabIndex = 0;
@@ -155,7 +166,7 @@ class AccessibleView extends Disposable {
 			readOnly: true,
 			fontFamily: 'var(--monaco-monospace-font)'
 		};
-		this._editorWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions));
+		this._editorWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._container, editorOptions, codeEditorWidgetOptions));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
 			if (this._currentProvider && this._accessiblityHelpIsShown.get()) {
 				this.show(this._currentProvider);
@@ -334,7 +345,6 @@ class AccessibleView extends Disposable {
 				message += '\n';
 			}
 		}
-
 		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', '\nExit this dialog via the Escape key.');
 		this._updateContextKeys(provider, true);
 
@@ -348,7 +358,7 @@ class AccessibleView extends Disposable {
 				return;
 			}
 			model.setLanguage(provider.options.language ?? 'markdown');
-			container.appendChild(this._editorContainer);
+			container.appendChild(this._container);
 			let actionsHint = '';
 			const verbose = this._configurationService.getValue(provider.verbositySettingKey);
 			const hasActions = this._accessibleViewSupportsNavigation.get() || this._accessibleViewVerbosityEnabled.get() || this._accessibleViewGoToSymbolSupported.get() || this._currentProvider?.actions;
@@ -356,6 +366,7 @@ class AccessibleView extends Disposable {
 				actionsHint = localize('ariaAccessibleViewActions', "Use Shift+Tab to explore actions such as disabling this hint.");
 			}
 			let ariaLabel = provider.options.type === AccessibleViewType.Help ? localize('accessibility-help', "Accessibility Help") : localize('accessible-view', "Accessible View");
+			this._title.textContent = ariaLabel;
 			if (actionsHint && provider.options.type === AccessibleViewType.View) {
 				ariaLabel = localize('accessible-view-hint', "Accessible View, {0}", actionsHint);
 			} else if (actionsHint) {
@@ -495,9 +506,9 @@ class AccessibleView extends Disposable {
 		let hint = '';
 		const disableKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.DisableVerbosityHint, this._contextKeyService)?.getAriaLabel();
 		if (disableKeybinding) {
-			hint = localize('acessibleViewDisableHint', "Disable the aria label hint to open this ({0})", disableKeybinding);
+			hint = localize('acessibleViewDisableHint', "Disable accessibility verbosity for this feature ({0}). This will disable the hint to open the accessible view for example.\n", disableKeybinding);
 		} else {
-			hint = localize('accessibleViewDisableHintNoKb', "Add a keybinding for the command Disable Accessible View Hint to disable this hint");
+			hint = localize('accessibleViewDisableHintNoKb', "Add a keybinding for the command Disable Accessible View Hint, which disables accessibility verbosity for this feature.\n");
 		}
 		return hint;
 	}
@@ -572,6 +583,7 @@ class AccessibleViewSymbolQuickPick {
 	}
 	show(provider: IAccessibleContentProvider): void {
 		const quickPick = this._quickInputService.createQuickPick<IAccessibleViewSymbol>();
+		quickPick.placeholder = localize('accessibleViewSymbolQuickPickPlaceholder', "Type to search symbols");
 		quickPick.title = localize('accessibleViewSymbolQuickPickTitle', "Go to Symbol Accessible View");
 		const picks = [];
 		const symbols = this._accessibleView.getSymbols();

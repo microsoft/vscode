@@ -170,6 +170,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (event.affectsConfiguration(TitlebarPart.configCommandCenter)) {
 			this.updateTitle();
 			this._onDidChangeCommandCenterVisibility.fire();
+			this._onDidChange.fire(undefined);
 		}
 	}
 

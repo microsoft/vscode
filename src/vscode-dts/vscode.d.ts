@@ -11457,6 +11457,9 @@ declare module 'vscode' {
 		clear(): void;
 	}
 
+	/**
+	 * A collection of mutations that an extension can apply to a process environment. Applies to all scopes.
+	 */
 	export interface GlobalEnvironmentVariableCollection extends EnvironmentVariableCollection {
 		/**
 		 * Gets scope-specific environment variable collection for the extension. This enables alterations to
@@ -11471,16 +11474,21 @@ declare module 'vscode' {
 		 * If a scope parameter is omitted, collection applicable to all relevant scopes for that parameter is
 		 * returned. For instance, if the 'workspaceFolder' parameter is not specified, the collection that applies
 		 * across all workspace folders will be returned.
+		 *
+		 * @return Environment variable collection for the passed in scope.
 		 */
 		getScoped(scope: EnvironmentVariableScope): EnvironmentVariableCollection;
 	}
 
-	export type EnvironmentVariableScope = {
+	/**
+	 * The scope object to which the environment variable collection applies.
+	 */
+	export interface EnvironmentVariableScope {
 		/**
 		 * Any specific workspace folder to get collection for.
 		 */
 		workspaceFolder?: WorkspaceFolder;
-	};
+	}
 
 	/**
 	 * A location in the editor at which progress information can be shown. It depends on the

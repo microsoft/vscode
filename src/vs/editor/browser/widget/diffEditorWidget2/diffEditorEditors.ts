@@ -99,7 +99,7 @@ export class DiffEditorEditors extends Disposable {
 			// Disable unicode highlighting for the original side in inline mode, as they are not shown anyway.
 			result.unicodeHighlight = { nonBasicASCII: false, ambiguousCharacters: false, invisibleCharacters: false };
 		} else {
-			result.unicodeHighlight = this._options.editorOptions.get().unicodeHighlight;
+			result.unicodeHighlight = this._options.editorOptions.get().unicodeHighlight || {};
 			result.wordWrapOverride1 = this._options.diffWordWrap.get();
 		}
 		if (changedOptions.originalAriaLabel) {
@@ -147,7 +147,7 @@ export class DiffEditorEditors extends Disposable {
 		clonedOptions.minimap = { ...(clonedOptions.minimap || {}) };
 		clonedOptions.minimap.enabled = false;
 
-		if (this._options.collapseUnchangedRegions.get()) {
+		if (this._options.hideUnchangedRegions.get()) {
 			clonedOptions.stickyScroll = { enabled: false };
 		} else {
 			clonedOptions.stickyScroll = this._options.editorOptions.get().stickyScroll;

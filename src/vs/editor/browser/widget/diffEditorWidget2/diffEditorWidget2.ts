@@ -45,6 +45,7 @@ import { DiffEditorEditors } from './diffEditorEditors';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel';
 import { toDisposable } from 'vs/base/common/lifecycle';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 
 export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
@@ -81,6 +82,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 	private readonly movedBlocksLinesPart = observableValue<MovedBlocksLinesPart | undefined>('MovedBlocksLinesPart', undefined);
 
+	public get collapseUnchangedRegions() { return this._options.hideUnchangedRegions.get(); }
+
 	constructor(
 		private readonly _domElement: HTMLElement,
 		options: Readonly<IDiffEditorConstructionOptions>,
@@ -89,6 +92,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
 	) {
 		super();
 		codeEditorService.willCreateDiffEditor();
@@ -228,7 +232,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(applyStyle(this.elements.overlay, {
 			width: this._layoutInfo.map((i, r) => i.originalEditor.width + (this._options.renderSideBySide.read(r) ? 0 : i.modifiedEditor.width)),
-			visibility: derived(reader => /** @description visibility */(this._options.collapseUnchangedRegions.read(reader) && this._diffModel.read(reader)?.diff.read(reader)?.mappings.length === 0)
+			visibility: derived(reader => /** @description visibility */(this._options.hideUnchangedRegions.read(reader) && this._diffModel.read(reader)?.diff.read(reader)?.mappings.length === 0)
 				? 'visible' : 'hidden'
 			),
 		}));
@@ -264,6 +268,14 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 				} else if (diff) {
 					this._audioCueService.playAudioCue(AudioCue.diffLineModified, { source: 'diffEditor.cursorPositionChanged' });
 				}
+			}
+		}));
+
+		const isDiffUpToDate = this._diffModel.map((m, reader) => m?.isDiffUpToDate.read(reader));
+		this._register(autorunWithStore((reader, store) => {
+			if (isDiffUpToDate.read(reader) === false) {
+				const r = this._editorProgressService.show(true, 1000);
+				store.add(toDisposable(() => r.done()));
 			}
 		}));
 	}
@@ -498,10 +510,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		await diffModel.waitForDiff();
 	}
 
-	switchSide(): void {
+	mapToOtherSide(): { destination: CodeEditorWidget; destinationSelection: Range | undefined } {
 		const isModifiedFocus = this._editors.modified.hasWidgetFocus();
 		const source = isModifiedFocus ? this._editors.modified : this._editors.original;
 		const destination = isModifiedFocus ? this._editors.original : this._editors.modified;
+
+		let destinationSelection: Range | undefined;
 
 		const sourceSelection = source.getSelection();
 		if (sourceSelection) {
@@ -509,17 +523,44 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			if (mappings) {
 				const newRange1 = translatePosition(sourceSelection.getStartPosition(), mappings);
 				const newRange2 = translatePosition(sourceSelection.getEndPosition(), mappings);
-				const range = Range.plusRange(newRange1, newRange2);
-				destination.setSelection(range);
+				destinationSelection = Range.plusRange(newRange1, newRange2);
 			}
 		}
+		return { destination, destinationSelection };
+	}
+
+	switchSide(): void {
+		const { destination, destinationSelection } = this.mapToOtherSide();
 		destination.focus();
+		if (destinationSelection) {
+			destination.setSelection(destinationSelection);
+		}
 	}
 
 	exitCompareMove(): void {
 		const model = this._diffModel.get();
 		if (!model) { return; }
 		model.movedTextToCompare.set(undefined, undefined);
+	}
+
+	collapseAllUnchangedRegions(): void {
+		const unchangedRegions = this._diffModel.get()?.unchangedRegions.get();
+		if (!unchangedRegions) { return; }
+		transaction(tx => {
+			for (const region of unchangedRegions) {
+				region.collapseAll(tx);
+			}
+		});
+	}
+
+	showAllUnchangedRegions(): void {
+		const unchangedRegions = this._diffModel.get()?.unchangedRegions.get();
+		if (!unchangedRegions) { return; }
+		transaction(tx => {
+			for (const region of unchangedRegions) {
+				region.showAll(tx);
+			}
+		});
 	}
 }
 

@@ -828,10 +828,6 @@ export interface IDiffEditorBaseOptions {
 		/**
 		 * Defaults to false.
 		 */
-		collapseUnchangedRegions?: boolean;
-		/**
-		 * Defaults to false.
-		 */
 		showMoves?: boolean;
 
 		showEmptyDecorations?: boolean;
@@ -847,6 +843,13 @@ export interface IDiffEditorBaseOptions {
 	 * If the diff editor should only show the difference review mode.
 	 */
 	onlyShowAccessibleDiffViewer?: boolean;
+
+	hideUnchangedRegions?: {
+		enabled?: boolean;
+		revealLineCount?: number;
+		minimumLineCount?: number;
+		contextLineCount?: number;
+	};
 }
 
 /**
@@ -2796,7 +2799,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 				'editor.stickyScroll.scrollWithEditor': {
 					type: 'boolean',
 					default: defaults.scrollWithEditor,
-					description: nls.localize('editor.stickyScroll.scrollWithEditor', "When enabled it is possible to scroll the sticky scroll widget with the editor horizontal scrollbar.")
+					description: nls.localize('editor.stickyScroll.scrollWithEditor', "Enable scrolling of the sticky scroll widget with the editor's horizontal scrollbar.")
 				},
 			}
 		);

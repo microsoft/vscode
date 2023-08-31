@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
@@ -24,7 +25,7 @@ import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -44,6 +45,7 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 	) {
 		super();
 
@@ -175,21 +177,22 @@ class InputEditorDecorations extends Disposable {
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, []);
 		}
 
-		// const variables = this.chatVariablesService.getVariables();
+		const variables = this.chatVariablesService.getVariables();
 		const variableReg = /(^|\s)@(\w+)(:\d+)?(?=(\s|$))/ig;
 		let match: RegExpMatchArray | null;
 		const varDecorations: IDecorationOptions[] = [];
 		while (match = variableReg.exec(inputValue)) {
-			// const candidate = match[2];
-			// if (Iterable.find(variables, v => v.name === candidate))
-			varDecorations.push({
-				range: {
-					startLineNumber: 1,
-					endLineNumber: 1,
-					startColumn: match.index! + match[1].length + 1,
-					endColumn: match.index! + match[0].length + 1
-				}
-			});
+			const varName = match[2];
+			if (Iterable.find(variables, v => v.name === varName)) {
+				varDecorations.push({
+					range: {
+						startLineNumber: 1,
+						endLineNumber: 1,
+						startColumn: match.index! + match[1].length + 1,
+						endColumn: match.index! + match[0].length + 1
+					}
+				});
+			}
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
@@ -253,14 +256,14 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				return <CompletionList>{
-					suggestions: slashCommands.map(c => {
+					suggestions: sortSlashCommandsByYieldTo<ISlashCommand>(slashCommands).map((c, i) => {
 						const withSlash = `/${c.command}`;
 						return <CompletionItem>{
 							label: withSlash,
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							detail: c.detail,
 							range: new Range(1, 1, 1, 1),
-							sortText: c.sortText ?? c.command,
+							sortText: c.sortText ?? 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
 							command: c.executeImmediately ? { id: SubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
 						};
@@ -269,6 +272,79 @@ class SlashCommandCompletions extends Disposable {
 			}
 		}));
 	}
+}
+
+interface SlashCommandYieldTo {
+	command: string;
+}
+
+// Adapted from https://github.com/microsoft/vscode/blob/ca2c1636f87ea4705f32345c2e348e815996e129/src/vs/editor/contrib/dropOrPasteInto/browser/edit.ts#L31-L99
+function sortSlashCommandsByYieldTo<T extends {
+	readonly command: string;
+	readonly yieldsTo?: ReadonlyArray<SlashCommandYieldTo>;
+}>(slashCommands: readonly T[]): T[] {
+	function yieldsTo(yTo: SlashCommandYieldTo, other: T): boolean {
+		return 'command' in yTo && other.command === yTo.command;
+	}
+
+	// Build list of nodes each node yields to
+	const yieldsToMap = new Map<T, T[]>();
+	for (const slashCommand of slashCommands) {
+		for (const yTo of slashCommand.yieldsTo ?? []) {
+			for (const other of slashCommands) {
+				if (other.command === slashCommand.command) {
+					continue;
+				}
+
+				if (yieldsTo(yTo, other)) {
+					let arr = yieldsToMap.get(slashCommand);
+					if (!arr) {
+						arr = [];
+						yieldsToMap.set(slashCommand, arr);
+					}
+					arr.push(other);
+				}
+			}
+		}
+	}
+
+	if (!yieldsToMap.size) {
+		return Array.from(slashCommands);
+	}
+
+	// Topological sort
+	const visited = new Set<T>();
+	const tempStack: T[] = [];
+
+	function visit(nodes: T[]): T[] {
+		if (!nodes.length) {
+			return [];
+		}
+
+		const node = nodes[0];
+		if (tempStack.includes(node)) {
+			console.warn(`Yield to cycle detected for ${node.command}`);
+			return nodes;
+		}
+
+		if (visited.has(node)) {
+			return visit(nodes.slice(1));
+		}
+
+		let pre: T[] = [];
+		const yTo = yieldsToMap.get(node);
+		if (yTo) {
+			tempStack.push(node);
+			pre = visit(yTo);
+			tempStack.pop();
+		}
+
+		visited.add(node);
+
+		return [...pre, node, ...visit(nodes.slice(1))];
+	}
+
+	return visit(Array.from(slashCommands));
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SlashCommandCompletions, LifecyclePhase.Eventually);

@@ -38,12 +38,17 @@ export interface IChatVariablesService {
 	/**
 	 * Resolves all variables that occur in `prompt`
 	 */
-	resolveVariables(prompt: string, model: IChatModel, token: CancellationToken): Promise<Record<string, IChatRequestVariableValue[]>>;
+	resolveVariables(prompt: string, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult>;
 }
 
 interface IChatData {
 	data: IChatVariableData;
 	resolver: IChatVariableResolver;
+}
+
+interface IChatVariableResolveResult {
+	variables: Record<string, IChatRequestVariableValue[]>;
+	prompt: string;
 }
 
 export class ChatVariablesService implements IChatVariablesService {
@@ -54,32 +59,47 @@ export class ChatVariablesService implements IChatVariablesService {
 	constructor() {
 	}
 
-	async resolveVariables(prompt: string, model: IChatModel, token: CancellationToken): Promise<Record<string, IChatRequestVariableValue[]>> {
+	async resolveVariables(prompt: string, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult> {
 		const resolvedVariables: Record<string, IChatRequestVariableValue[]> = {};
 		const jobs: Promise<any>[] = [];
 
-		const regex = /(^|\s)@(\w+)(:\w+)?(\s|$)/ig;
+		// TODO have a separate parser that is also used for decorations
+		const regex = /(^|\s)@(\w+)(:\w+)?(?=\s|$|\b)/ig;
 
+		let lastMatch = 0;
+		const parsedPrompt: string[] = [];
 		let match: RegExpMatchArray | null;
 		while (match = regex.exec(prompt)) {
-			const candidate = match[2];
-			const data = this._resolver.get(candidate.toLowerCase());
+			const [fullMatch, leading, varName, arg] = match;
+			const data = this._resolver.get(varName.toLowerCase());
 			if (data) {
-				const arg = match[3];
 				if (!arg || data.data.canTakeArgument) {
+					parsedPrompt.push(prompt.substring(lastMatch, match.index!));
+					parsedPrompt.push('');
+					lastMatch = match.index! + fullMatch.length;
+					const varIndex = parsedPrompt.length - 1;
 					const argWithoutColon = arg?.slice(1);
+					const fullVarName = varName + (arg ?? '');
 					jobs.push(data.resolver(prompt, argWithoutColon, model, token).then(value => {
 						if (value) {
-							resolvedVariables[candidate + (arg ?? '')] = value;
+							resolvedVariables[fullVarName] = value;
+							parsedPrompt[varIndex] = `${leading}[@${fullVarName}](values:${fullVarName})`;
+						} else {
+							parsedPrompt[varIndex] = fullMatch;
 						}
 					}).catch(onUnexpectedExternalError));
 				}
 			}
 		}
 
+		parsedPrompt.push(prompt.substring(lastMatch));
+
 		await Promise.allSettled(jobs);
 
-		return Promise.resolve(resolvedVariables);
+		return {
+			variables: resolvedVariables,
+			prompt: parsedPrompt.join('')
+		};
 	}
 
 	getVariables(): Iterable<Readonly<IChatVariableData>> {

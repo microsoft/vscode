@@ -42,7 +42,7 @@ class AccessibleViewNextAction extends Action2 {
 					...accessibleViewMenu,
 					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
 				}],
-			icon: Codicon.chevronRight,
+			icon: Codicon.arrowDown,
 			title: localize('editor.action.accessibleViewNext', "Show Next in Accessible View")
 		});
 	}
@@ -62,7 +62,7 @@ class AccessibleViewPreviousAction extends Action2 {
 				primary: KeyMod.Alt | KeyCode.BracketLeft,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			icon: Codicon.chevronLeft,
+			icon: Codicon.arrowUp,
 			menu: [
 				commandPalette,
 				{
@@ -160,7 +160,7 @@ class AccessibleViewDisableHintAction extends Action2 {
 				primary: KeyMod.Alt | KeyCode.F6,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			icon: Codicon.treeFilterClear,
+			icon: Codicon.bellSlash,
 			menu: [
 				commandPalette,
 				{
