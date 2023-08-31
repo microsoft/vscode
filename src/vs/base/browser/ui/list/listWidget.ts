@@ -551,13 +551,11 @@ class TypeNavigationController<T> implements IDisposable {
 						}
 					}
 				}
-			} else {
-				if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
-					this.previouslyFocused = start;
-					this.list.setFocus([index]);
-					this.list.reveal(index);
-					return;
-				}
+			} else if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
+				this.previouslyFocused = start;
+				this.list.setFocus([index]);
+				this.list.reveal(index);
+				return;
 			}
 		}
 	}
