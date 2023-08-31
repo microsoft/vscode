@@ -1200,7 +1200,7 @@ class ChatListTreeRenderer implements ICompressibleTreeRenderer<IChatResponsePro
 	}
 	renderElement(element: ITreeNode<IChatResponseProgressFileTreeData, void>, index: number, templateData: IChatListTreeRendererTemplate, height: number | undefined): void {
 		templateData.label.element.style.display = 'flex';
-		if (!element.children.length) {
+		if (!element.children) {
 			templateData.label.setFile(element.element.uri, {
 				fileKind: FileKind.FILE,
 				hidePath: true,
