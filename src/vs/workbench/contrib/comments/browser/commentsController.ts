@@ -729,7 +729,7 @@ export class CommentController implements IEditorContribution {
 			const openViewState = this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).openView;
 			if (openViewState === 'file') {
 				return this.viewsService.openView(COMMENTS_VIEW_ID);
-			} else if (openViewState === 'firstFile' || (openViewState === 'firstFileUnresolved' && thread.state === languages.CommentThreadState.Resolved)) {
+			} else if (openViewState === 'firstFile' || (openViewState === 'firstFileUnresolved' && thread.state === languages.CommentThreadState.Unresolved)) {
 				const hasShownView = this.viewsService.getViewWithId<CommentsPanel>(COMMENTS_VIEW_ID)?.hasRendered;
 				if (!hasShownView) {
 					return this.viewsService.openView(COMMENTS_VIEW_ID);
