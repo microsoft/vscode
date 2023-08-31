@@ -355,17 +355,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
-		if ('target' in e.anchor) {
-			const { className } = e.anchor.target;
-			// Don't show the context menu for file trees in the response
-			if (className.includes('codicon-tree-item-expanded') ||
-				className.includes('monaco-icon-label') ||
-				className === 'monaco-highlighted-label' ||
-				className === 'monaco-tl-row') {
-				return;
-			}
-		}
-
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,
 			menuActionOptions: { shouldForwardArgs: true },

@@ -539,6 +539,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		treeDisposables.add(tree.onDidChangeCollapseState(() => {
 			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
 		}));
+		treeDisposables.add(tree.onContextMenu((e) => {
+			e.browserEvent.preventDefault();
+			e.browserEvent.stopPropagation();
+		}));
 
 		tree.setInput(data).then(() => {
 			if (!ref.isStale()) {
