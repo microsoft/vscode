@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { URI as uri, UriComponents } from 'vs/base/common/uri';
 import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint, DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 import {
@@ -33,19 +33,35 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		@IDebugService private readonly debugService: IDebugService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
+
+		const sessionListeners = new DisposableMap<IDebugSession, DisposableStore>();
+		this._toDispose.add(sessionListeners);
 		this._toDispose.add(debugService.onDidNewSession(session => {
 			this._proxy.$acceptDebugSessionStarted(this.getSessionDto(session));
-			this._toDispose.add(session.onDidChangeName(name => {
+			const store = sessionListeners.get(session);
+			store!.add(session.onDidChangeName(name => {
 				this._proxy.$acceptDebugSessionNameChanged(this.getSessionDto(session), name);
 			}));
 		}));
 		// Need to start listening early to new session events because a custom event can come while a session is initialising
 		this._toDispose.add(debugService.onWillNewSession(session => {
-			this._toDispose.add(session.onDidCustomEvent(event => this._proxy.$acceptDebugSessionCustomEvent(this.getSessionDto(session), event)));
+			let store = sessionListeners.get(session);
+			if (!store) {
+				store = new DisposableStore();
+				sessionListeners.set(session, store);
+			}
+			store.add(session.onDidCustomEvent(event => this._proxy.$acceptDebugSessionCustomEvent(this.getSessionDto(session), event)));
 		}));
 		this._toDispose.add(debugService.onDidEndSession(session => {
 			this._proxy.$acceptDebugSessionTerminated(this.getSessionDto(session));
 			this._sessions.delete(session.getId());
+			for (const [handle, value] of this._debugAdapters) {
+				if (value._session === session) {
+					this._debugAdapters.delete(handle);
+					// break;
+				}
+			}
+			sessionListeners.deleteAndDispose(session);
 		}));
 		this._toDispose.add(debugService.getViewModel().onDidFocusSession(session => {
 			this._proxy.$acceptDebugSessionActiveChanged(this.getSessionDto(session));
@@ -129,11 +145,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		const handle = this._debugAdaptersHandleCounter++;
 		const da = new ExtensionHostDebugAdapter(this, handle, this._proxy, session);
 		this._debugAdapters.set(handle, da);
-
-		const d = session.onDidEndAdapter(e => {
-			this._debugAdapters.delete(handle);
-			d.dispose();
-		});
 		return da;
 	}
 
@@ -417,7 +428,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
  */
 class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
-	constructor(private readonly _ds: MainThreadDebugService, private _handle: number, private _proxy: ExtHostDebugServiceShape, private _session: IDebugSession) {
+	constructor(private readonly _ds: MainThreadDebugService, private _handle: number, private _proxy: ExtHostDebugServiceShape, readonly _session: IDebugSession) {
 		super();
 	}
 
