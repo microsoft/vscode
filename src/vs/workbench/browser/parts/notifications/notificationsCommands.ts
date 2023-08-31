@@ -68,9 +68,19 @@ export function getNotificationFromContext(listService: IListService, context?: 
 
 	const list = listService.lastFocusedList;
 	if (list instanceof WorkbenchList) {
-		const focusedElement = list.getFocusedElements()[0];
-		if (isNotificationViewItem(focusedElement)) {
-			return focusedElement;
+		let element = list.getFocusedElements()[0];
+		if (!isNotificationViewItem(element)) {
+			if (list.isDOMFocused()) {
+				// the notification list might have received focus
+				// via keyboard and might not have a focussed element.
+				// in that case just return the first element
+				// https://github.com/microsoft/vscode/issues/191705
+				element = list.element(0);
+			}
+		}
+
+		if (isNotificationViewItem(element)) {
+			return element;
 		}
 	}
 
