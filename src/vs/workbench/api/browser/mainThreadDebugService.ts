@@ -129,6 +129,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		const handle = this._debugAdaptersHandleCounter++;
 		const da = new ExtensionHostDebugAdapter(this, handle, this._proxy, session);
 		this._debugAdapters.set(handle, da);
+
+		const d = session.onDidEndAdapter(e => {
+			this._debugAdapters.delete(handle);
+			d.dispose();
+		});
 		return da;
 	}
 
