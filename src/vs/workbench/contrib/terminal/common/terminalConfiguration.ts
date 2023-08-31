@@ -621,7 +621,7 @@ const terminalConfiguration: IConfigurationNode = {
 			]
 		},
 		[TerminalSettingId.SyncTextArea]: {
-			description: localize('terminal.integrated.syncTextArea', "Controls whether the terminal's text area is kept in sync with the buffer. This improves the accessibility of the terminal for screen reader users, but will cause the aria live output alerts to work inconsistently."),
+			description: localize('terminal.integrated.experimental.syncTextArea', "Controls whether the terminal's text area is kept in sync with the buffer. This improves the accessibility of the terminal for screen reader users, but will cause the aria live output alerts to work inconsistently."),
 			type: 'boolean',
 			default: false,
 			tags: ['accessibility']
