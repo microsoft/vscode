@@ -44,12 +44,14 @@ const CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('inline
 const CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInViewInProgress', false, { type: 'boolean', description: localize('voiceChatInViewInProgress', "True when voice recording from microphone is in progress in the chat view.") });
 const CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInEditorInProgress', false, { type: 'boolean', description: localize('voiceChatInEditorInProgress', "True when voice recording from microphone is in progress in the chat editor.") });
 
+type VoiceChatSessionContext = 'inline' | 'quick' | 'view' | 'editor';
+
 interface IVoiceChatSessionController {
 
 	readonly onDidAcceptInput: Event<unknown>;
 	readonly onDidCancelInput: Event<unknown>;
 
-	readonly context: 'inline' | 'quick' | 'view' | 'editor';
+	readonly context: VoiceChatSessionContext;
 
 	focusInput(): void;
 	acceptInput(): void;
@@ -233,8 +235,8 @@ class VoiceChatSessions {
 		const cts = new CancellationTokenSource();
 		this.currentVoiceChatSession.disposables.add(toDisposable(() => cts.dispose(true)));
 
-		this.currentVoiceChatSession.disposables.add(controller.onDidAcceptInput(() => this.stop(voiceChatSessionId)));
-		this.currentVoiceChatSession.disposables.add(controller.onDidCancelInput(() => this.stop(voiceChatSessionId)));
+		this.currentVoiceChatSession.disposables.add(controller.onDidAcceptInput(() => this.stop(voiceChatSessionId, controller.context)));
+		this.currentVoiceChatSession.disposables.add(controller.onDidCancelInput(() => this.stop(voiceChatSessionId, controller.context)));
 
 		controller.updateInput('');
 		controller.focusInput();
@@ -242,7 +244,7 @@ class VoiceChatSessions {
 		this.voiceChatGettingReadyKey.set(true);
 
 		const onDidTranscribe = await this.voiceRecognitionService.transcribe(cts.token, {
-			onDidCancel: () => this.stop(voiceChatSessionId)
+			onDidCancel: () => this.stop(voiceChatSessionId, controller.context)
 		});
 
 		if (cts.token.isCancellationRequested) {
@@ -292,7 +294,6 @@ class VoiceChatSessions {
 				} else {
 					session.controller.updateInput(text);
 				}
-
 			}
 		}));
 	}
@@ -311,10 +312,11 @@ class VoiceChatSessions {
 		);
 	}
 
-	stop(voiceChatSessionId = this.voiceChatSessionIds): void {
+	stop(voiceChatSessionId = this.voiceChatSessionIds, context?: VoiceChatSessionContext): void {
 		if (
 			!this.currentVoiceChatSession ||
-			this.voiceChatSessionIds !== voiceChatSessionId
+			this.voiceChatSessionIds !== voiceChatSessionId ||
+			(context && this.currentVoiceChatSession.controller.context !== context)
 		) {
 			return;
 		}
@@ -529,7 +531,7 @@ class StopVoiceChatInChatViewAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop();
+		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop(undefined, 'view');
 	}
 }
 
@@ -562,7 +564,7 @@ class StopVoiceChatInChatEditorAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop();
+		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop(undefined, 'editor');
 	}
 }
 
@@ -595,7 +597,7 @@ class StopQuickVoiceChatAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop();
+		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop(undefined, 'quick');
 	}
 }
 
@@ -628,7 +630,7 @@ class StopInlineVoiceChatAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop();
+		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop(undefined, 'inline');
 	}
 }
 
