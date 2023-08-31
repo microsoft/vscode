@@ -32,18 +32,36 @@ class TextAreaSyncContribution extends DisposableStore implements ITerminalContr
 	static get(instance: ITerminalInstance): TextAreaSyncContribution | null {
 		return instance.getContribution<TextAreaSyncContribution>(TextAreaSyncContribution.ID);
 	}
+	private _addon: TextAreaSyncAddon | undefined;
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 	}
+
 	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
-		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
-		xterm.raw.loadAddon(addon);
-		addon.activate(xterm.raw);
+		if (this._configurationService.getValue(TerminalSettingId.SyncTextArea)) {
+			this._loadAddon(xterm);
+		} else {
+			this.add(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(TerminalSettingId.SyncTextArea)) {
+					if (this._configurationService.getValue(TerminalSettingId.SyncTextArea)) {
+						this._loadAddon(xterm);
+					} else {
+						this._addon?.dispose();
+					}
+				}
+			}));
+		}
+	}
+	private _loadAddon(xterm: IXtermTerminal & { raw: Terminal }): void {
+		this._addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
+		xterm.raw.loadAddon(this._addon);
+		this._addon.activate(xterm.raw);
 	}
 }
 registerTerminalContribution(TextAreaSyncContribution.ID, TextAreaSyncContribution);
