@@ -6,6 +6,7 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import { Event } from 'vs/base/common/event';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -44,20 +45,17 @@ class TextAreaSyncContribution extends DisposableStore implements ITerminalContr
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
-		if (this._configurationService.getValue(TerminalSettingId.SyncTextArea)) {
-			this._loadAddon(xterm);
-		} else {
-			this.add(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(TerminalSettingId.SyncTextArea)) {
-					if (this._configurationService.getValue(TerminalSettingId.SyncTextArea)) {
-						this._loadAddon(xterm);
-					} else {
-						this._addon?.dispose();
-					}
+		this.add(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
+			if (e?.affectsConfiguration(TerminalSettingId.SyncTextArea)) {
+				if (this._configurationService.getValue(TerminalSettingId.SyncTextArea)) {
+					this._loadAddon(xterm);
+				} else {
+					this._addon?.dispose();
 				}
-			}));
-		}
+			}
+		}));
 	}
+
 	private _loadAddon(xterm: IXtermTerminal & { raw: Terminal }): void {
 		this._addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
 		xterm.raw.loadAddon(this._addon);
