@@ -104,7 +104,8 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 				enabled: false
 			},
 			autoClosingBrackets: configurationService.getValue('editor.autoClosingBrackets'),
-			quickSuggestions: false
+			quickSuggestions: false,
+			accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
 		};
 	}
 }

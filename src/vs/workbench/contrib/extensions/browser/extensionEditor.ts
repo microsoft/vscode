@@ -855,10 +855,12 @@ export class ExtensionEditor extends EditorPane {
 		extensionPackReadme.style.maxWidth = '882px';
 
 		const extensionPack = append(extensionPackReadme, $('div', { class: 'extension-pack' }));
-		if (manifest.extensionPack!.length < 3) {
+		if (manifest.extensionPack!.length <= 3) {
 			extensionPackReadme.classList.add('one-row');
-		} else if (manifest.extensionPack!.length < 5) {
+		} else if (manifest.extensionPack!.length <= 6) {
 			extensionPackReadme.classList.add('two-rows');
+		} else if (manifest.extensionPack!.length <= 9) {
+			extensionPackReadme.classList.add('three-rows');
 		} else {
 			extensionPackReadme.classList.add('more-rows');
 		}
