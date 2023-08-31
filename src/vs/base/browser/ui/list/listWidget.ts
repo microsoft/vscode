@@ -529,14 +529,21 @@ class TypeNavigationController<T> implements IDisposable {
 
 			if (this.list.options.typeNavigationEnabled) {
 				if (typeof labelStr !== 'undefined') {
-					const prefix = matchesPrefix(word, labelStr);
+
+					// If prefix is found, focus and return early
+					if (matchesPrefix(word, labelStr)) {
+						this.previouslyFocused = start;
+						this.list.setFocus([index]);
+						this.list.reveal(index);
+						return;
+					}
+
 					const fuzzy = matchesFuzzy2(word, labelStr);
 
 					if (fuzzy) {
 						const fuzzyScore = fuzzy[0].end - fuzzy[0].start;
-
 						// ensures that when fuzzy matching, doesn't clash with prefix matching (1 input vs 1+ should be prefix and fuzzy respecitvely). Also makes sure that exact matches are prioritized.
-						if (prefix || (fuzzyScore > 1 && fuzzy.length === 1)) {
+						if ((fuzzyScore > 1 && fuzzy.length === 1)) {
 							this.previouslyFocused = start;
 							this.list.setFocus([index]);
 							this.list.reveal(index);
@@ -993,7 +1000,6 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
 	readonly keyboardNavigationDelegate?: IKeyboardNavigationDelegate;
 	readonly keyboardSupport?: boolean;
-	readonly keyboardNavigationEnabled?: boolean;
 	readonly multipleSelectionController?: IMultipleSelectionController<T>;
 	readonly styleController?: (suffix: string) => IStyleController;
 	readonly accessibilityProvider?: IListAccessibilityProvider<T>;
