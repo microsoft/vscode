@@ -8,12 +8,12 @@ export type JSONLanguageStatus = { schemas: string[] };
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n, CodeActionKind, CodeAction
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n, CodeActionContext, CodeAction, Command,
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
-	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient, ProvideFoldingRangeSignature, ProvideDocumentSymbolsSignature, ProvideDocumentColorsSignature
+	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient, ProvideFoldingRangeSignature, ProvideDocumentSymbolsSignature, ProvideDocumentColorsSignature, ProvideCodeActionsSignature
 } from 'vscode-languageclient';
 
 
@@ -172,7 +172,6 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 
 
 	toDispose.push(commands.registerCommand('json.sort', async () => {
-
 		if (isClientReady) {
 			const textEditor = window.activeTextEditor;
 			if (textEditor) {
@@ -303,16 +302,15 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				}
 				return checkLimit(r);
 			},
-			provideCodeActions(doc) {
-				console.log('doc : ', doc);
-				console.log('inside of provideCodeActions');
-				const codeActions: CodeAction[] = [];
-				const sortCodeAction = new CodeAction('Sort JSON', CodeActionKind.Source);
-				sortCodeAction.command = {
-					command: 'json.sort',
-					title: 'Sort JSON'
-				};
-				return codeActions;
+			provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken, next: ProvideCodeActionsSignature) {
+				console.log('inside of provide code actions');
+				console.log('next : ', next);
+				const r = next(document, range, context, token);
+				console.log('r : ', r);
+				if (isThenable<(Command | CodeAction)[] | null | undefined>(r)) {
+					return r;
+				}
+				return r;
 			}
 		}
 	};
