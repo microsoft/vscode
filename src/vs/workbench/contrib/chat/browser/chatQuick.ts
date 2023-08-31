@@ -5,9 +5,10 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
+import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -132,6 +133,7 @@ class QuickChat extends Disposable {
 	private sash!: Sash;
 	private model: ChatModel | undefined;
 	private _currentQuery: string | undefined;
+	private maintainScrollTimer: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		private readonly _options: IChatViewOptions,
@@ -168,10 +170,22 @@ class QuickChat extends Disposable {
 
 	hide(): void {
 		this.widget.setVisible(false);
+		// Maintain scroll position for a short time so that if the user re-shows the chat
+		// the same scroll position will be used.
+		this.maintainScrollTimer.value = disposableTimeout(() => {
+			// At this point, clear this mutable disposable which will be our signal that
+			// the timer has expired and we should stop maintaining scroll position
+			this.maintainScrollTimer.clear();
+		}, 30 * 1000); // 30 seconds
 	}
 
 	show(): void {
 		this.widget.setVisible(true);
+		// If the mutable disposable is set, then we are keeping the existing scroll position
+		// so we should not update the layout.
+		if (!this.maintainScrollTimer.value) {
+			this.widget.layoutDynamicChatTreeItemMode();
+		}
 	}
 
 	render(parent: HTMLElement): void {
