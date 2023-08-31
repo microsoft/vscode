@@ -10,7 +10,6 @@ import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import type { Terminal, ITerminalAddon } from 'xterm';
 import { debounce } from 'vs/base/common/decorators';
 import { addDisposableListener } from 'vs/base/browser/dom';
-import { isMacintosh } from 'vs/base/common/platform';
 
 export interface ITextAreaData {
 	content: string;
@@ -101,10 +100,9 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no line`);
 			return;
 		}
-		const startX = isMacintosh || currentCommand.commandStartX !== undefined ? currentCommand.commandStartX : 0;
-		if (!!currentCommand && startX !== undefined) {
-			this._currentCommand = commandLine.substring(startX);
-			this._cursorX = buffer.cursorX - startX;
+		if (currentCommand?.commandStartX !== undefined) {
+			this._currentCommand = commandLine.substring(currentCommand.commandStartX);
+			this._cursorX = buffer.cursorX - currentCommand.commandStartX;
 		} else {
 			this._currentCommand = undefined;
 			this._cursorX = undefined;
