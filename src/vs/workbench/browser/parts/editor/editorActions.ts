@@ -2264,7 +2264,8 @@ abstract class AbstractCreateEditorGroupAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		editorGroupService.addGroup(editorGroupService.activeGroup, this.direction, { activate: true });
+		const group = editorGroupService.addGroup(editorGroupService.activeGroup, this.direction, { activate: true });
+		group.focus();
 	}
 }
 
