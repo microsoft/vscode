@@ -6,6 +6,10 @@
 //@ts-check
 'use strict';
 
+if (process.argv.includes('webkit')) {
+	process.env.DEBUG = 'pw:protocol';
+}
+
 const path = require('path');
 const glob = require('glob');
 const events = require('events');

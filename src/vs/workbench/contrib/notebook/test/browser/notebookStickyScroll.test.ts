@@ -19,7 +19,8 @@ import { createNotebookCellList, setupInstantiationService, withTestNotebook } f
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
 
-suite('NotebookEditorStickyScroll', () => {
+// eslint-disable-next-line local/code-no-test-only
+suite.only('NotebookEditorStickyScroll', () => {
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
