@@ -7,12 +7,12 @@ import { Application, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
-	describe('Extensions', () => {
+	describe.skip('Extensions', () => {
 
 		// Shared before/after handling
 		installAllHandlers(logger);
 
-		it.skip('install and enable vscode-smoketest-check extension', async function () {
+		it('install and enable vscode-smoketest-check extension', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.extensions.openExtensionsViewlet();
