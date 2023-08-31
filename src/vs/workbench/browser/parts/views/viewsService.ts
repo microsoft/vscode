@@ -638,7 +638,6 @@ export class ViewsService extends Disposable implements IViewsService {
 		disposables.add(viewPaneContainer.onDidRemoveViews(views => this.onViewsRemoved(views)));
 		disposables.add(viewPaneContainer.onDidFocusView(view => {
 			const id = view.id ?? this._openViewContainerTitle;
-			console.log(id);
 			if (this.focusedViewContextKey.get() !== view.id) {
 				this.focusedViewContextKey.set(view.id);
 				this._onDidChangeFocusedView.fire();
