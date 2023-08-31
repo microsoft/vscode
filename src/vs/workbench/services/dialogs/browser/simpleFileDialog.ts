@@ -953,7 +953,8 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 
 	private async createBackItem(currFolder: URI): Promise<FileQuickPickItem | undefined> {
 		const fileRepresentationCurr = this.currentFolder.with({ scheme: Schemas.file, authority: '' });
-		const fileRepresentationParent = resources.dirname(fileRepresentationCurr);
+		// High priority compared to the root folder of the workspace directory where the file is located
+		const fileRepresentationParent = this.workspaceContextService.getWorkspaceFolder(currFolder)?.uri ? URI.joinPath(this.workspaceContextService.getWorkspaceFolder(currFolder)?.uri!, '/')?.with({ scheme: Schemas.file, authority: '' }) : resources.dirname(fileRepresentationCurr);
 		if (!resources.isEqual(fileRepresentationCurr, fileRepresentationParent)) {
 			const parentFolder = resources.dirname(currFolder);
 			if (await this.fileService.exists(parentFolder)) {
