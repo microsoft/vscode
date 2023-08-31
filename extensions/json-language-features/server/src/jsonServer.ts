@@ -425,24 +425,20 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
 	});
 
-	//
-	connection.onCodeAction((_codeActionParams, token) => {
-		return runSafe(runtime, () => {
-			console.log('Inside of on code action');
-			const codeActions: CodeAction[] = [];
-			const sortCodeAction = CodeAction.create('Sort JSON', CodeActionKind.Source);
-			sortCodeAction.command = {
-				command: 'json.sort',
-				title: 'Sort JSON'
-			};
-			return codeActions;
-		}, [], `Error while retrieving code actions`, token);
+	connection.onCodeAction((codeActionParams, token) => {
+		return runSafeAsync(runtime, async () => {
+			const document = documents.get(codeActionParams.textDocument.uri);
+			if (document) {
+				const sortCodeAction = CodeAction.create('Sort JSON', CodeActionKind.Source);
+				sortCodeAction.command = {
+					command: 'json.sort',
+					title: 'Sort JSON'
+				};
+				return [sortCodeAction];
+			}
+			return [];
+		}, [], `Error while computing code actions for ${codeActionParams.textDocument.uri}`, token);
 	});
-
-	connection.onCodeActionResolve(async (codeAction, token) => {
-		return codeAction;
-	});
-	//
 
 	function onFormat(textDocument: TextDocumentIdentifier, range: Range | undefined, options: FormattingOptions): TextEdit[] {
 
