@@ -263,8 +263,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				: asCSSUrl(icon.light);
 
 			const svgIcon = $('span');
-			svgIcon.style.webkitMask = `${svgUrl} no-repeat 50% 50%`;
-			svgIcon.style.webkitMaskOrigin = 'padding';
+			svgIcon.style.webkitMask = svgIcon.style.mask = `${svgUrl} no-repeat 50% 50%`;
 			svgIcon.style.background = 'var(--vscode-icon-foreground)';
 			svgIcon.style.display = 'inline-block';
 			svgIcon.style.width = '100%';
