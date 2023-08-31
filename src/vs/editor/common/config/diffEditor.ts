@@ -5,7 +5,7 @@
 
 import { ValidDiffEditorBaseOptions } from 'vs/editor/common/config/editorOptions';
 
-export const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
+export const diffEditorDefaultOptions = {
 	enableSplitViewResizing: true,
 	splitViewDefaultRatio: 0.5,
 	renderSideBySide: true,
@@ -34,4 +34,4 @@ export const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
 	onlyShowAccessibleDiffViewer: false,
 	renderSideBySideInlineBreakpoint: 900,
 	useInlineViewWhenSpaceIsLimited: true,
-};
+} satisfies ValidDiffEditorBaseOptions;
