@@ -462,6 +462,9 @@ class StartVoiceChatAction extends Action2 {
 			// from a toolbar within the chat widget, then make sure
 			// to move focus into the input field so that the controller
 			// is properly retrieved
+			// TODO@bpasero this will actually not work if the button
+			// is clicked from the inline editor while focus is in a
+			// chat input field in a view or picker
 			context.widget.focusInput();
 		}
 
