@@ -16,6 +16,7 @@ import { unthemedProgressBarOptions } from 'vs/base/browser/ui/progressbar/progr
 import { QuickInputController } from 'vs/platform/quickinput/browser/quickInputController';
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -221,4 +222,6 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		// Since we don't select any items, the selected items should be empty
 		assert.strictEqual(quickpick.selectedItems.length, 0);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
