@@ -8,7 +8,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService, IEditorSideGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService, IEditorSideGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
@@ -328,7 +328,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		const groupView = this.assertGroupView(group);
 		this.doSetGroupActive(groupView);
 
-		this._onDidActivateGroup.fire(groupView);
 		return groupView;
 	}
 
@@ -512,16 +511,12 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return false;
 	}
 
-	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView {
+	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
 		const locationView = this.assertGroupView(location);
 
 		const restoreFocus = this.shouldRestoreFocus(locationView.element);
 
 		const group = this.doAddGroup(locationView, direction);
-
-		if (options?.activate) {
-			this.doSetGroupActive(group);
-		}
 
 		// Restore focus if we had it previously after completing the grid
 		// operation. That operation might cause reparenting of grid views
@@ -622,27 +617,30 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private doSetGroupActive(group: IEditorGroupView): void {
-		if (this._activeGroup === group) {
-			return; // return if this is already the active group
+		if (this._activeGroup !== group) {
+			const previousActiveGroup = this._activeGroup;
+			this._activeGroup = group;
+
+			// Update list of most recently active groups
+			this.doUpdateMostRecentActive(group, true);
+
+			// Mark previous one as inactive
+			previousActiveGroup?.setActive(false);
+
+			// Mark group as new active
+			group.setActive(true);
+
+			// Maximize the group if it is currently minimized
+			this.doRestoreGroup(group);
+
+			// Event
+			this._onDidChangeActiveGroup.fire(group);
 		}
 
-		const previousActiveGroup = this._activeGroup;
-		this._activeGroup = group;
-
-		// Update list of most recently active groups
-		this.doUpdateMostRecentActive(group, true);
-
-		// Mark previous one as inactive
-		previousActiveGroup?.setActive(false);
-
-		// Mark group as new active
-		group.setActive(true);
-
-		// Maximize the group if it is currently minimized
-		this.doRestoreGroup(group);
-
-		// Event
-		this._onDidChangeActiveGroup.fire(group);
+		// Always fire the event that a group has been activated
+		// even if its the same group that is already active to
+		// signal the intent even when nothing has changed.
+		this._onDidActivateGroup.fire(group);
 	}
 
 	private doRestoreGroup(group: IEditorGroupView): void {
