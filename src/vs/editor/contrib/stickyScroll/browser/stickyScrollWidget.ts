@@ -41,7 +41,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
 
 	private _lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
-	private _previousStickyLines: RenderedStickyLine[] = [];
 	private _stickyLines: RenderedStickyLine[] = [];
 	private _lineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
@@ -111,7 +110,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	setState(state: StickyScrollWidgetState | undefined, forceRebuild: boolean = false): void {
-		this._previousStickyLines = [...this._stickyLines];
+		const previousStickyLines = this._stickyLines;
 		this._clearStickyWidget();
 		if (!state || !this._editor._getViewModel()) {
 			return;
@@ -129,7 +128,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._lastLineRelativePosition = 0;
 			this._lineNumbers = [];
 		}
-		this._renderRootNode(forceRebuild);
+		this._renderRootNode(forceRebuild, previousStickyLines);
 	}
 
 	private _updateWidgetWidth(): void {
@@ -149,13 +148,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.style.display = 'none';
 	}
 
-	private async _renderRootNode(forceRebuild: boolean = false): Promise<void> {
+	private async _renderRootNode(forceRebuild: boolean = false, previousStickyLines: RenderedStickyLine[]): Promise<void> {
 
 		const foldingModel = await FoldingController.get(this._editor)?.getFoldingModel();
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (const [index, line] of this._lineNumbers.entries()) {
 			let renderedLine: RenderedStickyLine;
-			const previousRenderedStickyLine = this._previousStickyLines[index];
+			const previousRenderedStickyLine = previousStickyLines[index];
 			if (!forceRebuild && previousRenderedStickyLine && previousRenderedStickyLine.lineNumber === line) {
 				renderedLine = previousRenderedStickyLine;
 				this._updateTopOfStickyLine(renderedLine);
