@@ -23,6 +23,7 @@ import { ActionButtonCommand } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
+import { Model } from './model';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -784,6 +785,7 @@ export class Repository implements Disposable {
 
 	constructor(
 		private readonly repository: BaseRepository,
+		private readonly model: Model,
 		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
@@ -1017,6 +1019,12 @@ export class Repository implements Disposable {
 
 		// Ignore path that is inside a submodule
 		if (this.submodules.some(s => isDescendant(path.join(this.repository.root, s.path), uri.path))) {
+			return undefined;
+		}
+
+		// Ignore path that is not inside the current repository
+		const repository = this.model.getRepository(uri);
+		if (repository && !pathEquals(repository.root, this.repository.root)) {
 			return undefined;
 		}
 
