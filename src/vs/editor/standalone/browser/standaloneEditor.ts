@@ -585,11 +585,11 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		FindMatch: <any>FindMatch,
 		ApplyUpdateResult: <any>ApplyUpdateResult,
 		LineRange: <any>LineRange,
-		LineRangeMapping: <any>DetailedLineRangeMapping,
+		DetailedLineRangeMapping: <any>DetailedLineRangeMapping,
 		RangeMapping: <any>RangeMapping,
 		EditorZoom: <any>EditorZoom,
 		MovedText: <any>MovedText,
-		SimpleLineRangeMapping: <any>LineRangeMapping,
+		LineRangeMapping: <any>LineRangeMapping,
 
 		// vars
 		EditorType: EditorType,
