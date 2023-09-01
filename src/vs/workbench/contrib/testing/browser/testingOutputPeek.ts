@@ -78,7 +78,6 @@ import { DetachedProcessInfo } from 'vs/workbench/contrib/terminal/browser/detac
 import { IDetachedTerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getXtermScaledDimensions } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { testingPeekBorder, testingPeekHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
@@ -1704,15 +1703,7 @@ class TestCaseElement implements ITreeElement {
 		private readonly task: ITestRunTask,
 		public readonly test: TestResultItem,
 		public readonly taskIndex: number,
-	) {
-		for (const parent of resultItemParents(results, test)) {
-			if (parent !== test) {
-				this.description = this.description
-					? parent.item.label + flatTestItemDelimiter + this.description
-					: parent.item.label;
-			}
-		}
-	}
+	) { }
 }
 
 class TaskElement implements ITreeElement {
@@ -1871,7 +1862,7 @@ class OutputPeekTree extends Disposable {
 			return test.tasks[taskIndex].messages
 				.map((m, messageIndex) =>
 					m.type === TestMessageType.Error
-						? { element: cc.getOrCreate(m, () => new TestMessageElement(result, test, taskIndex, messageIndex)), incompressible: true }
+						? { element: cc.getOrCreate(m, () => new TestMessageElement(result, test, taskIndex, messageIndex)), incompressible: false }
 						: undefined
 				)
 				.filter(isDefined);
@@ -2103,8 +2094,8 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 	public renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ITreeElement>, FuzzyScore>, _index: number, templateData: TemplateData): void {
 		const chain = node.element.elements;
 		const lastElement = chain[chain.length - 1];
-		if (lastElement instanceof TaskElement && chain.length >= 2) {
-			this.doRender(chain[chain.length - 2], templateData);
+		if ((lastElement instanceof TaskElement || lastElement instanceof TestMessageElement) && chain.length >= 2) {
+			this.doRender(chain[chain.length - 2], templateData, lastElement);
 		} else {
 			this.doRender(lastElement, templateData);
 		}
@@ -2148,20 +2139,26 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 	}
 
 	/** Called to render a new element */
-	private doRender(element: ITreeElement, templateData: TemplateData) {
+	private doRender(element: ITreeElement, templateData: TemplateData, subjectElement?: ITreeElement) {
 		templateData.elementDisposable.clear();
-		templateData.elementDisposable.add(element.onDidChange(() => this.doRender(element, templateData)));
-		this.doRenderInner(element, templateData);
+		templateData.elementDisposable.add(
+			element.onDidChange(() => this.doRender(element, templateData, subjectElement)),
+		);
+		this.doRenderInner(element, templateData, subjectElement);
 	}
 
 	/** Called, and may be re-called, to render or re-render an element */
-	private doRenderInner(element: ITreeElement, templateData: TemplateData) {
-		if (element.labelWithIcons) {
-			dom.reset(templateData.label, ...element.labelWithIcons);
-		} else if (element.description) {
-			dom.reset(templateData.label, element.label, dom.$('span.test-label-description', {}, element.description));
+	private doRenderInner(element: ITreeElement, templateData: TemplateData, subjectElement: ITreeElement | undefined) {
+		let { label, labelWithIcons, description } = element;
+		if (subjectElement instanceof TestMessageElement) {
+			description = subjectElement.label;
+		}
+
+		const descriptionElement = description ? dom.$('span.test-label-description', {}, description) : '';
+		if (labelWithIcons) {
+			dom.reset(templateData.label, ...labelWithIcons, descriptionElement);
 		} else {
-			dom.reset(templateData.label, element.label);
+			dom.reset(templateData.label, label, descriptionElement);
 		}
 
 		const icon = element.icon;
