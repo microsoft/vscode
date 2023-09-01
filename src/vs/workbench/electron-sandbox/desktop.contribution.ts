@@ -9,7 +9,7 @@ import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/commo
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, RemoveLargeStorageEntriesAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -107,6 +107,7 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 	registerAction2(ConfigureRuntimeArgumentsAction);
 	registerAction2(ToggleDevToolsAction);
 	registerAction2(OpenUserDataFolderAction);
+	registerAction2(RemoveLargeStorageEntriesAction);
 })();
 
 // Menu
