@@ -177,6 +177,30 @@ export function groupBy<T>(data: ReadonlyArray<T>, compare: (a: T, b: T) => numb
 	return result;
 }
 
+/**
+ * Splits the given items into a list of (non-empty) groups.
+ * `shouldBeGrouped` is used to decide if two consecutive items should be in the same group.
+ * The order of the items is preserved.
+ */
+export function* groupAdjacentBy<T>(items: Iterable<T>, shouldBeGrouped: (item1: T, item2: T) => boolean): Iterable<T[]> {
+	let currentGroup: T[] | undefined;
+	let last: T | undefined;
+	for (const item of items) {
+		if (last !== undefined && shouldBeGrouped(last, item)) {
+			currentGroup!.push(item);
+		} else {
+			if (currentGroup) {
+				yield currentGroup;
+			}
+			currentGroup = [item];
+		}
+		last = item;
+	}
+	if (currentGroup) {
+		yield currentGroup;
+	}
+}
+
 interface IMutableSplice<T> extends ISplice<T> {
 	readonly toInsert: T[];
 	deleteCount: number;

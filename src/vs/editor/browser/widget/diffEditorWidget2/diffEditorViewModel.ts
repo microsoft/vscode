@@ -11,7 +11,8 @@ import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidg
 import { ISerializedLineRange, LineRange } from 'vs/editor/common/core/lineRange';
 import { AdvancedLinesDiffComputer } from 'vs/editor/common/diff/advancedLinesDiffComputer';
 import { IDocumentDiff, IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
-import { LineRangeMapping, MovedText } from 'vs/editor/common/diff/linesDiffComputer';
+import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IDiffEditorModel, IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextEditInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper';
@@ -293,7 +294,7 @@ export class DiffState {
 
 export class DiffMapping {
 	constructor(
-		readonly lineRangeMapping: LineRangeMapping,
+		readonly lineRangeMapping: DetailedLineRangeMapping,
 	) {
 		/*
 		readonly movedTo: MovedText | undefined,
@@ -318,19 +319,19 @@ export class DiffMapping {
 
 export class UnchangedRegion {
 	public static fromDiffs(
-		changes: readonly LineRangeMapping[],
+		changes: readonly DetailedLineRangeMapping[],
 		originalLineCount: number,
 		modifiedLineCount: number,
 		minHiddenLineCount: number,
 		minContext: number,
 	): UnchangedRegion[] {
-		const inversedMappings = LineRangeMapping.inverse(changes, originalLineCount, modifiedLineCount);
+		const inversedMappings = DetailedLineRangeMapping.inverse(changes, originalLineCount, modifiedLineCount);
 		const result: UnchangedRegion[] = [];
 
 		for (const mapping of inversedMappings) {
-			let origStart = mapping.originalRange.startLineNumber;
-			let modStart = mapping.modifiedRange.startLineNumber;
-			let length = mapping.originalRange.length;
+			let origStart = mapping.original.startLineNumber;
+			let modStart = mapping.modified.startLineNumber;
+			let length = mapping.original.length;
 
 			const atStart = origStart === 1 && modStart === 1;
 			const atEnd = origStart + length === originalLineCount + 1 && modStart + length === modifiedLineCount + 1;
