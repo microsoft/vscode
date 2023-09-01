@@ -11,7 +11,7 @@ suite('LineRange', () => {
 		const r = new LineRange(2, 3);
 		assert.deepStrictEqual(r.contains(1), false);
 		assert.deepStrictEqual(r.contains(2), true);
-		assert.deepStrictEqual(r.contains(3), true);
+		assert.deepStrictEqual(r.contains(3), false);
 		assert.deepStrictEqual(r.contains(4), false);
 	});
 });
