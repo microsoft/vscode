@@ -3012,7 +3012,7 @@
     "jschardet": "3.0.0",
     "picomatch": "2.3.1",
     "vscode-uri": "^2.0.0",
-    "which": "3.0.1"
+    "which": "4.0.0"
   },
   "devDependencies": {
     "@types/byline": "4.2.31",
