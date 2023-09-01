@@ -165,7 +165,10 @@ export namespace Event {
 	export function any<T>(...events: Event<T>[]): Event<T>;
 	export function any(...events: Event<any>[]): Event<void>;
 	export function any<T>(...events: Event<T>[]): Event<T> {
-		return (listener, thisArgs = null, disposables?) => combinedDisposable(...events.map(event => event(e => listener.call(thisArgs, e), null, disposables)));
+		return (listener, thisArgs = null, disposables?) => {
+			const disposable = combinedDisposable(...events.map(event => event(e => listener.call(thisArgs, e))));
+			return addAndReturnDisposable(disposable, disposables);
+		};
 	}
 
 	/**
@@ -203,6 +206,19 @@ export namespace Event {
 		disposable?.add(emitter);
 
 		return emitter.event;
+	}
+
+	/**
+	 * Adds the IDisposable to the store if it's set, and returns it. Useful to
+	 * Event function implementation.
+	 */
+	function addAndReturnDisposable<T extends IDisposable>(d: T, store: DisposableStore | IDisposable[] | undefined): T {
+		if (store instanceof Array) {
+			store.push(d);
+		} else if (store) {
+			store.add(d);
+		}
+		return d;
 	}
 
 	/**
@@ -420,6 +436,92 @@ export namespace Event {
 		});
 
 		return emitter.event;
+	}
+
+	/**
+	 * Implements event chaining, in a way that avoids having disposable
+	 * intermediates at each step like {@link chain} does.
+	 */
+	export function chain2<T, R>(event: Event<T>, sythensize: ($: IChainableSythensis<T>) => IChainableSythensis<R>): Event<R> {
+		const fn: Event<R> = (listener, thisArgs, disposables) => {
+			const cs = new ChainableSynthesis();
+			sythensize(cs);
+			return event(value => {
+				const result = cs.evaluate(value);
+				if (result !== HaltChainable) {
+					listener(result);
+				}
+			}, thisArgs, disposables);
+		};
+
+		return fn;
+	}
+
+	const HaltChainable = Symbol('HaltChainable');
+
+	class ChainableSynthesis implements IChainableSythensis<any> {
+		private readonly steps: ((input: any) => any)[] = [];
+
+		map<O>(fn: (i: any) => O): this {
+			this.steps.push(fn);
+			return this;
+		}
+
+		forEach(fn: (i: any) => void): this {
+			this.steps.push(v => {
+				fn(v);
+				return v;
+			});
+			return this;
+		}
+
+		filter(fn: (e: any) => boolean): this {
+			this.steps.push(v => fn(v) ? v : HaltChainable);
+			return this;
+		}
+
+		reduce<R>(merge: (last: R | undefined, event: any) => R, initial?: R | undefined): this {
+			let last = initial;
+			this.steps.push(v => {
+				last = merge(last, v);
+				return last;
+			});
+			return this;
+		}
+
+		latch(equals: (a: any, b: any) => boolean = (a, b) => a === b): ChainableSynthesis {
+			let firstCall = true;
+			let cache: any;
+			this.steps.push(value => {
+				const shouldEmit = firstCall || !equals(value, cache);
+				firstCall = false;
+				cache = value;
+				return shouldEmit ? value : HaltChainable;
+			});
+
+			return this;
+		}
+
+		public evaluate(value: any) {
+			for (const step of this.steps) {
+				value = step(value);
+				if (value === HaltChainable) {
+					break;
+				}
+			}
+
+			return value;
+		}
+	}
+
+	export interface IChainableSythensis<T> {
+		map<O>(fn: (i: T) => O): IChainableSythensis<O>;
+		forEach(fn: (i: T) => void): IChainableSythensis<T>;
+		filter(fn: (e: T) => boolean): IChainableSythensis<T>;
+		filter<R>(fn: (e: T | R) => e is R): IChainableSythensis<R>;
+		reduce<R>(merge: (last: R, event: T) => R, initial: R): IChainableSythensis<R>;
+		reduce<R>(merge: (last: R | undefined, event: T) => R): IChainableSythensis<R>;
+		latch(equals?: (a: T, b: T) => boolean): IChainableSythensis<T>;
 	}
 
 	export interface IChainableEvent<T> extends IDisposable {
