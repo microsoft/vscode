@@ -262,6 +262,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				return;
 			}
 			// normal click
+			const isOnFoldingIcon = this._stickyScrollWidget.isFoldingToggleIconNode(mouseEvent.target);
+			if (isOnFoldingIcon) {
+				const lineNumber = this._stickyScrollWidget.getLineNumberFromChildDomNode(mouseEvent.target);
+				if (lineNumber) {
+					this._stickyScrollWidget.toggleFoldingIconForLine(lineNumber);
+				}
+				return;
+			}
 			let position = this._stickyScrollWidget.getEditorPositionFromNode(mouseEvent.target);
 			if (!position) {
 				const lineNumber = this._stickyScrollWidget.getLineNumberFromChildDomNode(mouseEvent.target);
