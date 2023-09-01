@@ -40,7 +40,7 @@ registerAction2(class TextSearchQuickAccessAction extends Action2 {
 	}
 });
 
-async function getSearchText(accessor: ServicesAccessor): Promise<string | null> {
+function getSearchText(accessor: ServicesAccessor): string | null {
 	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
 
@@ -48,6 +48,9 @@ async function getSearchText(accessor: ServicesAccessor): Promise<string | null>
 		return null;
 	}
 	const activeEditor: IEditor = editorService.activeTextEditorControl;
+	if (!activeEditor.hasTextFocus()) {
+		return null;
+	}
 
 	const seedSearchStringFromSelection = configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
 	if (!seedSearchStringFromSelection) {
