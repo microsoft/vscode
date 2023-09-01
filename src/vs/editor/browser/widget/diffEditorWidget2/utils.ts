@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDimension } from 'vs/base/browser/dom';
+import { isHotReloadEnabled, registerHotReloadHandler } from 'vs/base/common/hotReload';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
@@ -294,28 +295,21 @@ export function readHotReloadableExport<T>(value: T, reader: IReader | undefined
 }
 
 export function observeHotReloadableExports(values: any[], reader: IReader | undefined): void {
-	const hotReload_deprecateExports = (globalThis as unknown as {
-		// This property it defined by the monaco editor playground server
-		$hotReload_deprecateExports: Set<(oldExports: Record<string, unknown>, newExports: Record<string, unknown>) => boolean>;
-	}).$hotReload_deprecateExports;
-	if (!hotReload_deprecateExports) {
-		return;
+	if (isHotReloadEnabled()) {
+		const o = observableSignalFromEvent(
+			'reload',
+			event => registerHotReloadHandler(oldExports => {
+				if (![...Object.values(oldExports)].some(v => values.includes(v))) {
+					return undefined;
+				}
+				return (_newExports) => {
+					event(undefined);
+					return true;
+				};
+			})
+		);
+		o.read(reader);
 	}
-
-	const o = observableSignalFromEvent('reload', e => {
-		function handleExports(oldExports: Record<string, unknown>, _newExports: Record<string, unknown>) {
-			if ([...Object.values(oldExports)].some(v => values.includes(v))) {
-				e(undefined);
-				return true;
-			}
-			return false;
-		}
-		hotReload_deprecateExports.add(handleExports);
-		return {
-			dispose() { hotReload_deprecateExports.delete(handleExports); }
-		};
-	});
-	o.read(reader);
 }
 
 export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObservableViewZone[]>, setIsUpdating?: (isUpdatingViewZones: boolean) => void): IDisposable {
