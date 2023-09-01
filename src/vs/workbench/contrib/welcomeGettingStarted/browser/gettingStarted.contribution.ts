@@ -66,10 +66,8 @@ registerAction2(class extends Action2 {
 			// Try first to select the walkthrough on an active welcome page with no selected walkthrough
 			for (const group of editorGroupsService.groups) {
 				if (group.activeEditor instanceof GettingStartedInput) {
-					if (!group.activeEditor.selectedCategory) {
-						(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
-						return;
-					}
+					(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
+					return;
 				}
 			}
 
@@ -106,7 +104,10 @@ registerAction2(class extends Action2 {
 				editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
 					options: <GettingStartedEditorOptions>{ selectedCategory: selectedCategory, selectedStep: selectedStep, preserveFocus: toSide ?? false }
+				}).then((editor) => {
+					(editor as GettingStartedPage)?.makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
 				});
+
 			}
 		} else {
 			editorService.openEditor({ resource: GettingStartedInput.RESOURCE });
