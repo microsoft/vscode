@@ -14,6 +14,7 @@ import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnostics
 import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position, SortOptions } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { Utils, URI } from 'vscode-uri';
+import * as l10n from '@vscode/l10n';
 
 type ISchemaAssociations = Record<string, string[]>;
 
@@ -432,7 +433,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				const sortCodeAction = CodeAction.create('Sort JSON', CodeActionKind.Source.concat('.sort', '.json'));
 				sortCodeAction.command = {
 					command: 'json.sort',
-					title: 'Sort JSON'
+					title: l10n.t('Sort JSON')
 				};
 				return [sortCodeAction];
 			}
