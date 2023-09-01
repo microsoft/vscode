@@ -89,7 +89,6 @@ declare namespace monaco {
 }
 
 declare namespace monaco.editor {
-#include(vs/editor/browser/widget/diffNavigator): IDiffNavigator
 #includeAll(vs/editor/standalone/browser/standaloneEditor;languages.Token=>Token):
 #include(vs/editor/standalone/common/standaloneTheme): BuiltinTheme, IStandaloneThemeData, IColors
 #include(vs/editor/common/languages/supports/tokenization): ITokenThemeRule

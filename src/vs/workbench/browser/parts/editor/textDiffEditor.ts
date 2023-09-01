@@ -13,7 +13,6 @@ import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDif
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -43,7 +42,6 @@ import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/di
  */
 export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> implements ITextDiffEditorPane {
 	static readonly ID = TEXT_DIFF_EDITOR_ID;
-	private static widgetCounter = 0; // Just for debugging
 
 	private diffEditorControl: IDiffEditor | undefined = undefined;
 
@@ -85,18 +83,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): void {
-		TextDiffEditor.widgetCounter++;
-		let useVersion2 = this.textResourceConfigurationService.getValue(undefined, 'diffEditor.experimental.useVersion2');
-		if (useVersion2 === 'first') {
-			// This allows to have both the old and new diff editor next to each other - just for debugging
-			useVersion2 = TextDiffEditor.widgetCounter === 1;
-		}
-
-		if (useVersion2) {
-			this.diffEditorControl = this._register(this.instantiationService.createInstance(DiffEditorWidget2, parent, configuration, {}));
-		} else {
-			this.diffEditorControl = this._register(this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {}));
-		}
+		this.diffEditorControl = this._register(this.instantiationService.createInstance(DiffEditorWidget2, parent, configuration, {}));
 	}
 
 	protected updateEditorControlOptions(options: ICodeEditorOptions): void {
