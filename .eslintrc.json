@@ -201,9 +201,6 @@
 				"**/vscode.d.ts"
 			],
 			"rules": {
-				"extends": [
-					"plugin:jsdoc/recommended-typescript"
-				],
 				"jsdoc/tag-lines": "off",
 				"jsdoc/valid-types": "off",
 				"jsdoc/no-multi-asterisks": [
@@ -220,6 +217,7 @@
 							"TSInterfaceDeclaration",
 							"TSPropertySignature",
 							"TSMethodSignature",
+							"TSDeclareFunction",
 							"ClassDeclaration",
 							"MethodDefinition",
 							"PropertyDeclaration",
@@ -232,9 +230,11 @@
 				"jsdoc/check-param-names": [
 					"warn",
 					{
-						"enableFixer": false
+						"enableFixer": false,
+						"checkDestructured": false
 					}
-				]
+				],
+				"jsdoc/require-returns": "warn"
 			}
 		},
 		{
