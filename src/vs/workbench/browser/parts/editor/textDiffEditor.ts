@@ -45,8 +45,6 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	private diffEditorControl: IDiffEditor | undefined = undefined;
 
-	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
-
 	private inputLifecycleStopWatch: StopWatch | undefined = undefined;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
@@ -98,7 +96,6 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 		// Cleanup previous things associated with the input
 		this.inputLifecycleStopWatch = undefined;
-		this.diffNavigatorDisposables.clear();
 
 		// Set input and resolve
 		await super.setInput(input, options, context, token);
@@ -310,9 +307,6 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		if (typeof inputLifecycleElapsed === 'number') {
 			this.logInputLifecycleTelemetry(inputLifecycleElapsed, this.getControl()?.getModel()?.modified?.getLanguageId());
 		}
-
-		// Dispose previous diff navigator
-		this.diffNavigatorDisposables.clear();
 
 		// Clear Model
 		this.diffEditorControl?.setModel(null);
