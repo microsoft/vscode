@@ -12,7 +12,7 @@ import * as platform from 'vs/base/common/platform';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { migrateOptions } from 'vs/editor/browser/config/migrateOptions';
-import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo, IValidatedEditorOptions } from 'vs/editor/common/config/fontInfo';
@@ -117,7 +117,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
-			tabFocusMode: TabFocus.getTabFocusMode(TabFocusContext.Editor),
+			tabFocusMode: TabFocus.getTabFocusMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport,
 			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount
 		};

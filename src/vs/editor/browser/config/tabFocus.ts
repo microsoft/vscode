@@ -5,28 +5,18 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 
-export const enum TabFocusContext {
-	Terminal = 'terminalFocus',
-	Editor = 'editorFocus'
-}
-
 class TabFocusImpl {
-	private _tabFocusTerminal: boolean = false;
 	private _tabFocusEditor: boolean = false;
 
 	private readonly _onDidChangeTabFocus = new Emitter<void>();
 	public readonly onDidChangeTabFocus: Event<void> = this._onDidChangeTabFocus.event;
 
-	public getTabFocusMode(context: TabFocusContext): boolean {
-		return context === TabFocusContext.Terminal ? this._tabFocusTerminal : this._tabFocusEditor;
+	public getTabFocusMode(): boolean {
+		return this._tabFocusEditor;
 	}
 
-	public setTabFocusMode(tabFocusMode: boolean, context: TabFocusContext): void {
-		if (context === TabFocusContext.Terminal) {
-			this._tabFocusTerminal = tabFocusMode;
-		} else {
-			this._tabFocusEditor = tabFocusMode;
-		}
+	public setTabFocusMode(tabFocusMode: boolean): void {
+		this._tabFocusEditor = tabFocusMode;
 		this._onDidChangeTabFocus.fire();
 	}
 }
