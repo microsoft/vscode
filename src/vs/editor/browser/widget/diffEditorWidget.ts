@@ -1212,24 +1212,24 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 						let modifiedEndLineNumber: number;
 						let innerChanges = m.innerChanges;
 
-						if (m.originalRange.isEmpty) {
+						if (m.original.isEmpty) {
 							// Insertion
-							originalStartLineNumber = m.originalRange.startLineNumber - 1;
+							originalStartLineNumber = m.original.startLineNumber - 1;
 							originalEndLineNumber = 0;
 							innerChanges = undefined;
 						} else {
-							originalStartLineNumber = m.originalRange.startLineNumber;
-							originalEndLineNumber = m.originalRange.endLineNumberExclusive - 1;
+							originalStartLineNumber = m.original.startLineNumber;
+							originalEndLineNumber = m.original.endLineNumberExclusive - 1;
 						}
 
-						if (m.modifiedRange.isEmpty) {
+						if (m.modified.isEmpty) {
 							// Deletion
-							modifiedStartLineNumber = m.modifiedRange.startLineNumber - 1;
+							modifiedStartLineNumber = m.modified.startLineNumber - 1;
 							modifiedEndLineNumber = 0;
 							innerChanges = undefined;
 						} else {
-							modifiedStartLineNumber = m.modifiedRange.startLineNumber;
-							modifiedEndLineNumber = m.modifiedRange.endLineNumberExclusive - 1;
+							modifiedStartLineNumber = m.modified.startLineNumber;
+							modifiedEndLineNumber = m.modified.endLineNumberExclusive - 1;
 						}
 
 						return {

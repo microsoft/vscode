@@ -2415,7 +2415,7 @@ declare namespace monaco.editor {
 		/**
 		 * Maps all modified line ranges in the original to the corresponding line ranges in the modified text model.
 		 */
-		readonly changes: readonly LineRangeMapping[];
+		readonly changes: readonly DetailedLineRangeMapping[];
 		/**
 		 * Sorted by original line ranges.
 		 * The original line ranges and the modified line ranges must be disjoint (but can be touching).
@@ -2433,11 +2433,6 @@ declare namespace monaco.editor {
 		 * @param lineRanges An array of sorted line ranges.
 		 */
 		static joinMany(lineRanges: readonly (readonly LineRange[])[]): readonly LineRange[];
-		/**
-		 * @param lineRanges1 Must be sorted.
-		 * @param lineRanges2 Must be sorted.
-		 */
-		static join(lineRanges1: readonly LineRange[], lineRanges2: readonly LineRange[]): readonly LineRange[];
 		static ofLength(startLineNumber: number, length: number): LineRange;
 		/**
 		 * The start line number.
@@ -2485,19 +2480,22 @@ declare namespace monaco.editor {
 		includes(lineNumber: number): boolean;
 	}
 
+	export class MovedText {
+		readonly lineRangeMapping: LineRangeMapping;
+		/**
+		 * The diff from the original text to the moved text.
+		 * Must be contained in the original/modified line range.
+		 * Can be empty if the text didn't change (only moved).
+		 */
+		readonly changes: readonly DetailedLineRangeMapping[];
+		constructor(lineRangeMapping: LineRangeMapping, changes: readonly DetailedLineRangeMapping[]);
+		flip(): MovedText;
+	}
+
 	/**
 	 * Maps a line range in the original text model to a line range in the modified text model.
 	 */
-	export class LineRangeMapping {
-		static inverse(mapping: readonly LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): LineRangeMapping[];
-		/**
-		 * The line range in the original text model.
-		 */
-		readonly originalRange: LineRange;
-		/**
-		 * The line range in the modified text model.
-		 */
-		readonly modifiedRange: LineRange;
+	export class DetailedLineRangeMapping extends LineRangeMapping {
 		/**
 		 * If inner changes have not been computed, this is set to undefined.
 		 * Otherwise, it represents the character-level diff in this line range.
@@ -2506,9 +2504,7 @@ declare namespace monaco.editor {
 		 */
 		readonly innerChanges: RangeMapping[] | undefined;
 		constructor(originalRange: LineRange, modifiedRange: LineRange, innerChanges: RangeMapping[] | undefined);
-		toString(): string;
-		get changedLineCount(): any;
-		flip(): LineRangeMapping;
+		flip(): DetailedLineRangeMapping;
 	}
 
 	/**
@@ -2528,25 +2524,21 @@ declare namespace monaco.editor {
 		flip(): RangeMapping;
 	}
 
-	export class MovedText {
-		readonly lineRangeMapping: SimpleLineRangeMapping;
+	export class LineRangeMapping {
+		static inverse(mapping: readonly DetailedLineRangeMapping[], originalLineCount: number, modifiedLineCount: number): DetailedLineRangeMapping[];
 		/**
-		 * The diff from the original text to the moved text.
-		 * Must be contained in the original/modified line range.
-		 * Can be empty if the text didn't change (only moved).
+		 * The line range in the original text model.
 		 */
-		readonly changes: readonly LineRangeMapping[];
-		constructor(lineRangeMapping: SimpleLineRangeMapping, changes: readonly LineRangeMapping[]);
-		flip(): MovedText;
-	}
-
-	export class SimpleLineRangeMapping {
 		readonly original: LineRange;
+		/**
+		 * The line range in the modified text model.
+		 */
 		readonly modified: LineRange;
-		constructor(original: LineRange, modified: LineRange);
+		constructor(originalRange: LineRange, modifiedRange: LineRange);
 		toString(): string;
-		flip(): SimpleLineRangeMapping;
-		join(other: SimpleLineRangeMapping): SimpleLineRangeMapping;
+		flip(): LineRangeMapping;
+		join(other: LineRangeMapping): LineRangeMapping;
+		get changedLineCount(): any;
 	}
 	export interface IDimension {
 		width: number;

@@ -127,8 +127,8 @@ export class OverviewRulerPart extends Disposable {
 							});
 					}
 
-					const originalZones = createZones((diff || []).map(d => d.lineRangeMapping.originalRange), colors.removeColor, this._editors.original);
-					const modifiedZones = createZones((diff || []).map(d => d.lineRangeMapping.modifiedRange), colors.insertColor, this._editors.modified);
+					const originalZones = createZones((diff || []).map(d => d.lineRangeMapping.original), colors.removeColor, this._editors.original);
+					const modifiedZones = createZones((diff || []).map(d => d.lineRangeMapping.modified), colors.insertColor, this._editors.modified);
 					originalOverviewRuler?.setZones(originalZones);
 					modifiedOverviewRuler?.setZones(modifiedZones);
 				}));
