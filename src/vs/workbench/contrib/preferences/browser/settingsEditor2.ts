@@ -66,6 +66,7 @@ import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/co
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 
 
 export const enum SettingsFocusContext {
@@ -237,6 +238,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IProductService private readonly productService: IProductService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -566,6 +568,9 @@ export class SettingsEditor2 extends EditorPane {
 		this.searchWidget.updateAriaLabel(label);
 	}
 
+	/**
+	 * Render the header of the Settings editor, which includes the content above the splitview.
+	 */
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
 
@@ -1268,8 +1273,9 @@ export class SettingsEditor2 extends EditorPane {
 		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
 				const extensionId = key;
-				// Always recommend prerelease for now.
-				const [extension] = await this.extensionGalleryService.getExtensions([{ id: extensionId, preRelease: true }], CancellationToken.None);
+				// Recommend prerelease if not on Stable.
+				const isStable = this.productService.quality === 'stable';
+				const [extension] = await this.extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None);
 				if (!extension) {
 					continue;
 				}
@@ -1622,19 +1628,20 @@ export class SettingsEditor2 extends EditorPane {
 
 		// Trigger the local search. If it didn't find an exact match, trigger the remote search.
 		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
-		return this.localSearchDelayer.trigger(() => {
+		return this.localSearchDelayer.trigger(async () => {
 			if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
-				return this.localFilterPreferences(query).then(result => {
-					if (result && !result.exactMatch) {
-						this.remoteSearchThrottle.trigger(() => {
-							return searchInProgress && !searchInProgress.token.isCancellationRequested ?
-								this.remoteSearchPreferences(query, this.searchInProgress!.token) :
-								Promise.resolve();
-						});
-					}
-				});
-			} else {
-				return Promise.resolve();
+				const progressRunner = this.editorProgressService.show(true);
+				const result = await this.localFilterPreferences(query);
+				if (result && !result.exactMatch) {
+					this.remoteSearchThrottle.trigger(async () => {
+						if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
+							await this.remoteSearchPreferences(query, this.searchInProgress!.token);
+						}
+						progressRunner.done();
+					});
+				} else {
+					progressRunner.done();
+				}
 			}
 		});
 	}
@@ -1654,36 +1661,32 @@ export class SettingsEditor2 extends EditorPane {
 		]).then(() => { });
 	}
 
-	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
-		return this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider, token).then(result => {
-			if (token && token.isCancellationRequested) {
-				// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
-				return null;
-			}
-
-			if (!this.searchResultModel) {
-				this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
-				// Must be called before this.renderTree()
-				// to make sure the search results count is set.
-				this.searchResultModel.setResult(type, result);
-				this.tocTreeModel.currentSearchModel = this.searchResultModel;
-				this.onSearchModeToggled();
-			} else {
-				this.searchResultModel.setResult(type, result);
-				this.tocTreeModel.update();
-			}
-
-			if (type === SearchResultIdx.Local) {
-				this.tocTree.setFocus([]);
-				this.viewState.filterToCategory = undefined;
-				this.tocTree.expandAll();
-			}
-
-			this.settingsTree.scrollTop = 0;
-			this.refreshTOCTree();
-			this.renderTree(undefined, true);
-			return result;
-		});
+	private async filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
+		const result = await this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider, token);
+		if (token?.isCancellationRequested) {
+			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
+			return null;
+		}
+		if (!this.searchResultModel) {
+			this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
+			// Must be called before this.renderTree()
+			// to make sure the search results count is set.
+			this.searchResultModel.setResult(type, result);
+			this.tocTreeModel.currentSearchModel = this.searchResultModel;
+			this.onSearchModeToggled();
+		} else {
+			this.searchResultModel.setResult(type, result);
+			this.tocTreeModel.update();
+		}
+		if (type === SearchResultIdx.Local) {
+			this.tocTree.setFocus([]);
+			this.viewState.filterToCategory = undefined;
+			this.tocTree.expandAll();
+		}
+		this.settingsTree.scrollTop = 0;
+		this.refreshTOCTree();
+		this.renderTree(undefined, true);
+		return result;
 	}
 
 	private renderResultCountMessages() {

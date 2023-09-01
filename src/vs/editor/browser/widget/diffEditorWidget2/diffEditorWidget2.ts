@@ -29,8 +29,8 @@ import { IDimension } from 'vs/editor/common/core/dimension';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { EditorType, IDiffEditorModel, IDiffEditorViewModel, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
@@ -45,6 +45,7 @@ import { DiffEditorEditors } from './diffEditorEditors';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel';
 import { toDisposable } from 'vs/base/common/lifecycle';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 
 export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
@@ -79,6 +80,10 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly _options: DiffEditorOptions;
 	private readonly _editors: DiffEditorEditors;
 
+	private readonly movedBlocksLinesPart = observableValue<MovedBlocksLinesPart | undefined>('MovedBlocksLinesPart', undefined);
+
+	public get collapseUnchangedRegions() { return this._options.hideUnchangedRegions.get(); }
+
 	constructor(
 		private readonly _domElement: HTMLElement,
 		options: Readonly<IDiffEditorConstructionOptions>,
@@ -87,6 +92,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
 	) {
 		super();
 		codeEditorService.willCreateDiffEditor();
@@ -107,6 +113,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._register(autorun(reader => {
 			/** @description update isEmbeddedDiffEditorKey */
 			isEmbeddedDiffEditorKey.set(this._options.isInEmbeddedEditor.read(reader));
+		}));
+
+		const comparingMovedCodeKey = EditorContextKeys.comparingMovedCode.bindTo(this._contextKeyService);
+		this._register(autorun(reader => {
+			/** @description update comparingMovedCodeKey */
+			comparingMovedCodeKey.set(!!this._diffModel.read(reader)?.movedTextToCompare.read(reader));
 		}));
 
 		const diffEditorRenderSideBySideInlineBreakpointReachedContextKeyValue = EditorContextKeys.diffEditorRenderSideBySideInlineBreakpointReached.bindTo(this._contextKeyService);
@@ -149,7 +161,9 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(autorunWithStore((reader, store) => {
 			/** @description UnchangedRangesFeature */
-			this.unchangedRangesFeature = store.add(new (readHotReloadableExport(UnchangedRangesFeature, reader))(this._editors, this._diffModel, this._options));
+			this.unchangedRangesFeature = store.add(
+				this._instantiationService.createInstance(readHotReloadableExport(UnchangedRangesFeature, reader), this._editors, this._diffModel, this._options)
+			);
 		}));
 
 		this._register(autorunWithStore((reader, store) => {
@@ -170,7 +184,9 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(autorunWithStore((reader, store) => {
 			/** @description OverviewRulerPart */
-			store.add(this._instantiationService.createInstance(readHotReloadableExport(OverviewRulerPart, reader), this._editors,
+			store.add(this._instantiationService.createInstance(
+				readHotReloadableExport(OverviewRulerPart, reader),
+				this._editors,
 				this.elements.root,
 				this._diffModel,
 				this._rootSizeObserver.width,
@@ -204,32 +220,21 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(keepAlive(this._layoutInfo, true));
 
-		this._register(new MovedBlocksLinesPart(
-			this.elements.root,
-			this._diffModel,
-			this._layoutInfo.map(i => i.originalEditor),
-			this._layoutInfo.map(i => i.modifiedEditor),
-			this._editors,
-		));
+		this._register(autorunWithStore((reader, store) => {
+			this.movedBlocksLinesPart.set(store.add(new (readHotReloadableExport(MovedBlocksLinesPart, reader))(
+				this.elements.root,
+				this._diffModel,
+				this._layoutInfo.map(i => i.originalEditor),
+				this._layoutInfo.map(i => i.modifiedEditor),
+				this._editors,
+			)), undefined);
+		}));
 
 		this._register(applyStyle(this.elements.overlay, {
 			width: this._layoutInfo.map((i, r) => i.originalEditor.width + (this._options.renderSideBySide.read(r) ? 0 : i.modifiedEditor.width)),
-			visibility: derived(reader => /** @description visibility */(this._options.collapseUnchangedRegions.read(reader) && this._diffModel.read(reader)?.diff.read(reader)?.mappings.length === 0)
+			visibility: derived(reader => /** @description visibility */(this._options.hideUnchangedRegions.read(reader) && this._diffModel.read(reader)?.diff.read(reader)?.mappings.length === 0)
 				? 'visible' : 'hidden'
 			),
-		}));
-
-		this._register(this._editors.original.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
-			if (!m) { return; }
-			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.original.contains(e.position.lineNumber));
-			m.syncedMovedTexts.set(movedText, undefined);
-		}));
-		this._register(this._editors.modified.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
-			if (!m) { return; }
-			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.modified.contains(e.position.lineNumber));
-			m.syncedMovedTexts.set(movedText, undefined);
 		}));
 
 		// Revert change when an arrow is clicked.
@@ -243,8 +248,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 				const diffs = model.diff.get()?.mappings;
 				if (!diffs) { return; }
 				const diff = diffs.find(d =>
-					viewZone?.detail.afterLineNumber === d.lineRangeMapping.modifiedRange.startLineNumber - 1 ||
-					d.lineRangeMapping.modifiedRange.startLineNumber === lineNumber
+					viewZone?.detail.afterLineNumber === d.lineRangeMapping.modified.startLineNumber - 1 ||
+					d.lineRangeMapping.modified.startLineNumber === lineNumber
 				);
 				if (!diff) { return; }
 				this.revert(diff.lineRangeMapping);
@@ -255,14 +260,22 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		this._register(Event.runAndSubscribe(this._editors.modified.onDidChangeCursorPosition, (e) => {
 			if (e?.reason === CursorChangeReason.Explicit) {
-				const diff = this._diffModel.get()?.diff.get()?.mappings.find(m => m.lineRangeMapping.modifiedRange.contains(e.position.lineNumber));
-				if (diff?.lineRangeMapping.modifiedRange.isEmpty) {
+				const diff = this._diffModel.get()?.diff.get()?.mappings.find(m => m.lineRangeMapping.modified.contains(e.position.lineNumber));
+				if (diff?.lineRangeMapping.modified.isEmpty) {
 					this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, { source: 'diffEditor.cursorPositionChanged' });
-				} else if (diff?.lineRangeMapping.originalRange.isEmpty) {
+				} else if (diff?.lineRangeMapping.original.isEmpty) {
 					this._audioCueService.playAudioCue(AudioCue.diffLineInserted, { source: 'diffEditor.cursorPositionChanged' });
 				} else if (diff) {
 					this._audioCueService.playAudioCue(AudioCue.diffLineModified, { source: 'diffEditor.cursorPositionChanged' });
 				}
+			}
+		}));
+
+		const isDiffUpToDate = this._diffModel.map((m, reader) => m?.isDiffUpToDate.read(reader));
+		this._register(autorunWithStore((reader, store) => {
+			if (isDiffUpToDate.read(reader) === false) {
+				const r = this._editorProgressService.show(true, 1000);
+				store.add(toDisposable(() => r.done()));
 			}
 		}));
 	}
@@ -285,13 +298,15 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		const originalWidth = sashLeft ?? Math.max(5, this._editors.original.getLayoutInfo().decorationsLeft);
 		const modifiedWidth = width - originalWidth - (this._options.renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0);
 
-		this.elements.original.style.width = originalWidth + 'px';
+		const movedBlocksLinesWidth = this.movedBlocksLinesPart.read(reader)?.width.read(reader) ?? 0;
+		const originalWidthWithoutMovedBlockLines = originalWidth - movedBlocksLinesWidth;
+		this.elements.original.style.width = originalWidthWithoutMovedBlockLines + 'px';
 		this.elements.original.style.left = '0px';
 
 		this.elements.modified.style.width = modifiedWidth + 'px';
 		this.elements.modified.style.left = originalWidth + 'px';
 
-		this._editors.original.layout({ width: originalWidth, height });
+		this._editors.original.layout({ width: originalWidthWithoutMovedBlockLines, height });
 		this._editors.modified.layout({ width: modifiedWidth, height });
 
 		return {
@@ -421,7 +436,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		};
 	}
 
-	revert(diff: LineRangeMapping): void {
+	revert(diff: DetailedLineRangeMapping): void {
 		const model = this._diffModel.get()?.model;
 		if (!model) { return; }
 
@@ -432,8 +447,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			}))
 			: [
 				{
-					range: diff.modifiedRange.toExclusiveRange(),
-					text: model.original.getValueInRange(diff.originalRange.toExclusiveRange())
+					range: diff.modified.toExclusiveRange(),
+					text: model.original.getValueInRange(diff.original.toExclusiveRange())
 				}
 			];
 
@@ -441,8 +456,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	}
 
 	private _goTo(diff: DiffMapping): void {
-		this._editors.modified.setPosition(new Position(diff.lineRangeMapping.modifiedRange.startLineNumber, 1));
-		this._editors.modified.revealRangeInCenter(diff.lineRangeMapping.modifiedRange.toExclusiveRange());
+		this._editors.modified.setPosition(new Position(diff.lineRangeMapping.modified.startLineNumber, 1));
+		this._editors.modified.revealRangeInCenter(diff.lineRangeMapping.modified.toExclusiveRange());
 	}
 
 	goToDiff(target: 'previous' | 'next'): void {
@@ -455,15 +470,15 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		let diff: DiffMapping | undefined;
 		if (target === 'next') {
-			diff = diffs.find(d => d.lineRangeMapping.modifiedRange.startLineNumber > curLineNumber) ?? diffs[0];
+			diff = diffs.find(d => d.lineRangeMapping.modified.startLineNumber > curLineNumber) ?? diffs[0];
 		} else {
-			diff = findLast(diffs, d => d.lineRangeMapping.modifiedRange.startLineNumber < curLineNumber) ?? diffs[diffs.length - 1];
+			diff = findLast(diffs, d => d.lineRangeMapping.modified.startLineNumber < curLineNumber) ?? diffs[diffs.length - 1];
 		}
 		this._goTo(diff);
 
-		if (diff.lineRangeMapping.modifiedRange.isEmpty) {
+		if (diff.lineRangeMapping.modified.isEmpty) {
 			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, { source: 'diffEditor.goToDiff' });
-		} else if (diff.lineRangeMapping.originalRange.isEmpty) {
+		} else if (diff.lineRangeMapping.original.isEmpty) {
 			this._audioCueService.playAudioCue(AudioCue.diffLineInserted, { source: 'diffEditor.goToDiff' });
 		} else if (diff) {
 			this._audioCueService.playAudioCue(AudioCue.diffLineModified, { source: 'diffEditor.goToDiff' });
@@ -495,10 +510,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		await diffModel.waitForDiff();
 	}
 
-	switchSide(): void {
+	mapToOtherSide(): { destination: CodeEditorWidget; destinationSelection: Range | undefined } {
 		const isModifiedFocus = this._editors.modified.hasWidgetFocus();
 		const source = isModifiedFocus ? this._editors.modified : this._editors.original;
 		const destination = isModifiedFocus ? this._editors.original : this._editors.modified;
+
+		let destinationSelection: Range | undefined;
 
 		const sourceSelection = source.getSelection();
 		if (sourceSelection) {
@@ -506,34 +523,67 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			if (mappings) {
 				const newRange1 = translatePosition(sourceSelection.getStartPosition(), mappings);
 				const newRange2 = translatePosition(sourceSelection.getEndPosition(), mappings);
-				const range = Range.plusRange(newRange1, newRange2);
-				destination.setSelection(range);
+				destinationSelection = Range.plusRange(newRange1, newRange2);
 			}
 		}
+		return { destination, destinationSelection };
+	}
+
+	switchSide(): void {
+		const { destination, destinationSelection } = this.mapToOtherSide();
 		destination.focus();
+		if (destinationSelection) {
+			destination.setSelection(destinationSelection);
+		}
+	}
+
+	exitCompareMove(): void {
+		const model = this._diffModel.get();
+		if (!model) { return; }
+		model.movedTextToCompare.set(undefined, undefined);
+	}
+
+	collapseAllUnchangedRegions(): void {
+		const unchangedRegions = this._diffModel.get()?.unchangedRegions.get();
+		if (!unchangedRegions) { return; }
+		transaction(tx => {
+			for (const region of unchangedRegions) {
+				region.collapseAll(tx);
+			}
+		});
+	}
+
+	showAllUnchangedRegions(): void {
+		const unchangedRegions = this._diffModel.get()?.unchangedRegions.get();
+		if (!unchangedRegions) { return; }
+		transaction(tx => {
+			for (const region of unchangedRegions) {
+				region.showAll(tx);
+			}
+		});
 	}
 }
 
-function translatePosition(posInOriginal: Position, mappings: LineRangeMapping[]): Range {
-	const mapping = findLast(mappings, m => m.originalRange.startLineNumber <= posInOriginal.lineNumber);
+function translatePosition(posInOriginal: Position, mappings: DetailedLineRangeMapping[]): Range {
+	const mapping = findLast(mappings, m => m.original.startLineNumber <= posInOriginal.lineNumber);
 	if (!mapping) {
 		// No changes before the position
 		return Range.fromPositions(posInOriginal);
 	}
 
-	if (mapping.originalRange.endLineNumberExclusive <= posInOriginal.lineNumber) {
-		const newLineNumber = posInOriginal.lineNumber - mapping.originalRange.endLineNumberExclusive + mapping.modifiedRange.endLineNumberExclusive;
+	if (mapping.original.endLineNumberExclusive <= posInOriginal.lineNumber) {
+		const newLineNumber = posInOriginal.lineNumber - mapping.original.endLineNumberExclusive + mapping.modified.endLineNumberExclusive;
 		return Range.fromPositions(new Position(newLineNumber, posInOriginal.column));
 	}
 
 	if (!mapping.innerChanges) {
 		// Only for legacy algorithm
-		return Range.fromPositions(new Position(mapping.modifiedRange.startLineNumber, 1));
+		return Range.fromPositions(new Position(mapping.modified.startLineNumber, 1));
 	}
 
 	const innerMapping = findLast(mapping.innerChanges, m => m.originalRange.getStartPosition().isBeforeOrEqual(posInOriginal));
 	if (!innerMapping) {
-		const newLineNumber = posInOriginal.lineNumber - mapping.originalRange.startLineNumber + mapping.modifiedRange.startLineNumber;
+		const newLineNumber = posInOriginal.lineNumber - mapping.original.startLineNumber + mapping.modified.startLineNumber;
 		return Range.fromPositions(new Position(newLineNumber, posInOriginal.column));
 	}
 
@@ -570,24 +620,24 @@ function toLineChanges(state: DiffState): ILineChange[] {
 		let modifiedEndLineNumber: number;
 		let innerChanges = m.innerChanges;
 
-		if (m.originalRange.isEmpty) {
+		if (m.original.isEmpty) {
 			// Insertion
-			originalStartLineNumber = m.originalRange.startLineNumber - 1;
+			originalStartLineNumber = m.original.startLineNumber - 1;
 			originalEndLineNumber = 0;
 			innerChanges = undefined;
 		} else {
-			originalStartLineNumber = m.originalRange.startLineNumber;
-			originalEndLineNumber = m.originalRange.endLineNumberExclusive - 1;
+			originalStartLineNumber = m.original.startLineNumber;
+			originalEndLineNumber = m.original.endLineNumberExclusive - 1;
 		}
 
-		if (m.modifiedRange.isEmpty) {
+		if (m.modified.isEmpty) {
 			// Deletion
-			modifiedStartLineNumber = m.modifiedRange.startLineNumber - 1;
+			modifiedStartLineNumber = m.modified.startLineNumber - 1;
 			modifiedEndLineNumber = 0;
 			innerChanges = undefined;
 		} else {
-			modifiedStartLineNumber = m.modifiedRange.startLineNumber;
-			modifiedEndLineNumber = m.modifiedRange.endLineNumberExclusive - 1;
+			modifiedStartLineNumber = m.modified.startLineNumber;
+			modifiedEndLineNumber = m.modified.endLineNumberExclusive - 1;
 		}
 
 		return {

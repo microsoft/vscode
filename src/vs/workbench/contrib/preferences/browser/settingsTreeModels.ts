@@ -273,7 +273,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	private getTargetToInspect(setting: ISetting): SettingsTarget {
-		if (!this.userDataProfileService.currentProfile.isDefault) {
+		if (!this.userDataProfileService.currentProfile.isDefault && !this.userDataProfileService.currentProfile.useDefaultFlags?.settings) {
 			if (setting.scope === ConfigurationScope.APPLICATION) {
 				return ConfigurationTarget.APPLICATION;
 			}
@@ -382,7 +382,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	matchesAllTags(tagFilters?: Set<string>): boolean {
-		if (!tagFilters || !tagFilters.size) {
+		if (!tagFilters?.size) {
+			// This setting, which may have tags,
+			// matches against a query with no tags.
 			return true;
 		}
 
@@ -392,15 +394,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.inspectSelf();
 		}
 
-		if (this.tags) {
-			let hasFilteredTag = true;
-			tagFilters.forEach(tag => {
-				hasFilteredTag = hasFilteredTag && this.tags!.has(tag);
-			});
-			return hasFilteredTag;
-		} else {
-			return false;
-		}
+		// Check that the filter tags are a subset of this setting's tags
+		return !!this.tags?.size &&
+			Array.from(tagFilters).every(tag => this.tags!.has(tag));
 	}
 
 	matchesScope(scope: SettingsTarget, isRemote: boolean): boolean {

@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
+export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
 export const IChatAccessibilityService = createDecorator<IChatAccessibilityService>('chatAccessibilityService');
 
 export interface IChatWidgetService {
@@ -32,6 +33,16 @@ export interface IChatWidgetService {
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
 }
 
+export interface IQuickChatService {
+	readonly _serviceBrand: undefined;
+	readonly onDidClose: Event<void>;
+	readonly enabled: boolean;
+	toggle(providerId?: string, query?: string): void;
+	focus(): void;
+	open(): void;
+	close(): void;
+	openInChatView(): void;
+}
 
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
@@ -70,6 +81,7 @@ export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewCon
 
 export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
+	readonly onDidAcceptInput: Event<void>;
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
@@ -79,9 +91,11 @@ export interface IChatWidget {
 	focus(item: ChatTreeItem): void;
 	moveFocus(item: ChatTreeItem, type: 'next' | 'previous'): void;
 	getFocus(): ChatTreeItem | undefined;
+	updateInput(query?: string): void;
 	acceptInput(query?: string): void;
 	focusLastMessage(): void;
 	focusInput(): void;
+	hasInputFocus(): boolean;
 	getSlashCommands(): Promise<ISlashCommand[] | undefined>;
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];

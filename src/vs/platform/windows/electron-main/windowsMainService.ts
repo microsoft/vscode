@@ -1401,8 +1401,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				profile: defaultProfile
 			},
 
-			homeDir: this.environmentMainService.userHome.fsPath,
-			tmpDir: this.environmentMainService.tmpDir.fsPath,
+			homeDir: this.environmentMainService.userHome.with({ scheme: Schemas.file }).fsPath,
+			tmpDir: this.environmentMainService.tmpDir.with({ scheme: Schemas.file }).fsPath,
 			userDataDir: this.environmentMainService.userDataPath,
 
 			remoteAuthority: options.remoteAuthority,
@@ -1419,7 +1419,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				window: [],
 				global: this.loggerService.getRegisteredLoggers()
 			},
-			logsPath: this.environmentMainService.logsHome.fsPath,
+			logsPath: this.environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
 
 			product,
 			isInitialStartup: options.initialStartup,

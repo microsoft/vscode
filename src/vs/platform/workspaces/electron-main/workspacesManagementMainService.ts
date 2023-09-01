@@ -84,7 +84,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 
 		// Resolve untitled workspaces
 		try {
-			const untitledWorkspacePaths = (await Promises.readdir(this.untitledWorkspacesHome.fsPath)).map(folder => joinPath(this.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME));
+			const untitledWorkspacePaths = (await Promises.readdir(this.untitledWorkspacesHome.with({ scheme: Schemas.file }).fsPath)).map(folder => joinPath(this.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME));//
 			for (const untitledWorkspacePath of untitledWorkspacePaths) {
 				const workspace = getWorkspaceIdentifier(untitledWorkspacePath);
 				const resolvedWorkspace = await this.resolveLocalWorkspace(untitledWorkspacePath);
@@ -227,7 +227,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 			await Promises.rm(dirname(configPath));
 
 			// Mark Workspace Storage to be deleted
-			const workspaceStoragePath = join(this.environmentMainService.workspaceStorageHome.fsPath, workspace.id);
+			const workspaceStoragePath = join(this.environmentMainService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath, workspace.id);
 			if (await Promises.exists(workspaceStoragePath)) {
 				await Promises.writeFile(join(workspaceStoragePath, 'obsolete'), '');
 			}

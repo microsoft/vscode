@@ -1563,6 +1563,30 @@ export namespace LanguageSelector {
 	}
 }
 
+export namespace MappedEditsContext {
+
+	export function is(v: unknown): v is vscode.MappedEditsContext {
+		return (!!v &&
+			typeof v === 'object' &&
+			'selections' in v &&
+			Array.isArray(v.selections) &&
+			v.selections.every(s => s instanceof types.Selection) &&
+			'related' in v &&
+			Array.isArray(v.related) &&
+			v.related.every(e => e && typeof e === 'object' && URI.isUri(e.uri) && e.range instanceof types.Range));
+	}
+
+	export function from(extContext: vscode.MappedEditsContext): languages.MappedEditsContext {
+		return {
+			selections: extContext.selections.map(s => Selection.from(s)),
+			related: extContext.related.map(r => ({
+				uri: URI.from(r.uri),
+				range: Range.from(r.range)
+			}))
+		};
+	}
+}
+
 export namespace NotebookRange {
 
 	export function from(range: vscode.NotebookRange): ICellRange {
@@ -2152,6 +2176,7 @@ export namespace ChatFollowup {
 				kind: 'command',
 				title: followup.title ?? '',
 				commandId: followup.commandId ?? '',
+				when: followup.when ?? '',
 				args: followup.args
 			};
 		} else {

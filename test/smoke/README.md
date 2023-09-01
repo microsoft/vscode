@@ -2,7 +2,7 @@
 
 Make sure you are on **Node v12.x**.
 
-### Quick Overview
+## Quick Overview
 
 ```bash
 # Build extensions in the VS Code repo (if needed)
@@ -57,7 +57,7 @@ xattr -d com.apple.quarantine <path to server with web folder zip>
 - `-f PATTERN` (alias `-g PATTERN`) filters the tests to be run. You can also use pretty much any mocha argument;
 - `--headless` will run playwright in headless mode when `--web` is used.
 
-**Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (https://playwright.dev/docs/debug#verbose-api-logs), for example to `pw:browser`.
+**Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (<https://playwright.dev/docs/debug#verbose-api-logs>), for example to `pw:browser`.
 
 ### Develop
 
