@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { stub } from 'sinon';
-import { timeout } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from 'vs/base/common/event';
@@ -1156,6 +1156,48 @@ suite('Event utils', () => {
 
 		const listener = emitter.event(() => undefined);
 		listener.dispose(); // should not crash
+	});
+
+	suite('fromPromise', () => {
+
+		test('not yet resolved', async function () {
+			return new Promise(resolve => {
+				let promise = new DeferredPromise<number>();
+
+				Event.fromPromise(promise.p)(e => {
+					assert.strictEqual(e, 1);
+
+					promise = new DeferredPromise();
+
+					Event.fromPromise(promise.p)(() => {
+						resolve();
+					});
+
+					promise.error(undefined);
+				});
+
+				promise.complete(1);
+			});
+		});
+
+		test('already resolved', async function () {
+			return new Promise(resolve => {
+				let promise = new DeferredPromise<number>();
+				promise.complete(1);
+
+				Event.fromPromise(promise.p)(e => {
+					assert.strictEqual(e, 1);
+
+					promise = new DeferredPromise();
+					promise.error(undefined);
+
+					Event.fromPromise(promise.p)(() => {
+						resolve();
+					});
+				});
+
+			});
+		});
 	});
 
 	suite('Relay', () => {

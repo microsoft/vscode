@@ -515,19 +515,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView {
 		const locationView = this.assertGroupView(location);
 
-		const restoreFocus = this.shouldRestoreFocus(locationView.element);
-
 		const group = this.doAddGroup(locationView, direction);
 
 		if (options?.activate) {
 			this.doSetGroupActive(group);
-		}
-
-		// Restore focus if we had it previously after completing the grid
-		// operation. That operation might cause reparenting of grid views
-		// which moves focus to the <body> element otherwise.
-		if (restoreFocus) {
-			locationView.focus();
 		}
 
 		return group;

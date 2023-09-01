@@ -160,6 +160,7 @@ export class Response implements IResponse {
 			});
 		} else if (isCompleteInteractiveProgressTreeData(responsePart)) {
 			this._responseParts.push(responsePart);
+			this._updateRepr(quiet);
 		}
 	}
 

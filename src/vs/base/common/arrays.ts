@@ -666,6 +666,10 @@ export namespace CompareResult {
 		return result < 0;
 	}
 
+	export function isLessThanOrEqual(result: CompareResult): boolean {
+		return result <= 0;
+	}
+
 	export function isGreaterThan(result: CompareResult): boolean {
 		return result > 0;
 	}

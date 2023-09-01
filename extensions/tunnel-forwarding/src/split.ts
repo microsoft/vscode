@@ -9,6 +9,8 @@ export const splitNewLines = () => new StreamSplitter('\n'.charCodeAt(0));
 
 /**
  * Copied and simplified from src\vs\base\node\nodeStreams.ts
+ *
+ * Exception: does not include the split character in the output.
  */
 export class StreamSplitter extends Transform {
 	private buffer: Buffer | undefined;
@@ -31,7 +33,7 @@ export class StreamSplitter extends Transform {
 				break;
 			}
 
-			this.push(this.buffer.subarray(offset, index + 1));
+			this.push(this.buffer.subarray(offset, index));
 			offset = index + 1;
 		}
 

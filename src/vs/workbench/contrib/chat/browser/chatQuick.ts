@@ -5,9 +5,10 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
+import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -59,8 +60,9 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 			this.open(providerId, query);
 		}
 	}
+
 	open(providerId?: string, query?: string | undefined): void {
-		if (this.focused) {
+		if (this._input) {
 			return this.focus();
 		}
 
@@ -91,10 +93,13 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 
 			// show needs to come after the quickpick is shown
 			this._currentChat.render(this._container);
+		} else {
+			this._currentChat.show();
 		}
 
 		disposableStore.add(this._input.onDidHide(() => {
 			disposableStore.dispose();
+			this._currentChat!.hide();
 			this._input = undefined;
 			this._onDidClose.fire();
 		}));
@@ -128,6 +133,8 @@ class QuickChat extends Disposable {
 	private sash!: Sash;
 	private model: ChatModel | undefined;
 	private _currentQuery: string | undefined;
+	private maintainScrollTimer: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
+	private _deferUpdatingDynamicLayout: boolean = false;
 
 	constructor(
 		private readonly _options: IChatViewOptions,
@@ -159,6 +166,30 @@ class QuickChat extends Disposable {
 					endColumn: value.length + 1
 				});
 			}
+		}
+	}
+
+	hide(): void {
+		this.widget.setVisible(false);
+		// Maintain scroll position for a short time so that if the user re-shows the chat
+		// the same scroll position will be used.
+		this.maintainScrollTimer.value = disposableTimeout(() => {
+			// At this point, clear this mutable disposable which will be our signal that
+			// the timer has expired and we should stop maintaining scroll position
+			this.maintainScrollTimer.clear();
+		}, 30 * 1000); // 30 seconds
+	}
+
+	show(): void {
+		this.widget.setVisible(true);
+		// If the mutable disposable is set, then we are keeping the existing scroll position
+		// so we should not update the layout.
+		if (this._deferUpdatingDynamicLayout) {
+			this._deferUpdatingDynamicLayout = false;
+			this.widget.updateDynamicChatTreeItemLayout(2, this.maxHeight);
+		}
+		if (!this.maintainScrollTimer.value) {
+			this.widget.layoutDynamicChatTreeItemMode();
 		}
 	}
 
@@ -196,7 +227,14 @@ class QuickChat extends Disposable {
 
 	private registerListeners(parent: HTMLElement): void {
 		this._register(this.layoutService.onDidLayout(() => {
-			this.widget.updateDynamicChatTreeItemLayout(2, this.maxHeight);
+			if (this.widget.visible) {
+				this.widget.updateDynamicChatTreeItemLayout(2, this.maxHeight);
+			} else {
+				// If the chat is not visible, then we should defer updating the layout
+				// because it relies on offsetHeight which only works correctly
+				// when the chat is visible.
+				this._deferUpdatingDynamicLayout = true;
+			}
 		}));
 		this._register(this.widget.inputEditor.onDidChangeModelContent((e) => {
 			this._currentQuery = this.widget.inputEditor.getValue();
