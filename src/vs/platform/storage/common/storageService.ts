@@ -5,6 +5,7 @@
 
 import { Promises } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -117,11 +118,11 @@ export class RemoteStorageService extends AbstractStorageService {
 	protected getLogDetails(scope: StorageScope): string | undefined {
 		switch (scope) {
 			case StorageScope.APPLICATION:
-				return this.applicationStorageProfile.globalStorageHome.fsPath;
+				return this.applicationStorageProfile.globalStorageHome.with({ scheme: Schemas.file }).fsPath;
 			case StorageScope.PROFILE:
-				return this.profileStorageProfile?.globalStorageHome.fsPath;
+				return this.profileStorageProfile?.globalStorageHome.with({ scheme: Schemas.file }).fsPath;
 			default:
-				return this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
+				return this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').with({ scheme: Schemas.file }).fsPath}` : undefined;
 		}
 	}
 

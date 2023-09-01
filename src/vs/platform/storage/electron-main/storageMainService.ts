@@ -19,6 +19,7 @@ import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userData
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { Schemas } from 'vs/base/common/network';
 
 //#region Storage Main Service (intent: make application, profile and workspace storage accessible to windows from main process)
 
@@ -359,7 +360,7 @@ export class ApplicationStorageMainService extends AbstractStorageService implem
 
 	protected getLogDetails(scope: StorageScope): string | undefined {
 		if (scope === StorageScope.APPLICATION) {
-			return this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath;
+			return this.userDataProfilesService.defaultProfile.globalStorageHome.with({ scheme: Schemas.file }).fsPath;
 		}
 
 		return undefined; // any other scope is unsupported from main process
