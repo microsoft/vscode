@@ -48,18 +48,19 @@ function getSearchText(accessor: ServicesAccessor): string | null {
 		return null;
 	}
 	const activeEditor: IEditor = editorService.activeTextEditorControl;
+	if (!activeEditor) {
+		return null;
+	}
 	if (!activeEditor.hasTextFocus()) {
 		return null;
 	}
 
+	// only happen if it would also happen for the search view
 	const seedSearchStringFromSelection = configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
 	if (!seedSearchStringFromSelection) {
 		return null;
 	}
 
-	if (!activeEditor) {
-		return null;
-	}
 	const range = activeEditor.getSelection();
 	if (!range) {
 		return null;
