@@ -11,7 +11,6 @@ import { category } from 'vs/workbench/contrib/search/browser/searchActionsBase'
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { TEXT_SEARCH_QUICK_ACCESS_PREFIX } from 'vs/workbench/contrib/search/browser/quickTextSearch/textSearchQuickAccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditor } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { getSelectionTextFromEditor } from 'vs/editor/contrib/find/browser/findController';
@@ -43,15 +42,10 @@ function getSearchText(accessor: ServicesAccessor): string | null {
 	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
 
-	if (editorService.activeTextEditorControl === undefined) {
+	if (!editorService.activeTextEditorControl) {
 		return null;
 	}
-
-	const activeEditor: IEditor = editorService.activeTextEditorControl;
-	if (!activeEditor) {
-		return null;
-	}
-	if (!activeEditor.hasTextFocus()) {
+	if (!editorService.activeTextEditorControl.hasTextFocus()) {
 		return null;
 	}
 
