@@ -94,6 +94,7 @@ class InspectContextKeysAction extends Action2 {
 
 interface IScreencastKeyboardOptions {
 	readonly showKeys?: boolean;
+	readonly showKeybindings?: boolean;
 	readonly showCommands?: boolean;
 	readonly showCommandGroups?: boolean;
 	readonly showSingleEditorCursorMoves?: boolean;
@@ -315,7 +316,7 @@ class ToggleScreencastModeAction extends Action2 {
 				append(keyboardMarker, $('span.title', {}, `${commandAndGroupLabel} `));
 			}
 
-			if (options.showKeys ?? true) {
+			if ((options.showKeys ?? true) || (command && (options.showKeybindings ?? true))) {
 				// Fix label for arrow keys
 				keyLabel = keyLabel?.replace('UpArrow', '↑')
 					?.replace('DownArrow', '↓')
@@ -435,6 +436,11 @@ configurationRegistry.registerConfiguration({
 					default: true,
 					description: localize('screencastMode.keyboardOptions.showKeys', "Show raw keys.")
 				},
+				'showKeybindings': {
+					type: 'boolean',
+					default: true,
+					description: localize('screencastMode.keyboardOptions.showKeybindings', "Show keyboard shortcuts.")
+				},
 				'showCommands': {
 					type: 'boolean',
 					default: true,
@@ -453,6 +459,7 @@ configurationRegistry.registerConfiguration({
 			},
 			default: {
 				'showKeys': true,
+				'showKeybindings': true,
 				'showCommands': true,
 				'showCommandGroups': false,
 				'showSingleEditorCursorMoves': true

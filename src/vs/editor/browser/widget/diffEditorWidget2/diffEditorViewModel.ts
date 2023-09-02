@@ -4,22 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ISettableObservable, ITransaction, autorunWithStore, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
-import { isDefined } from 'vs/base/common/types';
+import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { ISerializedLineRange, LineRange } from 'vs/editor/common/core/lineRange';
-import { Range } from 'vs/editor/common/core/range';
+import { AdvancedLinesDiffComputer } from 'vs/editor/common/diff/advancedLinesDiffComputer';
 import { IDocumentDiff, IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
-import { LineRangeMapping, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { AdvancedLinesDiffComputer, lineRangeMappingFromRangeMappings } from 'vs/editor/common/diff/advancedLinesDiffComputer';
+import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IDiffEditorModel, IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextEditInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper';
 import { combineTextEditInfos } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos';
-import { lengthAdd, lengthDiffNonNegative, lengthGetLineCount, lengthOfRange, lengthToPosition, lengthZero, positionToLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { DiffEditorOptions } from './diffEditorOptions';
-import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export class DiffEditorViewModel extends Disposable implements IDiffEditorViewModel {
 	private readonly _isDiffUpToDate = observableValue<boolean>('isDiffUpToDate', false);
@@ -296,7 +294,7 @@ export class DiffState {
 
 export class DiffMapping {
 	constructor(
-		readonly lineRangeMapping: LineRangeMapping,
+		readonly lineRangeMapping: DetailedLineRangeMapping,
 	) {
 		/*
 		readonly movedTo: MovedText | undefined,
@@ -321,19 +319,19 @@ export class DiffMapping {
 
 export class UnchangedRegion {
 	public static fromDiffs(
-		changes: readonly LineRangeMapping[],
+		changes: readonly DetailedLineRangeMapping[],
 		originalLineCount: number,
 		modifiedLineCount: number,
 		minHiddenLineCount: number,
 		minContext: number,
 	): UnchangedRegion[] {
-		const inversedMappings = LineRangeMapping.inverse(changes, originalLineCount, modifiedLineCount);
+		const inversedMappings = DetailedLineRangeMapping.inverse(changes, originalLineCount, modifiedLineCount);
 		const result: UnchangedRegion[] = [];
 
 		for (const mapping of inversedMappings) {
-			let origStart = mapping.originalRange.startLineNumber;
-			let modStart = mapping.modifiedRange.startLineNumber;
-			let length = mapping.originalRange.length;
+			let origStart = mapping.original.startLineNumber;
+			let modStart = mapping.modified.startLineNumber;
+			let length = mapping.original.length;
 
 			const atStart = origStart === 1 && modStart === 1;
 			const atEnd = origStart + length === originalLineCount + 1 && modStart + length === modifiedLineCount + 1;
@@ -469,6 +467,9 @@ export class UnchangedRegion {
 }
 
 function applyOriginalEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], originalTextModel: ITextModel, modifiedTextModel: ITextModel): IDocumentDiff | undefined {
+	return undefined;
+	/*
+	TODO@hediet
 	if (textEdits.length === 0) {
 		return diff;
 	}
@@ -478,9 +479,9 @@ function applyOriginalEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], orig
 	if (!diff3) {
 		return undefined;
 	}
-	return flip(diff3);
+	return flip(diff3);*/
 }
-
+/*
 function flip(diff: IDocumentDiff): IDocumentDiff {
 	return {
 		changes: diff.changes.map(c => c.flip()),
@@ -489,8 +490,11 @@ function flip(diff: IDocumentDiff): IDocumentDiff {
 		quitEarly: diff.quitEarly,
 	};
 }
-
+*/
 function applyModifiedEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], originalTextModel: ITextModel, modifiedTextModel: ITextModel): IDocumentDiff | undefined {
+	return undefined;
+	/*
+	TODO@hediet
 	if (textEdits.length === 0) {
 		return diff;
 	}
@@ -514,9 +518,9 @@ function applyModifiedEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], orig
 		quitEarly: false,
 		changes,
 		moves,
-	};
+	};*/
 }
-
+/*
 function applyEditToLineRange(range: LineRange, textEdits: TextEditInfo[]): LineRange | undefined {
 	let rangeStartLineNumber = range.startLineNumber;
 	let rangeEndLineNumberEx = range.endLineNumberExclusive;
@@ -583,3 +587,4 @@ function applyModifiedEditsToLineRangeMappings(changes: readonly LineRangeMappin
 	);
 	return newChanges;
 }
+*/

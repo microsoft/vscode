@@ -21,7 +21,8 @@ import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { DiffComputer, IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputer, ILinesDiffComputerOptions } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from '../diff/rangeMapping';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
@@ -422,8 +423,8 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 		const identical = (result.changes.length > 0 ? false : this._modelsAreIdentical(originalTextModel, modifiedTextModel));
 
-		function getLineChanges(changes: readonly LineRangeMapping[]): ILineChange[] {
-			return changes.map(m => ([m.originalRange.startLineNumber, m.originalRange.endLineNumberExclusive, m.modifiedRange.startLineNumber, m.modifiedRange.endLineNumberExclusive, m.innerChanges?.map(m => [
+		function getLineChanges(changes: readonly DetailedLineRangeMapping[]): ILineChange[] {
+			return changes.map(m => ([m.original.startLineNumber, m.original.endLineNumberExclusive, m.modified.startLineNumber, m.modified.endLineNumberExclusive, m.innerChanges?.map(m => [
 				m.originalRange.startLineNumber,
 				m.originalRange.startColumn,
 				m.originalRange.endLineNumber,

@@ -5,7 +5,8 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { LineRangeMapping, MovedText } from 'vs/editor/common/diff/linesDiffComputer';
+import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from './rangeMapping';
 import { ITextModel } from 'vs/editor/common/model';
 
 /**
@@ -61,7 +62,7 @@ export interface IDocumentDiff {
 	/**
 	 * Maps all modified line ranges in the original to the corresponding line ranges in the modified text model.
 	 */
-	readonly changes: readonly LineRangeMapping[];
+	readonly changes: readonly DetailedLineRangeMapping[];
 
 	/**
 	 * Sorted by original line ranges.

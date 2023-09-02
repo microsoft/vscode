@@ -9,7 +9,7 @@ import { Action } from 'vs/base/common/actions';
 import { booleanComparator, compareBy, findMaxIdxBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunWithStore, constObservable, derived, derivedWithStore, keepAlive, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
+import { IObservable, autorun, autorunHandleChanges, autorunWithStore, constObservable, derived, derivedWithStore, keepAlive, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
@@ -82,19 +82,50 @@ export class MovedBlocksLinesPart extends Disposable {
 			}
 		}));
 
-		this._register(this._editors.original.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
-			if (!m) { return; }
-			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.original.contains(e.position.lineNumber));
-			if (movedText !== m.movedTextToCompare.get()) {
-				m.movedTextToCompare.set(undefined, undefined);
+		const originalCursorPosition = observableFromEvent(this._editors.original.onDidChangeCursorPosition, () => this._editors.original.getPosition());
+		const modifiedCursorPosition = observableFromEvent(this._editors.modified.onDidChangeCursorPosition, () => this._editors.modified.getPosition());
+		const originalHasFocus = observableSignalFromEvent(
+			'original.onDidFocusEditorWidget',
+			e => this._editors.original.onDidFocusEditorWidget(() => setTimeout(() => e(undefined), 0))
+		);
+		const modifiedHasFocus = observableSignalFromEvent(
+			'modified.onDidFocusEditorWidget',
+			e => this._editors.modified.onDidFocusEditorWidget(() => setTimeout(() => e(undefined), 0))
+		);
+
+		let lastChangedEditor: 'original' | 'modified' = 'modified';
+
+		this._register(autorunHandleChanges({
+			createEmptyChangeSummary: () => undefined,
+			handleChange: (ctx, summary) => {
+				if (ctx.didChange(originalHasFocus)) { lastChangedEditor = 'original'; }
+				if (ctx.didChange(modifiedHasFocus)) { lastChangedEditor = 'modified'; }
+				return true;
 			}
-			m.setActiveMovedText(movedText);
-		}));
-		this._register(this._editors.modified.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
+		}, reader => {
+			originalHasFocus.read(reader);
+			modifiedHasFocus.read(reader);
+
+			const m = this._diffModel.read(reader);
 			if (!m) { return; }
-			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.modified.contains(e.position.lineNumber));
+			const diff = m.diff.read(reader);
+
+			let movedText: MovedText | undefined = undefined;
+
+			if (diff && lastChangedEditor === 'original') {
+				const originalPos = originalCursorPosition.read(reader);
+				if (originalPos) {
+					movedText = diff.movedTexts.find(m => m.lineRangeMapping.original.contains(originalPos.lineNumber));
+				}
+			}
+
+			if (diff && lastChangedEditor === 'modified') {
+				const modifiedPos = modifiedCursorPosition.read(reader);
+				if (modifiedPos) {
+					movedText = diff.movedTexts.find(m => m.lineRangeMapping.modified.contains(modifiedPos.lineNumber));
+				}
+			}
+
 			if (movedText !== m.movedTextToCompare.get()) {
 				m.movedTextToCompare.set(undefined, undefined);
 			}
@@ -324,7 +355,7 @@ class MovedBlockOverlayWidget extends ViewZoneOverlayWidget {
 			true,
 			() => {
 				this._editor.focus();
-				this._diffModel.movedTextToCompare.set(this._diffModel.movedTextToCompare.get() ? undefined : this._move, undefined);
+				this._diffModel.movedTextToCompare.set(this._diffModel.movedTextToCompare.get() === _move ? undefined : this._move, undefined);
 			},
 		);
 		this._register(autorun(reader => {

@@ -101,6 +101,7 @@ export class InlineChatController implements IEditorContribution {
 	private _messages = this._store.add(new Emitter<Message>());
 
 	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
+	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
 
 	private readonly _sessionStore: DisposableStore = this._store.add(new DisposableStore());
 	private readonly _stashedSession: MutableDisposable<StashedSession> = this._store.add(new MutableDisposable());

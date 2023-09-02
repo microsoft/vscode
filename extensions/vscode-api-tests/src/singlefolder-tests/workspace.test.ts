@@ -977,6 +977,22 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(document.getText(), expected);
 	});
 
+
+	test('[Bug] Failed to create new test file when in an untitled file #1261', async function () {
+		const uri = vscode.Uri.parse('untitled:Untitled-5.test');
+		const contents = `Hello Test File ${uri.toString()}`;
+		const we = new vscode.WorkspaceEdit();
+		we.createFile(uri, { ignoreIfExists: true });
+		we.replace(uri, new vscode.Range(0, 0, 0, 0), contents);
+
+		const success = await vscode.workspace.applyEdit(we);
+
+		assert.ok(success);
+
+		const doc = await vscode.workspace.openTextDocument(uri);
+		assert.strictEqual(doc.getText(), contents);
+	});
+
 	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867, 1/3', async function () {
 
 		const file1 = await createRandomFile();

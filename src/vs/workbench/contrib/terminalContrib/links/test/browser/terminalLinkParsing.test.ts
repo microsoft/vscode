@@ -47,6 +47,8 @@ const testLinks: ITestLink[] = [
 	{ link: 'foo 339', prefix: undefined, suffix: ' 339', hasRow: true, hasCol: false },
 	{ link: 'foo 339:12', prefix: undefined, suffix: ' 339:12', hasRow: true, hasCol: true },
 	{ link: 'foo 339.12', prefix: undefined, suffix: ' 339.12', hasRow: true, hasCol: true },
+	{ link: 'foo 339.12-14', prefix: undefined, suffix: ' 339.12-14', hasRow: true, hasCol: true, hasRowEnd: false, hasColEnd: true },
+	{ link: 'foo 339.12-341.14', prefix: undefined, suffix: ' 339.12-341.14', hasRow: true, hasCol: true, hasRowEnd: true, hasColEnd: true },
 
 	// Double quotes
 	{ link: '"foo",339', prefix: '"', suffix: '",339', hasRow: true, hasCol: false },
