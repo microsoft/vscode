@@ -81,7 +81,7 @@ export class MonotonousArray<T> {
 	public static assertInvariants = false;
 
 	private _findLastMonotonousLastIdx = 0;
-	private _lastPredicate: ((item: T) => boolean) | undefined;
+	private _prevFindLastPredicate: ((item: T) => boolean) | undefined;
 
 	constructor(private readonly _items: T[]) {
 	}
@@ -92,14 +92,14 @@ export class MonotonousArray<T> {
 	 */
 	findLastMonotonous(predicate: (item: T) => boolean): T | undefined {
 		if (MonotonousArray.assertInvariants) {
-			if (this._lastPredicate) {
+			if (this._prevFindLastPredicate) {
 				for (const item of this._items) {
-					if (this._lastPredicate(item) && !predicate(item)) {
+					if (this._prevFindLastPredicate(item) && !predicate(item)) {
 						throw new Error('MonotonousArray: current predicate must be weaker than (or equal to) the previous predicate.');
 					}
 				}
 			}
-			this._lastPredicate = predicate;
+			this._prevFindLastPredicate = predicate;
 		}
 
 		const idx = findLastIdxMonotonous(this._items, predicate, this._findLastMonotonousLastIdx);
