@@ -27,7 +27,7 @@ import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeE
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { CommonFindController } from 'vs/editor/contrib/find/browser/findController';
+import { CommonFindController, getSelectionTextFromEditor } from 'vs/editor/contrib/find/browser/findController';
 import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/browser/multicursor';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -1288,45 +1288,12 @@ export class SearchView extends ViewPane {
 			}
 		}
 
-		if (!isCodeEditor(editor) || !editor.hasModel()) {
+		if (!editor) {
 			return null;
 		}
 
-		const range = editor.getSelection();
-		if (!range) {
-			return null;
-		}
-
-		if (range.isEmpty() && this.searchConfig.seedWithNearestWord && allowUnselectedWord) {
-			const wordAtPosition = editor.getModel().getWordAtPosition(range.getStartPosition());
-			if (wordAtPosition) {
-				return wordAtPosition.word;
-			}
-		}
-
-		if (!range.isEmpty()) {
-			let searchText = '';
-			for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
-				let lineText = editor.getModel().getLineContent(i);
-				if (i === range.endLineNumber) {
-					lineText = lineText.substring(0, range.endColumn - 1);
-				}
-
-				if (i === range.startLineNumber) {
-					lineText = lineText.substring(range.startColumn - 1);
-				}
-
-				if (i !== range.startLineNumber) {
-					lineText = '\n' + lineText;
-				}
-
-				searchText += lineText;
-			}
-
-			return searchText;
-		}
-
-		return null;
+		const allowUnselected = this.searchConfig.seedWithNearestWord && allowUnselectedWord;
+		return getSelectionTextFromEditor(allowUnselected, editor, this.configurationService);
 	}
 
 	private showsFileTypes(): boolean {
