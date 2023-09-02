@@ -201,6 +201,12 @@ export function* groupAdjacentBy<T>(items: Iterable<T>, shouldBeGrouped: (item1:
 	}
 }
 
+export function forEachAdjacent<T>(arr: T[], f: (item1: T | undefined, item2: T | undefined) => void): void {
+	for (let i = 0; i <= arr.length; i++) {
+		f(i === 0 ? undefined : arr[i - 1], i === arr.length ? undefined : arr[i]);
+	}
+}
+
 interface IMutableSplice<T> extends ISplice<T> {
 	readonly toInsert: T[];
 	deleteCount: number;

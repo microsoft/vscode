@@ -7,6 +7,7 @@ import { addDisposableListener, addStandardDisposableListener, reset } from 'vs/
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Action } from 'vs/base/common/actions';
+import { forEachAdjacent, groupAdjacentBy } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
@@ -224,7 +225,7 @@ const viewElementGroupLineMargin = 3;
 function computeViewElementGroups(diffs: DetailedLineRangeMapping[], originalLineCount: number, modifiedLineCount: number): ViewElementGroup[] {
 	const result: ViewElementGroup[] = [];
 
-	for (const g of group(diffs, (a, b) => (b.modified.startLineNumber - a.modified.endLineNumberExclusive < 2 * viewElementGroupLineMargin))) {
+	for (const g of groupAdjacentBy(diffs, (a, b) => (b.modified.startLineNumber - a.modified.endLineNumberExclusive < 2 * viewElementGroupLineMargin))) {
 		const viewElements: ViewElement[] = [];
 		viewElements.push(new HeaderViewElement());
 
@@ -237,7 +238,7 @@ function computeViewElementGroups(diffs: DetailedLineRangeMapping[], originalLin
 			Math.min(g[g.length - 1].modified.endLineNumberExclusive + viewElementGroupLineMargin, modifiedLineCount + 1)
 		);
 
-		forEachAdjacentItems(g, (a, b) => {
+		forEachAdjacent(g, (a, b) => {
 			const origRange = new LineRange(a ? a.original.endLineNumberExclusive : origFullRange.startLineNumber, b ? b.original.startLineNumber : origFullRange.endLineNumberExclusive);
 			const modifiedRange = new LineRange(a ? a.modified.endLineNumberExclusive : modifiedFullRange.startLineNumber, b ? b.modified.startLineNumber : modifiedFullRange.endLineNumberExclusive);
 
@@ -657,33 +658,5 @@ class View extends Disposable {
 		));
 
 		return r.html;
-	}
-}
-
-function forEachAdjacentItems<T>(items: T[], callback: (item1: T | undefined, item2: T | undefined) => void) {
-	let last: T | undefined;
-	for (const item of items) {
-		callback(last, item);
-		last = item;
-	}
-	callback(last, undefined);
-}
-
-function* group<T>(items: Iterable<T>, shouldBeGrouped: (item1: T, item2: T) => boolean): Iterable<T[]> {
-	let currentGroup: T[] | undefined;
-	let last: T | undefined;
-	for (const item of items) {
-		if (last !== undefined && shouldBeGrouped(last, item)) {
-			currentGroup!.push(item);
-		} else {
-			if (currentGroup) {
-				yield currentGroup;
-			}
-			currentGroup = [item];
-		}
-		last = item;
-	}
-	if (currentGroup) {
-		yield currentGroup;
 	}
 }

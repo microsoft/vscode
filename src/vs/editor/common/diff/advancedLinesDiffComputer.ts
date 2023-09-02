@@ -195,6 +195,8 @@ export class AdvancedLinesDiffComputer implements ILinesDiffComputer {
 			changes.filter(c => !excludedChanges.has(c)),
 			hashedOriginalLines,
 			hashedModifiedLines,
+			originalLines,
+			modifiedLines,
 			timeout
 		);
 		pushMany(moves, unchangedMoves);
@@ -297,6 +299,8 @@ export class AdvancedLinesDiffComputer implements ILinesDiffComputer {
 		changes: DetailedLineRangeMapping[],
 		hashedOriginalLines: number[],
 		hashedModifiedLines: number[],
+		originalLines: string[],
+		modifiedLines: string[],
 		timeout: ITimeout,
 	) {
 		const moves: LineRangeMapping[] = [];
@@ -380,7 +384,102 @@ export class AdvancedLinesDiffComputer implements ILinesDiffComputer {
 			}
 		}
 
+		moves.sort(compareBy(m => m.original.startLineNumber, numberComparator));
+
+		const monotonousChanges = new MonotonousArray(changes);
+		for (let i = 0; i < moves.length; i++) {
+			const move = moves[i];
+			const firstTouchingChangeOrig = monotonousChanges.findLastMonotonous(c => c.original.startLineNumber <= move.original.startLineNumber)!;
+			const firstTouchingChangeMod = findLastMonotonous(changes, c => c.modified.startLineNumber <= move.modified.startLineNumber)!;
+			const linesAbove = Math.max(
+				move.original.startLineNumber - firstTouchingChangeOrig.original.startLineNumber,
+				move.modified.startLineNumber - firstTouchingChangeMod.modified.startLineNumber
+			);
+
+			const lastTouchingChangeOrig = monotonousChanges.findLastMonotonous(c => c.original.startLineNumber < move.original.endLineNumberExclusive)!;
+			const lastTouchingChangeMod = findLastMonotonous(changes, c => c.modified.startLineNumber < move.modified.endLineNumberExclusive)!;
+			const linesBelow = Math.max(
+				lastTouchingChangeOrig.original.endLineNumberExclusive - move.original.endLineNumberExclusive,
+				lastTouchingChangeMod.modified.endLineNumberExclusive - move.modified.endLineNumberExclusive
+			);
+
+			let extendToTop: number;
+			for (extendToTop = 0; extendToTop < linesAbove; extendToTop++) {
+				const origLine = move.original.startLineNumber - extendToTop - 1;
+				const modLine = move.modified.startLineNumber - extendToTop - 1;
+				if (modifiedSet.contains(modLine) || originalSet.contains(origLine)) {
+					break;
+				}
+				if (!this.areLinesSimilar(originalLines[origLine - 1], modifiedLines[modLine - 1], timeout)) {
+					break;
+				}
+			}
+
+			if (extendToTop > 0) {
+				originalSet.addRange(new LineRange(move.original.startLineNumber - extendToTop, move.original.startLineNumber));
+				modifiedSet.addRange(new LineRange(move.modified.startLineNumber - extendToTop, move.modified.startLineNumber));
+			}
+
+			let extendToBottom: number;
+			for (extendToBottom = 0; extendToBottom < linesBelow; extendToBottom++) {
+				const origLine = move.original.endLineNumberExclusive + extendToBottom;
+				const modLine = move.modified.endLineNumberExclusive + extendToBottom;
+				if (modifiedSet.contains(modLine) || originalSet.contains(origLine)) {
+					break;
+				}
+				if (!this.areLinesSimilar(originalLines[origLine - 1], modifiedLines[modLine - 1], timeout)) {
+					break;
+				}
+			}
+
+			if (extendToBottom > 0) {
+				originalSet.addRange(new LineRange(move.original.endLineNumberExclusive, move.original.endLineNumberExclusive + extendToBottom));
+				modifiedSet.addRange(new LineRange(move.modified.endLineNumberExclusive, move.modified.endLineNumberExclusive + extendToBottom));
+			}
+
+			if (extendToTop > 0 || extendToBottom > 0) {
+				moves[i] = new LineRangeMapping(
+					new LineRange(move.original.startLineNumber - extendToTop, move.original.endLineNumberExclusive + extendToBottom),
+					new LineRange(move.modified.startLineNumber - extendToTop, move.modified.endLineNumberExclusive + extendToBottom),
+				);
+			}
+		}
+
 		return moves;
+	}
+
+	private areLinesSimilar(line1: string, line2: string, timeout: ITimeout): boolean {
+		if (line1.trim() === line2.trim()) { return true; }
+		if (line1.length > 300 && line2.length > 300) { return false; }
+
+		const result = this.myersDiffingAlgorithm.compute(
+			new LinesSliceCharSequence([line1], new OffsetRange(0, 1), false),
+			new LinesSliceCharSequence([line2], new OffsetRange(0, 1), false),
+			timeout
+		);
+		let commonNonSpaceCharCount = 0;
+		const inverted = SequenceDiff.invert(result.diffs, line1.length);
+		for (const seq of inverted) {
+			seq.seq1Range.forEach(idx => {
+				if (!isSpace(line1.charCodeAt(idx))) {
+					commonNonSpaceCharCount++;
+				}
+			});
+		}
+
+		function countNonWsChars(str: string): number {
+			let count = 0;
+			for (let i = 0; i < line1.length; i++) {
+				if (!isSpace(str.charCodeAt(i))) {
+					count++;
+				}
+			}
+			return count;
+		}
+
+		const longerLineLength = countNonWsChars(line1.length > line2.length ? line1 : line2);
+		const r = commonNonSpaceCharCount / longerLineLength > 0.6 && longerLineLength > 10;
+		return r;
 	}
 
 	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout, considerWhitespaceChanges: boolean): { mappings: RangeMapping[]; hitTimeout: boolean } {
