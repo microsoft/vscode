@@ -14,7 +14,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 	private lastCompletionType: string | undefined;
 
-	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, _: vscode.CancellationToken, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
+	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, _: vscode.CancellationToken, context: vscode.CompletionContext): PromiseLike<vscode.CompletionList | undefined> | undefined {
 		const completionResult = this.provideCompletionItemsInternal(document, position, context);
 		if (!completionResult) {
 			this.lastCompletionType = undefined;
@@ -40,7 +40,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		});
 	}
 
-	private provideCompletionItemsInternal(document: vscode.TextDocument, position: vscode.Position, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
+	private provideCompletionItemsInternal(document: vscode.TextDocument, position: vscode.Position, context: vscode.CompletionContext): PromiseLike<vscode.CompletionList | undefined> | undefined {
 		const emmetConfig = vscode.workspace.getConfiguration('emmet');
 		const excludedLanguages = emmetConfig['excludeLanguages'] ? emmetConfig['excludeLanguages'] : [];
 		if (excludedLanguages.includes(document.languageId)) {
@@ -161,7 +161,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			return;
 		}
 
-		let isNoisePromise: Thenable<boolean> = Promise.resolve(false);
+		let isNoisePromise: PromiseLike<boolean> = Promise.resolve(false);
 
 		// Fix for https://github.com/microsoft/vscode/issues/32647
 		// Check for document symbols in js/ts/jsx/tsx and avoid triggering emmet for abbreviations of the form symbolName.sometext

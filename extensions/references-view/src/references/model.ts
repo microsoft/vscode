@@ -349,7 +349,7 @@ export class FileItem {
 
 export class ReferenceItem {
 
-	private _document: Thenable<vscode.TextDocument> | undefined;
+	private _document: PromiseLike<vscode.TextDocument> | undefined;
 
 	constructor(
 		readonly location: vscode.Location,

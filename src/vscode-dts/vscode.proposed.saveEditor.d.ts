@@ -16,9 +16,9 @@ declare module 'vscode' {
 		 * **Note** that an editor with the provided resource must be opened in order to be saved.
 		 *
 		 * @param uri the associated uri for the opened editor to save.
-		 * @return A thenable that resolves when the save operation has finished.
+		 * @return A promise-like that resolves when the save operation has finished.
 		 */
-		export function save(uri: Uri): Thenable<Uri | undefined>;
+		export function save(uri: Uri): PromiseLike<Uri | undefined>;
 
 		/**
 		 * Saves the editor identified by the given resource to a new file name as provided by the user and
@@ -28,8 +28,8 @@ declare module 'vscode' {
 		 * **Note** that an editor with the provided resource must be opened in order to be saved as.
 		 *
 		 * @param uri the associated uri for the opened editor to save as.
-		 * @return A thenable that resolves when the save-as operation has finished.
+		 * @return A promise-like that resolves when the save-as operation has finished.
 		 */
-		export function saveAs(uri: Uri): Thenable<Uri | undefined>;
+		export function saveAs(uri: Uri): PromiseLike<Uri | undefined>;
 	}
 }

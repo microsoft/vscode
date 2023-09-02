@@ -683,9 +683,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			throw new Error('Unable to resolve workspace folder');
 		}
 
-		await this._onWillCreateEditSessionIdentityEvent.fireAsync({ workspaceFolder: folder }, token, async (thenable: Promise<unknown>, listener) => {
+		await this._onWillCreateEditSessionIdentityEvent.fireAsync({ workspaceFolder: folder }, token, async (promise: Promise<unknown>, listener) => {
 			const now = Date.now();
-			await Promise.resolve(thenable);
+			await Promise.resolve(promise);
 			if (Date.now() - now > timeout) {
 				this._logService.warn('SLOW edit session create-participant', (<IExtensionListener<vscode.EditSessionIdentityWillCreateEvent>>listener).extension.identifier);
 			}
@@ -762,4 +762,3 @@ interface IExtensionListener<E> {
 	extension: IExtensionDescription;
 	(e: E): any;
 }
-

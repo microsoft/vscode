@@ -71,7 +71,7 @@ declare module 'vscode' {
 		 *
 		 * @return Priority indicating if the opener can open the external uri.
 		 */
-		canOpenExternalUri(uri: Uri, token: CancellationToken): ExternalUriOpenerPriority | Thenable<ExternalUriOpenerPriority>;
+		canOpenExternalUri(uri: Uri, token: CancellationToken): ExternalUriOpenerPriority | PromiseLike<ExternalUriOpenerPriority>;
 
 		/**
 		 * Open a uri.
@@ -88,9 +88,9 @@ declare module 'vscode' {
 		 * @param ctx Additional information about the uri being opened.
 		 * @param token Cancellation token indicating that opening has been canceled.
 		 *
-		 * @return Thenable indicating that the opening has completed.
+		 * @return Promise-like indicating that the opening has completed.
 		 */
-		openExternalUri(resolvedUri: Uri, ctx: OpenExternalUriContext, token: CancellationToken): Thenable<void> | void;
+		openExternalUri(resolvedUri: Uri, ctx: OpenExternalUriContext, token: CancellationToken): PromiseLike<void> | void;
 	}
 
 	/**
@@ -158,6 +158,6 @@ declare module 'vscode' {
 	}
 
 	namespace env {
-		export function openExternal(target: Uri, options?: OpenExternalOptions): Thenable<boolean>;
+		export function openExternal(target: Uri, options?: OpenExternalOptions): PromiseLike<boolean>;
 	}
 }

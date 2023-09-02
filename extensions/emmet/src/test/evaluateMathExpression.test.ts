@@ -12,7 +12,7 @@ import { evaluateMathExpression } from '../evaluateMathExpression';
 suite('Tests for Evaluate Math Expression', () => {
 	teardown(closeAllEditors);
 
-	function testEvaluateMathExpression(fileContents: string, selection: [number, number] | number, expectedFileContents: string): Thenable<boolean> {
+	function testEvaluateMathExpression(fileContents: string, selection: [number, number] | number, expectedFileContents: string): PromiseLike<boolean> {
 		return withRandomFileEditor(fileContents, 'html', async (editor, _doc) => {
 			const selectionToUse = typeof selection === 'number' ?
 				new Selection(new Position(0, selection), new Position(0, selection)) :

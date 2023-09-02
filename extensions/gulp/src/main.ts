@@ -114,7 +114,7 @@ interface GulpTaskDefinition extends vscode.TaskDefinition {
 class FolderDetector {
 
 	private fileWatcher: vscode.FileSystemWatcher | undefined;
-	private promise: Thenable<vscode.Task[]> | undefined;
+	private promise: PromiseLike<vscode.Task[]> | undefined;
 
 	constructor(
 		private _workspaceFolder: vscode.WorkspaceFolder,

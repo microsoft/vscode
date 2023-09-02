@@ -594,7 +594,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			const reportIssueItem: vscode.MessageItem = {
 				title: vscode.l10n.t("Report Issue"),
 			};
-			let prompt: Thenable<undefined | vscode.MessageItem> | undefined = undefined;
+			let prompt: PromiseLike<undefined | vscode.MessageItem> | undefined = undefined;
 
 			if (this.numberRestarts > 5) {
 				this.numberRestarts = 0;

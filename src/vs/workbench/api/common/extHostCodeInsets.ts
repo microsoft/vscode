@@ -93,7 +93,7 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 				return onDidReceiveMessage.event;
 			}
 
-			postMessage(message: any): Thenable<boolean> {
+			postMessage(message: any): PromiseLike<boolean> {
 				return that._proxy.$postMessage(handle, message);
 			}
 		};

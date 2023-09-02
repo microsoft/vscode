@@ -16,7 +16,7 @@ export interface IDataTransferFile {
 }
 
 export interface IDataTransferItem {
-	asString(): Thenable<string>;
+	asString(): PromiseLike<string>;
 	asFile(): IDataTransferFile | undefined;
 	value: any;
 }

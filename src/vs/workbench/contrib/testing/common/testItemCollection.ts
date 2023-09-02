@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Barrier, isThenable, RunOnceScheduler } from 'vs/base/common/async';
+import { Barrier, isPromiseLike, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { assertNever } from 'vs/base/common/assert';
@@ -523,7 +523,7 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		const expandRequests: Promise<void>[] = [];
 		for (const [_, child] of this.options.getChildren(internal.actual)) {
 			const promise = this.expand(TestId.joinToString(internal.fullId, child.id), levels);
-			if (isThenable(promise)) {
+			if (isPromiseLike(promise)) {
 				expandRequests.push(promise);
 			}
 		}
@@ -555,14 +555,14 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			console.error(`Unhandled error in resolveHandler of test controller "${this.options.controllerId}"`, err);
 		};
 
-		let r: Thenable<void> | undefined | void;
+		let r: PromiseLike<void> | undefined | void;
 		try {
 			r = this._resolveHandler(internal.actual === this.root ? undefined : internal.actual);
 		} catch (err) {
 			applyError(err);
 		}
 
-		if (isThenable(r)) {
+		if (isPromiseLike(r)) {
 			r.catch(applyError).then(() => {
 				barrier.open();
 				this.updateExpandability(internal);

@@ -139,7 +139,7 @@ declare module 'vscode' {
 		 * @returns A promise that will resolve to `true` when the file
 		 * has been saved. If the save failed, will return `false`.
 		 */
-		save(): Thenable<boolean>;
+		save(): PromiseLike<boolean>;
 
 		/**
 		 * The {@link EndOfLine end of line} sequence that is predominately
@@ -1257,7 +1257,7 @@ declare module 'vscode' {
 			 * Add undo stop after making the edits.
 			 */
 			readonly undoStopAfter: boolean;
-		}): Thenable<boolean>;
+		}): PromiseLike<boolean>;
 
 		/**
 		 * Insert a {@link SnippetString snippet} and put the editor into snippet mode. "Snippet mode"
@@ -1279,7 +1279,7 @@ declare module 'vscode' {
 			 * Add undo stop after making the edits.
 			 */
 			readonly undoStopAfter: boolean;
-		}): Thenable<boolean>;
+		}): PromiseLike<boolean>;
 
 		/**
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
@@ -1809,7 +1809,7 @@ declare module 'vscode' {
 		 *
 		 * @param uri An uri which scheme matches the scheme this provider was {@link workspace.registerTextDocumentContentProvider registered} for.
 		 * @param token A cancellation token.
-		 * @returns A string or a thenable that resolves to such.
+		 * @returns A string or a promise-like that resolves to such.
 		 */
 		provideTextDocumentContent(uri: Uri, token: CancellationToken): ProviderResult<string>;
 	}
@@ -2194,7 +2194,7 @@ declare module 'vscode' {
 		 *  which can provide a specific message severity. Return `undefined`, `null`, or the empty string when 'value' is valid.
 		 */
 		validateInput?(value: string): string | InputBoxValidationMessage | undefined | null |
-			Thenable<string | InputBoxValidationMessage | undefined | null>;
+			PromiseLike<string | InputBoxValidationMessage | undefined | null>;
 	}
 
 	/**
@@ -2335,9 +2335,9 @@ declare module 'vscode' {
 
 	/**
 	 * A provider result represents the values a provider, like the {@linkcode HoverProvider},
-	 * may return. For once this is the actual result type `T`, like `Hover`, or a thenable that resolves
+	 * may return. For once this is the actual result type `T`, like `Hover`, or a promise-like that resolves
 	 * to that type `T`. In addition, `null` and `undefined` can be returned - either directly or from a
-	 * thenable.
+	 * promise-like.
 	 *
 	 * The snippets below are all valid implementations of the {@linkcode HoverProvider}:
 	 *
@@ -2363,7 +2363,7 @@ declare module 'vscode' {
 	 * }
 	 * ```
 	 */
-	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
+	export type ProviderResult<T> = T | undefined | null | PromiseLike<T | undefined | null>;
 
 	/**
 	 * Kind of a code action.
@@ -2675,7 +2675,7 @@ declare module 'vscode' {
 		 *
 		 * @param codeAction A code action.
 		 * @param token A cancellation token.
-		 * @returns The resolved code action or a thenable that resolves to such. It is OK to return the given
+		 * @returns The resolved code action or a promise-like that resolves to such. It is OK to return the given
 		 * `item`. When no result is returned, the given `item` will be used.
 		 */
 		resolveCodeAction?(codeAction: T, token: CancellationToken): ProviderResult<T>;
@@ -2784,7 +2784,7 @@ declare module 'vscode' {
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param token A cancellation token.
-		 * @returns An array of code lenses or a thenable that resolves to such. The lack of a result can be
+		 * @returns An array of code lenses or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<T[]>;
@@ -2795,7 +2795,7 @@ declare module 'vscode' {
 		 *
 		 * @param codeLens Code lens that must be resolved.
 		 * @param token A cancellation token.
-		 * @returns The given, resolved code lens or thenable that resolves to such.
+		 * @returns The given, resolved code lens or promise-like that resolves to such.
 		 */
 		resolveCodeLens?(codeLens: T, token: CancellationToken): ProviderResult<T>;
 	}
@@ -2828,7 +2828,7 @@ declare module 'vscode' {
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
-		 * @returns A definition or a thenable that resolves to such. The lack of a result can be
+		 * @returns A definition or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideDefinition(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
@@ -2846,7 +2846,7 @@ declare module 'vscode' {
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
-		 * @returns A definition or a thenable that resolves to such. The lack of a result can be
+		 * @returns A definition or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideImplementation(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
@@ -2864,7 +2864,7 @@ declare module 'vscode' {
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
-		 * @returns A definition or a thenable that resolves to such. The lack of a result can be
+		 * @returns A definition or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideTypeDefinition(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
@@ -2888,7 +2888,7 @@ declare module 'vscode' {
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
-		 * @returns A declaration or a thenable that resolves to such. The lack of a result can be
+		 * @returns A declaration or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideDeclaration(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Declaration>;
@@ -3049,7 +3049,7 @@ declare module 'vscode' {
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
-		 * @returns A hover or a thenable that resolves to such. The lack of a result can be
+		 * @returns A hover or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideHover(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Hover>;
@@ -3098,7 +3098,7 @@ declare module 'vscode' {
 		 * @param document The document for which the debug hover is about to appear.
 		 * @param position The line and character position in the document where the debug hover is about to appear.
 		 * @param token A cancellation token.
-		 * @returns An EvaluatableExpression or a thenable that resolves to such. The lack of a result can be
+		 * @returns An EvaluatableExpression or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideEvaluatableExpression(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
@@ -3226,7 +3226,7 @@ declare module 'vscode' {
 		 * @param viewPort The visible document range for which inline values should be computed.
 		 * @param context A bag containing contextual information like the current location.
 		 * @param token A cancellation token.
-		 * @returns An array of InlineValueDescriptors or a thenable that resolves to such. The lack of a result can be
+		 * @returns An array of InlineValueDescriptors or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideInlineValues(document: TextDocument, viewPort: Range, context: InlineValueContext, token: CancellationToken): ProviderResult<InlineValue[]>;
@@ -3292,7 +3292,7 @@ declare module 'vscode' {
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
-		 * @returns An array of document highlights or a thenable that resolves to such. The lack of a result can be
+		 * @returns An array of document highlights or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideDocumentHighlights(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
@@ -3540,7 +3540,7 @@ declare module 'vscode' {
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param token A cancellation token.
-		 * @returns An array of document highlights or a thenable that resolves to such. The lack of a result can be
+		 * @returns An array of document highlights or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | DocumentSymbol[]>;
@@ -3576,7 +3576,7 @@ declare module 'vscode' {
 		 *
 		 * @param query A query string, can be the empty string in which case all symbols should be returned.
 		 * @param token A cancellation token.
-		 * @returns An array of document highlights or a thenable that resolves to such. The lack of a result can be
+		 * @returns An array of document highlights or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideWorkspaceSymbols(query: string, token: CancellationToken): ProviderResult<T[]>;
@@ -3590,7 +3590,7 @@ declare module 'vscode' {
 		 * @param symbol The symbol that is to be resolved. Guaranteed to be an instance of an object returned from an
 		 * earlier call to `provideWorkspaceSymbols`.
 		 * @param token A cancellation token.
-		 * @returns The resolved symbol or a thenable that resolves to that. When no result is returned,
+		 * @returns The resolved symbol or a promise-like that resolves to that. When no result is returned,
 		 * the given `symbol` is used.
 		 */
 		resolveWorkspaceSymbol?(symbol: T, token: CancellationToken): ProviderResult<T>;
@@ -3621,7 +3621,7 @@ declare module 'vscode' {
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
 		 *
-		 * @returns An array of locations or a thenable that resolves to such. The lack of a result can be
+		 * @returns An array of locations or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideReferences(document: TextDocument, position: Position, context: ReferenceContext, token: CancellationToken): ProviderResult<Location[]>;
@@ -4117,7 +4117,7 @@ declare module 'vscode' {
 		 * @param position The position at which the command was invoked.
 		 * @param newName The new name of the symbol. If the given name is not valid, the provider must return a rejected promise.
 		 * @param token A cancellation token.
-		 * @returns A workspace edit or a thenable that resolves to such. The lack of a result can be
+		 * @returns A workspace edit or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideRenameEdits(document: TextDocument, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit>;
@@ -4127,7 +4127,7 @@ declare module 'vscode' {
 		 * be a range or a range and a placeholder text. The placeholder text should be the identifier of the symbol
 		 * which is being renamed - when omitted the text in the returned range is used.
 		 *
-		 * *Note:* This function should throw an error or return a rejected thenable when the provided location
+		 * *Note:* This function should throw an error or return a rejected promise-like when the provided location
 		 * doesn't allow for a rename.
 		 *
 		 * @param document The document in which rename will be invoked.
@@ -4437,7 +4437,7 @@ declare module 'vscode' {
 		 * @param document The document in which the command was invoked.
 		 * @param options Options controlling formatting.
 		 * @param token A cancellation token.
-		 * @returns A set of text edits or a thenable that resolves to such. The lack of a result can be
+		 * @returns A set of text edits or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideDocumentFormattingEdits(document: TextDocument, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
@@ -4460,7 +4460,7 @@ declare module 'vscode' {
 		 * @param range The range which should be formatted.
 		 * @param options Options controlling formatting.
 		 * @param token A cancellation token.
-		 * @returns A set of text edits or a thenable that resolves to such. The lack of a result can be
+		 * @returns A set of text edits or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
@@ -4480,7 +4480,7 @@ declare module 'vscode' {
 		 * @param ranges The ranges which should be formatted.
 		 * @param options Options controlling formatting.
 		 * @param token A cancellation token.
-		 * @returns A set of text edits or a thenable that resolves to such. The lack of a result can be
+		 * @returns A set of text edits or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideDocumentRangesFormattingEdits?(document: TextDocument, ranges: Range[], options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
@@ -4504,7 +4504,7 @@ declare module 'vscode' {
 		 * @param ch The character that has been typed.
 		 * @param options Options controlling formatting.
 		 * @param token A cancellation token.
-		 * @returns A set of text edits or a thenable that resolves to such. The lack of a result can be
+		 * @returns A set of text edits or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideOnTypeFormattingEdits(document: TextDocument, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
@@ -4672,7 +4672,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @param context Information about how signature help was triggered.
 		 *
-		 * @returns Signature help or a thenable that resolves to such. The lack of a result can be
+		 * @returns Signature help or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
@@ -5091,7 +5091,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @param context How the completion was triggered.
 		 *
-		 * @returns An array of completions, a {@link CompletionList completion list}, or a thenable that resolves to either.
+		 * @returns An array of completions, a {@link CompletionList completion list}, or a promise-like that resolves to either.
 		 * The lack of a result can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken, context: CompletionContext): ProviderResult<T[] | CompletionList<T>>;
@@ -5112,7 +5112,7 @@ declare module 'vscode' {
 		 *
 		 * @param item A completion item currently active in the UI.
 		 * @param token A cancellation token.
-		 * @returns The resolved completion item or a thenable that resolves to of such. It is OK to return the given
+		 * @returns The resolved completion item or a promise-like that resolves to of such. It is OK to return the given
 		 * `item`. When no result is returned, the given `item` will be used.
 		 */
 		resolveCompletionItem?(item: T, token: CancellationToken): ProviderResult<T>;
@@ -5138,7 +5138,7 @@ declare module 'vscode' {
 		 * @param position The position inline completions are requested for.
 		 * @param context A context object with additional information.
 		 * @param token A cancellation token.
-		 * @returns An array of completion items or a thenable that resolves to an array of completion items.
+		 * @returns An array of completion items or a promise-like that resolves to an array of completion items.
 		 */
 		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionItem[] | InlineCompletionList>;
 	}
@@ -5302,7 +5302,7 @@ declare module 'vscode' {
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param token A cancellation token.
-		 * @returns An array of {@link DocumentLink document links} or a thenable that resolves to such. The lack of a result
+		 * @returns An array of {@link DocumentLink document links} or a promise-like that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideDocumentLinks(document: TextDocument, token: CancellationToken): ProviderResult<T[]>;
@@ -5428,7 +5428,7 @@ declare module 'vscode' {
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param token A cancellation token.
-		 * @returns An array of {@link ColorInformation color information} or a thenable that resolves to such. The lack of a result
+		 * @returns An array of {@link ColorInformation color information} or a promise-like that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInformation[]>;
@@ -5439,7 +5439,7 @@ declare module 'vscode' {
 		 * @param color The color to show and insert.
 		 * @param context A context object with additional information
 		 * @param token A cancellation token.
-		 * @returns An array of color presentations or a thenable that resolves to such. The lack of a result
+		 * @returns An array of color presentations or a promise-like that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideColorPresentations(color: Color, context: {
@@ -5607,7 +5607,7 @@ declare module 'vscode' {
 		 * @param document The document in which the command was invoked.
 		 * @param range The range for which inlay hints should be computed.
 		 * @param token A cancellation token.
-		 * @returns An array of inlay hints or a thenable that resolves to such.
+		 * @returns An array of inlay hints or a promise-like that resolves to such.
 		 */
 		provideInlayHints(document: TextDocument, range: Range, token: CancellationToken): ProviderResult<T[]>;
 
@@ -5619,7 +5619,7 @@ declare module 'vscode' {
 		 *
 		 * @param hint An inlay hint.
 		 * @param token A cancellation token.
-		 * @returns The resolved inlay hint or a thenable that resolves to such. It is OK to return the given `item`. When no result is returned, the given `item` will be used.
+		 * @returns The resolved inlay hint or a promise-like that resolves to such. It is OK to return the given `item`. When no result is returned, the given `item` will be used.
 		 */
 		resolveInlayHint?(hint: T, token: CancellationToken): ProviderResult<T>;
 	}
@@ -5748,7 +5748,7 @@ declare module 'vscode' {
 		 * @param document The document in which the command was invoked.
 		 * @param positions The positions at which the command was invoked.
 		 * @param token A cancellation token.
-		 * @returns Selection ranges or a thenable that resolves to such. The lack of a result can be
+		 * @returns Selection ranges or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideSelectionRanges(document: TextDocument, positions: readonly Position[], token: CancellationToken): ProviderResult<SelectionRange[]>;
@@ -5867,7 +5867,7 @@ declare module 'vscode' {
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
-		 * @returns One or multiple call hierarchy items or a thenable that resolves to such. The lack of a result can be
+		 * @returns One or multiple call hierarchy items or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		prepareCallHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem | CallHierarchyItem[]>;
@@ -5879,7 +5879,7 @@ declare module 'vscode' {
 		 *
 		 * @param item The hierarchy item for which incoming calls should be computed.
 		 * @param token A cancellation token.
-		 * @returns A set of incoming calls or a thenable that resolves to such. The lack of a result can be
+		 * @returns A set of incoming calls or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideCallHierarchyIncomingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
@@ -5891,7 +5891,7 @@ declare module 'vscode' {
 		 *
 		 * @param item The hierarchy item for which outgoing calls should be computed.
 		 * @param token A cancellation token.
-		 * @returns A set of outgoing calls or a thenable that resolves to such. The lack of a result can be
+		 * @returns A set of outgoing calls or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideCallHierarchyOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
@@ -5965,7 +5965,7 @@ declare module 'vscode' {
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
-		 * @returns One or multiple type hierarchy items or a thenable that resolves to such. The lack of a result can be
+		 * @returns One or multiple type hierarchy items or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		prepareTypeHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<TypeHierarchyItem | TypeHierarchyItem[]>;
@@ -5977,7 +5977,7 @@ declare module 'vscode' {
 		 *
 		 * @param item The hierarchy item for which super types should be computed.
 		 * @param token A cancellation token.
-		 * @returns A set of direct supertypes or a thenable that resolves to such. The lack of a result can be
+		 * @returns A set of direct supertypes or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideTypeHierarchySupertypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
@@ -5989,7 +5989,7 @@ declare module 'vscode' {
 		 *
 		 * @param item The hierarchy item for which subtypes should be computed.
 		 * @param token A cancellation token.
-		 * @returns A set of direct subtypes or a thenable that resolves to such. The lack of a result can be
+		 * @returns A set of direct subtypes or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideTypeHierarchySubtypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
@@ -6075,7 +6075,7 @@ declare module 'vscode' {
 		 * @param dataTransfer A {@link DataTransfer} object that holds data about what is being dragged and dropped.
 		 * @param token A cancellation token.
 		 *
-		 * @returns A {@link DocumentDropEdit} or a thenable that resolves to such. The lack of a result can be
+		 * @returns A {@link DocumentDropEdit} or a promise-like that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideDocumentDropEdits(document: TextDocument, position: Position, dataTransfer: DataTransfer, token: CancellationToken): ProviderResult<DocumentDropEdit>;
@@ -6491,7 +6491,7 @@ declare module 'vscode' {
 		 *	- configuration to workspace folder when there is no workspace folder settings.
 		 *	- configuration to workspace folder when {@link WorkspaceConfiguration} is not scoped to a resource.
 		 */
-		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean | null, overrideInLanguage?: boolean): Thenable<void>;
+		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean | null, overrideInLanguage?: boolean): PromiseLike<void>;
 
 		/**
 		 * Readable dictionary that backs this configuration.
@@ -7225,7 +7225,7 @@ declare module 'vscode' {
 		/**
 		 * The process ID of the shell process.
 		 */
-		readonly processId: Thenable<number | undefined>;
+		readonly processId: PromiseLike<number | undefined>;
 
 		/**
 		 * The object used to initialize the terminal, this is useful for example to detecting the
@@ -7509,7 +7509,7 @@ declare module 'vscode' {
 		 *
 		 * @param uri The uri of the file to provide a decoration for.
 		 * @param token A cancellation token.
-		 * @returns A decoration or a thenable that resolves to such.
+		 * @returns A decoration or a promise-like that resolves to such.
 		 */
 		provideFileDecoration(uri: Uri, token: CancellationToken): ProviderResult<FileDecoration>;
 	}
@@ -7585,7 +7585,7 @@ declare module 'vscode' {
 		 *
 		 * @returns A promise that will resolve when this extension has been activated.
 		 */
-		activate(): Thenable<T>;
+		activate(): PromiseLike<T>;
 	}
 
 	/**
@@ -7816,7 +7816,7 @@ declare module 'vscode' {
 		 * @param key A string.
 		 * @param value A value. MUST not contain cyclic references.
 		 */
-		update(key: string, value: any): Thenable<void>;
+		update(key: string, value: any): PromiseLike<void>;
 	}
 
 	/**
@@ -7840,20 +7840,20 @@ declare module 'vscode' {
 		 * @param key The key the secret was stored under.
 		 * @returns The stored value or `undefined`.
 		 */
-		get(key: string): Thenable<string | undefined>;
+		get(key: string): PromiseLike<string | undefined>;
 
 		/**
 		 * Store a secret under a given key.
 		 * @param key The key to store the secret under.
 		 * @param value The secret.
 		 */
-		store(key: string, value: string): Thenable<void>;
+		store(key: string, value: string): PromiseLike<void>;
 
 		/**
 		 * Remove a secret from storage.
 		 * @param key The key the secret was stored under.
 		 */
-		delete(key: string): Thenable<void>;
+		delete(key: string): PromiseLike<void>;
 
 		/**
 		 * Fires when a secret is stored or deleted.
@@ -8286,7 +8286,7 @@ declare module 'vscode' {
 		 * @param callback The callback that will be called when the task is started by a user. Any ${} style variables that
 		 * were in the task definition will be resolved and passed into the callback as `resolvedDefinition`.
 		 */
-		constructor(callback: (resolvedDefinition: TaskDefinition) => Thenable<Pseudoterminal>);
+		constructor(callback: (resolvedDefinition: TaskDefinition) => PromiseLike<Pseudoterminal>);
 	}
 
 	/**
@@ -8555,9 +8555,9 @@ declare module 'vscode' {
 		 * contributed through extensions.
 		 *
 		 * @param filter Optional filter to select tasks of a certain type or version.
-		 * @returns A thenable that resolves to an array of tasks.
+		 * @returns A promise-like that resolves to an array of tasks.
 		 */
-		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
+		export function fetchTasks(filter?: TaskFilter): PromiseLike<Task[]>;
 
 		/**
 		 * Executes a task that is managed by the editor. The returned
@@ -8568,9 +8568,9 @@ declare module 'vscode' {
 		 * In such an environment, only CustomExecution tasks can be run.
 		 *
 		 * @param task the task to execute
-		 * @returns A thenable that resolves to a task execution.
+		 * @returns A promise-like that resolves to a task execution.
 		 */
-		export function executeTask(task: Task): Thenable<TaskExecution>;
+		export function executeTask(task: Task): PromiseLike<TaskExecution>;
 
 		/**
 		 * The currently active task executions or an empty array.
@@ -8848,16 +8848,16 @@ declare module 'vscode' {
 		 * @returns The file metadata about the file.
 		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when `uri` doesn't exist.
 		 */
-		stat(uri: Uri): FileStat | Thenable<FileStat>;
+		stat(uri: Uri): FileStat | PromiseLike<FileStat>;
 
 		/**
 		 * Retrieve all entries of a {@link FileType.Directory directory}.
 		 *
 		 * @param uri The uri of the folder.
-		 * @returns An array of name/type-tuples or a thenable that resolves to such.
+		 * @returns An array of name/type-tuples or a promise-like that resolves to such.
 		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when `uri` doesn't exist.
 		 */
-		readDirectory(uri: Uri): [string, FileType][] | Thenable<[string, FileType][]>;
+		readDirectory(uri: Uri): [string, FileType][] | PromiseLike<[string, FileType][]>;
 
 		/**
 		 * Create a new directory (Note, that new files are created via `write`-calls).
@@ -8867,16 +8867,16 @@ declare module 'vscode' {
 		 * @throws {@linkcode FileSystemError.FileExists FileExists} when `uri` already exists.
 		 * @throws {@linkcode FileSystemError.NoPermissions NoPermissions} when permissions aren't sufficient.
 		 */
-		createDirectory(uri: Uri): void | Thenable<void>;
+		createDirectory(uri: Uri): void | PromiseLike<void>;
 
 		/**
 		 * Read the entire contents of a file.
 		 *
 		 * @param uri The uri of the file.
-		 * @returns An array of bytes or a thenable that resolves to such.
+		 * @returns An array of bytes or a promise-like that resolves to such.
 		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when `uri` doesn't exist.
 		 */
-		readFile(uri: Uri): Uint8Array | Thenable<Uint8Array>;
+		readFile(uri: Uri): Uint8Array | PromiseLike<Uint8Array>;
 
 		/**
 		 * Write data to a file, replacing its entire contents.
@@ -8898,7 +8898,7 @@ declare module 'vscode' {
 			 * Overwrite the file if it does exist.
 			 */
 			readonly overwrite: boolean;
-		}): void | Thenable<void>;
+		}): void | PromiseLike<void>;
 
 		/**
 		 * Delete a file.
@@ -8913,7 +8913,7 @@ declare module 'vscode' {
 			 * Delete the content recursively if a folder is denoted.
 			 */
 			readonly recursive: boolean;
-		}): void | Thenable<void>;
+		}): void | PromiseLike<void>;
 
 		/**
 		 * Rename a file or folder.
@@ -8931,7 +8931,7 @@ declare module 'vscode' {
 			 * Overwrite the file if it does exist.
 			 */
 			readonly overwrite: boolean;
-		}): void | Thenable<void>;
+		}): void | PromiseLike<void>;
 
 		/**
 		 * Copy files or folders. Implementing this function is optional but it will speedup
@@ -8950,7 +8950,7 @@ declare module 'vscode' {
 			 * Overwrite the file if it does exist.
 			 */
 			readonly overwrite: boolean;
-		}): void | Thenable<void>;
+		}): void | PromiseLike<void>;
 	}
 
 	/**
@@ -8969,15 +8969,15 @@ declare module 'vscode' {
 		 * @param uri The uri of the file to retrieve metadata about.
 		 * @returns The file metadata about the file.
 		 */
-		stat(uri: Uri): Thenable<FileStat>;
+		stat(uri: Uri): PromiseLike<FileStat>;
 
 		/**
 		 * Retrieve all entries of a {@link FileType.Directory directory}.
 		 *
 		 * @param uri The uri of the folder.
-		 * @returns An array of name/type-tuples or a thenable that resolves to such.
+		 * @returns An array of name/type-tuples or a promise-like that resolves to such.
 		 */
-		readDirectory(uri: Uri): Thenable<[string, FileType][]>;
+		readDirectory(uri: Uri): PromiseLike<[string, FileType][]>;
 
 		/**
 		 * Create a new directory (Note, that new files are created via `write`-calls).
@@ -8987,15 +8987,15 @@ declare module 'vscode' {
 		 *
 		 * @param uri The uri of the new folder.
 		 */
-		createDirectory(uri: Uri): Thenable<void>;
+		createDirectory(uri: Uri): PromiseLike<void>;
 
 		/**
 		 * Read the entire contents of a file.
 		 *
 		 * @param uri The uri of the file.
-		 * @returns An array of bytes or a thenable that resolves to such.
+		 * @returns An array of bytes or a promise-like that resolves to such.
 		 */
-		readFile(uri: Uri): Thenable<Uint8Array>;
+		readFile(uri: Uri): PromiseLike<Uint8Array>;
 
 		/**
 		 * Write data to a file, replacing its entire contents.
@@ -9003,7 +9003,7 @@ declare module 'vscode' {
 		 * @param uri The uri of the file.
 		 * @param content The new content of the file.
 		 */
-		writeFile(uri: Uri, content: Uint8Array): Thenable<void>;
+		writeFile(uri: Uri, content: Uint8Array): PromiseLike<void>;
 
 		/**
 		 * Delete a file.
@@ -9020,7 +9020,7 @@ declare module 'vscode' {
 			 * Use the os's trashcan instead of permanently deleting files whenever possible.
 			 */
 			useTrash?: boolean;
-		}): Thenable<void>;
+		}): PromiseLike<void>;
 
 		/**
 		 * Rename a file or folder.
@@ -9034,7 +9034,7 @@ declare module 'vscode' {
 			 * Overwrite the file if it does exist.
 			 */
 			overwrite?: boolean;
-		}): Thenable<void>;
+		}): PromiseLike<void>;
 
 		/**
 		 * Copy files or folders.
@@ -9048,7 +9048,7 @@ declare module 'vscode' {
 			 * Overwrite the file if it does exist.
 			 */
 			overwrite?: boolean;
-		}): Thenable<void>;
+		}): PromiseLike<void>;
 
 		/**
 		 * Check if a given file system supports writing files.
@@ -9210,7 +9210,7 @@ declare module 'vscode' {
 		 *   If you want confirm that a message as actually received, you can try having your webview posting a
 		 *   confirmation message back to your extension.
 		 */
-		postMessage(message: any): Thenable<boolean>;
+		postMessage(message: any): PromiseLike<boolean>;
 
 		/**
 		 * Convert a uri for the local file system to one that can be used inside webviews.
@@ -9410,9 +9410,9 @@ declare module 'vscode' {
 		 * serializer must restore the webview's `.html` and hook up all webview events.
 		 * @param state Persisted state from the webview content.
 		 *
-		 * @returns Thenable indicating that the webview has been fully restored.
+		 * @returns PromiseLike indicating that the webview has been fully restored.
 		 */
-		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: T): Thenable<void>;
+		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: T): PromiseLike<void>;
 	}
 
 	/**
@@ -9539,9 +9539,9 @@ declare module 'vscode' {
 		 * @param context Additional metadata about the view being resolved.
 		 * @param token Cancellation token indicating that the view being provided is no longer needed.
 		 *
-		 * @returns Optional thenable indicating that the view has been fully resolved.
+		 * @returns Optional promise-like indicating that the view has been fully resolved.
 		 */
-		resolveWebviewView(webviewView: WebviewView, context: WebviewViewResolveContext, token: CancellationToken): Thenable<void> | void;
+		resolveWebviewView(webviewView: WebviewView, context: WebviewViewResolveContext, token: CancellationToken): PromiseLike<void> | void;
 	}
 
 	/**
@@ -9570,9 +9570,9 @@ declare module 'vscode' {
 		 *
 		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
-		 * @returns Thenable indicating that the custom editor has been resolved.
+		 * @returns PromiseLike indicating that the custom editor has been resolved.
 		 */
-		resolveCustomTextEditor(document: TextDocument, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
+		resolveCustomTextEditor(document: TextDocument, webviewPanel: WebviewPanel, token: CancellationToken): PromiseLike<void> | void;
 	}
 
 	/**
@@ -9615,7 +9615,7 @@ declare module 'vscode' {
 		 * extension should restore the document and editor to the state they were in just before this
 		 * edit was added to the editor's internal edit stack by `onDidChangeCustomDocument`.
 		 */
-		undo(): Thenable<void> | void;
+		undo(): PromiseLike<void> | void;
 
 		/**
 		 * Redo the edit operation.
@@ -9624,7 +9624,7 @@ declare module 'vscode' {
 		 * extension should restore the document and editor to the state they were in just after this
 		 * edit was added to the editor's internal edit stack by `onDidChangeCustomDocument`.
 		 */
-		redo(): Thenable<void> | void;
+		redo(): PromiseLike<void> | void;
 
 		/**
 		 * Display name describing the edit.
@@ -9731,7 +9731,7 @@ declare module 'vscode' {
 		 *
 		 * @returns The custom document.
 		 */
-		openCustomDocument(uri: Uri, openContext: CustomDocumentOpenContext, token: CancellationToken): Thenable<T> | T;
+		openCustomDocument(uri: Uri, openContext: CustomDocumentOpenContext, token: CancellationToken): PromiseLike<T> | T;
 
 		/**
 		 * Resolve a custom editor for a given resource.
@@ -9748,9 +9748,9 @@ declare module 'vscode' {
 		 *
 		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
-		 * @returns Optional thenable indicating that the custom editor has been resolved.
+		 * @returns Optional promise-like indicating that the custom editor has been resolved.
 		 */
-		resolveCustomEditor(document: T, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
+		resolveCustomEditor(document: T, webviewPanel: WebviewPanel, token: CancellationToken): PromiseLike<void> | void;
 	}
 
 	/**
@@ -9800,9 +9800,9 @@ declare module 'vscode' {
 		 * @param document Document to save.
 		 * @param cancellation Token that signals the save is no longer required (for example, if another save was triggered).
 		 *
-		 * @returns Thenable signaling that saving has completed.
+		 * @returns PromiseLike signaling that saving has completed.
 		 */
-		saveCustomDocument(document: T, cancellation: CancellationToken): Thenable<void>;
+		saveCustomDocument(document: T, cancellation: CancellationToken): PromiseLike<void>;
 
 		/**
 		 * Save a custom document to a different location.
@@ -9816,9 +9816,9 @@ declare module 'vscode' {
 		 * @param destination Location to save to.
 		 * @param cancellation Token that signals the save is no longer required.
 		 *
-		 * @returns Thenable signaling that saving has completed.
+		 * @returns PromiseLike signaling that saving has completed.
 		 */
-		saveCustomDocumentAs(document: T, destination: Uri, cancellation: CancellationToken): Thenable<void>;
+		saveCustomDocumentAs(document: T, destination: Uri, cancellation: CancellationToken): PromiseLike<void>;
 
 		/**
 		 * Revert a custom document to its last saved state.
@@ -9833,9 +9833,9 @@ declare module 'vscode' {
 		 * @param document Document to revert.
 		 * @param cancellation Token that signals the revert is no longer required.
 		 *
-		 * @returns Thenable signaling that the change has completed.
+		 * @returns PromiseLike signaling that the change has completed.
 		 */
-		revertCustomDocument(document: T, cancellation: CancellationToken): Thenable<void>;
+		revertCustomDocument(document: T, cancellation: CancellationToken): PromiseLike<void>;
 
 		/**
 		 * Back up a dirty custom document.
@@ -9858,7 +9858,7 @@ declare module 'vscode' {
 		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
 		 * than cancelling it to ensure that the editor has some valid backup.
 		 */
-		backupCustomDocument(document: T, context: CustomDocumentBackupContext, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
+		backupCustomDocument(document: T, context: CustomDocumentBackupContext, cancellation: CancellationToken): PromiseLike<CustomDocumentBackup>;
 	}
 
 	/**
@@ -9868,15 +9868,15 @@ declare module 'vscode' {
 
 		/**
 		 * Read the current clipboard contents as text.
-		 * @returns A thenable that resolves to a string.
+		 * @returns A promise-like that resolves to a string.
 		 */
-		readText(): Thenable<string>;
+		readText(): PromiseLike<string>;
 
 		/**
 		 * Writes text into the clipboard.
-		 * @returns A thenable that resolves when writing happened.
+		 * @returns A promise-like that resolves when writing happened.
 		 */
-		writeText(value: string): Thenable<void>;
+		writeText(value: string): PromiseLike<void>;
 	}
 
 	/**
@@ -10048,7 +10048,7 @@ declare module 'vscode' {
 		 * @param target The uri that should be opened.
 		 * @returns A promise indicating if open was successful.
 		 */
-		export function openExternal(target: Uri): Thenable<boolean>;
+		export function openExternal(target: Uri): PromiseLike<boolean>;
 
 		/**
 		 * Resolves a uri to a form that is accessible externally.
@@ -10103,7 +10103,7 @@ declare module 'vscode' {
 		 *
 		 * @returns A uri that can be used on the client machine.
 		 */
-		export function asExternalUri(target: Uri): Thenable<Uri>;
+		export function asExternalUri(target: Uri): PromiseLike<Uri>;
 
 		/**
 		 * The current log level of the editor.
@@ -10196,19 +10196,19 @@ declare module 'vscode' {
 		 *
 		 * @param command Identifier of the command to execute.
 		 * @param rest Parameters passed to the command function.
-		 * @returns A thenable that resolves to the returned value of the given command. Returns `undefined` when
+		 * @returns A promise-like that resolves to the returned value of the given command. Returns `undefined` when
 		 * the command handler function doesn't return anything.
 		 */
-		export function executeCommand<T = unknown>(command: string, ...rest: any[]): Thenable<T>;
+		export function executeCommand<T = unknown>(command: string, ...rest: any[]): PromiseLike<T>;
 
 		/**
 		 * Retrieve the list of all available commands. Commands starting with an underscore are
 		 * treated as internal commands.
 		 *
 		 * @param filterInternal Set `true` to not see internal commands (starting with an underscore)
-		 * @returns Thenable that resolves to a list of command ids.
+		 * @returns PromiseLike that resolves to a list of command ids.
 		 */
-		export function getCommands(filterInternal?: boolean): Thenable<string[]>;
+		export function getCommands(filterInternal?: boolean): PromiseLike<string[]>;
 	}
 
 	/**
@@ -10387,7 +10387,7 @@ declare module 'vscode' {
 		 * @param preserveFocus When `true` the editor will not take focus.
 		 * @returns A promise that resolves to an {@link TextEditor editor}.
 		 */
-		export function showTextDocument(document: TextDocument, column?: ViewColumn, preserveFocus?: boolean): Thenable<TextEditor>;
+		export function showTextDocument(document: TextDocument, column?: ViewColumn, preserveFocus?: boolean): PromiseLike<TextEditor>;
 
 		/**
 		 * Show the given document in a text editor. {@link TextDocumentShowOptions Options} can be provided
@@ -10397,7 +10397,7 @@ declare module 'vscode' {
 		 * @param options {@link TextDocumentShowOptions Editor options} to configure the behavior of showing the {@link TextEditor editor}.
 		 * @returns A promise that resolves to an {@link TextEditor editor}.
 		 */
-		export function showTextDocument(document: TextDocument, options?: TextDocumentShowOptions): Thenable<TextEditor>;
+		export function showTextDocument(document: TextDocument, options?: TextDocumentShowOptions): PromiseLike<TextEditor>;
 
 		/**
 		 * A short-hand for `openTextDocument(uri).then(document => showTextDocument(document, options))`.
@@ -10408,7 +10408,7 @@ declare module 'vscode' {
 		 * @param options {@link TextDocumentShowOptions Editor options} to configure the behavior of showing the {@link TextEditor editor}.
 		 * @returns A promise that resolves to an {@link TextEditor editor}.
 		 */
-		export function showTextDocument(uri: Uri, options?: TextDocumentShowOptions): Thenable<TextEditor>;
+		export function showTextDocument(uri: Uri, options?: TextDocumentShowOptions): PromiseLike<TextEditor>;
 
 		/**
 		 * Show the given {@link NotebookDocument} in a {@link NotebookEditor notebook editor}.
@@ -10418,7 +10418,7 @@ declare module 'vscode' {
 		 *
 		 * @returns A promise that resolves to an {@link NotebookEditor notebook editor}.
 		 */
-		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
+		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): PromiseLike<NotebookEditor>;
 
 		/**
 		 * Create a TextEditorDecorationType that can be used to add decorations to text editors.
@@ -10434,9 +10434,9 @@ declare module 'vscode' {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @returns A promise-like that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showInformationMessage<T extends string>(message: string, ...items: T[]): Thenable<T | undefined>;
+		export function showInformationMessage<T extends string>(message: string, ...items: T[]): PromiseLike<T | undefined>;
 
 		/**
 		 * Show an information message to users. Optionally provide an array of items which will be presented as
@@ -10445,9 +10445,9 @@ declare module 'vscode' {
 		 * @param message The message to show.
 		 * @param options Configures the behaviour of the message.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @returns A promise-like that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showInformationMessage<T extends string>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
+		export function showInformationMessage<T extends string>(message: string, options: MessageOptions, ...items: T[]): PromiseLike<T | undefined>;
 
 		/**
 		 * Show an information message.
@@ -10456,9 +10456,9 @@ declare module 'vscode' {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @returns A promise-like that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showInformationMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>;
+		export function showInformationMessage<T extends MessageItem>(message: string, ...items: T[]): PromiseLike<T | undefined>;
 
 		/**
 		 * Show an information message.
@@ -10468,9 +10468,9 @@ declare module 'vscode' {
 		 * @param message The message to show.
 		 * @param options Configures the behaviour of the message.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @returns A promise-like that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showInformationMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
+		export function showInformationMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): PromiseLike<T | undefined>;
 
 		/**
 		 * Show a warning message.
@@ -10479,32 +10479,9 @@ declare module 'vscode' {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @returns A promise-like that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showWarningMessage<T extends string>(message: string, ...items: T[]): Thenable<T | undefined>;
-
-		/**
-		 * Show a warning message.
-		 *
-		 * @see {@link window.showInformationMessage showInformationMessage}
-		 *
-		 * @param message The message to show.
-		 * @param options Configures the behaviour of the message.
-		 * @param items A set of items that will be rendered as actions in the message.
-		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
-		 */
-		export function showWarningMessage<T extends string>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
-
-		/**
-		 * Show a warning message.
-		 *
-		 * @see {@link window.showInformationMessage showInformationMessage}
-		 *
-		 * @param message The message to show.
-		 * @param items A set of items that will be rendered as actions in the message.
-		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
-		 */
-		export function showWarningMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>;
+		export function showWarningMessage<T extends string>(message: string, ...items: T[]): PromiseLike<T | undefined>;
 
 		/**
 		 * Show a warning message.
@@ -10514,9 +10491,32 @@ declare module 'vscode' {
 		 * @param message The message to show.
 		 * @param options Configures the behaviour of the message.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @returns A promise-like that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showWarningMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
+		export function showWarningMessage<T extends string>(message: string, options: MessageOptions, ...items: T[]): PromiseLike<T | undefined>;
+
+		/**
+		 * Show a warning message.
+		 *
+		 * @see {@link window.showInformationMessage showInformationMessage}
+		 *
+		 * @param message The message to show.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @returns A promise-like that resolves to the selected item or `undefined` when being dismissed.
+		 */
+		export function showWarningMessage<T extends MessageItem>(message: string, ...items: T[]): PromiseLike<T | undefined>;
+
+		/**
+		 * Show a warning message.
+		 *
+		 * @see {@link window.showInformationMessage showInformationMessage}
+		 *
+		 * @param message The message to show.
+		 * @param options Configures the behaviour of the message.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @returns A promise-like that resolves to the selected item or `undefined` when being dismissed.
+		 */
+		export function showWarningMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): PromiseLike<T | undefined>;
 
 		/**
 		 * Show an error message.
@@ -10525,9 +10525,9 @@ declare module 'vscode' {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @returns A promise-like that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showErrorMessage<T extends string>(message: string, ...items: T[]): Thenable<T | undefined>;
+		export function showErrorMessage<T extends string>(message: string, ...items: T[]): PromiseLike<T | undefined>;
 
 		/**
 		 * Show an error message.
@@ -10537,9 +10537,9 @@ declare module 'vscode' {
 		 * @param message The message to show.
 		 * @param options Configures the behaviour of the message.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @returns A promise-like that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showErrorMessage<T extends string>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
+		export function showErrorMessage<T extends string>(message: string, options: MessageOptions, ...items: T[]): PromiseLike<T | undefined>;
 
 		/**
 		 * Show an error message.
@@ -10548,9 +10548,9 @@ declare module 'vscode' {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @returns A promise-like that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showErrorMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>;
+		export function showErrorMessage<T extends MessageItem>(message: string, ...items: T[]): PromiseLike<T | undefined>;
 
 		/**
 		 * Show an error message.
@@ -10560,9 +10560,9 @@ declare module 'vscode' {
 		 * @param message The message to show.
 		 * @param options Configures the behaviour of the message.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @returns A promise-like that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showErrorMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
+		export function showErrorMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): PromiseLike<T | undefined>;
 
 		/**
 		 * Shows a selection list allowing multiple selections.
@@ -10572,7 +10572,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @returns A promise that resolves to the selected items or `undefined`.
 		 */
-		export function showQuickPick(items: readonly string[] | Thenable<readonly string[]>, options: QuickPickOptions & { /** literal-type defines return type */canPickMany: true }, token?: CancellationToken): Thenable<string[] | undefined>;
+		export function showQuickPick(items: readonly string[] | PromiseLike<readonly string[]>, options: QuickPickOptions & { /** literal-type defines return type */canPickMany: true }, token?: CancellationToken): PromiseLike<string[] | undefined>;
 
 		/**
 		 * Shows a selection list.
@@ -10582,7 +10582,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @returns A promise that resolves to the selection or `undefined`.
 		 */
-		export function showQuickPick(items: readonly string[] | Thenable<readonly string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
+		export function showQuickPick(items: readonly string[] | PromiseLike<readonly string[]>, options?: QuickPickOptions, token?: CancellationToken): PromiseLike<string | undefined>;
 
 		/**
 		 * Shows a selection list allowing multiple selections.
@@ -10592,7 +10592,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @returns A promise that resolves to the selected items or `undefined`.
 		 */
-		export function showQuickPick<T extends QuickPickItem>(items: readonly T[] | Thenable<readonly T[]>, options: QuickPickOptions & { /** literal-type defines return type */ canPickMany: true }, token?: CancellationToken): Thenable<T[] | undefined>;
+		export function showQuickPick<T extends QuickPickItem>(items: readonly T[] | PromiseLike<readonly T[]>, options: QuickPickOptions & { /** literal-type defines return type */ canPickMany: true }, token?: CancellationToken): PromiseLike<T[] | undefined>;
 
 		/**
 		 * Shows a selection list.
@@ -10602,7 +10602,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @returns A promise that resolves to the selected item or `undefined`.
 		 */
-		export function showQuickPick<T extends QuickPickItem>(items: readonly T[] | Thenable<readonly T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T | undefined>;
+		export function showQuickPick<T extends QuickPickItem>(items: readonly T[] | PromiseLike<readonly T[]>, options?: QuickPickOptions, token?: CancellationToken): PromiseLike<T | undefined>;
 
 		/**
 		 * Shows a selection list of {@link workspace.workspaceFolders workspace folders} to pick from.
@@ -10611,7 +10611,7 @@ declare module 'vscode' {
 		 * @param options Configures the behavior of the workspace folder list.
 		 * @returns A promise that resolves to the workspace folder or `undefined`.
 		 */
-		export function showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions): Thenable<WorkspaceFolder | undefined>;
+		export function showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions): PromiseLike<WorkspaceFolder | undefined>;
 
 		/**
 		 * Shows a file open dialog to the user which allows to select a file
@@ -10620,7 +10620,7 @@ declare module 'vscode' {
 		 * @param options Options that control the dialog.
 		 * @returns A promise that resolves to the selected resources or `undefined`.
 		 */
-		export function showOpenDialog(options?: OpenDialogOptions): Thenable<Uri[] | undefined>;
+		export function showOpenDialog(options?: OpenDialogOptions): PromiseLike<Uri[] | undefined>;
 
 		/**
 		 * Shows a file save dialog to the user which allows to select a file
@@ -10629,7 +10629,7 @@ declare module 'vscode' {
 		 * @param options Options that control the dialog.
 		 * @returns A promise that resolves to the selected resource or `undefined`.
 		 */
-		export function showSaveDialog(options?: SaveDialogOptions): Thenable<Uri | undefined>;
+		export function showSaveDialog(options?: SaveDialogOptions): PromiseLike<Uri | undefined>;
 
 		/**
 		 * Opens an input box to ask the user for input.
@@ -10642,7 +10642,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @returns A promise that resolves to a string the user provided or to `undefined` in case of dismissal.
 		 */
-		export function showInputBox(options?: InputBoxOptions, token?: CancellationToken): Thenable<string | undefined>;
+		export function showInputBox(options?: InputBoxOptions, token?: CancellationToken): PromiseLike<string | undefined>;
 
 		/**
 		 * Creates a {@link QuickPick} to let the user pick an item from a list
@@ -10725,10 +10725,10 @@ declare module 'vscode' {
 		 * status bar {@link window.createStatusBarItem items}.
 		 *
 		 * @param text The message to show, supports icon substitution as in status bar {@link StatusBarItem.text items}.
-		 * @param hideWhenDone Thenable on which completion (resolve or reject) the message will be disposed.
+		 * @param hideWhenDone PromiseLike on which completion (resolve or reject) the message will be disposed.
 		 * @returns A disposable which hides the status bar message.
 		 */
-		export function setStatusBarMessage(text: string, hideWhenDone: Thenable<any>): Disposable;
+		export function setStatusBarMessage(text: string, hideWhenDone: PromiseLike<any>): Disposable;
 
 		/**
 		 * Set a message to the status bar. This is a short hand for the more powerful
@@ -10750,9 +10750,9 @@ declare module 'vscode' {
 		 *
 		 * @param task A callback returning a promise. Progress increments can be reported with
 		 * the provided {@link Progress}-object.
-		 * @returns The thenable the task did return.
+		 * @returns The promise-like the task did return.
 		 */
-		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
+		export function withScmProgress<R>(task: (progress: Progress<number>) => PromiseLike<R>): PromiseLike<R>;
 
 		/**
 		 * Show progress in the editor. Progress is shown while running the given callback
@@ -10772,7 +10772,7 @@ declare module 'vscode' {
 		 * Note that currently only `ProgressLocation.Notification` is supporting to show a cancel button to cancel the
 		 * long running operation.
 		 *
-		 * @returns The thenable the task-callback returned.
+		 * @returns The promise-like the task-callback returned.
 		 */
 		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{
 			/**
@@ -10783,7 +10783,7 @@ declare module 'vscode' {
 			 * An increment for discrete progress. Increments will be summed up until 100% is reached
 			 */
 			increment?: number;
-		}>, token: CancellationToken) => Thenable<R>): Thenable<R>;
+		}>, token: CancellationToken) => PromiseLike<R>): PromiseLike<R>;
 
 		/**
 		 * Creates a status bar {@link StatusBarItem item}.
@@ -11123,7 +11123,7 @@ declare module 'vscode' {
 		/**
 		 * The full file contents of the file.
 		 */
-		data(): Thenable<Uint8Array>;
+		data(): PromiseLike<Uint8Array>;
 	}
 
 	/**
@@ -11135,7 +11135,7 @@ declare module 'vscode' {
 		 *
 		 * If {@linkcode DataTransferItem.value} is an object, this returns the result of json stringifying {@linkcode DataTransferItem.value} value.
 		 */
-		asString(): Thenable<string>;
+		asString(): PromiseLike<string>;
 
 		/**
 		 * Try getting the {@link DataTransferFile file} associated with this data transfer item.
@@ -11251,7 +11251,7 @@ declare module 'vscode' {
 		 * @param dataTransfer The data transfer associated with this drag.
 		 * @param token A cancellation token indicating that drag has been cancelled.
 		 */
-		handleDrag?(source: readonly T[], dataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
+		handleDrag?(source: readonly T[], dataTransfer: DataTransfer, token: CancellationToken): PromiseLike<void> | void;
 
 		/**
 		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs to.
@@ -11262,7 +11262,7 @@ declare module 'vscode' {
 		 * @param target The target tree element that the drop is occurring on. When undefined, the target is the root.
 		 * @param token A cancellation token indicating that the drop has been cancelled.
 		 */
-		handleDrop?(target: T | undefined, dataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
+		handleDrop?(target: T | undefined, dataTransfer: DataTransfer, token: CancellationToken): PromiseLike<void> | void;
 	}
 
 	/**
@@ -11380,7 +11380,7 @@ declare module 'vscode' {
 			 * If true, then the element will be expanded. If a number is passed, then up to that number of levels of children will be expanded
 			 */
 			expand?: boolean | number;
-		}): Thenable<void>;
+		}): PromiseLike<void>;
 	}
 
 	/**
@@ -11400,7 +11400,7 @@ declare module 'vscode' {
 		 * @param element The element for which {@link TreeItem} representation is asked for.
 		 * @returns TreeItem representation of the element.
 		 */
-		getTreeItem(element: T): TreeItem | Thenable<TreeItem>;
+		getTreeItem(element: T): TreeItem | PromiseLike<TreeItem>;
 
 		/**
 		 * Get the children of `element` or root if no element is passed.
@@ -11439,7 +11439,7 @@ declare module 'vscode' {
 		 * @param item Undefined properties of `item` should be set then `item` should be returned.
 		 * @param element The object associated with the TreeItem.
 		 * @param token A cancellation token.
-		 * @returns The resolved tree item or a thenable that resolves to such. It is OK to return the given
+		 * @returns The resolved tree item or a promise-like that resolves to such. It is OK to return the given
 		 * `item`. When no result is returned, the given `item` will be used.
 		 */
 		resolveTreeItem?(item: TreeItem, element: T, token: CancellationToken): ProviderResult<TreeItem>;
@@ -12606,7 +12606,7 @@ declare module 'vscode' {
 	 * An event that is fired when a {@link TextDocument document} will be saved.
 	 *
 	 * To make modifications to the document before it is being saved, call the
-	 * {@linkcode TextDocumentWillSaveEvent.waitUntil waitUntil}-function with a thenable
+	 * {@linkcode TextDocumentWillSaveEvent.waitUntil waitUntil}-function with a promise-like
 	 * that resolves to an array of {@link TextEdit text edits}.
 	 */
 	export interface TextDocumentWillSaveEvent {
@@ -12639,18 +12639,18 @@ declare module 'vscode' {
 		 * })
 		 * ```
 		 *
-		 * @param thenable A thenable that resolves to {@link TextEdit pre-save-edits}.
+		 * @param promiseLike A promise-like that resolves to {@link TextEdit pre-save-edits}.
 		 */
-		waitUntil(thenable: Thenable<readonly TextEdit[]>): void;
+		waitUntil(promiseLike: PromiseLike<readonly TextEdit[]>): void;
 
 		/**
-		 * Allows to pause the event loop until the provided thenable resolved.
+		 * Allows to pause the event loop until the provided promise-like resolved.
 		 *
 		 * *Note:* This function can only be called during event dispatch.
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @param promiseLike A promise-like that delays saving.
 		 */
-		waitUntil(thenable: Thenable<any>): void;
+		waitUntil(promiseLike: PromiseLike<any>): void;
 	}
 
 	/**
@@ -12658,7 +12658,7 @@ declare module 'vscode' {
 	 *
 	 * To make modifications to the workspace before the files are created,
 	 * call the {@linkcode FileWillCreateEvent.waitUntil waitUntil}-function with a
-	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
+	 * promise-like that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillCreateEvent {
 
@@ -12688,18 +12688,18 @@ declare module 'vscode' {
 		 * })
 		 * ```
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @param promiseLike A promise-like that delays saving.
 		 */
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		waitUntil(promiseLike: PromiseLike<WorkspaceEdit>): void;
 
 		/**
-		 * Allows to pause the event until the provided thenable resolves.
+		 * Allows to pause the event until the provided promise-like resolves.
 		 *
 		 * *Note:* This function can only be called during event dispatch.
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @param promiseLike A promise-like that delays saving.
 		 */
-		waitUntil(thenable: Thenable<any>): void;
+		waitUntil(promiseLike: PromiseLike<any>): void;
 	}
 
 	/**
@@ -12718,7 +12718,7 @@ declare module 'vscode' {
 	 *
 	 * To make modifications to the workspace before the files are deleted,
 	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil`}-function with a
-	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
+	 * promise-like that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillDeleteEvent {
 
@@ -12748,18 +12748,18 @@ declare module 'vscode' {
 		 * })
 		 * ```
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @param promiseLike A promise-like that delays saving.
 		 */
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		waitUntil(promiseLike: PromiseLike<WorkspaceEdit>): void;
 
 		/**
-		 * Allows to pause the event until the provided thenable resolves.
+		 * Allows to pause the event until the provided promise-like resolves.
 		 *
 		 * *Note:* This function can only be called during event dispatch.
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @param promiseLike A promise-like that delays saving.
 		 */
-		waitUntil(thenable: Thenable<any>): void;
+		waitUntil(promiseLike: PromiseLike<any>): void;
 	}
 
 	/**
@@ -12778,7 +12778,7 @@ declare module 'vscode' {
 	 *
 	 * To make modifications to the workspace before the files are renamed,
 	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil`}-function with a
-	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
+	 * promise-like that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillRenameEvent {
 
@@ -12817,18 +12817,18 @@ declare module 'vscode' {
 		 * })
 		 * ```
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @param promiseLike A promise-like that delays saving.
 		 */
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		waitUntil(promiseLike: PromiseLike<WorkspaceEdit>): void;
 
 		/**
-		 * Allows to pause the event until the provided thenable resolves.
+		 * Allows to pause the event until the provided promise-like resolves.
 		 *
 		 * *Note:* This function can only be called during event dispatch.
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @param promiseLike A promise-like that delays saving.
 		 */
-		waitUntil(thenable: Thenable<any>): void;
+		waitUntil(promiseLike: PromiseLike<any>): void;
 	}
 
 	/**
@@ -13206,19 +13206,19 @@ declare module 'vscode' {
 		 * but not `search.exclude`) will apply. When `null`, no excludes will apply.
 		 * @param maxResults An upper-bound for the result.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
-		 * @returns A thenable that resolves to an array of resource identifiers. Will return no results if no
+		 * @returns A promise-like that resolves to an array of resource identifiers. Will return no results if no
 		 * {@link workspace.workspaceFolders workspace folders} are opened.
 		 */
-		export function findFiles(include: GlobPattern, exclude?: GlobPattern | null, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
+		export function findFiles(include: GlobPattern, exclude?: GlobPattern | null, maxResults?: number, token?: CancellationToken): PromiseLike<Uri[]>;
 
 		/**
 		 * Save all dirty files.
 		 *
 		 * @param includeUntitled Also save files that have been created during this session.
-		 * @returns A thenable that resolves when the files have been saved. Will return `false`
+		 * @returns A promise-like that resolves when the files have been saved. Will return `false`
 		 * for any file that failed to save.
 		 */
-		export function saveAll(includeUntitled?: boolean): Thenable<boolean>;
+		export function saveAll(includeUntitled?: boolean): PromiseLike<boolean>;
 
 		/**
 		 * Make changes to one or many resources or create, delete, and rename resources as defined by the given
@@ -13235,9 +13235,9 @@ declare module 'vscode' {
 		 *
 		 * @param edit A workspace edit.
 		 * @param metadata Optional {@link WorkspaceEditMetadata metadata} for the edit.
-		 * @returns A thenable that resolves when the edit could be applied.
+		 * @returns A promise-like that resolves when the edit could be applied.
 		 */
-		export function applyEdit(edit: WorkspaceEdit, metadata?: WorkspaceEditMetadata): Thenable<boolean>;
+		export function applyEdit(edit: WorkspaceEdit, metadata?: WorkspaceEditMetadata): PromiseLike<boolean>;
 
 		/**
 		 * All text documents currently known to the editor.
@@ -13263,7 +13263,7 @@ declare module 'vscode' {
 		 * @param uri Identifies the resource to open.
 		 * @returns A promise that resolves to a {@link TextDocument document}.
 		 */
-		export function openTextDocument(uri: Uri): Thenable<TextDocument>;
+		export function openTextDocument(uri: Uri): PromiseLike<TextDocument>;
 
 		/**
 		 * A short-hand for `openTextDocument(Uri.file(fileName))`.
@@ -13272,7 +13272,7 @@ declare module 'vscode' {
 		 * @param fileName A name of a file on disk.
 		 * @returns A promise that resolves to a {@link TextDocument document}.
 		 */
-		export function openTextDocument(fileName: string): Thenable<TextDocument>;
+		export function openTextDocument(fileName: string): PromiseLike<TextDocument>;
 
 		/**
 		 * Opens an untitled text document. The editor will prompt the user for a file
@@ -13291,7 +13291,7 @@ declare module 'vscode' {
 			 * The initial contents of the document.
 			 */
 			content?: string;
-		}): Thenable<TextDocument>;
+		}): PromiseLike<TextDocument>;
 
 		/**
 		 * Register a text document content provider.
@@ -13375,7 +13375,7 @@ declare module 'vscode' {
 		 * @param uri The resource to open.
 		 * @returns A promise that resolves to a {@link NotebookDocument notebook}
 		 */
-		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
+		export function openNotebookDocument(uri: Uri): PromiseLike<NotebookDocument>;
 
 		/**
 		 * Open an untitled notebook. The editor will prompt the user for a file
@@ -13386,7 +13386,7 @@ declare module 'vscode' {
 		 * @param content The initial contents of the notebook.
 		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
 		 */
-		export function openNotebookDocument(notebookType: string, content?: NotebookData): Thenable<NotebookDocument>;
+		export function openNotebookDocument(notebookType: string, content?: NotebookData): PromiseLike<NotebookDocument>;
 
 		/**
 		 * An event that is emitted when a {@link NotebookDocument notebook} has changed.
@@ -13642,7 +13642,7 @@ declare module 'vscode' {
 		 * Return the identifiers of all known languages.
 		 * @returns Promise resolving to an array of identifier strings.
 		 */
-		export function getLanguages(): Thenable<string[]>;
+		export function getLanguages(): PromiseLike<string[]>;
 
 		/**
 		 * Set (and change) the {@link TextDocument.languageId language} that is associated
@@ -13653,9 +13653,9 @@ declare module 'vscode' {
 		 *
 		 * @param document The document which language is to be changed
 		 * @param languageId The new language identifier.
-		 * @returns A thenable that resolves with the updated document.
+		 * @returns A promise-like that resolves with the updated document.
 		 */
-		export function setTextDocumentLanguage(document: TextDocument, languageId: string): Thenable<TextDocument>;
+		export function setTextDocumentLanguage(document: TextDocument, languageId: string): PromiseLike<TextDocument>;
 
 		/**
 		 * Compute the match between a document {@link DocumentSelector selector} and a document. Values
@@ -14277,7 +14277,7 @@ declare module 'vscode' {
 		 * @returns a boolean indicating whether the message was successfully
 		 * delivered to any renderer.
 		 */
-		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
+		postMessage(message: any, editor?: NotebookEditor): PromiseLike<boolean>;
 	}
 
 	/**
@@ -14419,7 +14419,7 @@ declare module 'vscode' {
 		 * @returns A promise that will resolve to true when the document
 		 * has been saved. Will return false if the file was not dirty or when save failed.
 		 */
-		save(): Thenable<boolean>;
+		save(): PromiseLike<boolean>;
 	}
 
 	/**
@@ -14514,7 +14514,7 @@ declare module 'vscode' {
 	 * An event that is fired when a {@link NotebookDocument notebook document} will be saved.
 	 *
 	 * To make modifications to the document before it is being saved, call the
-	 * {@linkcode NotebookDocumentWillSaveEvent.waitUntil waitUntil}-function with a thenable
+	 * {@linkcode NotebookDocumentWillSaveEvent.waitUntil waitUntil}-function with a promise-like
 	 * that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface NotebookDocumentWillSaveEvent {
@@ -14551,18 +14551,18 @@ declare module 'vscode' {
 		 * })
 		 * ```
 		 *
-		 * @param thenable A thenable that resolves to {@link WorkspaceEdit workspace edit}.
+		 * @param promiseLike A promise-like that resolves to {@link WorkspaceEdit workspace edit}.
 		 */
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		waitUntil(promiseLike: PromiseLike<WorkspaceEdit>): void;
 
 		/**
-		 * Allows to pause the event loop until the provided thenable resolved.
+		 * Allows to pause the event loop until the provided promise-like resolved.
 		 *
 		 * *Note:* This function can only be called during event dispatch.
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @param promiseLike A promise-like that delays saving.
 		 */
-		waitUntil(thenable: Thenable<any>): void;
+		waitUntil(promiseLike: PromiseLike<any>): void;
 	}
 
 	/**
@@ -14849,18 +14849,18 @@ declare module 'vscode' {
 		 *
 		 * @param content Contents of a notebook file.
 		 * @param token A cancellation token.
-		 * @returns Notebook data or a thenable that resolves to such.
+		 * @returns Notebook data or a promise-like that resolves to such.
 		 */
-		deserializeNotebook(content: Uint8Array, token: CancellationToken): NotebookData | Thenable<NotebookData>;
+		deserializeNotebook(content: Uint8Array, token: CancellationToken): NotebookData | PromiseLike<NotebookData>;
 
 		/**
 		 * Serialize notebook data into file contents.
 		 *
 		 * @param data A notebook data structure.
 		 * @param token A cancellation token.
-		 * @returns An array of bytes or a thenable that resolves to such.
+		 * @returns An array of bytes or a promise-like that resolves to such.
 		 */
-		serializeNotebook(data: NotebookData, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
+		serializeNotebook(data: NotebookData, token: CancellationToken): Uint8Array | PromiseLike<Uint8Array>;
 	}
 
 	/**
@@ -14995,7 +14995,7 @@ declare module 'vscode' {
 		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
 		 * Run Selection etc. The execute handler is responsible for creating and managing {@link NotebookCellExecution execution}-objects.
 		 */
-		executeHandler: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | Thenable<void>;
+		executeHandler: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | PromiseLike<void>;
 
 		/**
 		 * Optional interrupt handler.
@@ -15009,7 +15009,7 @@ declare module 'vscode' {
 		 * _Note_ that supporting {@link NotebookCellExecution.token cancellation tokens} is preferred and that interrupt handlers should
 		 * only be used when tokens cannot be supported.
 		 */
-		interruptHandler?: (notebook: NotebookDocument) => void | Thenable<void>;
+		interruptHandler?: (notebook: NotebookDocument) => void | PromiseLike<void>;
 
 		/**
 		 * An event that fires whenever a controller has been selected or un-selected for a notebook document.
@@ -15099,9 +15099,9 @@ declare module 'vscode' {
 		 *
 		 * @param cell Cell for which output is cleared. Defaults to the {@link NotebookCellExecution.cell cell} of
 		 * this execution.
-		 * @returns A thenable that resolves when the operation finished.
+		 * @returns A promise-like that resolves when the operation finished.
 		 */
-		clearOutput(cell?: NotebookCell): Thenable<void>;
+		clearOutput(cell?: NotebookCell): PromiseLike<void>;
 
 		/**
 		 * Replace the output of the cell that is executing or of another cell that is affected by this execution.
@@ -15109,9 +15109,9 @@ declare module 'vscode' {
 		 * @param out Output that replaces the current output.
 		 * @param cell Cell for which output is cleared. Defaults to the {@link NotebookCellExecution.cell cell} of
 		 * this execution.
-		 * @returns A thenable that resolves when the operation finished.
+		 * @returns A promise-like that resolves when the operation finished.
 		 */
-		replaceOutput(out: NotebookCellOutput | readonly NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
+		replaceOutput(out: NotebookCellOutput | readonly NotebookCellOutput[], cell?: NotebookCell): PromiseLike<void>;
 
 		/**
 		 * Append to the output of the cell that is executing or to another cell that is affected by this execution.
@@ -15119,27 +15119,27 @@ declare module 'vscode' {
 		 * @param out Output that is appended to the current output.
 		 * @param cell Cell for which output is cleared. Defaults to the {@link NotebookCellExecution.cell cell} of
 		 * this execution.
-		 * @returns A thenable that resolves when the operation finished.
+		 * @returns A promise-like that resolves when the operation finished.
 		 */
-		appendOutput(out: NotebookCellOutput | readonly NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
+		appendOutput(out: NotebookCellOutput | readonly NotebookCellOutput[], cell?: NotebookCell): PromiseLike<void>;
 
 		/**
 		 * Replace all output items of existing cell output.
 		 *
 		 * @param items Output items that replace the items of existing output.
 		 * @param output Output object that already exists.
-		 * @returns A thenable that resolves when the operation finished.
+		 * @returns A promise-like that resolves when the operation finished.
 		 */
-		replaceOutputItems(items: NotebookCellOutputItem | readonly NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
+		replaceOutputItems(items: NotebookCellOutputItem | readonly NotebookCellOutputItem[], output: NotebookCellOutput): PromiseLike<void>;
 
 		/**
 		 * Append output items to existing cell output.
 		 *
 		 * @param items Output items that are append to existing output.
 		 * @param output Output object that already exists.
-		 * @returns A thenable that resolves when the operation finished.
+		 * @returns A promise-like that resolves when the operation finished.
 		 */
-		appendOutputItems(items: NotebookCellOutputItem | readonly NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
+		appendOutputItems(items: NotebookCellOutputItem | readonly NotebookCellOutputItem[], output: NotebookCellOutput): PromiseLike<void>;
 	}
 
 	/**
@@ -15243,7 +15243,7 @@ declare module 'vscode' {
 		 * @param handler The execute-handler of the controller.
 		 * @returns A new notebook controller.
 		 */
-		export function createNotebookController(id: string, notebookType: string, label: string, handler?: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | Thenable<void>): NotebookController;
+		export function createNotebookController(id: string, notebookType: string, label: string, handler?: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | PromiseLike<void>): NotebookController;
 
 		/**
 		 * Register a {@link NotebookCellStatusBarItemProvider cell statusbar item provider} for the given notebook type.
@@ -15305,7 +15305,7 @@ declare module 'vscode' {
 		 *
 		 * @param uri The uri of the resource open in a text editor.
 		 * @param token A cancellation token.
-		 * @returns A thenable that resolves to uri of the matching original resource.
+		 * @returns A promise-like that resolves to uri of the matching original resource.
 		 */
 		provideOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
 	}
@@ -15624,7 +15624,7 @@ declare module 'vscode' {
 		/**
 		 * Send a custom request to the debug adapter.
 		 */
-		customRequest(command: string, args?: any): Thenable<any>;
+		customRequest(command: string, args?: any): PromiseLike<any>;
 
 		/**
 		 * Maps a breakpoint in the editor to the corresponding Debug Adapter Protocol (DAP) breakpoint that is managed by the debug adapter of the debug session.
@@ -15633,7 +15633,7 @@ declare module 'vscode' {
 		 * @param breakpoint A {@link Breakpoint} in the editor.
 		 * @returns A promise that resolves to the Debug Adapter Protocol breakpoint or `undefined`.
 		 */
-		getDebugProtocolBreakpoint(breakpoint: Breakpoint): Thenable<DebugProtocolBreakpoint | undefined>;
+		getDebugProtocolBreakpoint(breakpoint: Breakpoint): PromiseLike<DebugProtocolBreakpoint | undefined>;
 	}
 
 	/**
@@ -16186,17 +16186,17 @@ declare module 'vscode' {
 		 * @param folder The {@link WorkspaceFolder workspace folder} for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
 		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a {@link DebugConfiguration} object.
 		 * @param parentSessionOrOptions Debug session options. When passed a parent {@link DebugSession debug session}, assumes options with just this parent session.
-		 * @returns A thenable that resolves when debugging could be successfully started.
+		 * @returns A promise-like that resolves when debugging could be successfully started.
 		 */
-		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
+		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): PromiseLike<boolean>;
 
 		/**
 		 * Stop the given debug session or stop all debug sessions if session is omitted.
 		 *
 		 * @param session The {@link DebugSession debug session} to stop; if omitted all sessions are stopped.
-		 * @returns A thenable that resolves when the session(s) have been stopped.
+		 * @returns A promise-like that resolves when the session(s) have been stopped.
 		 */
-		export function stopDebugging(session?: DebugSession): Thenable<void>;
+		export function stopDebugging(session?: DebugSession): PromiseLike<void>;
 
 		/**
 		 * Add breakpoints.
@@ -16569,7 +16569,7 @@ declare module 'vscode' {
 		/**
 		 * Optional reaction handler for creating and deleting reactions on a {@link Comment}.
 		 */
-		reactionHandler?: (comment: Comment, reaction: CommentReaction) => Thenable<void>;
+		reactionHandler?: (comment: Comment, reaction: CommentReaction) => PromiseLike<void>;
 
 		/**
 		 * Dispose this comment controller.
@@ -16781,7 +16781,7 @@ declare module 'vscode' {
 		 * these permissions, otherwise all sessions should be returned.
 		 * @returns A promise that resolves to an array of authentication sessions.
 		 */
-		getSessions(scopes?: readonly string[]): Thenable<readonly AuthenticationSession[]>;
+		getSessions(scopes?: readonly string[]): PromiseLike<readonly AuthenticationSession[]>;
 
 		/**
 		 * Prompts a user to login.
@@ -16796,7 +16796,7 @@ declare module 'vscode' {
 		 * @param scopes A list of scopes, permissions, that the new session should be created with.
 		 * @returns A promise that resolves to an authentication session.
 		 */
-		createSession(scopes: readonly string[]): Thenable<AuthenticationSession>;
+		createSession(scopes: readonly string[]): PromiseLike<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
@@ -16806,7 +16806,7 @@ declare module 'vscode' {
 		 * If a session cannot be removed, the provider should reject with an error message.
 		 * @param sessionId The id of the session to remove.
 		 */
-		removeSession(sessionId: string): Thenable<void>;
+		removeSession(sessionId: string): PromiseLike<void>;
 	}
 
 
@@ -16825,9 +16825,9 @@ declare module 'vscode' {
 		 * @param providerId The id of the provider to use
 		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
-		 * @returns A thenable that resolves to an authentication session
+		 * @returns A promise-like that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** */createIfNone: true }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** */createIfNone: true }): PromiseLike<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -16840,9 +16840,9 @@ declare module 'vscode' {
 		 * @param providerId The id of the provider to use
 		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
-		 * @returns A thenable that resolves to an authentication session
+		 * @returns A promise-like that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationForceNewSessionOptions }): PromiseLike<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -16855,9 +16855,9 @@ declare module 'vscode' {
 		 * @param providerId The id of the provider to use
 		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
-		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
+		 * @returns A promise-like that resolves to an authentication session if available, or undefined if there are no sessions
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		export function getSession(providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions): PromiseLike<AuthenticationSession | undefined>;
 
 		/**
 		 * An {@link Event} which fires when the authentication sessions of an authentication provider have
@@ -17085,7 +17085,7 @@ declare module 'vscode' {
 		 * instances associated with the request will be
 		 * automatically cancelled as well.
 		 */
-		runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
+		runHandler: (request: TestRunRequest, token: CancellationToken) => PromiseLike<void> | void;
 
 		/**
 		 * Deletes the run profile.
@@ -17137,7 +17137,7 @@ declare module 'vscode' {
 		 * @returns An instance of a {@link TestRunProfile}, which is automatically
 		 * associated with this controller.
 		 */
-		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean, tag?: TestTag, supportsContinuousRun?: boolean): TestRunProfile;
+		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => PromiseLike<void> | void, isDefault?: boolean, tag?: TestTag, supportsContinuousRun?: boolean): TestRunProfile;
 
 		/**
 		 * A function provided by the extension that the editor may call to request
@@ -17152,12 +17152,12 @@ declare module 'vscode' {
 		 * to resolve the previously-run tests.
 		 *
 		 * The item in the explorer will automatically be marked as "busy" until
-		 * the function returns or the returned thenable resolves.
+		 * the function returns or the returned promise-like resolves.
 		 *
 		 * @param item An unresolved test item for which children are being
 		 * requested, or `undefined` to resolve the controller's initial {@link TestController.items items}.
 		 */
-		resolveHandler?: (item: TestItem | undefined) => Thenable<void> | void;
+		resolveHandler?: (item: TestItem | undefined) => PromiseLike<void> | void;
 
 		/**
 		 * If this method is present, a refresh button will be present in the
@@ -17168,9 +17168,9 @@ declare module 'vscode' {
 		 * It's recommended that extensions try to update tests in realtime, using
 		 * a {@link FileSystemWatcher} for example, and use this method as a fallback.
 		 *
-		 * @returns A thenable that resolves when tests have been refreshed.
+		 * @returns A promise-like that resolves when tests have been refreshed.
 		 */
-		refreshHandler: ((token: CancellationToken) => Thenable<void> | void) | undefined;
+		refreshHandler: ((token: CancellationToken) => PromiseLike<void> | void) | undefined;
 
 		/**
 		 * Creates a {@link TestRun}. This should be called by the
@@ -17825,7 +17825,7 @@ declare module 'vscode' {
 		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
 		 * @returns A promise that resolves to `true` when all tabs have been closed.
 		 */
-		close(tab: Tab | readonly Tab[], preserveFocus?: boolean): Thenable<boolean>;
+		close(tab: Tab | readonly Tab[], preserveFocus?: boolean): PromiseLike<boolean>;
 
 		/**
 		 * Closes the tab group. This makes the tab group object invalid and the tab group
@@ -17834,7 +17834,7 @@ declare module 'vscode' {
 		 * @param preserveFocus When `true` focus will remain in its current position.
 		 * @returns A promise that resolves to `true` when all tab groups have been closed.
 		 */
-		close(tabGroup: TabGroup | readonly TabGroup[], preserveFocus?: boolean): Thenable<boolean>;
+		close(tabGroup: TabGroup | readonly TabGroup[], preserveFocus?: boolean): PromiseLike<boolean>;
 	}
 
 	/**
@@ -17959,7 +17959,7 @@ declare module 'vscode' {
 		 * Optional flush function which will give this sender a chance to send any remaining events
 		 * as its {@link TelemetryLogger} is being disposed
 		 */
-		flush?(): void | Thenable<void>;
+		flush?(): void | PromiseLike<void>;
 	}
 
 	/**
@@ -17983,27 +17983,4 @@ declare module 'vscode' {
 		 */
 		readonly additionalCommonProperties?: Record<string, any>;
 	}
-}
-
-/**
- * Thenable is a common denominator between ES6 promises, Q, jquery.Deferred, WinJS.Promise,
- * and others. This API makes no assumption about what promise library is being used which
- * enables reusing existing code without migrating to a specific promise implementation. Still,
- * we recommend the use of native promises which are available in this editor.
- */
-interface Thenable<T> {
-	/**
-	* Attaches callbacks for the resolution and/or rejection of the Promise.
-	* @param onfulfilled The callback to execute when the Promise is resolved.
-	* @param onrejected The callback to execute when the Promise is rejected.
-	* @returns A Promise for the completion of which ever callback is executed.
-	*/
-	then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
-	/**
-	* Attaches callbacks for the resolution and/or rejection of the Promise.
-	* @param onfulfilled The callback to execute when the Promise is resolved.
-	* @param onrejected The callback to execute when the Promise is rejected.
-	* @returns A Promise for the completion of which ever callback is executed.
-	*/
-	then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
 }

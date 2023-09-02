@@ -50,7 +50,7 @@ export function getCustomDataSource(runtime: Runtime, toDispose: Disposable[]) {
 		get onDidChange() {
 			return onChange.event;
 		},
-		getContent(uriString: string): Thenable<string> {
+		getContent(uriString: string): PromiseLike<string> {
 			const uri = Uri.parse(uriString);
 			if (localExtensionUris.has(uriString)) {
 				return workspace.fs.readFile(uri).then(buffer => {

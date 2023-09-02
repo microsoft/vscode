@@ -46,11 +46,11 @@ export function pathEquals(path1: string, path2: string): boolean {
 	return path1 === path2;
 }
 
-export function closeAllEditors(): Thenable<any> {
+export function closeAllEditors(): PromiseLike<any> {
 	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 }
 
-export function saveAllEditors(): Thenable<any> {
+export function saveAllEditors(): PromiseLike<any> {
 	return vscode.commands.executeCommand('workbench.action.files.saveAll');
 }
 
@@ -162,7 +162,7 @@ export function suiteRepeat(n: number, description: string, callback: (this: any
 }
 
 export async function poll<T>(
-	fn: () => Thenable<T>,
+	fn: () => PromiseLike<T>,
 	acceptFn: (result: T) => boolean,
 	timeoutMessage: string,
 	retryCount: number = 200,

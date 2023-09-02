@@ -9,7 +9,7 @@ import { Property, Rule } from 'EmmetFlatNode';
 
 const vendorPrefixes = ['-webkit-', '-moz-', '-ms-', '-o-', ''];
 
-export function reflectCssValue(): Thenable<boolean> | undefined {
+export function reflectCssValue(): PromiseLike<boolean> | undefined {
 	const editor = window.activeTextEditor;
 	if (!editor) {
 		window.showInformationMessage('No editor is active.');
@@ -24,7 +24,7 @@ export function reflectCssValue(): Thenable<boolean> | undefined {
 	return updateCSSNode(editor, node);
 }
 
-function updateCSSNode(editor: TextEditor, property: Property): Thenable<boolean> {
+function updateCSSNode(editor: TextEditor, property: Property): PromiseLike<boolean> {
 	const rule: Rule = property.parent;
 	let currentPrefix = '';
 

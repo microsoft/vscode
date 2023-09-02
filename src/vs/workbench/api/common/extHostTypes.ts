@@ -527,7 +527,7 @@ export class ManagedResolvedAuthority {
 			&& (resolvedAuthority.connectionToken === undefined || typeof resolvedAuthority.connectionToken === 'string');
 	}
 
-	constructor(public readonly makeConnection: () => Thenable<vscode.ManagedMessagePassing>, public readonly connectionToken?: string) {
+	constructor(public readonly makeConnection: () => PromiseLike<vscode.ManagedMessagePassing>, public readonly connectionToken?: string) {
 		if (typeof connectionToken !== 'undefined') {
 			validateConnectionToken(connectionToken);
 		}
@@ -2242,19 +2242,19 @@ export enum TaskScope {
 }
 
 export class CustomExecution implements vscode.CustomExecution {
-	private _callback: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
-	constructor(callback: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	private _callback: (resolvedDefinition: vscode.TaskDefinition) => PromiseLike<vscode.Pseudoterminal>;
+	constructor(callback: (resolvedDefinition: vscode.TaskDefinition) => PromiseLike<vscode.Pseudoterminal>) {
 		this._callback = callback;
 	}
 	public computeId(): string {
 		return 'customExecution' + generateUuid();
 	}
 
-	public set callback(value: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	public set callback(value: (resolvedDefinition: vscode.TaskDefinition) => PromiseLike<vscode.Pseudoterminal>) {
 		this._callback = value;
 	}
 
-	public get callback(): ((resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	public get callback(): ((resolvedDefinition: vscode.TaskDefinition) => PromiseLike<vscode.Pseudoterminal>) {
 		return this._callback;
 	}
 }

@@ -35,7 +35,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
 	}
 
-	public collectDefaultSuggestions(_resource: Uri, collector: ISuggestionsCollector): Thenable<any> {
+	public collectDefaultSuggestions(_resource: Uri, collector: ISuggestionsCollector): PromiseLike<any> {
 		const defaultValue = {
 			'name': '${1:name}',
 			'description': '${2:description}',
@@ -51,7 +51,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
-	public collectPropertySuggestions(_resource: Uri, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
+	public collectPropertySuggestions(_resource: Uri, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): PromiseLike<any> | null {
 		if (!this.isEnabled()) {
 			return null;
 		}
@@ -139,7 +139,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	public resolveSuggestion(_resource: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null {
+	public resolveSuggestion(_resource: Uri | undefined, item: CompletionItem): PromiseLike<CompletionItem | null> | null {
 		if (item.kind === CompletionItemKind.Property && item.documentation === '') {
 
 			let label = item.label;
@@ -158,7 +158,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	private getInfo(pack: string): Thenable<string | undefined> {
+	private getInfo(pack: string): PromiseLike<string | undefined> {
 		const queryUrl = 'https://registry.bower.io/packages/' + encodeURIComponent(pack);
 
 		return this.xhr({
@@ -186,7 +186,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		});
 	}
 
-	public getInfoContribution(_resource: Uri, location: Location): Thenable<MarkdownString[] | null> | null {
+	public getInfoContribution(_resource: Uri, location: Location): PromiseLike<MarkdownString[] | null> | null {
 		if (!this.isEnabled()) {
 			return null;
 		}

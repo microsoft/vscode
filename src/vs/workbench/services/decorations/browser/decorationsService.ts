@@ -8,7 +8,7 @@ import { Emitter, DebounceEmitter, Event } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from '../common/decorations';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isThenable } from 'vs/base/common/async';
+import { isPromiseLike } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector, asCSSPropertyValue } from 'vs/base/browser/dom';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -232,7 +232,7 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 class DecorationDataRequest {
 	constructor(
 		readonly source: CancellationTokenSource,
-		readonly thenable: Promise<void>,
+		readonly promise: Promise<void>,
 	) { }
 }
 
@@ -375,14 +375,14 @@ export class DecorationsService implements IDecorationsService {
 		}
 
 		const source = new CancellationTokenSource();
-		const dataOrThenable = provider.provideDecorations(uri, source.token);
-		if (!isThenable<IDecorationData | Promise<IDecorationData | undefined> | undefined>(dataOrThenable)) {
+		const dataOrPromiseLike = provider.provideDecorations(uri, source.token);
+		if (!isPromiseLike<IDecorationData | Promise<IDecorationData | undefined> | undefined>(dataOrPromiseLike)) {
 			// sync -> we have a result now
-			return this._keepItem(map, provider, uri, dataOrThenable);
+			return this._keepItem(map, provider, uri, dataOrPromiseLike);
 
 		} else {
 			// async -> we have a result soon
-			const request = new DecorationDataRequest(source, Promise.resolve(dataOrThenable).then(data => {
+			const request = new DecorationDataRequest(source, Promise.resolve(dataOrPromiseLike).then(data => {
 				if (map.get(provider) === request) {
 					this._keepItem(map, provider, uri, data);
 				}

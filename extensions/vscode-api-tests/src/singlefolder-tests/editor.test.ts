@@ -14,7 +14,7 @@ suite('vscode API - editors', () => {
 		await closeAllEditors();
 	});
 
-	function withRandomFileEditor(initialContents: string, run: (editor: TextEditor, doc: TextDocument) => Thenable<void>): Thenable<boolean> {
+	function withRandomFileEditor(initialContents: string, run: (editor: TextEditor, doc: TextDocument) => PromiseLike<void>): PromiseLike<boolean> {
 		return createRandomFile(initialContents).then(file => {
 			return workspace.openTextDocument(file).then(doc => {
 				return window.showTextDocument(doc).then((editor) => {
@@ -136,7 +136,7 @@ suite('vscode API - editors', () => {
 		});
 	});
 
-	function executeReplace(editor: TextEditor, range: Range, text: string, undoStopBefore: boolean, undoStopAfter: boolean): Thenable<boolean> {
+	function executeReplace(editor: TextEditor, range: Range, text: string, undoStopBefore: boolean, undoStopAfter: boolean): PromiseLike<boolean> {
 		return editor.edit((builder) => {
 			builder.replace(range, text);
 		}, { undoStopBefore: undoStopBefore, undoStopAfter: undoStopAfter });

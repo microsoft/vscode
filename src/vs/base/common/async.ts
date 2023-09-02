@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { setTimeout0 } from 'vs/base/common/platform';
 import { MicrotaskDelay } from './symbols';
 
-export function isThenable<T>(obj: unknown): obj is Promise<T> {
+export function isPromiseLike<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
 }
 
@@ -23,14 +23,14 @@ export interface CancelablePromise<T> extends Promise<T> {
 export function createCancelablePromise<T>(callback: (token: CancellationToken) => Promise<T>): CancelablePromise<T> {
 	const source = new CancellationTokenSource();
 
-	const thenable = callback(source.token);
+	const promiseLike = callback(source.token);
 	const promise = new Promise<T>((resolve, reject) => {
 		const subscription = source.token.onCancellationRequested(() => {
 			subscription.dispose();
 			source.dispose();
 			reject(new CancellationError());
 		});
-		Promise.resolve(thenable).then(value => {
+		Promise.resolve(promiseLike).then(value => {
 			subscription.dispose();
 			source.dispose();
 			resolve(value);
@@ -125,10 +125,10 @@ export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?:
 	]);
 }
 
-export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
+export function asPromise<T>(callback: () => T | PromiseLike<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		const item = callback();
-		if (isThenable<T>(item)) {
+		if (isPromiseLike<T>(item)) {
 			item.then(resolve, reject);
 		} else {
 			resolve(item);

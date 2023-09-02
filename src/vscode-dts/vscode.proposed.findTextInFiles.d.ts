@@ -87,9 +87,9 @@ declare module 'vscode' {
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
 		 * @param callback A callback, called for each result
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
-		 * @return A thenable that resolves when the search is complete.
+		 * @return A promise-like that resolves when the search is complete.
 		 */
-		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
+		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): PromiseLike<TextSearchComplete>;
 
 		/**
 		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
@@ -97,8 +97,8 @@ declare module 'vscode' {
 		 * @param options An optional set of query options. Include and exclude patterns, maxResults, etc.
 		 * @param callback A callback, called for each result
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
-		 * @return A thenable that resolves when the search is complete.
+		 * @return A promise-like that resolves when the search is complete.
 		 */
-		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
+		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): PromiseLike<TextSearchComplete>;
 	}
 }

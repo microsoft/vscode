@@ -13,7 +13,7 @@ declare module 'vscode' {
 		 * @param run Run options to use.
 		 * @param token Cancellation token for the test run
 		 */
-		export function runTests(run: TestRunRequest, token?: CancellationToken): Thenable<void>;
+		export function runTests(run: TestRunRequest, token?: CancellationToken): PromiseLike<void>;
 
 		/**
 		 * Returns an observer that watches and can request tests.

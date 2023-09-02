@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isThenable } from 'vs/base/common/async';
+import { isPromiseLike } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -117,7 +117,7 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 			let p: Promise<any>;
 			try {
 				const result = (<Function>instance[path]).apply(instance, wireArgs);
-				p = isThenable(result) ? result : Promise.resolve(result);
+				p = isPromiseLike(result) ? result : Promise.resolve(result);
 			} catch (err) {
 				p = Promise.reject(err);
 			}

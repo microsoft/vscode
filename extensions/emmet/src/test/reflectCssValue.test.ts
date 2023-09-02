@@ -9,7 +9,7 @@ import { Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { reflectCssValue as reflectCssValueImpl } from '../reflectCssValue';
 
-function reflectCssValue(): Thenable<boolean> {
+function reflectCssValue(): PromiseLike<boolean> {
 	const result = reflectCssValueImpl();
 	assert.ok(result);
 	return result!;

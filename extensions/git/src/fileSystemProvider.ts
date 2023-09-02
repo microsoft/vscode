@@ -144,7 +144,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		return { type: FileType.File, size: size, mtime: this.mtime, ctime: 0 };
 	}
 
-	readDirectory(): Thenable<[string, FileType][]> {
+	readDirectory(): PromiseLike<[string, FileType][]> {
 		throw new Error('Method not implemented.');
 	}
 

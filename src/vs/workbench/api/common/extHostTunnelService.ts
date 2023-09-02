@@ -64,8 +64,8 @@ export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IEx
 export class ExtHostTunnelService extends Disposable implements IExtHostTunnelService {
 	readonly _serviceBrand: undefined;
 	protected readonly _proxy: MainThreadTunnelServiceShape;
-	private _forwardPortProvider: ((tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions, token?: vscode.CancellationToken) => Thenable<vscode.Tunnel | undefined> | undefined) | undefined;
-	private _showCandidatePort: (host: string, port: number, detail: string) => Thenable<boolean> = () => { return Promise.resolve(true); };
+	private _forwardPortProvider: ((tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions, token?: vscode.CancellationToken) => PromiseLike<vscode.Tunnel | undefined> | undefined) | undefined;
+	private _showCandidatePort: (host: string, port: number, detail: string) => PromiseLike<boolean> = () => { return Promise.resolve(true); };
 	private _extensionTunnels: Map<string, Map<number, { tunnel: vscode.Tunnel; disposeListener: IDisposable }>> = new Map();
 	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
 	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;

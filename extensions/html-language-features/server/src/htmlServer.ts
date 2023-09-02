@@ -109,13 +109,13 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	};
 
 	let globalSettings: Settings = {};
-	let documentSettings: { [key: string]: Thenable<Settings> } = {};
+	let documentSettings: { [key: string]: PromiseLike<Settings> } = {};
 	// remove document settings on close
 	documents.onDidClose(e => {
 		delete documentSettings[e.document.uri];
 	});
 
-	function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: () => boolean): Thenable<Settings | undefined> {
+	function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: () => boolean): PromiseLike<Settings | undefined> {
 		if (scopedSettingsSupport && needsDocumentSettings()) {
 			let promise = documentSettings[textDocument.uri];
 			if (!promise) {
@@ -239,7 +239,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}
 	});
 
-	let formatterRegistrations: Thenable<Disposable>[] | null = null;
+	let formatterRegistrations: PromiseLike<Disposable>[] | null = null;
 
 	// The settings have changed. Is send on server activation as well.
 	connection.onDidChangeConfiguration((change) => {

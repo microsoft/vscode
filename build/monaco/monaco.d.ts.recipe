@@ -11,8 +11,6 @@ interface Window {
 
 declare namespace monaco {
 
-	export type Thenable<T> = PromiseLike<T>;
-
 	export interface Environment {
 		/**
 		 * Define a global `monaco` symbol.

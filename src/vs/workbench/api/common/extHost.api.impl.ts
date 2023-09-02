@@ -285,7 +285,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: commands
 		const commands: typeof vscode.commands = {
-			registerCommand(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
+			registerCommand(id: string, command: <T>(...args: any[]) => T | PromiseLike<T>, thisArgs?: any): vscode.Disposable {
 				return extHostCommands.registerCommand(true, id, command, thisArgs, undefined, extension);
 			},
 			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void, thisArg?: any): vscode.Disposable {
@@ -321,10 +321,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					callback.apply(thisArg, [diff, ...args]);
 				}, undefined, undefined, extension);
 			},
-			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
+			executeCommand<T>(id: string, ...args: any[]): PromiseLike<T> {
 				return extHostCommands.executeCommand<T>(id, ...args);
 			},
-			getCommands(filterInternal: boolean = false): Thenable<string[]> {
+			getCommands(filterInternal: boolean = false): PromiseLike<string[]> {
 				return extHostCommands.getCommands(filterInternal);
 			}
 		};
@@ -424,7 +424,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: tests
 		const tests: typeof vscode.tests = {
-			createTestController(provider, label, refreshHandler?: (token: vscode.CancellationToken) => Thenable<void> | void) {
+			createTestController(provider, label, refreshHandler?: (token: vscode.CancellationToken) => PromiseLike<void> | void) {
 				return extHostTesting.createTestController(extension, provider, label, refreshHandler);
 			},
 			createTestObserver() {
@@ -503,10 +503,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			getDiagnostics: (resource?: vscode.Uri) => {
 				return <any>extHostDiagnostics.getDiagnostics(resource);
 			},
-			getLanguages(): Thenable<string[]> {
+			getLanguages(): PromiseLike<string[]> {
 				return extHostLanguages.getLanguages();
 			},
-			setTextDocumentLanguage(document: vscode.TextDocument, languageId: string): Thenable<vscode.TextDocument> {
+			setTextDocumentLanguage(document: vscode.TextDocument, languageId: string): PromiseLike<vscode.TextDocument> {
 				return extHostLanguages.changeLanguage(document.uri, languageId);
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
@@ -707,13 +707,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostWindow.onDidChangeWindowState(listener, thisArg, disposables);
 			},
 			showInformationMessage(message: string, ...rest: Array<vscode.MessageOptions | string | vscode.MessageItem>) {
-				return <Thenable<any>>extHostMessageService.showMessage(extension, Severity.Info, message, rest[0], <Array<string | vscode.MessageItem>>rest.slice(1));
+				return <PromiseLike<any>>extHostMessageService.showMessage(extension, Severity.Info, message, rest[0], <Array<string | vscode.MessageItem>>rest.slice(1));
 			},
 			showWarningMessage(message: string, ...rest: Array<vscode.MessageOptions | string | vscode.MessageItem>) {
-				return <Thenable<any>>extHostMessageService.showMessage(extension, Severity.Warning, message, rest[0], <Array<string | vscode.MessageItem>>rest.slice(1));
+				return <PromiseLike<any>>extHostMessageService.showMessage(extension, Severity.Warning, message, rest[0], <Array<string | vscode.MessageItem>>rest.slice(1));
 			},
 			showErrorMessage(message: string, ...rest: Array<vscode.MessageOptions | string | vscode.MessageItem>) {
-				return <Thenable<any>>extHostMessageService.showMessage(extension, Severity.Error, message, rest[0], <Array<string | vscode.MessageItem>>rest.slice(1));
+				return <PromiseLike<any>>extHostMessageService.showMessage(extension, Severity.Error, message, rest[0], <Array<string | vscode.MessageItem>>rest.slice(1));
 			},
 			showQuickPick(items: any, options?: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
 				return extHostQuickOpen.showQuickPick(extension, items, options, token);
@@ -746,16 +746,16 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				return extHostStatusBar.createStatusBarEntry(extension, id, alignment, priority);
 			},
-			setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): vscode.Disposable {
-				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);
+			setStatusBarMessage(text: string, timeoutOrPromiseLike?: number | PromiseLike<any>): vscode.Disposable {
+				return extHostStatusBar.setStatusBarMessage(text, timeoutOrPromiseLike);
 			},
-			withScmProgress<R>(task: (progress: vscode.Progress<number>) => Thenable<R>) {
+			withScmProgress<R>(task: (progress: vscode.Progress<number>) => PromiseLike<R>) {
 				extHostApiDeprecation.report('window.withScmProgress', extension,
 					`Use 'withProgress' instead.`);
 
 				return extHostProgress.withProgress(extension, { location: extHostTypes.ProgressLocation.SourceControl }, (progress, token) => task({ report(n: number) { /*noop*/ } }));
 			},
-			withProgress<R>(options: vscode.ProgressOptions, task: (progress: vscode.Progress<{ message?: string; worked?: number }>, token: vscode.CancellationToken) => Thenable<R>) {
+			withProgress<R>(options: vscode.ProgressOptions, task: (progress: vscode.Progress<{ message?: string; worked?: number }>, token: vscode.CancellationToken) => PromiseLike<R>) {
 				return extHostProgress.withProgress(extension, options, task);
 			},
 			createOutputChannel(name: string, options: string | { log: true } | undefined): any {
@@ -936,7 +936,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			saveAll: (includeUntitled?) => {
 				return extHostWorkspace.saveAll(includeUntitled);
 			},
-			applyEdit(edit: vscode.WorkspaceEdit, metadata?: vscode.WorkspaceEditMetadata): Thenable<boolean> {
+			applyEdit(edit: vscode.WorkspaceEdit, metadata?: vscode.WorkspaceEditMetadata): PromiseLike<boolean> {
 				return extHostBulkEdits.applyWorkspaceEdit(edit, extension, metadata);
 			},
 			createFileSystemWatcher: (pattern, ignoreCreate, ignoreChange, ignoreDelete): vscode.FileSystemWatcher => {
@@ -949,7 +949,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				throw errors.readonly();
 			},
 			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string }) {
-				let uriPromise: Thenable<URI>;
+				let uriPromise: PromiseLike<URI>;
 
 				const options = uriOrFileNameOrOptions as { language?: string; content?: string };
 				if (typeof uriOrFileNameOrOptions === 'string') {
@@ -1222,10 +1222,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, type, provider);
 			},
-			fetchTasks: (filter?: vscode.TaskFilter): Thenable<vscode.Task[]> => {
+			fetchTasks: (filter?: vscode.TaskFilter): PromiseLike<vscode.Task[]> => {
 				return extHostTask.fetchTasks(filter);
 			},
-			executeTask: (task: vscode.Task): Thenable<vscode.TaskExecution> => {
+			executeTask: (task: vscode.Task): PromiseLike<vscode.TaskExecution> => {
 				return extHostTask.executeTask(extension, task);
 			},
 			get taskExecutions(): vscode.TaskExecution[] {
@@ -1326,7 +1326,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: ai
 		const ai: typeof vscode.ai = {
-			getRelatedInformation(query: string, types: vscode.RelatedInformationType[]): Thenable<vscode.RelatedInformationResult[]> {
+			getRelatedInformation(query: string, types: vscode.RelatedInformationType[]): PromiseLike<vscode.RelatedInformationResult[]> {
 				checkProposedApiEnabled(extension, 'aiRelatedInformation');
 				return extHostAiRelatedInformation.getRelatedInformation(extension, query, types);
 			},

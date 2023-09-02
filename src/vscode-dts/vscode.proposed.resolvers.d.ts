@@ -40,14 +40,14 @@ declare module 'vscode' {
 
 		send: (data: Uint8Array) => void;
 		end: () => void;
-		drain?: () => Thenable<void>;
+		drain?: () => PromiseLike<void>;
 	}
 
 	export class ManagedResolvedAuthority {
-		readonly makeConnection: () => Thenable<ManagedMessagePassing>;
+		readonly makeConnection: () => PromiseLike<ManagedMessagePassing>;
 		readonly connectionToken: string | undefined;
 
-		constructor(makeConnection: () => Thenable<ManagedMessagePassing>, connectionToken?: string);
+		constructor(makeConnection: () => PromiseLike<ManagedMessagePassing>, connectionToken?: string);
 	}
 
 	export interface ResolvedOptions {
@@ -103,7 +103,7 @@ declare module 'vscode' {
 	interface Tunnel extends TunnelDescription {
 		// Implementers of Tunnel should fire onDidDispose when dispose is called.
 		onDidDispose: Event<void>;
-		dispose(): void | Thenable<void>;
+		dispose(): void | PromiseLike<void>;
 	}
 
 	/**
@@ -165,7 +165,7 @@ declare module 'vscode' {
 		 * @param authority The authority part of the current opened `vscode-remote://` URI.
 		 * @param context A context indicating if this is the first call or a subsequent call.
 		 */
-		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
+		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | PromiseLike<ResolverResult>;
 
 		/**
 		 * Resolves an exec server interface for the authority. Called if an
@@ -174,7 +174,7 @@ declare module 'vscode' {
 		 * @param authority The authority part of the current opened `vscode-remote://` URI.
 		 * @returns The exec server interface, as defined in a contract between extensions.
 		 */
-		resolveExecServer?(remoteAuthority: string, context: RemoteAuthorityResolverContext): ExecServer | Thenable<ExecServer>;
+		resolveExecServer?(remoteAuthority: string, context: RemoteAuthorityResolverContext): ExecServer | PromiseLike<ExecServer>;
 
 		/**
 		 * Get the canonical URI (if applicable) for a `vscode-remote://` URI.
@@ -191,12 +191,12 @@ declare module 'vscode' {
 		 * To enable the "Change Local Port" action on forwarded ports, make sure to set the `localAddress` of
 		 * the returned `Tunnel` to a `{ port: number, host: string; }` and not a string.
 		 */
-		tunnelFactory?: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => Thenable<Tunnel> | undefined;
+		tunnelFactory?: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => PromiseLike<Tunnel> | undefined;
 
 		/**p
 		 * Provides filtering for candidate ports.
 		 */
-		showCandidatePort?: (host: string, port: number, detail: string) => Thenable<boolean>;
+		showCandidatePort?: (host: string, port: number, detail: string) => PromiseLike<boolean>;
 
 		/**
 		 * @deprecated Return tunnelFeatures as part of the resolver result in tunnelInformation.
@@ -232,7 +232,7 @@ declare module 'vscode' {
 	export namespace workspace {
 		export function registerRemoteAuthorityResolver(authorityPrefix: string, resolver: RemoteAuthorityResolver): Disposable;
 		export function registerResourceLabelFormatter(formatter: ResourceLabelFormatter): Disposable;
-		export function getRemoteExecServer(authority: string): Thenable<ExecServer | undefined>;
+		export function getRemoteExecServer(authority: string): PromiseLike<ExecServer | undefined>;
 	}
 
 	export namespace env {

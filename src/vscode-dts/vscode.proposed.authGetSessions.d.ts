@@ -26,9 +26,9 @@ declare module 'vscode' {
 		 *
 		 * @param providerId The id of the provider to use
 		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
-		 * @returns A thenable that resolves to a readonly array of authentication sessions.
+		 * @returns A promise-like that resolves to a readonly array of authentication sessions.
 		 */
-		export function getSessions(providerId: string, scopes: readonly string[]): Thenable<readonly AuthenticationSession[]>;
+		export function getSessions(providerId: string, scopes: readonly string[]): PromiseLike<readonly AuthenticationSession[]>;
 	}
 
 	/**
@@ -57,6 +57,6 @@ declare module 'vscode' {
 		 * @param options Additional options for creating a session.
 		 * @returns A promise that resolves to an authentication session.
 		 */
-		createSession(scopes: readonly string[], options: AuthenticationProviderCreateSessionOptions): Thenable<AuthenticationSession>;
+		createSession(scopes: readonly string[], options: AuthenticationProviderCreateSessionOptions): PromiseLike<AuthenticationSession>;
 	}
 }

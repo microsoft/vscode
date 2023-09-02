@@ -326,7 +326,7 @@ export function activate(context: vscode.ExtensionContext) {
 		async getCanonicalURI(uri: vscode.Uri): Promise<vscode.Uri> {
 			return vscode.Uri.file(uri.path);
 		},
-		resolve(_authority: string): Thenable<vscode.ResolverResult> {
+		resolve(_authority: string): PromiseLike<vscode.ResolverResult> {
 			return vscode.window.withProgress({
 				location: vscode.ProgressLocation.Notification,
 				title: 'Open TestResolver Remote ([details](command:vscode-testresolver.showLog))',

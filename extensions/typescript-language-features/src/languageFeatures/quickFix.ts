@@ -233,7 +233,7 @@ class SupportedCodeActionProvider {
 	}
 
 	@memoize
-	private get fixableDiagnosticCodes(): Thenable<Set<string>> {
+	private get fixableDiagnosticCodes(): PromiseLike<Set<string>> {
 		return this.client.execute('getSupportedCodeFixes', null, nulToken)
 			.then(response => response.type === 'response' ? response.body || [] : [])
 			.then(codes => new Set(codes));

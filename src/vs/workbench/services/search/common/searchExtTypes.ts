@@ -45,7 +45,7 @@ export class Range {
 	with(_: any): Range { return new Range(0, 0, 0, 0); }
 }
 
-export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
+export type ProviderResult<T> = T | undefined | null | PromiseLike<T | undefined | null>;
 
 /**
  * A relative pattern is a helper to construct glob patterns that are matched

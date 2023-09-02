@@ -16,7 +16,7 @@ declare module 'vscode' {
 		title?: string;
 		description?: string;
 		badge?: ViewBadge | undefined;
-		reveal(element: T, options?: { select?: boolean; focus?: boolean; expand?: boolean | number }): Thenable<void>;
+		reveal(element: T, options?: { select?: boolean; focus?: boolean; expand?: boolean | number }): PromiseLike<void>;
 
 		/**
 		 * An optional human-readable message that will be rendered in the view.

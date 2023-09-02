@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { flatten, mapArrayOrNot } from 'vs/base/common/arrays';
-import { isThenable } from 'vs/base/common/async';
+import { isPromiseLike } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Schemas } from 'vs/base/common/network';
@@ -132,7 +132,7 @@ export class TextSearchManager {
 				if (relativePath) {
 					// This method is only async when the exclude contains sibling clauses
 					const included = queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling);
-					if (isThenable(included)) {
+					if (isPromiseLike(included)) {
 						testingPs.push(
 							included.then(isIncluded => {
 								if (isIncluded) {

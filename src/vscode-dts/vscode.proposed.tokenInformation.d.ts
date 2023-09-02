@@ -21,6 +21,6 @@ declare module 'vscode' {
 
 	export namespace languages {
 		/** @deprecated */
-		export function getTokenInformationAtPosition(document: TextDocument, position: Position): Thenable<TokenInformation>;
+		export function getTokenInformationAtPosition(document: TextDocument, position: Position): PromiseLike<TokenInformation>;
 	}
 }

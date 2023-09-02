@@ -144,7 +144,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	registerCommand(global: boolean, id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription, extension?: IExtensionDescription): extHostTypes.Disposable {
+	registerCommand(global: boolean, id: string, callback: <T>(...args: any[]) => T | PromiseLike<T>, thisArg?: any, description?: ICommandHandlerDescription, extension?: IExtensionDescription): extHostTypes.Disposable {
 		this._logService.trace('ExtHostCommands#registerCommand', id);
 
 		if (!id.trim().length) {

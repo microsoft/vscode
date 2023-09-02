@@ -14,7 +14,7 @@ let endCommentStylesheet: string;
 let startCommentHTML: string;
 let endCommentHTML: string;
 
-export function toggleComment(): Thenable<boolean> | undefined {
+export function toggleComment(): PromiseLike<boolean> | undefined {
 	if (!validate() || !vscode.window.activeTextEditor) {
 		return;
 	}
@@ -231,5 +231,3 @@ function adjustEndNodeCss(node: Node | undefined, offset: number, rootNode: Styl
 
 	return newEndNode.end;
 }
-
-

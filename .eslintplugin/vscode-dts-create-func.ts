@@ -28,7 +28,7 @@ export = new class ApiLiteralOrTypes implements eslint.Rule.RuleModule {
 				}
 
 				const ident = decl.returnType.typeAnnotation.typeName.name;
-				if (ident === 'Promise' || ident === 'Thenable') {
+				if (ident === 'Promise' || ident === 'PromiseLike') {
 					context.report({
 						node,
 						messageId: 'sync'

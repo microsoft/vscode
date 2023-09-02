@@ -23,7 +23,7 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		this._proxy = proxy;
 	}
 
-	async withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Promise<R> {
+	async withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => PromiseLike<R>): Promise<R> {
 		const handle = this._handles++;
 		const { title, location, cancellable } = options;
 		const source = { label: localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name), id: extension.identifier.value };
@@ -32,7 +32,7 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		return this._withProgress(handle, task, !!cancellable);
 	}
 
-	private _withProgress<R>(handle: number, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>, cancellable: boolean): Thenable<R> {
+	private _withProgress<R>(handle: number, task: (progress: Progress<IProgressStep>, token: CancellationToken) => PromiseLike<R>, cancellable: boolean): PromiseLike<R> {
 		let source: CancellationTokenSource | undefined;
 		if (cancellable) {
 			source = new CancellationTokenSource();
@@ -45,7 +45,7 @@ export class ExtHostProgress implements ExtHostProgressShape {
 			source?.dispose();
 		};
 
-		let p: Thenable<R>;
+		let p: PromiseLike<R>;
 
 		try {
 			p = task(new ProgressCallback(this._proxy, handle), cancellable && source ? source.token : CancellationToken.None);

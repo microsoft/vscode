@@ -8,6 +8,6 @@ declare module 'vscode' {
 		/**
 		 * @deprecated Use {@link getSession()} {@link AuthenticationGetSessionOptions.silent} instead.
 		 */
-		export function hasSession(providerId: string, scopes: readonly string[]): Thenable<boolean>;
+		export function hasSession(providerId: string, scopes: readonly string[]): PromiseLike<boolean>;
 	}
 }

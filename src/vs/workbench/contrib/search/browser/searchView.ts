@@ -1602,7 +1602,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
+	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): PromiseLike<void> {
 		let progressComplete: () => void;
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: triggeredOnType ? 300 : 0 }, _progress => {
 			return new Promise<void>(resolve => progressComplete = resolve);

@@ -339,14 +339,14 @@ export class ExtHostStatusBar implements ExtHostStatusBarShape {
 		return new ExtHostStatusBarEntry(this._proxy, this._commands, this._existingItems, extension, id, alignment, priority);
 	}
 
-	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {
+	setStatusBarMessage(text: string, timeoutOrPromiseLike?: number | PromiseLike<any>): Disposable {
 		const d = this._statusMessage.setMessage(text);
 		let handle: any;
 
-		if (typeof timeoutOrThenable === 'number') {
-			handle = setTimeout(() => d.dispose(), timeoutOrThenable);
-		} else if (typeof timeoutOrThenable !== 'undefined') {
-			timeoutOrThenable.then(() => d.dispose(), () => d.dispose());
+		if (typeof timeoutOrPromiseLike === 'number') {
+			handle = setTimeout(() => d.dispose(), timeoutOrPromiseLike);
+		} else if (typeof timeoutOrPromiseLike !== 'undefined') {
+			timeoutOrPromiseLike.then(() => d.dispose(), () => d.dispose());
 		}
 
 		return new Disposable(() => {

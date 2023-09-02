@@ -35,7 +35,7 @@ declare module 'vscode' {
 		 *
 		 * @param coverage A coverage object obtained from {@link provideFileCoverage}
 		 * @param token A cancellation token.
-		 * @return The resolved file coverage, or a thenable that resolves to one. It
+		 * @return The resolved file coverage, or a promise-like that resolves to one. It
 		 * is OK to return the given `coverage`. When no result is returned, the
 		 * given `coverage` will be used.
 		 */

@@ -8,7 +8,7 @@
 import * as vscode from 'vscode';
 import evaluate, { extract } from '@emmetio/math-expression';
 
-export function evaluateMathExpression(): Thenable<boolean> {
+export function evaluateMathExpression(): PromiseLike<boolean> {
 	if (!vscode.window.activeTextEditor) {
 		vscode.window.showInformationMessage('No editor is active');
 		return Promise.resolve(false);

@@ -3041,7 +3041,6 @@
 /users/foo/src/typings/sinon.d.ts
 /users/foo/src/typings/es6-promise.d.ts
 /users/foo/src/typings/getmac.d.ts
-/users/foo/src/typings/thenable.d.ts
 /users/foo/src/typings/windows-mutex.d.ts
 /users/foo/src/typings/native-is-elevated.d.ts
 /users/foo/src/typings/vscode-ripgrep.d.ts

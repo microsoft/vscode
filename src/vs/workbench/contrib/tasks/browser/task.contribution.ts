@@ -68,7 +68,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 
 	private _registerListeners(): void {
 		let promise: Promise<void> | undefined = undefined;
-		let resolver: (value?: void | Thenable<void>) => void;
+		let resolver: (value?: void | PromiseLike<void>) => void;
 		this._taskService.onDidStateChange(event => {
 			if (event.kind === TaskEventKind.Changed) {
 				this._updateRunningTasksStatus();

@@ -144,11 +144,11 @@ export interface IState {
 
 /**
  * A provider result represents the values a provider, like the {@link HoverProvider},
- * may return. For once this is the actual result type `T`, like `Hover`, or a thenable that resolves
+ * may return. For once this is the actual result type `T`, like `Hover`, or a promise-like that resolves
  * to that type `T`. In addition, `null` and `undefined` can be returned - either directly or from a
- * thenable.
+ * promise-like.
  */
-export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
+export type ProviderResult<T> = T | undefined | null | PromiseLike<T | undefined | null>;
 
 /**
  * A hover represents additional information for a symbol or word. Hovers are

@@ -94,7 +94,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		this._commands.registerApiCommand(selectKernelApiCommand);
 	}
 
-	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: (cells: vscode.NotebookCell[], notebook: vscode.NotebookDocument, controller: vscode.NotebookController) => void | Thenable<void>, preloads?: vscode.NotebookRendererScript[]): vscode.NotebookController {
+	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: (cells: vscode.NotebookCell[], notebook: vscode.NotebookDocument, controller: vscode.NotebookController) => void | PromiseLike<void>, preloads?: vscode.NotebookRendererScript[]): vscode.NotebookController {
 
 		for (const data of this._kernelData.values()) {
 			if (data.controller.id === id && ExtensionIdentifier.equals(extension.identifier, data.extensionId)) {
@@ -127,7 +127,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 		//
 		let _executeHandler = handler ?? _defaultExecutHandler;
-		let _interruptHandler: ((this: vscode.NotebookController, notebook: vscode.NotebookDocument) => void | Thenable<void>) | undefined;
+		let _interruptHandler: ((this: vscode.NotebookController, notebook: vscode.NotebookDocument) => void | PromiseLike<void>) | undefined;
 
 		this._proxy.$addKernel(handle, data).catch(err => {
 			// this can happen when a kernel with that ID is already registered
@@ -639,7 +639,7 @@ class NotebookCellExecutionTask extends Disposable {
 				}));
 			},
 
-			clearOutput(cell?: vscode.NotebookCell): Thenable<void> {
+			clearOutput(cell?: vscode.NotebookCell): PromiseLike<void> {
 				that.verifyStateForOutput();
 				return that.updateOutputs([], cell, false);
 			},

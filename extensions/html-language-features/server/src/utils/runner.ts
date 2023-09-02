@@ -18,7 +18,7 @@ export function formatError(message: string, err: any): string {
 	return message;
 }
 
-export function runSafe<T>(runtime: RuntimeEnvironment, func: () => Thenable<T>, errorVal: T, errorMessage: string, token: CancellationToken): Thenable<T | ResponseError<any>> {
+export function runSafe<T>(runtime: RuntimeEnvironment, func: () => PromiseLike<T>, errorVal: T, errorMessage: string, token: CancellationToken): PromiseLike<T | ResponseError<any>> {
 	return new Promise<T | ResponseError<any>>((resolve) => {
 		runtime.timer.setImmediate(() => {
 			if (token.isCancellationRequested) {

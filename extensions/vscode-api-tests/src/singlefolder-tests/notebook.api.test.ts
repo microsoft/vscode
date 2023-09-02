@@ -261,13 +261,13 @@ suite('Notebook & LiveShare', function () {
 	suiteSetup(function () {
 
 		suiteDisposables.push(vscode.workspace.registerNotebookSerializer(notebookType, new class implements vscode.NotebookSerializer {
-			deserializeNotebook(content: Uint8Array, _token: vscode.CancellationToken): vscode.NotebookData | Thenable<vscode.NotebookData> {
+			deserializeNotebook(content: Uint8Array, _token: vscode.CancellationToken): vscode.NotebookData | PromiseLike<vscode.NotebookData> {
 				const value = new TextDecoder().decode(content);
 				const cell1 = new vscode.NotebookCellData(vscode.NotebookCellKind.Code, value, 'fooLang');
 				cell1.outputs = [new vscode.NotebookCellOutput([vscode.NotebookCellOutputItem.stderr(value)])];
 				return new vscode.NotebookData([cell1]);
 			}
-			serializeNotebook(data: vscode.NotebookData, _token: vscode.CancellationToken): Uint8Array | Thenable<Uint8Array> {
+			serializeNotebook(data: vscode.NotebookData, _token: vscode.CancellationToken): Uint8Array | PromiseLike<Uint8Array> {
 				return new TextEncoder().encode(data.cells[0].value);
 			}
 		}, {}, {

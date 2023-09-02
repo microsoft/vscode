@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/arrays';
-import { isThenable } from 'vs/base/common/async';
+import { isPromiseLike } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { LRUCache } from 'vs/base/common/map';
@@ -600,7 +600,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 
 				// If the result is a promise, we have to keep it for
 				// later processing and await the result properly.
-				if (isThenable(result)) {
+				if (isPromiseLike(result)) {
 					if (!resultPromises) {
 						resultPromises = [];
 					}
@@ -665,7 +665,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 
 			// If the result is a promise, we have to keep it for
 			// later processing and await the result properly.
-			if (isThenable(result)) {
+			if (isPromiseLike(result)) {
 				if (!resultPromises) {
 					resultPromises = [];
 				}
@@ -731,7 +731,7 @@ function parseExpressionPattern(pattern: string, value: boolean | SiblingClause,
 
 				const clausePattern = when.replace('$(basename)', () => name!);
 				const matched = hasSibling(clausePattern);
-				return isThenable(matched) ?
+				return isPromiseLike(matched) ?
 					matched.then(match => match ? pattern : null) :
 					matched ? pattern : null;
 			};

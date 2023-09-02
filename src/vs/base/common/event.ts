@@ -1194,7 +1194,7 @@ class EventDeliveryQueuePrivate implements EventDeliveryQueue {
 
 export interface IWaitUntil {
 	token: CancellationToken;
-	waitUntil(thenable: Promise<unknown>): void;
+	waitUntil(promiseLike: Promise<unknown>): void;
 }
 
 export type IWaitUntilData<T> = Omit<Omit<T, 'waitUntil'>, 'token'>;
@@ -1217,19 +1217,19 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
 
 			const [listener, data] = this._asyncDeliveryQueue.shift()!;
-			const thenables: Promise<unknown>[] = [];
+			const promises: Promise<unknown>[] = [];
 
 			const event = <T>{
 				...data,
 				token,
 				waitUntil: (p: Promise<unknown>): void => {
-					if (Object.isFrozen(thenables)) {
+					if (Object.isFrozen(promises)) {
 						throw new Error('waitUntil can NOT be called asynchronous');
 					}
 					if (promiseJoin) {
 						p = promiseJoin(p, listener);
 					}
-					thenables.push(p);
+					promises.push(p);
 				}
 			};
 
@@ -1240,11 +1240,11 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 				continue;
 			}
 
-			// freeze thenables-collection to enforce sync-calls to
-			// wait until and then wait for all thenables to resolve
-			Object.freeze(thenables);
+			// freeze promises-collection to enforce sync-calls to
+			// wait until and then wait for all promises to resolve
+			Object.freeze(promises);
 
-			await Promise.allSettled(thenables).then(values => {
+			await Promise.allSettled(promises).then(values => {
 				for (const value of values) {
 					if (value.status === 'rejected') {
 						onUnexpectedError(value.reason);

@@ -505,7 +505,7 @@ suite('Tests for jsx, xml and xsl', () => {
 
 });
 
-function testExpandAbbreviation(syntax: string, selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): Thenable<any> {
+function testExpandAbbreviation(syntax: string, selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): PromiseLike<any> {
 	return withRandomFileEditor(htmlContents, syntax, async (editor, _doc) => {
 		editor.selection = selection;
 		const expandPromise = expandEmmetAbbreviation(null);
@@ -521,7 +521,7 @@ function testExpandAbbreviation(syntax: string, selection: Selection, abbreviati
 	});
 }
 
-function testHtmlCompletionProvider(selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): Thenable<any> {
+function testHtmlCompletionProvider(selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): PromiseLike<any> {
 	return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 		editor.selection = selection;
 		const cancelSrc = new CancellationTokenSource();
@@ -547,7 +547,7 @@ function testHtmlCompletionProvider(selection: Selection, abbreviation: string, 
 	});
 }
 
-function testNoCompletion(syntax: string, fileContents: string, selection: Selection): Thenable<any> {
+function testNoCompletion(syntax: string, fileContents: string, selection: Selection): PromiseLike<any> {
 	return withRandomFileEditor(fileContents, syntax, (editor, _doc) => {
 		editor.selection = selection;
 		const cancelSrc = new CancellationTokenSource();

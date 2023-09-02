@@ -57,7 +57,7 @@ interface TestCompletionItem {
 	documentation?: string;
 }
 
-function testCompletionProvider(fileExtension: string, contents: string, expectedItems: TestCompletionItem[] | undefined): Thenable<boolean> {
+function testCompletionProvider(fileExtension: string, contents: string, expectedItems: TestCompletionItem[] | undefined): PromiseLike<boolean> {
 	const cursorPos = contents.indexOf('|');
 	const slicedContents = contents.slice(0, cursorPos) + contents.slice(cursorPos + 1);
 

@@ -354,7 +354,7 @@ function isEncodedTokensProvider(provider: TokensProvider | EncodedTokensProvide
 	return 'tokenizeEncoded' in provider;
 }
 
-function isThenable<T>(obj: any): obj is Thenable<T> {
+function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
 	return obj && typeof obj.then === 'function';
 }
 
@@ -416,12 +416,12 @@ export function registerTokensProviderFactory(languageId: string, factory: Token
  * but will work together with a tokens provider set using `registerDocumentSemanticTokensProvider`
  * or `registerDocumentRangeSemanticTokensProvider`.
  */
-export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable {
+export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | PromiseLike<TokensProvider | EncodedTokensProvider>): IDisposable {
 	const languageService = StandaloneServices.get(ILanguageService);
 	if (!languageService.isRegisteredLanguageId(languageId)) {
 		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
 	}
-	if (isThenable<TokensProvider | EncodedTokensProvider>(provider)) {
+	if (isPromiseLike<TokensProvider | EncodedTokensProvider>(provider)) {
 		return registerTokensProviderFactory(languageId, { create: () => provider });
 	}
 	return languages.TokenizationRegistry.register(languageId, createTokenizationSupportAdapter(languageId, provider));
@@ -433,11 +433,11 @@ export function setTokensProvider(languageId: string, provider: TokensProvider |
  * work together with a tokens provider set using `registerDocumentSemanticTokensProvider` or
  * `registerDocumentRangeSemanticTokensProvider`.
  */
-export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable {
+export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | PromiseLike<IMonarchLanguage>): IDisposable {
 	const create = (languageDef: IMonarchLanguage) => {
 		return new MonarchTokenizer(StandaloneServices.get(ILanguageService), StandaloneServices.get(IStandaloneThemeService), languageId, compile(languageId, languageDef), StandaloneServices.get(IConfigurationService));
 	};
-	if (isThenable<IMonarchLanguage>(languageDef)) {
+	if (isPromiseLike<IMonarchLanguage>(languageDef)) {
 		return registerTokensProviderFactory(languageId, { create: () => languageDef });
 	}
 	return languages.TokenizationRegistry.register(languageId, create(languageDef));

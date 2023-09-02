@@ -9,7 +9,7 @@ export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
-			usage: 'Use the Thenable-type instead of the Promise type',
+			usage: 'Use the PromiseLike type instead of the Promise type',
 		}
 	};
 

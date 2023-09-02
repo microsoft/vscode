@@ -21,9 +21,9 @@ declare module 'vscode' {
 		 * @param existingWebviewPanel Webview panel for the custom editor.
 		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
-		 * @return Thenable indicating that the webview editor has been moved.
+		 * @return Promise-like indicating that the webview editor has been moved.
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
+		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel, token: CancellationToken): PromiseLike<void>;
 	}
 }

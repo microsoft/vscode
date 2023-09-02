@@ -34,7 +34,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	public constructor(private xhr: XHRRequest, private npmCommandPath: string | undefined) {
 	}
 
-	public collectDefaultSuggestions(_resource: Uri, result: ISuggestionsCollector): Thenable<any> {
+	public collectDefaultSuggestions(_resource: Uri, result: ISuggestionsCollector): PromiseLike<any> {
 		const defaultValue = {
 			'name': '${1:name}',
 			'description': '${2:description}',
@@ -65,7 +65,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		addValue: boolean,
 		isLast: boolean,
 		collector: ISuggestionsCollector
-	): Thenable<any> | null {
+	): PromiseLike<any> | null {
 		if (!this.isEnabled()) {
 			return null;
 		}
@@ -144,7 +144,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	private collectScopedPackages(currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> {
+	private collectScopedPackages(currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): PromiseLike<any> {
 		const segments = currentWord.split('/');
 		if (segments.length === 2 && segments[0].length > 1) {
 			const scope = segments[0].substr(1);
@@ -232,7 +232,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		return str;
 	}
 
-	public resolveSuggestion(resource: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null {
+	public resolveSuggestion(resource: Uri | undefined, item: CompletionItem): PromiseLike<CompletionItem | null> | null {
 		if (item.kind === CompletionItemKind.Property && !item.documentation) {
 
 			let name = item.label;
@@ -329,7 +329,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		return undefined;
 	}
 
-	public getInfoContribution(resource: Uri, location: Location): Thenable<MarkdownString[] | null> | null {
+	public getInfoContribution(resource: Uri, location: Location): PromiseLike<MarkdownString[] | null> | null {
 		if (!this.isEnabled()) {
 			return null;
 		}

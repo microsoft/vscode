@@ -18,7 +18,7 @@ export function rndName() {
 	return name;
 }
 
-export function createRandomFile(contents = '', fileExtension = 'txt'): Thenable<vscode.Uri> {
+export function createRandomFile(contents = '', fileExtension = 'txt'): PromiseLike<vscode.Uri> {
 	return new Promise((resolve, reject) => {
 		const tmpFile = join(os.tmpdir(), rndName() + '.' + fileExtension);
 		fs.writeFile(tmpFile, contents, (error) => {
@@ -32,7 +32,7 @@ export function createRandomFile(contents = '', fileExtension = 'txt'): Thenable
 }
 
 
-export function deleteFile(file: vscode.Uri): Thenable<boolean> {
+export function deleteFile(file: vscode.Uri): PromiseLike<boolean> {
 	return new Promise((resolve, reject) => {
 		fs.unlink(file.fsPath, (err) => {
 			if (err) {
@@ -49,8 +49,8 @@ export const CURSOR = '$$CURSOR$$';
 export function withRandomFileEditor(
 	contents: string,
 	fileExtension: string,
-	run: (editor: vscode.TextEditor, doc: vscode.TextDocument) => Thenable<void>
-): Thenable<boolean> {
+	run: (editor: vscode.TextEditor, doc: vscode.TextDocument) => PromiseLike<void>
+): PromiseLike<boolean> {
 	const cursorIndex = contents.indexOf(CURSOR);
 	return createRandomFile(contents.replace(CURSOR, ''), fileExtension).then(file => {
 		return vscode.workspace.openTextDocument(file).then(doc => {
@@ -155,7 +155,7 @@ export async function retryUntilDocumentChanges(
 	documentUri: vscode.Uri,
 	options: { retries: number; timeout: number },
 	disposables: vscode.Disposable[],
-	exec: () => Thenable<unknown>,
+	exec: () => PromiseLike<unknown>,
 ) {
 	const didChangeDocument = onChangedDocument(documentUri, disposables);
 

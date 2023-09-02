@@ -135,7 +135,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 	const { tabSize, insertSpaces } = editor.options;
 	const indent = insertSpaces ? ' '.repeat(tabSize as number) : '\t';
 
-	function revertPreview(): Thenable<boolean> {
+	function revertPreview(): PromiseLike<boolean> {
 		return editor.edit(builder => {
 			for (const rangeToReplace of rangesToReplace) {
 				builder.replace(rangeToReplace.previewRange, rangeToReplace.originalContent);
@@ -144,7 +144,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 		}, { undoStopBefore: false, undoStopAfter: false });
 	}
 
-	function applyPreview(expandAbbrList: ExpandAbbreviationInput[]): Thenable<boolean> {
+	function applyPreview(expandAbbrList: ExpandAbbreviationInput[]): PromiseLike<boolean> {
 		let lastOldPreviewRange = new vscode.Range(0, 0, 0, 0);
 		let lastNewPreviewRange = new vscode.Range(0, 0, 0, 0);
 		let totalNewLinesInserted = 0;
@@ -261,7 +261,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 	return changesWereMade;
 }
 
-export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined> {
+export function expandEmmetAbbreviation(args: any): PromiseLike<boolean | undefined> {
 	if (!validate() || !vscode.window.activeTextEditor) {
 		return fallbackTab();
 	}
@@ -417,7 +417,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	});
 }
 
-function fallbackTab(): Thenable<boolean | undefined> {
+function fallbackTab(): PromiseLike<boolean | undefined> {
 	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true) {
 		return vscode.commands.executeCommand('tab');
 	}

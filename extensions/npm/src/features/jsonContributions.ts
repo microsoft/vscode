@@ -22,11 +22,11 @@ export interface ISuggestionsCollector {
 
 export interface IJSONContribution {
 	getDocumentSelector(): DocumentSelector;
-	getInfoContribution(resourceUri: Uri, location: Location): Thenable<MarkdownString[] | null> | null;
-	collectPropertySuggestions(resourceUri: Uri, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any> | null;
-	collectValueSuggestions(resourceUri: Uri, location: Location, result: ISuggestionsCollector): Thenable<any> | null;
-	collectDefaultSuggestions(resourceUri: Uri, result: ISuggestionsCollector): Thenable<any>;
-	resolveSuggestion?(resourceUri: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null;
+	getInfoContribution(resourceUri: Uri, location: Location): PromiseLike<MarkdownString[] | null> | null;
+	collectPropertySuggestions(resourceUri: Uri, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): PromiseLike<any> | null;
+	collectValueSuggestions(resourceUri: Uri, location: Location, result: ISuggestionsCollector): PromiseLike<any> | null;
+	collectDefaultSuggestions(resourceUri: Uri, result: ISuggestionsCollector): PromiseLike<any>;
+	resolveSuggestion?(resourceUri: Uri | undefined, item: CompletionItem): PromiseLike<CompletionItem | null> | null;
 }
 
 export function addJSONProviders(xhr: XHRRequest, npmCommandPath: string | undefined): Disposable {
@@ -45,7 +45,7 @@ export class JSONHoverProvider implements HoverProvider {
 	constructor(private jsonContribution: IJSONContribution) {
 	}
 
-	public provideHover(document: TextDocument, position: Position, _token: CancellationToken): Thenable<Hover> | null {
+	public provideHover(document: TextDocument, position: Position, _token: CancellationToken): PromiseLike<Hover> | null {
 		const offset = document.offsetAt(position);
 		const location = getLocation(document.getText(), offset);
 		if (!location.previousNode) {
@@ -76,7 +76,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 	constructor(private jsonContribution: IJSONContribution) {
 	}
 
-	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken): Thenable<CompletionItem | null> {
+	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken): PromiseLike<CompletionItem | null> {
 		if (this.jsonContribution.resolveSuggestion) {
 			const resolver = this.jsonContribution.resolveSuggestion(this.lastResource, item);
 			if (resolver) {
@@ -86,7 +86,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		return Promise.resolve(item);
 	}
 
-	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): Thenable<CompletionList | null> | null {
+	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): PromiseLike<CompletionList | null> | null {
 		this.lastResource = document.uri;
 
 
@@ -123,7 +123,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 			log: (message: string) => console.log(message)
 		};
 
-		let collectPromise: Thenable<any> | null = null;
+		let collectPromise: PromiseLike<any> | null = null;
 
 		if (location.isAtPropertyKey) {
 			const scanner = createScanner(document.getText(), true);

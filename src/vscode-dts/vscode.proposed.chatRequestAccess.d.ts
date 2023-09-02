@@ -30,7 +30,7 @@ declare module 'vscode' {
 		 * @param progress
 		 * @param token
 		 */
-		makeRequest(messages: ChatMessage[], options: { [name: string]: any }, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
+		makeRequest(messages: ChatMessage[], options: { [name: string]: any }, progress: Progress<ChatResponseFragment>, token: CancellationToken): PromiseLike<any>;
 	}
 
 	export namespace chat {
@@ -42,6 +42,6 @@ declare module 'vscode' {
 		 *
 		 * @param id The id of the chat provider, e.g `copilot`
 		 */
-		export function requestChatAccess(id: string): Thenable<ChatAccess>;
+		export function requestChatAccess(id: string): PromiseLike<ChatAccess>;
 	}
 }

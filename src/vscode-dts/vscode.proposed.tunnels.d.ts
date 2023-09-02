@@ -36,7 +36,7 @@ declare module 'vscode' {
 	export interface Tunnel extends TunnelDescription {
 		// Implementers of Tunnel should fire onDidDispose when dispose is called.
 		onDidDispose: Event<void>;
-		dispose(): void | Thenable<void>;
+		dispose(): void | PromiseLike<void>;
 	}
 
 	export namespace workspace {
@@ -48,13 +48,13 @@ declare module 'vscode' {
 		 *
 		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
-		export function openTunnel(tunnelOptions: TunnelOptions): Thenable<Tunnel>;
+		export function openTunnel(tunnelOptions: TunnelOptions): PromiseLike<Tunnel>;
 
 		/**
 		 * Gets an array of the currently available tunnels. This does not include environment tunnels, only tunnels that have been created by the user.
 		 * Note that these are of type TunnelDescription and cannot be disposed.
 		 */
-		export let tunnels: Thenable<TunnelDescription[]>;
+		export let tunnels: PromiseLike<TunnelDescription[]>;
 
 		/**
 		 * Fired when the list of tunnels has changed.

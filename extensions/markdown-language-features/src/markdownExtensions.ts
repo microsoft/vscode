@@ -27,7 +27,7 @@ export interface MarkdownContributions {
 	readonly previewScripts: readonly vscode.Uri[];
 	readonly previewStyles: readonly vscode.Uri[];
 	readonly previewResourceRoots: readonly vscode.Uri[];
-	readonly markdownItPlugins: ReadonlyMap<string, Thenable<(md: any) => any>>;
+	readonly markdownItPlugins: ReadonlyMap<string, PromiseLike<(md: any) => any>>;
 }
 
 export namespace MarkdownContributions {
@@ -80,8 +80,8 @@ export namespace MarkdownContributions {
 	function getContributedMarkdownItPlugins(
 		contributes: any,
 		extension: vscode.Extension<any>
-	): Map<string, Thenable<(md: any) => any>> {
-		const map = new Map<string, Thenable<(md: any) => any>>();
+	): Map<string, PromiseLike<(md: any) => any>> {
+		const map = new Map<string, PromiseLike<(md: any) => any>>();
 		if (contributes['markdown.markdownItPlugins']) {
 			map.set(extension.id, extension.activate().then(() => {
 				if (extension.exports && extension.exports.extendMarkdownIt) {

@@ -144,12 +144,12 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		return service;
 	}
 
-	let documentSettings: { [key: string]: Thenable<LanguageSettings | undefined> } = {};
+	let documentSettings: { [key: string]: PromiseLike<LanguageSettings | undefined> } = {};
 	// remove document settings on close
 	documents.onDidClose(e => {
 		delete documentSettings[e.document.uri];
 	});
-	function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSettings | undefined> {
+	function getDocumentSettings(textDocument: TextDocument): PromiseLike<LanguageSettings | undefined> {
 		if (scopedSettingsSupport) {
 			let promise = documentSettings[textDocument.uri];
 			if (!promise) {
@@ -384,6 +384,3 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 function getFullRange(document: TextDocument): Range {
 	return Range.create(Position.create(0, 0), document.positionAt(document.getText().length));
 }
-
-
-

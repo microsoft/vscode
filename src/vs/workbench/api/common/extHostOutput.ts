@@ -112,8 +112,8 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 	private readonly proxy: MainThreadOutputServiceShape;
 
 	private readonly outputsLocation: URI;
-	private outputDirectoryPromise: Thenable<URI> | undefined;
-	private readonly extensionLogDirectoryPromise = new Map<string, Thenable<URI>>();
+	private outputDirectoryPromise: PromiseLike<URI> | undefined;
+	private readonly extensionLogDirectoryPromise = new Map<string, PromiseLike<URI>>();
 	private namePool: number = 1;
 
 	private readonly channels = new Map<string, ExtHostLogOutputChannel | ExtHostOutputChannel>();
@@ -181,7 +181,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		return new ExtHostLogOutputChannel(id, name, logger, this.proxy, extension);
 	}
 
-	private createExtensionLogDirectory(extension: IExtensionDescription): Thenable<URI> {
+	private createExtensionLogDirectory(extension: IExtensionDescription): PromiseLike<URI> {
 		let extensionLogDirectoryPromise = this.extensionLogDirectoryPromise.get(extension.identifier.value);
 		if (!extensionLogDirectoryPromise) {
 			const extensionLogDirectory = this.extHostFileSystemInfo.extUri.joinPath(this.initData.logsLocation, extension.identifier.value);

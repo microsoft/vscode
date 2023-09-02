@@ -126,7 +126,7 @@ function assertStatus(actual: ITerminalStatusList, expected: ITerminalStatus): v
 }
 
 async function poll<T>(
-	fn: () => Thenable<T>,
+	fn: () => PromiseLike<T>,
 	acceptFn: (result: T) => boolean,
 	timeoutMessage: string,
 	retryCount: number = 200,

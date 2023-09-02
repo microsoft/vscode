@@ -249,7 +249,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				}
 
 				const r = next(document, position, context, token);
-				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
+				if (isPromiseLike<CompletionItem[] | CompletionList | null | undefined>(r)) {
 					return r.then(updateProposals);
 				}
 				return updateProposals(r);
@@ -262,21 +262,21 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 					return r;
 				}
 				const r = next(document, position, token);
-				if (isThenable<Hover | null | undefined>(r)) {
+				if (isPromiseLike<Hover | null | undefined>(r)) {
 					return r.then(updateHover);
 				}
 				return updateHover(r);
 			},
 			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken, next: ProvideFoldingRangeSignature) {
 				const r = next(document, context, token);
-				if (isThenable<FoldingRange[] | null | undefined>(r)) {
+				if (isPromiseLike<FoldingRange[] | null | undefined>(r)) {
 					return r;
 				}
 				return r;
 			},
 			provideDocumentColors(document: TextDocument, token: CancellationToken, next: ProvideDocumentColorsSignature) {
 				const r = next(document, token);
-				if (isThenable<ColorInformation[] | null | undefined>(r)) {
+				if (isPromiseLike<ColorInformation[] | null | undefined>(r)) {
 					return r;
 				}
 				return r;
@@ -298,7 +298,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 					return r;
 				}
 				const r = next(document, token);
-				if (isThenable<T | undefined | null>(r)) {
+				if (isPromiseLike<T | undefined | null>(r)) {
 					return r.then(checkLimit);
 				}
 				return checkLimit(r);
@@ -620,7 +620,7 @@ function getSchemaId(schema: JSONSchemaSettings, settingsLocation?: Uri): string
 	return url;
 }
 
-function isThenable<T>(obj: ProviderResult<T>): obj is Thenable<T> {
+function isPromiseLike<T>(obj: ProviderResult<T>): obj is PromiseLike<T> {
 	return obj && (<any>obj)['then'];
 }
 

@@ -81,7 +81,7 @@ suite('vscode', function () {
 
 	test('no rpc, createTreeView(...)', function () {
 		const treeDataProvider = new class implements vscode.TreeDataProvider<string> {
-			getTreeItem(element: string): vscode.TreeItem | Thenable<vscode.TreeItem> {
+			getTreeItem(element: string): vscode.TreeItem | PromiseLike<vscode.TreeItem> {
 				return new vscode.TreeItem(element);
 			}
 			getChildren(_element?: string): vscode.ProviderResult<string[]> {

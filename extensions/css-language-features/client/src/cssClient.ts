@@ -83,10 +83,10 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 					}
 					return r;
 				}
-				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
+				const isPromiseLike = <T>(obj: ProviderResult<T>): obj is PromiseLike<T> => obj && (<any>obj)['then'];
 
 				const r = next(document, position, context, token);
-				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
+				if (isPromiseLike<CompletionItem[] | CompletionList | null | undefined>(r)) {
 					return r.then(updateProposals);
 				}
 				return updateProposals(r);

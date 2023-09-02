@@ -286,11 +286,11 @@ interface OpenOptions {
 }
 
 interface IOriginalOpen {
-	(target: string, options?: OpenOptions): Thenable<any>;
+	(target: string, options?: OpenOptions): PromiseLike<any>;
 }
 
 interface IOpenModule {
-	(target: string, options?: OpenOptions): Thenable<void>;
+	(target: string, options?: OpenOptions): PromiseLike<void>;
 }
 
 class OpenNodeModuleFactory implements INodeModuleFactory {
@@ -338,7 +338,7 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 		return this._impl;
 	}
 
-	private callOriginal(target: string, options: OpenOptions | undefined): Thenable<any> {
+	private callOriginal(target: string, options: OpenOptions | undefined): PromiseLike<any> {
 		this.sendNoForwardTelemetry();
 		return this._original!(target, options);
 	}

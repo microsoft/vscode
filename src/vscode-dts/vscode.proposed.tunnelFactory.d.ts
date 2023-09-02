@@ -38,7 +38,7 @@ declare module 'vscode' {
 		 * Registering a tunnel provider enables port forwarding. This will cause the Ports view to show.
 		 * @param provider
 		 */
-		export function registerTunnelProvider(provider: TunnelProvider, information: TunnelInformation): Thenable<Disposable>;
+		export function registerTunnelProvider(provider: TunnelProvider, information: TunnelInformation): PromiseLike<Disposable>;
 	}
 
 }

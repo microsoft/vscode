@@ -130,7 +130,7 @@ declare module 'vscode' {
 
 	export interface InteractiveProgressTask {
 		placeholder: string;
-		resolvedContent: Thenable<InteractiveProgressContent | InteractiveProgressFileTree>;
+		resolvedContent: PromiseLike<InteractiveProgressContent | InteractiveProgressFileTree>;
 	}
 
 	export interface FileTreeData {

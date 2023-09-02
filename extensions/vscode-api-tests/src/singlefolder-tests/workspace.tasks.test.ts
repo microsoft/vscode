@@ -183,7 +183,7 @@ import { assertNoRpc } from '../utils';
 								customProp1: 'testing task one'
 							};
 							const writeEmitter = new EventEmitter<string>();
-							const execution = new CustomExecution((): Thenable<Pseudoterminal> => {
+							const execution = new CustomExecution((): PromiseLike<Pseudoterminal> => {
 								const pty: Pseudoterminal = {
 									onDidWrite: writeEmitter.event,
 									open: () => writeEmitter.fire('testing\r\n'),
@@ -255,7 +255,7 @@ import { assertNoRpc } from '../utils';
 							};
 							const writeEmitter = new EventEmitter<string>();
 							const closeEmitter = new EventEmitter<void>();
-							const execution = new CustomExecution((): Thenable<Pseudoterminal> => {
+							const execution = new CustomExecution((): PromiseLike<Pseudoterminal> => {
 								const pty: Pseudoterminal = {
 									onDidWrite: writeEmitter.event,
 									onDidClose: closeEmitter.event,

@@ -23,7 +23,7 @@ declare module 'vscode' {
 		 * @param dataTransfer The data transfer associated with the copy. You can store additional values on this for later use in  {@link provideDocumentPasteEdits}.
 		 * @param token A cancellation token.
 		 */
-		prepareDocumentPaste?(document: TextDocument, ranges: readonly Range[], dataTransfer: DataTransfer, token: CancellationToken): void | Thenable<void>;
+		prepareDocumentPaste?(document: TextDocument, ranges: readonly Range[], dataTransfer: DataTransfer, token: CancellationToken): void | PromiseLike<void>;
 
 		/**
 		 * Invoked before the user pastes into a document.

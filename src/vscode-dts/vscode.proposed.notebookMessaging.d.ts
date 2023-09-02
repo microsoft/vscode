@@ -55,7 +55,7 @@ declare module 'vscode' {
 		 * @param editor A specific editor to send the message to. When `undefined` all applicable editors are receiving the message.
 		 * @returns A promise that resolves to a boolean indicating if the message has been send or not.
 		 */
-		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
+		postMessage(message: any, editor?: NotebookEditor): PromiseLike<boolean>;
 
 		//todo@API validate this works
 		asWebviewUri(localResource: Uri): Uri;
@@ -63,6 +63,6 @@ declare module 'vscode' {
 
 	export namespace notebooks {
 
-		export function createNotebookController(id: string, viewType: string, label: string, handler?: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | Thenable<void>, rendererScripts?: NotebookRendererScript[]): NotebookController;
+		export function createNotebookController(id: string, viewType: string, label: string, handler?: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | PromiseLike<void>, rendererScripts?: NotebookRendererScript[]): NotebookController;
 	}
 }

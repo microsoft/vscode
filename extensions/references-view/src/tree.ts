@@ -216,7 +216,7 @@ class TreeDndDelegate implements vscode.TreeDragAndDropController<undefined> {
 		}
 	}
 
-	handleDrop(): void | Thenable<void> {
+	handleDrop(): void | PromiseLike<void> {
 		throw new Error('Method not implemented.');
 	}
 }

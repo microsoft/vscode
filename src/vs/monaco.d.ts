@@ -11,8 +11,6 @@ interface Window {
 
 declare namespace monaco {
 
-	export type Thenable<T> = PromiseLike<T>;
-
 	export interface Environment {
 		/**
 		 * Define a global `monaco` symbol.
@@ -6374,7 +6372,7 @@ declare namespace monaco.languages {
 	 * but will work together with a tokens provider set using `registerDocumentSemanticTokensProvider`
 	 * or `registerDocumentRangeSemanticTokensProvider`.
 	 */
-	export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable;
+	export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | PromiseLike<TokensProvider | EncodedTokensProvider>): IDisposable;
 
 	/**
 	 * Set the tokens provider for a language (monarch implementation). This tokenizer will be exclusive
@@ -6382,7 +6380,7 @@ declare namespace monaco.languages {
 	 * work together with a tokens provider set using `registerDocumentSemanticTokensProvider` or
 	 * `registerDocumentRangeSemanticTokensProvider`.
 	 */
-	export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable;
+	export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | PromiseLike<IMonarchLanguage>): IDisposable;
 
 	/**
 	 * Register a reference provider (used by e.g. reference search).
@@ -6805,11 +6803,11 @@ declare namespace monaco.languages {
 
 	/**
 	 * A provider result represents the values a provider, like the {@link HoverProvider},
-	 * may return. For once this is the actual result type `T`, like `Hover`, or a thenable that resolves
+	 * may return. For once this is the actual result type `T`, like `Hover`, or a promise-like that resolves
 	 * to that type `T`. In addition, `null` and `undefined` can be returned - either directly or from a
-	 * thenable.
+	 * promise-like.
 	 */
-	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
+	export type ProviderResult<T> = T | undefined | null | PromiseLike<T | undefined | null>;
 
 	/**
 	 * A hover represents additional information for a symbol or word. Hovers are

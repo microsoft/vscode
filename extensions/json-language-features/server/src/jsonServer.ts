@@ -87,7 +87,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				builtInHandlers[protocol] = runtime.http;
 			}
 		}
-		return (uri: string): Thenable<string> => {
+		return (uri: string): PromiseLike<string> => {
 			const protocol = uri.substr(0, uri.indexOf(':'));
 
 			const builtInHandler = builtInHandlers[protocol];
@@ -228,7 +228,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = undefined;
 	let schemaAssociations: ISchemaAssociations | SchemaConfiguration[] | undefined = undefined;
-	let formatterRegistrations: Thenable<Disposable>[] | null = null;
+	let formatterRegistrations: PromiseLike<Disposable>[] | null = null;
 	let validateEnabled = true;
 	let keepLinesEnabled = false;
 

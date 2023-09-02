@@ -25,6 +25,6 @@ declare module 'vscode' {
 		 * @param options Optional object describing the properties of the
 		 * workspace trust request.
 		 */
-		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<boolean | undefined>;
+		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): PromiseLike<boolean | undefined>;
 	}
 }

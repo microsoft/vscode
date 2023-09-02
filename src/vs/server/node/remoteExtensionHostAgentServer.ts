@@ -564,7 +564,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		});
 	}
 
-	private _updateWithFreeDebugPort(startParams: IRemoteExtensionHostStartParams): Thenable<IRemoteExtensionHostStartParams> {
+	private _updateWithFreeDebugPort(startParams: IRemoteExtensionHostStartParams): PromiseLike<IRemoteExtensionHostStartParams> {
 		if (typeof startParams.port === 'number') {
 			return findFreePort(startParams.port, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(freePort => {
 				startParams.port = freePort;

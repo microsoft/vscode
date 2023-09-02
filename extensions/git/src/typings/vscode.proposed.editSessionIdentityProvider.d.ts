@@ -60,12 +60,12 @@ declare module 'vscode' {
 		readonly workspaceFolder: WorkspaceFolder;
 
 		/**
-		 * Allows to pause the event until the provided thenable resolves.
+		 * Allows to pause the event until the provided promise-like resolves.
 		 *
 		 * *Note:* This function can only be called during event dispatch.
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @param promiseLike A promise-like that delays saving.
 		 */
-		waitUntil(thenable: Thenable<any>): void;
+		waitUntil(promiseLike: PromiseLike<any>): void;
 	}
 }

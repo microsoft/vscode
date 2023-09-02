@@ -12,7 +12,7 @@ const reNumber = /[0-9]/;
 /**
  * Incerement number under caret of given editor
  */
-export function incrementDecrement(delta: number): Thenable<boolean> | undefined {
+export function incrementDecrement(delta: number): PromiseLike<boolean> | undefined {
 	if (!vscode.window.activeTextEditor) {
 		vscode.window.showInformationMessage('No editor is active');
 		return;

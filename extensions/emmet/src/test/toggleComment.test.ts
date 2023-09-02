@@ -9,7 +9,7 @@ import { Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { toggleComment as toggleCommentImpl } from '../toggleComment';
 
-function toggleComment(): Thenable<boolean> {
+function toggleComment(): PromiseLike<boolean> {
 	const result = toggleCommentImpl();
 	assert.ok(result);
 	return result!;

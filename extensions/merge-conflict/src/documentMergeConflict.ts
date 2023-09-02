@@ -23,7 +23,7 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 		this.splitter = descriptor.splitter;
 	}
 
-	public commitEdit(type: interfaces.CommitType, editor: vscode.TextEditor, edit?: vscode.TextEditorEdit): Thenable<boolean> {
+	public commitEdit(type: interfaces.CommitType, editor: vscode.TextEditor, edit?: vscode.TextEditorEdit): PromiseLike<boolean> {
 		function commitTypeToString(type: interfaces.CommitType): string {
 			switch (type) {
 				case interfaces.CommitType.Current:

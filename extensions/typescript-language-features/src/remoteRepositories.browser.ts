@@ -34,7 +34,7 @@ namespace RemoteRepositories {
 		return remoteHub;
 	}
 
-	export function getApi(): Thenable<RemoteHubApi> {
+	export function getApi(): PromiseLike<RemoteHubApi> {
 		return getRemoteExtension().activate();
 	}
 }

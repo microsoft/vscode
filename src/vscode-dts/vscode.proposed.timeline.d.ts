@@ -140,7 +140,7 @@ declare module 'vscode' {
 		 * @param uri The {@link Uri} of the file to provide the timeline for.
 		 * @param options A set of options to determine how results should be returned.
 		 * @param token A cancellation token.
-		 * @return The {@link TimelineResult timeline result} or a thenable that resolves to such. The lack of a result
+		 * @return The {@link TimelineResult timeline result} or a promise-like that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideTimeline(uri: Uri, options: TimelineOptions, token: CancellationToken): ProviderResult<Timeline>;

@@ -46,7 +46,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _commands: ExtHostCommands;
 
 		private _onDidSelectItem?: (handle: number) => void;
-		private _validateInput?: (input: string) => string | InputBoxValidationMessage | undefined | null | Thenable<string | InputBoxValidationMessage | undefined | null>;
+		private _validateInput?: (input: string) => string | InputBoxValidationMessage | undefined | null | PromiseLike<string | InputBoxValidationMessage | undefined | null>;
 
 		private _sessions = new Map<number, ExtHostQuickInput>();
 

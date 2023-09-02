@@ -101,7 +101,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.registerTestProvider
 	 */
-	public createTestController(extension: IExtensionDescription, controllerId: string, label: string, refreshHandler?: (token: CancellationToken) => Thenable<void> | void): vscode.TestController {
+	public createTestController(extension: IExtensionDescription, controllerId: string, label: string, refreshHandler?: (token: CancellationToken) => PromiseLike<void> | void): vscode.TestController {
 		if (this.controllers.has(controllerId)) {
 			throw new Error(`Attempt to insert a duplicate controller with ID "${controllerId}"`);
 		}
@@ -126,7 +126,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			get refreshHandler() {
 				return refreshHandler;
 			},
-			set refreshHandler(value: ((token: CancellationToken) => Thenable<void> | void) | undefined) {
+			set refreshHandler(value: ((token: CancellationToken) => PromiseLike<void> | void) | undefined) {
 				refreshHandler = value;
 				proxy.$updateController(controllerId, { canRefresh: !!value });
 			},
@@ -1073,7 +1073,7 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 		public readonly profileId: number,
 		private _label: string,
 		public readonly kind: vscode.TestRunProfileKind,
-		public runHandler: (request: vscode.TestRunRequest, token: vscode.CancellationToken) => Thenable<void> | void,
+		public runHandler: (request: vscode.TestRunRequest, token: vscode.CancellationToken) => PromiseLike<void> | void,
 		private _isDefault = false,
 		public _tag: vscode.TestTag | undefined = undefined,
 		private _supportsContinuousRun = false,

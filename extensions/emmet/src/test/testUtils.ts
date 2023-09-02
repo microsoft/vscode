@@ -17,7 +17,7 @@ export function rndName() {
 	return name;
 }
 
-export function createRandomFile(contents = '', fileExtension = 'txt'): Thenable<vscode.Uri> {
+export function createRandomFile(contents = '', fileExtension = 'txt'): PromiseLike<vscode.Uri> {
 	return new Promise((resolve, reject) => {
 		const tmpFile = join(os.tmpdir(), rndName() + '.' + fileExtension);
 		fs.writeFile(tmpFile, contents, (error) => {
@@ -39,7 +39,7 @@ export function pathEquals(path1: string, path2: string): boolean {
 	return path1 === path2;
 }
 
-export function deleteFile(file: vscode.Uri): Thenable<boolean> {
+export function deleteFile(file: vscode.Uri): PromiseLike<boolean> {
 	return new Promise((resolve, reject) => {
 		fs.unlink(file.fsPath, (err) => {
 			if (err) {
@@ -51,11 +51,11 @@ export function deleteFile(file: vscode.Uri): Thenable<boolean> {
 	});
 }
 
-export function closeAllEditors(): Thenable<any> {
+export function closeAllEditors(): PromiseLike<any> {
 	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 }
 
-export function withRandomFileEditor(initialContents: string, fileExtension: string = 'txt', run: (editor: vscode.TextEditor, doc: vscode.TextDocument) => Thenable<void>): Thenable<boolean> {
+export function withRandomFileEditor(initialContents: string, fileExtension: string = 'txt', run: (editor: vscode.TextEditor, doc: vscode.TextDocument) => PromiseLike<void>): PromiseLike<boolean> {
 	return createRandomFile(initialContents, fileExtension).then(file => {
 		return vscode.workspace.openTextDocument(file).then(doc => {
 			return vscode.window.showTextDocument(doc).then((editor) => {

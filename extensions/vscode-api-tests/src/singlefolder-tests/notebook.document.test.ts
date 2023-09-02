@@ -10,12 +10,12 @@ import * as utils from '../utils';
 suite('Notebook Document', function () {
 
 	const simpleContentProvider = new class implements vscode.NotebookSerializer {
-		deserializeNotebook(_data: Uint8Array): vscode.NotebookData | Thenable<vscode.NotebookData> {
+		deserializeNotebook(_data: Uint8Array): vscode.NotebookData | PromiseLike<vscode.NotebookData> {
 			return new vscode.NotebookData(
 				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, '// SIMPLE', 'javascript')],
 			);
 		}
-		serializeNotebook(_data: vscode.NotebookData): Uint8Array | Thenable<Uint8Array> {
+		serializeNotebook(_data: vscode.NotebookData): Uint8Array | PromiseLike<Uint8Array> {
 			return new Uint8Array();
 		}
 	};

@@ -38,7 +38,7 @@ declare module 'vscode' {
 
 	export interface SlashCommand {
 
-		(prompt: ChatMessage, context: SlashCommandContext, progress: Progress<SlashResponse>, token: CancellationToken): Thenable<SlashResult>;
+		(prompt: ChatMessage, context: SlashCommandContext, progress: Progress<SlashResponse>, token: CancellationToken): PromiseLike<SlashResult>;
 	}
 
 	export namespace chat {

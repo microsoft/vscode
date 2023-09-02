@@ -443,7 +443,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport, IDispos
 	}
 
 	public getLoadStatus(): ILoadStatus {
-		const promises: Thenable<any>[] = [];
+		const promises: PromiseLike<any>[] = [];
 		for (const nestedLanguageId in this._embeddedLanguages) {
 			const tokenizationSupport = languages.TokenizationRegistry.get(nestedLanguageId);
 			if (tokenizationSupport) {

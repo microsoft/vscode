@@ -225,10 +225,10 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		const extensionNames = new Set<string>();
 		const edits: [IExtensionDescription, WorkspaceEdit][] = [];
 
-		await emitter.fireAsync(data, token, async (thenable: Promise<unknown>, listener) => {
+		await emitter.fireAsync(data, token, async (promise: Promise<unknown>, listener) => {
 			// ignore all results except for WorkspaceEdits. Those are stored in an array.
 			const now = Date.now();
-			const result = await Promise.resolve(thenable);
+			const result = await Promise.resolve(promise);
 			if (result instanceof WorkspaceEdit) {
 				edits.push([(<IExtensionListener<E>>listener).extension, result]);
 				extensionNames.add((<IExtensionListener<E>>listener).extension.displayName ?? (<IExtensionListener<E>>listener).extension.identifier.value);
