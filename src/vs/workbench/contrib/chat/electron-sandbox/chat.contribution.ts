@@ -3,6 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.interactive-response-progress-tree .monaco-tl-row:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
+import { registerVoiceChatActions } from 'vs/workbench/contrib/chat/electron-sandbox/actions/voiceChatActions';
+
+registerVoiceChatActions();

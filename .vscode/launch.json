@@ -256,7 +256,11 @@
 			"browserLaunchLocation": "workspace",
 			"presentation": {
 				"hidden": true,
-			}
+			},
+			// This is read by the vscode-diagnostic-tools extension
+			"vscode-diagnostic-tools.debuggerScripts": [
+				"${workspaceFolder}/scripts/hot-reload-injected-script.js"
+			]
 		},
 		{
 			"type": "node",

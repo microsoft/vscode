@@ -184,7 +184,7 @@ export class TabsTitleControl extends TitleControl {
 		this.updateTabSizing(false);
 
 		// Tabs Scrollbar
-		this.tabsScrollbar = this._register(this.createTabsScrollbar(this.tabsContainer));
+		this.tabsScrollbar = this.createTabsScrollbar(this.tabsContainer);
 		this.tabsAndActionsContainer.appendChild(this.tabsScrollbar.getDomNode());
 
 		// Tabs Container listeners
@@ -206,19 +206,19 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
-		const tabsScrollbar = new ScrollableElement(scrollable, {
+		const tabsScrollbar = this._register(new ScrollableElement(scrollable, {
 			horizontal: ScrollbarVisibility.Auto,
 			horizontalScrollbarSize: this.getTabsScrollbarSizing(),
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
 			useShadows: false
-		});
+		}));
 
-		tabsScrollbar.onScroll(e => {
+		this._register(tabsScrollbar.onScroll(e => {
 			if (e.scrollLeftChanged) {
 				scrollable.scrollLeft = e.scrollLeft;
 			}
-		});
+		}));
 
 		return tabsScrollbar;
 	}
@@ -2075,6 +2075,10 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active:hover  {
 				outline: 1px solid;
 				outline-offset: -5px;
+			}
+
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active:focus {
+				outline-style: dashed;
 			}
 
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {

@@ -34,7 +34,8 @@ import { EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensi
 import { IMenuItem, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { LineRangeMapping, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping, RangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -352,8 +353,9 @@ export function createWebWorker<T extends object>(opts: IWebWorkerOptions): Mona
 export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
 	const languageService = StandaloneServices.get(ILanguageService);
 	const themeService = <StandaloneThemeService>StandaloneServices.get(IStandaloneThemeService);
-	themeService.registerEditorContainer(domNode);
-	return Colorizer.colorizeElement(themeService, languageService, domNode, options);
+	return Colorizer.colorizeElement(themeService, languageService, domNode, options).then(() => {
+		themeService.registerEditorContainer(domNode);
+	});
 }
 
 /**
@@ -583,11 +585,11 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		FindMatch: <any>FindMatch,
 		ApplyUpdateResult: <any>ApplyUpdateResult,
 		LineRange: <any>LineRange,
-		LineRangeMapping: <any>LineRangeMapping,
+		DetailedLineRangeMapping: <any>DetailedLineRangeMapping,
 		RangeMapping: <any>RangeMapping,
 		EditorZoom: <any>EditorZoom,
 		MovedText: <any>MovedText,
-		SimpleLineRangeMapping: <any>SimpleLineRangeMapping,
+		LineRangeMapping: <any>LineRangeMapping,
 
 		// vars
 		EditorType: EditorType,

@@ -80,17 +80,18 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	override reveal(): void {
 		const initialInput = this._instance.hasSelection() && !this._instance.selection!.includes('\n') ? this._instance.selection : undefined;
+		const inputValue = initialInput ?? this.inputValue;
 		const xterm = this._instance.xterm;
-		if (xterm && this.inputValue && this.inputValue !== '') {
+		if (xterm && inputValue && inputValue !== '') {
 			// trigger highlight all matches
-			this._findPreviousWithEvent(xterm, this.inputValue, { incremental: true, regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() }).then(foundMatch => {
+			this._findPreviousWithEvent(xterm, inputValue, { incremental: true, regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() }).then(foundMatch => {
 				this.updateButtons(foundMatch);
 				this._register(Event.once(xterm.onDidChangeSelection)(() => xterm.clearActiveSearchDecoration()));
 			});
 		}
 		this.updateButtons(false);
 
-		super.reveal(initialInput);
+		super.reveal(inputValue);
 		this._findWidgetVisible.set(true);
 	}
 

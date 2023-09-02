@@ -854,7 +854,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		width = dom.getTotalWidth(containerDomNode);
 		this._contentWidth = width;
 		this._updateMinimumWidth();
-		this._updateResizableNodeMaxDimensions();
 		this._resizableNode.layout(height, width);
 
 		if (this._hasHorizontalScrollbar()) {

@@ -251,10 +251,10 @@ class CodeMain {
 			Promise.all<string | undefined>([
 				environmentMainService.extensionsPath,
 				environmentMainService.codeCachePath,
-				environmentMainService.logsHome.fsPath,
-				userDataProfilesMainService.defaultProfile.globalStorageHome.fsPath,
-				environmentMainService.workspaceStorageHome.fsPath,
-				environmentMainService.localHistoryHome.fsPath,
+				environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
+				userDataProfilesMainService.defaultProfile.globalStorageHome.with({ scheme: Schemas.file }).fsPath,
+				environmentMainService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath,
+				environmentMainService.localHistoryHome.with({ scheme: Schemas.file }).fsPath,
 				environmentMainService.backupHome
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
