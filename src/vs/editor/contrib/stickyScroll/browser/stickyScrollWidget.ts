@@ -30,7 +30,7 @@ export class StickyScrollWidgetState {
 
 const _ttPolicy = createTrustedTypesPolicy('stickyScrollViewLayer', { createHTML: value => value });
 const STICKY_LINE_INDEX_ATTR = 'data-sticky-line-index';
-const STICKY_LINE_FOLDING_ICON_ATTR = 'data-is-folding-icon';
+const STICKY_LINE_FOLDING_ICON_ATTR = 'data-sticky-line-is-folding-icon';
 
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
@@ -106,8 +106,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return this._lineNumbers.length;
 	}
 
-	get stickyLines(): RenderedStickyLine[] {
-		return this._stickyLines;
+	getStickyLineForLine(lineNumber: number): RenderedStickyLine | undefined {
+		return this._stickyLines.find(stickyLine => stickyLine.lineNumber === lineNumber);
 	}
 
 	getCurrentLines(): readonly number[] {
@@ -172,12 +172,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const previousStickyLine = previousStickyLines[index];
-			const renderedLine = (!forceRebuild && previousStickyLine?.lineNumber === line)
+			const stickyLine = (!forceRebuild && previousStickyLine?.lineNumber === line)
 				? this._updateTopAndZIndexOfStickyLine(previousStickyLine)
 				: this._renderChildNode(index, line, foldingModel, layoutInfo);
-			this._linesDomNode.appendChild(renderedLine.lineDomNode);
-			this._lineNumbersDomNode.appendChild(renderedLine.lineNumberDomNode);
-			this._stickyLines.push(renderedLine);
+			this._linesDomNode.appendChild(stickyLine.lineDomNode);
+			this._lineNumbersDomNode.appendChild(stickyLine.lineNumberDomNode);
+			this._stickyLines.push(stickyLine);
 		}
 		if (foldingModel) {
 			this._setFoldingHoverListeners();
@@ -281,8 +281,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
 		}
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
-		const foldingIcon = this._renderFoldingIconForLine(lineNumberHTMLNode, index, line, foldingModel);
-		const renderedLine = new RenderedStickyLine(index, line, lineHTMLNode, lineNumberHTMLNode, foldingIcon, renderOutput.characterMapping);
+		const foldingIcon = this._renderFoldingIconForLine(foldingModel, line);
+		if (foldingIcon) {
+			lineNumberHTMLNode.appendChild(foldingIcon.domNode);
+		}
 
 		this._editor.applyFontInfo(lineHTMLNode);
 		this._editor.applyFontInfo(innerLineNumberHTML);
@@ -297,7 +299,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineNumberHTMLNode.style.height = `${this._lineHeight}px`;
 		lineHTMLNode.style.height = `${this._lineHeight}px`;
 
-		// Special case for the last line of sticky scroll
+		const renderedLine = new RenderedStickyLine(index, line, lineHTMLNode, lineNumberHTMLNode, foldingIcon, renderOutput.characterMapping);
 		return this._updateTopAndZIndexOfStickyLine(renderedLine);
 	}
 
@@ -319,7 +321,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return stickyLine;
 	}
 
-	private _renderFoldingIconForLine(container: HTMLSpanElement, index: number, line: number, foldingModel: FoldingModel | null): StickyFoldingIcon | undefined {
+	private _renderFoldingIconForLine(foldingModel: FoldingModel | null, line: number): StickyFoldingIcon | undefined {
 		const showFoldingControls: 'mouseover' | 'always' | 'never' = this._editor.getOption(EditorOption.showFoldingControls);
 		if (!foldingModel || showFoldingControls === 'never') {
 			return;
@@ -333,9 +335,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 		const isCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
 		const foldingIcon = new StickyFoldingIcon(isCollapsed, startLineNumber, foldingRegions.getEndLineNumber(indexOfFoldingRegion), this._lineHeight);
-		container.append(foldingIcon.domNode);
 		foldingIcon.setVisible(this._isOnGlyphMargin ? true : (isCollapsed || showFoldingControls === 'always'));
-		foldingIcon.domNode.setAttribute(STICKY_LINE_FOLDING_ICON_ATTR, 'true');
+		foldingIcon.domNode.setAttribute(STICKY_LINE_FOLDING_ICON_ATTR, '');
 		return foldingIcon;
 	}
 
@@ -428,7 +429,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	getAttributeValue(domNode: HTMLElement | null, attribute: string): string | undefined {
 		while (domNode && domNode !== this._rootDomNode) {
 			const line = domNode.getAttribute(attribute);
-			if (line) {
+			if (line !== null) {
 				return line;
 			}
 			domNode = domNode.parentElement;

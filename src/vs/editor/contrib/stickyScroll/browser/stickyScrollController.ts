@@ -264,15 +264,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				this._revealLineInCenterIfOutsideViewport(position);
 				return;
 			}
-			// normal click
+			// click on folding icon
 			const isInFoldingIconDomNode = this._stickyScrollWidget.isInFoldingIconDomNode(mouseEvent.target);
 			if (isInFoldingIconDomNode) {
 				const lineNumber = this._stickyScrollWidget.getLineNumberFromChildDomNode(mouseEvent.target);
-				if (lineNumber) {
-					this._toggleFoldingRegionForLine(lineNumber);
-				}
+				this._toggleFoldingRegionForLine(lineNumber);
 				return;
 			}
+			// normal click
 			let position = this._stickyScrollWidget.getEditorPositionFromNode(mouseEvent.target);
 			if (!position) {
 				const lineNumber = this._stickyScrollWidget.getLineNumberFromChildDomNode(mouseEvent.target);
@@ -384,12 +383,12 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		});
 	}
 
-	private _toggleFoldingRegionForLine(line: number) {
-		if (!this._foldingModel) {
+	private _toggleFoldingRegionForLine(line: number | null) {
+		if (!this._foldingModel || line === null) {
 			return;
 		}
-		const renderedStickyLine = this._stickyScrollWidget.stickyLines.find(stickyLine => stickyLine.lineNumber === line);
-		const foldingIcon = renderedStickyLine?.foldingIcon;
+		const stickyLine = this._stickyScrollWidget.getStickyLineForLine(line);
+		const foldingIcon = stickyLine?.foldingIcon;
 		if (!foldingIcon) {
 			return;
 		}
@@ -398,7 +397,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const scrollTop = (foldingIcon.isCollapsed ?
 			this._editor.getTopForLineNumber(foldingIcon.foldingEndLine)
 			: this._editor.getTopForLineNumber(foldingIcon.foldingStartLine))
-			- this._editor.getOption(EditorOption.lineHeight) * renderedStickyLine.index + 1;
+			- this._editor.getOption(EditorOption.lineHeight) * stickyLine.index + 1;
 		this._editor.setScrollTop(scrollTop);
 	}
 
