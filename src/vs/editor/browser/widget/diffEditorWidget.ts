@@ -297,7 +297,14 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			diffAlgorithm: 'advanced',
 			accessibilityVerbose: false,
 			experimental: {
-				collapseUnchangedRegions: false,
+				showEmptyDecorations: false,
+				showMoves: false,
+			},
+			hideUnchangedRegions: {
+				enabled: false,
+				contextLineCount: 0,
+				minimumLineCount: 0,
+				revealLineCount: 0,
 			},
 			isInEmbeddedEditor: false,
 			onlyShowAccessibleDiffViewer: false,
@@ -1205,24 +1212,24 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 						let modifiedEndLineNumber: number;
 						let innerChanges = m.innerChanges;
 
-						if (m.originalRange.isEmpty) {
+						if (m.original.isEmpty) {
 							// Insertion
-							originalStartLineNumber = m.originalRange.startLineNumber - 1;
+							originalStartLineNumber = m.original.startLineNumber - 1;
 							originalEndLineNumber = 0;
 							innerChanges = undefined;
 						} else {
-							originalStartLineNumber = m.originalRange.startLineNumber;
-							originalEndLineNumber = m.originalRange.endLineNumberExclusive - 1;
+							originalStartLineNumber = m.original.startLineNumber;
+							originalEndLineNumber = m.original.endLineNumberExclusive - 1;
 						}
 
-						if (m.modifiedRange.isEmpty) {
+						if (m.modified.isEmpty) {
 							// Deletion
-							modifiedStartLineNumber = m.modifiedRange.startLineNumber - 1;
+							modifiedStartLineNumber = m.modified.startLineNumber - 1;
 							modifiedEndLineNumber = 0;
 							innerChanges = undefined;
 						} else {
-							modifiedStartLineNumber = m.modifiedRange.startLineNumber;
-							modifiedEndLineNumber = m.modifiedRange.endLineNumberExclusive - 1;
+							modifiedStartLineNumber = m.modified.startLineNumber;
+							modifiedEndLineNumber = m.modified.endLineNumberExclusive - 1;
 						}
 
 						return {
@@ -2743,8 +2750,15 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		diffWordWrap: validateDiffWordWrap(options.diffWordWrap, defaults.diffWordWrap),
 		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced'], { 'smart': 'legacy', 'experimental': 'advanced' }),
 		accessibilityVerbose: validateBooleanOption(options.accessibilityVerbose, defaults.accessibilityVerbose),
+		hideUnchangedRegions: {
+			enabled: false,
+			contextLineCount: 0,
+			minimumLineCount: 0,
+			revealLineCount: 0,
+		},
 		experimental: {
-			collapseUnchangedRegions: false,
+			showEmptyDecorations: false,
+			showMoves: false,
 		},
 		isInEmbeddedEditor: validateBooleanOption(options.isInEmbeddedEditor, defaults.isInEmbeddedEditor),
 		onlyShowAccessibleDiffViewer: false,

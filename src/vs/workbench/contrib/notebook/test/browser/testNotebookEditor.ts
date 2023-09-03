@@ -42,7 +42,7 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { CellFindMatchWithIndex, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookCellStateChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/services/notebookCellStatusBarServiceImpl';
 import { ListViewInfoAccessor, NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
@@ -61,6 +61,8 @@ import { IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { EditorFontLigatures, EditorFontVariations } from 'vs/editor/common/config/editorOptions';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -218,6 +220,8 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	cellList.attachViewModel(viewModel);
 	const listViewInfoAccessor = new ListViewInfoAccessor(cellList);
 
+	let visibleRanges: ICellRange[] = [{ start: 0, end: 100 }];
+
 	const notebookEditor: IActiveNotebookEditorDelegate = new class extends mock<IActiveNotebookEditorDelegate>() {
 		override dispose() {
 			viewModel.dispose();
@@ -289,8 +293,48 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		}
 		override deltaCellDecorations() { return []; }
 		override onDidChangeVisibleRanges = Event.None;
-		override visibleRanges: ICellRange[] = [{ start: 0, end: 100 }];
+
+		override get visibleRanges() {
+			return visibleRanges;
+		}
+
+		override set visibleRanges(_ranges: ICellRange[]) {
+			visibleRanges = _ranges;
+		}
+
 		override getId(): string { return ''; }
+		override setScrollTop(scrollTop: number): void {
+			cellList.scrollTop = scrollTop;
+		}
+		override get scrollTop(): number {
+			return cellList.scrollTop;
+		}
+		override getLayoutInfo(): NotebookLayoutInfo {
+			return {
+				width: 0,
+				height: 0,
+				scrollHeight: cellList.getScrollHeight(),
+				fontInfo: new FontInfo({
+					pixelRatio: 1,
+					fontFamily: 'mockFont',
+					fontWeight: 'normal',
+					fontSize: 14,
+					fontFeatureSettings: EditorFontLigatures.OFF,
+					fontVariationSettings: EditorFontVariations.OFF,
+					lineHeight: 19,
+					letterSpacing: 1.5,
+					isMonospace: true,
+					typicalHalfwidthCharacterWidth: 10,
+					typicalFullwidthCharacterWidth: 20,
+					canUseHalfwidthRightwardsArrow: true,
+					spaceWidth: 10,
+					middotWidth: 10,
+					wsmiddotWidth: 10,
+					maxDigitWidth: 10,
+				}, true),
+				stickyHeight: 0
+			};
+		}
 	};
 
 	return { editor: notebookEditor, viewModel };
@@ -345,7 +389,11 @@ export async function withTestNotebookDiffModel<R = any>(originalCells: [source:
 	return res;
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditorDelegate, viewModel: NotebookViewModel, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
+interface IActiveTestNotebookEditorDelegate extends IActiveNotebookEditorDelegate {
+	visibleRanges: ICellRange[];
+}
+
+export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveTestNotebookEditorDelegate, viewModel: NotebookViewModel, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
 	const disposables = new DisposableStore();
 	const instantiationService = accessor ?? setupInstantiationService(disposables);
 	const notebookEditor = _createTestNotebookEditor(instantiationService, cells);

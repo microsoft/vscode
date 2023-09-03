@@ -638,6 +638,21 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			return Promise.resolve(tags);
 		}
 
+		const aiGeneratedWorkspaces = URI.joinPath(this.environmentService.workspaceStorageHome, 'aiGeneratedWorkspaces.json');
+		await this.fileService.exists(aiGeneratedWorkspaces).then(async result => {
+			if (result) {
+				try {
+					const content = await this.fileService.readFile(aiGeneratedWorkspaces);
+					const workspaces = JSON.parse(content.value.toString()) as string[];
+					if (workspaces.indexOf(workspace.folders[0].uri.toString()) > -1) {
+						tags['aiGenerated'] = true;
+					}
+				} catch (e) {
+					// Ignore errors when resolving file contents
+				}
+			}
+		});
+
 		return this.fileService.resolveAll(folders.map(resource => ({ resource }))).then((files: IFileStatResult[]) => {
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
