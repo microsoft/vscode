@@ -27,6 +27,8 @@ import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/langu
 import * as dom from 'vs/base/browser/dom';
 import { StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
+import { FoldingModel, toggleCollapseState } from 'vs/editor/contrib/folding/browser/foldingModel';
 
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
@@ -49,6 +51,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 
 	private _widgetState: StickyScrollWidgetState;
+	private _foldingModel: FoldingModel | null = null;
 	private _maxStickyLines: number = Number.MAX_SAFE_INTEGER;
 
 	private _stickyRangeProjectedOnEditor: IRange | undefined;
@@ -262,11 +265,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				return;
 			}
 			// normal click
-			const isOnFoldingIcon = this._stickyScrollWidget.isFoldingToggleIconNode(mouseEvent.target);
-			if (isOnFoldingIcon) {
+			const isInFoldingIconDomNode = this._stickyScrollWidget.isInFoldingIconDomNode(mouseEvent.target);
+			if (isInFoldingIconDomNode) {
 				const lineNumber = this._stickyScrollWidget.getLineNumberFromChildDomNode(mouseEvent.target);
 				if (lineNumber) {
-					this._stickyScrollWidget.toggleFoldingIconForLine(lineNumber);
+					this._toggleFoldingRegionForLine(lineNumber);
 				}
 				return;
 			}
@@ -381,6 +384,24 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		});
 	}
 
+	private _toggleFoldingRegionForLine(line: number) {
+		if (!this._foldingModel) {
+			return;
+		}
+		const renderedStickyLine = this._stickyScrollWidget.stickyLines.find(stickyLine => stickyLine.lineNumber === line);
+		const foldingIcon = renderedStickyLine?.foldingIcon;
+		if (!foldingIcon) {
+			return;
+		}
+		toggleCollapseState(this._foldingModel, Number.MAX_VALUE, [line]);
+		foldingIcon.isCollapsed = !foldingIcon.isCollapsed;
+		const scrollTop = (foldingIcon.isCollapsed ?
+			this._editor.getTopForLineNumber(foldingIcon.foldingEndLine)
+			: this._editor.getTopForLineNumber(foldingIcon.foldingStartLine))
+			- this._editor.getOption(EditorOption.lineHeight) * renderedStickyLine.index + 1;
+		this._editor.setScrollTop(scrollTop);
+	}
+
 	private _readConfiguration() {
 		const options = this._editor.getOption(EditorOption.stickyScroll);
 		if (options.enabled === false) {
@@ -440,30 +461,31 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._maxStickyLines = Math.round(theoreticalLines * .25);
 	}
 
-	private _renderStickyScroll(forceRebuild: boolean = false) {
+	private async _renderStickyScroll(forceRebuild: boolean = false) {
 		const model = this._editor.getModel();
 		if (!model || model.isTooLargeForTokenization()) {
-			this._stickyScrollWidget.setState(undefined, forceRebuild);
+			this._stickyScrollWidget.setState(undefined, null, forceRebuild);
 			return;
 		}
 		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
 		if (stickyLineVersion === undefined || stickyLineVersion === model.getVersionId()) {
+			this._foldingModel = await FoldingController.get(this._editor)?.getFoldingModel() ?? null;
 			this._widgetState = this.findScrollWidgetState();
 			this._stickyScrollVisibleContextKey.set(!(this._widgetState.startLineNumbers.length === 0));
 
 			if (!this._focused) {
-				this._stickyScrollWidget.setState(this._widgetState, forceRebuild);
+				this._stickyScrollWidget.setState(this._widgetState, this._foldingModel, forceRebuild);
 			} else {
 				// Suppose that previously the sticky scroll widget had height 0, then if there are visible lines, set the last line as focused
 				if (this._focusedStickyElementIndex === -1) {
-					this._stickyScrollWidget.setState(this._widgetState, forceRebuild);
+					this._stickyScrollWidget.setState(this._widgetState, this._foldingModel, forceRebuild);
 					this._focusedStickyElementIndex = this._stickyScrollWidget.lineNumberCount - 1;
 					if (this._focusedStickyElementIndex !== -1) {
 						this._stickyScrollWidget.focusLineWithIndex(this._focusedStickyElementIndex);
 					}
 				} else {
 					const focusedStickyElementLineNumber = this._stickyScrollWidget.lineNumbers[this._focusedStickyElementIndex];
-					this._stickyScrollWidget.setState(this._widgetState, forceRebuild);
+					this._stickyScrollWidget.setState(this._widgetState, this._foldingModel, forceRebuild);
 					// Suppose that after setting the state, there are no sticky lines, set the focused index to -1
 					if (this._stickyScrollWidget.lineNumberCount === 0) {
 						this._focusedStickyElementIndex = -1;
