@@ -19,4 +19,4 @@ The Git extension exposes an API, reachable by any other extension.
 	const git = gitExtension.getAPI(1);
 	```
 
-To make sure that the Git extension is loaded before your extension, add `extensionDependencies` ([docs](https://code.visualstudio.com/api/references/extension-manifest)) into the `package.json` of your extension.
+To ensure that the Git extension is activated before your extension, add `extensionDependencies` ([docs](https://code.visualstudio.com/api/references/extension-manifest)) into the `package.json` of your extension.
